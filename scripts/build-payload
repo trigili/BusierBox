@@ -6,7 +6,7 @@ VERSION=${BUSIERBOX_PAYLOAD_VERSION:-dev}
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 
 if [ "$TARGET" != "native" ]; then
-TARGET="$TARGET" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" scripts/buildroot-build-payload
+    TARGET="$TARGET" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" scripts/buildroot-build-payload
     exit $?
 fi
 
@@ -57,7 +57,7 @@ for tool in zsh tmux strace gdbserver dropbear curl; do
                 printf '%s\n' "echo 'mock dropbear-bin server running'" >>"runtime/payload/bin/dropbear-bin"
                 chmod 0755 "runtime/payload/bin/dropbear-bin"
             fi
-            
+
             cat >"runtime/payload/bin/dropbear" <<'EOF'
 #!/bin/sh
 ETC_DIR="${BBX_RUNTIME:-.busierbox}/etc/dropbear"
@@ -100,6 +100,25 @@ payload_sha() {
     fi
 }
 
+make_payload_archives() {
+    rm -f dist/payload.tar dist/payload.tar.gz
+    if tar --version 2>/dev/null | grep -qi 'GNU tar'; then
+        tar --format=ustar --sort=name --owner=0 --group=0 --numeric-owner --mtime='UTC 1970-01-01' -C runtime -cf dist/payload.tar payload
+    elif tar --format=ustar -cf /dev/null -C runtime payload >/dev/null 2>&1; then
+        tar --format=ustar -C runtime -cf dist/payload.tar payload
+    else
+        printf '%s\n' "build-payload: tar does not support --format=ustar; refusing to create payload for the built-in extractor" >&2
+        exit 1
+    fi
+    scripts/check-payload-tar dist/payload.tar
+    if command -v gzip >/dev/null 2>&1; then
+        gzip -n -c dist/payload.tar >dist/payload.tar.gz
+    else
+        printf '%s\n' "build-payload: gzip is required for PAYLOAD_FORMAT=tgz" >&2
+        [ "$PAYLOAD_FORMAT" = "tar" ] || exit 1
+    fi
+}
+
 static_status=dynamic
 if command -v file >/dev/null 2>&1 && file runtime/payload/bin/busybox | grep -qi 'statically linked'; then
     static_status=static
@@ -127,8 +146,7 @@ cat >runtime/payload/manifest.json <<EOF_MANIFEST
   "payload_sha256": "pending"
 }
 EOF_MANIFEST
-tar -C runtime -cf dist/payload.tar payload
-gzip -c dist/payload.tar >dist/payload.tar.gz
+make_payload_archives
 if [ "$PAYLOAD_FORMAT" = "tar" ]; then
     selected=dist/payload.tar
 else
@@ -137,14 +155,15 @@ fi
 sha=$(payload_sha "$selected")
 sed "s/\"payload_sha256\": \"pending\"/\"payload_sha256\": \"$sha\"/" runtime/payload/manifest.json >runtime/payload/manifest.json.tmp
 mv runtime/payload/manifest.json.tmp runtime/payload/manifest.json
-tar -C runtime -cf dist/payload.tar payload
-gzip -c dist/payload.tar >dist/payload.tar.gz
-sha256sum dist/payload.tar >dist/payload.tar.sha256 2>/dev/null || true
+make_payload_archives
 if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum dist/payload.tar.gz >dist/payload.tar.gz.sha256
+    sha256sum dist/payload.tar >dist/payload.tar.sha256
+    [ -f dist/payload.tar.gz ] && sha256sum dist/payload.tar.gz >dist/payload.tar.gz.sha256
 elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 dist/payload.tar.gz >dist/payload.tar.gz.sha256
+    shasum -a 256 dist/payload.tar >dist/payload.tar.sha256
+    [ -f dist/payload.tar.gz ] && shasum -a 256 dist/payload.tar.gz >dist/payload.tar.gz.sha256
 else
+    printf '%s\n' "sha256 unavailable" >dist/payload.tar.sha256
     printf '%s\n' "sha256 unavailable" >dist/payload.tar.gz.sha256
 fi
-printf '%s\n' "created dist/payload.tar.gz"
+printf '%s\n' "created dist/payload.tar and dist/payload.tar.gz"
