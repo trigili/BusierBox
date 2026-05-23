@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "profiles": [
+    {
+      "name": "native",
+      "arch": "native",
+      "libc": "host",
+      "kernel_floor": "host",
+      "qemu_user": "native",
+      "status": "supported",
+      "profile_file": "",
+      "buildroot_defconfig": "",
+      "notes": "Host compiler and BusyBox submodule build."
+    },
+    {
+      "name": "x86_64-linux-current-musl",
+      "arch": "x86_64",
+      "libc": "musl",
+      "kernel_floor": "current",
+      "qemu_user": "qemu-x86_64-static",
+      "status": "scaffold",
+      "profile_file": "",
+      "buildroot_defconfig": "",
+      "notes": "Listed for release planning; Buildroot backend files are not present yet."
+    },
+    {
+      "name": "i386-linux-2.6-musl",
+      "arch": "i386",
+      "libc": "musl",
+      "kernel_floor": "2.6",
+      "qemu_user": "qemu-i386-static",
+      "status": "scaffold",
+      "profile_file": "",
+      "buildroot_defconfig": "",
+      "notes": "Listed for release planning; Buildroot backend files are not present yet."
+    },
+    {
+      "name": "aarch64-linux-4.x-musl",
+      "arch": "aarch64",
+      "libc": "musl",
+      "kernel_floor": "4.x",
+      "qemu_user": "qemu-aarch64-static",
+      "status": "scaffold",
+      "profile_file": "",
+      "buildroot_defconfig": "",
+      "notes": "Listed for release planning; Buildroot backend files are not present yet."
+    },
+    {
+      "name": "armv7-linux-3.x-musl",
+      "arch": "armv7",
+      "abi": "hardfloat",
+      "libc": "musl",
+      "kernel_floor": "3.x",
+      "qemu_user": "qemu-arm-static",
+      "status": "supported",
+      "profile_file": "payloads/profiles/armv7-linux-3.x-musl.mk",
+      "buildroot_defconfig": "buildroot/configs/armv7-linux-3.x-musl_defconfig",
+      "notes": "Buildroot-backed payload and cross toolchain profile."
+    },
+    {
+      "name": "armv5-linux-2.6-uclibc-eabi",
+      "arch": "armv5",
+      "abi": "eabi",
+      "libc": "uclibc",
+      "kernel_floor": "2.6",
+      "qemu_user": "qemu-arm-static",
+      "status": "scaffold",
+      "profile_file": "",
+      "buildroot_defconfig": "",
+      "notes": "Listed for release planning; Buildroot backend files are not present yet."
+    },
+    {
+      "name": "mipsel-linux-2.6-musl",
+      "arch": "mipsel",
+      "endian": "little",
+      "libc": "musl",
+      "kernel_floor": "2.6",
+      "qemu_user": "qemu-mipsel-static",
+      "status": "scaffold",
+      "profile_file": "",
+      "buildroot_defconfig": "",
+      "notes": "Listed for release planning; Buildroot backend files are not present yet."
+    },
+    {
+      "name": "mips-linux-2.6-musl",
+      "arch": "mips",
+      "endian": "big",
+      "libc": "musl",
+      "kernel_floor": "2.6",
+      "qemu_user": "qemu-mips-static",
+      "status": "scaffold",
+      "profile_file": "",
+      "buildroot_defconfig": "",
+      "notes": "Listed for release planning; Buildroot backend files are not present yet."
+    },
+    {
+      "name": "mipsel-linux-2.6-uclibc",
+      "arch": "mipsel",
+      "endian": "little",
+      "libc": "uclibc",
+      "kernel_floor": "2.6",
+      "qemu_user": "qemu-mipsel-static",
+      "status": "supported",
+      "profile_file": "payloads/profiles/mipsel-linux-2.6-uclibc.mk",
+      "buildroot_defconfig": "buildroot/configs/mipsel-linux-2.6-uclibc_defconfig",
+      "notes": "Buildroot-backed payload and cross toolchain profile."
+    },
+    {
+      "name": "mips-linux-2.6-uclibc",
+      "arch": "mips",
+      "endian": "big",
+      "libc": "uclibc",
+      "kernel_floor": "2.6",
+      "qemu_user": "qemu-mips-static",
+      "status": "scaffold",
+      "profile_file": "",
+      "buildroot_defconfig": "",
+      "notes": "Listed for release planning; Buildroot backend files are not present yet."
+    }
+  ]
+}

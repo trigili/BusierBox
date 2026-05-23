@@ -12,6 +12,8 @@ BUILDROOT_DIR=${BUILDROOT_DIR:-buildroot/buildroot-$BUILDROOT_VERSION}
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 OUT_BASE=${BUILDROOT_OUTPUT_BASE:-buildroot/output}
 JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)}
+PATH="$(pwd)/scripts/shims:$PATH"
+export PATH
 
 profile="payloads/profiles/$TARGET.mk"
 defconfig="buildroot/configs/${TARGET}_defconfig"
@@ -86,6 +88,25 @@ payload_sha_file() {
     fi
 }
 
+make_payload_archives() {
+    rm -f dist/payload.tar dist/payload.tar.gz
+    if tar --version 2>/dev/null | grep -qi 'GNU tar'; then
+        tar --format=ustar --sort=name --owner=0 --group=0 --numeric-owner --mtime='UTC 1970-01-01' -C runtime -cf dist/payload.tar payload
+    elif tar --format=ustar -cf /dev/null -C runtime payload >/dev/null 2>&1; then
+        tar --format=ustar -C runtime -cf dist/payload.tar payload
+    else
+        printf '%s\n' "buildroot-build-payload: tar does not support --format=ustar; refusing to create payload for the built-in extractor" >&2
+        exit 1
+    fi
+    scripts/check-payload-tar dist/payload.tar
+    if command -v gzip >/dev/null 2>&1; then
+        gzip -n -c dist/payload.tar >dist/payload.tar.gz
+    else
+        printf '%s\n' "buildroot-build-payload: gzip is required for PAYLOAD_FORMAT=tgz" >&2
+        [ "$PAYLOAD_FORMAT" = tar ] || exit 1
+    fi
+}
+
 write_manifest() {
     static_status=$1
     payload_sha=$2
@@ -153,18 +174,15 @@ stage_placeholders
 printf '%s\n' "${BUSIERBOX_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION
 
 write_manifest "$static_status" pending
-tar -C runtime -cf dist/payload.tar payload
-gzip -c dist/payload.tar >dist/payload.tar.gz
+make_payload_archives
 if [ "$PAYLOAD_FORMAT" = "tar" ]; then selected=dist/payload.tar; else selected=dist/payload.tar.gz; fi
 payload_sha=$(payload_sha_file "$selected")
 write_manifest "$static_status" "$payload_sha"
-tar -C runtime -cf dist/payload.tar payload
-gzip -c dist/payload.tar >dist/payload.tar.gz
+make_payload_archives
 if [ "$PAYLOAD_FORMAT" = "tar" ]; then selected=dist/payload.tar; else selected=dist/payload.tar.gz; fi
 payload_sha=$(payload_sha_file "$selected")
 write_manifest "$static_status" "$payload_sha"
-tar -C runtime -cf dist/payload.tar payload
-gzip -c dist/payload.tar >dist/payload.tar.gz
+make_payload_archives
 payload_sha_file dist/payload.tar | awk '{print $1 "  dist/payload.tar"}' >dist/payload.tar.sha256
 payload_sha_file dist/payload.tar.gz | awk '{print $1 "  dist/payload.tar.gz"}' >dist/payload.tar.gz.sha256
 printf '%s\n' "created payload archives for $TARGET"

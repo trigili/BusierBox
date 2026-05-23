@@ -1,0 +1,15 @@
+# BusierBox example build configuration
+# Copy to configs/busierbox.conf or generate with: make menuconfig
+
+BB_TARGETS="native"
+BB_PAYLOAD_FORMAT="tgz"
+BB_PAYLOAD_VERSION="dev"
+BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
+BB_HEAVY_TOOLS=""
+BB_DROPBEAR_SERVER_MODE="no"
+BB_ENABLE_CUSTOM_TARGET="no"
+BB_CUSTOM_ARCH="mipsel"
+BB_CUSTOM_ENDIAN="little"
+BB_CUSTOM_LIBC="musl"
+BB_CUSTOM_KERNEL_FLOOR="2.6"
+BB_CUSTOM_ABI="default"

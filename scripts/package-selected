@@ -1,0 +1,73 @@
+#!/bin/sh
+set -eu
+
+STRICT=${STRICT:-1}
+TARGET_ARG=${TARGET:-}
+
+targets=
+custom_enabled=no
+
+if [ -f configs/busierbox.conf ]; then
+    . configs/busierbox.conf
+fi
+
+if [ -n "$TARGET_ARG" ]; then
+    targets=$TARGET_ARG
+else
+    targets=${BB_TARGETS:-native}
+    custom_enabled=${BB_ENABLE_CUSTOM_TARGET:-no}
+fi
+
+tmp=${TMPDIR:-/tmp}/busierbox-package-summary.$$
+trap 'rm -f "$tmp"' EXIT HUP INT TERM
+: >"$tmp"
+
+record() {
+    printf '%s\n' "$*" >>"$tmp"
+}
+
+handle_unbuildable() {
+    target=$1
+    reason=$2
+    if [ "$STRICT" = 0 ]; then
+        printf '%s\n' "SKIP $target -> $reason"
+        record "SKIP $target -> $reason"
+        return 0
+    fi
+    printf '%s\n' "FAIL $target -> $reason" >&2
+    record "FAIL $target -> $reason"
+    return 1
+}
+
+failed=0
+
+for target in $targets; do
+    if ! resolved=$(scripts/resolve-target "$target" 2>&1); then
+        if ! handle_unbuildable "$target" "$resolved"; then failed=1; fi
+        continue
+    fi
+    eval "$resolved"
+    if [ "$TARGET_STATUS" != supported ]; then
+        if ! handle_unbuildable "$target" "$TARGET_STATUS: $TARGET_NOTES"; then failed=1; fi
+        continue
+    fi
+    if scripts/package-target "$target"; then
+        record "PASS $target -> dist/busierbox-$target"
+    else
+        record "FAIL $target -> package-target failed"
+        failed=1
+        [ "$STRICT" = 0 ] || break
+    fi
+done
+
+if [ "$custom_enabled" = yes ] && [ -z "$TARGET_ARG" ]; then
+    eval "$(scripts/resolve-target --custom)"
+    if ! handle_unbuildable "$TARGET_NAME" "$TARGET_STATUS: $TARGET_NOTES"; then
+        failed=1
+    fi
+fi
+
+printf '%s\n' "Package summary:"
+cat "$tmp"
+
+[ "$failed" -eq 0 ] || exit 1

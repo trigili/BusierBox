@@ -1,0 +1,94 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    printf '%s\n' "usage: scripts/package-target TARGET" >&2
+}
+
+target=${1:-}
+[ -n "$target" ] || { usage; exit 2; }
+
+PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
+BUILDROOT_OUTPUT_BASE=${BUILDROOT_OUTPUT_BASE:-buildroot/output}
+
+die() {
+    printf '%s\n' "package-target: $*" >&2
+    exit 1
+}
+
+sha256_write() {
+    file=$1
+    out=$2
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$file" >"$out"
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$file" >"$out"
+    else
+        printf '%s\n' "sha256 unavailable  $file" >"$out"
+    fi
+}
+
+payload_suffix() {
+    if [ "$PAYLOAD_FORMAT" = tar ]; then
+        printf '%s\n' tar
+    else
+        printf '%s\n' tar.gz
+    fi
+}
+
+copy_payload_artifacts() {
+    suffix=$(payload_suffix)
+    [ -f "dist/payload.$suffix" ] || die "payload archive dist/payload.$suffix was not produced"
+    cp "dist/payload.tar" "dist/payload-$target.tar"
+    [ -f dist/payload.tar.sha256 ] && cp dist/payload.tar.sha256 "dist/payload-$target.tar.sha256"
+    if [ -f dist/payload.tar.gz ]; then
+        cp dist/payload.tar.gz "dist/payload-$target.tar.gz"
+        [ -f dist/payload.tar.gz.sha256 ] && cp dist/payload.tar.gz.sha256 "dist/payload-$target.tar.gz.sha256"
+    fi
+}
+
+find_cross_cc() {
+    out_dir="$BUILDROOT_OUTPUT_BASE/$target"
+    host_bin="$out_dir/host/bin"
+    [ -d "$host_bin" ] || return 1
+    find "$host_bin" -type f -name '*-gcc' ! -name gcc | sort | sed -n '1p'
+}
+
+eval "$(scripts/resolve-target "$target")"
+
+[ "$TARGET_STATUS" = supported ] || die "target $target is $TARGET_STATUS: $TARGET_NOTES"
+
+mkdir -p dist
+
+core="dist/busierbox-$target.core"
+artifact="dist/busierbox-$target"
+suffix=$(payload_suffix)
+payload="dist/payload-$target.$suffix"
+
+if [ "$target" = native ]; then
+    scripts/build-busybox
+    TARGET="$target" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" scripts/build-payload
+    copy_payload_artifacts
+    OUT="$core" scripts/build-native
+else
+    [ -n "$TARGET_PROFILE_FILE" ] && [ -f "$TARGET_PROFILE_FILE" ] || die "target $target is supported in registry but missing profile file $TARGET_PROFILE_FILE"
+    [ -n "$TARGET_BUILDROOT_DEFCONFIG" ] && [ -f "$TARGET_BUILDROOT_DEFCONFIG" ] || die "target $target is supported in registry but missing Buildroot defconfig $TARGET_BUILDROOT_DEFCONFIG"
+    TARGET="$target" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" BUILDROOT_OUTPUT_BASE="$BUILDROOT_OUTPUT_BASE" scripts/buildroot-build-payload
+    copy_payload_artifacts
+    cross_cc=$(find_cross_cc || true)
+    if [ -z "$cross_cc" ]; then
+        die "target $target payload support exists, but BusierBox core cross-compile is not wired yet"
+    fi
+    CC="$cross_cc" OUT="$core" scripts/build-native
+fi
+
+scripts/check-payload-tar "dist/payload-$target.tar"
+scripts/embed-payload "$core" "$payload" "$artifact"
+sha256_write "$artifact" "$artifact.sha256"
+
+if [ "$target" = native ]; then
+    cp "$artifact" dist/busierbox
+    cp "$artifact.sha256" dist/busierbox.sha256
+fi
+
+printf '%s\n' "PASS $target -> $artifact"

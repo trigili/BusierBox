@@ -80,41 +80,39 @@ EOF
 }
 
 configure_known_profiles() {
-    status_native=off
-    status_armv7=off
-    status_mipsel_uclibc=off
-    status_mips_uclibc=off
-    status_armv5=off
-    status_aarch64=off
-    status_i386=off
-    status_x86_64=off
-    status_mipsel_musl=off
-    status_mips_musl=off
+    if ! command -v python3 >/dev/null 2>&1 || [ ! -f targets/profiles.json ]; then
+        dialog --title "Target Selection / Known profiles" --msgbox "python3 and targets/profiles.json are required to edit known profiles." 8 70
+        return 0
+    fi
 
-    has_item "$BB_TARGETS" "native" && status_native=on
-    has_item "$BB_TARGETS" "armv7-linux-3.x-musl" && status_armv7=on
-    has_item "$BB_TARGETS" "mipsel-linux-2.6-uclibc" && status_mipsel_uclibc=on
-    has_item "$BB_TARGETS" "mips-linux-2.6-uclibc" && status_mips_uclibc=on
-    has_item "$BB_TARGETS" "armv5-linux-2.6-uclibc-eabi" && status_armv5=on
-    has_item "$BB_TARGETS" "aarch64-linux-4.x-musl" && status_aarch64=on
-    has_item "$BB_TARGETS" "i386-linux-2.6-musl" && status_i386=on
-    has_item "$BB_TARGETS" "x86_64-linux-current-musl" && status_x86_64=on
-    has_item "$BB_TARGETS" "mipsel-linux-2.6-musl" && status_mipsel_musl=on
-    has_item "$BB_TARGETS" "mips-linux-2.6-musl" && status_mips_musl=on
+    python3 - "$BB_TARGETS" >"$temp_cfg" <<'PY'
+import json
+import shlex
+import sys
 
-    dialog --title "Target Selection / Known profiles" \
-        --checklist "Select known release/test profiles:" 22 84 12 \
-        "native" "Native host build" "$status_native" \
-        "x86_64-linux-current-musl" "x86_64 Linux current musl" "$status_x86_64" \
-        "i386-linux-2.6-musl" "i386 Linux 2.6 musl" "$status_i386" \
-        "aarch64-linux-4.x-musl" "AArch64 Linux 4.x musl" "$status_aarch64" \
-        "armv7-linux-3.x-musl" "ARMv7 Linux 3.x musl hardfloat" "$status_armv7" \
-        "armv5-linux-2.6-uclibc-eabi" "ARMv5 Linux 2.6 uClibc EABI" "$status_armv5" \
-        "mipsel-linux-2.6-musl" "MIPS little-endian Linux 2.6 musl" "$status_mipsel_musl" \
-        "mips-linux-2.6-musl" "MIPS big-endian Linux 2.6 musl" "$status_mips_musl" \
-        "mipsel-linux-2.6-uclibc" "MIPS little-endian Linux 2.6 uClibc" "$status_mipsel_uclibc" \
-        "mips-linux-2.6-uclibc" "MIPS big-endian Linux 2.6 uClibc" "$status_mips_uclibc" \
-        2>"$temp_out" || return 0
+selected = set(sys.argv[1].split())
+with open("targets/profiles.json", "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+args = []
+for profile in data.get("profiles", []):
+    name = profile.get("name", "")
+    status = profile.get("status", "")
+    arch = profile.get("arch", "")
+    libc = profile.get("libc", "")
+    kernel = profile.get("kernel_floor", "")
+    abi = profile.get("abi", "")
+    desc = f"{status}: {arch} linux {kernel} {libc}"
+    if abi:
+        desc = f"{desc} {abi}"
+    args.extend([name, desc, "on" if name in selected else "off"])
+print(" ".join(shlex.quote(arg) for arg in args))
+PY
+
+    eval "dialog --title 'Target Selection / Known profiles' \
+        --checklist 'Select known release/test profiles:' 22 92 12 \
+        $(cat "$temp_cfg") \
+        2>'$temp_out'" || return 0
     BB_TARGETS=$(cat "$temp_out" | tr -d '"')
 }
 

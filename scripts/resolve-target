@@ -1,0 +1,123 @@
+#!/bin/sh
+set -eu
+
+registry=${BUSIERBOX_TARGET_REGISTRY:-targets/profiles.json}
+mode=shell
+target=
+
+case "${1:-}" in
+    --list)
+        mode=list
+        ;;
+    --custom)
+        mode=custom
+        ;;
+    --help|-h)
+        cat <<'EOF'
+usage:
+  scripts/resolve-target TARGET
+  scripts/resolve-target --list
+  scripts/resolve-target --custom
+
+Prints shell assignments for known TARGET profiles. Custom tuple output is
+informational and reports scaffold status until backend generation exists.
+EOF
+        exit 0
+        ;;
+    "")
+        printf '%s\n' "resolve-target: missing TARGET" >&2
+        exit 2
+        ;;
+    *)
+        target=$1
+        ;;
+esac
+
+[ -f "$registry" ] || {
+    printf '%s\n' "resolve-target: missing registry $registry" >&2
+    exit 1
+}
+
+if ! command -v python3 >/dev/null 2>&1; then
+    printf '%s\n' "resolve-target: python3 is required for strict JSON parsing" >&2
+    exit 1
+fi
+
+if [ "$mode" = list ]; then
+    python3 - "$registry" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+for p in data.get("profiles", []):
+    desc = p.get("notes") or p.get("status", "")
+    print("\t".join([p.get("name", ""), p.get("status", ""), desc]))
+PY
+    exit 0
+fi
+
+if [ "$mode" = custom ]; then
+    if [ -f configs/busierbox.conf ]; then
+        . configs/busierbox.conf
+    fi
+    arch=${BB_CUSTOM_ARCH:-unknown}
+    libc=${BB_CUSTOM_LIBC:-unknown}
+    kernel=${BB_CUSTOM_KERNEL_FLOOR:-unknown}
+    abi=${BB_CUSTOM_ABI:-default}
+    endian=${BB_CUSTOM_ENDIAN:-auto}
+    name="$arch-linux-$kernel-$libc"
+    if [ "$abi" != default ]; then
+        name="$name-$abi"
+    fi
+    cat <<EOF
+TARGET_NAME='$name'
+TARGET_STATUS='scaffold'
+TARGET_ARCH='$arch'
+TARGET_ENDIAN='$endian'
+TARGET_ABI='$abi'
+TARGET_LIBC='$libc'
+TARGET_KERNEL_FLOOR='$kernel'
+TARGET_QEMU_USER=''
+TARGET_PROFILE_FILE=''
+TARGET_BUILDROOT_DEFCONFIG=''
+TARGET_NOTES='custom tuple backend generation is not implemented yet'
+EOF
+    exit 0
+fi
+
+python3 - "$registry" "$target" <<'PY'
+import json
+import shlex
+import sys
+
+registry, target = sys.argv[1:]
+with open(registry, "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+profile = None
+for item in data.get("profiles", []):
+    if item.get("name") == target:
+        profile = item
+        break
+
+if profile is None:
+    print(f"resolve-target: unknown target {target}", file=sys.stderr)
+    sys.exit(3)
+
+def emit(key, value):
+    print(f"{key}={shlex.quote(str(value or ''))}")
+
+emit("TARGET_NAME", profile.get("name"))
+emit("TARGET_STATUS", profile.get("status"))
+emit("TARGET_ARCH", profile.get("arch"))
+emit("TARGET_ENDIAN", profile.get("endian"))
+emit("TARGET_ABI", profile.get("abi"))
+emit("TARGET_LIBC", profile.get("libc"))
+emit("TARGET_KERNEL_FLOOR", profile.get("kernel_floor"))
+emit("TARGET_QEMU_USER", profile.get("qemu_user"))
+emit("TARGET_PROFILE_FILE", profile.get("profile_file"))
+emit("TARGET_BUILDROOT_DEFCONFIG", profile.get("buildroot_defconfig"))
+emit("TARGET_NOTES", profile.get("notes"))
+PY

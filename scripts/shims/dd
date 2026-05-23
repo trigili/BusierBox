@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -eq 2 ] && [ "$1" = "bs=2" ] && [ "$2" = "skip=1" ]; then
+    exec tail -c +3
+fi
+
+exec /usr/bin/dd "$@"

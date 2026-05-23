@@ -4,6 +4,8 @@ set -eu
 BB_DIR=${BUSYBOX_DIR:-third_party/busybox}
 OUT=${BUSYBOX_OUT:-runtime/payload/bin/busybox}
 JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)}
+PATH="$(pwd)/scripts/shims:$PATH"
+export PATH
 
 if [ ! -d "$BB_DIR" ] || [ ! -f "$BB_DIR/Makefile" ]; then
     printf '%s\n' "busybox source missing at $BB_DIR" >&2

@@ -16,12 +16,6 @@ repo_root=$(cd "$script_dir/../.." && pwd)
 mkdir -p "$artifact_dir" || exit 1
 cp "$binary" "$artifact_dir/busierbox" || exit 1
 chmod 0755 "$artifact_dir/busierbox"
-if [ -f "$(dirname "$binary")/payload.tar.gz" ]; then
-    cp "$(dirname "$binary")/payload.tar.gz" "$artifact_dir/payload.tar.gz"
-fi
-if [ -f "$(dirname "$binary")/payload.tar.gz.sha256" ]; then
-    cp "$(dirname "$binary")/payload.tar.gz.sha256" "$artifact_dir/payload.tar.gz.sha256"
-fi
 cd "$artifact_dir" || exit 1
 
 run_bb() {

@@ -58,8 +58,9 @@ runtime/payload/         staged payload tree
 runtime/payload/bin/     BusyBox and future tool binaries
 runtime/payload/lib/     bundled shared libraries when static builds are unavailable
 runtime/payload/home/    payload HOME
-dist/busierbox           BusierBox supervisor
-dist/payload.tar.gz      runtime payload archive
+dist/busierbox-<target>  self-extracting target-specific artifact
+dist/busierbox           native convenience alias, when native is packaged
+dist/payload-<target>.*  optional payload archives/debug artifacts
 ```
 
 Generated binaries, payload archives, local rootfs images, and test artifacts are ignored by git.
@@ -84,33 +85,54 @@ Build native BusyBox:
 make busybox
 ```
 
-Stage and package the payload:
+Configure targets and package artifacts:
 
 ```sh
-make payload
+make menuconfig
+make package
+ls dist/busierbox-*
 ```
 
-Buildroot-backed target payloads use the pinned Buildroot source from `manifests/sources.lock.json`:
+`make package` reads `configs/busierbox.conf` and builds one artifact per selected `BB_TARGETS` entry. For example:
+
+```text
+BB_TARGETS="native x86_64-linux-current-musl armv7-linux-3.x-musl mipsel-linux-2.6-uclibc"
+```
+
+produces target-named outputs where supported:
+
+```text
+dist/busierbox-native
+dist/busierbox-armv7-linux-3.x-musl
+dist/busierbox-mipsel-linux-2.6-uclibc
+```
+
+Each `dist/busierbox-<target>` is a self-extracting binary for one target. It contains a BusierBox core built for that target plus a payload archive built for that same target. These are not multi-architecture binaries, and packaging must not reuse a native core for a foreign payload.
+
+Convenience commands:
+
+```sh
+make package-native
+make package TARGET=native
+make package TARGET=mipsel-linux-2.6-uclibc
+make package-all
+```
+
+For backwards compatibility, packaging `native` also writes `dist/busierbox` as a convenience copy of `dist/busierbox-native`.
+
+Buildroot-backed targets use the pinned Buildroot source from `manifests/sources.lock.json`:
 
 ```sh
 make fetch-sources
-make buildroot
-make payload TARGET=mipsel-linux-2.6-uclibc
+make package TARGET=mipsel-linux-2.6-uclibc
+make package TARGET=armv7-linux-3.x-musl
 ```
 
-The optional ARMv7 profile is:
+Buildroot builds the cross toolchain and BusyBox, stages `runtime/payload/bin/busybox`, copies default dotfiles into `runtime/payload/home`, permits bundled shared libraries in `runtime/payload/lib` when a fully static payload is unavailable, writes `runtime/payload/manifest.json`, creates ustar-compatible payload archives, builds the BusierBox core with the Buildroot cross compiler, embeds the target payload, and writes `dist/busierbox-<target>.sha256`.
 
-```sh
-make payload TARGET=armv7-linux-3.x-musl
-```
+Known target metadata lives in `targets/profiles.json`. Currently supported profiles are `native`, `armv7-linux-3.x-musl`, and `mipsel-linux-2.6-uclibc`. Other listed profiles are scaffold entries until their payload profile and Buildroot defconfig are added. Strict packaging is the default: scaffold or unsupported selections fail clearly. Use `STRICT=0 make package` to skip scaffold entries and print a summary.
 
-Buildroot builds the cross toolchain and BusyBox, stages `runtime/payload/bin/busybox`, copies default dotfiles into `runtime/payload/home`, permits bundled shared libraries in `runtime/payload/lib` when a fully static payload is unavailable, writes `runtime/payload/manifest.json`, and creates `dist/payload.tar.gz` plus `dist/payload.tar.gz.sha256`.
-
-Build both:
-
-```sh
-make package
-```
+The custom tuple UI records intent in `configs/busierbox.conf`, but arbitrary backend generation is future work. When enabled, packaging includes the generated custom target name in the plan and then fails or skips clearly instead of pretending it was built.
 
 Run smoke tests:
 
@@ -196,9 +218,9 @@ Tier 2 should stay optional and Buildroot-friendly.
 
 ## QEMU User Validation
 
-`make test-qemu-user` copies `dist/busierbox` and `dist/payload.tar.gz` into per-target artifact directories, runs `extract`, dispatches `sh`, `cp`, `dd`, `nc`, captures `survey.json`, captures `config-info`, and validates survey JSON. Missing qemu interpreters or missing cross BusierBox binaries are reported as skips.
+`make test-qemu-user` copies only the selected `dist/busierbox-<target>` self-extracting binary into per-target artifact directories, runs `extract`, dispatches `sh`, `cp`, `dd`, `nc`, captures `survey.json`, captures `config-info`, and validates survey JSON. Missing qemu interpreters or missing target artifacts are reported as skips.
 
-The primary target profile for this milestone is `mipsel-linux-2.6-uclibc`; the optional secondary profile is `armv7-linux-3.x-musl`.
+The primary Buildroot-backed target profile is `mipsel-linux-2.6-uclibc`; the secondary supported profile is `armv7-linux-3.x-musl`.
 
 ## Offline SDK Model
 

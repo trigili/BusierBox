@@ -4,7 +4,7 @@ The test harness is layered so developers can get useful signal without propriet
 
 ## Layers
 
-`make smoke-test` runs the native host binary and validates the Tier 0 applet contract. It also checks that `survey --json` parses and that `scripts/config-from-survey` can turn survey data into build recommendations.
+`make smoke-test` builds `dist/busierbox-native`, runs the native host binary, and validates the Tier 0 applet contract. It also checks that `survey --json` parses, that `scripts/config-from-survey` can turn survey data into build recommendations, and that a copy outside the repository can self-extract without a separate payload archive.
 
 `make test-qemu-user` runs target binaries under qemu-user when both the target binary and qemu interpreter exist. Missing cross binaries or interpreters are reported as `SKIP`, not as hard failures. This layer validates ELF compatibility, basic syscall compatibility, and applet behavior.
 
@@ -50,13 +50,13 @@ Representative qemu-user targets live in `tests/matrix/targets.example.json`:
 
 - mipsel router class: `mipsel-linux-2.6-uclibc`
 - MIPS big-endian router class: `mips-linux-2.6-uclibc`
-- ARMv5 softfloat: `armv5-linux-2.6-uclibc-softfloat`
-- ARMv7 hardfloat: `armv7-linux-3.x-musl-hardfloat`
+- ARMv5 EABI: `armv5-linux-2.6-uclibc-eabi`
+- ARMv7 hardfloat: `armv7-linux-3.x-musl`
 - AArch64: `aarch64-linux-4.x-musl`
-- x86: `x86-linux-2.6-glibc`
-- host/current x86_64: `x86_64-linux-current-glibc`
+- x86: `i386-linux-2.6-musl`
+- host/native: `native`
 
-Each entry names the expected BusierBox binary under `dist/` and the qemu-user interpreter. Add new targets by adding a pinned build profile, producing a target binary, and adding a matrix entry with `name`, `arch`, `binary`, and `qemu_user`.
+Each entry names the expected self-extracting BusierBox binary under `dist/` and the qemu-user interpreter. Add new targets by adding a `targets/profiles.json` entry, a pinned build profile, producing `dist/busierbox-<target>`, and adding a matrix entry with `name`, `arch`, `binary`, and `qemu_user`.
 
 ## QEMU User
 
@@ -66,7 +66,7 @@ Run:
 make test-qemu-user
 ```
 
-The runner prefers `qemu-*-static` but also accepts non-static qemu-user binaries when available. For the host x86_64 profile it runs `dist/busierbox` directly with `qemu_user` set to `native`.
+The runner prefers `qemu-*-static` but also accepts non-static qemu-user binaries when available. For the host profile it runs `dist/busierbox-native` directly with `qemu_user` set to `native`. Normal qemu-user tests copy only the self-extracting BusierBox artifact, not a separate payload archive.
 
 Artifacts are written to:
 
@@ -120,7 +120,7 @@ Do not commit generated kernels, rootfs images, firmware, or proprietary dumps. 
 Survey JSON is treated as compatibility data. It feeds `scripts/config-from-survey`, which prints recommended build settings:
 
 ```sh
-scripts/config-from-survey tests/artifacts/qemu-user/x86_64-linux-current-glibc/survey.json
+scripts/config-from-survey tests/artifacts/qemu-user/native/survey.json
 ```
 
 This keeps target observations separate from build policy and makes later SDK selection reproducible.
