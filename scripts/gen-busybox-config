@@ -1,0 +1,165 @@
+#!/bin/sh
+# scripts/gen-busybox-config — generate a BusyBox .config from BB_BUSYBOX_GROUPS
+# Usage: BB_BUSYBOX_GROUPS="shell fileops network" scripts/gen-busybox-config
+# Writes third_party/busybox/.config and runs make olddefconfig.
+set -eu
+
+BUSYBOX_DIR="${BUSYBOX_DIR:-third_party/busybox}"
+GROUPS="${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}"
+
+if [ ! -d "$BUSYBOX_DIR" ]; then
+    printf '%s\n' "gen-busybox-config: $BUSYBOX_DIR not found; run: git submodule update --init" >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Group → CONFIG symbol mapping.
+# Each line: GROUP APPLET CONFIG_SYMBOL
+# ---------------------------------------------------------------------------
+# shellcheck disable=SC2016
+applet_map() {
+cat <<'APPLETS'
+shell       sh          CONFIG_ASH=y
+shell       ash         CONFIG_ASH=y
+shell       sh_is_ash   CONFIG_SH_IS_ASH=y
+shell       printf      CONFIG_ASH_PRINTF=y
+shell       echo        CONFIG_ASH_ECHO=y
+shell       test        CONFIG_ASH_TEST=y
+
+fileops     cat         CONFIG_CAT=y
+fileops     ls          CONFIG_LS=y
+fileops     cp          CONFIG_CP=y
+fileops     mv          CONFIG_MV=y
+fileops     rm          CONFIG_RM=y
+fileops     mkdir       CONFIG_MKDIR=y
+fileops     chmod       CONFIG_CHMOD=y
+fileops     touch       CONFIG_TOUCH=y
+fileops     readlink    CONFIG_READLINK=y
+fileops     stat        CONFIG_STAT=y
+fileops     ln          CONFIG_LN=y
+fileops     du          CONFIG_DU=y
+fileops     install     CONFIG_INSTALL=y
+fileops     basename    CONFIG_BASENAME=y
+fileops     dirname     CONFIG_DIRNAME=y
+
+disk        dd          CONFIG_DD=y
+disk        df          CONFIG_DF=y
+disk        mount       CONFIG_MOUNT=y
+disk        umount      CONFIG_UMOUNT=y
+disk        tar         CONFIG_TAR=y
+disk        gzip        CONFIG_GZIP=y
+disk        gunzip      CONFIG_GUNZIP=y
+disk        zcat        CONFIG_ZCAT=y
+disk        sync        CONFIG_SYNC=y
+
+process     ps          CONFIG_PS=y
+process     free        CONFIG_FREE=y
+process     kill        CONFIG_KILL=y
+process     killall     CONFIG_KILLALL=y
+process     id          CONFIG_ID=y
+process     whoami      CONFIG_WHOAMI=y
+process     which       CONFIG_WHICH=y
+process     uname       CONFIG_UNAME=y
+process     env         CONFIG_ENV=y
+process     sleep       CONFIG_SLEEP=y
+process     nohup       CONFIG_NOHUP=y
+
+network     nc          CONFIG_NC=y
+network     ping        CONFIG_PING=y
+network     wget        CONFIG_WGET=y
+network     ip          CONFIG_IP=y
+network     ifconfig    CONFIG_IFCONFIG=y
+network     netstat     CONFIG_NETSTAT=y
+network     route       CONFIG_ROUTE=y
+network     hostname    CONFIG_HOSTNAME=y
+network     dnsdomainname CONFIG_DNSDOMAINNAME=y
+
+text        grep        CONFIG_GREP=y
+text        egrep       CONFIG_EGREP=y
+text        fgrep       CONFIG_FGREP=y
+text        sed         CONFIG_SED=y
+text        awk         CONFIG_AWK=y
+text        tee         CONFIG_TEE=y
+text        xargs       CONFIG_XARGS=y
+text        find        CONFIG_FIND=y
+text        sort        CONFIG_SORT=y
+text        uniq        CONFIG_UNIQ=y
+text        cut         CONFIG_CUT=y
+text        head        CONFIG_HEAD=y
+text        tail        CONFIG_TAIL=y
+text        wc          CONFIG_WC=y
+text        tr          CONFIG_TR=y
+text        less        CONFIG_LESS=y
+
+system      dmesg       CONFIG_DMESG=y
+system      sysctl      CONFIG_SYSCTL=y
+system      date        CONFIG_DATE=y
+system      hexdump     CONFIG_HEXDUMP=y
+system      xxd         CONFIG_XXD=y
+system      od          CONFIG_OD=y
+system      strings     CONFIG_STRINGS=y
+system      stty        CONFIG_STTY=y
+APPLETS
+}
+
+# Build a set of CONFIG lines for selected groups
+selected_configs() {
+    for grp in $GROUPS; do
+        applet_map | awk -v g="$grp" '$1 == g { print $3 }'
+    done | sort -u
+}
+
+# Start from allnoconfig to ensure we only get what we asked for.
+# Then layer our selections on top and let olddefconfig fill in dependencies.
+printf '%s\n' "gen-busybox-config: generating config for groups: $GROUPS"
+
+(cd "$BUSYBOX_DIR" && yes "" | make allnoconfig >/dev/null 2>&1) || true
+
+cfg_file="$BUSYBOX_DIR/.config"
+
+# Helper functions to enable symbols and set strings
+enable() {
+    sym=$1
+    if grep -q "^# $sym is not set" "$cfg_file"; then
+        sed -i "s/^# $sym is not set/$sym=y/" "$cfg_file"
+    elif grep -q "^$sym=" "$cfg_file"; then
+        sed -i "s/^$sym=.*/$sym=y/" "$cfg_file"
+    else
+        printf '%s=y\n' "$sym" >>"$cfg_file"
+    fi
+}
+
+setstr() {
+    sym=$1
+    val=$2
+    if grep -q "^$sym=" "$cfg_file"; then
+        sed -i "s|^$sym=.*|$sym=\"$val\"|" "$cfg_file"
+    else
+        printf '%s="%s"\n' "$sym" "$val" >>"$cfg_file"
+    fi
+}
+
+# Enable required infrastructure
+for sym in CONFIG_STATIC CONFIG_INSTALL_NO_USR CONFIG_BUSYBOX CONFIG_SHOW_USAGE CONFIG_FEATURE_VERBOSE_USAGE CONFIG_LONG_OPTS CONFIG_FEATURE_PREFER_APPLETS; do
+    enable "$sym"
+done
+
+# Disable feature individual
+if grep -q "CONFIG_FEATURE_INDIVIDUAL=" "$cfg_file"; then
+    sed -i "s/^CONFIG_FEATURE_INDIVIDUAL=.*/CONFIG_FEATURE_INDIVIDUAL=n/" "$cfg_file"
+fi
+
+setstr CONFIG_CROSS_COMPILER_PREFIX ""
+setstr CONFIG_BUSYBOX_EXEC_PATH "/proc/self/exe"
+
+# Enable selected applets
+for sym in $(selected_configs); do
+    sym_name=$(echo "$sym" | cut -d= -f1)
+    enable "$sym_name"
+done
+
+# Resolve dependencies
+(cd "$BUSYBOX_DIR" && yes "" | make oldconfig >/dev/null 2>&1)
+
+n_applets=$(selected_configs | wc -l)
+printf '%s\n' "gen-busybox-config: config written ($n_applets applet entries, dependencies resolved)"

@@ -1,0 +1,183 @@
+#!/bin/sh
+set -eu
+
+# Ensure dialog is installed
+if ! command -v dialog >/dev/null 2>&1; then
+    printf 'Error: dialog is required to run menuconfig. Please install it first (e.g., sudo apt install dialog).\n' >&2
+    exit 1
+fi
+
+CFG_FILE="configs/busierbox.conf"
+mkdir -p configs
+
+# Load current config or defaults
+BB_TARGETS="native"
+BB_PAYLOAD_FORMAT="tgz"
+BB_PAYLOAD_VERSION="dev"
+BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
+BB_HEAVY_TOOLS=""
+BB_DROPBEAR_SERVER_MODE="no"
+
+if [ -f "$CFG_FILE" ]; then
+    . "./$CFG_FILE"
+fi
+
+# Temp files for dialog output
+temp_out=$(mktemp)
+trap 'rm -f "$temp_out"' EXIT
+
+# Helper function to check if an item is selected in a list
+has_item() {
+    list="$1"
+    item="$2"
+    for x in $list; do
+        if [ "$x" = "$item" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Page 1: Build Targets
+status_native="off"; status_arm="off"; status_mips="off"
+has_item "$BB_TARGETS" "native" && status_native="on"
+has_item "$BB_TARGETS" "armv7-linux-3.x-musl" && status_arm="on"
+has_item "$BB_TARGETS" "mipsel-linux-2.6-uclibc" && status_mips="on"
+
+dialog --title "BusierBox: Build Targets" \
+    --checklist "Select build targets (space to select):" 15 60 4 \
+    "native" "Native Host Build" "$status_native" \
+    "armv7-linux-3.x-musl" "ARMv7 Linux 3.x Musl" "$status_arm" \
+    "mipsel-linux-2.6-uclibc" "MIPS LE Linux 2.6 uClibc" "$status_mips" \
+    2>"$temp_out" || exit 1
+
+BB_TARGETS=$(cat "$temp_out" | tr -d '"')
+
+# Page 2: Payload Archive Format
+status_tgz="off"; status_tar="off"
+if [ "$BB_PAYLOAD_FORMAT" = "tar" ]; then status_tar="on"; else status_tgz="on"; fi
+
+dialog --title "BusierBox: Payload Format" \
+    --radiolist "Select payload compression format:" 12 50 2 \
+    "tgz" "Gzipped tarball (default, smaller)" "$status_tgz" \
+    "tar" "Uncompressed tarball" "$status_tar" \
+    2>"$temp_out" || exit 1
+
+BB_PAYLOAD_FORMAT=$(cat "$temp_out" | tr -d '"')
+
+# Page 3: BusyBox Applet Groups
+status_shell="off"; status_fileops="off"; status_disk="off"
+status_process="off"; status_network="off"; status_text="off"
+status_system="off"
+
+has_item "$BB_BUSYBOX_GROUPS" "shell" && status_shell="on"
+has_item "$BB_BUSYBOX_GROUPS" "fileops" && status_fileops="on"
+has_item "$BB_BUSYBOX_GROUPS" "disk" && status_disk="on"
+has_item "$BB_BUSYBOX_GROUPS" "process" && status_process="on"
+has_item "$BB_BUSYBOX_GROUPS" "network" && status_network="on"
+has_item "$BB_BUSYBOX_GROUPS" "text" && status_text="on"
+has_item "$BB_BUSYBOX_GROUPS" "system" && status_system="on"
+
+dialog --title "BusierBox: BusyBox Applet Groups" \
+    --checklist "Select applet groups to include in BusyBox (space to select):" 18 70 8 \
+    "shell" "sh, ash, echo, test" "$status_shell" \
+    "fileops" "cat, ls, cp, mv, rm, mkdir, chmod, touch" "$status_fileops" \
+    "disk" "dd, df, mount, tar, gzip, gunzip, zcat" "$status_disk" \
+    "process" "ps, free, kill, id, whoami, which, uname" "$status_process" \
+    "network" "nc, ping, wget, ip, ifconfig, netstat" "$status_network" \
+    "text" "grep, sed, awk, tee, xargs, find, sort" "$status_text" \
+    "system" "dmesg, sysctl, date, hexdump" "$status_system" \
+    2>"$temp_out" || exit 1
+
+BB_BUSYBOX_GROUPS=$(cat "$temp_out" | tr -d '"')
+
+# Page 4: Heavy Tools
+status_dropbear="off"; status_curl="off"; status_tmux="off"
+status_zsh="off"; status_strace="off"; status_gdbserver="off"
+
+has_item "$BB_HEAVY_TOOLS" "dropbear" && status_dropbear="on"
+has_item "$BB_HEAVY_TOOLS" "curl" && status_curl="on"
+has_item "$BB_HEAVY_TOOLS" "tmux" && status_tmux="on"
+has_item "$BB_HEAVY_TOOLS" "zsh" && status_zsh="on"
+has_item "$BB_HEAVY_TOOLS" "strace" && status_strace="on"
+has_item "$BB_HEAVY_TOOLS" "gdbserver" && status_gdbserver="on"
+
+dialog --title "BusierBox: Heavy Tools" \
+    --checklist "Select heavy tools to include in payload (space to select):" 18 70 6 \
+    "dropbear" "Dropbear SSH client/server" "$status_dropbear" \
+    "curl" "curl HTTP client" "$status_curl" \
+    "tmux" "tmux terminal multiplexer" "$status_tmux" \
+    "zsh" "zsh shell" "$status_zsh" \
+    "strace" "strace syscall tracer" "$status_strace" \
+    "gdbserver" "gdbserver debugger stub" "$status_gdbserver" \
+    2>"$temp_out" || exit 1
+
+BB_HEAVY_TOOLS=$(cat "$temp_out" | tr -d '"')
+
+# Page 5: Dropbear specific options (only if dropbear is selected)
+has_item "$BB_HEAVY_TOOLS" "dropbear"
+is_dropbear_selected=$?
+
+if [ $is_dropbear_selected -eq 0 ]; then
+    status_db_server="off"
+    [ "$BB_DROPBEAR_SERVER_MODE" = "yes" ] && status_db_server="on"
+
+    dialog --title "BusierBox: Dropbear Options" \
+        --checklist "Dropbear configuration sub-options:" 12 60 2 \
+        "server" "Enable server wrapper (auto-generate host keys)" "$status_db_server" \
+        2>"$temp_out" || exit 1
+
+    if grep -q "server" "$temp_out"; then
+        BB_DROPBEAR_SERVER_MODE="yes"
+    else
+        BB_DROPBEAR_SERVER_MODE="no"
+    fi
+else
+    BB_DROPBEAR_SERVER_MODE="no"
+fi
+
+# Write updated config to temporary file
+temp_cfg=$(mktemp)
+cat >"$temp_cfg" <<EOF
+# BusierBox build configuration
+# Generated by: make menuconfig
+# Edit manually or regenerate with: make menuconfig
+
+# Build targets (space-separated; "native" always available)
+BB_TARGETS="$BB_TARGETS"
+
+# Payload archive format: tgz or tar
+BB_PAYLOAD_FORMAT="$BB_PAYLOAD_FORMAT"
+
+# Payload version string embedded in the binary
+BB_PAYLOAD_VERSION="$BB_PAYLOAD_VERSION"
+
+# BusyBox applet groups to compile in (space-separated)
+BB_BUSYBOX_GROUPS="$BB_BUSYBOX_GROUPS"
+
+# Heavy tools to include in the payload (space-separated)
+BB_HEAVY_TOOLS="$BB_HEAVY_TOOLS"
+
+# Per-tool options (only used when the tool is in BB_HEAVY_TOOLS)
+BB_DROPBEAR_SERVER_MODE="$BB_DROPBEAR_SERVER_MODE"
+EOF
+
+# Show changes diff and confirm save
+if [ -f "$CFG_FILE" ]; then
+    if diff -u "$CFG_FILE" "$temp_cfg" >"$temp_out" 2>/dev/null; then
+        dialog --title "BusierBox: No changes" \
+            --msgbox "Configuration matches current settings. Nothing to save." 8 55
+        rm -f "$temp_cfg"
+        exit 0
+    else
+        dialog --title "BusierBox: Confirm Changes" \
+            --textbox "$temp_out" 20 75 || { rm -f "$temp_cfg"; exit 0; }
+    fi
+else
+    dialog --title "BusierBox: Save New Config" \
+        --yesno "Save configuration to $CFG_FILE?" 8 50 || { rm -f "$temp_cfg"; exit 0; }
+fi
+
+mv "$temp_cfg" "$CFG_FILE"
+dialog --title "BusierBox: Success" \
+    --msgbox "Configuration successfully written to $CFG_FILE.\n\nRun 'make package' or 'make' to build with new config." 10 65

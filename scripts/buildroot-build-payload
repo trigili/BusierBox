@@ -9,6 +9,7 @@ fi
 BUILDROOT_VERSION=${BUILDROOT_VERSION:-2026.02.2}
 BUILDROOT_TARBALL=${BUILDROOT_TARBALL:-dl/buildroot-$BUILDROOT_VERSION.tar.xz}
 BUILDROOT_DIR=${BUILDROOT_DIR:-buildroot/buildroot-$BUILDROOT_VERSION}
+PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 OUT_BASE=${BUILDROOT_OUTPUT_BASE:-buildroot/output}
 JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)}
 
@@ -152,12 +153,18 @@ stage_placeholders
 printf '%s\n' "${BUSIERBOX_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION
 
 write_manifest "$static_status" pending
-tar -C runtime -czf dist/payload.tar.gz payload
-payload_sha=$(payload_sha_file dist/payload.tar.gz)
+tar -C runtime -cf dist/payload.tar payload
+gzip -c dist/payload.tar >dist/payload.tar.gz
+if [ "$PAYLOAD_FORMAT" = "tar" ]; then selected=dist/payload.tar; else selected=dist/payload.tar.gz; fi
+payload_sha=$(payload_sha_file "$selected")
 write_manifest "$static_status" "$payload_sha"
-tar -C runtime -czf dist/payload.tar.gz payload
-payload_sha=$(payload_sha_file dist/payload.tar.gz)
+tar -C runtime -cf dist/payload.tar payload
+gzip -c dist/payload.tar >dist/payload.tar.gz
+if [ "$PAYLOAD_FORMAT" = "tar" ]; then selected=dist/payload.tar; else selected=dist/payload.tar.gz; fi
+payload_sha=$(payload_sha_file "$selected")
 write_manifest "$static_status" "$payload_sha"
-tar -C runtime -czf dist/payload.tar.gz payload
+tar -C runtime -cf dist/payload.tar payload
+gzip -c dist/payload.tar >dist/payload.tar.gz
+payload_sha_file dist/payload.tar | awk '{print $1 "  dist/payload.tar"}' >dist/payload.tar.sha256
 payload_sha_file dist/payload.tar.gz | awk '{print $1 "  dist/payload.tar.gz"}' >dist/payload.tar.gz.sha256
-printf '%s\n' "created dist/payload.tar.gz for $TARGET"
+printf '%s\n' "created payload archives for $TARGET"

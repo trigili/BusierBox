@@ -28,14 +28,91 @@
 #define BBX_TRAILER_SIZE 512
 #define BBX_MAGIC "BBXPAYLOADv1"
 
-static const char *heavy_tools[] = {"zsh", "tmux", "strace", "gdbserver", "dropbear", "curl", NULL};
 static const char *busybox_tools[] = {
-    "sh", "ash", "cat", "ls", "cp", "mv", "rm", "mkdir", "chmod", "touch",
-    "dd", "uname", "id", "which", "readlink", "stat", "df", "free", "ps",
-    "mount", "env", "grep", "sleep", "tee", "tar", "gzip", "nc",
-    "sed", "awk", "find", "xargs", "dmesg", "ifconfig", "ip",
-    "netstat", "ping", "wget", NULL
+#include "bbx_busybox_applets.h"
+    NULL
 };
+
+static const char *heavy_tools[] = {
+#include "bbx_heavy_tools.h"
+    NULL
+};
+
+static int compare_strings(const void *a, const void *b)
+{
+    return strcmp(*(const char **)a, *(const char **)b);
+}
+
+void bb_print_applet_list(FILE *out)
+{
+    int total = 0;
+    int i, idx = 0;
+    const char **all_tools;
+    int col = 0;
+
+    fprintf(out, "busierbox: launcher, survey, and payload runtime manager\n\n");
+    fprintf(out, "usage: busierbox <command> [args...]\n");
+    fprintf(out, "       <command> [args...]   when invoked through a symlink\n\n");
+    
+    fprintf(out, "native applets:\n");
+    fprintf(out, "  clean, config-info, envfix, extract, list, survey\n\n");
+    
+    for (i = 0; busybox_tools[i]; i++) {
+        total++;
+    }
+    for (i = 0; heavy_tools[i]; i++) {
+        total++;
+    }
+    
+    if (total == 0) {
+        fprintf(out, "no payload tools staged.\n");
+        return;
+    }
+
+    all_tools = malloc(sizeof(char *) * (size_t)(total + 1));
+    if (!all_tools) {
+        fprintf(out, "error: out of memory listing applets\n");
+        return;
+    }
+    
+    for (i = 0; busybox_tools[i]; i++) {
+        all_tools[idx++] = busybox_tools[i];
+    }
+    for (i = 0; heavy_tools[i]; i++) {
+        all_tools[idx++] = heavy_tools[i];
+    }
+    all_tools[idx] = NULL;
+    
+    qsort(all_tools, (size_t)idx, sizeof(char *), compare_strings);
+    
+    fprintf(out, "staged payload tools:\n\t");
+    for (i = 0; i < idx; i++) {
+        int len = (int)strlen(all_tools[i]);
+        if (col + len + 2 > 70) {
+            fprintf(out, "\n\t");
+            col = 0;
+        }
+        fprintf(out, "%s%s", all_tools[i], (i == idx - 1) ? "" : ", ");
+        col += len + 2;
+    }
+    fprintf(out, "\n");
+    
+    free(all_tools);
+}
+
+static int bb_applet_supported(const char *name)
+{
+    int i;
+    for (i = 0; busybox_tools[i]; i++) {
+        if (strcmp(name, busybox_tools[i]) == 0)
+            return 1;
+    }
+    for (i = 0; heavy_tools[i]; i++) {
+        if (strcmp(name, heavy_tools[i]) == 0)
+            return 1;
+    }
+    return 0;
+}
 
 static int is_help(int argc, char **argv)
 {
@@ -852,12 +929,17 @@ static int execv_alloc(const char *path, char **argv)
     fprintf(stderr, "busierbox: exec %s failed: %s\n", path, strerror(errno));
     return errno == ENOENT ? 127 : 126;
 }
-
 int bb_exec_payload_applet(const char *name, int argc, char **argv)
 {
     char payload[PATH_MAX], exe[PATH_MAX];
     char **child;
     int i;
+
+    if (!bb_applet_supported(name)) {
+        fprintf(stderr, "busierbox: %s: applet not found\n\n", name);
+        bb_print_applet_list(stderr);
+        return 127;
+    }
 
     if (ensure_payload(payload, sizeof(payload)) != 0) {
         fprintf(stderr, "busierbox: payload unavailable; run 'busierbox extract' after creating dist/payload.tar.gz\n");
@@ -887,24 +969,13 @@ int bb_exec_payload_applet(const char *name, int argc, char **argv)
 
 int applet_list_main(int argc, char **argv)
 {
-    int verbose = argc > 1 && !strcmp(argv[1], "-v");
-    int i;
-
     if (is_help(argc, argv)) {
-        puts("usage: busierbox list [-v]");
+        puts("usage: busierbox list");
         return 0;
     }
-    puts("native:");
-    bb_list_applets(verbose);
-    puts("busybox:");
-    for (i = 0; busybox_tools[i]; i++)
-        puts(busybox_tools[i]);
-    puts("payload:");
-    for (i = 0; heavy_tools[i]; i++)
-        puts(heavy_tools[i]);
+    bb_print_applet_list(stdout);
     return 0;
 }
-
 int applet_extract_main(int argc, char **argv)
 {
     char payload[PATH_MAX], archive[PATH_MAX], root[PATH_MAX];

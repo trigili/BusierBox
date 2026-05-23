@@ -1,0 +1,6 @@
+"dropbear",
+"curl",
+"tmux",
+"zsh",
+"strace",
+"gdbserver",

@@ -14,7 +14,7 @@ SRC := src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfi
 
 all: build
 
-build:
+build: busybox
 	@CONFIG="$(CONFIG)" CC="$(CC)" CFLAGS="$(CFLAGS)" CPPFLAGS="$(CPPFLAGS)" LDFLAGS="$(LDFLAGS)" OUT="$(OUT)" scripts/build-native
 
 busybox:
@@ -28,11 +28,12 @@ payload:
 	@if [ "$(TARGET)" = "native" ]; then $(MAKE) busybox; fi
 	@TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/build-payload
 
-package: build payload
+package: payload
+	@$(MAKE) build
 	@scripts/embed-payload dist/busierbox.core dist/payload.$(if $(filter tar,$(PAYLOAD_FORMAT)),tar,tar.gz) dist/busierbox
 
 menuconfig:
-	@printf '%s\n' "No interactive menuconfig yet. Start from configs/native-linux.example or pass CONFIG=..."
+	@scripts/menuconfig
 
 fetch-sources:
 	@scripts/fetch-sources
@@ -89,4 +90,5 @@ test-all: smoke-test test-qemu-user test-qemu-system
 
 clean:
 	@rm -f dist/busierbox dist/busierbox.core dist/busierbox.*.tmp dist/busierbox.tmp dist/payload.tar dist/payload.tar.sha256 dist/payload.tar.gz dist/payload.tar.gz.sha256
+	@rm -f src/bbx_busybox_applets.h src/bbx_heavy_tools.h
 	@rm -rf .busierbox

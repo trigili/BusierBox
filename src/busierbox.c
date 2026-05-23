@@ -32,26 +32,7 @@ static const char *base_name(const char *path)
 
 static void usage(FILE *out)
 {
-    fprintf(out, "busierbox: launcher, survey, and payload runtime manager\n\n");
-    fprintf(out, "usage: busierbox <command> [args...]\n");
-    fprintf(out, "       <command> [args...]   when invoked through a symlink\n\n");
-    fprintf(out, "native commands:\n");
-    bb_list_applets(1);
-    fprintf(out, "\npayload dispatch:\n");
-    fprintf(out, "  standard Unix tools dispatch to payload/bin/busybox\n");
-    fprintf(out, "  tmux strace gdbserver dropbear curl execute payload binaries directly\n");
-}
-
-void bb_list_applets(int verbose)
-{
-    unsigned int i;
-
-    for (i = 0; i < bb_applet_count; i++) {
-        if (verbose)
-            printf("  %-12s %s\n", bb_applets[i].name, bb_applets[i].summary);
-        else
-            printf("%s\n", bb_applets[i].name);
-    }
+    bb_print_applet_list(out);
 }
 
 int bb_dispatch(const char *name, int argc, char **argv)
@@ -75,6 +56,7 @@ int main(int argc, char **argv)
         usage(stderr);
         return 2;
     }
+    bb_set_argv0(argv[0]);
 
     invoked = base_name(argv[0]);
     if (strcmp(invoked, "busierbox") != 0) {
@@ -95,4 +77,3 @@ int main(int argc, char **argv)
 
     return bb_exec_payload_applet(argv[1], argc - 1, argv + 1);
 }
-

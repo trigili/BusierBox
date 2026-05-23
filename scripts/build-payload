@@ -3,9 +3,10 @@ set -eu
 
 TARGET=${TARGET:-native}
 VERSION=${BUSIERBOX_PAYLOAD_VERSION:-dev}
+PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 
 if [ "$TARGET" != "native" ]; then
-    TARGET="$TARGET" scripts/buildroot-build-payload
+TARGET="$TARGET" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" scripts/buildroot-build-payload
     exit $?
 fi
 
@@ -20,12 +21,72 @@ cp payloads/dotfiles/.tmux.conf runtime/payload/home/.tmux.conf
 cp payloads/dotfiles/.zshrc runtime/payload/home/.zshrc
 cp payloads/dotfiles/.gdbinit runtime/payload/home/.gdbinit
 
+# Read config if it exists
+if [ -f configs/busierbox.conf ]; then
+    . configs/busierbox.conf
+fi
+BB_HEAVY_TOOLS="${BB_HEAVY_TOOLS:-}"
+BB_DROPBEAR_SERVER_MODE="${BB_DROPBEAR_SERVER_MODE:-no}"
+
+# Clean out unconfigured/stale files from previous builds or default template
+for tool in zsh tmux strace gdbserver dropbear curl dropbear-bin; do
+    rm -f "runtime/payload/bin/$tool"
+done
+
+# Set up only selected heavy tools
 for tool in zsh tmux strace gdbserver dropbear curl; do
-    if [ ! -e "runtime/payload/bin/$tool" ]; then
-        printf '%s\n' "#!/bin/sh" >"runtime/payload/bin/$tool"
-        printf '%s\n' "echo '$tool payload is not staged in this build' >&2" >>"runtime/payload/bin/$tool"
-        printf '%s\n' "exit 127" >>"runtime/payload/bin/$tool"
-        chmod 0755 "runtime/payload/bin/$tool"
+    configured=0
+    for t in $BB_HEAVY_TOOLS; do
+        if [ "$t" = "$tool" ]; then
+            configured=1
+            break
+        fi
+    done
+
+    if [ "$configured" = 1 ]; then
+        host_bin=""
+        if command -v "$tool" >/dev/null 2>&1; then
+            host_bin=$(command -v "$tool")
+        fi
+
+        if [ "$tool" = "dropbear" ] && [ "$BB_DROPBEAR_SERVER_MODE" = "yes" ]; then
+            if [ -n "$host_bin" ]; then
+                cp "$host_bin" "runtime/payload/bin/dropbear-bin"
+            else
+                printf '%s\n' "#!/bin/sh" >"runtime/payload/bin/dropbear-bin"
+                printf '%s\n' "echo 'mock dropbear-bin server running'" >>"runtime/payload/bin/dropbear-bin"
+                chmod 0755 "runtime/payload/bin/dropbear-bin"
+            fi
+            
+            cat >"runtime/payload/bin/dropbear" <<'EOF'
+#!/bin/sh
+ETC_DIR="${BBX_RUNTIME:-.busierbox}/etc/dropbear"
+mkdir -p "$ETC_DIR"
+if [ ! -f "$ETC_DIR/dropbear_rsa_host_key" ]; then
+    echo "dropbear wrapper: generating RSA host key..." >&2
+    if [ -x "$(dirname "$0")/dropbearkey" ]; then
+        "$(dirname "$0")/dropbearkey" -t rsa -f "$ETC_DIR/dropbear_rsa_host_key" >/dev/null 2>&1 || true
+    elif command -v dropbearkey >/dev/null 2>&1; then
+        dropbearkey -t rsa -f "$ETC_DIR/dropbear_rsa_host_key" >/dev/null 2>&1 || true
+    fi
+fi
+real_bin="$(dirname "$0")/dropbear-bin"
+if [ -x "$real_bin" ]; then
+    exec "$real_bin" -r "$ETC_DIR/dropbear_rsa_host_key" -F -E "$@"
+else
+    exec dropbear -r "$ETC_DIR/dropbear_rsa_host_key" -F -E "$@"
+fi
+EOF
+            chmod 0755 "runtime/payload/bin/dropbear"
+        else
+            if [ -n "$host_bin" ]; then
+                cp "$host_bin" "runtime/payload/bin/$tool"
+            else
+                printf '%s\n' "#!/bin/sh" >"runtime/payload/bin/$tool"
+                printf '%s\n' "echo 'mock heavy tool: $tool'" >>"runtime/payload/bin/$tool"
+                chmod 0755 "runtime/payload/bin/$tool"
+            fi
+        fi
     fi
 done
 
@@ -46,6 +107,12 @@ fi
 busybox_version=$(runtime/payload/bin/busybox 2>&1 | sed -n 's/^BusyBox v\([^ ]*\).*/\1/p' | sed -n '1p')
 [ -n "$busybox_version" ] || busybox_version=unknown
 timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+tools_json='"busybox"'
+for t in $BB_HEAVY_TOOLS; do
+    tools_json="$tools_json, \"$t\""
+done
+
 cat >runtime/payload/manifest.json <<EOF_MANIFEST
 {
   "target": "native",
@@ -55,16 +122,24 @@ cat >runtime/payload/manifest.json <<EOF_MANIFEST
   "build_timestamp": "$timestamp",
   "busybox_version": "$busybox_version",
   "static_status": "$static_status",
-  "included_payload_tools": ["busybox", "zsh-placeholder", "tmux-placeholder", "strace-placeholder", "gdbserver-placeholder", "dropbear-placeholder", "curl-placeholder"],
+  "included_payload_tools": [$tools_json],
   "included_shared_libs": [],
   "payload_sha256": "pending"
 }
 EOF_MANIFEST
-tar -C runtime -czf dist/payload.tar.gz payload
-sha=$(payload_sha dist/payload.tar.gz)
+tar -C runtime -cf dist/payload.tar payload
+gzip -c dist/payload.tar >dist/payload.tar.gz
+if [ "$PAYLOAD_FORMAT" = "tar" ]; then
+    selected=dist/payload.tar
+else
+    selected=dist/payload.tar.gz
+fi
+sha=$(payload_sha "$selected")
 sed "s/\"payload_sha256\": \"pending\"/\"payload_sha256\": \"$sha\"/" runtime/payload/manifest.json >runtime/payload/manifest.json.tmp
 mv runtime/payload/manifest.json.tmp runtime/payload/manifest.json
-tar -C runtime -czf dist/payload.tar.gz payload
+tar -C runtime -cf dist/payload.tar payload
+gzip -c dist/payload.tar >dist/payload.tar.gz
+sha256sum dist/payload.tar >dist/payload.tar.sha256 2>/dev/null || true
 if command -v sha256sum >/dev/null 2>&1; then
     sha256sum dist/payload.tar.gz >dist/payload.tar.gz.sha256
 elif command -v shasum >/dev/null 2>&1; then
