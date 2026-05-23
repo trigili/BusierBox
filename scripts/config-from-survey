@@ -1,0 +1,60 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -ne 1 ]; then
+    printf '%s\n' "usage: scripts/config-from-survey survey.json" >&2
+    exit 2
+fi
+
+python3 - "$1" <<'PY'
+import json
+import platform
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+arch = data.get("arch") or data.get("uname", {}).get("machine") or "unknown"
+kernel = str(data.get("kernel") or data.get("uname", {}).get("release") or "unknown")
+endian = data.get("endianness") or sys.byteorder
+recs = data.get("recommendations", {})
+
+def yesno(value):
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, str):
+        return "yes" if value.lower() in ("yes", "true", "1", "ok", "basic-ok") else "no"
+    return "no"
+
+def kernel_floor(release):
+    if release == "unknown":
+        return "unknown"
+    parts = release.split(".", 2)
+    if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+        major = int(parts[0])
+        minor = int(parts[1])
+        if major < 3:
+            return f"{major}.{minor}"
+        if major == 3:
+            return "3.x"
+        if major == 4:
+            return "4.x"
+        return "current"
+    return "unknown"
+
+payload = recs.get("payload_mode_possible", False)
+tmux = recs.get("likely_tmux_supported", False)
+strace = recs.get("likely_strace_supported", False)
+extract_dir = recs.get("recommended_extract_dir") or "none"
+
+print(f"target_arch={arch}")
+print(f"endian={endian}")
+print(f"kernel_floor={kernel_floor(kernel)}")
+print(f"zero_write_possible={yesno(recs.get('zero_write_supported', False))}")
+print(f"payload_mode_possible={yesno(payload)}")
+print(f"recommended_extract_dir={extract_dir}")
+print(f"include_tmux={yesno(payload and tmux)}")
+print(f"include_strace={yesno(strace)}")
+print(f"include_gdbserver={yesno(strace)}")
+PY
+

@@ -1,0 +1,108 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+MATRIX=${1:-"$ROOT/tests/matrix/environments.example.json"}
+ARTIFACT_ROOT=${ARTIFACT_ROOT:-"$ROOT/tests/artifacts/qemu-system"}
+TIMEOUT=${QEMU_SYSTEM_TIMEOUT:-120}
+BOOT_WAIT=${QEMU_SYSTEM_BOOT_WAIT:-8}
+
+. "$ROOT/tests/qemu-system/helpers.sh"
+
+mkdir -p "$ARTIFACT_ROOT"
+
+if ! command -v python3 >/dev/null 2>&1; then
+    printf '%s\n' "SKIP qemu-system: python3 is required to read $MATRIX"
+    exit 0
+fi
+
+summary="$ARTIFACT_ROOT/summary.txt"
+: >"$summary"
+
+python3 - "$MATRIX" <<'PY' | while IFS='	' read -r name arch kernel rootfs busierbox qemu machine cpu append enabled
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+for e in data.get("environments", []):
+    print("\t".join([
+        e.get("name", ""),
+        e.get("arch", ""),
+        e.get("kernel_path", ""),
+        e.get("rootfs_path", ""),
+        e.get("busierbox_path", ""),
+        e.get("qemu_binary", ""),
+        e.get("qemu_machine", ""),
+        e.get("qemu_cpu", ""),
+        e.get("append_args", ""),
+        "true" if e.get("enabled") else "false",
+    ]))
+PY
+do
+    artifact_dir="$ARTIFACT_ROOT/$name"
+    payload="$artifact_dir/payload"
+    mkdir -p "$artifact_dir"
+    printf '%s\n' "qemu-system: $name"
+
+    if [ "$enabled" != "true" ]; then
+        printf '%s\n' "SKIP $name disabled in matrix" | tee "$artifact_dir/skip.txt"
+        printf '%s\n' "SKIP $name disabled" >>"$summary"
+        continue
+    fi
+
+    if ! command -v "$qemu" >/dev/null 2>&1; then
+        printf '%s\n' "SKIP $name missing $qemu" | tee "$artifact_dir/skip.txt"
+        printf '%s\n' "SKIP $name missing qemu" >>"$summary"
+        continue
+    fi
+    if [ ! -f "$ROOT/$kernel" ]; then
+        printf '%s\n' "SKIP $name missing kernel $kernel" | tee "$artifact_dir/skip.txt"
+        printf '%s\n' "SKIP $name missing kernel" >>"$summary"
+        continue
+    fi
+    if [ ! -f "$ROOT/$rootfs" ]; then
+        printf '%s\n' "SKIP $name missing rootfs $rootfs" | tee "$artifact_dir/skip.txt"
+        printf '%s\n' "SKIP $name missing rootfs" >>"$summary"
+        continue
+    fi
+    if [ ! -f "$ROOT/$busierbox" ]; then
+        printf '%s\n' "SKIP $name missing busierbox $busierbox" | tee "$artifact_dir/skip.txt"
+        printf '%s\n' "SKIP $name missing busierbox" >>"$summary"
+        continue
+    fi
+
+    prepare_payload_dir "$payload" "$ROOT/$busierbox" "$ROOT/tests/qemu-system/smoke-init.sh" "$ROOT/tests/smoke"
+
+    cmd="$qemu -M $machine -cpu $cpu -kernel $ROOT/$kernel -drive file=$ROOT/$rootfs,if=virtio,format=raw -virtfs local,path=$payload,mount_tag=busierbox_payload,security_model=none,readonly=off -append \"$append init=/bin/sh\" -nographic -no-reboot"
+    printf '%s\n' "$cmd" >"$artifact_dir/qemu-command.txt"
+
+    if command -v timeout >/dev/null 2>&1; then
+        if {
+            sleep "$BOOT_WAIT"
+            printf '%s\n' 'mount -t proc proc /proc 2>/dev/null || true'
+            printf '%s\n' 'mount -t sysfs sysfs /sys 2>/dev/null || true'
+            printf '%s\n' 'mkdir -p /mnt/busierbox-test /tmp'
+            printf '%s\n' 'mount -t 9p -o trans=virtio,version=9p2000.L busierbox_payload /mnt/busierbox-test'
+            printf '%s\n' 'BUSIERBOX=/mnt/busierbox-test/busierbox ARTIFACT_DIR=/mnt/busierbox-test/artifacts sh /mnt/busierbox-test/busierbox-smoke.sh'
+            printf '%s\n' 'sync'
+            printf '%s\n' 'poweroff -f 2>/dev/null || halt -f 2>/dev/null || exit'
+            sleep 3
+        } | sh -c "timeout $TIMEOUT $cmd" >"$artifact_dir/console.log" 2>&1; then
+            printf '%s\n' "PASS $name" >>"$summary"
+        else
+            printf '%s\n' "FAIL $name" >>"$summary"
+        fi
+    else
+        printf '%s\n' "SKIP $name missing timeout command" | tee "$artifact_dir/skip.txt"
+        printf '%s\n' "SKIP $name missing timeout" >>"$summary"
+        continue
+    fi
+
+    if [ -d "$payload/artifacts" ]; then
+        cp -R "$payload/artifacts/." "$artifact_dir/"
+    fi
+done
+
+cat "$summary"

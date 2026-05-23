@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "environments": [
+    {
+      "name": "openwrt-mipsel-minimal",
+      "arch": "mipsel",
+      "kernel_path": "tests/qemu-system/rootfs/openwrt-mipsel/vmlinux",
+      "rootfs_path": "tests/qemu-system/rootfs/openwrt-mipsel/rootfs.ext4",
+      "busierbox_path": "dist/busierbox-mipsel-linux-2.6-uclibc",
+      "qemu_binary": "qemu-system-mipsel",
+      "qemu_machine": "malta",
+      "qemu_cpu": "24Kc",
+      "append_args": "console=ttyS0 root=/dev/vda rw panic=-1",
+      "enabled": false,
+      "notes": "Place OpenWrt-generated malta mipsel kernel/rootfs here; disabled by default."
+    },
+    {
+      "name": "openwrt-armv7-minimal",
+      "arch": "armv7",
+      "kernel_path": "tests/qemu-system/rootfs/openwrt-armv7/zImage",
+      "rootfs_path": "tests/qemu-system/rootfs/openwrt-armv7/rootfs.ext4",
+      "busierbox_path": "dist/busierbox-armv7-linux-3.x-musl-hardfloat",
+      "qemu_binary": "qemu-system-arm",
+      "qemu_machine": "virt",
+      "qemu_cpu": "cortex-a15",
+      "append_args": "console=ttyAMA0 root=/dev/vda rw panic=-1",
+      "enabled": false,
+      "notes": "OpenWrt ARM virt-style environment; adjust machine/cpu for the generated image."
+    },
+    {
+      "name": "buildroot-mipsel-minimal",
+      "arch": "mipsel",
+      "kernel_path": "tests/qemu-system/rootfs/buildroot-mipsel/vmlinux",
+      "rootfs_path": "tests/qemu-system/rootfs/buildroot-mipsel/rootfs.ext2",
+      "busierbox_path": "dist/busierbox-mipsel-linux-2.6-uclibc",
+      "qemu_binary": "qemu-system-mipsel",
+      "qemu_machine": "malta",
+      "qemu_cpu": "24Kc",
+      "append_args": "console=ttyS0 root=/dev/vda rw panic=-1",
+      "enabled": false,
+      "notes": "Suggested minimal Buildroot mipsel target."
+    },
+    {
+      "name": "buildroot-armv5-minimal",
+      "arch": "armv5",
+      "kernel_path": "tests/qemu-system/rootfs/buildroot-armv5/zImage",
+      "rootfs_path": "tests/qemu-system/rootfs/buildroot-armv5/rootfs.ext2",
+      "busierbox_path": "dist/busierbox-armv5-linux-2.6-uclibc-softfloat",
+      "qemu_binary": "qemu-system-arm",
+      "qemu_machine": "versatilepb",
+      "qemu_cpu": "arm926",
+      "append_args": "console=ttyAMA0 root=/dev/vda rw panic=-1",
+      "enabled": false,
+      "notes": "Suggested ARMv5 softfloat coverage target."
+    },
+    {
+      "name": "buildroot-aarch64-minimal",
+      "arch": "aarch64",
+      "kernel_path": "tests/qemu-system/rootfs/buildroot-aarch64/Image",
+      "rootfs_path": "tests/qemu-system/rootfs/buildroot-aarch64/rootfs.ext2",
+      "busierbox_path": "dist/busierbox-aarch64-linux-4.x-musl",
+      "qemu_binary": "qemu-system-aarch64",
+      "qemu_machine": "virt",
+      "qemu_cpu": "cortex-a53",
+      "append_args": "console=ttyAMA0 root=/dev/vda rw panic=-1",
+      "enabled": false,
+      "notes": "Suggested AArch64 Buildroot target."
+    },
+    {
+      "name": "buildroot-x86_64-minimal",
+      "arch": "x86_64",
+      "kernel_path": "tests/qemu-system/rootfs/buildroot-x86_64/bzImage",
+      "rootfs_path": "tests/qemu-system/rootfs/buildroot-x86_64/rootfs.ext2",
+      "busierbox_path": "dist/busierbox",
+      "qemu_binary": "qemu-system-x86_64",
+      "qemu_machine": "pc",
+      "qemu_cpu": "qemu64",
+      "append_args": "console=ttyS0 root=/dev/vda rw panic=-1",
+      "enabled": false,
+      "notes": "Host-architecture system smoke target; still disabled until local images exist."
+    }
+  ]
+}

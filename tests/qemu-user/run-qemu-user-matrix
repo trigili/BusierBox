@@ -1,0 +1,60 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+MATRIX=${1:-"$ROOT/tests/matrix/targets.example.json"}
+ARTIFACT_ROOT=${ARTIFACT_ROOT:-"$ROOT/tests/artifacts/qemu-user"}
+
+. "$ROOT/tests/qemu-user/helpers.sh"
+
+mkdir -p "$ARTIFACT_ROOT"
+
+if ! command -v python3 >/dev/null 2>&1; then
+    printf '%s\n' "SKIP qemu-user: python3 is required to read $MATRIX"
+    exit 0
+fi
+
+summary="$ARTIFACT_ROOT/summary.txt"
+: >"$summary"
+
+python3 - "$MATRIX" <<'PY' | while IFS='	' read -r name arch binary qemu
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+for t in data.get("targets", []):
+    print("\t".join([
+        t.get("name", ""),
+        t.get("arch", ""),
+        t.get("binary", ""),
+        t.get("qemu_user", "")
+    ]))
+PY
+do
+    artifact_dir="$ARTIFACT_ROOT/$name"
+    mkdir -p "$artifact_dir"
+    printf '%s\n' "qemu-user: $name"
+
+    if [ ! -f "$ROOT/$binary" ]; then
+        printf '%s\n' "SKIP $name missing binary $binary" | tee "$artifact_dir/skip.txt"
+        printf '%s\n' "SKIP $name missing binary" >>"$summary"
+        continue
+    fi
+
+    if ! qemu_path=$(find_qemu_user "$qemu"); then
+        printf '%s\n' "SKIP $name missing interpreter $qemu" | tee "$artifact_dir/skip.txt"
+        printf '%s\n' "SKIP $name missing interpreter" >>"$summary"
+        continue
+    fi
+
+    if (cd "$ROOT" && tests/qemu-user/smoke.sh "$name" "$qemu_path" "$ROOT/$binary" "$artifact_dir"); then
+        printf '%s\n' "PASS $name" >>"$summary"
+    else
+        printf '%s\n' "FAIL $name" >>"$summary"
+    fi
+done
+
+cat "$summary"
+

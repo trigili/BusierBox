@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+
+: "${CC:=cc}"
+: "${CFLAGS:=-Os -Wall -Wextra -std=c99}"
+: "${CPPFLAGS:=}"
+: "${LDFLAGS:=}"
+: "${OUT:=dist/busierbox}"
+
+src="src/busierbox.c src/applet_sh.c src/applet_survey.c src/applet_envfix.c src/applet_basic.c src/applet_net.c"
+tmp="${OUT}.$$.tmp"
+
+mkdir -p dist
+
+printf '%s\n' "building native busierbox..."
+
+if "$CC" $CPPFLAGS $CFLAGS -static -o "$tmp" $src $LDFLAGS >/dev/null 2>&1; then
+    mv "$tmp" "$OUT"
+    printf '%s\n' "built $OUT with static linking"
+else
+    rm -f "$tmp"
+    printf '%s\n' "static link unavailable; falling back to host dynamic link" >&2
+    "$CC" $CPPFLAGS $CFLAGS -o "$tmp" $src $LDFLAGS
+    mv "$tmp" "$OUT"
+    printf '%s\n' "built $OUT with host dynamic linking"
+fi
+
+chmod 0755 "$OUT"

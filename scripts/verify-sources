@@ -1,0 +1,75 @@
+#!/bin/sh
+set -eu
+
+manifest=${1:-manifests/sources.lock.json}
+dl_dir=${DL_DIR:-dl}
+
+python3 - "$manifest" "$dl_dir" <<'PY'
+import hashlib
+import json
+import os
+import sys
+
+manifest_path, dl_dir = sys.argv[1], sys.argv[2]
+
+with open(manifest_path, "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+if data.get("schema") != 1:
+    raise SystemExit(f"{manifest_path}: unsupported schema {data.get('schema')!r}")
+
+sources = data.get("sources")
+if not isinstance(sources, list):
+    raise SystemExit(f"{manifest_path}: sources must be a list")
+
+required = ("name", "version", "url", "sha256", "filename")
+errors = 0
+
+for idx, src in enumerate(sources):
+    if not isinstance(src, dict):
+        print(f"source[{idx}]: must be an object", file=sys.stderr)
+        errors += 1
+        continue
+
+    missing = [key for key in required if not src.get(key)]
+    if missing:
+        print(f"source[{idx}]: missing {', '.join(missing)}", file=sys.stderr)
+        errors += 1
+        continue
+
+    expected = str(src["sha256"]).lower()
+    if len(expected) != 64 or any(ch not in "0123456789abcdef" for ch in expected):
+        print(f"{src['name']}: invalid sha256", file=sys.stderr)
+        errors += 1
+        continue
+
+    filename = os.path.basename(str(src["filename"]))
+    if filename != src["filename"]:
+        print(f"{src['name']}: filename must not contain directories", file=sys.stderr)
+        errors += 1
+        continue
+
+    path = os.path.join(dl_dir, filename)
+    if not os.path.exists(path):
+        print(f"{src['name']}: missing {path}", file=sys.stderr)
+        errors += 1
+        continue
+
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+
+    actual = h.hexdigest()
+    if actual != expected:
+        print(f"{src['name']}: sha256 mismatch: expected {expected}, got {actual}", file=sys.stderr)
+        errors += 1
+    else:
+        print(f"{src['name']}: ok")
+
+if errors:
+    raise SystemExit(1)
+
+print(f"verified {len(sources)} source(s)")
+PY
+

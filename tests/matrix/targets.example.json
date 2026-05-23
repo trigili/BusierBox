@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "targets": [
+    {
+      "name": "mipsel-linux-2.4-uclibc",
+      "arch": "mipsel",
+      "endian": "little",
+      "kernel_floor": "2.4",
+      "libc_family": "uclibc",
+      "binary": "dist/busierbox-mipsel-linux-2.4-uclibc",
+      "qemu_user": "qemu-mipsel-static",
+      "expected_constraints": ["tiny_tmp", "old_syscalls"]
+    },
+    {
+      "name": "mips-linux-2.6-uclibc",
+      "arch": "mips",
+      "endian": "big",
+      "kernel_floor": "2.6",
+      "libc_family": "uclibc",
+      "binary": "dist/busierbox-mips-linux-2.6-uclibc",
+      "qemu_user": "qemu-mips-static",
+      "expected_constraints": ["endian_coverage"]
+    },
+    {
+      "name": "armv5-linux-2.6-uclibc-softfloat",
+      "arch": "armv5",
+      "abi": "softfloat",
+      "kernel_floor": "2.6",
+      "libc_family": "uclibc",
+      "binary": "dist/busierbox-armv5-linux-2.6-uclibc-softfloat",
+      "qemu_user": "qemu-arm-static",
+      "expected_constraints": []
+    },
+    {
+      "name": "armv7-linux-3.x-musl-hardfloat",
+      "arch": "armv7",
+      "abi": "hardfloat",
+      "kernel_floor": "3.x",
+      "libc_family": "musl",
+      "binary": "dist/busierbox-armv7-linux-3.x-musl-hardfloat",
+      "qemu_user": "qemu-arm-static",
+      "expected_constraints": []
+    },
+    {
+      "name": "aarch64-linux-4.x-musl",
+      "arch": "aarch64",
+      "kernel_floor": "4.x",
+      "libc_family": "musl",
+      "binary": "dist/busierbox-aarch64-linux-4.x-musl",
+      "qemu_user": "qemu-aarch64-static",
+      "expected_constraints": []
+    },
+    {
+      "name": "x86-linux-2.6-glibc",
+      "arch": "i386",
+      "kernel_floor": "2.6",
+      "libc_family": "glibc",
+      "binary": "dist/busierbox-x86-linux-2.6-glibc",
+      "qemu_user": "qemu-i386-static",
+      "expected_constraints": []
+    },
+    {
+      "name": "x86_64-linux-current-glibc",
+      "arch": "x86_64",
+      "kernel_floor": "current",
+      "libc_family": "glibc",
+      "binary": "dist/busierbox",
+      "qemu_user": "native",
+      "expected_constraints": []
+    }
+  ]
+}
+

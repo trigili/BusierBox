@@ -1,0 +1,47 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -ne 1 ]; then
+    printf '%s\n' "usage: scripts/offline-unpack busierbox-sdk-YYYYMMDD.tar.zst|tar.gz" >&2
+    exit 2
+fi
+
+archive=$1
+tmp=dist/offline-unpack.$$
+
+rm -rf "$tmp"
+mkdir -p "$tmp"
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+
+case "$archive" in
+    *.tar.zst)
+        if ! command -v zstd >/dev/null 2>&1; then
+            printf '%s\n' "offline-unpack: zstd is required for $archive" >&2
+            exit 127
+        fi
+        zstd -dc "$archive" | tar -C "$tmp" -xf -
+        ;;
+    *.tar.gz|*.tgz)
+        tar -C "$tmp" -xzf "$archive"
+        ;;
+    *)
+        printf '%s\n' "offline-unpack: unsupported archive extension: $archive" >&2
+        exit 2
+        ;;
+esac
+
+payload=$(find "$tmp" -mindepth 1 -maxdepth 1 -type d | sed -n '1p')
+if [ -z "$payload" ] || [ ! -d "$payload/dl" ]; then
+    printf '%s\n' "offline-unpack: archive does not contain a dl cache" >&2
+    exit 1
+fi
+
+mkdir -p dl
+cp -R "$payload/dl/." dl/
+
+if [ -d "$payload/manifests" ]; then
+    mkdir -p manifests
+    cp -R "$payload/manifests/." manifests/
+fi
+
+printf '%s\n' "restored offline cache from $archive"

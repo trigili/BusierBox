@@ -1,0 +1,10 @@
+dist/*
+!dist/.gitkeep
+dl/*
+!dl/.gitkeep
+*.o
+*.tmp
+tests/artifacts/*
+!tests/artifacts/.gitkeep
+tests/qemu-system/rootfs/*
+!tests/qemu-system/rootfs/.gitkeep

@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+uname_s=$(uname -s 2>/dev/null || printf unknown)
+uname_m=$(uname -m 2>/dev/null || printf unknown)
+uname_r=$(uname -r 2>/dev/null || printf unknown)
+
+printf 'host_os=%s\n' "$uname_s"
+printf 'host_arch=%s\n' "$uname_m"
+printf 'host_kernel=%s\n' "$uname_r"
+

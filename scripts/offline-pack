@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+
+date_stamp=$(date +%Y%m%d)
+base="busierbox-sdk-$date_stamp"
+out_dir=dist
+tmp_dir="$out_dir/$base"
+
+rm -rf "$tmp_dir"
+mkdir -p "$tmp_dir"
+
+cp -R manifests "$tmp_dir/"
+mkdir -p "$tmp_dir/dl"
+if [ -d dl ]; then
+    (cd dl && find . -type f ! -name '.gitkeep' -exec sh -c 'for p do mkdir -p "../'"$tmp_dir"'/dl/$(dirname "$p")"; cp "$p" "../'"$tmp_dir"'/dl/$p"; done' sh {} +)
+fi
+
+if command -v zstd >/dev/null 2>&1; then
+    out="$out_dir/$base.tar.zst"
+    tar -C "$out_dir" -cf - "$base" | zstd -19 -o "$out"
+else
+    out="$out_dir/$base.tar.gz"
+    tar -C "$out_dir" -czf "$out" "$base"
+fi
+
+rm -rf "$tmp_dir"
+printf '%s\n' "$out"
+

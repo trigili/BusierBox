@@ -1,0 +1,53 @@
+#!/bin/sh
+set -eu
+
+manifest=${1:-manifests/sources.lock.json}
+dl_dir=${DL_DIR:-dl}
+
+mkdir -p "$dl_dir"
+
+fetch_one() {
+    url=$1
+    dest=$2
+
+    if [ -f "$dest" ]; then
+        printf '%s\n' "exists: $dest"
+        return 0
+    fi
+
+    tmp="${dest}.tmp"
+    rm -f "$tmp"
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -L --fail --retry 3 -o "$tmp" "$url"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -O "$tmp" "$url"
+    else
+        printf '%s\n' "fetch-sources: need curl or wget" >&2
+        return 127
+    fi
+
+    mv "$tmp" "$dest"
+}
+
+python3 - "$manifest" <<'PY' | while IFS='	' read -r name url filename
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+if data.get("schema") != 1:
+    raise SystemExit("unsupported manifest schema")
+
+for src in data.get("sources", []):
+    print(f"{src['name']}\t{src['url']}\t{src['filename']}")
+PY
+do
+    dest=$dl_dir/$(basename "$filename")
+    printf '%s\n' "fetching $name -> $dest"
+    fetch_one "$url" "$dest"
+done
+
+scripts/verify-sources "$manifest"
+

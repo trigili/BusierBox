@@ -1,0 +1,8 @@
+# BusierBox example target config
+BB_TARGET_ARCH=mipsel
+BB_TARGET_OS=linux
+BB_KERNEL_FLOOR=2.6
+BB_LIBC=musl
+BB_STATIC=1
+BB_TOOLCHAIN_PREFIX=mipsel-linux-musl-
+
