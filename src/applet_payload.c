@@ -14,6 +14,8 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "sha256.h"
+#include "../third_party/miniz/miniz.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -22,6 +24,9 @@
 #ifndef BUSIERBOX_PAYLOAD_VERSION
 #define BUSIERBOX_PAYLOAD_VERSION "dev"
 #endif
+
+#define BBX_TRAILER_SIZE 512
+#define BBX_MAGIC "BBXPAYLOADv1"
 
 static const char *heavy_tools[] = {"zsh", "tmux", "strace", "gdbserver", "dropbear", "curl", NULL};
 static const char *busybox_tools[] = {
@@ -38,6 +43,23 @@ static int is_help(int argc, char **argv)
 }
 
 static int rm_rf(const char *path);
+static const char *saved_argv0;
+
+void bb_set_argv0(const char *argv0)
+{
+    saved_argv0 = argv0;
+}
+
+struct embedded_payload {
+    int present;
+    char exe[PATH_MAX];
+    unsigned long long offset;
+    unsigned long long size;
+    char sha256[65];
+    char version[128];
+    char format[16];
+    unsigned long long compressed_size;
+};
 
 static int mkdir_p(const char *path, mode_t mode)
 {
@@ -79,6 +101,114 @@ static int read_exe_dir(char *out, size_t outsz)
     if (!slash)
         return -1;
     *slash = '\0';
+    return 0;
+}
+
+static int find_self_path(char *out, size_t outsz)
+{
+    ssize_t n = readlink("/proc/self/exe", out, outsz - 1);
+    if (n >= 0) {
+        out[n] = '\0';
+        return 0;
+    }
+    if (saved_argv0 && strchr(saved_argv0, '/')) {
+        snprintf(out, outsz, "%s", saved_argv0);
+        return 0;
+    }
+    if (saved_argv0) {
+        const char *path = getenv("PATH");
+        char *dup, *save = NULL, *p;
+        if (!path)
+            return -1;
+        dup = strdup(path);
+        if (!dup)
+            return -1;
+        for (p = strtok_r(dup, ":", &save); p; p = strtok_r(NULL, ":", &save)) {
+            snprintf(out, outsz, "%s/%s", *p ? p : ".", saved_argv0);
+            if (access(out, X_OK) == 0) {
+                free(dup);
+                return 0;
+            }
+        }
+        free(dup);
+    }
+    return -1;
+}
+
+static int parse_trailer_text(char *text, struct embedded_payload *ep)
+{
+    char *line, *save = NULL;
+    memset(ep, 0, sizeof(*ep));
+    line = strtok_r(text, "\n", &save);
+    if (!line || strcmp(line, BBX_MAGIC))
+        return -1;
+    while ((line = strtok_r(NULL, "\n", &save)) != NULL) {
+        char *eq;
+        if (!strcmp(line, "END"))
+            break;
+        eq = strchr(line, '=');
+        if (!eq)
+            continue;
+        *eq++ = '\0';
+        if (!strcmp(line, "offset"))
+            ep->offset = strtoull(eq, NULL, 10);
+        else if (!strcmp(line, "size"))
+            ep->size = strtoull(eq, NULL, 10);
+        else if (!strcmp(line, "sha256"))
+            snprintf(ep->sha256, sizeof(ep->sha256), "%s", eq);
+        else if (!strcmp(line, "version"))
+            snprintf(ep->version, sizeof(ep->version), "%s", eq);
+        else if (!strcmp(line, "format"))
+            snprintf(ep->format, sizeof(ep->format), "%s", eq);
+        else if (!strcmp(line, "compressed_size"))
+            ep->compressed_size = strtoull(eq, NULL, 10);
+    }
+    if (!ep->offset || !ep->size || strlen(ep->sha256) != 64 || !ep->version[0] || !ep->format[0])
+        return -1;
+    if (strcmp(ep->format, "tar") && strcmp(ep->format, "tgz"))
+        return -1;
+    ep->present = 1;
+    return 0;
+}
+
+static int get_embedded_payload(struct embedded_payload *ep)
+{
+    FILE *fp;
+    long fsize;
+    char trailer[BBX_TRAILER_SIZE + 1];
+
+    memset(ep, 0, sizeof(*ep));
+    if (find_self_path(ep->exe, sizeof(ep->exe)) != 0)
+        return -1;
+    fp = fopen(ep->exe, "rb");
+    if (!fp)
+        return -1;
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return -1;
+    }
+    fsize = ftell(fp);
+    if (fsize < BBX_TRAILER_SIZE) {
+        fclose(fp);
+        return -1;
+    }
+    if (fseek(fp, fsize - BBX_TRAILER_SIZE, SEEK_SET) != 0 || fread(trailer, 1, BBX_TRAILER_SIZE, fp) != BBX_TRAILER_SIZE) {
+        fclose(fp);
+        return -1;
+    }
+    fclose(fp);
+    trailer[BBX_TRAILER_SIZE] = '\0';
+    /* parse_trailer_text does memset(ep, 0) internally; preserve the exe path
+     * we already resolved above so verify_embedded_hash can open the binary. */
+    {
+        char saved_exe[PATH_MAX];
+        snprintf(saved_exe, sizeof(saved_exe), "%s", ep->exe);
+        if (parse_trailer_text(trailer, ep) != 0)
+            return -1;
+        snprintf(ep->exe, sizeof(ep->exe), "%s", saved_exe);
+    }
+    if (ep->offset + ep->size + BBX_TRAILER_SIZE > (unsigned long long)fsize)
+        return -1;
     return 0;
 }
 
@@ -161,14 +291,27 @@ static int archive_path(char *out, size_t outsz)
     char exe_dir[PATH_MAX], path[PATH_MAX];
 
     if (read_exe_dir(exe_dir, sizeof(exe_dir)) == 0) {
+        snprintf(path, sizeof(path), "%s/payload.tar", exe_dir);
+        if (path_exists(path)) {
+            snprintf(out, outsz, "%s", path);
+            return 0;
+        }
         snprintf(path, sizeof(path), "%s/payload.tar.gz", exe_dir);
         if (path_exists(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
         }
     }
+    if (path_exists("dist/payload.tar")) {
+        snprintf(out, outsz, "%s", "dist/payload.tar");
+        return 0;
+    }
     if (path_exists("dist/payload.tar.gz")) {
         snprintf(out, outsz, "%s", "dist/payload.tar.gz");
+        return 0;
+    }
+    if (path_exists("payload.tar")) {
+        snprintf(out, outsz, "%s", "payload.tar");
         return 0;
     }
     if (path_exists("payload.tar.gz")) {
@@ -249,18 +392,297 @@ static int enough_space(const char *archive, const char *root)
     return free_bytes > need_bytes;
 }
 
-static int run_tar_extract(const char *archive, const char *root)
+static int enough_space_size(unsigned long long size, const char *root)
 {
-    pid_t pid = fork();
-    int status;
+    struct statvfs v;
+    unsigned long long free_bytes, need_bytes;
+    if (statvfs(root, &v) != 0)
+        return 1;
+    free_bytes = (unsigned long long)v.f_bavail * (unsigned long long)v.f_frsize;
+    need_bytes = size * 4ULL;
+    if (need_bytes < 8ULL * 1024ULL * 1024ULL)
+        need_bytes = 8ULL * 1024ULL * 1024ULL;
+    return free_bytes > need_bytes;
+}
+
+struct payload_stream {
+    FILE *fp;
+    unsigned long long remaining;
+    int tgz;
+    int eof;
+    mz_stream z;
+    unsigned char in[8192];
+    unsigned char out[8192];
+    size_t out_pos;
+    size_t out_len;
+};
+
+static int stream_init_tar(struct payload_stream *s, FILE *fp, unsigned long long size)
+{
+    memset(s, 0, sizeof(*s));
+    s->fp = fp;
+    s->remaining = size;
+    return 0;
+}
+
+static int gzip_skip_header(FILE *fp, unsigned long long *remaining)
+{
+    unsigned char h[10];
+    int flg, c;
+    if (*remaining < 10 || fread(h, 1, 10, fp) != 10)
+        return -1;
+    *remaining -= 10;
+    if (h[0] != 0x1f || h[1] != 0x8b || h[2] != 8)
+        return -1;
+    flg = h[3];
+    if (flg & 0x04) {
+        unsigned char x[2];
+        unsigned int len;
+        if (*remaining < 2 || fread(x, 1, 2, fp) != 2)
+            return -1;
+        *remaining -= 2;
+        len = (unsigned int)x[0] | ((unsigned int)x[1] << 8);
+        if (*remaining < len || fseek(fp, (long)len, SEEK_CUR) != 0)
+            return -1;
+        *remaining -= len;
+    }
+    if (flg & 0x08) {
+        do {
+            if (*remaining < 1 || (c = fgetc(fp)) == EOF)
+                return -1;
+            (*remaining)--;
+        } while (c != 0);
+    }
+    if (flg & 0x10) {
+        do {
+            if (*remaining < 1 || (c = fgetc(fp)) == EOF)
+                return -1;
+            (*remaining)--;
+        } while (c != 0);
+    }
+    if (flg & 0x02) {
+        if (*remaining < 2 || fseek(fp, 2, SEEK_CUR) != 0)
+            return -1;
+        *remaining -= 2;
+    }
+    if (flg & 0xe0)
+        return -1;
+    return 0;
+}
+
+static int stream_init_tgz(struct payload_stream *s, FILE *fp, unsigned long long size)
+{
+    memset(s, 0, sizeof(*s));
+    s->fp = fp;
+    s->remaining = size;
+    s->tgz = 1;
+    if (gzip_skip_header(fp, &s->remaining) != 0)
+        return -1;
+    memset(&s->z, 0, sizeof(s->z));
+    if (mz_inflateInit2(&s->z, -MZ_DEFAULT_WINDOW_BITS) != MZ_OK)
+        return -1;
+    return 0;
+}
+
+static void stream_end(struct payload_stream *s)
+{
+    if (s->tgz)
+        mz_inflateEnd(&s->z);
+}
+
+static int stream_read(struct payload_stream *s, void *buf, size_t len)
+{
+    unsigned char *dst = buf;
+    size_t done = 0;
+    while (done < len) {
+        if (!s->tgz) {
+            size_t want = len - done;
+            if (s->remaining < want)
+                return -1;
+            if (fread(dst + done, 1, want, s->fp) != want)
+                return -1;
+            s->remaining -= want;
+            return 0;
+        }
+        if (s->out_pos < s->out_len) {
+            size_t n = s->out_len - s->out_pos;
+            if (n > len - done)
+                n = len - done;
+            memcpy(dst + done, s->out + s->out_pos, n);
+            s->out_pos += n;
+            done += n;
+            continue;
+        }
+        s->out_pos = s->out_len = 0;
+        if (s->z.avail_in == 0 && s->remaining > 8) {
+            size_t want = sizeof(s->in);
+            if (want > s->remaining - 8)
+                want = (size_t)(s->remaining - 8);
+            if (fread(s->in, 1, want, s->fp) != want)
+                return -1;
+            s->remaining -= want;
+            s->z.next_in = s->in;
+            s->z.avail_in = (mz_uint)want;
+        }
+        s->z.next_out = s->out;
+        s->z.avail_out = sizeof(s->out);
+        {
+            int rc = mz_inflate(&s->z, MZ_NO_FLUSH);
+            s->out_len = sizeof(s->out) - s->z.avail_out;
+            if (rc == MZ_STREAM_END)
+                s->eof = 1;
+            else if (rc != MZ_OK)
+                return -1;
+            if (s->out_len == 0 && s->eof)
+                return -1;
+        }
+    }
+    return 0;
+}
+
+static int octal(const char *p, size_t n, unsigned long long *out)
+{
+    unsigned long long v = 0;
+    size_t i;
+    for (i = 0; i < n; i++) {
+        if (p[i] == '\0' || p[i] == ' ')
+            break;
+        if (p[i] < '0' || p[i] > '7')
+            return -1;
+        v = (v << 3) + (unsigned)(p[i] - '0');
+    }
+    *out = v;
+    return 0;
+}
+
+static int safe_member_path(const char *name)
+{
+    if (!name[0] || name[0] == '/' || strstr(name, "/../") || !strcmp(name, "..") || !strncmp(name, "../", 3))
+        return 0;
+    return 1;
+}
+
+static int tar_extract_stream(struct payload_stream *s, const char *root)
+{
+    unsigned char hdr[512], buf[8192];
+    int zero_blocks = 0;
+    while (1) {
+        char name[256], full[PATH_MAX], linkname[256], type;
+        unsigned long long size = 0, mode = 0, pad, left, stored64 = 0;
+        unsigned int i, sum = 0, stored = 0;
+        int fd;
+
+        if (stream_read(s, hdr, 512) != 0)
+            return -1;
+        for (i = 0; i < 512; i++)
+            if (hdr[i])
+                break;
+        if (i == 512) {
+            if (++zero_blocks == 2)
+                return 0;
+            continue;
+        }
+        zero_blocks = 0;
+        if (octal((char *)hdr + 148, 8, &stored64) != 0)
+            return -1;
+        stored = (unsigned int)stored64;
+        for (i = 0; i < 512; i++)
+            sum += (i >= 148 && i < 156) ? ' ' : hdr[i];
+        if (stored != sum)
+            return -1;
+        snprintf(name, sizeof(name), "%.*s", 100, (char *)hdr);
+        if (hdr[345])
+            snprintf(name, sizeof(name), "%.*s/%.*s", 155, (char *)hdr + 345, 100, (char *)hdr);
+        if (!safe_member_path(name))
+            return -1;
+        if (octal((char *)hdr + 100, 8, &mode) != 0 || octal((char *)hdr + 124, 12, &size) != 0)
+            return -1;
+        mode &= 0777;
+        type = hdr[156] ? hdr[156] : '0';
+        snprintf(full, sizeof(full), "%s/%s", root, name);
+        if (type == '5') {
+            if (mkdir_p(full, (mode_t)mode) != 0)
+                return -1;
+        } else if (type == '0') {
+            char *slash = strrchr(full, '/');
+            if (slash) {
+                *slash = '\0';
+                if (mkdir_p(full, 0700) != 0)
+                    return -1;
+                *slash = '/';
+            }
+            fd = open(full, O_WRONLY | O_CREAT | O_TRUNC, (mode_t)mode);
+            if (fd < 0)
+                return -1;
+            left = size;
+            while (left) {
+                size_t n = left > sizeof(buf) ? sizeof(buf) : (size_t)left;
+                if (stream_read(s, buf, n) != 0 || write(fd, buf, n) != (ssize_t)n) {
+                    close(fd);
+                    return -1;
+                }
+                left -= n;
+            }
+            close(fd);
+            chmod(full, (mode_t)mode);
+        } else if (type == '2') {
+            snprintf(linkname, sizeof(linkname), "%.*s", 100, (char *)hdr + 157);
+            if (!safe_member_path(linkname))
+                return -1;
+            unlink(full);
+            if (symlink(linkname, full) != 0)
+                return -1;
+        } else {
+            return -1;
+        }
+        pad = (512 - (size % 512)) % 512;
+        if ((type == '0') && pad && stream_read(s, buf, (size_t)pad) != 0)
+            return -1;
+    }
+}
+
+static int verify_embedded_hash(const struct embedded_payload *ep)
+{
+    FILE *fp = fopen(ep->exe, "rb");
+    bb_sha256_ctx ctx;
+    uint8_t buf[8192], hash[32];
+    char hex[65];
+    unsigned long long left = ep->size;
+    if (!fp)
+        return -1;
+    if (fseek(fp, (long)ep->offset, SEEK_SET) != 0) {
+        fclose(fp);
+        return -1;
+    }
+    bb_sha256_init(&ctx);
+    while (left) {
+        size_t n = left > sizeof(buf) ? sizeof(buf) : (size_t)left;
+        if (fread(buf, 1, n, fp) != n) {
+            fclose(fp);
+            return -1;
+        }
+        bb_sha256_update(&ctx, buf, n);
+        left -= n;
+    }
+    fclose(fp);
+    bb_sha256_final(&ctx, hash);
+    bb_sha256_hex(hash, hex);
+    return strcmp(hex, ep->sha256) == 0 ? 0 : -1;
+}
+
+static int extract_embedded_to_root(const struct embedded_payload *ep, const char *root)
+{
     char lock[PATH_MAX], tmp[PATH_MAX], final[PATH_MAX], extracted[PATH_MAX];
+    FILE *fp;
+    struct payload_stream s;
+    int rc;
 
     snprintf(lock, sizeof(lock), "%s/.extract.lock", root);
     snprintf(tmp, sizeof(tmp), "%s/payload.tmp.%ld", root, (long)getpid());
     snprintf(final, sizeof(final), "%s/payload", root);
     snprintf(extracted, sizeof(extracted), "%s/payload", tmp);
 
-    if (!enough_space(archive, root)) {
+    if (!enough_space_size(ep->size, root)) {
         fprintf(stderr, "extract: not enough free space in %s\n", root);
         return -1;
     }
@@ -282,22 +704,29 @@ static int run_tar_extract(const char *archive, const char *root)
         return -1;
     }
 
-    if (pid < 0) {
+    if (verify_embedded_hash(ep) != 0) {
+        rm_rf(tmp);
+        rmdir(lock);
+        fprintf(stderr, "extract: embedded payload sha256 mismatch\n");
+        return -1;
+    }
+    fp = fopen(ep->exe, "rb");
+    if (!fp || fseek(fp, (long)ep->offset, SEEK_SET) != 0) {
+        if (fp)
+            fclose(fp);
         rm_rf(tmp);
         rmdir(lock);
         return -1;
     }
-    if (pid == 0) {
-        execlp("tar", "tar", "-xzf", archive, "-C", tmp, (char *)0);
-        _exit(127);
-    }
-    while (waitpid(pid, &status, 0) < 0) {
-        if (errno != EINTR)
-            rm_rf(tmp);
-            rmdir(lock);
-            return -1;
-    }
-    if (!(WIFEXITED(status) && WEXITSTATUS(status) == 0)) {
+    if (!strcmp(ep->format, "tar"))
+        rc = stream_init_tar(&s, fp, ep->size);
+    else
+        rc = stream_init_tgz(&s, fp, ep->size);
+    if (rc == 0)
+        rc = tar_extract_stream(&s, tmp);
+    stream_end(&s);
+    fclose(fp);
+    if (rc != 0) {
         rm_rf(tmp);
         rmdir(lock);
         return -1;
@@ -318,18 +747,71 @@ static int run_tar_extract(const char *archive, const char *root)
     return 0;
 }
 
+static int extract_archive_file_to_root(const char *archive, const char *root)
+{
+    struct embedded_payload ep;
+    FILE *fp;
+    struct stat st;
+    struct payload_stream s;
+    int rc, is_tgz;
+
+    memset(&ep, 0, sizeof(ep));
+    snprintf(ep.exe, sizeof(ep.exe), "%s", archive);
+    if (stat(archive, &st) != 0)
+        return -1;
+    ep.size = (unsigned long long)st.st_size;
+    snprintf(ep.version, sizeof(ep.version), "%s", BUSIERBOX_PAYLOAD_VERSION);
+    is_tgz = strstr(archive, ".gz") || strstr(archive, ".tgz");
+    snprintf(ep.format, sizeof(ep.format), "%s", is_tgz ? "tgz" : "tar");
+
+    if (!enough_space_size(ep.size, root))
+        return -1;
+    fp = fopen(archive, "rb");
+    if (!fp)
+        return -1;
+    rc = is_tgz ? stream_init_tgz(&s, fp, ep.size) : stream_init_tar(&s, fp, ep.size);
+    if (rc == 0) {
+        char tmp[PATH_MAX], final[PATH_MAX], extracted[PATH_MAX];
+        snprintf(tmp, sizeof(tmp), "%s/payload.devtmp.%ld", root, (long)getpid());
+        snprintf(final, sizeof(final), "%s/payload", root);
+        snprintf(extracted, sizeof(extracted), "%s/payload", tmp);
+        rm_rf(tmp);
+        if (mkdir_p(tmp, 0700) == 0)
+            rc = tar_extract_stream(&s, tmp);
+        else
+            rc = -1;
+        if (rc == 0 && payload_valid(extracted)) {
+            rm_rf(final);
+            rc = rename(extracted, final);
+        } else {
+            rc = -1;
+        }
+        rm_rf(tmp);
+    }
+    stream_end(&s);
+    fclose(fp);
+    return rc;
+}
+
 static int ensure_payload(char *payload, size_t payloadsz)
 {
     char archive[PATH_MAX], root[PATH_MAX];
+    struct embedded_payload ep;
 
     if (candidate_payload(payload, payloadsz) == 0)
         return 0;
-    if (archive_path(archive, sizeof(archive)) != 0)
-        return -1;
     if (choose_extract_root(root, sizeof(root)) != 0)
         return -1;
-    if (run_tar_extract(archive, root) != 0)
-        return -1;
+    if (get_embedded_payload(&ep) == 0) {
+        if (extract_embedded_to_root(&ep, root) != 0)
+            return -1;
+    } else {
+        if (archive_path(archive, sizeof(archive)) != 0)
+            return -1;
+        fprintf(stderr, "busierbox: warning: using dev-only external payload archive fallback: %s\n", archive);
+        if (extract_archive_file_to_root(archive, root) != 0)
+            return -1;
+    }
     snprintf(payload, payloadsz, "%s/payload", root);
     return payload_valid(payload) ? 0 : -1;
 }
@@ -426,27 +908,36 @@ int applet_list_main(int argc, char **argv)
 int applet_extract_main(int argc, char **argv)
 {
     char payload[PATH_MAX], archive[PATH_MAX], root[PATH_MAX];
+    struct embedded_payload ep;
 
     if (is_help(argc, argv)) {
         puts("usage: busierbox extract");
-        puts("Extracts dist/payload.tar.gz or adjacent payload.tar.gz into a writable runtime directory.");
+        puts("Extracts embedded payload into a writable runtime directory.");
         return 0;
     }
     if (candidate_payload(payload, sizeof(payload)) == 0) {
         printf("payload: reuse %s\n", payload);
         return 0;
     }
-    if (archive_path(archive, sizeof(archive)) != 0) {
-        fprintf(stderr, "extract: payload.tar.gz not found beside busierbox, in dist/, or in cwd\n");
-        return 1;
-    }
     if (choose_extract_root(root, sizeof(root)) != 0) {
         fprintf(stderr, "extract: no writable executable runtime directory found\n");
         return 1;
     }
-    if (run_tar_extract(archive, root) != 0) {
-        fprintf(stderr, "extract: tar extraction failed for %s\n", archive);
-        return 1;
+    if (get_embedded_payload(&ep) == 0) {
+        if (extract_embedded_to_root(&ep, root) != 0) {
+            fprintf(stderr, "extract: embedded payload extraction failed\n");
+            return 1;
+        }
+    } else {
+        if (archive_path(archive, sizeof(archive)) != 0) {
+            fprintf(stderr, "extract: no embedded payload found and no dev fallback archive found\n");
+            return 1;
+        }
+        fprintf(stderr, "extract: warning: using dev-only external payload archive fallback: %s\n", archive);
+        if (extract_archive_file_to_root(archive, root) != 0) {
+            fprintf(stderr, "extract: archive extraction failed for %s\n", archive);
+            return 1;
+        }
     }
     snprintf(payload, sizeof(payload), "%s/payload", root);
     if (!payload_valid(payload)) {
