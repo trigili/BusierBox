@@ -1,0 +1,71 @@
+#!/bin/sh
+set -eu
+
+core=${1:-dist/busierbox.core}
+payload=${2:-}
+out=${3:-dist/busierbox}
+version=${BUSIERBOX_PAYLOAD_VERSION:-dev}
+
+if [ -z "$payload" ]; then
+    if [ -f dist/payload.tar.gz ]; then
+        payload=dist/payload.tar.gz
+    elif [ -f dist/payload.tar ]; then
+        payload=dist/payload.tar
+    else
+        printf '%s\n' "embed-payload: missing payload archive" >&2
+        exit 1
+    fi
+fi
+
+case "$payload" in
+    *.tar) format=tar ;;
+    *.tar.gz|*.tgz) format=tgz ;;
+    *) printf '%s\n' "embed-payload: unsupported payload extension: $payload" >&2; exit 2 ;;
+esac
+
+[ -f "$core" ] || { printf '%s\n' "embed-payload: missing core $core" >&2; exit 1; }
+[ -f "$payload" ] || { printf '%s\n' "embed-payload: missing payload $payload" >&2; exit 1; }
+
+python3 - "$core" "$payload" "$out" "$version" "$format" <<'PY'
+import hashlib
+import os
+import sys
+
+core, payload, out, version, fmt = sys.argv[1:]
+trailer_size = 512
+magic = "BBXPAYLOADv1"
+
+with open(core, "rb") as fh:
+    core_bytes = fh.read()
+with open(payload, "rb") as fh:
+    payload_bytes = fh.read()
+
+offset = len(core_bytes)
+size = len(payload_bytes)
+sha = hashlib.sha256(payload_bytes).hexdigest()
+
+text = (
+    f"{magic}\n"
+    f"offset={offset}\n"
+    f"size={size}\n"
+    f"sha256={sha}\n"
+    f"version={version}\n"
+    f"format={fmt}\n"
+    f"compressed_size={size}\n"
+    f"END\n"
+)
+raw = text.encode("ascii")
+if len(raw) > trailer_size:
+    raise SystemExit("embed-payload: trailer too large")
+trailer = raw + b"\0" * (trailer_size - len(raw))
+
+tmp = out + ".tmp"
+with open(tmp, "wb") as fh:
+    fh.write(core_bytes)
+    fh.write(payload_bytes)
+    fh.write(trailer)
+os.chmod(tmp, 0o755)
+os.replace(tmp, out)
+print(f"embedded {payload} into {out}: offset={offset} size={size} sha256={sha} format={fmt}")
+PY
+

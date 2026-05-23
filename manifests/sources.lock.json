@@ -1,17 +1,28 @@
 {
-  "schema": 2,
-  "description": "Pinned third-party source manifest for BusierBox offline cache releases.",
-  "sources": [
-    {
-      "name": "buildroot",
-      "version": "2026.02.2",
-      "filename": "buildroot-2026.02.2.tar.xz",
-      "sha256": "a833429929aefd4175b0651b2b356b761960cd46d36df6a0049d1f117e3ac8a6",
-      "urls": [
-        "https://buildroot.org/downloads/buildroot-2026.02.2.tar.xz"
-      ],
-      "license": "GPL-2.0-or-later",
-      "homepage": "https://buildroot.org/"
-    }
-  ]
+    "schema": 2,
+    "description": "Pinned third-party source manifest for BusierBox offline cache releases.",
+    "sources": [
+        {
+            "name": "buildroot",
+            "version": "2026.02.2",
+            "filename": "buildroot-2026.02.2.tar.xz",
+            "sha256": "a833429929aefd4175b0651b2b356b761960cd46d36df6a0049d1f117e3ac8a6",
+            "urls": [
+                "https://buildroot.org/downloads/buildroot-2026.02.2.tar.xz"
+            ],
+            "license": "GPL-2.0-or-later",
+            "homepage": "https://buildroot.org/"
+        },
+        {
+            "name": "miniz",
+            "version": "2.2.0",
+            "filename": "miniz-2.2.0.zip",
+            "sha256": "e4aa5078999c7f7466fa6b8f9848e39ddfff9a4bafc50215764aebe1f13b3841",
+            "urls": [
+                "https://github.com/richgel999/miniz/releases/download/2.2.0/miniz-2.2.0.zip"
+            ],
+            "license": "Unlicense",
+            "homepage": "https://github.com/richgel999/miniz"
+        }
+    ]
 }
