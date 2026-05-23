@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+
+VERSION=${BUSIERBOX_PAYLOAD_VERSION:-dev}
+
+mkdir -p runtime/payload/bin runtime/payload/lib runtime/payload/share runtime/payload/home dist
+if [ ! -x runtime/payload/bin/busybox ]; then
+    printf '%s\n' "runtime/payload/bin/busybox missing; run make busybox first" >&2
+    exit 1
+fi
+printf '%s\n' "$VERSION" >runtime/payload/VERSION
+
+for tool in tmux strace gdbserver dropbear curl; do
+    if [ ! -e "runtime/payload/bin/$tool" ]; then
+        printf '%s\n' "#!/bin/sh" >"runtime/payload/bin/$tool"
+        printf '%s\n' "echo '$tool payload is not staged in this build' >&2" >>"runtime/payload/bin/$tool"
+        printf '%s\n' "exit 127" >>"runtime/payload/bin/$tool"
+        chmod 0755 "runtime/payload/bin/$tool"
+    fi
+done
+
+tar -C runtime -czf dist/payload.tar.gz payload
+if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum dist/payload.tar.gz >dist/payload.tar.gz.sha256
+elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 dist/payload.tar.gz >dist/payload.tar.gz.sha256
+else
+    printf '%s\n' "sha256 unavailable" >dist/payload.tar.gz.sha256
+fi
+printf '%s\n' "created dist/payload.tar.gz"

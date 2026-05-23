@@ -7,7 +7,7 @@ set -eu
 : "${LDFLAGS:=}"
 : "${OUT:=dist/busierbox}"
 
-src="src/busierbox.c src/applet_sh.c src/applet_survey.c src/applet_envfix.c src/applet_basic.c src/applet_net.c"
+src="src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c"
 tmp="${OUT}.$$.tmp"
 
 mkdir -p dist

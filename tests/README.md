@@ -27,7 +27,7 @@ Every backend runs the same Tier 0 smoke contract:
 ./busierbox serve --help
 ./busierbox uname -a
 ./busierbox id
-./busierbox df
+./busierbox df .
 ./busierbox free || true
 ./busierbox ps || true
 ```
@@ -121,4 +121,3 @@ scripts/config-from-survey tests/artifacts/qemu-user/x86_64-linux-current-glibc/
 ```
 
 This keeps target observations separate from build policy and makes later SDK selection reproducible.
-

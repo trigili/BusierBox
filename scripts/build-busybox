@@ -1,0 +1,123 @@
+#!/bin/sh
+set -eu
+
+BB_DIR=${BUSYBOX_DIR:-third_party/busybox}
+OUT=${BUSYBOX_OUT:-runtime/payload/bin/busybox}
+JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)}
+
+if [ ! -d "$BB_DIR" ] || [ ! -f "$BB_DIR/Makefile" ]; then
+    printf '%s\n' "busybox source missing at $BB_DIR" >&2
+    printf '%s\n' "run: git submodule update --init third_party/busybox" >&2
+    exit 1
+fi
+
+mkdir -p runtime/payload/bin
+
+cfg="$(pwd)/$BB_DIR/.busierbox-miniconfig"
+cat >"$cfg" <<'EOF'
+CONFIG_BUSYBOX=y
+CONFIG_STATIC=y
+CONFIG_SHOW_USAGE=y
+CONFIG_FEATURE_VERBOSE_USAGE=y
+CONFIG_LONG_OPTS=y
+CONFIG_INSTALL_APPLET_SYMLINKS=y
+CONFIG_FEATURE_PREFER_APPLETS=y
+CONFIG_BUSYBOX_EXEC_PATH="/proc/self/exe"
+CONFIG_ASH=y
+CONFIG_SH_IS_ASH=y
+CONFIG_FEATURE_SH_STANDALONE=y
+CONFIG_CAT=y
+CONFIG_CHMOD=y
+CONFIG_CP=y
+CONFIG_DD=y
+CONFIG_DF=y
+CONFIG_ECHO=y
+CONFIG_ENV=y
+CONFIG_FALSE=y
+CONFIG_ID=y
+CONFIG_LS=y
+CONFIG_MKDIR=y
+CONFIG_MV=y
+CONFIG_PWD=y
+CONFIG_READLINK=y
+CONFIG_RM=y
+CONFIG_SLEEP=y
+CONFIG_STAT=y
+CONFIG_SYNC=y
+CONFIG_TEE=y
+CONFIG_TOUCH=y
+CONFIG_TRUE=y
+CONFIG_UNAME=y
+CONFIG_WHICH=y
+CONFIG_GREP=y
+CONFIG_FIND=y
+CONFIG_XARGS=y
+CONFIG_SED=y
+CONFIG_AWK=y
+CONFIG_TAR=y
+CONFIG_GZIP=y
+CONFIG_GUNZIP=y
+CONFIG_FREE=y
+CONFIG_PS=y
+CONFIG_MOUNT=y
+CONFIG_UMOUNT=y
+CONFIG_DMESG=y
+CONFIG_IFCONFIG=y
+CONFIG_IP=y
+CONFIG_NETSTAT=y
+CONFIG_NC=y
+CONFIG_PING=y
+CONFIG_WGET=y
+EOF
+
+printf '%s\n' "configuring minimal BusyBox payload..."
+make -C "$BB_DIR" KCONFIG_ALLCONFIG="$cfg" allnoconfig >/dev/null
+enable() {
+    sym=$1
+    if grep -q "^# $sym is not set" "$BB_DIR/.config"; then
+        sed -i "s/^# $sym is not set/$sym=y/" "$BB_DIR/.config"
+    elif grep -q "^$sym=" "$BB_DIR/.config"; then
+        sed -i "s/^$sym=.*/$sym=y/" "$BB_DIR/.config"
+    else
+        printf '%s=y\n' "$sym" >>"$BB_DIR/.config"
+    fi
+}
+setstr() {
+    sym=$1
+    val=$2
+    if grep -q "^$sym=" "$BB_DIR/.config"; then
+        sed -i "s|^$sym=.*|$sym=\"$val\"|" "$BB_DIR/.config"
+    else
+        printf '%s="%s"\n' "$sym" "$val" >>"$BB_DIR/.config"
+    fi
+}
+for sym in \
+    CONFIG_BUSYBOX CONFIG_STATIC CONFIG_SHOW_USAGE CONFIG_FEATURE_VERBOSE_USAGE CONFIG_LONG_OPTS \
+    CONFIG_INSTALL_APPLET_SYMLINKS CONFIG_FEATURE_PREFER_APPLETS \
+    CONFIG_ASH CONFIG_SHELL_ASH CONFIG_SH_IS_ASH CONFIG_FEATURE_SH_STANDALONE \
+    CONFIG_CAT CONFIG_CHMOD CONFIG_CP CONFIG_DD CONFIG_DF CONFIG_ECHO CONFIG_ENV CONFIG_FALSE \
+    CONFIG_ID CONFIG_LS CONFIG_MKDIR CONFIG_MV CONFIG_PWD CONFIG_READLINK CONFIG_RM CONFIG_SLEEP \
+    CONFIG_STAT CONFIG_SYNC CONFIG_TEE CONFIG_TOUCH CONFIG_TRUE CONFIG_UNAME CONFIG_WHICH \
+    CONFIG_GREP CONFIG_FIND CONFIG_XARGS CONFIG_SED CONFIG_AWK CONFIG_TAR CONFIG_GZIP CONFIG_GUNZIP \
+    CONFIG_FREE CONFIG_PS CONFIG_MOUNT CONFIG_UMOUNT CONFIG_DMESG CONFIG_IFCONFIG CONFIG_IP \
+    CONFIG_NETSTAT CONFIG_NC CONFIG_PING CONFIG_WGET
+do
+    enable "$sym"
+done
+setstr CONFIG_BUSYBOX_EXEC_PATH /proc/self/exe
+yes "" | make -C "$BB_DIR" oldconfig >/dev/null
+make -C "$BB_DIR" clean >/dev/null
+
+printf '%s\n' "building BusyBox..."
+if make -C "$BB_DIR" -j"$JOBS" busybox >/dev/null; then
+    cp "$BB_DIR/busybox" "$OUT"
+    chmod 0755 "$OUT"
+    if command -v ldd >/dev/null 2>&1 && ldd "$OUT" >/dev/null 2>&1; then
+        printf '%s\n' "warning: BusyBox appears dynamically linked; bundle required shared libraries in runtime/payload/lib" >&2
+    else
+        printf '%s\n' "built static BusyBox payload at $OUT"
+    fi
+else
+    printf '%s\n' "BusyBox build failed" >&2
+    exit 1
+fi

@@ -337,9 +337,10 @@ int applet_survey_main(int argc, char **argv)
         printf(",\"meminfo\":"); json_meminfo();
         printf(",\"interfaces\":"); json_netdev();
         printf(",\"ptrace\":"); json_string(ptrace_status());
-        printf(",\"recommendations\":{\"zero_write_supported\":true,\"payload_mode_possible\":%s,\"likely_tmux_supported\":%s,\"likely_strace_supported\":%s,\"recommended_extract_dir\":",
+        printf(",\"recommendations\":{\"zero_write_supported\":true,\"payload_mode_possible\":%s,\"likely_tmux_supported\":%s,\"likely_strace_supported\":%s,\"likely_gdbserver_supported\":%s,\"recommended_extract_dir\":",
                strcmp(recommended_extract_dir(), "none") ? "true" : "false",
                access("/dev/pts", F_OK) == 0 ? "true" : "false",
+               !strcmp(ptrace_status(), "basic-ok") ? "true" : "false",
                !strcmp(ptrace_status(), "basic-ok") ? "true" : "false");
         json_string(recommended_extract_dir());
         printf("}}\n");
@@ -366,6 +367,7 @@ int applet_survey_main(int argc, char **argv)
     printf("  payload_mode_possible: %s\n", strcmp(recommended_extract_dir(), "none") ? "yes" : "no");
     printf("  likely_tmux_supported: %s\n", access("/dev/pts", F_OK) == 0 ? "yes" : "unknown");
     printf("  likely_strace_supported: %s\n", !strcmp(ptrace_status(), "basic-ok") ? "yes" : "unknown");
+    printf("  likely_gdbserver_supported: %s\n", !strcmp(ptrace_status(), "basic-ok") ? "yes" : "unknown");
     printf("  recommended_extract_dir: %s\n", recommended_extract_dir());
     return 0;
 }
