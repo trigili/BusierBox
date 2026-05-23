@@ -30,24 +30,34 @@ fetch_one() {
     mv "$tmp" "$dest"
 }
 
-python3 - "$manifest" <<'PY' | while IFS='	' read -r name url filename
+python3 - "$manifest" <<'PY' | while IFS='	' read -r name urls filename
 import json
 import sys
 
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-if data.get("schema") != 1:
+if data.get("schema") not in (1, 2):
     raise SystemExit("unsupported manifest schema")
 
 for src in data.get("sources", []):
-    print(f"{src['name']}\t{src['url']}\t{src['filename']}")
+    urls = src.get("urls") or [src.get("url")]
+    print(f"{src['name']}\t{' '.join(urls)}\t{src['filename']}")
 PY
 do
     dest=$dl_dir/$(basename "$filename")
     printf '%s\n' "fetching $name -> $dest"
-    fetch_one "$url" "$dest"
+    ok=0
+    for url in $urls; do
+        if fetch_one "$url" "$dest"; then
+            ok=1
+            break
+        fi
+    done
+    if [ "$ok" -ne 1 ]; then
+        printf '%s\n' "fetch-sources: all urls failed for $name" >&2
+        exit 1
+    fi
 done
 
 scripts/verify-sources "$manifest"
-

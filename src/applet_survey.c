@@ -261,6 +261,24 @@ static void json_dirs(void)
     putchar(']');
 }
 
+static void json_executable_extract_dirs(void)
+{
+    size_t i;
+    int first = 1;
+    putchar('[');
+    for (i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) {
+        char opts[256];
+        if (access(dirs[i], W_OK | X_OK) != 0)
+            continue;
+        if (mount_opts_for(dirs[i], opts, sizeof(opts)) && strstr(opts, "noexec"))
+            continue;
+        if (!first) putchar(',');
+        json_string(dirs[i]);
+        first = 0;
+    }
+    putchar(']');
+}
+
 static void json_mounts(void)
 {
     FILE *fp = fopen("/proc/mounts", "r");
@@ -332,17 +350,22 @@ int applet_survey_main(int argc, char **argv)
                access("/dev/pts", F_OK) == 0 ? "true" : "false");
         printf(",\"dirs\":"); json_dirs();
         printf(",\"writable_dirs\":"); json_dirs();
+        printf(",\"executable_extract_dirs\":"); json_executable_extract_dirs();
         printf(",\"mounts\":"); json_mounts();
         printf(",\"process_count\":"); pc >= 0 ? printf("%d", pc) : printf("null");
         printf(",\"meminfo\":"); json_meminfo();
         printf(",\"interfaces\":"); json_netdev();
         printf(",\"ptrace\":"); json_string(ptrace_status());
-        printf(",\"recommendations\":{\"zero_write_supported\":true,\"payload_mode_possible\":%s,\"likely_tmux_supported\":%s,\"likely_strace_supported\":%s,\"likely_gdbserver_supported\":%s,\"recommended_extract_dir\":",
+        printf(",\"recommendations\":{\"zero_write_supported\":true,\"payload_mode_possible\":%s,\"likely_zsh_supported\":%s,\"likely_tmux_supported\":%s,\"likely_strace_supported\":%s,\"likely_gdbserver_supported\":%s,\"likely_payload_reuse_supported\":%s,\"recommended_extract_dir\":",
+               strcmp(recommended_extract_dir(), "none") ? "true" : "false",
                strcmp(recommended_extract_dir(), "none") ? "true" : "false",
                access("/dev/pts", F_OK) == 0 ? "true" : "false",
                !strcmp(ptrace_status(), "basic-ok") ? "true" : "false",
-               !strcmp(ptrace_status(), "basic-ok") ? "true" : "false");
+               !strcmp(ptrace_status(), "basic-ok") ? "true" : "false",
+               access(".", W_OK | X_OK) == 0 ? "true" : "false");
         json_string(recommended_extract_dir());
+        printf(",\"payload_recommendation_reason\":");
+        json_string(strcmp(recommended_extract_dir(), "none") ? "found writable executable extraction directory" : "no writable executable extraction directory found");
         printf("}}\n");
         return 0;
     }
@@ -365,9 +388,12 @@ int applet_survey_main(int argc, char **argv)
     printf("recommendations:\n");
     printf("  zero_write_supported: yes\n");
     printf("  payload_mode_possible: %s\n", strcmp(recommended_extract_dir(), "none") ? "yes" : "no");
+    printf("  likely_zsh_supported: %s\n", strcmp(recommended_extract_dir(), "none") ? "yes" : "unknown");
     printf("  likely_tmux_supported: %s\n", access("/dev/pts", F_OK) == 0 ? "yes" : "unknown");
     printf("  likely_strace_supported: %s\n", !strcmp(ptrace_status(), "basic-ok") ? "yes" : "unknown");
     printf("  likely_gdbserver_supported: %s\n", !strcmp(ptrace_status(), "basic-ok") ? "yes" : "unknown");
+    printf("  likely_payload_reuse_supported: %s\n", access(".", W_OK | X_OK) == 0 ? "yes" : "unknown");
     printf("  recommended_extract_dir: %s\n", recommended_extract_dir());
+    printf("  payload_recommendation_reason: %s\n", strcmp(recommended_extract_dir(), "none") ? "found writable executable extraction directory" : "no writable executable extraction directory found");
     return 0;
 }

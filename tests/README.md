@@ -22,9 +22,12 @@ Every backend runs the same Tier 0 smoke contract:
 ./busierbox survey
 ./busierbox survey --json > survey.json
 ./busierbox envfix
+./busierbox extract
+./busierbox sh -c 'echo ok'
+./busierbox cp --help
+./busierbox dd --help
 ./busierbox nc --help
-./busierbox http --help
-./busierbox serve --help
+./busierbox config-info
 ./busierbox uname -a
 ./busierbox id
 ./busierbox df .
@@ -45,7 +48,7 @@ Every backend runs the same Tier 0 smoke contract:
 
 Representative qemu-user targets live in `tests/matrix/targets.example.json`:
 
-- ancient mipsel router class: `mipsel-linux-2.4-uclibc`
+- mipsel router class: `mipsel-linux-2.6-uclibc`
 - MIPS big-endian router class: `mips-linux-2.6-uclibc`
 - ARMv5 softfloat: `armv5-linux-2.6-uclibc-softfloat`
 - ARMv7 hardfloat: `armv7-linux-3.x-musl-hardfloat`
@@ -71,7 +74,7 @@ Artifacts are written to:
 tests/artifacts/qemu-user/<target>/
 ```
 
-Typical files include `survey.json`, `recommended-config.txt`, per-applet stdout/stderr, `status.txt`, and `summary.txt`.
+Typical files include `survey.json`, `recommended-config.txt`, `config-info.stdout`, extraction logs, per-command stdout/stderr, `status.txt`, and `summary.txt`.
 
 ## QEMU System
 

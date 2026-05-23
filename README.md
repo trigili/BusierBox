@@ -50,12 +50,14 @@ The current implementation stages placeholder launchers for heavy tools. Full tm
 ## Layout
 
 ```text
-third_party/busybox/     upstream BusyBox submodule
-payloads/                future per-tool payload recipes/hooks
+buildroot/configs/       target Buildroot defconfigs
+buildroot/external/      BusierBox Buildroot external tree
+payloads/profiles/       target metadata used by payload packaging
+payloads/dotfiles/       default .profile, .zshrc, .tmux.conf, .gdbinit
 runtime/payload/         staged payload tree
 runtime/payload/bin/     BusyBox and future tool binaries
 runtime/payload/lib/     bundled shared libraries when static builds are unavailable
-runtime/payload/home/    payload HOME with .profile, .tmux.conf, .gdbinit
+runtime/payload/home/    payload HOME
 dist/busierbox           BusierBox supervisor
 dist/payload.tar.gz      runtime payload archive
 ```
@@ -64,7 +66,7 @@ Generated binaries, payload archives, local rootfs images, and test artifacts ar
 
 ## Build
 
-Initialize the BusyBox submodule if needed:
+For fast native development, initialize the BusyBox submodule if needed:
 
 ```sh
 git submodule update --init third_party/busybox
@@ -76,7 +78,7 @@ Build the supervisor:
 make
 ```
 
-Build BusyBox:
+Build native BusyBox:
 
 ```sh
 make busybox
@@ -87,6 +89,22 @@ Stage and package the payload:
 ```sh
 make payload
 ```
+
+Buildroot-backed target payloads use the pinned Buildroot source from `manifests/sources.lock.json`:
+
+```sh
+make fetch-sources
+make buildroot
+make payload TARGET=mipsel-linux-2.6-uclibc
+```
+
+The optional ARMv7 profile is:
+
+```sh
+make payload TARGET=armv7-linux-3.x-musl
+```
+
+Buildroot builds the cross toolchain and BusyBox, stages `runtime/payload/bin/busybox`, copies default dotfiles into `runtime/payload/home`, permits bundled shared libraries in `runtime/payload/lib` when a fully static payload is unavailable, writes `runtime/payload/manifest.json`, and creates `dist/payload.tar.gz` plus `dist/payload.tar.gz.sha256`.
 
 Build both:
 
@@ -132,6 +150,8 @@ Extraction searches writable executable runtime locations:
 
 It avoids visible `noexec` mounts when `/proc/mounts` is readable, writes a payload `VERSION`, and reuses an existing payload when the version matches. `./busierbox clean` removes the local `./.busierbox` extraction.
 
+Extraction uses a lock directory, unpacks into a temporary directory, validates the result, and then atomically renames it into place. Interrupted extractions clean up their temporary directory where practical.
+
 When launching payload tools BusierBox sets:
 
 - `BUSIERBOX_PAYLOAD_DIR`
@@ -139,6 +159,9 @@ When launching payload tools BusierBox sets:
 - `HOME`
 - `TERM` fallback
 - `LD_LIBRARY_PATH` when `payload/lib` exists
+- `ZDOTDIR` when payload home exists
+
+`./busierbox config-info` reports the BusierBox build, extraction status, payload directory, payload hash, BusyBox dispatch status, and the payload manifest summary when available.
 
 ## Tiers
 
@@ -171,9 +194,14 @@ Tier 2: heavy debug payloads.
 
 Tier 2 should stay optional and Buildroot-friendly.
 
+## QEMU User Validation
+
+`make test-qemu-user` copies `dist/busierbox` and `dist/payload.tar.gz` into per-target artifact directories, runs `extract`, dispatches `sh`, `cp`, `dd`, `nc`, captures `survey.json`, captures `config-info`, and validates survey JSON. Missing qemu interpreters or missing cross BusierBox binaries are reported as skips.
+
+The primary target profile for this milestone is `mipsel-linux-2.6-uclibc`; the optional secondary profile is `armv7-linux-3.x-musl`.
+
 ## Offline SDK Model
 
 The repository contains build logic, manifests, patches, source pins, and small supervisor code. Large source caches, toolchains, and generated payload archives belong in release artifacts, not in the source tree.
 
 All third-party sources should be pinned by version and SHA-256 in `manifests/sources.lock.json` before they become required for reproducible offline builds.
-

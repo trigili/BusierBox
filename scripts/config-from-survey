@@ -44,6 +44,7 @@ def kernel_floor(release):
 
 payload = recs.get("payload_mode_possible", False)
 tmux = recs.get("likely_tmux_supported", False)
+zsh = recs.get("likely_zsh_supported", payload)
 strace = recs.get("likely_strace_supported", False)
 gdbserver = recs.get("likely_gdbserver_supported", strace)
 extract_dir = recs.get("recommended_extract_dir") or "none"
@@ -54,6 +55,7 @@ print(f"kernel_floor={kernel_floor(kernel)}")
 print(f"zero_write_possible={yesno(recs.get('zero_write_supported', False))}")
 print(f"payload_mode_possible={yesno(payload)}")
 print(f"recommended_extract_dir={extract_dir}")
+print(f"include_zsh={yesno(payload and zsh)}")
 print(f"include_tmux={yesno(payload and tmux)}")
 print(f"include_strace={yesno(strace)}")
 print(f"include_gdbserver={yesno(gdbserver)}")

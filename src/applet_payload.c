@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -22,7 +23,7 @@
 #define BUSIERBOX_PAYLOAD_VERSION "dev"
 #endif
 
-static const char *heavy_tools[] = {"tmux", "strace", "gdbserver", "dropbear", "curl", NULL};
+static const char *heavy_tools[] = {"zsh", "tmux", "strace", "gdbserver", "dropbear", "curl", NULL};
 static const char *busybox_tools[] = {
     "sh", "ash", "cat", "ls", "cp", "mv", "rm", "mkdir", "chmod", "touch",
     "dd", "uname", "id", "which", "readlink", "stat", "df", "free", "ps",
@@ -35,6 +36,8 @@ static int is_help(int argc, char **argv)
 {
     return argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"));
 }
+
+static int rm_rf(const char *path);
 
 static int mkdir_p(const char *path, mode_t mode)
 {
@@ -231,22 +234,88 @@ static int choose_extract_root(char *out, size_t outsz)
     return -1;
 }
 
+static int enough_space(const char *archive, const char *root)
+{
+    struct stat st;
+    struct statvfs v;
+    unsigned long long free_bytes, need_bytes;
+
+    if (stat(archive, &st) != 0 || statvfs(root, &v) != 0)
+        return 1;
+    free_bytes = (unsigned long long)v.f_bavail * (unsigned long long)v.f_frsize;
+    need_bytes = (unsigned long long)st.st_size * 4ULL;
+    if (need_bytes < 8ULL * 1024ULL * 1024ULL)
+        need_bytes = 8ULL * 1024ULL * 1024ULL;
+    return free_bytes > need_bytes;
+}
+
 static int run_tar_extract(const char *archive, const char *root)
 {
     pid_t pid = fork();
     int status;
+    char lock[PATH_MAX], tmp[PATH_MAX], final[PATH_MAX], extracted[PATH_MAX];
 
-    if (pid < 0)
+    snprintf(lock, sizeof(lock), "%s/.extract.lock", root);
+    snprintf(tmp, sizeof(tmp), "%s/payload.tmp.%ld", root, (long)getpid());
+    snprintf(final, sizeof(final), "%s/payload", root);
+    snprintf(extracted, sizeof(extracted), "%s/payload", tmp);
+
+    if (!enough_space(archive, root)) {
+        fprintf(stderr, "extract: not enough free space in %s\n", root);
         return -1;
+    }
+    int waits = 0;
+    while (mkdir(lock, 0700) != 0) {
+        if (errno != EEXIST)
+            return -1;
+        sleep(1);
+        if (payload_valid(final))
+            return 0;
+        if (++waits > 30) {
+            rmdir(lock);
+            waits = 0;
+        }
+    }
+    rm_rf(tmp);
+    if (mkdir_p(tmp, 0700) != 0) {
+        rmdir(lock);
+        return -1;
+    }
+
+    if (pid < 0) {
+        rm_rf(tmp);
+        rmdir(lock);
+        return -1;
+    }
     if (pid == 0) {
-        execlp("tar", "tar", "-xzf", archive, "-C", root, (char *)0);
+        execlp("tar", "tar", "-xzf", archive, "-C", tmp, (char *)0);
         _exit(127);
     }
     while (waitpid(pid, &status, 0) < 0) {
         if (errno != EINTR)
+            rm_rf(tmp);
+            rmdir(lock);
             return -1;
     }
-    return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
+    if (!(WIFEXITED(status) && WEXITSTATUS(status) == 0)) {
+        rm_rf(tmp);
+        rmdir(lock);
+        return -1;
+    }
+    if (!payload_valid(extracted)) {
+        rm_rf(tmp);
+        rmdir(lock);
+        return -1;
+    }
+    rm_rf(final);
+    if (rename(extracted, final) != 0) {
+        rm_rf(tmp);
+        rmdir(lock);
+        return -1;
+    }
+    rm_rf(tmp);
+    rmdir(lock);
+    return 0;
 }
 
 static int ensure_payload(char *payload, size_t payloadsz)
@@ -287,6 +356,10 @@ static void set_payload_env(const char *payload)
     setenv("HOME", home, 1);
     if (!getenv("TERM"))
         setenv("TERM", "vt100", 1);
+    snprintf(lib, sizeof(lib), "%s/home", payload);
+    if (path_exists(lib))
+        setenv("ZDOTDIR", lib, 1);
+    snprintf(lib, sizeof(lib), "%s/lib", payload);
     if (path_exists(lib))
         setenv("LD_LIBRARY_PATH", lib, 1);
 }
@@ -429,6 +502,7 @@ int applet_clean_main(int argc, char **argv)
 int applet_config_info_main(int argc, char **argv)
 {
     char payload[PATH_MAX], hash_path[PATH_MAX], hash[256] = "unknown";
+    char manifest[PATH_MAX];
     char exe_dir[PATH_MAX];
     int i;
 
@@ -459,6 +533,19 @@ int applet_config_info_main(int argc, char **argv)
         char busybox[PATH_MAX];
         snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
         printf("busybox_present=%s\n", executable_file(busybox) ? "yes" : "no");
+        snprintf(manifest, sizeof(manifest), "%s/manifest.json", payload);
+        if (path_exists(manifest)) {
+            FILE *fp = fopen(manifest, "r");
+            char line[256];
+            printf("payload_manifest=%s\n", manifest);
+            puts("payload_manifest_summary_begin");
+            if (fp) {
+                while (fgets(line, sizeof(line), fp))
+                    fputs(line, stdout);
+                fclose(fp);
+            }
+            puts("payload_manifest_summary_end");
+        }
     }
     puts("busybox_dispatch=yes");
     return 0;

@@ -1,7 +1,13 @@
 #!/bin/sh
 set -eu
 
+TARGET=${TARGET:-native}
 VERSION=${BUSIERBOX_PAYLOAD_VERSION:-dev}
+
+if [ "$TARGET" != "native" ]; then
+    TARGET="$TARGET" scripts/buildroot-build-payload
+    exit $?
+fi
 
 mkdir -p runtime/payload/bin runtime/payload/lib runtime/payload/share runtime/payload/home dist
 if [ ! -x runtime/payload/bin/busybox ]; then
@@ -9,8 +15,12 @@ if [ ! -x runtime/payload/bin/busybox ]; then
     exit 1
 fi
 printf '%s\n' "$VERSION" >runtime/payload/VERSION
+cp payloads/dotfiles/.profile runtime/payload/home/.profile
+cp payloads/dotfiles/.tmux.conf runtime/payload/home/.tmux.conf
+cp payloads/dotfiles/.zshrc runtime/payload/home/.zshrc
+cp payloads/dotfiles/.gdbinit runtime/payload/home/.gdbinit
 
-for tool in tmux strace gdbserver dropbear curl; do
+for tool in zsh tmux strace gdbserver dropbear curl; do
     if [ ! -e "runtime/payload/bin/$tool" ]; then
         printf '%s\n' "#!/bin/sh" >"runtime/payload/bin/$tool"
         printf '%s\n' "echo '$tool payload is not staged in this build' >&2" >>"runtime/payload/bin/$tool"
@@ -19,6 +29,41 @@ for tool in tmux strace gdbserver dropbear curl; do
     fi
 done
 
+payload_sha() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    else
+        printf '%s\n' unknown
+    fi
+}
+
+static_status=dynamic
+if command -v file >/dev/null 2>&1 && file runtime/payload/bin/busybox | grep -qi 'statically linked'; then
+    static_status=static
+fi
+busybox_version=$(runtime/payload/bin/busybox 2>&1 | sed -n 's/^BusyBox v\([^ ]*\).*/\1/p' | sed -n '1p')
+[ -n "$busybox_version" ] || busybox_version=unknown
+timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+cat >runtime/payload/manifest.json <<EOF_MANIFEST
+{
+  "target": "native",
+  "arch": "native",
+  "libc": "host",
+  "kernel_floor": "host",
+  "build_timestamp": "$timestamp",
+  "busybox_version": "$busybox_version",
+  "static_status": "$static_status",
+  "included_payload_tools": ["busybox", "zsh-placeholder", "tmux-placeholder", "strace-placeholder", "gdbserver-placeholder", "dropbear-placeholder", "curl-placeholder"],
+  "included_shared_libs": [],
+  "payload_sha256": "pending"
+}
+EOF_MANIFEST
+tar -C runtime -czf dist/payload.tar.gz payload
+sha=$(payload_sha dist/payload.tar.gz)
+sed "s/\"payload_sha256\": \"pending\"/\"payload_sha256\": \"$sha\"/" runtime/payload/manifest.json >runtime/payload/manifest.json.tmp
+mv runtime/payload/manifest.json.tmp runtime/payload/manifest.json
 tar -C runtime -czf dist/payload.tar.gz payload
 if command -v sha256sum >/dev/null 2>&1; then
     sha256sum dist/payload.tar.gz >dist/payload.tar.gz.sha256

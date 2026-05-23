@@ -1,0 +1,163 @@
+#!/bin/sh
+set -eu
+
+TARGET=${TARGET:-mipsel-linux-2.6-uclibc}
+PREPARE_ONLY=0
+if [ "${1:-}" = "--prepare-only" ]; then
+    PREPARE_ONLY=1
+fi
+BUILDROOT_VERSION=${BUILDROOT_VERSION:-2026.02.2}
+BUILDROOT_TARBALL=${BUILDROOT_TARBALL:-dl/buildroot-$BUILDROOT_VERSION.tar.xz}
+BUILDROOT_DIR=${BUILDROOT_DIR:-buildroot/buildroot-$BUILDROOT_VERSION}
+OUT_BASE=${BUILDROOT_OUTPUT_BASE:-buildroot/output}
+JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)}
+
+profile="payloads/profiles/$TARGET.mk"
+defconfig="buildroot/configs/${TARGET}_defconfig"
+out_dir="$OUT_BASE/$TARGET"
+
+profile_value() {
+    key=$1
+    sed -n "s/^$key[[:space:]]*:?=[[:space:]]*//p" "$profile" | sed -n '1p'
+}
+
+die() {
+    printf '%s\n' "buildroot-build-payload: $*" >&2
+    exit 1
+}
+
+ensure_buildroot() {
+    if [ -f "$BUILDROOT_DIR/Makefile" ]; then
+        return 0
+    fi
+    if [ ! -f "$BUILDROOT_TARBALL" ]; then
+        die "missing $BUILDROOT_TARBALL; run 'make fetch-sources' or 'make buildroot'"
+    fi
+    mkdir -p buildroot
+    tar -C buildroot -xf "$BUILDROOT_TARBALL"
+}
+
+stage_dotfiles() {
+    mkdir -p runtime/payload/home
+    cp payloads/dotfiles/.profile runtime/payload/home/.profile
+    cp payloads/dotfiles/.tmux.conf runtime/payload/home/.tmux.conf
+    cp payloads/dotfiles/.zshrc runtime/payload/home/.zshrc
+    cp payloads/dotfiles/.gdbinit runtime/payload/home/.gdbinit
+}
+
+stage_placeholders() {
+    mkdir -p runtime/payload/bin
+    for tool in zsh tmux strace gdbserver dropbear curl; do
+        if [ ! -e "runtime/payload/bin/$tool" ]; then
+            {
+                printf '%s\n' "#!/bin/sh"
+                printf '%s\n' "echo '$tool payload is not staged in this build' >&2"
+                printf '%s\n' "exit 127"
+            } >"runtime/payload/bin/$tool"
+            chmod 0755 "runtime/payload/bin/$tool"
+        fi
+    done
+}
+
+copy_shared_libs_if_dynamic() {
+    busybox=$1
+    if command -v file >/dev/null 2>&1 && file "$busybox" | grep -qi 'statically linked'; then
+        printf '%s\n' static
+        return 0
+    fi
+    mkdir -p runtime/payload/lib
+    if [ -d "$out_dir/target/lib" ]; then
+        find "$out_dir/target/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' -o -name 'ld-*.so*' \) -exec cp -P {} runtime/payload/lib/ \;
+    fi
+    if [ -d "$out_dir/target/usr/lib" ]; then
+        find "$out_dir/target/usr/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' \) -exec cp -P {} runtime/payload/lib/ \;
+    fi
+    printf '%s\n' dynamic
+}
+
+payload_sha_file() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    else
+        printf '%s\n' unknown
+    fi
+}
+
+write_manifest() {
+    static_status=$1
+    payload_sha=$2
+    arch=$(profile_value ARCH)
+    libc=$(profile_value LIBC)
+    kernel_floor=$(profile_value KERNEL_FLOOR)
+    if command -v strings >/dev/null 2>&1; then
+        busybox_version=$(strings runtime/payload/bin/busybox | sed -n 's/^BusyBox v\([^ ]*\).*/\1/p' | sed -n '1p')
+    else
+        busybox_version=unknown
+    fi
+    [ -n "$busybox_version" ] || busybox_version=unknown
+    libs=$(find runtime/payload/lib -maxdepth 1 -type f -o -type l 2>/dev/null | sed 's|.*/||' | sort | awk 'BEGIN{first=1; printf "["} {if(!first) printf ","; first=0; printf "\"%s\"", $0} END{printf "]"}')
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    cat >runtime/payload/manifest.json <<EOF_MANIFEST
+{
+  "target": "$TARGET",
+  "arch": "$arch",
+  "libc": "$libc",
+  "kernel_floor": "$kernel_floor",
+  "build_timestamp": "$timestamp",
+  "busybox_version": "$busybox_version",
+  "static_status": "$static_status",
+  "included_payload_tools": ["busybox", "zsh-placeholder", "tmux-placeholder", "strace-placeholder", "gdbserver-placeholder", "dropbear-placeholder", "curl-placeholder"],
+  "included_shared_libs": $libs,
+  "payload_sha256": "$payload_sha"
+}
+EOF_MANIFEST
+}
+
+[ -f "$profile" ] || die "unknown TARGET=$TARGET; missing $profile"
+[ -f "$defconfig" ] || die "missing Buildroot defconfig $defconfig"
+
+ensure_buildroot
+if [ "$PREPARE_ONLY" -eq 1 ]; then
+    printf '%s\n' "Buildroot ready at $BUILDROOT_DIR"
+    exit 0
+fi
+mkdir -p "$out_dir" runtime/payload/bin runtime/payload/lib runtime/payload/share runtime/payload/home dist
+
+printf '%s\n' "configuring Buildroot payload for $TARGET..."
+cp "$defconfig" "$out_dir/.config"
+make -C "$BUILDROOT_DIR" O="$(pwd)/$out_dir" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" olddefconfig
+if [ "${BUSIERBOX_BUILDROOT_CONFIG_ONLY:-0}" = "1" ]; then
+    printf '%s\n' "Buildroot configuration validated for $TARGET"
+    exit 0
+fi
+
+printf '%s\n' "building Buildroot BusyBox payload for $TARGET..."
+if ! make -C "$BUILDROOT_DIR" O="$(pwd)/$out_dir" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" -j"$JOBS"; then
+    die "Buildroot build failed for $TARGET; inspect $out_dir/build"
+fi
+
+busybox_src="$out_dir/target/bin/busybox"
+[ -x "$busybox_src" ] || busybox_src="$out_dir/target/usr/bin/busybox"
+[ -x "$busybox_src" ] || die "Buildroot completed but busybox was not found in $out_dir/target"
+
+rm -rf runtime/payload
+mkdir -p runtime/payload/bin runtime/payload/lib runtime/payload/share runtime/payload/home
+cp "$busybox_src" runtime/payload/bin/busybox
+chmod 0755 runtime/payload/bin/busybox
+static_status=$(copy_shared_libs_if_dynamic runtime/payload/bin/busybox)
+stage_dotfiles
+stage_placeholders
+printf '%s\n' "${BUSIERBOX_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION
+
+write_manifest "$static_status" pending
+tar -C runtime -czf dist/payload.tar.gz payload
+payload_sha=$(payload_sha_file dist/payload.tar.gz)
+write_manifest "$static_status" "$payload_sha"
+tar -C runtime -czf dist/payload.tar.gz payload
+payload_sha=$(payload_sha_file dist/payload.tar.gz)
+write_manifest "$static_status" "$payload_sha"
+tar -C runtime -czf dist/payload.tar.gz payload
+payload_sha_file dist/payload.tar.gz | awk '{print $1 "  dist/payload.tar.gz"}' >dist/payload.tar.gz.sha256
+printf '%s\n' "created dist/payload.tar.gz for $TARGET"

@@ -1,6 +1,17 @@
 {
-  "schema": 1,
+  "schema": 2,
   "description": "Pinned third-party source manifest for BusierBox offline cache releases.",
-  "sources": []
+  "sources": [
+    {
+      "name": "buildroot",
+      "version": "2026.02.2",
+      "filename": "buildroot-2026.02.2.tar.xz",
+      "sha256": "a833429929aefd4175b0651b2b356b761960cd46d36df6a0049d1f117e3ac8a6",
+      "urls": [
+        "https://buildroot.org/downloads/buildroot-2026.02.2.tar.xz"
+      ],
+      "license": "GPL-2.0-or-later",
+      "homepage": "https://buildroot.org/"
+    }
+  ]
 }
-

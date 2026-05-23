@@ -2,12 +2,12 @@
   "schema": 1,
   "targets": [
     {
-      "name": "mipsel-linux-2.4-uclibc",
+      "name": "mipsel-linux-2.6-uclibc",
       "arch": "mipsel",
       "endian": "little",
-      "kernel_floor": "2.4",
+      "kernel_floor": "2.6",
       "libc_family": "uclibc",
-      "binary": "dist/busierbox-mipsel-linux-2.4-uclibc",
+      "binary": "dist/busierbox-mipsel-linux-2.6-uclibc",
       "qemu_user": "qemu-mipsel-static",
       "expected_constraints": ["tiny_tmp", "old_syscalls"]
     },
@@ -70,4 +70,3 @@
     }
   ]
 }
-

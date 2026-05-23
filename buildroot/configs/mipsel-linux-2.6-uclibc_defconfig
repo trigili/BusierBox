@@ -1,0 +1,15 @@
+BR2_mipsel=y
+BR2_TOOLCHAIN_BUILDROOT_UCLIBC=y
+BR2_STATIC_LIBS=y
+BR2_TOOLCHAIN_BUILDROOT_CXX=n
+BR2_INIT_NONE=y
+BR2_SYSTEM_BIN_SH_BUSYBOX=y
+BR2_ROOTFS_DEVICE_CREATION_STATIC=y
+BR2_TARGET_GENERIC_HOSTNAME="busierbox-mipsel"
+BR2_TARGET_GENERIC_ISSUE="BusierBox mipsel payload"
+BR2_PACKAGE_BUSYBOX=y
+BR2_PACKAGE_BUSYBOX_CONFIG="package/busybox/busybox.config"
+BR2_TARGET_ROOTFS_TAR=y
+# Keep payload-focused Buildroot outputs small. Kernel/rootfs boot images are not required for qemu-user tests.
+# Kernel floor policy target: Linux 2.6 class. Exact headers depend on the selected Buildroot release support.
+

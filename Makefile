@@ -1,6 +1,7 @@
 PREFIX ?= /usr/local
 CONFIG ?= configs/native-linux.example
 OUT ?= dist/busierbox
+TARGET ?= native
 CC ?= cc
 CFLAGS ?= -Os -Wall -Wextra -std=c99
 CPPFLAGS ?=
@@ -8,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c
 
-.PHONY: all build busybox payload package clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-all
+.PHONY: all build buildroot busybox payload package clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-all
 
 all: build
 
@@ -18,8 +19,13 @@ build:
 busybox:
 	@scripts/build-busybox
 
-payload: busybox
-	@scripts/build-payload
+buildroot: fetch-sources
+	@scripts/buildroot-build-payload --prepare-only
+	@printf '%s\n' "Buildroot source is available via dl/ and extracted on demand by scripts/buildroot-build-payload"
+
+payload:
+	@if [ "$(TARGET)" = "native" ]; then $(MAKE) busybox; fi
+	@TARGET="$(TARGET)" scripts/build-payload
 
 package: build payload
 
