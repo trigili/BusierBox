@@ -1,0 +1,39 @@
+#!/bin/sh
+set -eu
+
+archive=${1:-dist/payload.tar}
+
+if [ ! -f "$archive" ]; then
+    printf '%s\n' "check-payload-tar: missing archive $archive" >&2
+    exit 1
+fi
+
+list_tar() {
+    if tar --format=ustar -tf "$archive" >/dev/null 2>&1; then
+        tar --format=ustar -tvf "$archive"
+    else
+        tar -tvf "$archive"
+    fi
+}
+
+list_tar | awk '
+{
+    path=$NF
+    if (path ~ /^\//) {
+        print "absolute path not allowed: " path > "/dev/stderr"
+        bad=1
+    }
+    if (path ~ /\.\.\// || path == "..") {
+        print "path traversal not allowed: " path > "/dev/stderr"
+        bad=1
+    }
+    if (length(path) > 255) {
+        print "path too long for conservative ustar compatibility: " path > "/dev/stderr"
+        bad=1
+    }
+}
+END {
+    exit bad
+}'
+
+printf '%s\n' "payload tar validation ok: $archive"
