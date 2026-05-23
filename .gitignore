@@ -1,10 +1,68 @@
+# Build outputs
 dist/*
 !dist/.gitkeep
+*.o
+*.a
+*.so
+*.so.*
+*.tmp
+*.log
+
+# Runtime/generated payloads
+runtime/payload/*
+!runtime/payload/.gitkeep
+!runtime/payload/bin/
+!runtime/payload/bin/.gitkeep
+!runtime/payload/lib/
+!runtime/payload/lib/.gitkeep
+!runtime/payload/share/
+!runtime/payload/share/.gitkeep
+!runtime/payload/home/
+!runtime/payload/home/.gitkeep
+
+# Local extraction
+.busierbox/
+
+# Buildroot
+buildroot/buildroot-*/
+buildroot/output/*
+!buildroot/output/.gitkeep
+
+# Download/source cache
 dl/*
 !dl/.gitkeep
-*.o
-*.tmp
+
+# SDK/release/cache artifacts
+*.tar
+*.tar.gz
+*.tgz
+*.tar.xz
+*.tar.zst
+*.zip
+*.sha256
+*.sha256sum
+
+# Tests/QEMU
 tests/artifacts/*
 !tests/artifacts/.gitkeep
 tests/qemu-system/rootfs/*
 !tests/qemu-system/rootfs/.gitkeep
+*.qcow2
+*.img
+*.ext2
+*.ext4
+*.squashfs
+*.cpio
+
+# Editor/OS junk
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# AI Slop 🙂
+.antigravitycli/
+.codex/
+local_doc/
+AGENTS.md
