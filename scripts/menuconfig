@@ -1,7 +1,6 @@
 #!/bin/sh
 set -eu
 
-# Ensure dialog is installed
 if ! command -v dialog >/dev/null 2>&1; then
     printf 'Error: dialog is required to run menuconfig. Please install it first (e.g., sudo apt install dialog).\n' >&2
     exit 1
@@ -10,23 +9,26 @@ fi
 CFG_FILE="configs/busierbox.conf"
 mkdir -p configs
 
-# Load current config or defaults
 BB_TARGETS="native"
 BB_PAYLOAD_FORMAT="tgz"
 BB_PAYLOAD_VERSION="dev"
 BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
 BB_HEAVY_TOOLS=""
 BB_DROPBEAR_SERVER_MODE="no"
+BB_ENABLE_CUSTOM_TARGET="no"
+BB_CUSTOM_ARCH="mipsel"
+BB_CUSTOM_ENDIAN="little"
+BB_CUSTOM_LIBC="musl"
+BB_CUSTOM_KERNEL_FLOOR="2.6"
+BB_CUSTOM_ABI="default"
 
 if [ -f "$CFG_FILE" ]; then
     . "./$CFG_FILE"
 fi
 
-# Temp files for dialog output
 temp_out=$(mktemp)
 trap 'rm -f "$temp_out"' EXIT
 
-# Helper function to check if an item is selected in a list
 has_item() {
     list="$1"
     item="$2"
@@ -38,22 +40,88 @@ has_item() {
     return 1
 }
 
-# Page 1: Build Targets
-status_native="off"; status_arm="off"; status_mips="off"
+status_native="off"
+status_armv7="off"
+status_mipsel_uclibc="off"
+status_mips_uclibc="off"
+status_armv5="off"
+status_aarch64="off"
+status_i386="off"
+status_x86_64="off"
+status_mipsel_musl="off"
+status_mips_musl="off"
+
 has_item "$BB_TARGETS" "native" && status_native="on"
-has_item "$BB_TARGETS" "armv7-linux-3.x-musl" && status_arm="on"
-has_item "$BB_TARGETS" "mipsel-linux-2.6-uclibc" && status_mips="on"
+has_item "$BB_TARGETS" "armv7-linux-3.x-musl" && status_armv7="on"
+has_item "$BB_TARGETS" "mipsel-linux-2.6-uclibc" && status_mipsel_uclibc="on"
+has_item "$BB_TARGETS" "mips-linux-2.6-uclibc" && status_mips_uclibc="on"
+has_item "$BB_TARGETS" "armv5-linux-2.6-uclibc-eabi" && status_armv5="on"
+has_item "$BB_TARGETS" "aarch64-linux-4.x-musl" && status_aarch64="on"
+has_item "$BB_TARGETS" "i386-linux-2.6-musl" && status_i386="on"
+has_item "$BB_TARGETS" "x86_64-linux-current-musl" && status_x86_64="on"
+has_item "$BB_TARGETS" "mipsel-linux-2.6-musl" && status_mipsel_musl="on"
+has_item "$BB_TARGETS" "mips-linux-2.6-musl" && status_mips_musl="on"
 
 dialog --title "BusierBox: Build Targets" \
-    --checklist "Select build targets (space to select):" 15 60 4 \
+    --checklist "Select build targets (space to select):" 22 80 12 \
     "native" "Native Host Build" "$status_native" \
-    "armv7-linux-3.x-musl" "ARMv7 Linux 3.x Musl" "$status_arm" \
-    "mipsel-linux-2.6-uclibc" "MIPS LE Linux 2.6 uClibc" "$status_mips" \
+    "x86_64-linux-current-musl" "x86_64 Linux current musl" "$status_x86_64" \
+    "i386-linux-2.6-musl" "i386 Linux 2.6 musl" "$status_i386" \
+    "aarch64-linux-4.x-musl" "AArch64 Linux 4.x musl" "$status_aarch64" \
+    "armv7-linux-3.x-musl" "ARMv7 Linux 3.x musl hardfloat" "$status_armv7" \
+    "armv5-linux-2.6-uclibc-eabi" "ARMv5 Linux 2.6 uClibc EABI" "$status_armv5" \
+    "mipsel-linux-2.6-musl" "MIPS LE Linux 2.6 musl" "$status_mipsel_musl" \
+    "mips-linux-2.6-musl" "MIPS BE Linux 2.6 musl" "$status_mips_musl" \
+    "mipsel-linux-2.6-uclibc" "MIPS LE Linux 2.6 uClibc" "$status_mipsel_uclibc" \
+    "mips-linux-2.6-uclibc" "MIPS BE Linux 2.6 uClibc" "$status_mips_uclibc" \
     2>"$temp_out" || exit 1
 
 BB_TARGETS=$(cat "$temp_out" | tr -d '"')
 
-# Page 2: Payload Archive Format
+status_custom="off"
+[ "$BB_ENABLE_CUSTOM_TARGET" = "yes" ] && status_custom="on"
+
+dialog --title "BusierBox: Custom Experimental Target" \
+    --radiolist "Enable custom tuple generation?" 10 60 2 \
+    "yes" "Enable custom experimental tuple" "$status_custom" \
+    "no" "Disable custom experimental tuple" "$([ "$status_custom" = "on" ] && printf off || printf on)" \
+    2>"$temp_out" || exit 1
+
+BB_ENABLE_CUSTOM_TARGET=$(cat "$temp_out" | tr -d '"')
+
+if [ "$BB_ENABLE_CUSTOM_TARGET" = "yes" ]; then
+    dialog --title "BusierBox: Custom Architecture" \
+        --menu "Select architecture:" 16 60 8 \
+        "mipsel" "MIPS little-endian" \
+        "mips" "MIPS big-endian" \
+        "armv5" "ARMv5" \
+        "armv7" "ARMv7" \
+        "aarch64" "AArch64" \
+        "i386" "x86" \
+        "x86_64" "x86_64" \
+        "riscv64" "RISC-V 64" \
+        2>"$temp_out" || exit 1
+    BB_CUSTOM_ARCH=$(cat "$temp_out" | tr -d '"')
+
+    dialog --title "BusierBox: Custom libc" \
+        --menu "Select libc:" 12 50 3 \
+        "musl" "musl libc" \
+        "uclibc" "uClibc-ng" \
+        "glibc" "glibc" \
+        2>"$temp_out" || exit 1
+    BB_CUSTOM_LIBC=$(cat "$temp_out" | tr -d '"')
+
+    dialog --title "BusierBox: Custom kernel floor" \
+        --menu "Select kernel floor:" 14 50 5 \
+        "2.4" "Linux 2.4" \
+        "2.6" "Linux 2.6" \
+        "3.x" "Linux 3.x" \
+        "4.x" "Linux 4.x" \
+        "current" "Current" \
+        2>"$temp_out" || exit 1
+    BB_CUSTOM_KERNEL_FLOOR=$(cat "$temp_out" | tr -d '"')
+fi
+
 status_tgz="off"; status_tar="off"
 if [ "$BB_PAYLOAD_FORMAT" = "tar" ]; then status_tar="on"; else status_tgz="on"; fi
 
@@ -65,7 +133,6 @@ dialog --title "BusierBox: Payload Format" \
 
 BB_PAYLOAD_FORMAT=$(cat "$temp_out" | tr -d '"')
 
-# Page 3: BusyBox Applet Groups
 status_shell="off"; status_fileops="off"; status_disk="off"
 status_process="off"; status_network="off"; status_text="off"
 status_system="off"
@@ -91,7 +158,6 @@ dialog --title "BusierBox: BusyBox Applet Groups" \
 
 BB_BUSYBOX_GROUPS=$(cat "$temp_out" | tr -d '"')
 
-# Page 4: Heavy Tools
 status_dropbear="off"; status_curl="off"; status_tmux="off"
 status_zsh="off"; status_strace="off"; status_gdbserver="off"
 
@@ -114,7 +180,6 @@ dialog --title "BusierBox: Heavy Tools" \
 
 BB_HEAVY_TOOLS=$(cat "$temp_out" | tr -d '"')
 
-# Page 5: Dropbear specific options (only if dropbear is selected)
 has_item "$BB_HEAVY_TOOLS" "dropbear"
 is_dropbear_selected=$?
 
@@ -136,33 +201,26 @@ else
     BB_DROPBEAR_SERVER_MODE="no"
 fi
 
-# Write updated config to temporary file
 temp_cfg=$(mktemp)
 cat >"$temp_cfg" <<EOF
 # BusierBox build configuration
 # Generated by: make menuconfig
 # Edit manually or regenerate with: make menuconfig
 
-# Build targets (space-separated; "native" always available)
 BB_TARGETS="$BB_TARGETS"
-
-# Payload archive format: tgz or tar
 BB_PAYLOAD_FORMAT="$BB_PAYLOAD_FORMAT"
-
-# Payload version string embedded in the binary
 BB_PAYLOAD_VERSION="$BB_PAYLOAD_VERSION"
-
-# BusyBox applet groups to compile in (space-separated)
 BB_BUSYBOX_GROUPS="$BB_BUSYBOX_GROUPS"
-
-# Heavy tools to include in the payload (space-separated)
 BB_HEAVY_TOOLS="$BB_HEAVY_TOOLS"
-
-# Per-tool options (only used when the tool is in BB_HEAVY_TOOLS)
 BB_DROPBEAR_SERVER_MODE="$BB_DROPBEAR_SERVER_MODE"
+BB_ENABLE_CUSTOM_TARGET="$BB_ENABLE_CUSTOM_TARGET"
+BB_CUSTOM_ARCH="$BB_CUSTOM_ARCH"
+BB_CUSTOM_ENDIAN="$BB_CUSTOM_ENDIAN"
+BB_CUSTOM_LIBC="$BB_CUSTOM_LIBC"
+BB_CUSTOM_KERNEL_FLOOR="$BB_CUSTOM_KERNEL_FLOOR"
+BB_CUSTOM_ABI="$BB_CUSTOM_ABI"
 EOF
 
-# Show changes diff and confirm save
 if [ -f "$CFG_FILE" ]; then
     if diff -u "$CFG_FILE" "$temp_cfg" >"$temp_out" 2>/dev/null; then
         dialog --title "BusierBox: No changes" \
