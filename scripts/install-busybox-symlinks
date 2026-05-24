@@ -1,0 +1,39 @@
+#!/bin/sh
+# Create payload/bin/<applet> -> busybox symlinks for interactive PATH lookup.
+# Real staged binaries (heavy tools) already present in bin/ are never overwritten.
+set -eu
+
+payload_dir=${1:-runtime/payload}
+bin_dir="$payload_dir/bin"
+applets_file="$payload_dir/busybox-applets.txt"
+diag_dir="$payload_dir/share/busierbox"
+
+[ -f "$applets_file" ] || {
+    printf '%s\n' "install-busybox-symlinks: no applet list at $applets_file; skipping" >&2
+    exit 0
+}
+[ -x "$bin_dir/busybox" ] || {
+    printf '%s\n' "install-busybox-symlinks: busybox not found at $bin_dir/busybox; skipping" >&2
+    exit 0
+}
+
+mkdir -p "$diag_dir"
+: >"$diag_dir/applet-symlink-skips.txt"
+count=0
+skips=0
+
+while IFS= read -r applet; do
+    [ -n "$applet" ] || continue
+    [ "$applet" = "busybox" ] && continue
+    target="$bin_dir/$applet"
+    if [ -e "$target" ] || [ -L "$target" ]; then
+        printf '%s\n' "$applet" >>"$diag_dir/applet-symlink-skips.txt"
+        skips=$((skips + 1))
+        continue
+    fi
+    ln -s busybox "$target"
+    count=$((count + 1))
+done <"$applets_file"
+
+printf '%s\n' "$count" >"$diag_dir/applet-symlink-count.txt"
+printf '%s\n' "install-busybox-symlinks: installed $count symlinks, $skips skipped (existing files)"

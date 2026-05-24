@@ -81,6 +81,8 @@ done
 sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
 sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
 
+scripts/install-busybox-symlinks runtime/payload
+
 payload_sha() {
     if command -v sha256sum >/dev/null 2>&1; then
         sha256sum "$1" | awk '{print $1}'

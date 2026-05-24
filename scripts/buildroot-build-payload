@@ -458,6 +458,8 @@ sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
 sort -u runtime/payload/overlay-tools.txt -o runtime/payload/overlay-tools.txt
 sort -u runtime/payload/user-provided-tools.txt -o runtime/payload/user-provided-tools.txt
 
+scripts/install-busybox-symlinks runtime/payload
+
 stage_dotfiles
 printf '%s\n' "${BUSIERBOX_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION
 

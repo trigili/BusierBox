@@ -968,12 +968,30 @@ static int is_heavy_tool(const char *name)
     return 0;
 }
 
+static int path_has_component(const char *pathvar, const char *dir)
+{
+    size_t dlen = strlen(dir);
+    const char *p = pathvar;
+    while (p && *p) {
+        const char *colon = strchr(p, ':');
+        size_t seglen = colon ? (size_t)(colon - p) : strlen(p);
+        if (seglen == dlen && strncmp(p, dir, dlen) == 0)
+            return 1;
+        p = colon ? colon + 1 : NULL;
+    }
+    return 0;
+}
+
 static void set_payload_env(const char *payload)
 {
-    char path[PATH_MAX * 2], home[PATH_MAX], lib[PATH_MAX];
+    char path[PATH_MAX * 2], home[PATH_MAX], lib[PATH_MAX], bin_dir[PATH_MAX];
     const char *old_path = getenv("PATH");
 
-    snprintf(path, sizeof(path), "%s/bin:%s", payload, old_path ? old_path : "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+    snprintf(bin_dir, sizeof(bin_dir), "%s/bin", payload);
+    if (!old_path || !path_has_component(old_path, bin_dir))
+        snprintf(path, sizeof(path), "%s/bin:%s", payload, old_path ? old_path : "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+    else
+        snprintf(path, sizeof(path), "%s", old_path);
     snprintf(home, sizeof(home), "%s/home", payload);
     snprintf(lib, sizeof(lib), "%s/lib", payload);
     setenv("BUSIERBOX_PAYLOAD_DIR", payload, 1);
@@ -1025,8 +1043,20 @@ int bb_exec_payload_applet(const char *name, int argc, char **argv)
     set_payload_env(payload);
 
     if (is_heavy_tool(name)) {
+        int ret;
         snprintf(exe, sizeof(exe), "%s/bin/%s", payload, name);
-        return execv_alloc(exe, argv);
+        child = calloc((size_t)argc + 1, sizeof(char *));
+        if (!child)
+            return 1;
+        child[0] = (char *)name;
+        for (i = 1; i < argc; i++)
+            child[i] = argv[i];
+        child[argc] = NULL;
+        if (!strcmp(name, "zsh"))
+            setenv("SHELL", exe, 1);
+        ret = execv_alloc(exe, child);
+        free(child);
+        return ret;
     }
 
     snprintf(exe, sizeof(exe), "%s/bin/busybox", payload);
@@ -1304,6 +1334,14 @@ int applet_doctor_main(int argc, char **argv)
         for (i = 0; busybox_tools[i]; i++)
             applet_count++;
         printf("busybox_applets_count=%d\n", applet_count);
+    }
+
+    if (candidate_payload(payload, sizeof(payload)) == 0) {
+        char symlink_count_path[PATH_MAX], symlink_count[32] = "unknown";
+        snprintf(symlink_count_path, sizeof(symlink_count_path),
+                 "%s/share/busierbox/applet-symlink-count.txt", payload);
+        read_first_line(symlink_count_path, symlink_count, sizeof(symlink_count));
+        printf("applet_symlink_count=%s\n", symlink_count);
     }
 
     if (choose_extract_root(root, sizeof(root)) == 0) {

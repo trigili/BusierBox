@@ -63,6 +63,15 @@ warn_file = payload / "share" / "busierbox" / "overlay-warnings.txt"
 if warn_file.exists():
     overlay_warnings = [l.strip() for l in warn_file.read_text(encoding="utf-8").splitlines() if l.strip()]
 
+symlink_count = 0
+count_file = payload / "share" / "busierbox" / "applet-symlink-count.txt"
+if count_file.exists():
+    try:
+        symlink_count = int(count_file.read_text(encoding="utf-8").strip())
+    except ValueError:
+        pass
+symlink_skips = read_list(payload / "share" / "busierbox" / "applet-symlink-skips.txt")
+
 manifest = {
     "target": args.target,
     "arch": args.arch,
@@ -85,6 +94,8 @@ manifest = {
     "user_provided_tools": user_provided,
     "overlay_warnings": overlay_warnings,
     "gdbserver_provider": args.gdbserver_provider,
+    "applet_symlink_count": symlink_count,
+    "applet_symlink_skips": symlink_skips,
     "included_shared_libs": libs,
     "payload_sha256": args.payload_sha256,
 }
