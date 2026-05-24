@@ -284,6 +284,7 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
                 ;;
             usbutils) printf '%s\n' "BR2_PACKAGE_USBUTILS=y" ;;
             pciutils) printf '%s\n' "BR2_PACKAGE_PCIUTILS=y" ;;
+            doom) printf '%s\n' "# doom is provider/overlay-only unless the target Buildroot tree supplies a compatible package" ;;
             *) printf '%s\n' "# Unknown heavy tool requested: $tool" ;;
         esac
     done

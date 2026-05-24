@@ -34,6 +34,8 @@ BB_STAGER_CONNECT_TIMEOUT="10"
 BB_STAGER_RETRY_COUNT="3"
 BB_STAGER_RETRY_DELAY="2"
 BB_STAGER_OUTPUT_PATH="/tmp/busierbox-full"
+BB_STAGER_ZERO_ARG_MODE=""
+BB_STAGER_POST_RECEIVE_ACTION=""
 BB_STAGER_AUTO_EXEC="doctor"
 BB_STAGER_CALLBACK_SHELL="sh"
 BB_FULL_CALLBACK_ENABLE="no"
@@ -43,7 +45,26 @@ BB_FULL_CALLBACK_TOKEN=""
 BB_FULL_CALLBACK_TIMEOUT="10"
 BB_FULL_CALLBACK_RETRY_COUNT="3"
 BB_FULL_CALLBACK_RETRY_DELAY="2"
+BB_FULL_ZERO_ARG_MODE="help"
+BB_FULL_BOOTSTRAP_EXTRACT="yes"
+BB_FULL_BOOTSTRAP_DOCTOR="yes"
+BB_FULL_BOOTSTRAP_CALLBACK="no"
+BB_FULL_BOOTSTRAP_OPERATOR_SESSION="no"
+BB_AUTORUN_GUARD_ENABLE="yes"
+BB_AUTORUN_GUARD_PATH="/tmp/busierbox-autorun"
+BB_AUTORUN_REENTRY_ACTION="status"
+BB_AUTORUN_STALE_LOCK_POLICY="recover"
 BB_FULL_CALLBACK_AUTO_EXEC="doctor"
+BB_OPERATOR_SERVER_HOST=""
+BB_OPERATOR_SERVER_USER="${USER:-operator}"
+BB_OPERATOR_SERVER_SSH_PORT="22"
+BB_OPERATOR_REMOTE_FORWARD_PORT="2200"
+BB_OPERATOR_TARGET_DROPBEAR_PORT="2222"
+BB_OPERATOR_TARGET_BIND_HOST="127.0.0.1"
+BB_OPERATOR_DBCLIENT_IDENTITY_FILE=""
+BB_OPERATOR_AUTHORIZED_KEY_FILE=""
+BB_OPERATOR_KNOWN_HOSTS_POLICY="off"
+BB_SERVER_CONFIG_PATH=".busierbox-server/config.json"
 BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
 BB_HEAVY_TOOLS=""
 BB_DROPBEAR_SERVER_MODE="no"
@@ -67,6 +88,34 @@ BB_USER_OVERLAY_ALLOW_OVERRIDE="no"
 if [ -f "$CFG_FILE" ]; then
     . "./$CFG_FILE"
 fi
+
+if [ -z "${BB_STAGER_ZERO_ARG_MODE:-}" ]; then
+    if [ "${BB_STAGER_CALLBACK_ENABLE:-no}" = yes ]; then
+        BB_STAGER_ZERO_ARG_MODE="callback"
+    else
+        BB_STAGER_ZERO_ARG_MODE="help"
+    fi
+fi
+BB_STAGER_POST_RECEIVE_ACTION="${BB_STAGER_POST_RECEIVE_ACTION:-${BB_STAGER_AUTO_EXEC:-doctor}}"
+BB_FULL_ZERO_ARG_MODE="${BB_FULL_ZERO_ARG_MODE:-help}"
+BB_FULL_BOOTSTRAP_EXTRACT="${BB_FULL_BOOTSTRAP_EXTRACT:-yes}"
+BB_FULL_BOOTSTRAP_DOCTOR="${BB_FULL_BOOTSTRAP_DOCTOR:-yes}"
+BB_FULL_BOOTSTRAP_CALLBACK="${BB_FULL_BOOTSTRAP_CALLBACK:-no}"
+BB_FULL_BOOTSTRAP_OPERATOR_SESSION="${BB_FULL_BOOTSTRAP_OPERATOR_SESSION:-no}"
+BB_AUTORUN_GUARD_ENABLE="${BB_AUTORUN_GUARD_ENABLE:-yes}"
+BB_AUTORUN_GUARD_PATH="${BB_AUTORUN_GUARD_PATH:-/tmp/busierbox-autorun}"
+BB_AUTORUN_REENTRY_ACTION="${BB_AUTORUN_REENTRY_ACTION:-status}"
+BB_AUTORUN_STALE_LOCK_POLICY="${BB_AUTORUN_STALE_LOCK_POLICY:-recover}"
+BB_OPERATOR_SERVER_HOST="${BB_OPERATOR_SERVER_HOST:-}"
+BB_OPERATOR_SERVER_USER="${BB_OPERATOR_SERVER_USER:-${USER:-operator}}"
+BB_OPERATOR_SERVER_SSH_PORT="${BB_OPERATOR_SERVER_SSH_PORT:-22}"
+BB_OPERATOR_REMOTE_FORWARD_PORT="${BB_OPERATOR_REMOTE_FORWARD_PORT:-2200}"
+BB_OPERATOR_TARGET_DROPBEAR_PORT="${BB_OPERATOR_TARGET_DROPBEAR_PORT:-2222}"
+BB_OPERATOR_TARGET_BIND_HOST="${BB_OPERATOR_TARGET_BIND_HOST:-127.0.0.1}"
+BB_OPERATOR_DBCLIENT_IDENTITY_FILE="${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-}"
+BB_OPERATOR_AUTHORIZED_KEY_FILE="${BB_OPERATOR_AUTHORIZED_KEY_FILE:-}"
+BB_OPERATOR_KNOWN_HOSTS_POLICY="${BB_OPERATOR_KNOWN_HOSTS_POLICY:-off}"
+BB_SERVER_CONFIG_PATH="${BB_SERVER_CONFIG_PATH:-.busierbox-server/config.json}"
 
 temp_out=$(mktemp)
 temp_cfg=$(mktemp)
@@ -123,7 +172,8 @@ BB_STAGER_CONNECT_TIMEOUT="$BB_STAGER_CONNECT_TIMEOUT"
 BB_STAGER_RETRY_COUNT="$BB_STAGER_RETRY_COUNT"
 BB_STAGER_RETRY_DELAY="$BB_STAGER_RETRY_DELAY"
 BB_STAGER_OUTPUT_PATH="$BB_STAGER_OUTPUT_PATH"
-BB_STAGER_AUTO_EXEC="$BB_STAGER_AUTO_EXEC"
+BB_STAGER_ZERO_ARG_MODE="$BB_STAGER_ZERO_ARG_MODE"
+BB_STAGER_POST_RECEIVE_ACTION="$BB_STAGER_POST_RECEIVE_ACTION"
 BB_STAGER_CALLBACK_SHELL="$BB_STAGER_CALLBACK_SHELL"
 BB_FULL_CALLBACK_ENABLE="$BB_FULL_CALLBACK_ENABLE"
 BB_FULL_CALLBACK_HOST="$BB_FULL_CALLBACK_HOST"
@@ -132,7 +182,26 @@ BB_FULL_CALLBACK_TOKEN="$BB_FULL_CALLBACK_TOKEN"
 BB_FULL_CALLBACK_TIMEOUT="$BB_FULL_CALLBACK_TIMEOUT"
 BB_FULL_CALLBACK_RETRY_COUNT="$BB_FULL_CALLBACK_RETRY_COUNT"
 BB_FULL_CALLBACK_RETRY_DELAY="$BB_FULL_CALLBACK_RETRY_DELAY"
+BB_FULL_ZERO_ARG_MODE="$BB_FULL_ZERO_ARG_MODE"
+BB_FULL_BOOTSTRAP_EXTRACT="$BB_FULL_BOOTSTRAP_EXTRACT"
+BB_FULL_BOOTSTRAP_DOCTOR="$BB_FULL_BOOTSTRAP_DOCTOR"
+BB_FULL_BOOTSTRAP_CALLBACK="$BB_FULL_BOOTSTRAP_CALLBACK"
+BB_FULL_BOOTSTRAP_OPERATOR_SESSION="$BB_FULL_BOOTSTRAP_OPERATOR_SESSION"
+BB_AUTORUN_GUARD_ENABLE="$BB_AUTORUN_GUARD_ENABLE"
+BB_AUTORUN_GUARD_PATH="$BB_AUTORUN_GUARD_PATH"
+BB_AUTORUN_REENTRY_ACTION="$BB_AUTORUN_REENTRY_ACTION"
+BB_AUTORUN_STALE_LOCK_POLICY="$BB_AUTORUN_STALE_LOCK_POLICY"
 BB_FULL_CALLBACK_AUTO_EXEC="$BB_FULL_CALLBACK_AUTO_EXEC"
+BB_OPERATOR_SERVER_HOST="$BB_OPERATOR_SERVER_HOST"
+BB_OPERATOR_SERVER_USER="$BB_OPERATOR_SERVER_USER"
+BB_OPERATOR_SERVER_SSH_PORT="$BB_OPERATOR_SERVER_SSH_PORT"
+BB_OPERATOR_REMOTE_FORWARD_PORT="$BB_OPERATOR_REMOTE_FORWARD_PORT"
+BB_OPERATOR_TARGET_DROPBEAR_PORT="$BB_OPERATOR_TARGET_DROPBEAR_PORT"
+BB_OPERATOR_TARGET_BIND_HOST="$BB_OPERATOR_TARGET_BIND_HOST"
+BB_OPERATOR_DBCLIENT_IDENTITY_FILE="$BB_OPERATOR_DBCLIENT_IDENTITY_FILE"
+BB_OPERATOR_AUTHORIZED_KEY_FILE="$BB_OPERATOR_AUTHORIZED_KEY_FILE"
+BB_OPERATOR_KNOWN_HOSTS_POLICY="$BB_OPERATOR_KNOWN_HOSTS_POLICY"
+BB_SERVER_CONFIG_PATH="$BB_SERVER_CONFIG_PATH"
 BB_BUSYBOX_GROUPS="$BB_BUSYBOX_GROUPS"
 BB_HEAVY_TOOLS="$BB_HEAVY_TOOLS"
 BB_DROPBEAR_SERVER_MODE="$BB_DROPBEAR_SERVER_MODE"
@@ -165,6 +234,187 @@ target_summary_text() {
     cat "$temp_resolved"
 }
 
+new_token() {
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -hex 16
+    elif command -v od >/dev/null 2>&1; then
+        od -An -N16 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n'
+        printf '\n'
+    else
+        date +%s | awk '{ printf "busierbox-%s\n", $1 }'
+    fi
+}
+
+default_pubkey() {
+    for _k in "$HOME/.ssh/id_ed25519.pub" "$HOME/.ssh/id_rsa.pub" "$HOME/.ssh/id_ecdsa.pub"; do
+        [ -f "$_k" ] && { printf '%s\n' "$_k"; return 0; }
+    done
+    return 1
+}
+
+configure_token_value() {
+    _which=$1
+    _title=$2
+    eval "_cur=\${$_which}"
+    while :; do
+        _disp="not set"
+        [ -n "$_cur" ] && _disp="set (${#_cur} chars)"
+        dialog --title "$_title" \
+            --menu "Shared BusierBox callback token. It must match scripts/busierbox-server." 13 76 4 \
+            "1" "Edit token manually ($_disp)" \
+            "2" "Generate random token" \
+            "3" "Clear token" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1)
+                dialog --title "$_title" --inputbox "Shared token." 9 78 "$_cur" 2>"$temp_out" || true
+                _cur=$(cat "$temp_out")
+                eval "$_which=\$_cur"
+                return 0
+                ;;
+            2)
+                _cur=$(new_token)
+                eval "$_which=\$_cur"
+                dialog --title "$_title" --msgbox "Generated token:\n\n$_cur" 9 72
+                return 0
+                ;;
+            3)
+                _cur=
+                eval "$_which="
+                return 0
+                ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+generate_dbclient_identity() {
+    _dir=".busierbox-server/keys"
+    _path="$_dir/id_dbclient"
+    mkdir -p "$_dir"
+    if [ -e "$_path" ]; then
+        dialog --title "dbclient identity exists" --yesno "$_path already exists.\n\nOverwrite it?" 9 60 || return 0
+        rm -f "$_path" "$_path.pub"
+    fi
+    if command -v dropbearkey >/dev/null 2>&1; then
+        dropbearkey -t rsa -f "$_path" >/dev/null 2>&1 || {
+            dialog --title "Key generation failed" --msgbox "dropbearkey failed to generate $_path." 8 68
+            return 0
+        }
+        dropbearkey -y -f "$_path" 2>/dev/null | awk '/^ssh-/ { print; exit }' >"$_path.pub" || true
+    elif command -v ssh-keygen >/dev/null 2>&1; then
+        ssh-keygen -q -m PEM -t rsa -b 2048 -N "" -C "busierbox-dbclient" -f "$_path" || {
+            dialog --title "Key generation failed" --msgbox "ssh-keygen failed to generate $_path." 8 68
+            return 0
+        }
+    else
+        dialog --title "No key generator" --msgbox "Install dropbearkey or ssh-keygen, or enter an existing dbclient identity path manually." 8 78
+        return 0
+    fi
+    chmod 600 "$_path" 2>/dev/null || true
+    BB_OPERATOR_DBCLIENT_IDENTITY_FILE="$_path"
+    dialog --title "Generated dbclient identity" \
+        --msgbox "Generated target -> operator identity:\n\n  $_path\n\nAdd $_path.pub to the operator workstation user's authorized_keys for dbclient authentication." \
+        12 78
+}
+
+generate_operator_keypair() {
+    _dir=".busierbox-server/keys"
+    _path="$_dir/operator_ed25519"
+    mkdir -p "$_dir"
+    if [ -e "$_path" ]; then
+        dialog --title "Operator key exists" --yesno "$_path already exists.\n\nOverwrite it?" 9 60 || return 0
+        rm -f "$_path" "$_path.pub"
+    fi
+    if ! command -v ssh-keygen >/dev/null 2>&1; then
+        dialog --title "No ssh-keygen" --msgbox "ssh-keygen is required to generate an operator keypair." 8 68
+        return 0
+    fi
+    ssh-keygen -q -t ed25519 -N "" -C "busierbox-operator" -f "$_path" || {
+        dialog --title "Key generation failed" --msgbox "ssh-keygen failed to generate $_path." 8 68
+        return 0
+    }
+    chmod 600 "$_path" 2>/dev/null || true
+    BB_OPERATOR_AUTHORIZED_KEY_FILE="$_path.pub"
+    BB_DROPBEAR_AUTHORIZED_KEYS_FILE="$BB_OPERATOR_AUTHORIZED_KEY_FILE"
+    dialog --title "Generated operator key" \
+        --msgbox "Generated operator -> target keypair:\n\n  private: $_path\n  public:  $_path.pub\n\nThe public key will be staged as target authorized_keys." \
+        12 78
+}
+
+write_server_config() {
+    _target_name=native
+    if _resolved=$(scripts/resolve-target --config 2>/dev/null); then
+        eval "$_resolved"
+        _target_name=${TARGET_NAME:-native}
+    fi
+    _token=${BB_STAGER_TOKEN:-${BB_FULL_CALLBACK_TOKEN:-}}
+    _port=${BB_STAGER_CALLBACK_PORT:-${BB_FULL_CALLBACK_PORT:-4444}}
+    _listen="0.0.0.0:${_port:-4444}"
+    _artifact="dist/busierbox-${_target_name}-full"
+    _send=false
+    [ "$BB_BUILD_FULL" = yes ] && _send=true
+    _start_op=false
+    if [ "$BB_FULL_BOOTSTRAP_OPERATOR_SESSION" = yes ] || [ "$BB_FULL_ZERO_ARG_MODE" = operator-session ]; then
+        _start_op=true
+    fi
+    mkdir -p "$(dirname "$BB_SERVER_CONFIG_PATH")"
+    SERVER_CONFIG_PATH="$BB_SERVER_CONFIG_PATH" \
+    SERVER_LISTEN="$_listen" \
+    SERVER_TOKEN="$_token" \
+    SERVER_ARTIFACT="$_artifact" \
+    SERVER_SEND="$_send" \
+    SERVER_START_OPERATOR_SESSION="$_start_op" \
+    SERVER_OPERATOR_HOST="$BB_OPERATOR_SERVER_HOST" \
+    SERVER_OPERATOR_USER="$BB_OPERATOR_SERVER_USER" \
+    SERVER_OPERATOR_SSH_PORT="$BB_OPERATOR_SERVER_SSH_PORT" \
+    SERVER_OPERATOR_FORWARD_PORT="$BB_OPERATOR_REMOTE_FORWARD_PORT" \
+    SERVER_OPERATOR_TARGET_PORT="$BB_OPERATOR_TARGET_DROPBEAR_PORT" \
+    SERVER_OPERATOR_TARGET_BIND="$BB_OPERATOR_TARGET_BIND_HOST" \
+    SERVER_OPERATOR_IDENTITY="$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" \
+    SERVER_OPERATOR_AUTH_KEY="$BB_OPERATOR_AUTHORIZED_KEY_FILE" \
+    SERVER_OPERATOR_KNOWN_HOSTS="$BB_OPERATOR_KNOWN_HOSTS_POLICY" \
+    python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+def as_bool(name):
+    return os.environ.get(name, "").lower() in ("1", "yes", "true", "on")
+
+path = Path(os.environ["SERVER_CONFIG_PATH"])
+data = {
+    "listen": os.environ["SERVER_LISTEN"],
+    "token": os.environ["SERVER_TOKEN"],
+    "artifact": os.environ["SERVER_ARTIFACT"],
+    "remote_path": "/tmp/busierbox-full",
+    "send": as_bool("SERVER_SEND"),
+    "exec_doctor": True,
+    "start_operator_session": as_bool("SERVER_START_OPERATOR_SESSION"),
+    "operator_server_host": os.environ["SERVER_OPERATOR_HOST"],
+    "operator_server_user": os.environ["SERVER_OPERATOR_USER"],
+    "operator_server_ssh_port": int(os.environ["SERVER_OPERATOR_SSH_PORT"] or "22"),
+    "operator_remote_forward_port": int(os.environ["SERVER_OPERATOR_FORWARD_PORT"] or "2200"),
+    "operator_target_dropbear_port": int(os.environ["SERVER_OPERATOR_TARGET_PORT"] or "2222"),
+    "operator_target_bind_host": os.environ["SERVER_OPERATOR_TARGET_BIND"] or "127.0.0.1",
+    "operator_dbclient_identity_file": os.environ["SERVER_OPERATOR_IDENTITY"],
+    "operator_authorized_key_file": os.environ["SERVER_OPERATOR_AUTH_KEY"],
+    "operator_known_hosts_policy": os.environ["SERVER_OPERATOR_KNOWN_HOSTS"] or "off",
+}
+path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+try:
+    path.chmod(0o600)
+except OSError:
+    pass
+PY
+}
+
+clear_for_stdout() {
+    clear 2>/dev/null || printf '\033c'
+}
+
 save_config() {
     write_current_config "$temp_cfg"
     compat_warnings=$(scripts/print-tool-compat "$temp_cfg" 2>/dev/null || true)
@@ -177,6 +427,10 @@ save_config() {
 
     if [ -f "$CFG_FILE" ] && diff -u "$CFG_FILE" "$temp_cfg" >"$temp_out" 2>/dev/null; then
         dialog --title "BusierBox: No changes" --msgbox "Configuration matches current settings. Nothing to save." 8 55
+        write_server_config
+        clear_for_stdout
+        printf '%s\n' "Configuration unchanged: $CFG_FILE."
+        printf '%s\n' "Server defaults written to $BB_SERVER_CONFIG_PATH."
         return 0
     fi
 
@@ -186,7 +440,58 @@ save_config() {
         dialog --title "BusierBox: Save New Config" --yesno "Save configuration to $CFG_FILE?" 8 50 || return 1
     fi
     cp "$temp_cfg" "$CFG_FILE"
+    write_server_config
     dialog --title "BusierBox: Success" --msgbox "Configuration written to $CFG_FILE." 8 55
+    clear_for_stdout
+    printf '%s\n' "Configuration written to $CFG_FILE."
+    printf '%s\n' "Server defaults written to $BB_SERVER_CONFIG_PATH."
+    print_operator_session_instructions
+}
+
+operator_session_enabled() {
+    [ "${BB_BUILD_FULL:-yes}" = yes ] || return 1
+    [ "${BB_FULL_ZERO_ARG_MODE:-help}" = operator-session ] && return 0
+    [ "${BB_FULL_BOOTSTRAP_OPERATOR_SESSION:-no}" = yes ] && [ "${BB_FULL_ZERO_ARG_MODE:-help}" = bootstrap ] && return 0
+    [ "${BB_FULL_BOOTSTRAP_OPERATOR_SESSION:-no}" = yes ] && return 0
+    return 1
+}
+
+print_operator_session_instructions() {
+    operator_session_enabled || return 0
+    _op_host=${BB_OPERATOR_SERVER_HOST:-<operator_host>}
+    _op_user=${BB_OPERATOR_SERVER_USER:-operator}
+    _op_ssh_port=${BB_OPERATOR_SERVER_SSH_PORT:-22}
+    _fwd_port=${BB_OPERATOR_REMOTE_FORWARD_PORT:-2200}
+    _target_port=${BB_OPERATOR_TARGET_DROPBEAR_PORT:-2222}
+    _target_bind=${BB_OPERATOR_TARGET_BIND_HOST:-127.0.0.1}
+    cat <<EOF
+
+BusierBox operator-session catch instructions
+---------------------------------------------
+This is a generic Dropbear/dbclient reverse SSH path. scripts/busierbox-server
+can stage/start it after a BusierBox callback, or wait for the forwarded port
+using the saved server config.
+
+# On operator workstation, ensure sshd is running and authorized_keys contains
+# the public half of the target dbclient identity.
+sudo systemctl status sshd 2>/dev/null || sudo systemctl status ssh
+
+# Target dbclient will connect to:
+ssh ${_op_user}@${_op_host} -p ${_op_ssh_port} \\
+  -R 127.0.0.1:${_fwd_port}:${_target_bind}:${_target_port}
+
+# Then connect from the operator workstation to the target Dropbear service:
+ssh -p ${_fwd_port} root@127.0.0.1
+
+# Or let BusierBox load the saved defaults and wait for the reverse tunnel:
+scripts/busierbox-server --wait-operator-tunnel
+
+Configured files:
+  dbclient identity: ${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-<not set>}
+  target authorized_keys: ${BB_OPERATOR_AUTHORIZED_KEY_FILE:-<not set>}
+  known-hosts policy: ${BB_OPERATOR_KNOWN_HOSTS_POLICY:-off}
+
+EOF
 }
 
 apply_preset() {
@@ -425,10 +730,10 @@ configure_stager_callback() {
             "3" "Server port: $BB_STAGER_CALLBACK_PORT" \
             "4" "Token: $_tok_disp" \
             "5" "Connect timeout: ${BB_STAGER_CONNECT_TIMEOUT}s" \
-            "6" "Retry count: $BB_STAGER_RETRY_COUNT" \
+            "6" "Retry count: $BB_STAGER_RETRY_COUNT (-1 = unlimited)" \
             "7" "Retry delay: ${BB_STAGER_RETRY_DELAY}s" \
             "8" "Output path (where to write received artifact): $BB_STAGER_OUTPUT_PATH" \
-            "9" "Auto-exec after receive: $BB_STAGER_AUTO_EXEC" \
+            "9" "Post-receive behavior: configured under Payload Options -> zero-arg" \
             "0" "Back" \
             2>"$temp_out" || return 0
         _choice=$(cat "$temp_out")
@@ -452,12 +757,7 @@ configure_stager_callback() {
                     9 60 "$BB_STAGER_CALLBACK_PORT" 2>"$temp_out" || true
                 BB_STAGER_CALLBACK_PORT=$(cat "$temp_out")
                 ;;
-            4)
-                dialog --title "Stager Token" \
-                    --inputbox "Shared token. Generate with: openssl rand -hex 16\nMust match busierbox-server --token." \
-                    10 78 "$BB_STAGER_TOKEN" 2>"$temp_out" || true
-                BB_STAGER_TOKEN=$(cat "$temp_out")
-                ;;
+            4) configure_token_value BB_STAGER_TOKEN "Stager Token" ;;
             5)
                 dialog --title "Connect Timeout" \
                     --inputbox "Seconds before a connection attempt times out." \
@@ -466,7 +766,7 @@ configure_stager_callback() {
                 ;;
             6)
                 dialog --title "Retry Count" \
-                    --inputbox "Number of connection attempts before giving up." \
+                    --inputbox "Number of connection attempts before giving up.\nUse -1 for unlimited retry while the stager process is running." \
                     9 60 "$BB_STAGER_RETRY_COUNT" 2>"$temp_out" || true
                 BB_STAGER_RETRY_COUNT=$(cat "$temp_out")
                 ;;
@@ -483,17 +783,9 @@ configure_stager_callback() {
                 BB_STAGER_OUTPUT_PATH=$(cat "$temp_out")
                 ;;
             9)
-                dialog --title "Auto-exec After Receive" \
-                    --radiolist "Command to run on received artifact after download:" 13 60 3 \
-                    "none"   "Do not run received artifact" \
-                    "$([ "$BB_STAGER_AUTO_EXEC" = none   ] && printf on || printf off)" \
-                    "doctor" "Run doctor (recommended)" \
-                    "$([ "$BB_STAGER_AUTO_EXEC" = doctor ] && printf on || printf off)" \
-                    "survey" "Run survey only" \
-                    "$([ "$BB_STAGER_AUTO_EXEC" = survey ] && printf on || printf off)" \
-                    2>"$temp_out" || true
-                _auto_exec=$(cat "$temp_out" | tr -d '"')
-                [ -n "$_auto_exec" ] && BB_STAGER_AUTO_EXEC="$_auto_exec"
+                dialog --title "Post-receive Behavior" \
+                    --msgbox "Post-receive behavior is configured under:\n\n  Payload Options -> zero-arg\n\n'post-receive action' means what the stager asks the received full artifact to do after download." \
+                    12 76
                 ;;
             0) return 0 ;;
         esac
@@ -575,7 +867,7 @@ EOF
 configure_busybox_groups() {
     while :; do
         dialog --title "BusyBox Applets" \
-        --menu "Toggle groups for sensible defaults or enter a submenu for individual applet overrides." 21 86 12 \
+        --menu "Toggle sensible default groups or browse every BusyBox applet by source category for individual overrides." 25 92 20 \
         "1" "Group defaults" \
         "2" "Shell tools ($(busybox_group_status shell))" \
         "3" "File tools ($(busybox_group_status fileops))" \
@@ -585,6 +877,27 @@ configure_busybox_groups() {
         "7" "Text tools ($(busybox_group_status text))" \
         "8" "System inspection tools ($(busybox_group_status system))" \
         "9" "Dangerous / destructive tools ($(busybox_group_status dangerous))" \
+        "10" "All archival applets ($(busybox_group_status all-archival))" \
+        "11" "All console applets ($(busybox_group_status all-console-tools))" \
+        "12" "All coreutils applets ($(busybox_group_status all-coreutils))" \
+        "13" "All editors applets ($(busybox_group_status all-editors))" \
+        "14" "All findutils applets ($(busybox_group_status all-findutils))" \
+        "15" "All loginutils applets ($(busybox_group_status all-loginutils))" \
+        "16" "All miscutils applets ($(busybox_group_status all-miscutils))" \
+        "17" "All modutils applets ($(busybox_group_status all-modutils))" \
+        "18" "All networking applets ($(busybox_group_status all-networking))" \
+        "19" "All procps applets ($(busybox_group_status all-procps))" \
+        "20" "All util-linux applets ($(busybox_group_status all-util-linux))" \
+        "21" "All debianutils applets ($(busybox_group_status all-debianutils))" \
+        "22" "All e2fsprogs applets ($(busybox_group_status all-e2fsprogs))" \
+        "23" "All init applets ($(busybox_group_status all-init))" \
+        "24" "All mailutils applets ($(busybox_group_status all-mailutils))" \
+        "25" "All printutils applets ($(busybox_group_status all-printutils))" \
+        "26" "All runit applets ($(busybox_group_status all-runit))" \
+        "27" "All sysklogd applets ($(busybox_group_status all-sysklogd))" \
+        "28" "All shell applets ($(busybox_group_status all-shell))" \
+        "29" "All klibc-utils applets ($(busybox_group_status all-klibc-utils))" \
+        "30" "All selinux applets ($(busybox_group_status all-selinux))" \
         "0" "Back" \
         2>"$temp_out" || return 0
         _choice=$(cat "$temp_out")
@@ -612,6 +925,27 @@ configure_busybox_groups() {
             7) configure_busybox_group_applets text "Text tools" ;;
             8) configure_busybox_group_applets system "System inspection tools" ;;
             9) configure_busybox_group_applets dangerous "Dangerous / destructive tools" ;;
+            10) configure_busybox_group_applets all-archival "All archival applets" ;;
+            11) configure_busybox_group_applets all-console-tools "All console applets" ;;
+            12) configure_busybox_group_applets all-coreutils "All coreutils applets" ;;
+            13) configure_busybox_group_applets all-editors "All editors applets" ;;
+            14) configure_busybox_group_applets all-findutils "All findutils applets" ;;
+            15) configure_busybox_group_applets all-loginutils "All loginutils applets" ;;
+            16) configure_busybox_group_applets all-miscutils "All miscutils applets" ;;
+            17) configure_busybox_group_applets all-modutils "All modutils applets" ;;
+            18) configure_busybox_group_applets all-networking "All networking applets" ;;
+            19) configure_busybox_group_applets all-procps "All procps applets" ;;
+            20) configure_busybox_group_applets all-util-linux "All util-linux applets" ;;
+            21) configure_busybox_group_applets all-debianutils "All debianutils applets" ;;
+            22) configure_busybox_group_applets all-e2fsprogs "All e2fsprogs applets" ;;
+            23) configure_busybox_group_applets all-init "All init applets" ;;
+            24) configure_busybox_group_applets all-mailutils "All mailutils applets" ;;
+            25) configure_busybox_group_applets all-printutils "All printutils applets" ;;
+            26) configure_busybox_group_applets all-runit "All runit applets" ;;
+            27) configure_busybox_group_applets all-sysklogd "All sysklogd applets" ;;
+            28) configure_busybox_group_applets all-shell "All shell applets" ;;
+            29) configure_busybox_group_applets all-klibc-utils "All klibc-utils applets" ;;
+            30) configure_busybox_group_applets all-selinux "All selinux applets" ;;
             0) return 0 ;;
         esac
     done
@@ -786,73 +1120,156 @@ configure_overlay() {
     done
 }
 
-configure_heavy_tools() {
-    status_dropbear=off; status_curl=off; status_tmux=off
-    status_zsh=off; status_strace=off; status_gdbserver=off
-    status_socat=off; status_tcpdump=off; status_rsync=off; status_mtr=off
-    status_iperf3=off; status_ethtool=off; status_iw=off; status_minicom=off
-    status_mosh_client=off; status_ripgrep=off; status_jq=off; status_file=off
-    status_htop=off; status_screen=off; status_ltrace=off; status_readelf=off
-    status_objdump=off; status_xxd=off; status_usbutils=off; status_pciutils=off
-    has_item "$BB_HEAVY_TOOLS" "dropbear" && status_dropbear=on
-    has_item "$BB_HEAVY_TOOLS" "curl" && status_curl=on
-    has_item "$BB_HEAVY_TOOLS" "tmux" && status_tmux=on
-    has_item "$BB_HEAVY_TOOLS" "zsh" && status_zsh=on
-    has_item "$BB_HEAVY_TOOLS" "strace" && status_strace=on
-    has_item "$BB_HEAVY_TOOLS" "gdbserver" && status_gdbserver=on
-    has_item "$BB_HEAVY_TOOLS" "socat" && status_socat=on
-    has_item "$BB_HEAVY_TOOLS" "tcpdump" && status_tcpdump=on
-    has_item "$BB_HEAVY_TOOLS" "rsync" && status_rsync=on
-    has_item "$BB_HEAVY_TOOLS" "mtr" && status_mtr=on
-    has_item "$BB_HEAVY_TOOLS" "iperf3" && status_iperf3=on
-    has_item "$BB_HEAVY_TOOLS" "ethtool" && status_ethtool=on
-    has_item "$BB_HEAVY_TOOLS" "iw" && status_iw=on
-    has_item "$BB_HEAVY_TOOLS" "minicom" && status_minicom=on
-    has_item "$BB_HEAVY_TOOLS" "mosh-client" && status_mosh_client=on
-    has_item "$BB_HEAVY_TOOLS" "ripgrep" && status_ripgrep=on
-    has_item "$BB_HEAVY_TOOLS" "jq" && status_jq=on
-    has_item "$BB_HEAVY_TOOLS" "file" && status_file=on
-    has_item "$BB_HEAVY_TOOLS" "htop" && status_htop=on
-    has_item "$BB_HEAVY_TOOLS" "screen" && status_screen=on
-    has_item "$BB_HEAVY_TOOLS" "ltrace" && status_ltrace=on
-    has_item "$BB_HEAVY_TOOLS" "readelf" && status_readelf=on
-    has_item "$BB_HEAVY_TOOLS" "objdump" && status_objdump=on
-    has_item "$BB_HEAVY_TOOLS" "xxd" && status_xxd=on
-    has_item "$BB_HEAVY_TOOLS" "usbutils" && status_usbutils=on
-    has_item "$BB_HEAVY_TOOLS" "pciutils" && status_pciutils=on
+heavy_tool_status() {
+    has_item "$BB_HEAVY_TOOLS" "$1" && printf on || printf off
+}
 
-    dialog --title "Payload / Heavy tools" \
-        --checklist "Select heavy tools to stage into the payload:" 28 86 20 \
-        "dropbear" "Dropbear SSH client/server" "$status_dropbear" \
-        "curl" "curl HTTP client" "$status_curl" \
-        "tmux" "tmux terminal multiplexer" "$status_tmux" \
-        "zsh" "zsh shell" "$status_zsh" \
-        "strace" "strace syscall tracer" "$status_strace" \
-        "gdbserver" "gdbserver debugger stub" "$status_gdbserver" \
-        "socat" "bidirectional relay tool" "$status_socat" \
-        "tcpdump" "packet capture" "$status_tcpdump" \
-        "rsync" "file transfer/sync" "$status_rsync" \
-        "mtr" "network path diagnostics" "$status_mtr" \
-        "iperf3" "network throughput tester" "$status_iperf3" \
-        "ethtool" "Ethernet device inspection" "$status_ethtool" \
-        "iw" "wireless device inspection" "$status_iw" \
-        "minicom" "serial console client" "$status_minicom" \
-        "mosh-client" "Mosh client" "$status_mosh_client" \
-        "ripgrep" "rg recursive search" "$status_ripgrep" \
-        "jq" "JSON processor" "$status_jq" \
-        "file" "file type detection" "$status_file" \
-        "htop" "interactive process viewer" "$status_htop" \
-        "screen" "terminal multiplexer" "$status_screen" \
-        "ltrace" "library call tracer" "$status_ltrace" \
-        "readelf" "ELF inspector" "$status_readelf" \
-        "objdump" "object file disassembler" "$status_objdump" \
-        "xxd" "hex dump applet" "$status_xxd" \
-        "usbutils" "lsusb provider" "$status_usbutils" \
-        "pciutils" "lspci provider" "$status_pciutils" \
-        2>"$temp_out" || return 0
-    BB_HEAVY_TOOLS=$(cat "$temp_out" | tr -d '"')
+heavy_category_summary() {
+    _items=$1
+    _count=0
+    while IFS='|' read -r _tool _desc; do
+        [ -n "$_tool" ] || continue
+        has_item "$BB_HEAVY_TOOLS" "$_tool" && _count=$((_count + 1))
+    done <<EOF
+$_items
+EOF
+    printf '%s selected' "$_count"
+}
+
+configure_heavy_tool_category() {
+    _category=$1
+    case "$_category" in
+        debug)
+            _title="Debugging / RE tools"
+            _items='gdbserver|gdb remote debugging stub
+ltrace|library call tracer
+objdump|object file disassembler
+readelf|ELF inspector
+strace|syscall tracer'
+            ;;
+        misc)
+            _title="Misc tools"
+            _items='doom|Doom-compatible game binary if provided by Buildroot/overlay/host'
+            ;;
+        network)
+            _title="Networking / operator tools"
+            _items='curl|HTTP client
+dropbear|SSH client/server
+ethtool|Ethernet device inspection
+iperf3|network throughput tester
+iw|wireless device inspection
+minicom|serial console client
+mosh-client|Mosh client
+mtr|network path diagnostics
+rsync|file transfer/sync
+socat|bidirectional relay tool
+tcpdump|packet capture'
+            ;;
+        shell)
+            _title="Shell / terminal tools"
+            _items='htop|interactive process viewer
+screen|terminal multiplexer
+tmux|terminal multiplexer
+zsh|zsh shell'
+            ;;
+        system)
+            _title="System inspection tools"
+            _items='pciutils|lspci provider
+usbutils|lsusb provider'
+            ;;
+        text)
+            _title="Text / data tools"
+            _items='file|file type detection
+jq|JSON processor
+ripgrep|rg recursive search
+xxd|hex dump applet/provider'
+            ;;
+        *) return 0 ;;
+    esac
+
+    printf '%s\n' "$_items" | awk -F'|' -v selected="$BB_HEAVY_TOOLS" '
+        function quote(s,    q) { q = sprintf("%c", 39); gsub(q, q "\\" q q, s); return q s q }
+        BEGIN { split(selected, a); for (i in a) on[a[i]] = 1 }
+        NF >= 1 && $1 != "" { print quote($1), quote($2), quote(($1 in on) ? "on" : "off") }
+    ' >"$temp_cfg"
+
+    if ! eval "dialog --title 'Payload / Heavy tools / $_title' \
+        --checklist 'Select tools to stage into the payload. Availability is verified during packaging; missing providers are reported honestly.' 24 90 16 \
+        $(cat "$temp_cfg") \
+        2>'$temp_out'"
+    then
+        return 0
+    fi
+
+    _selected=$(cat "$temp_out" | tr -d '"')
+    _category_tools=$(printf '%s\n' "$_items" | awk -F'|' 'NF >= 1 && $1 != "" { print $1 }')
+    _new=
+    for _old in $BB_HEAVY_TOOLS; do
+        _in_category=no
+        for _tool in $_category_tools; do
+            [ "$_old" = "$_tool" ] && _in_category=yes
+        done
+        [ "$_in_category" = yes ] && continue
+        _new="${_new:+$_new }$_old"
+    done
+    for _tool in $_category_tools; do
+        has_item "$_selected" "$_tool" && _new="${_new:+$_new }$_tool"
+    done
+    BB_HEAVY_TOOLS="$_new"
     check_gdbserver_compat_interactive
     return 0
+}
+
+configure_heavy_tools() {
+    while :; do
+        _network='curl|HTTP client
+dropbear|SSH client/server
+ethtool|Ethernet device inspection
+iperf3|network throughput tester
+iw|wireless device inspection
+minicom|serial console client
+mosh-client|Mosh client
+mtr|network path diagnostics
+rsync|file transfer/sync
+socat|bidirectional relay tool
+tcpdump|packet capture'
+        _shell='htop|interactive process viewer
+screen|terminal multiplexer
+tmux|terminal multiplexer
+zsh|zsh shell'
+        _text='file|file type detection
+jq|JSON processor
+ripgrep|rg recursive search
+xxd|hex dump applet/provider'
+        _debug='gdbserver|gdb remote debugging stub
+ltrace|library call tracer
+objdump|object file disassembler
+readelf|ELF inspector
+strace|syscall tracer'
+        _system='pciutils|lspci provider
+usbutils|lsusb provider'
+        _misc='doom|Doom-compatible game binary if provided by Buildroot/overlay/host'
+        dialog --title "Payload / Heavy tools" \
+            --menu "Select optional payload tools by category. Tools are alphabetized within each submenu." 17 82 7 \
+            "1" "Networking / operator ($(heavy_category_summary "$_network"))" \
+            "2" "Shell / terminal ($(heavy_category_summary "$_shell"))" \
+            "3" "Text / data ($(heavy_category_summary "$_text"))" \
+            "4" "Debugging / RE ($(heavy_category_summary "$_debug"))" \
+            "5" "System inspection ($(heavy_category_summary "$_system"))" \
+            "6" "Misc ($(heavy_category_summary "$_misc"))" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1) configure_heavy_tool_category network ;;
+            2) configure_heavy_tool_category shell ;;
+            3) configure_heavy_tool_category text ;;
+            4) configure_heavy_tool_category debug ;;
+            5) configure_heavy_tool_category system ;;
+            6) configure_heavy_tool_category misc ;;
+            0) return 0 ;;
+        esac
+    done
 }
 
 configure_dropbear() {
@@ -965,9 +1382,9 @@ configure_full_callback() {
             "3" "Server port: $BB_FULL_CALLBACK_PORT" \
             "4" "Token: $_tok_disp" \
             "5" "Connect timeout: ${BB_FULL_CALLBACK_TIMEOUT}s" \
-            "6" "Retry count: $BB_FULL_CALLBACK_RETRY_COUNT" \
+            "6" "Retry count: $BB_FULL_CALLBACK_RETRY_COUNT (-1 = unlimited)" \
             "7" "Retry delay: ${BB_FULL_CALLBACK_RETRY_DELAY}s" \
-            "8" "Auto-exec after receive: $BB_FULL_CALLBACK_AUTO_EXEC" \
+            "8" "Post-receive behavior: configured under Payload Options -> zero-arg" \
             "0" "Back" \
             2>"$temp_out" || return 0
         _choice=$(cat "$temp_out")
@@ -991,12 +1408,7 @@ configure_full_callback() {
                     9 60 "$BB_FULL_CALLBACK_PORT" 2>"$temp_out" || true
                 BB_FULL_CALLBACK_PORT=$(cat "$temp_out")
                 ;;
-            4)
-                dialog --title "Full Callback Token" \
-                    --inputbox "Shared token. Generate with: openssl rand -hex 16\nMust match busierbox-server --token." \
-                    10 78 "$BB_FULL_CALLBACK_TOKEN" 2>"$temp_out" || true
-                BB_FULL_CALLBACK_TOKEN=$(cat "$temp_out")
-                ;;
+            4) configure_token_value BB_FULL_CALLBACK_TOKEN "Full Callback Token" ;;
             5)
                 dialog --title "Connect Timeout" \
                     --inputbox "Seconds before a connection attempt times out." \
@@ -1005,7 +1417,7 @@ configure_full_callback() {
                 ;;
             6)
                 dialog --title "Retry Count" \
-                    --inputbox "Number of connection attempts before giving up." \
+                    --inputbox "Number of connection attempts before giving up.\nUse -1 for unlimited retry while the callback process is running." \
                     9 60 "$BB_FULL_CALLBACK_RETRY_COUNT" 2>"$temp_out" || true
                 BB_FULL_CALLBACK_RETRY_COUNT=$(cat "$temp_out")
                 ;;
@@ -1016,17 +1428,9 @@ configure_full_callback() {
                 BB_FULL_CALLBACK_RETRY_DELAY=$(cat "$temp_out")
                 ;;
             8)
-                dialog --title "Auto-exec After Receive" \
-                    --radiolist "Command to run on received artifact after download:" 13 60 3 \
-                    "none"   "Do not run received artifact" \
-                    "$([ "$BB_FULL_CALLBACK_AUTO_EXEC" = none   ] && printf on || printf off)" \
-                    "doctor" "Run doctor (recommended)" \
-                    "$([ "$BB_FULL_CALLBACK_AUTO_EXEC" = doctor ] && printf on || printf off)" \
-                    "survey" "Run survey only" \
-                    "$([ "$BB_FULL_CALLBACK_AUTO_EXEC" = survey ] && printf on || printf off)" \
-                    2>"$temp_out" || true
-                _auto_exec=$(cat "$temp_out" | tr -d '"')
-                [ -n "$_auto_exec" ] && BB_FULL_CALLBACK_AUTO_EXEC="$_auto_exec"
+                dialog --title "Post-receive Behavior" \
+                    --msgbox "Post-receive behavior is configured under:\n\n  Payload Options -> zero-arg\n\n'post-receive action' means what a receiver asks the full artifact to do after download." \
+                    12 76
                 ;;
             0) return 0 ;;
         esac
@@ -1038,9 +1442,11 @@ configure_callbacks() {
         _scb="$BB_STAGER_CALLBACK_ENABLE"
         [ "$BB_STAGER_CALLBACK_ENABLE" = yes ] && \
             _scb="ENABLED host=${BB_STAGER_CALLBACK_HOST:-?} port=$BB_STAGER_CALLBACK_PORT"
+        [ "$BB_BUILD_STAGER" = yes ] || _scb="disabled (stager artifact not selected)"
         _fcb="$BB_FULL_CALLBACK_ENABLE"
         [ "$BB_FULL_CALLBACK_ENABLE" = yes ] && \
             _fcb="ENABLED host=${BB_FULL_CALLBACK_HOST:-?} port=$BB_FULL_CALLBACK_PORT"
+        [ "$BB_BUILD_FULL" = yes ] || _fcb="disabled (full artifact not selected)"
         dialog --title "BusierBox menuconfig / Callbacks" \
             --menu "Configure callback addresses compiled into each artifact.\nThe stager calls back on first run; the full artifact calls back\nvia 'busierbox callback'." 16 78 3 \
             "1" "Stager:       $_scb" \
@@ -1049,8 +1455,210 @@ configure_callbacks() {
             2>"$temp_out" || return 0
         _choice=$(cat "$temp_out")
         case "$_choice" in
-            1) configure_stager_callback ;;
-            2) configure_full_callback ;;
+            1)
+                if [ "$BB_BUILD_STAGER" = yes ]; then
+                    configure_stager_callback
+                else
+                    dialog --title "Stager not selected" --msgbox "Enable Artifact outputs -> Build stager artifact before configuring stager callbacks." 8 72
+                fi
+                ;;
+            2)
+                if [ "$BB_BUILD_FULL" = yes ]; then
+                    configure_full_callback
+                else
+                    dialog --title "Full artifact not selected" --msgbox "Enable Artifact outputs -> Build full artifact before configuring full artifact callbacks." 8 72
+                fi
+                ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+mode_onoff() {
+    [ "$1" = "$2" ] && printf on || printf off
+}
+
+configure_autoexec() {
+    while :; do
+        _stager_zero_label="Stager zero-arg behavior: $BB_STAGER_ZERO_ARG_MODE"
+        _stager_post_label="Stager post-receive action: $BB_STAGER_POST_RECEIVE_ACTION"
+        _full_zero_label="Full zero-arg behavior: $BB_FULL_ZERO_ARG_MODE"
+        _full_boot_label="Full bootstrap: extract=$BB_FULL_BOOTSTRAP_EXTRACT doctor=$BB_FULL_BOOTSTRAP_DOCTOR callback=$BB_FULL_BOOTSTRAP_CALLBACK operator-session=$BB_FULL_BOOTSTRAP_OPERATOR_SESSION"
+        [ "$BB_BUILD_STAGER" = yes ] || {
+            _stager_zero_label="Stager zero-arg behavior: disabled (stager artifact not selected)"
+            _stager_post_label="Stager post-receive action: disabled (stager artifact not selected)"
+        }
+        [ "$BB_BUILD_FULL" = yes ] || {
+            _full_zero_label="Full zero-arg behavior: disabled (full artifact not selected)"
+            _full_boot_label="Full bootstrap: disabled (full artifact not selected)"
+        }
+        dialog --title "zero-arg" \
+            --menu "Configure what happens when an artifact is invoked with no argv, and what the stager asks the received full artifact to do. Network behavior only runs when explicitly selected." 24 88 12 \
+            "1" "$_stager_zero_label" \
+            "2" "$_stager_post_label" \
+            "3" "$_full_zero_label" \
+            "4" "$_full_boot_label" \
+            "5" "Autorun guard: enabled=$BB_AUTORUN_GUARD_ENABLE path=$BB_AUTORUN_GUARD_PATH" \
+            "6" "Operator reverse SSH catch settings" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1)
+                if [ "$BB_BUILD_STAGER" != yes ]; then
+                    dialog --title "Stager not selected" --msgbox "Enable Artifact outputs -> Build stager artifact before configuring stager zero-arg behavior." 8 74
+                    continue
+                fi
+                dialog --title "Stager zero-arg behavior" \
+                    --radiolist "What happens when the stager is invoked without arguments? Use callback only for constrained launch contexts where argv cannot be supplied." 18 78 7 \
+                    "help" "Print usage/help" "$(mode_onoff "$BB_STAGER_ZERO_ARG_MODE" help)" \
+                    "menu" "Print usage/menu" "$(mode_onoff "$BB_STAGER_ZERO_ARG_MODE" menu)" \
+                    "survey" "Print stager survey JSON" "$(mode_onoff "$BB_STAGER_ZERO_ARG_MODE" survey)" \
+                    "doctor" "Reserved; stager has no full doctor" "$(mode_onoff "$BB_STAGER_ZERO_ARG_MODE" doctor)" \
+                    "callback" "Connect to configured busierbox-server" "$(mode_onoff "$BB_STAGER_ZERO_ARG_MODE" callback)" \
+                    "bootstrap" "Reserved for future stager bootstrap profile" "$(mode_onoff "$BB_STAGER_ZERO_ARG_MODE" bootstrap)" \
+                    "operator-session" "Reserved; not started by stager" "$(mode_onoff "$BB_STAGER_ZERO_ARG_MODE" operator-session)" \
+                    2>"$temp_out" || true
+                _v=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_v" ] && BB_STAGER_ZERO_ARG_MODE="$_v"
+                ;;
+            2)
+                if [ "$BB_BUILD_STAGER" != yes ]; then
+                    dialog --title "Stager not selected" --msgbox "Enable Artifact outputs -> Build stager artifact before configuring stager post-receive behavior." 8 78
+                    continue
+                fi
+                dialog --title "Stager post-receive action" \
+                    --radiolist "What should the stager ask the received full artifact to do after download?" 17 78 6 \
+                    "none" "Do not run received artifact" "$(mode_onoff "$BB_STAGER_POST_RECEIVE_ACTION" none)" \
+                    "survey" "Run survey" "$(mode_onoff "$BB_STAGER_POST_RECEIVE_ACTION" survey)" \
+                    "doctor" "Run doctor" "$(mode_onoff "$BB_STAGER_POST_RECEIVE_ACTION" doctor)" \
+                    "callback" "Run callback using full artifact defaults" "$(mode_onoff "$BB_STAGER_POST_RECEIVE_ACTION" callback)" \
+                    "bootstrap" "Run full zero-arg bootstrap" "$(mode_onoff "$BB_STAGER_POST_RECEIVE_ACTION" bootstrap)" \
+                    "operator-session" "Run full operator-session profile" "$(mode_onoff "$BB_STAGER_POST_RECEIVE_ACTION" operator-session)" \
+                    2>"$temp_out" || true
+                _v=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_v" ] && BB_STAGER_POST_RECEIVE_ACTION="$_v"
+                BB_STAGER_AUTO_EXEC="$BB_STAGER_POST_RECEIVE_ACTION"
+                ;;
+            3)
+                if [ "$BB_BUILD_FULL" != yes ]; then
+                    dialog --title "Full artifact not selected" --msgbox "Enable Artifact outputs -> Build full artifact before configuring full zero-arg behavior." 8 76
+                    continue
+                fi
+                dialog --title "Full zero-arg behavior" \
+                    --radiolist "What happens when the full BusierBox artifact is invoked with no arguments? Default is help. Network modes are explicit." 18 78 7 \
+                    "help" "Print usage/help" "$(mode_onoff "$BB_FULL_ZERO_ARG_MODE" help)" \
+                    "menu" "Print usage/menu" "$(mode_onoff "$BB_FULL_ZERO_ARG_MODE" menu)" \
+                    "survey" "Run survey" "$(mode_onoff "$BB_FULL_ZERO_ARG_MODE" survey)" \
+                    "doctor" "Run doctor" "$(mode_onoff "$BB_FULL_ZERO_ARG_MODE" doctor)" \
+                    "callback" "Run BusierBox callback protocol" "$(mode_onoff "$BB_FULL_ZERO_ARG_MODE" callback)" \
+                    "bootstrap" "Run configured bootstrap profile" "$(mode_onoff "$BB_FULL_ZERO_ARG_MODE" bootstrap)" \
+                    "operator-session" "Run configured operator-session profile" "$(mode_onoff "$BB_FULL_ZERO_ARG_MODE" operator-session)" \
+                    2>"$temp_out" || true
+                _v=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_v" ] && BB_FULL_ZERO_ARG_MODE="$_v"
+                ;;
+            4)
+                if [ "$BB_BUILD_FULL" != yes ]; then
+                    dialog --title "Full artifact not selected" --msgbox "Enable Artifact outputs -> Build full artifact before configuring bootstrap behavior." 8 74
+                    continue
+                fi
+                dialog --title "Full bootstrap/operator-session behavior" \
+                    --checklist "Bootstrap is a full-artifact zero-arg profile composed of these explicit steps. Operator-session uses normal SSH tooling, not busierbox-server." 18 84 4 \
+                    "extract" "Extract/reuse payload before other actions" "$(onoff "$BB_FULL_BOOTSTRAP_EXTRACT")" \
+                    "doctor" "Run doctor after extract" "$(onoff "$BB_FULL_BOOTSTRAP_DOCTOR")" \
+                    "callback" "Run BusierBox callback protocol" "$(onoff "$BB_FULL_BOOTSTRAP_CALLBACK")" \
+                    "operator-session" "Start reverse SSH operator-session when runtime support exists" "$(onoff "$BB_FULL_BOOTSTRAP_OPERATOR_SESSION")" \
+                    2>"$temp_out" || true
+                _sel=$(cat "$temp_out" | tr -d '"')
+                BB_FULL_BOOTSTRAP_EXTRACT=no
+                BB_FULL_BOOTSTRAP_DOCTOR=no
+                BB_FULL_BOOTSTRAP_CALLBACK=no
+                BB_FULL_BOOTSTRAP_OPERATOR_SESSION=no
+                has_item "$_sel" extract && BB_FULL_BOOTSTRAP_EXTRACT=yes
+                has_item "$_sel" doctor && BB_FULL_BOOTSTRAP_DOCTOR=yes
+                has_item "$_sel" callback && BB_FULL_BOOTSTRAP_CALLBACK=yes
+                has_item "$_sel" operator-session && BB_FULL_BOOTSTRAP_OPERATOR_SESSION=yes
+                ;;
+            5)
+                dialog --title "Autorun guard/re-entry behavior" \
+                    --menu "The guard prevents repeated zero-arg network/bootstrap launches. Explicit commands bypass it." 19 78 5 \
+                    "1" "Guard enabled: $BB_AUTORUN_GUARD_ENABLE" \
+                    "2" "Guard path: $BB_AUTORUN_GUARD_PATH" \
+                    "3" "Re-entry action: $BB_AUTORUN_REENTRY_ACTION" \
+                    "4" "Stale lock policy: $BB_AUTORUN_STALE_LOCK_POLICY" \
+                    "0" "Back" \
+                    2>"$temp_out" || true
+                _g=$(cat "$temp_out")
+                case "$_g" in
+                    1) [ "$BB_AUTORUN_GUARD_ENABLE" = yes ] && BB_AUTORUN_GUARD_ENABLE=no || BB_AUTORUN_GUARD_ENABLE=yes ;;
+                    2) dialog --title "Autorun guard path" --inputbox "Runtime status directory for zero-arg autorun." 9 78 "$BB_AUTORUN_GUARD_PATH" 2>"$temp_out" || true; BB_AUTORUN_GUARD_PATH=$(cat "$temp_out") ;;
+                    3) dialog --title "Autorun re-entry action" --radiolist "What to do when autorun is already active?" 15 70 5 \
+                        "help" "Print help" "$(mode_onoff "$BB_AUTORUN_REENTRY_ACTION" help)" \
+                        "status" "Print autorun status" "$(mode_onoff "$BB_AUTORUN_REENTRY_ACTION" status)" \
+                        "menu" "Print menu/help" "$(mode_onoff "$BB_AUTORUN_REENTRY_ACTION" menu)" \
+                        "doctor" "Run doctor" "$(mode_onoff "$BB_AUTORUN_REENTRY_ACTION" doctor)" \
+                        "bootstrap-again" "Run bootstrap anyway" "$(mode_onoff "$BB_AUTORUN_REENTRY_ACTION" bootstrap-again)" \
+                        2>"$temp_out" || true; _v=$(cat "$temp_out" | tr -d '"'); [ -n "$_v" ] && BB_AUTORUN_REENTRY_ACTION="$_v" ;;
+                    4) dialog --title "Stale lock policy" --radiolist "Recover removes stale locks when the recorded PID is dead." 12 70 2 \
+                        "recover" "Remove stale locks and retry once" "$(mode_onoff "$BB_AUTORUN_STALE_LOCK_POLICY" recover)" \
+                        "conservative" "Never remove stale locks automatically" "$(mode_onoff "$BB_AUTORUN_STALE_LOCK_POLICY" conservative)" \
+                        2>"$temp_out" || true; _v=$(cat "$temp_out" | tr -d '"'); [ -n "$_v" ] && BB_AUTORUN_STALE_LOCK_POLICY="$_v" ;;
+                esac
+                ;;
+            6)
+                configure_operator_reverse_ssh
+                ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+configure_operator_reverse_ssh() {
+    while :; do
+        _default_pub=$(default_pubkey 2>/dev/null || true)
+        dialog --title "Operator reverse SSH catch settings" \
+            --menu "These settings describe how a target dbclient reverse tunnel should reach your workstation sshd. busierbox-server can stage/start the target side after a BusierBox callback, or just wait for the forwarded port." 24 90 13 \
+            "1" "Operator server host: ${BB_OPERATOR_SERVER_HOST:-not set}" \
+            "2" "Operator server user: $BB_OPERATOR_SERVER_USER" \
+            "3" "Operator sshd port: $BB_OPERATOR_SERVER_SSH_PORT" \
+            "4" "Remote forward port: $BB_OPERATOR_REMOTE_FORWARD_PORT" \
+            "5" "Target Dropbear bind host: $BB_OPERATOR_TARGET_BIND_HOST" \
+            "6" "Target Dropbear port: $BB_OPERATOR_TARGET_DROPBEAR_PORT" \
+            "7" "Target dbclient identity file: ${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-not set}" \
+            "8" "Target authorized_keys file: ${BB_OPERATOR_AUTHORIZED_KEY_FILE:-not set}" \
+            "9" "Known-hosts policy: $BB_OPERATOR_KNOWN_HOSTS_POLICY" \
+            "10" "Generate dbclient identity in .busierbox-server/keys" \
+            "11" "Use local SSH public key: ${_default_pub:-none found}" \
+            "12" "Generate operator keypair in .busierbox-server/keys" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1) dialog --title "Operator server host" --inputbox "Host/IP of your workstation sshd reachable from the target." 9 78 "$BB_OPERATOR_SERVER_HOST" 2>"$temp_out" || true; BB_OPERATOR_SERVER_HOST=$(cat "$temp_out") ;;
+            2) dialog --title "Operator server user" --inputbox "SSH user on the operator workstation." 9 78 "$BB_OPERATOR_SERVER_USER" 2>"$temp_out" || true; BB_OPERATOR_SERVER_USER=$(cat "$temp_out") ;;
+            3) dialog --title "Operator sshd port" --inputbox "SSH server port on the operator workstation." 9 60 "$BB_OPERATOR_SERVER_SSH_PORT" 2>"$temp_out" || true; BB_OPERATOR_SERVER_SSH_PORT=$(cat "$temp_out") ;;
+            4) dialog --title "Remote forward port" --inputbox "Port opened on operator workstation and forwarded back to target Dropbear." 9 70 "$BB_OPERATOR_REMOTE_FORWARD_PORT" 2>"$temp_out" || true; BB_OPERATOR_REMOTE_FORWARD_PORT=$(cat "$temp_out") ;;
+            5) dialog --title "Target Dropbear bind host" --inputbox "Target-side Dropbear bind address for the forwarded service." 9 70 "$BB_OPERATOR_TARGET_BIND_HOST" 2>"$temp_out" || true; BB_OPERATOR_TARGET_BIND_HOST=$(cat "$temp_out") ;;
+            6) dialog --title "Target Dropbear port" --inputbox "Target-side Dropbear listen port." 9 60 "$BB_OPERATOR_TARGET_DROPBEAR_PORT" 2>"$temp_out" || true; BB_OPERATOR_TARGET_DROPBEAR_PORT=$(cat "$temp_out") ;;
+            7) dialog --title "dbclient identity file" --inputbox "Private key staged/used by target dbclient to authenticate to operator sshd." 9 78 "$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" 2>"$temp_out" || true; BB_OPERATOR_DBCLIENT_IDENTITY_FILE=$(cat "$temp_out") ;;
+            8) dialog --title "authorized_keys file" --inputbox "Public key accepted by target Dropbear for operator -> target login." 9 78 "$BB_OPERATOR_AUTHORIZED_KEY_FILE" 2>"$temp_out" || true; BB_OPERATOR_AUTHORIZED_KEY_FILE=$(cat "$temp_out") ;;
+            9) dialog --title "Known-hosts policy" --radiolist "Target dbclient host key policy for operator sshd." 12 70 2 \
+                "off" "Disable strict known-host checks" "$(mode_onoff "$BB_OPERATOR_KNOWN_HOSTS_POLICY" off)" \
+                "strict" "Require known_hosts to be valid" "$(mode_onoff "$BB_OPERATOR_KNOWN_HOSTS_POLICY" strict)" \
+                2>"$temp_out" || true; _v=$(cat "$temp_out" | tr -d '"'); [ -n "$_v" ] && BB_OPERATOR_KNOWN_HOSTS_POLICY="$_v" ;;
+            10) generate_dbclient_identity ;;
+            11)
+                if [ -n "$_default_pub" ]; then
+                    BB_OPERATOR_AUTHORIZED_KEY_FILE="$_default_pub"
+                    BB_DROPBEAR_AUTHORIZED_KEYS_FILE="$BB_OPERATOR_AUTHORIZED_KEY_FILE"
+                else
+                    dialog --title "Public key path" --inputbox "Path to an operator public key (*.pub) to stage as target authorized_keys." 9 78 "" 2>"$temp_out" || true
+                    _v=$(cat "$temp_out")
+                    [ -n "$_v" ] && BB_OPERATOR_AUTHORIZED_KEY_FILE="$_v" && BB_DROPBEAR_AUTHORIZED_KEYS_FILE="$_v"
+                fi
+                ;;
+            12) generate_operator_keypair ;;
             0) return 0 ;;
         esac
     done
@@ -1118,31 +1726,33 @@ configure_payload() {
     while :; do
         _cb_summary="stager=$BB_STAGER_CALLBACK_ENABLE full=$BB_FULL_CALLBACK_ENABLE"
         dialog --title "BusierBox menuconfig / Payload Options" \
-            --menu "Choose a submenu:" 21 78 10 \
+            --menu "Choose a submenu:" 22 78 11 \
             "1" "Artifact outputs: full=$BB_BUILD_FULL stager=$BB_BUILD_STAGER core=$BB_BUILD_INTERNAL_CORE" \
             "2" "Callbacks: $_cb_summary" \
-            "3" "Archive format: $BB_PAYLOAD_FORMAT" \
-            "4" "BusyBox applet groups" \
-            "5" "Heavy tools" \
-            "6" "Tool compatibility / warnings" \
-            "7" "Remote access / debug tools" \
-            "8" "Dotfiles / Shell personalization" \
-            "9" "User overlay: $BB_USER_OVERLAY_ENABLE (${BB_USER_OVERLAY_ROOT:-not set})" \
-            "10" "Payload version: $BB_PAYLOAD_VERSION" \
+            "3" "zero-arg: stager=$BB_STAGER_ZERO_ARG_MODE full=$BB_FULL_ZERO_ARG_MODE" \
+            "4" "Archive format: $BB_PAYLOAD_FORMAT" \
+            "5" "BusyBox applet groups" \
+            "6" "Heavy tools" \
+            "7" "Tool compatibility / warnings" \
+            "8" "Remote access / debug tools" \
+            "9" "Dotfiles / Shell personalization" \
+            "10" "User overlay: $BB_USER_OVERLAY_ENABLE (${BB_USER_OVERLAY_ROOT:-not set})" \
+            "11" "Payload version: $BB_PAYLOAD_VERSION" \
             "0" "Back" \
             2>"$temp_out" || return 0
         choice=$(cat "$temp_out")
         case "$choice" in
             1) configure_artifact_outputs ;;
             2) configure_callbacks ;;
-            3) configure_payload_format ;;
-            4) configure_busybox_groups ;;
-            5) configure_heavy_tools ;;
-            6) show_tool_warnings ;;
-            7) configure_remote_access ;;
-            8) configure_dotfiles ;;
-            9) configure_overlay ;;
-            10)
+            3) configure_autoexec ;;
+            4) configure_payload_format ;;
+            5) configure_busybox_groups ;;
+            6) configure_heavy_tools ;;
+            7) show_tool_warnings ;;
+            8) configure_remote_access ;;
+            9) configure_dotfiles ;;
+            10) configure_overlay ;;
+            11)
                 dialog --title "Payload version" --inputbox "Payload version string:" 9 60 "$BB_PAYLOAD_VERSION" 2>"$temp_out" || true
                 BB_PAYLOAD_VERSION=$(cat "$temp_out")
                 ;;

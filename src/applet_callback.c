@@ -522,10 +522,10 @@ static int cb_run_session(const struct cb_opts *opts)
     }
     snprintf(port_str, sizeof(port_str), "%s", opts->port ? opts->port : "4444");
 
-    for (attempt = 0; attempt < opts->retry_count; attempt++) {
+    for (attempt = 0; opts->retry_count < 0 || attempt < opts->retry_count; attempt++) {
         fd = cb_connect(opts->host, port_str, opts->timeout);
         if (fd >= 0) break;
-        if (attempt + 1 < opts->retry_count)
+        if (opts->retry_count < 0 || attempt + 1 < opts->retry_count)
             sleep((unsigned int)opts->retry_delay);
     }
     if (fd < 0) {
@@ -581,7 +581,7 @@ static void cb_usage(FILE *out)
     fprintf(out,
         "usage: busierbox callback [--host HOST] [--port PORT] [--token TOKEN]\n"
         "                          [--output PATH] [--auto-exec none|doctor|survey]\n"
-        "                          [--timeout SEC] [--retry-count N] [--retry-delay SEC]\n\n"
+        "                          [--timeout SEC] [--retry-count N|-1] [--retry-delay SEC]\n\n"
         "Calls back to a busierbox-server operator station using the stager protocol.\n"
         "Compiled-in defaults: host=" BB_FULL_CALLBACK_HOST
         " port=" BB_FULL_CALLBACK_PORT
@@ -632,8 +632,9 @@ int applet_callback_main(int argc, char **argv)
         }
     }
 
-    if (opts.retry_count < 1) opts.retry_count = 1;
+    if (opts.retry_count == 0 || opts.retry_count < -1) opts.retry_count = 1;
     if (opts.timeout < 1) opts.timeout = 1;
+    if (opts.retry_delay < 0) opts.retry_delay = 0;
 
     if (!opts.host || !opts.host[0]) {
         fprintf(stderr, "busierbox callback: no host configured. "

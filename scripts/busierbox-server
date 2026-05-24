@@ -17,6 +17,7 @@ from pathlib import Path
 PROTOCOL = "busierbox-stager-v1"
 MAX_FRAME = 1024 * 1024
 SESSION_ROOT = Path(".busierbox-server/sessions")
+DEFAULT_CONFIG = Path(".busierbox-server/config.json")
 
 
 # ── network helpers ────────────────────────────────────────────────────────────
@@ -26,6 +27,54 @@ def parse_listen(value):
         raise argparse.ArgumentTypeError("expected HOST:PORT")
     host, port = value.rsplit(":", 1)
     return host, int(port)
+
+
+def load_server_config(path):
+    cfg_path = Path(path)
+    if not cfg_path.is_file():
+        return {}
+    try:
+        if cfg_path.suffix == ".json":
+            raw = json.loads(cfg_path.read_text(encoding="utf-8"))
+        else:
+            raw = {}
+            for line in cfg_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                raw[key.strip()] = val.strip().strip('"')
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"warning: unable to read server config {cfg_path}: {exc}", file=sys.stderr)
+        return {}
+
+    out = {}
+    keys = {
+        "token", "artifact", "remote_path", "send", "survey_only", "exec_doctor",
+        "exec_survey", "yes", "once", "timeout", "write_recommended_config",
+        "start_operator_session", "operator_server_host",
+        "operator_server_ssh_port", "operator_server_user",
+        "operator_remote_forward_port", "operator_target_dropbear_port",
+        "operator_target_bind_host", "operator_authorized_key_file",
+        "operator_dbclient_identity_file", "operator_known_hosts_policy",
+        "operator_wait_timeout", "no_operator_healthcheck",
+        "wait_operator_tunnel",
+    }
+    for key in keys:
+        if key in raw and raw[key] not in (None, ""):
+            out[key] = raw[key]
+    if "listen" in raw and raw["listen"]:
+        out["listen"] = parse_listen(str(raw["listen"]))
+    for key in (
+        "operator_server_ssh_port",
+        "operator_remote_forward_port",
+        "operator_target_dropbear_port",
+        "operator_wait_timeout",
+        "timeout",
+    ):
+        if key in out:
+            out[key] = int(out[key])
+    return out
 
 
 def local_ips():
@@ -513,6 +562,7 @@ def build_operator_session_script(args, extract_dir):
     if accept_any:
         lines.append("    -y \\")
     lines += [
+        "    -K 30 \\",
         "    -N \\",
         f"    -R 127.0.0.1:{fwd_port}:{target_bind}:{target_port} \\",
         f"    {server_user}@{server_host} -p {server_ssh_port} \\",
@@ -892,7 +942,19 @@ def _maybe_operator_session(conn, addr, args, session_dir, logfp, remote_path, s
 # ── main ───────────────────────────────────────────────────────────────────────
 
 def main():
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--config", default=str(DEFAULT_CONFIG))
+    pre.add_argument("--no-config", action="store_true")
+    pre_args, _ = pre.parse_known_args()
+    config_defaults = {}
+    if not pre_args.no_config:
+        config_defaults = load_server_config(pre_args.config)
+
     parser = argparse.ArgumentParser(description="BusierBox stager callback server")
+    parser.add_argument("--config", default=pre_args.config,
+                        help="server defaults JSON/key=value file (default: .busierbox-server/config.json)")
+    parser.add_argument("--no-config", action="store_true",
+                        help="ignore server defaults config")
     parser.add_argument("--listen", default="0.0.0.0:4444", type=parse_listen)
     parser.add_argument("--token", default="")
     parser.add_argument("--artifact", help="full artifact to send to target")
@@ -945,10 +1007,23 @@ def main():
                         help="seconds to poll for reverse tunnel after session start (default: 15)")
     parser.add_argument("--no-operator-healthcheck", action="store_true",
                         help="skip reverse tunnel healthcheck after session start")
+    parser.add_argument("--wait-operator-tunnel", action="store_true",
+                        help="only wait for the configured reverse SSH tunnel and print the connect command")
+
+    if config_defaults:
+        parser.set_defaults(**config_defaults)
 
     args = parser.parse_args()
 
     # Startup validation
+    if args.wait_operator_tunnel:
+        port = args.operator_remote_forward_port
+        ok = _poll_reverse_tunnel(port, timeout=args.operator_wait_timeout)
+        if ok:
+            print(f"Connect with: ssh -p {port} root@127.0.0.1")
+            return 0
+        return 1
+
     if args.send and not args.artifact:
         parser.error("--send requires --artifact")
     if args.artifact and not Path(args.artifact).is_file():

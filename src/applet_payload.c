@@ -47,6 +47,42 @@
 #ifndef BB_STAGER_CALLBACK_SHELL
 #define BB_STAGER_CALLBACK_SHELL "sh"
 #endif
+#ifndef BB_STAGER_ZERO_ARG_MODE
+#define BB_STAGER_ZERO_ARG_MODE "help"
+#endif
+#ifndef BB_STAGER_POST_RECEIVE_ACTION
+#define BB_STAGER_POST_RECEIVE_ACTION "doctor"
+#endif
+#ifndef BB_FULL_ZERO_ARG_MODE
+#define BB_FULL_ZERO_ARG_MODE "help"
+#endif
+#ifndef BB_FULL_BOOTSTRAP_EXTRACT
+#define BB_FULL_BOOTSTRAP_EXTRACT "yes"
+#endif
+#ifndef BB_FULL_BOOTSTRAP_DOCTOR
+#define BB_FULL_BOOTSTRAP_DOCTOR "yes"
+#endif
+#ifndef BB_FULL_BOOTSTRAP_CALLBACK
+#define BB_FULL_BOOTSTRAP_CALLBACK "no"
+#endif
+#ifndef BB_FULL_BOOTSTRAP_OPERATOR_SESSION
+#define BB_FULL_BOOTSTRAP_OPERATOR_SESSION "no"
+#endif
+#ifndef BB_AUTORUN_GUARD_ENABLE
+#define BB_AUTORUN_GUARD_ENABLE "yes"
+#endif
+#ifndef BB_AUTORUN_GUARD_PATH
+#define BB_AUTORUN_GUARD_PATH "/tmp/busierbox-autorun"
+#endif
+#ifndef BB_AUTORUN_REENTRY_ACTION
+#define BB_AUTORUN_REENTRY_ACTION "status"
+#endif
+#ifndef BB_AUTORUN_STALE_LOCK_POLICY
+#define BB_AUTORUN_STALE_LOCK_POLICY "recover"
+#endif
+#ifndef BB_OPERATOR_REMOTE_FORWARD_PORT
+#define BB_OPERATOR_REMOTE_FORWARD_PORT "2200"
+#endif
 
 #define BBX_TRAILER_SIZE 512
 #define BBX_MAGIC "BBXPAYLOADv1"
@@ -142,6 +178,32 @@ static int bb_applet_supported(const char *name)
             return 1;
     }
     return 0;
+}
+
+static int operator_reverse_ssh_possible(void)
+{
+    if (!strcmp(BB_FULL_ZERO_ARG_MODE, "operator-session"))
+        return 1;
+    if (!strcmp(BB_FULL_ZERO_ARG_MODE, "bootstrap") && !strcmp(BB_FULL_BOOTSTRAP_OPERATOR_SESSION, "yes"))
+        return 1;
+    return !strcmp(BB_FULL_BOOTSTRAP_OPERATOR_SESSION, "yes");
+}
+
+static void print_autoexec_config(void)
+{
+    printf("stager_zero_arg_mode=%s\n", BB_STAGER_ZERO_ARG_MODE);
+    printf("stager_post_receive_action=%s\n", BB_STAGER_POST_RECEIVE_ACTION);
+    printf("full_zero_arg_mode=%s\n", BB_FULL_ZERO_ARG_MODE);
+    printf("full_bootstrap_extract=%s\n", BB_FULL_BOOTSTRAP_EXTRACT);
+    printf("full_bootstrap_doctor=%s\n", BB_FULL_BOOTSTRAP_DOCTOR);
+    printf("full_bootstrap_callback=%s\n", BB_FULL_BOOTSTRAP_CALLBACK);
+    printf("full_bootstrap_operator_session=%s\n", BB_FULL_BOOTSTRAP_OPERATOR_SESSION);
+    printf("autorun_guard_enabled=%s\n", BB_AUTORUN_GUARD_ENABLE);
+    printf("autorun_guard_path=%s\n", BB_AUTORUN_GUARD_PATH);
+    printf("autorun_reentry_action=%s\n", BB_AUTORUN_REENTRY_ACTION);
+    printf("autorun_stale_lock_policy=%s\n", BB_AUTORUN_STALE_LOCK_POLICY);
+    printf("operator_reverse_ssh_possible=%s\n", operator_reverse_ssh_possible() ? "yes" : "no");
+    printf("operator_reverse_ssh_catch_hint=ssh -p %s root@127.0.0.1\n", BB_OPERATOR_REMOTE_FORWARD_PORT);
 }
 
 static int is_help(int argc, char **argv)
@@ -1712,6 +1774,7 @@ int applet_doctor_main(int argc, char **argv)
         puts("recommendation=mount devpts for tmux/dropbear interactive sessions");
     printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
     printf("stager_callback_enabled=%s\n", BB_STAGER_CALLBACK_ENABLE);
+    print_autoexec_config();
     if (!strcmp(BB_STAGER_CALLBACK_ENABLE, "yes")) {
         printf("stager_callback_host=%s\n", BB_STAGER_CALLBACK_HOST[0] ? BB_STAGER_CALLBACK_HOST : "unset");
         printf("stager_callback_port=%s\n", BB_STAGER_CALLBACK_PORT[0] ? BB_STAGER_CALLBACK_PORT : "unset");
@@ -1750,6 +1813,7 @@ int applet_config_info_main(int argc, char **argv)
     puts("core_static_status=see build output");
     printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
     printf("stager_callback_enabled=%s\n", BB_STAGER_CALLBACK_ENABLE);
+    print_autoexec_config();
     if (!strcmp(BB_STAGER_CALLBACK_ENABLE, "yes")) {
         printf("stager_callback_host=%s\n", BB_STAGER_CALLBACK_HOST);
         printf("stager_callback_port=%s\n", BB_STAGER_CALLBACK_PORT);

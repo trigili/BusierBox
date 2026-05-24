@@ -93,3 +93,132 @@ dangerous flashcp CONFIG_FLASHCP copy to flash
 dangerous flash_lock CONFIG_FLASH_LOCK lock flash
 dangerous flash_unlock CONFIG_FLASH_UNLOCK unlock flash
 EOF
+
+python3 - <<'PY'
+import glob
+import re
+
+seen = set()
+static = """\
+shell sh CONFIG_ASH
+shell ash CONFIG_ASH
+shell sh_is_ash CONFIG_SH_IS_ASH
+shell printf CONFIG_PRINTF
+shell echo CONFIG_ECHO
+shell test CONFIG_TEST
+fileops cat CONFIG_CAT
+fileops ls CONFIG_LS
+fileops cp CONFIG_CP
+fileops mv CONFIG_MV
+fileops rm CONFIG_RM
+fileops mkdir CONFIG_MKDIR
+fileops chmod CONFIG_CHMOD
+fileops touch CONFIG_TOUCH
+fileops readlink CONFIG_READLINK
+fileops stat CONFIG_STAT
+fileops ln CONFIG_LN
+fileops du CONFIG_DU
+fileops install CONFIG_INSTALL
+fileops basename CONFIG_BASENAME
+fileops dirname CONFIG_DIRNAME
+disk dd CONFIG_DD
+disk df CONFIG_DF
+disk mount CONFIG_MOUNT
+disk umount CONFIG_UMOUNT
+disk tar CONFIG_TAR
+disk gzip CONFIG_GZIP
+disk gunzip CONFIG_GUNZIP
+disk zcat CONFIG_ZCAT
+disk sync CONFIG_SYNC
+process ps CONFIG_PS
+process free CONFIG_FREE
+process kill CONFIG_KILL
+process killall CONFIG_KILLALL
+process id CONFIG_ID
+process whoami CONFIG_WHOAMI
+process which CONFIG_WHICH
+process uname CONFIG_UNAME
+process env CONFIG_ENV
+process sleep CONFIG_SLEEP
+process nohup CONFIG_NOHUP
+network nc CONFIG_NC
+network nc_server CONFIG_NC_SERVER
+network ping CONFIG_PING
+network wget CONFIG_WGET
+network ip CONFIG_IP
+network ifconfig CONFIG_IFCONFIG
+network netstat CONFIG_NETSTAT
+network route CONFIG_ROUTE
+network hostname CONFIG_HOSTNAME
+network dnsdomainname CONFIG_DNSDOMAINNAME
+text grep CONFIG_GREP
+text egrep CONFIG_EGREP
+text fgrep CONFIG_FGREP
+text sed CONFIG_SED
+text awk CONFIG_AWK
+text tee CONFIG_TEE
+text xargs CONFIG_XARGS
+text find CONFIG_FIND
+text sort CONFIG_SORT
+text uniq CONFIG_UNIQ
+text cut CONFIG_CUT
+text head CONFIG_HEAD
+text tail CONFIG_TAIL
+text wc CONFIG_WC
+text tr CONFIG_TR
+text less CONFIG_LESS
+system dmesg CONFIG_DMESG
+system sysctl CONFIG_BB_SYSCTL
+system date CONFIG_DATE
+system hexdump CONFIG_HEXDUMP
+system xxd CONFIG_XXD
+system od CONFIG_OD
+system strings CONFIG_STRINGS
+system stty CONFIG_STTY
+dangerous nuke CONFIG_NUKE
+dangerous devmem CONFIG_DEVMEM
+dangerous halt CONFIG_HALT
+dangerous poweroff CONFIG_POWEROFF
+dangerous reboot CONFIG_REBOOT
+dangerous fdisk CONFIG_FDISK
+dangerous mkfs_ext2 CONFIG_MKFS_EXT2
+dangerous mkfs_minix CONFIG_MKFS_MINIX
+dangerous mkfs_vfat CONFIG_MKFS_VFAT
+dangerous flash_eraseall CONFIG_FLASH_ERASEALL
+dangerous flashcp CONFIG_FLASHCP
+dangerous flash_lock CONFIG_FLASH_LOCK
+dangerous flash_unlock CONFIG_FLASH_UNLOCK
+"""
+for line in static.splitlines():
+    parts = line.split()
+    if len(parts) >= 3:
+        seen.add(parts[1])
+
+rows = []
+for path in glob.glob("third_party/busybox/*/*.c"):
+    source_group = path.split("/")[-2]
+    if source_group == "libbb":
+        continue
+    group = "all-" + source_group
+    try:
+        text = open(path, encoding="utf-8", errors="replace").read()
+    except OSError:
+        continue
+    for line in text.splitlines():
+        if "//applet:" not in line:
+            continue
+        m_sym = re.search(r"IF_([A-Z0-9_]+)\s*\(", line)
+        m_app = re.search(r"APPLET(?:_[A-Z]+)?\(([^,()]+)", line)
+        if not (m_sym and m_app):
+            continue
+        applet = m_app.group(1).strip()
+        symbol = f"CONFIG_{m_sym.group(1)}"
+        if applet in seen or not applet or symbol == "CONFIG_BUSYBOX":
+            continue
+        seen.add(applet)
+        rows.append((group, source_group, applet, symbol))
+
+for group, source_group, applet, symbol in sorted(rows):
+    desc = f"BusyBox {source_group} applet"
+    print(f"{group} {applet} {symbol} {desc}")
+PY

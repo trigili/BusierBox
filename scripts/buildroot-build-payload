@@ -340,7 +340,7 @@ if [ "$_build_ok" = "0" ]; then
     for _t in $requested_tools; do
         if in_list "$_t" ${pre_excluded:-}; then continue; fi
         case "$_t" in
-            strace|gdbserver|curl|dropbear|zsh|tmux|socat|tcpdump|rsync|mtr|iperf3|ethtool|iw|minicom|mosh-client|ripgrep|jq|file|htop|screen|ltrace|readelf|objdump|usbutils|pciutils)
+            strace|gdbserver|curl|dropbear|zsh|tmux|socat|tcpdump|rsync|mtr|iperf3|ethtool|iw|minicom|mosh-client|ripgrep|jq|file|htop|screen|ltrace|readelf|objdump|usbutils|pciutils|doom)
                 build_failed_tools="${build_failed_tools:+$build_failed_tools }$_t"
                 ;;
         esac
@@ -509,6 +509,9 @@ if tool_requested usbutils; then
 fi
 if tool_requested pciutils; then
     stage_first_found pciutils usr/bin/lspci bin/lspci || printf '%s\n' "buildroot-build-payload: requested pciutils but no built binary was found" >&2
+fi
+if tool_requested doom; then
+    stage_first_found doom usr/bin/doom bin/doom usr/games/doom usr/bin/chocolate-doom bin/chocolate-doom usr/games/chocolate-doom || printf '%s\n' "buildroot-build-payload: requested doom but no built binary was found" >&2
 fi
 
 # Stage terminfo database if built

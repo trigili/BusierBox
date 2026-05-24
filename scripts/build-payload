@@ -76,7 +76,7 @@ stage_dotfiles
 # Clean out unconfigured/stale files from previous builds or default template
 for tool in zsh tmux strace gdbserver dropbear dbclient dropbearkey curl dropbear-bin \
     socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client rg ripgrep jq file htop screen \
-    ltrace readelf objdump lsusb lspci; do
+    ltrace readelf objdump lsusb lspci doom chocolate-doom; do
     rm -f "runtime/payload/bin/$tool"
 done
 rm -f runtime/payload/busybox-applets.txt runtime/payload/staged-tools.txt runtime/payload/built-tools.txt
@@ -132,7 +132,7 @@ stage_host_terminfo() {
 }
 
 # Set up only selected heavy tools
-for tool in zsh tmux strace gdbserver dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils; do
+for tool in zsh tmux strace gdbserver dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils doom; do
     if tool_selected "$tool"; then
         if [ "$tool" = ripgrep ] && command -v rg >/dev/null 2>&1; then
             stage_real_tool "$tool" "$(command -v rg)" rg || true
@@ -140,6 +140,10 @@ for tool in zsh tmux strace gdbserver dropbear curl socat tcpdump rsync mtr iper
             stage_real_tool "$tool" "$(command -v lsusb)" lsusb || true
         elif [ "$tool" = pciutils ] && command -v lspci >/dev/null 2>&1; then
             stage_real_tool "$tool" "$(command -v lspci)" lspci || true
+        elif [ "$tool" = doom ] && command -v doom >/dev/null 2>&1; then
+            stage_real_tool "$tool" "$(command -v doom)" doom || true
+        elif [ "$tool" = doom ] && command -v chocolate-doom >/dev/null 2>&1; then
+            stage_real_tool "$tool" "$(command -v chocolate-doom)" doom || true
         elif command -v "$tool" >/dev/null 2>&1; then
             stage_real_tool "$tool" "$(command -v "$tool")" "$tool" || true
         elif [ "$tool" = dropbear ]; then
@@ -258,6 +262,7 @@ apply_overlay() {
         done
     fi
     [ "$_applied" -gt 0 ] && printf '%s\n' "build-payload: overlay applied from $BB_USER_OVERLAY_ROOT ($_applied files)"
+    return 0
 }
 
 apply_overlay

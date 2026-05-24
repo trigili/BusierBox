@@ -92,6 +92,8 @@ smoke-test: package-native
 	@tests/smoke/target-resolution.sh
 	@tests/smoke/busybox-selection.sh
 	@tests/smoke/payload-reality.sh
+	@tests/smoke/menuconfig-autoexec.sh
+	@tests/smoke/zero-arg-autorun.sh dist/busierbox-native-full
 	@./dist/busierbox-native-full list >/dev/null
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full survey --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 json validation unavailable"; fi
 	@./dist/busierbox-native-full survey >/dev/null

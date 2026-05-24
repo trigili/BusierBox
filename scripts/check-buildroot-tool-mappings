@@ -36,6 +36,7 @@ TOOL_SYMBOLS = {
 
 PROVIDER_ONLY = {
     "xxd": "provided by selected BusyBox applet; no Buildroot package symbol emitted",
+    "doom": "provider/overlay-only unless the active Buildroot tree supplies a compatible Doom package",
 }
 
 CXX_TOOLS = {"gdbserver", "mosh-client", "ripgrep"}

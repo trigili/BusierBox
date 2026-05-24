@@ -20,4 +20,7 @@ cfg=$(BB_BUSYBOX_GROUPS="shell dangerous" BB_BUSYBOX_APPLET_OVERRIDES="-nuke" TA
 grep -q '^# CONFIG_NUKE is not set$' "$cfg"
 grep -q '^CONFIG_DEVMEM=y$' "$cfg"
 
+cfg=$(BB_BUSYBOX_GROUPS="shell" BB_BUSYBOX_APPLET_OVERRIDES="+ascii" TARGET=selection-ascii OUT_DIR="$tmp" scripts/gen-buildroot-busybox-config)
+grep -q '^CONFIG_ASCII=y$' "$cfg"
+
 printf '%s\n' "busybox-selection ok"
