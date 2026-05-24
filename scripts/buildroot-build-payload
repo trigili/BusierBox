@@ -21,7 +21,11 @@ out_dir="$OUT_BASE/$TARGET"
 
 profile_value() {
     key=$1
-    sed -n "s/^$key[[:space:]]*:?=[[:space:]]*//p" "$profile" | sed -n '1p'
+    awk -v key="$key" '
+        $1 == key && ($2 == ":=" || $2 == "=") {
+            $1 = ""; $2 = ""; sub(/^[[:space:]]+/, ""); print; exit
+        }
+    ' "$profile"
 }
 
 die() {
@@ -48,20 +52,6 @@ stage_dotfiles() {
     cp payloads/dotfiles/.gdbinit runtime/payload/home/.gdbinit
 }
 
-stage_placeholders() {
-    mkdir -p runtime/payload/bin
-    for tool in zsh tmux strace gdbserver dropbear curl; do
-        if [ ! -e "runtime/payload/bin/$tool" ]; then
-            {
-                printf '%s\n' "#!/bin/sh"
-                printf '%s\n' "echo '$tool payload is not staged in this build' >&2"
-                printf '%s\n' "exit 127"
-            } >"runtime/payload/bin/$tool"
-            chmod 0755 "runtime/payload/bin/$tool"
-        fi
-    done
-}
-
 copy_shared_libs_if_dynamic() {
     busybox=$1
     if command -v file >/dev/null 2>&1 && file "$busybox" | grep -qi 'statically linked'; then
@@ -76,6 +66,38 @@ copy_shared_libs_if_dynamic() {
         find "$out_dir/target/usr/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' \) -exec cp -P {} runtime/payload/lib/ \;
     fi
     printf '%s\n' dynamic
+}
+
+tool_requested() {
+    needle=$1
+    for item in $requested_tools; do
+        [ "$item" = "$needle" ] && return 0
+    done
+    return 1
+}
+
+stage_tool_path() {
+    requested=$1
+    src=$2
+    dst=${3:-${src##*/}}
+    [ -x "$src" ] || return 1
+    cp "$src" "runtime/payload/bin/$dst"
+    chmod 0755 "runtime/payload/bin/$dst"
+    printf '%s\n' "$dst" >>runtime/payload/staged-tools.txt
+    printf '%s\n' "$requested" >>runtime/payload/built-tools.txt
+}
+
+stage_first_found() {
+    requested=$1
+    shift
+    staged=1
+    for rel in "$@"; do
+        if [ -x "$out_dir/target/$rel" ]; then
+            stage_tool_path "$requested" "$out_dir/target/$rel" "${rel##*/}" || true
+            staged=0
+        fi
+    done
+    return "$staged"
 }
 
 payload_sha_file() {
@@ -119,26 +141,12 @@ write_manifest() {
         busybox_version=unknown
     fi
     [ -n "$busybox_version" ] || busybox_version=unknown
-    libs=$(find runtime/payload/lib -maxdepth 1 -type f -o -type l 2>/dev/null | sed 's|.*/||' | sort | awk 'BEGIN{first=1; printf "["} {if(!first) printf ","; first=0; printf "\"%s\"", $0} END{printf "]"}')
-    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    cat >runtime/payload/manifest.json <<EOF_MANIFEST
-{
-  "target": "$TARGET",
-  "arch": "$arch",
-  "libc": "$libc",
-  "kernel_floor": "$kernel_floor",
-  "build_timestamp": "$timestamp",
-  "busybox_version": "$busybox_version",
-  "static_status": "$static_status",
-  "included_payload_tools": ["busybox", "zsh-placeholder", "tmux-placeholder", "strace-placeholder", "gdbserver-placeholder", "dropbear-placeholder", "curl-placeholder"],
-  "included_shared_libs": $libs,
-  "payload_sha256": "$payload_sha"
-}
-EOF_MANIFEST
+    scripts/write-payload-manifest --target "$TARGET" --arch "$arch" --libc "$libc" --kernel-floor "$kernel_floor" --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$payload_sha" --requested-tools "$requested_tools"
 }
 
 [ -f "$profile" ] || die "unknown TARGET=$TARGET; missing $profile"
 [ -f "$defconfig" ] || die "missing Buildroot defconfig $defconfig"
+requested_tools=$(profile_value REQUESTED_TOOLS)
 
 ensure_buildroot
 if [ "$PREPARE_ONLY" -eq 1 ]; then
@@ -169,8 +177,34 @@ mkdir -p runtime/payload/bin runtime/payload/lib runtime/payload/share runtime/p
 cp "$busybox_src" runtime/payload/bin/busybox
 chmod 0755 runtime/payload/bin/busybox
 static_status=$(copy_shared_libs_if_dynamic runtime/payload/bin/busybox)
+scripts/discover-buildroot-applets "$out_dir/target" runtime/payload/busybox-applets.txt
+rm -f runtime/payload/staged-tools.txt runtime/payload/built-tools.txt
+: >runtime/payload/staged-tools.txt
+: >runtime/payload/built-tools.txt
+mkdir -p runtime/payload/share/busierbox
+
+if tool_requested strace; then
+    stage_first_found strace usr/bin/strace bin/strace || printf '%s\n' "buildroot-build-payload: requested strace but no built binary was found" >&2
+fi
+if tool_requested gdbserver; then
+    stage_first_found gdbserver usr/bin/gdbserver usr/sbin/gdbserver bin/gdbserver sbin/gdbserver || printf '%s\n' "buildroot-build-payload: requested gdbserver but no built binary was found" >&2
+fi
+if tool_requested curl; then
+    stage_first_found curl usr/bin/curl bin/curl || printf '%s\n' "buildroot-build-payload: requested curl but no built binary was found" >&2
+fi
+if tool_requested dropbear; then
+    stage_first_found dropbear usr/sbin/dropbear sbin/dropbear usr/bin/dbclient bin/dbclient usr/bin/dropbearkey bin/dropbearkey || printf '%s\n' "buildroot-build-payload: requested dropbear but no built binary was found" >&2
+fi
+if tool_requested zsh; then
+    stage_first_found zsh bin/zsh usr/bin/zsh || printf '%s\n' "buildroot-build-payload: requested zsh but no built binary was found" >&2
+fi
+if tool_requested tmux; then
+    stage_first_found tmux usr/bin/tmux bin/tmux || printf '%s\n' "buildroot-build-payload: requested tmux but no built binary was found" >&2
+fi
+
+sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
+sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
 stage_dotfiles
-stage_placeholders
 printf '%s\n' "${BUSIERBOX_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION
 
 write_manifest "$static_status" pending

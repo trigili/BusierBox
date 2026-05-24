@@ -20,6 +20,7 @@ const struct bb_applet bb_applets[] = {
     {"extract", applet_extract_main, "extract or reuse the payload runtime"},
     {"clean", applet_clean_main, "remove local extracted payload runtime"},
     {"config-info", applet_config_info_main, "print build and payload information"},
+    {"doctor", applet_doctor_main, "inspect embedded and extracted payload health"},
 };
 
 const unsigned int bb_applet_count = sizeof(bb_applets) / sizeof(bb_applets[0]);

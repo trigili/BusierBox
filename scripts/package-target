@@ -11,6 +11,7 @@ requested_target=$target
 
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 BUILDROOT_OUTPUT_BASE=${BUILDROOT_OUTPUT_BASE:-buildroot/output}
+VERIFY=${VERIFY:-0}
 
 die() {
     printf '%s\n' "package-target: $*" >&2
@@ -113,6 +114,10 @@ fi
 scripts/check-payload-tar "dist/payload-$target.tar"
 scripts/embed-payload "$core" "$payload" "$artifact"
 sha256_write "$artifact" "$artifact.sha256"
+
+if [ "$VERIFY" = 1 ]; then
+    scripts/verify-artifact "$artifact"
+fi
 
 if [ "$target" = native ]; then
     cp "$artifact" dist/busierbox

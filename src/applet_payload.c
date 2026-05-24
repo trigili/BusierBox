@@ -55,7 +55,7 @@ void bb_print_applet_list(FILE *out)
     fprintf(out, "       <command> [args...]   when invoked through a symlink\n\n");
     
     fprintf(out, "native applets:\n");
-    fprintf(out, "  clean, config-info, envfix, extract, list, survey\n\n");
+    fprintf(out, "  clean, config-info, doctor, envfix, extract, list, survey\n\n");
     
     for (i = 0; busybox_tools[i]; i++) {
         total++;
@@ -969,8 +969,33 @@ int bb_exec_payload_applet(const char *name, int argc, char **argv)
 
 int applet_list_main(int argc, char **argv)
 {
+    int i;
     if (is_help(argc, argv)) {
-        puts("usage: busierbox list");
+        puts("usage: busierbox list [--plain|--json]");
+        return 0;
+    }
+    if (argc > 1 && !strcmp(argv[1], "--plain")) {
+        puts("native clean");
+        puts("native config-info");
+        puts("native doctor");
+        puts("native envfix");
+        puts("native extract");
+        puts("native list");
+        puts("native survey");
+        for (i = 0; busybox_tools[i]; i++)
+            printf("busybox %s\n", busybox_tools[i]);
+        for (i = 0; heavy_tools[i]; i++)
+            printf("tool %s\n", heavy_tools[i]);
+        return 0;
+    }
+    if (argc > 1 && !strcmp(argv[1], "--json")) {
+        printf("{\"native\":[\"clean\",\"config-info\",\"doctor\",\"envfix\",\"extract\",\"list\",\"survey\"],\"busybox_applets\":[");
+        for (i = 0; busybox_tools[i]; i++)
+            printf("%s\"%s\"", i ? "," : "", busybox_tools[i]);
+        printf("],\"staged_tools\":[");
+        for (i = 0; heavy_tools[i]; i++)
+            printf("%s\"%s\"", i ? "," : "", heavy_tools[i]);
+        printf("]}\n");
         return 0;
     }
     bb_print_applet_list(stdout);
@@ -1061,6 +1086,146 @@ int applet_clean_main(int argc, char **argv)
     return 0;
 }
 
+static char *read_text_file(const char *path, size_t max_bytes)
+{
+    FILE *fp = fopen(path, "r");
+    char *buf;
+    size_t n;
+    long len;
+    if (!fp)
+        return NULL;
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return NULL;
+    }
+    len = ftell(fp);
+    if (len < 0 || (size_t)len > max_bytes) {
+        fclose(fp);
+        return NULL;
+    }
+    rewind(fp);
+    buf = calloc(1, (size_t)len + 1);
+    if (!buf) {
+        fclose(fp);
+        return NULL;
+    }
+    n = fread(buf, 1, (size_t)len, fp);
+    fclose(fp);
+    buf[n] = '\0';
+    return buf;
+}
+
+static int json_array_summary(const char *json, const char *key, FILE *out)
+{
+    char needle[96];
+    const char *p, *end;
+    int count = 0, first = 1;
+    snprintf(needle, sizeof(needle), "\"%s\"", key);
+    p = strstr(json, needle);
+    if (!p)
+        return 0;
+    p = strchr(p, '[');
+    if (!p)
+        return 0;
+    end = strchr(p, ']');
+    if (!end)
+        return 0;
+    fputc('[', out);
+    while (p < end) {
+        const char *q = strchr(p, '"');
+        const char *r;
+        if (!q || q >= end)
+            break;
+        r = strchr(q + 1, '"');
+        if (!r || r > end)
+            break;
+        if (!first)
+            fputc(',', out);
+        fwrite(q + 1, 1, (size_t)(r - q - 1), out);
+        first = 0;
+        count++;
+        p = r + 1;
+    }
+    fputc(']', out);
+    return count;
+}
+
+int applet_doctor_main(int argc, char **argv)
+{
+    struct embedded_payload ep;
+    char payload[PATH_MAX], manifest_path[PATH_MAX], busybox[PATH_MAX];
+    char root[PATH_MAX];
+    char *manifest = NULL;
+    int applet_count = 0;
+
+    memset(&ep, 0, sizeof(ep));
+
+    if (is_help(argc, argv)) {
+        puts("usage: busierbox doctor");
+        puts("Reports embedded payload, extraction, BusyBox, and staged tool health.");
+        return 0;
+    }
+
+    if (get_embedded_payload(&ep) == 0) {
+        printf("embedded_payload=yes\n");
+        printf("embedded_format=%s\n", ep.format);
+        printf("embedded_size=%llu\n", ep.size);
+        printf("embedded_sha256=%s\n", ep.sha256);
+        printf("embedded_version=%s\n", ep.version);
+        printf("embedded_hash_ok=%s\n", verify_embedded_hash(&ep) == 0 ? "yes" : "no");
+    } else {
+        puts("embedded_payload=no");
+    }
+
+    if (candidate_payload(payload, sizeof(payload)) == 0) {
+        printf("extracted_payload=yes\n");
+        printf("payload_dir=%s\n", payload);
+    } else {
+        puts("extracted_payload=no");
+        if (choose_extract_root(root, sizeof(root)) == 0)
+            printf("candidate_extract_root=%s\n", root);
+    }
+
+    if (candidate_payload(payload, sizeof(payload)) == 0) {
+        snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
+        printf("busybox_present=%s\n", executable_file(busybox) ? "yes" : "no");
+        snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", payload);
+        printf("payload_manifest_found=%s\n", path_exists(manifest_path) ? "yes" : "no");
+        if (path_exists(manifest_path))
+            manifest = read_text_file(manifest_path, 1024 * 1024);
+    }
+
+    if (manifest) {
+        printf("busybox_applets=");
+        applet_count = json_array_summary(manifest, "busybox_applets", stdout);
+        printf("\n");
+        printf("busybox_applets_count=%d\n", applet_count);
+        printf("staged_tools=");
+        json_array_summary(manifest, "staged_payload_tools", stdout);
+        printf("\n");
+        printf("missing_tools=");
+        json_array_summary(manifest, "missing_payload_tools", stdout);
+        printf("\n");
+        free(manifest);
+    } else {
+        int i;
+        for (i = 0; busybox_tools[i]; i++)
+            applet_count++;
+        printf("busybox_applets_count=%d\n", applet_count);
+    }
+
+    if (choose_extract_root(root, sizeof(root)) == 0) {
+        printf("extract_root_writable_executable=yes\n");
+        printf("extract_root_noexec=%s\n", dir_is_noexec(root) ? "yes" : "no");
+        printf("extract_root_free_space_ok=%s\n", enough_space_size(ep.present ? ep.size : 1, root) ? "yes" : "no");
+    } else {
+        puts("extract_root_writable_executable=no");
+    }
+    printf("devpts_available=%s\n", path_exists("/dev/pts") ? "yes" : "no");
+    printf("ptrace_probe=not-checked\n");
+    return 0;
+}
+
 int applet_config_info_main(int argc, char **argv)
 {
     char payload[PATH_MAX], hash_path[PATH_MAX], hash[256] = "unknown";
@@ -1085,7 +1250,7 @@ int applet_config_info_main(int argc, char **argv)
         read_first_line(hash_path, hash, sizeof(hash));
     }
     printf("payload_archive_hash=%s\n", hash);
-    puts("native_applets=list survey envfix extract clean config-info");
+    puts("native_applets=list survey envfix extract clean config-info doctor");
     printf("payload_present=%s\n", candidate_payload(payload, sizeof(payload)) == 0 ? payload : "no");
     printf("payload_tools_present=");
     for (i = 0; heavy_tools[i]; i++)

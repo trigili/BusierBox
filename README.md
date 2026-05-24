@@ -143,7 +143,17 @@ buildroot/generated-configs/<target>_defconfig
 payloads/generated-profiles/<target>.mk
 ```
 
-These generated paths are ignored by git. Buildroot then builds the cross toolchain and BusyBox, stages `runtime/payload/bin/busybox`, copies default dotfiles into `runtime/payload/home`, permits bundled shared libraries in `runtime/payload/lib` when a fully static payload is unavailable, writes `runtime/payload/manifest.json`, creates ustar-compatible payload archives, builds the BusierBox core with the Buildroot cross compiler, embeds the target payload, and writes `dist/busierbox-<target>.sha256`.
+These generated paths are ignored by git. Buildroot then builds the cross toolchain and BusyBox, stages `runtime/payload/bin/busybox`, discovers the actual installed BusyBox applets from the target rootfs, stages only real heavy-tool binaries that were built, writes `runtime/payload/manifest.json`, creates ustar-compatible payload archives, builds the BusierBox core with the Buildroot cross compiler, embeds the target payload, and writes `dist/busierbox-<target>.sha256`.
+
+The payload manifest separates intent from reality:
+
+- `requested_payload_tools`: tools selected in config/menuconfig
+- `built_payload_tools`: requested tools for which Buildroot or the host produced binaries
+- `staged_payload_tools`: executable tools copied into `payload/bin`
+- `missing_payload_tools`: requested tools that were not staged
+- `busybox_applets`: applets actually discovered in the staged BusyBox payload
+
+BusierBox generates its advertised dispatch lists from `runtime/payload/busybox-applets.txt` and `runtime/payload/staged-tools.txt`. It does not advertise requested-but-missing tools, and missing heavy tools are recorded under the manifest plus `payload/share/busierbox/missing-tools.txt` instead of placeholder executables.
 
 Supported generated tuple families currently include `mipsel`/`mips` with `musl` or `uclibc`, and `armv7`, `aarch64`, `x86_64`, and `i386` with `musl`. Unsupported combinations fail clearly during target resolution or defconfig generation.
 
@@ -161,16 +171,31 @@ make menuconfig
 #   kernel_floor=4.x
 
 make fetch-sources
-make package
+make package VERIFY=1
+scripts/inspect-artifact dist/busierbox-mipsel-linux-4.x-musl
+scripts/verify-artifact dist/busierbox-mipsel-linux-4.x-musl
 scp dist/busierbox-mipsel-linux-4.x-musl root@router:/tmp/busierbox
 ssh root@router
 chmod +x /tmp/busierbox
+/tmp/busierbox doctor
+/tmp/busierbox list
 /tmp/busierbox survey
 /tmp/busierbox extract
 /tmp/busierbox sh
 ```
 
-Tool compatibility metadata lives in `payloads/tool-compat.json`. Menuconfig shows warnings for selected heavy tools such as `tmux`, `strace`, `gdbserver`, `dropbear`, `curl`, and `zsh`; it does not hard-block uncertain cases. Runtime `survey` should later validate facts such as `/dev/pts`, writable executable extraction space, ptrace availability, free space, terminfo, and shell environment sanity.
+Tool compatibility metadata lives in `payloads/tool-compat.json`. Menuconfig shows warnings for selected heavy tools such as `tmux`, `strace`, `gdbserver`, `dropbear`, `curl`, and `zsh`; it does not hard-block uncertain cases. Generated Buildroot defconfigs enable supported package symbols for selected heavy tools (`strace`, `libcurl` with the `curl` binary, `dropbear`, `zsh`, `tmux`, and `gdbserver`). If Buildroot drops a package due to dependencies or the binary cannot be found after the build, the tool is listed as missing and is not dispatchable.
+
+Artifact inspection and verification:
+
+```sh
+scripts/inspect-artifact dist/busierbox-native
+scripts/verify-artifact dist/busierbox-native
+make verify-artifact TARGET=native
+VERIFY=1 make package TARGET=native
+```
+
+`scripts/inspect-artifact` parses the embedded payload trailer and manifest without executing the target binary. `scripts/verify-artifact` also executes the artifact when native or when qemu-user is available; otherwise it performs non-execution inspection and skips execution clearly. Verification copies only the self-extracting artifact to a temp directory, runs `list`, `config-info`, `doctor`, `extract`, `sh`, and help probes for advertised payload commands.
 
 Run smoke tests:
 
@@ -221,6 +246,10 @@ When launching payload tools BusierBox sets:
 - `LD_LIBRARY_PATH` when `payload/lib` exists
 - `ZDOTDIR` when payload home exists
 
+`./busierbox list --plain` prints script-friendly command rows such as `busybox sh` and `tool strace`. `./busierbox list --json` prints the compiled native, BusyBox, and staged-tool command lists.
+
+`./busierbox doctor` reports embedded payload presence, format, size, hash status, extraction status, payload directory, manifest presence, BusyBox presence, BusyBox applet count, staged tools, missing requested tools, candidate extraction health, `/dev/pts`, and a conservative ptrace status.
+
 `./busierbox config-info` reports the BusierBox build, extraction status, payload directory, payload hash, BusyBox dispatch status, and the payload manifest summary when available.
 
 ## Tiers
@@ -233,6 +262,7 @@ Tier 0: BusierBox supervisor.
 - `clean`
 - `list`
 - `config-info`
+- `doctor`
 - payload launcher
 
 Tier 1: BusyBox payload.
@@ -256,7 +286,7 @@ Tier 2 should stay optional and Buildroot-friendly.
 
 ## QEMU User Validation
 
-`make test-qemu-user` copies only the selected `dist/busierbox-<target>` self-extracting binary into per-target artifact directories, runs `extract`, dispatches `sh`, `cp`, `dd`, `nc`, captures `survey.json`, captures `config-info`, and validates survey JSON. Missing qemu interpreters or missing target artifacts are reported as skips.
+`make test-qemu-user` copies only the selected `dist/busierbox-<target>` self-extracting binary into per-target artifact directories, runs `extract`, dispatches common applets, captures `survey.json`, captures `config-info`, and validates survey JSON. Missing qemu interpreters or missing target artifacts are reported as skips. `scripts/verify-artifact` is the stricter packaging-time check for advertised command reality; it catches commands that are listed but not dispatchable.
 
 The primary generated OpenWrt-style target is `mipsel-linux-4.x-musl`. Legacy `mipsel-linux-2.6-uclibc` and ARMv7 musl remain available through presets/templates.
 

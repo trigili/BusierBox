@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import pathlib
+import time
+
+
+def read_list(path):
+    path = pathlib.Path(path)
+    if not path.exists():
+        return []
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        item = line.strip()
+        if item and item not in out:
+            out.append(item)
+    return sorted(out)
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--target", required=True)
+parser.add_argument("--arch", required=True)
+parser.add_argument("--libc", required=True)
+parser.add_argument("--kernel-floor", required=True)
+parser.add_argument("--busybox-version", required=True)
+parser.add_argument("--static-status", required=True)
+parser.add_argument("--payload-sha256", required=True)
+parser.add_argument("--requested-tools", default="")
+parser.add_argument("--payload-dir", default="runtime/payload")
+args = parser.parse_args()
+
+payload = pathlib.Path(args.payload_dir)
+requested = sorted([x for x in args.requested_tools.split() if x])
+staged = read_list(payload / "staged-tools.txt")
+built = read_list(payload / "built-tools.txt")
+missing = sorted([x for x in requested if x not in staged])
+applets = read_list(payload / "busybox-applets.txt")
+libs = []
+libdir = payload / "lib"
+if libdir.exists():
+    libs = sorted(p.name for p in libdir.iterdir() if p.is_file() or p.is_symlink())
+
+manifest = {
+    "target": args.target,
+    "arch": args.arch,
+    "libc": args.libc,
+    "kernel_floor": args.kernel_floor,
+    "build_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    "busybox_version": args.busybox_version,
+    "static_status": args.static_status,
+    "busybox_applets": applets,
+    "requested_payload_tools": requested,
+    "built_payload_tools": built,
+    "staged_payload_tools": staged,
+    "missing_payload_tools": missing,
+    "included_shared_libs": libs,
+    "payload_sha256": args.payload_sha256,
+}
+
+(payload / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+diag = payload / "share" / "busierbox"
+diag.mkdir(parents=True, exist_ok=True)
+if missing:
+    (diag / "missing-tools.txt").write_text("\n".join(missing) + "\n", encoding="utf-8")
+else:
+    missing_file = diag / "missing-tools.txt"
+    if missing_file.exists():
+        missing_file.unlink()

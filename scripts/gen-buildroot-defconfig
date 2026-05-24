@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-config=configs/busierbox.conf
+config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
 resolve_err=$(mktemp)
 trap 'rm -f "$resolve_err"' EXIT HUP INT TERM
 
@@ -45,6 +45,12 @@ esac
 
 eval "$resolved"
 
+BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
+if [ "${1:-}" = "--from-config" ] && [ -f "$config" ]; then
+    . "$config"
+    BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
+fi
+
 die() {
     printf '%s\n' "gen-buildroot-defconfig: $*" >&2
     exit 1
@@ -75,6 +81,13 @@ static_symbol=BR2_STATIC_LIBS
 if [ "$TARGET_STATIC_POLICY" = dynamic ]; then
     static_symbol=
 fi
+
+needs_cxx=0
+for tool in $BB_HEAVY_TOOLS; do
+    case "$tool" in
+        gdbserver) needs_cxx=1 ;;
+    esac
+done
 
 hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
 
@@ -115,7 +128,11 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     esac
     printf '%s=y\n' "$libc_symbol"
     [ -n "$static_symbol" ] && printf '%s=y\n' "$static_symbol"
-    printf '%s\n' "BR2_TOOLCHAIN_BUILDROOT_CXX=n"
+    if [ "$needs_cxx" -eq 1 ]; then
+        printf '%s\n' "BR2_TOOLCHAIN_BUILDROOT_CXX=y"
+    else
+        printf '%s\n' "BR2_TOOLCHAIN_BUILDROOT_CXX=n"
+    fi
     printf '%s\n' "BR2_INIT_NONE=y"
     printf '%s\n' "BR2_SYSTEM_BIN_SH_BUSYBOX=y"
     printf '%s\n' "BR2_ROOTFS_DEVICE_CREATION_STATIC=y"
@@ -123,6 +140,27 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     printf '%s\n' "BR2_TARGET_GENERIC_ISSUE=\"BusierBox $TARGET_NAME payload\""
     printf '%s\n' "BR2_PACKAGE_BUSYBOX=y"
     printf '%s\n' "BR2_PACKAGE_BUSYBOX_CONFIG=\"package/busybox/busybox.config\""
+    for tool in $BB_HEAVY_TOOLS; do
+        case "$tool" in
+            strace) printf '%s\n' "BR2_PACKAGE_STRACE=y" ;;
+            curl)
+                printf '%s\n' "BR2_PACKAGE_LIBCURL=y"
+                printf '%s\n' "BR2_PACKAGE_LIBCURL_CURL=y"
+                printf '%s\n' "BR2_PACKAGE_LIBCURL_TLS_NONE=y"
+                ;;
+            dropbear)
+                printf '%s\n' "BR2_PACKAGE_DROPBEAR=y"
+                printf '%s\n' "BR2_PACKAGE_DROPBEAR_CLIENT=y"
+                ;;
+            zsh) printf '%s\n' "BR2_PACKAGE_ZSH=y" ;;
+            tmux) printf '%s\n' "BR2_PACKAGE_TMUX=y" ;;
+            gdbserver)
+                printf '%s\n' "BR2_PACKAGE_GDB=y"
+                printf '%s\n' "BR2_PACKAGE_GDB_SERVER=y"
+                ;;
+            *) printf '%s\n' "# Unknown heavy tool requested: $tool" ;;
+        esac
+    done
     printf '%s\n' "BR2_TARGET_ROOTFS_TAR=y"
 } >"$defconfig"
 
@@ -137,6 +175,7 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     printf '%s\n' "KERNEL_FLOOR := $TARGET_KERNEL_FLOOR"
     printf '%s\n' "STATIC_POLICY := $TARGET_STATIC_POLICY"
     printf '%s\n' "PAYLOAD_TIER := $TARGET_PAYLOAD_TIER"
+    printf '%s\n' "REQUESTED_TOOLS := $BB_HEAVY_TOOLS"
     printf '%s\n' "BUILDROOT_DEFCONFIG := $defconfig"
     printf '%s\n' "QEMU_USER := $TARGET_QEMU_USER"
 } >"$profile"

@@ -22,16 +22,38 @@ cp payloads/dotfiles/.zshrc runtime/payload/home/.zshrc
 cp payloads/dotfiles/.gdbinit runtime/payload/home/.gdbinit
 
 # Read config if it exists
-if [ -f configs/busierbox.conf ]; then
-    . configs/busierbox.conf
+config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
+if [ -f "$config" ]; then
+    . "$config"
 fi
 BB_HEAVY_TOOLS="${BB_HEAVY_TOOLS:-}"
 BB_DROPBEAR_SERVER_MODE="${BB_DROPBEAR_SERVER_MODE:-no}"
 
 # Clean out unconfigured/stale files from previous builds or default template
-for tool in zsh tmux strace gdbserver dropbear curl dropbear-bin; do
+for tool in zsh tmux strace gdbserver dropbear dbclient dropbearkey curl dropbear-bin; do
     rm -f "runtime/payload/bin/$tool"
 done
+rm -f runtime/payload/busybox-applets.txt runtime/payload/staged-tools.txt runtime/payload/built-tools.txt
+mkdir -p runtime/payload/share/busierbox
+: >runtime/payload/staged-tools.txt
+: >runtime/payload/built-tools.txt
+
+if ! runtime/payload/bin/busybox --list >runtime/payload/busybox-applets.txt 2>/dev/null || [ ! -s runtime/payload/busybox-applets.txt ]; then
+    printf '%s\n' "build-payload: unable to discover native BusyBox applets from runtime/payload/bin/busybox --list" >&2
+    exit 1
+fi
+
+stage_real_tool() {
+    tool=$1
+    src=$2
+    dst=${3:-$tool}
+    [ -n "$src" ] && [ -x "$src" ] || return 1
+    cp "$src" "runtime/payload/bin/$dst"
+    chmod 0755 "runtime/payload/bin/$dst"
+    printf '%s\n' "$dst" >>runtime/payload/staged-tools.txt
+    printf '%s\n' "$tool" >>runtime/payload/built-tools.txt
+    return 0
+}
 
 # Set up only selected heavy tools
 for tool in zsh tmux strace gdbserver dropbear curl; do
@@ -44,51 +66,20 @@ for tool in zsh tmux strace gdbserver dropbear curl; do
     done
 
     if [ "$configured" = 1 ]; then
-        host_bin=""
         if command -v "$tool" >/dev/null 2>&1; then
-            host_bin=$(command -v "$tool")
-        fi
-
-        if [ "$tool" = "dropbear" ] && [ "$BB_DROPBEAR_SERVER_MODE" = "yes" ]; then
-            if [ -n "$host_bin" ]; then
-                cp "$host_bin" "runtime/payload/bin/dropbear-bin"
-            else
-                printf '%s\n' "#!/bin/sh" >"runtime/payload/bin/dropbear-bin"
-                printf '%s\n' "echo 'mock dropbear-bin server running'" >>"runtime/payload/bin/dropbear-bin"
-                chmod 0755 "runtime/payload/bin/dropbear-bin"
-            fi
-
-            cat >"runtime/payload/bin/dropbear" <<'EOF'
-#!/bin/sh
-ETC_DIR="${BBX_RUNTIME:-.busierbox}/etc/dropbear"
-mkdir -p "$ETC_DIR"
-if [ ! -f "$ETC_DIR/dropbear_rsa_host_key" ]; then
-    echo "dropbear wrapper: generating RSA host key..." >&2
-    if [ -x "$(dirname "$0")/dropbearkey" ]; then
-        "$(dirname "$0")/dropbearkey" -t rsa -f "$ETC_DIR/dropbear_rsa_host_key" >/dev/null 2>&1 || true
-    elif command -v dropbearkey >/dev/null 2>&1; then
-        dropbearkey -t rsa -f "$ETC_DIR/dropbear_rsa_host_key" >/dev/null 2>&1 || true
-    fi
-fi
-real_bin="$(dirname "$0")/dropbear-bin"
-if [ -x "$real_bin" ]; then
-    exec "$real_bin" -r "$ETC_DIR/dropbear_rsa_host_key" -F -E "$@"
-else
-    exec dropbear -r "$ETC_DIR/dropbear_rsa_host_key" -F -E "$@"
-fi
-EOF
-            chmod 0755 "runtime/payload/bin/dropbear"
-        else
-            if [ -n "$host_bin" ]; then
-                cp "$host_bin" "runtime/payload/bin/$tool"
-            else
-                printf '%s\n' "#!/bin/sh" >"runtime/payload/bin/$tool"
-                printf '%s\n' "echo 'mock heavy tool: $tool'" >>"runtime/payload/bin/$tool"
-                chmod 0755 "runtime/payload/bin/$tool"
-            fi
+            stage_real_tool "$tool" "$(command -v "$tool")" "$tool" || true
+        elif [ "$tool" = dropbear ]; then
+            for dropbear_tool in dropbear dbclient dropbearkey; do
+                if command -v "$dropbear_tool" >/dev/null 2>&1; then
+                    stage_real_tool "$tool" "$(command -v "$dropbear_tool")" "$dropbear_tool" || true
+                fi
+            done
         fi
     fi
 done
+
+sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
+sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
 
 payload_sha() {
     if command -v sha256sum >/dev/null 2>&1; then
@@ -125,27 +116,7 @@ if command -v file >/dev/null 2>&1 && file runtime/payload/bin/busybox | grep -q
 fi
 busybox_version=$(runtime/payload/bin/busybox 2>&1 | sed -n 's/^BusyBox v\([^ ]*\).*/\1/p' | sed -n '1p')
 [ -n "$busybox_version" ] || busybox_version=unknown
-timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-tools_json='"busybox"'
-for t in $BB_HEAVY_TOOLS; do
-    tools_json="$tools_json, \"$t\""
-done
-
-cat >runtime/payload/manifest.json <<EOF_MANIFEST
-{
-  "target": "native",
-  "arch": "native",
-  "libc": "host",
-  "kernel_floor": "host",
-  "build_timestamp": "$timestamp",
-  "busybox_version": "$busybox_version",
-  "static_status": "$static_status",
-  "included_payload_tools": [$tools_json],
-  "included_shared_libs": [],
-  "payload_sha256": "pending"
-}
-EOF_MANIFEST
+scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 pending --requested-tools "$BB_HEAVY_TOOLS"
 make_payload_archives
 if [ "$PAYLOAD_FORMAT" = "tar" ]; then
     selected=dist/payload.tar
@@ -153,8 +124,7 @@ else
     selected=dist/payload.tar.gz
 fi
 sha=$(payload_sha "$selected")
-sed "s/\"payload_sha256\": \"pending\"/\"payload_sha256\": \"$sha\"/" runtime/payload/manifest.json >runtime/payload/manifest.json.tmp
-mv runtime/payload/manifest.json.tmp runtime/payload/manifest.json
+scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$sha" --requested-tools "$BB_HEAVY_TOOLS"
 make_payload_archives
 if command -v sha256sum >/dev/null 2>&1; then
     sha256sum dist/payload.tar >dist/payload.tar.sha256

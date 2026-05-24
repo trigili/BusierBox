@@ -9,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c
 
-.PHONY: all build buildroot busybox payload package package-all package-all-presets package-native target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-all
+.PHONY: all build buildroot busybox payload package package-all package-all-presets package-native verify-artifact target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-all
 
 all: build
 
@@ -28,7 +28,7 @@ payload:
 	@TARGET="$(if $(TARGET),$(TARGET),native)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/build-payload
 
 package:
-	@TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" STRICT="$(STRICT)" scripts/package-selected
+	@TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" STRICT="$(STRICT)" VERIFY="$(VERIFY)" scripts/package-selected
 
 package-all: package
 
@@ -44,6 +44,10 @@ package-all-presets:
 
 package-native:
 	@PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/package-target native
+
+verify-artifact:
+	@if [ -n "$(TARGET)" ]; then artifact="dist/busierbox-$(TARGET)"; else artifact="dist/busierbox-native"; fi; \
+	  scripts/verify-artifact "$$artifact"
 
 target-summary:
 	@scripts/resolve-target --config
@@ -69,7 +73,9 @@ detect-host:
 smoke: smoke-test
 
 smoke-test: package-native
+	@scripts/verify-artifact dist/busierbox-native
 	@tests/smoke/target-resolution.sh
+	@tests/smoke/payload-reality.sh
 	@./dist/busierbox-native list >/dev/null
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native survey --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 json validation unavailable"; fi
 	@./dist/busierbox-native survey >/dev/null

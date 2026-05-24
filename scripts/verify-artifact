@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+import gzip
+import hashlib
+import io
+import json
+import os
+import pathlib
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+
+TRAILER_SIZE = 512
+NATIVE_ARCHES = {"native", "x86_64"}
+
+
+def die(msg):
+    print(f"verify-artifact: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def read_manifest(path):
+    data = pathlib.Path(path).read_bytes()
+    trailer = data[-TRAILER_SIZE:].split(b"\0", 1)[0].decode("ascii", "replace")
+    meta = {}
+    for line in trailer.splitlines()[1:]:
+        if line == "END":
+            break
+        if "=" in line:
+            k, v = line.split("=", 1)
+            meta[k] = v
+    offset = int(meta.get("offset", "0"))
+    size = int(meta.get("size", "0"))
+    payload = data[offset : offset + size]
+    if hashlib.sha256(payload).hexdigest() != meta.get("sha256"):
+        die("embedded payload hash mismatch")
+    stream = io.BytesIO(payload)
+    if meta.get("format") == "tgz":
+        stream = io.BytesIO(gzip.decompress(payload))
+    with tarfile.open(fileobj=stream, mode="r:") as tf:
+        member = tf.extractfile("payload/manifest.json")
+        if not member:
+            die("payload manifest missing")
+        return json.load(member)
+
+
+def run(cmd, cwd, log):
+    proc = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    log.write(f"$ {' '.join(cmd)}\n{proc.stdout}\nrc={proc.returncode}\n\n")
+    return proc.returncode, proc.stdout
+
+
+if len(sys.argv) != 2:
+    die("usage: scripts/verify-artifact dist/busierbox-<target>")
+
+artifact = pathlib.Path(sys.argv[1]).resolve()
+manifest = read_manifest(artifact)
+target = manifest.get("target") or artifact.name.replace("busierbox-", "")
+artdir = pathlib.Path("tests/artifacts/verify-artifact") / target
+artdir.mkdir(parents=True, exist_ok=True)
+
+arch = manifest.get("arch", "")
+qemu = {
+    "mipsel": "qemu-mipsel-static",
+    "mips": "qemu-mips-static",
+    "armv7": "qemu-arm-static",
+    "aarch64": "qemu-aarch64-static",
+    "i386": "qemu-i386-static",
+    "x86_64": "",
+    "native": "",
+}.get(arch, "")
+
+backend = "native" if arch in NATIVE_ARCHES else None
+if not backend and qemu and shutil.which(qemu):
+    backend = qemu
+
+print(f"inspect ok: {target} arch={arch} applets={len(manifest.get('busybox_applets') or [])} staged_tools={' '.join(manifest.get('staged_payload_tools') or [])} missing_tools={' '.join(manifest.get('missing_payload_tools') or [])}")
+
+if not backend:
+    print(f"verify-artifact: skip execution for {target}; qemu-user not available for arch={arch}")
+    raise SystemExit(0)
+
+with tempfile.TemporaryDirectory(prefix="busierbox-verify-") as td:
+    td = pathlib.Path(td)
+    bb = td / "busierbox"
+    shutil.copy2(artifact, bb)
+    bb.chmod(0o755)
+    cmd_prefix = [backend] if backend != "native" else []
+    with (artdir / "verify.log").open("w", encoding="utf-8") as log:
+        for args in (["list", "--plain"], ["config-info"], ["doctor"], ["extract"], ["sh", "-c", "echo verify-ok"]):
+            rc, out = run(cmd_prefix + ["./busierbox"] + args, td, log)
+            if rc != 0:
+                die(f"{args[0]} failed; see {artdir / 'verify.log'}")
+        rc, listing = run(cmd_prefix + ["./busierbox", "list", "--plain"], td, log)
+        if rc != 0:
+            die(f"list --plain failed; see {artdir / 'verify.log'}")
+        commands = []
+        for line in listing.splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[0] in {"busybox", "tool"}:
+                commands.append(parts[1])
+        for name in commands:
+            rc, out = run(cmd_prefix + ["./busierbox", name, "--help"], td, log)
+            if "applet not found" in out or "payload tool not staged" in out:
+                die(f"advertised command {name} is missing; see {artdir / 'verify.log'}")
+print(f"verify ok: {target}")

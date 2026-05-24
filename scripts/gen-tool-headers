@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+import pathlib
+import subprocess
+
+payload = pathlib.Path("runtime/payload")
+src = pathlib.Path("src")
+src.mkdir(exist_ok=True)
+
+applets_path = payload / "busybox-applets.txt"
+busybox_path = payload / "bin" / "busybox"
+if not applets_path.exists() and busybox_path.exists():
+    try:
+        out = subprocess.check_output([str(busybox_path), "--list"], stderr=subprocess.DEVNULL, text=True)
+        applets_path.write_text(out, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def read_list(path):
+    if not path.exists():
+        return []
+    items = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        item = line.strip()
+        if item and item not in items:
+            items.append(item)
+    return sorted(items)
+
+
+def write_header(path, items):
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as fh:
+        for item in items:
+            escaped = item.replace("\\", "\\\\").replace('"', '\\"')
+            fh.write(f'"{escaped}",\n')
+    tmp.replace(path)
+
+
+write_header(src / "bbx_busybox_applets.h", read_list(payload / "busybox-applets.txt"))
+write_header(src / "bbx_heavy_tools.h", read_list(payload / "staged-tools.txt"))
+print("generated src/bbx_busybox_applets.h and src/bbx_heavy_tools.h from staged payload metadata")

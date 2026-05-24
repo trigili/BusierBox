@@ -12,31 +12,9 @@ miniz_src="third_party/miniz/miniz.c"
 miniz_cflags="-Os -std=c99 -Ithird_party/miniz"
 tmp="${OUT}.$$.tmp"
 
-# Generate headers based on configs/busierbox.conf and current BusyBox payload build
-if [ -f configs/busierbox.conf ]; then
-    . configs/busierbox.conf
-fi
-
-BB_BUSYBOX_GROUPS="${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}"
-BB_HEAVY_TOOLS="${BB_HEAVY_TOOLS:-}"
-
 mkdir -p src dist
 
-printf '%s\n' "generating src/bbx_busybox_applets.h..."
-applets_tmp="src/bbx_busybox_applets.h.$$.tmp"
-if [ -x runtime/payload/bin/busybox ] && runtime/payload/bin/busybox --list 2>/dev/null | awk '{printf "\"%s\",\n", $1}' > "$applets_tmp" && [ -s "$applets_tmp" ]; then
-    mv "$applets_tmp" src/bbx_busybox_applets.h
-else
-    rm -f "$applets_tmp"
-    # Cross payload binaries cannot be executed on the build host.
-    printf '"%s",\n' sh ash cat ls cp mv rm mkdir chmod touch dd uname id which readlink stat df free ps mount env grep sleep tee tar gzip gunzip zcat nc sed awk find xargs dmesg ifconfig ip netstat ping wget date hexdump > src/bbx_busybox_applets.h
-fi
-
-printf '%s\n' "generating src/bbx_heavy_tools.h..."
-: > src/bbx_heavy_tools.h
-for t in $BB_HEAVY_TOOLS; do
-    printf '"%s",\n' "$t" >> src/bbx_heavy_tools.h
-done
+scripts/gen-tool-headers
 
 printf '%s\n' "building BusierBox core..."
 

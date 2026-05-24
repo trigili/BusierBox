@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+import gzip
+import hashlib
+import io
+import json
+import pathlib
+import sys
+import tarfile
+
+MAGIC = b"BBXPAYLOADv1"
+TRAILER_SIZE = 512
+
+
+def die(msg):
+    print(f"inspect-artifact: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+if len(sys.argv) != 2:
+    die("usage: scripts/inspect-artifact dist/busierbox-<target>")
+
+path = pathlib.Path(sys.argv[1])
+data = path.read_bytes()
+if len(data) < TRAILER_SIZE:
+    die("artifact too small")
+trailer = data[-TRAILER_SIZE:].split(b"\0", 1)[0].decode("ascii", "replace")
+lines = trailer.splitlines()
+if not lines or lines[0].encode() != MAGIC:
+    die("embedded payload trailer missing")
+meta = {}
+for line in lines[1:]:
+    if line == "END":
+        break
+    if "=" in line:
+        k, v = line.split("=", 1)
+        meta[k] = v
+
+offset = int(meta.get("offset", "0"))
+size = int(meta.get("size", "0"))
+payload = data[offset : offset + size]
+sha = hashlib.sha256(payload).hexdigest()
+hash_ok = sha == meta.get("sha256")
+
+print(f"payload_present=yes")
+for key in ("offset", "size", "sha256", "version", "format", "compressed_size"):
+    print(f"{key}={meta.get(key, '')}")
+print(f"hash_ok={'yes' if hash_ok else 'no'}")
+
+manifest = None
+stream = io.BytesIO(payload)
+try:
+    if meta.get("format") == "tgz":
+        stream = io.BytesIO(gzip.decompress(payload))
+    with tarfile.open(fileobj=stream, mode="r:") as tf:
+        member = tf.extractfile("payload/manifest.json")
+        if member:
+            manifest = json.load(member)
+except Exception as exc:
+    print(f"manifest_error={exc}")
+
+if manifest:
+    print(f"manifest_target={manifest.get('target', '')}")
+    print(f"manifest_arch={manifest.get('arch', '')}")
+    print(f"manifest_libc={manifest.get('libc', '')}")
+    print(f"busybox_applet_count={len(manifest.get('busybox_applets') or [])}")
+    print("staged_tools=" + " ".join(manifest.get("staged_payload_tools") or []))
+    print("missing_tools=" + " ".join(manifest.get("missing_payload_tools") or []))
+
+if not hash_ok:
+    raise SystemExit(1)

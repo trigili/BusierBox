@@ -1,0 +1,40 @@
+#!/bin/sh
+set -eu
+
+target_root=${1:?target root required}
+out=${2:?output path required}
+
+tmp=$out.$$.tmp
+: >"$tmp"
+busybox_ref=
+for candidate in "$target_root/bin/busybox" "$target_root/usr/bin/busybox" "$target_root/sbin/busybox" "$target_root/usr/sbin/busybox"; do
+    if [ -x "$candidate" ]; then
+        busybox_ref=$candidate
+        break
+    fi
+done
+
+for dir in bin sbin usr/bin usr/sbin; do
+    [ -d "$target_root/$dir" ] || continue
+    find "$target_root/$dir" -mindepth 1 -maxdepth 1 \( -type l -o -type f \) -print |
+    while IFS= read -r path; do
+        name=${path##*/}
+        [ "$name" = busybox ] && continue
+        if [ -L "$path" ]; then
+            link=$(readlink "$path" || true)
+            case "$link" in
+                *busybox*) printf '%s\n' "$name" ;;
+            esac
+        elif [ -n "$busybox_ref" ] && [ -x "$path" ] && cmp -s "$path" "$busybox_ref"; then
+            printf '%s\n' "$name"
+        fi
+    done >>"$tmp"
+done
+
+sort -u "$tmp" >"$out"
+rm -f "$tmp"
+
+[ -s "$out" ] || {
+    printf '%s\n' "discover-buildroot-applets: no reliable BusyBox applet list found in $target_root" >&2
+    exit 1
+}
