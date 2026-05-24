@@ -21,13 +21,24 @@ tools=${BB_HEAVY_TOOLS:-}
 
 eval "$(BUSIERBOX_CONFIG="$config" scripts/resolve-target --config)"
 
-python3 - "$compat" "$TARGET_ARCH" "$TARGET_LIBC" "$TARGET_KERNEL_FLOOR" $tools <<'PY'
+_static_policy=${TARGET_STATIC_POLICY:-static-preferred}
+
+# Read per-tool provider vars from config
+_gdbserver_provider=auto
+if [ -f "$config" ]; then
+    _gp=$(grep '^BB_GDBSERVER_PROVIDER=' "$config" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"')
+    [ -n "$_gp" ] && _gdbserver_provider="$_gp"
+fi
+
+python3 - "$compat" "$TARGET_ARCH" "$TARGET_LIBC" "$TARGET_KERNEL_FLOOR" "$_static_policy" "$_gdbserver_provider" $tools <<'PY'
 import json
 import sys
 
-compat, arch, libc, kernel, *tools = sys.argv[1:]
+compat, arch, libc, kernel, static_policy, gdbserver_provider, *tools = sys.argv[1:]
 with open(compat, "r", encoding="utf-8") as fh:
     data = json.load(fh).get("tools", {})
+
+tool_providers = {"gdbserver": gdbserver_provider}
 
 warnings = []
 for tool in tools:
@@ -56,6 +67,21 @@ for tool in tools:
             warnings.append(f"{tool}: may require {detail}.")
         elif note:
             warnings.append(f"{tool}: {note}")
+    # Check provider issues
+    provider = tool_providers.get(tool, "auto")
+    for issue in meta.get("known_provider_issues") or []:
+        issue_arches = issue.get("arch") or []
+        issue_libcs = issue.get("libc") or []
+        issue_policies = issue.get("static_policy") or []
+        issue_provider = issue.get("provider", "")
+        if (not issue_arches or arch in issue_arches) and \
+           (not issue_libcs or libc in issue_libcs) and \
+           (not issue_policies or static_policy in issue_policies) and \
+           (not issue_provider or provider in (issue_provider, "auto")):
+            warnings.append(
+                f"{tool} [provider={provider}]: {issue['message']} "
+                f"({issue.get('suggested_action', '')})"
+            )
 
 if warnings:
     print("\n".join(warnings))

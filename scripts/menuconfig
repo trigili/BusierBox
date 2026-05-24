@@ -29,6 +29,11 @@ BB_DROPBEAR_SERVER_MODE="no"
 BB_BUSYBOX_APPLETS=""
 BB_DOTFILE_PROFILE="default-comfort"
 BB_DOTFILE_USER_PATH=""
+BB_GDBSERVER_PROVIDER="auto"
+BB_GDBSERVER_USER_PATH=""
+BB_USER_OVERLAY_ENABLE="no"
+BB_USER_OVERLAY_ROOT=""
+BB_USER_OVERLAY_ALLOW_OVERRIDE="no"
 
 if [ -f "$CFG_FILE" ]; then
     . "./$CFG_FILE"
@@ -84,6 +89,11 @@ BB_DROPBEAR_SERVER_MODE="$BB_DROPBEAR_SERVER_MODE"
 BB_BUSYBOX_APPLETS="$BB_BUSYBOX_APPLETS"
 BB_DOTFILE_PROFILE="$BB_DOTFILE_PROFILE"
 BB_DOTFILE_USER_PATH="$BB_DOTFILE_USER_PATH"
+BB_GDBSERVER_PROVIDER="$BB_GDBSERVER_PROVIDER"
+BB_GDBSERVER_USER_PATH="$BB_GDBSERVER_USER_PATH"
+BB_USER_OVERLAY_ENABLE="$BB_USER_OVERLAY_ENABLE"
+BB_USER_OVERLAY_ROOT="$BB_USER_OVERLAY_ROOT"
+BB_USER_OVERLAY_ALLOW_OVERRIDE="$BB_USER_OVERLAY_ALLOW_OVERRIDE"
 EOF
 }
 
@@ -338,6 +348,160 @@ configure_busybox_groups() {
     BB_BUSYBOX_APPLETS=""
 }
 
+configure_gdbserver_provider() {
+    while :; do
+        dialog --title "gdbserver Provider" \
+            --menu "Configure how gdbserver is obtained for the active target:" 17 78 6 \
+            "1" "Provider: $BB_GDBSERVER_PROVIDER" \
+            "2" "User binary path: ${BB_GDBSERVER_USER_PATH:-not set}" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _ch=$(cat "$temp_out")
+        case "$_ch" in
+            1)
+                dialog --title "gdbserver provider" \
+                    --radiolist "Select how gdbserver is provided:" 17 78 5 \
+                    "auto"      "Auto: try Buildroot, then user path, then overlay" \
+                        "$([ "$BB_GDBSERVER_PROVIDER" = "auto"      ] && printf on || printf off)" \
+                    "buildroot" "Buildroot only (may fail for some tuples)" \
+                        "$([ "$BB_GDBSERVER_PROVIDER" = "buildroot"  ] && printf on || printf off)" \
+                    "user"      "User-supplied binary (set path below)" \
+                        "$([ "$BB_GDBSERVER_PROVIDER" = "user"       ] && printf on || printf off)" \
+                    "overlay"   "Overlay: overlay-root/target/bin/gdbserver" \
+                        "$([ "$BB_GDBSERVER_PROVIDER" = "overlay"    ] && printf on || printf off)" \
+                    "none"      "Disabled — do not stage gdbserver" \
+                        "$([ "$BB_GDBSERVER_PROVIDER" = "none"       ] && printf on || printf off)" \
+                    2>"$temp_out" || true
+                _p=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_p" ] && BB_GDBSERVER_PROVIDER="$_p"
+                ;;
+            2)
+                dialog --title "gdbserver user binary" \
+                    --inputbox "Path to pre-built static gdbserver binary for target arch ($BB_TARGET_ARCH):" \
+                    9 78 "${BB_GDBSERVER_USER_PATH:-}" \
+                    2>"$temp_out" || true
+                BB_GDBSERVER_USER_PATH=$(cat "$temp_out")
+                ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+check_gdbserver_compat_interactive() {
+    has_item "$BB_HEAVY_TOOLS" "gdbserver" || return 0
+    [ "$BB_TARGET_ARCH" = "native" ] && return 0
+    command -v python3 >/dev/null 2>&1 || return 0
+    [ -f payloads/tool-compat.json ] || return 0
+
+    _arch=${BB_TARGET_ARCH:-}
+    _libc=${BB_TARGET_LIBC:-}
+    _policy=${BB_STATIC_POLICY:-static-preferred}
+    _provider=${BB_GDBSERVER_PROVIDER:-auto}
+    [ -n "$_arch" ] && [ -n "$_libc" ] || return 0
+
+    _result=$(scripts/check-tool-providers \
+        --arch "$_arch" --libc "$_libc" --static-policy "$_policy" \
+        --tool gdbserver --provider "$_provider" 2>/dev/null) || return 0
+
+    _severity=$(printf '%s\n' "$_result" | sed -n 's/^issue_severity=//p')
+    [ "$_severity" = "warning" ] || return 0
+
+    _message=$(printf '%s\n' "$_result" | sed -n 's/^issue_message=//p')
+    _action=$(printf '%s\n' "$_result" | sed -n 's/^suggested_action=//p')
+
+    dialog --title "  gdbserver: Compatibility Warning  " \
+        --msgbox "gdbserver selected for ${_arch}/${_libc} (provider: ${_provider})\n\n${_message}\n\nSuggested: ${_action}" \
+        14 84
+
+    dialog --title "gdbserver: Choose Provider" \
+        --menu "How should gdbserver be provided for ${_arch}/${_libc}?" 16 78 5 \
+        "auto"      "Auto: try Buildroot, fallback to user path / overlay" \
+        "user"      "User-supplied: specify path to a pre-built static binary" \
+        "overlay"   "Overlay: place binary at overlay-root/target/bin/gdbserver" \
+        "buildroot" "Buildroot anyway (will likely be pre-excluded at build time)" \
+        "disable"   "Disable gdbserver" \
+        2>"$temp_out" || return 0
+
+    _choice=$(cat "$temp_out" | tr -d '"')
+    case "$_choice" in
+        disable)
+            BB_HEAVY_TOOLS=$(printf '%s\n' $BB_HEAVY_TOOLS | grep -v '^gdbserver$' | tr '\n' ' ')
+            BB_HEAVY_TOOLS="${BB_HEAVY_TOOLS% }"
+            BB_GDBSERVER_PROVIDER="none"
+            ;;
+        buildroot|auto)
+            BB_GDBSERVER_PROVIDER="$_choice"
+            ;;
+        user)
+            BB_GDBSERVER_PROVIDER="user"
+            dialog --title "gdbserver: User-supplied binary" \
+                --inputbox "Path to static gdbserver binary for target arch (${_arch}):" \
+                9 78 "${BB_GDBSERVER_USER_PATH:-}" \
+                2>"$temp_out" || return 0
+            _path=$(cat "$temp_out")
+            [ -n "$_path" ] && BB_GDBSERVER_USER_PATH="$_path"
+            if [ -n "${BB_GDBSERVER_USER_PATH:-}" ] && [ ! -f "$BB_GDBSERVER_USER_PATH" ]; then
+                dialog --title "Warning" --msgbox \
+                    "File not found: $BB_GDBSERVER_USER_PATH\n\nYou can still save this path and provide the binary before running make package." \
+                    9 78
+            fi
+            ;;
+        overlay)
+            BB_GDBSERVER_PROVIDER="overlay"
+            BB_USER_OVERLAY_ENABLE="yes"
+            if [ -z "${BB_USER_OVERLAY_ROOT:-}" ]; then
+                dialog --title "Overlay root path" \
+                    --inputbox "Path to overlay root directory:" 9 78 "" \
+                    2>"$temp_out" || true
+                BB_USER_OVERLAY_ROOT=$(cat "$temp_out")
+            fi
+            _tname="${BB_TARGET_NAME:-${BB_TARGET_ARCH}-linux-${BB_KERNEL_FLOOR}-${BB_TARGET_LIBC}}"
+            _expected="${BB_USER_OVERLAY_ROOT}/${_tname}/bin/gdbserver"
+            dialog --title "gdbserver: Overlay path" \
+                --msgbox "Place your static gdbserver binary at:\n\n  ${_expected}\n\nbefore running make package." \
+                10 84
+            ;;
+    esac
+}
+
+configure_overlay() {
+    while :; do
+        dialog --title "Payload / User Overlay" \
+            --menu "Stage extra binaries and files into the payload from a local directory:" 18 78 6 \
+            "1" "Overlay enabled: $BB_USER_OVERLAY_ENABLE" \
+            "2" "Overlay root: ${BB_USER_OVERLAY_ROOT:-not set}" \
+            "3" "Allow override existing files: $BB_USER_OVERLAY_ALLOW_OVERRIDE" \
+            "?" "Layout: overlay-root/common/ and overlay-root/<target>/  are applied" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _ch=$(cat "$temp_out")
+        case "$_ch" in
+            1)
+                if [ "$BB_USER_OVERLAY_ENABLE" = "yes" ]; then
+                    BB_USER_OVERLAY_ENABLE="no"
+                else
+                    BB_USER_OVERLAY_ENABLE="yes"
+                fi
+                ;;
+            2)
+                dialog --title "Overlay root path" \
+                    --inputbox "Path to overlay root directory.\n\nLayout: <root>/common/{bin,lib,share,home} and <root>/<target>/{bin,lib,share,home}" \
+                    11 78 "${BB_USER_OVERLAY_ROOT:-}" \
+                    2>"$temp_out" || true
+                BB_USER_OVERLAY_ROOT=$(cat "$temp_out")
+                ;;
+            3)
+                if [ "$BB_USER_OVERLAY_ALLOW_OVERRIDE" = "yes" ]; then
+                    BB_USER_OVERLAY_ALLOW_OVERRIDE="no"
+                else
+                    BB_USER_OVERLAY_ALLOW_OVERRIDE="yes"
+                fi
+                ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
 configure_heavy_tools() {
     status_dropbear=off; status_curl=off; status_tmux=off
     status_zsh=off; status_strace=off; status_gdbserver=off
@@ -358,6 +522,7 @@ configure_heavy_tools() {
         "gdbserver" "gdbserver debugger stub" "$status_gdbserver" \
         2>"$temp_out" || return 0
     BB_HEAVY_TOOLS=$(cat "$temp_out" | tr -d '"')
+    check_gdbserver_compat_interactive
 }
 
 configure_dropbear() {
@@ -419,14 +584,16 @@ show_tool_warnings() {
 configure_payload() {
     while :; do
         dialog --title "BusierBox menuconfig / Payload Options" \
-            --menu "Choose a submenu:" 18 72 8 \
+            --menu "Choose a submenu:" 20 78 10 \
             "1" "Archive format: $BB_PAYLOAD_FORMAT" \
             "2" "BusyBox applet groups" \
             "3" "Heavy tools" \
             "4" "Tool compatibility / warnings" \
             "5" "Dropbear options" \
             "6" "Dotfiles / Shell personalization" \
-            "7" "Payload version: $BB_PAYLOAD_VERSION" \
+            "7" "User overlay (stage extra binaries): $BB_USER_OVERLAY_ENABLE" \
+            "8" "gdbserver provider: $BB_GDBSERVER_PROVIDER" \
+            "9" "Payload version: $BB_PAYLOAD_VERSION" \
             "0" "Back" \
             2>"$temp_out" || return 0
         choice=$(cat "$temp_out")
@@ -437,7 +604,9 @@ configure_payload() {
             4) show_tool_warnings ;;
             5) configure_dropbear ;;
             6) configure_dotfiles ;;
-            7)
+            7) configure_overlay ;;
+            8) configure_gdbserver_provider ;;
+            9)
                 dialog --title "Payload version" --inputbox "Payload version string:" 9 60 "$BB_PAYLOAD_VERSION" 2>"$temp_out" || true
                 BB_PAYLOAD_VERSION=$(cat "$temp_out")
                 ;;

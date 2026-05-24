@@ -55,7 +55,17 @@ if [ "${1:-}" = "--from-config" ] && [ -f "$config" ]; then
     BB_BUSYBOX_GROUPS=${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}
     BB_DOTFILE_PROFILE=${BB_DOTFILE_PROFILE:-default-comfort}
     BB_DOTFILE_USER_PATH=${BB_DOTFILE_USER_PATH:-}
+    BB_GDBSERVER_PROVIDER=${BB_GDBSERVER_PROVIDER:-auto}
+    BB_GDBSERVER_USER_PATH=${BB_GDBSERVER_USER_PATH:-}
+    BB_USER_OVERLAY_ENABLE=${BB_USER_OVERLAY_ENABLE:-no}
+    BB_USER_OVERLAY_ROOT=${BB_USER_OVERLAY_ROOT:-}
+    BB_USER_OVERLAY_ALLOW_OVERRIDE=${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}
 fi
+BB_GDBSERVER_PROVIDER=${BB_GDBSERVER_PROVIDER:-auto}
+BB_GDBSERVER_USER_PATH=${BB_GDBSERVER_USER_PATH:-}
+BB_USER_OVERLAY_ENABLE=${BB_USER_OVERLAY_ENABLE:-no}
+BB_USER_OVERLAY_ROOT=${BB_USER_OVERLAY_ROOT:-}
+BB_USER_OVERLAY_ALLOW_OVERRIDE=${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}
 
 STRICT_HEAVY_TOOLS=${BB_STRICT_HEAVY_TOOLS:-${STRICT_HEAVY_TOOLS:-0}}
 
@@ -112,10 +122,16 @@ if [ "$TARGET_STATIC_POLICY" = dynamic ]; then
     static_symbol=
 fi
 
-# Build pre-exclusion list for tools with known build failures (skipped unless strict mode)
+# Build pre-exclusion list for tools with known build failures (skipped unless strict mode).
+# Tools handled by a non-Buildroot provider are not Buildroot-built and skip this check.
 pre_excluded=
 if [ "$STRICT_HEAVY_TOOLS" != "1" ]; then
     for tool in $BB_HEAVY_TOOLS; do
+        if [ "$tool" = "gdbserver" ]; then
+            case "$BB_GDBSERVER_PROVIDER" in
+                user|overlay|none) continue ;;
+            esac
+        fi
         EXCLUSION_REASON=
         if ! check_tool_build_compat "$tool"; then
             pre_excluded="${pre_excluded:+$pre_excluded }$tool"
@@ -189,6 +205,14 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
         printf '%s\n' "BR2_PACKAGE_BUSYBOX_CONFIG=\"package/busybox/busybox.config\""
     fi
     for tool in $BB_HEAVY_TOOLS; do
+        if [ "$tool" = "gdbserver" ]; then
+            case "$BB_GDBSERVER_PROVIDER" in
+                user|overlay|none)
+                    printf '%s\n' "# gdbserver: provider=$BB_GDBSERVER_PROVIDER (not Buildroot), no BR2 symbol emitted"
+                    continue
+                    ;;
+            esac
+        fi
         if is_pre_excluded "$tool"; then
             EXCLUSION_REASON=
             check_tool_build_compat "$tool" || true
@@ -251,6 +275,11 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     printf '%s\n' "DOTFILE_PROFILE := ${BB_DOTFILE_PROFILE:-default-comfort}"
     printf '%s\n' "DOTFILE_USER_PATH := ${BB_DOTFILE_USER_PATH:-}"
     printf '%s\n' "BUSYBOX_GROUPS := $BB_BUSYBOX_GROUPS"
+    printf '%s\n' "GDBSERVER_PROVIDER := $BB_GDBSERVER_PROVIDER"
+    printf '%s\n' "GDBSERVER_USER_PATH := ${BB_GDBSERVER_USER_PATH:-}"
+    printf '%s\n' "USER_OVERLAY_ENABLE := $BB_USER_OVERLAY_ENABLE"
+    printf '%s\n' "USER_OVERLAY_ROOT := ${BB_USER_OVERLAY_ROOT:-}"
+    printf '%s\n' "USER_OVERLAY_ALLOW_OVERRIDE := $BB_USER_OVERLAY_ALLOW_OVERRIDE"
     printf '%s\n' "BUILDROOT_DEFCONFIG := $defconfig"
     printf '%s\n' "QEMU_USER := $TARGET_QEMU_USER"
 } >"$profile"

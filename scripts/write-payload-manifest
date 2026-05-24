@@ -27,6 +27,9 @@ parser.add_argument("--static-status", required=True)
 parser.add_argument("--payload-sha256", required=True)
 parser.add_argument("--requested-tools", default="")
 parser.add_argument("--payload-dir", default="runtime/payload")
+parser.add_argument("--overlay-enable", default="no")
+parser.add_argument("--overlay-root", default="")
+parser.add_argument("--gdbserver-provider", default="auto")
 args = parser.parse_args()
 
 payload = pathlib.Path(args.payload_dir)
@@ -51,6 +54,15 @@ if notes_file.exists():
         if idx > 0:
             exclusion_notes[line[:idx]] = line[idx + 1:]
 
+overlay_tools = read_list(payload / "overlay-tools.txt")
+user_provided = read_list(payload / "user-provided-tools.txt")
+overlay_files = read_list(payload / "overlay-files.txt")
+overlay_paths = read_list(payload / "overlay-paths.txt")
+overlay_warnings = []
+warn_file = payload / "share" / "busierbox" / "overlay-warnings.txt"
+if warn_file.exists():
+    overlay_warnings = [l.strip() for l in warn_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+
 manifest = {
     "target": args.target,
     "arch": args.arch,
@@ -65,6 +77,14 @@ manifest = {
     "staged_payload_tools": staged,
     "missing_payload_tools": missing,
     "exclusion_notes": exclusion_notes,
+    "overlay_enabled": args.overlay_enable == "yes",
+    "overlay_root": args.overlay_root,
+    "overlay_applied_paths": overlay_paths,
+    "overlay_files": overlay_files,
+    "overlay_tools": overlay_tools,
+    "user_provided_tools": user_provided,
+    "overlay_warnings": overlay_warnings,
+    "gdbserver_provider": args.gdbserver_provider,
     "included_shared_libs": libs,
     "payload_sha256": args.payload_sha256,
 }

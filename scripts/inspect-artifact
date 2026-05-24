@@ -65,6 +65,16 @@ if manifest:
     print(f"busybox_applet_count={len(manifest.get('busybox_applets') or [])}")
     print("staged_tools=" + " ".join(manifest.get("staged_payload_tools") or []))
     print("missing_tools=" + " ".join(manifest.get("missing_payload_tools") or []))
+    print(f"gdbserver_provider={manifest.get('gdbserver_provider', 'auto')}")
+    print(f"overlay_enabled={'yes' if manifest.get('overlay_enabled') else 'no'}")
+    if manifest.get("overlay_root"):
+        print(f"overlay_root={manifest['overlay_root']}")
+    if manifest.get("overlay_tools"):
+        print("overlay_tools=" + " ".join(manifest["overlay_tools"]))
+    if manifest.get("user_provided_tools"):
+        print("user_provided_tools=" + " ".join(manifest["user_provided_tools"]))
+    for w in manifest.get("overlay_warnings") or []:
+        print(f"overlay_warning={w}")
 
 if not hash_ok:
     raise SystemExit(1)

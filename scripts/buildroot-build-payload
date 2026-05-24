@@ -135,6 +135,116 @@ in_list() {
     return 1
 }
 
+check_bin_arch_warn() {
+    _bin=$1
+    _name=$2
+    command -v file >/dev/null 2>&1 || return 0
+    _fout=$(file "$_bin" 2>/dev/null || true)
+    case "$_fout" in *ELF*) ;; *) return 0 ;; esac
+    _want=
+    case "${TARGET:-}" in
+        *mipsel*)  _want="MIPS.*LSB" ;;
+        *mips*)    _want="MIPS.*MSB" ;;
+        *aarch64*) _want="aarch64" ;;
+        *arm*)     _want="ARM" ;;
+        *x86_64*)  _want="x86-64" ;;
+        *i386*)    _want="80386" ;;
+        *) return 0 ;;
+    esac
+    if ! printf '%s\n' "$_fout" | grep -qi "$_want"; then
+        printf '%s\n' "buildroot-build-payload: WARNING: '$_name' may not match target arch for ${TARGET:-}: $_fout" >&2
+        mkdir -p runtime/payload/share/busierbox
+        printf '%s\n' "arch-mismatch:$_name" >>runtime/payload/share/busierbox/overlay-warnings.txt
+    fi
+}
+
+stage_user_binary() {
+    _tool=$1
+    _src=$2
+    if [ ! -f "$_src" ]; then
+        printf '%s\n' "buildroot-build-payload: user-supplied $_tool not found: $_src" >&2
+        return 1
+    fi
+    if [ ! -x "$_src" ]; then
+        printf '%s\n' "buildroot-build-payload: user-supplied $_tool is not executable: $_src" >&2
+        return 1
+    fi
+    check_bin_arch_warn "$_src" "$_tool"
+    cp "$_src" "runtime/payload/bin/$_tool"
+    chmod 0755 "runtime/payload/bin/$_tool"
+    printf '%s\n' "$_tool" >>runtime/payload/staged-tools.txt
+    printf '%s\n' "$_tool" >>runtime/payload/built-tools.txt
+    printf '%s\n' "$_tool" >>runtime/payload/user-provided-tools.txt
+    printf '%s\n' "buildroot-build-payload: staged user-supplied $_tool from $_src"
+    return 0
+}
+
+apply_overlay_dir() {
+    _src=$1
+    _label=$2
+    _warn="runtime/payload/share/busierbox/overlay-warnings.txt"
+    [ -d "$_src" ] || return 0
+    for _subdir in bin lib share home; do
+        _subdir_src="$_src/$_subdir"
+        [ -d "$_subdir_src" ] || continue
+        mkdir -p "runtime/payload/$_subdir"
+        for _f in "$_subdir_src/"*; do
+            [ -e "$_f" ] || continue
+            _fname="${_f##*/}"
+            case "$_fname" in
+                .git|.gitignore|.gitmodules|*.swp|*~|.DS_Store|.keep|.gitkeep) continue ;;
+            esac
+            _target="runtime/payload/$_subdir/$_fname"
+            if [ -e "$_target" ]; then
+                if [ "$BB_USER_OVERLAY_ALLOW_OVERRIDE" = "yes" ]; then
+                    printf '%s\n' "buildroot-build-payload: overlay [$_label] overriding: $_subdir/$_fname" >&2
+                else
+                    printf '%s\n' "buildroot-build-payload: overlay [$_label] conflict (not overwriting): $_subdir/$_fname — set BB_USER_OVERLAY_ALLOW_OVERRIDE=yes to override" >&2
+                    mkdir -p runtime/payload/share/busierbox
+                    printf '%s\n' "conflict:$_label:$_subdir/$_fname" >>"$_warn"
+                    continue
+                fi
+            fi
+            if [ -L "$_f" ]; then
+                cp -P "$_f" "$_target" 2>/dev/null || cp "$_f" "$_target" || continue
+            else
+                cp "$_f" "$_target" || continue
+            fi
+            printf '%s\n' "$_label:$_subdir/$_fname" >>runtime/payload/overlay-files.txt
+            if [ "$_subdir" = "bin" ]; then
+                chmod 0755 "$_target"
+                check_bin_arch_warn "$_target" "$_fname"
+                printf '%s\n' "$_fname" >>runtime/payload/staged-tools.txt
+                printf '%s\n' "$_fname" >>runtime/payload/built-tools.txt
+                printf '%s\n' "$_fname" >>runtime/payload/overlay-tools.txt
+                printf '%s\n' "buildroot-build-payload: staged overlay [$_label] bin/$_fname"
+            fi
+        done
+    done
+}
+
+apply_overlays() {
+    [ "$BB_USER_OVERLAY_ENABLE" = "yes" ] || return 0
+    [ -n "${BB_USER_OVERLAY_ROOT:-}" ] || return 0
+    if [ ! -d "$BB_USER_OVERLAY_ROOT" ]; then
+        printf '%s\n' "buildroot-build-payload: WARNING: overlay root not found: $BB_USER_OVERLAY_ROOT" >&2
+        return 0
+    fi
+    _common="$BB_USER_OVERLAY_ROOT/common"
+    if [ -d "$_common" ]; then
+        apply_overlay_dir "$_common" "common"
+        printf '%s\n' "$_common" >>runtime/payload/overlay-paths.txt
+    fi
+    _toverlay="$BB_USER_OVERLAY_ROOT/$TARGET"
+    if [ -d "$_toverlay" ]; then
+        apply_overlay_dir "$_toverlay" "$TARGET"
+        printf '%s\n' "$_toverlay" >>runtime/payload/overlay-paths.txt
+    fi
+    if [ -d "$_common" ] || [ -d "$_toverlay" ]; then
+        printf '%s\n' "buildroot-build-payload: overlay applied from $BB_USER_OVERLAY_ROOT"
+    fi
+}
+
 write_exclusion_reasons() {
     _pre=$1
     _failed=$2
@@ -184,7 +294,7 @@ write_manifest() {
         busybox_version=unknown
     fi
     [ -n "$busybox_version" ] || busybox_version=unknown
-    scripts/write-payload-manifest --target "$TARGET" --arch "$arch" --libc "$libc" --kernel-floor "$kernel_floor" --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$payload_sha" --requested-tools "$requested_tools"
+    scripts/write-payload-manifest --target "$TARGET" --arch "$arch" --libc "$libc" --kernel-floor "$kernel_floor" --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$payload_sha" --requested-tools "$requested_tools" --overlay-enable "${BB_USER_OVERLAY_ENABLE:-no}" --overlay-root "${BB_USER_OVERLAY_ROOT:-}" --gdbserver-provider "$GDBSERVER_PROVIDER"
 }
 
 [ -f "$profile" ] || die "unknown TARGET=$TARGET; missing $profile"
@@ -195,6 +305,14 @@ BB_DOTFILE_USER_PATH=$(profile_value DOTFILE_USER_PATH 2>/dev/null || true)
 BB_DOTFILE_PROFILE=${BB_DOTFILE_PROFILE:-default-comfort}
 BB_BUSYBOX_GROUPS=$(profile_value BUSYBOX_GROUPS 2>/dev/null || true)
 pre_excluded=$(profile_value EXCLUDED_TOOLS 2>/dev/null || true)
+GDBSERVER_PROVIDER=$(profile_value GDBSERVER_PROVIDER 2>/dev/null || true)
+GDBSERVER_USER_PATH=$(profile_value GDBSERVER_USER_PATH 2>/dev/null || true)
+BB_USER_OVERLAY_ENABLE=$(profile_value USER_OVERLAY_ENABLE 2>/dev/null || true)
+BB_USER_OVERLAY_ROOT=$(profile_value USER_OVERLAY_ROOT 2>/dev/null || true)
+BB_USER_OVERLAY_ALLOW_OVERRIDE=$(profile_value USER_OVERLAY_ALLOW_OVERRIDE 2>/dev/null || true)
+GDBSERVER_PROVIDER=${GDBSERVER_PROVIDER:-auto}
+BB_USER_OVERLAY_ENABLE=${BB_USER_OVERLAY_ENABLE:-no}
+BB_USER_OVERLAY_ALLOW_OVERRIDE=${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}
 
 ensure_buildroot
 if [ "$PREPARE_ONLY" -eq 1 ]; then
@@ -260,16 +378,49 @@ cp "$busybox_src" runtime/payload/bin/busybox
 chmod 0755 runtime/payload/bin/busybox
 static_status=$(copy_shared_libs_if_dynamic runtime/payload/bin/busybox)
 scripts/discover-buildroot-applets "$out_dir/target" runtime/payload/busybox-applets.txt
-rm -f runtime/payload/staged-tools.txt runtime/payload/built-tools.txt
+rm -f runtime/payload/staged-tools.txt runtime/payload/built-tools.txt \
+    runtime/payload/user-provided-tools.txt runtime/payload/overlay-tools.txt \
+    runtime/payload/overlay-files.txt runtime/payload/overlay-paths.txt
 : >runtime/payload/staged-tools.txt
 : >runtime/payload/built-tools.txt
+: >runtime/payload/user-provided-tools.txt
 mkdir -p runtime/payload/share/busierbox
 
 if tool_requested strace; then
     stage_first_found strace usr/bin/strace bin/strace || printf '%s\n' "buildroot-build-payload: requested strace but no built binary was found" >&2
 fi
 if tool_requested gdbserver; then
-    stage_first_found gdbserver usr/bin/gdbserver usr/sbin/gdbserver bin/gdbserver sbin/gdbserver || printf '%s\n' "buildroot-build-payload: requested gdbserver but no built binary was found" >&2
+    _gdb_staged=0
+    case "$GDBSERVER_PROVIDER" in
+        buildroot|auto)
+            if stage_first_found gdbserver usr/bin/gdbserver usr/sbin/gdbserver bin/gdbserver sbin/gdbserver; then
+                _gdb_staged=1
+            fi
+            ;;
+    esac
+    if [ "$_gdb_staged" = "0" ]; then
+        case "$GDBSERVER_PROVIDER" in
+            user)
+                if [ -n "${GDBSERVER_USER_PATH:-}" ]; then
+                    if stage_user_binary gdbserver "$GDBSERVER_USER_PATH"; then
+                        _gdb_staged=1
+                    fi
+                else
+                    printf '%s\n' "buildroot-build-payload: GDBSERVER_PROVIDER=user but GDBSERVER_USER_PATH not set" >&2
+                fi
+                ;;
+            auto)
+                if [ -n "${GDBSERVER_USER_PATH:-}" ]; then
+                    if stage_user_binary gdbserver "$GDBSERVER_USER_PATH"; then
+                        _gdb_staged=1
+                    fi
+                fi
+                ;;
+        esac
+    fi
+    if [ "$_gdb_staged" = "0" ] && [ "$GDBSERVER_PROVIDER" != "none" ]; then
+        printf '%s\n' "buildroot-build-payload: gdbserver not yet staged (provider=$GDBSERVER_PROVIDER); will check overlay if enabled" >&2
+    fi
 fi
 if tool_requested curl; then
     stage_first_found curl usr/bin/curl bin/curl || printf '%s\n' "buildroot-build-payload: requested curl but no built binary was found" >&2
@@ -296,6 +447,17 @@ done
 
 sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
 sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
+
+# Initialize overlay tracking files and apply user overlays
+: >runtime/payload/overlay-tools.txt
+: >runtime/payload/overlay-files.txt
+: >runtime/payload/overlay-paths.txt
+apply_overlays
+sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
+sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
+sort -u runtime/payload/overlay-tools.txt -o runtime/payload/overlay-tools.txt
+sort -u runtime/payload/user-provided-tools.txt -o runtime/payload/user-provided-tools.txt
+
 stage_dotfiles
 printf '%s\n' "${BUSIERBOX_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION
 

@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""
+Query provider compatibility for a tool/tuple combination.
+
+Usage:
+  scripts/check-tool-providers --tool TOOL [--provider PROVIDER]
+      --arch ARCH --libc LIBC --static-policy POLICY
+
+Output (key=value lines):
+  tool=gdbserver
+  provider=auto
+  issue_severity=warning        (empty if no issue)
+  issue_message=...
+  suggested_action=...
+
+Exit 0 always; check issue_severity to detect problems.
+"""
+import argparse
+import json
+import pathlib
+import sys
+
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument("--tool", required=True)
+parser.add_argument("--provider", default="auto")
+parser.add_argument("--arch", default="")
+parser.add_argument("--libc", default="")
+parser.add_argument("--static-policy", default="", dest="static_policy")
+parser.add_argument("--compat", default="payloads/tool-compat.json")
+args = parser.parse_args()
+
+compat_path = pathlib.Path(args.compat)
+if not compat_path.exists():
+    print(f"tool={args.tool}")
+    print(f"provider={args.provider}")
+    print("issue_severity=")
+    print("issue_message=")
+    print("suggested_action=")
+    sys.exit(0)
+
+with compat_path.open(encoding="utf-8") as fh:
+    data = json.load(fh)
+
+tool_data = data.get("tools", {}).get(args.tool, {})
+issues = tool_data.get("known_provider_issues", [])
+
+severity = ""
+message = ""
+action = ""
+
+for issue in issues:
+    issue_arches = issue.get("arch") or []
+    issue_libcs = issue.get("libc") or []
+    issue_policies = issue.get("static_policy") or []
+    issue_provider = issue.get("provider", "")
+
+    arch_match = not issue_arches or args.arch in issue_arches
+    libc_match = not issue_libcs or args.libc in issue_libcs
+    policy_match = not issue_policies or args.static_policy in issue_policies
+    # Warn for buildroot issues when provider is auto or buildroot
+    provider_match = not issue_provider or args.provider in (issue_provider, "auto")
+
+    if arch_match and libc_match and policy_match and provider_match:
+        severity = issue.get("severity", "warning")
+        message = issue.get("message", "")
+        action = issue.get("suggested_action", "")
+        break
+
+print(f"tool={args.tool}")
+print(f"provider={args.provider}")
+print(f"issue_severity={severity}")
+print(f"issue_message={message}")
+print(f"suggested_action={action}")
