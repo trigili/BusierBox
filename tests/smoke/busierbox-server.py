@@ -377,7 +377,8 @@ class TestServerSession(unittest.TestCase):
 
     def _fake_stager_exchange(self, port, token, auto_exec="doctor",
                                extract_exit=0, doctor_stdout=None):
-        """Connect as fake stager, exchange frames, return (server_log, frames)."""
+        """Connect as fake stager, exchange frames, return list of received frames."""
+        import hashlib as _hl
         with socket.create_connection(("127.0.0.1", port), timeout=5) as sock:
             hello = make_hello(token=token, auto_exec=auto_exec)
             send_obj(sock, hello)
@@ -389,7 +390,7 @@ class TestServerSession(unittest.TestCase):
                 if mtype == "close":
                     break
                 elif mtype == "send_file":
-                    # Accept the file bytes
+                    # Drain bytes for any send_file (artifact, identity key, script, …)
                     size = msg.get("size", 0)
                     received = b""
                     while len(received) < size:
@@ -397,13 +398,7 @@ class TestServerSession(unittest.TestCase):
                         if not chunk:
                             break
                         received += chunk
-                    # Write received bytes so sha256 check passes
-                    path = str(self.received)
-                    with open(path, "wb") as f:
-                        f.write(received)
-                    import hashlib
-                    h = hashlib.sha256(received).hexdigest()
-                    os.chmod(path, 0o755)
+                    h = _hl.sha256(received).hexdigest()
                     send_obj(sock, {
                         "type": "result", "action": "send_file",
                         "ok": True, "sha256_ok": True, "sha256": h,
@@ -411,8 +406,9 @@ class TestServerSession(unittest.TestCase):
                     })
                 elif mtype == "exec":
                     argv = msg.get("argv", [])
-                    subcmd = argv[1] if len(argv) > 1 else ""
-                    if subcmd == "extract" or (len(argv) > 2 and argv[2] == "--force"):
+                    # Detect by argv content rather than position
+                    argv_str = " ".join(str(a) for a in argv)
+                    if "extract" in argv_str:
                         send_obj(sock, {
                             "type": "result", "action": "exec",
                             "ok": extract_exit == 0,
@@ -420,7 +416,7 @@ class TestServerSession(unittest.TestCase):
                             "stdout": "extract ok\n" if extract_exit == 0 else "extract failed\n",
                             "stderr": "",
                         })
-                    elif subcmd == "doctor":
+                    elif "doctor" in argv_str:
                         out = doctor_stdout or (
                             "embedded_payload=yes\nembedded_format=tgz\n"
                             "embedded_size=1000\nembedded_hash_ok=yes\n"
@@ -435,6 +431,13 @@ class TestServerSession(unittest.TestCase):
                             "type": "result", "action": "exec",
                             "ok": True, "exit_code": 0,
                             "stdout": out, "stderr": "",
+                        })
+                    elif "operator-session" in argv_str or "bbx-operator-session" in argv_str:
+                        send_obj(sock, {
+                            "type": "result", "action": "exec",
+                            "ok": True, "exit_code": 0,
+                            "stdout": "dropbear_pid=1001\ndbclient_pid=1002\noperator-session-started\n",
+                            "stderr": "",
                         })
                     else:
                         send_obj(sock, {
@@ -599,7 +602,83 @@ class TestServerSession(unittest.TestCase):
         self.assertNotIn("Traceback", log)
 
     def test_operator_session_command_sent_when_tools_present(self):
-        """When dropbear+dbclient staged and --start-operator-session, exec is sent."""
+        """When dropbear+dbclient staged and auth files provided, session script is sent."""
+        port = find_free_port()
+        doctor_with_tools = (
+            "embedded_payload=yes\nembedded_format=tgz\n"
+            "embedded_size=1000\nembedded_hash_ok=yes\n"
+            "extracted_payload=yes\npayload_identity_match=yes\n"
+            "busybox_applets_count=5\n"
+            "staged_tools=[dropbear,dbclient,curl]\n"
+            "missing_tools=[]\nmissing_tool_reasons={}\n"
+            "overlay_enabled=no\noverlay_tools=[]\n"
+            "artifact_tier=full\nembedded_version=dev\n"
+        )
+        # Create real temp files for auth keys
+        identity_file = self.tmp / "id_dbclient"
+        identity_file.write_text("-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n")
+        auth_key_file = self.tmp / "id_ed25519.pub"
+        auth_key_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA test@host\n")
+
+        cmd = [
+            sys.executable, str(SERVER_SCRIPT),
+            "--listen", f"127.0.0.1:{port}",
+            "--token", "tok",
+            "--artifact", str(self.artifact),
+            "--remote-path", str(self.received),
+            "--send", "--exec-doctor", "--yes",
+            "--start-operator-session",
+            "--operator-server-host", "192.168.8.100",
+            "--operator-server-user", "jared",
+            "--operator-remote-forward-port", "2200",
+            "--operator-dbclient-identity-file", str(identity_file),
+            "--operator-authorized-key-file", str(auth_key_file),
+            "--no-operator-healthcheck",
+            "--once", "--timeout", "10",
+        ]
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
+        time.sleep(0.3)
+        try:
+            frames = self._fake_stager_exchange(
+                port, "tok", doctor_stdout=doctor_with_tools
+            )
+        finally:
+            proc.wait(timeout=10)
+        log = proc.stdout.read()
+
+        # There should be send_file frames for identity key and session script
+        sf_paths = [f.get("path", "") for f in frames if f.get("type") == "send_file"]
+        self.assertTrue(any("id_dbclient" in p for p in sf_paths),
+                        f"identity key not staged; send_file paths={sf_paths}")
+        self.assertTrue(any("bbx-operator-session" in p for p in sf_paths),
+                        f"session script not uploaded; send_file paths={sf_paths}")
+
+        # There should be an exec of the session script
+        exec_frames = [f for f in frames if f.get("type") == "exec"]
+        op_frames = [f for f in exec_frames
+                     if any("bbx-operator-session" in str(a) for a in f.get("argv", []))]
+        self.assertTrue(op_frames, "operator session script exec not sent")
+
+        # Session script saved locally should contain expected content
+        sessions = sorted(
+            (self.tmp / ".busierbox-server" / "sessions").glob("*"),
+            key=lambda p: p.stat().st_mtime,
+        )
+        sdir = sessions[-1]
+        script = (sdir / "operator-session-command.sh").read_text()
+        self.assertIn("dropbear", script)
+        self.assertIn("dbclient", script)
+        self.assertIn("192.168.8.100", script)
+        self.assertIn("jared", script)
+        self.assertIn("operator-session-started", script)
+        # Auth key content should be embedded
+        self.assertIn("AAAAC3NzaC1lZDI1NTE5AAAA", script)
+        self.assertNotIn("Traceback", log)
+
+    def test_operator_session_missing_auth_files(self):
+        """Operator session with missing auth files prints clear error, no traceback."""
         port = find_free_port()
         doctor_with_tools = (
             "embedded_payload=yes\nembedded_format=tgz\n"
@@ -620,8 +699,8 @@ class TestServerSession(unittest.TestCase):
             "--send", "--exec-doctor", "--yes",
             "--start-operator-session",
             "--operator-server-host", "192.168.8.100",
-            "--operator-server-user", "jared",
-            "--operator-remote-forward-port", "2200",
+            # Intentionally missing: --operator-dbclient-identity-file
+            # Intentionally missing: --operator-authorized-key-file
             "--once", "--timeout", "10",
         ]
         proc = subprocess.Popen(
@@ -629,22 +708,12 @@ class TestServerSession(unittest.TestCase):
         )
         time.sleep(0.3)
         try:
-            frames = self._fake_stager_exchange(
-                port, "tok", doctor_stdout=doctor_with_tools
-            )
+            self._fake_stager_exchange(port, "tok", doctor_stdout=doctor_with_tools)
         finally:
             proc.wait(timeout=10)
         log = proc.stdout.read()
-        exec_frames = [f for f in frames if f.get("type") == "exec"]
-        # There should be an exec with /bin/sh for the operator session
-        op_frames = [f for f in exec_frames
-                     if f.get("argv") and "/bin/sh" in f["argv"]]
-        self.assertTrue(op_frames, "operator session exec not sent")
-        sh_cmd = op_frames[0]["argv"][2]
-        self.assertIn("dropbear", sh_cmd)
-        self.assertIn("dbclient", sh_cmd)
-        self.assertIn("192.168.8.100", sh_cmd)
-        self.assertIn("jared", sh_cmd)
+        self.assertIn("unavailable", log)
+        self.assertNotIn("Traceback", log)
 
     def test_session_log_printed(self):
         """Session log path is printed after session."""
@@ -689,11 +758,13 @@ class TestServerSession(unittest.TestCase):
         self.assertTrue((sdir / "extract.txt").exists(), "extract.txt missing")
 
 
-# ── stager protocol extension: exec_background (unit) ─────────────────────────
+# ── unit: operator session script generation ───────────────────────────────────
 
-class TestBuildOperatorSessionSh(unittest.TestCase):
-    def _make_args(self):
+class TestBuildOperatorSessionScript(unittest.TestCase):
+    def _make_args(self, policy="off", auth_key_content=None):
         import argparse
+        import tempfile
+        self._tmpfiles = []
         ns = argparse.Namespace(
             operator_target_dropbear_port=2222,
             operator_target_bind_host="127.0.0.1",
@@ -701,39 +772,166 @@ class TestBuildOperatorSessionSh(unittest.TestCase):
             operator_server_ssh_port=22,
             operator_server_user="operator",
             operator_remote_forward_port=2200,
+            operator_known_hosts_policy=policy,
+            operator_authorized_key_file=None,
+            operator_dbclient_identity_file=None,
         )
+        if auth_key_content is not None:
+            tf = tempfile.NamedTemporaryFile(mode="w", suffix=".pub", delete=False)
+            tf.write(auth_key_content)
+            tf.close()
+            ns.operator_authorized_key_file = tf.name
+            self._tmpfiles.append(tf.name)
         return ns
 
+    def tearDown(self):
+        for f in getattr(self, "_tmpfiles", []):
+            try:
+                os.unlink(f)
+            except OSError:
+                pass
+
+    def test_shebang_and_set_eu(self):
+        script = srv.build_operator_session_script(self._make_args(), ".busierbox")
+        self.assertTrue(script.startswith("#!/bin/sh"))
+        self.assertIn("set -eu", script)
+
     def test_contains_dropbear(self):
-        args = self._make_args()
-        cmd = srv.build_operator_session_sh(args, "/tmp/busierbox-full")
-        self.assertIn("dropbear", cmd)
+        script = srv.build_operator_session_script(self._make_args(), ".busierbox")
+        self.assertIn("dropbear", script)
 
     def test_contains_dbclient(self):
-        args = self._make_args()
-        cmd = srv.build_operator_session_sh(args, "/tmp/busierbox-full")
-        self.assertIn("dbclient", cmd)
+        script = srv.build_operator_session_script(self._make_args(), ".busierbox")
+        self.assertIn("dbclient", script)
 
     def test_contains_server_host(self):
-        args = self._make_args()
-        cmd = srv.build_operator_session_sh(args, "/tmp/busierbox-full")
-        self.assertIn("192.168.1.100", cmd)
+        script = srv.build_operator_session_script(self._make_args(), ".busierbox")
+        self.assertIn("192.168.1.100", script)
 
     def test_contains_forward_port(self):
-        args = self._make_args()
-        cmd = srv.build_operator_session_sh(args, "/tmp/busierbox-full")
-        self.assertIn("2200", cmd)
+        script = srv.build_operator_session_script(self._make_args(), ".busierbox")
+        self.assertIn("2200", script)
 
-    def test_host_key_generation(self):
-        args = self._make_args()
-        cmd = srv.build_operator_session_sh(args, "/tmp/busierbox-full")
-        self.assertIn("dropbearkey", cmd)
+    def test_contains_identity_flag(self):
+        script = srv.build_operator_session_script(self._make_args(), ".busierbox")
+        self.assertIn("-i", script)
+        self.assertIn("id_dbclient", script)
+
+    def test_contains_dropbearkey(self):
+        script = srv.build_operator_session_script(self._make_args(), ".busierbox")
+        self.assertIn("dropbearkey", script)
 
     def test_backgrounded(self):
-        args = self._make_args()
-        cmd = srv.build_operator_session_sh(args, "/tmp/busierbox-full")
-        # Must background the processes
-        self.assertIn("&", cmd)
+        script = srv.build_operator_session_script(self._make_args(), ".busierbox")
+        self.assertIn("&", script)
+
+    def test_operator_session_started_sentinel(self):
+        script = srv.build_operator_session_script(self._make_args(), ".busierbox")
+        self.assertIn("operator-session-started", script)
+
+    def test_policy_off_uses_dash_y(self):
+        script = srv.build_operator_session_script(
+            self._make_args(policy="off"), ".busierbox"
+        )
+        self.assertIn("-y", script)
+
+    def test_policy_strict_no_dash_y(self):
+        script = srv.build_operator_session_script(
+            self._make_args(policy="strict"), ".busierbox"
+        )
+        self.assertNotIn("-y", script)
+
+    def test_auth_key_embedded(self):
+        pub = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA test@host"
+        script = srv.build_operator_session_script(
+            self._make_args(auth_key_content=pub), ".busierbox"
+        )
+        self.assertIn(pub, script)
+        self.assertIn("authorized_keys", script)
+
+    def test_no_auth_key_no_authorized_keys_block(self):
+        script = srv.build_operator_session_script(self._make_args(), ".busierbox")
+        self.assertNotIn("BBXAUTHEOF", script)
+
+
+# ── unit: operator session auth validation ─────────────────────────────────────
+
+class TestValidateOperatorSessionAuth(unittest.TestCase):
+    def _make_args(self, host="192.168.1.1", identity=None, auth_key=None):
+        import argparse
+        return argparse.Namespace(
+            operator_server_host=host,
+            operator_dbclient_identity_file=identity,
+            operator_authorized_key_file=auth_key,
+        )
+
+    def test_all_valid(self):
+        with tempfile.NamedTemporaryFile() as priv, \
+             tempfile.NamedTemporaryFile(suffix=".pub") as pub:
+            args = self._make_args(identity=priv.name, auth_key=pub.name)
+            errors = srv._validate_operator_session_auth(args)
+            self.assertEqual(errors, [])
+
+    def test_missing_host(self):
+        with tempfile.NamedTemporaryFile() as priv, \
+             tempfile.NamedTemporaryFile(suffix=".pub") as pub:
+            args = self._make_args(host="", identity=priv.name, auth_key=pub.name)
+            errors = srv._validate_operator_session_auth(args)
+            self.assertTrue(any("operator-server-host" in e for e in errors))
+
+    def test_missing_identity(self):
+        with tempfile.NamedTemporaryFile(suffix=".pub") as pub:
+            args = self._make_args(auth_key=pub.name)
+            errors = srv._validate_operator_session_auth(args)
+            self.assertTrue(any("dbclient-identity-file" in e for e in errors))
+
+    def test_identity_not_found(self):
+        with tempfile.NamedTemporaryFile(suffix=".pub") as pub:
+            args = self._make_args(
+                identity="/nonexistent/key", auth_key=pub.name
+            )
+            errors = srv._validate_operator_session_auth(args)
+            self.assertTrue(any("not found" in e for e in errors))
+
+    def test_missing_auth_key(self):
+        with tempfile.NamedTemporaryFile() as priv:
+            args = self._make_args(identity=priv.name)
+            errors = srv._validate_operator_session_auth(args)
+            self.assertTrue(any("authorized-key-file" in e for e in errors))
+
+    def test_auth_key_not_found(self):
+        with tempfile.NamedTemporaryFile() as priv:
+            args = self._make_args(
+                identity=priv.name, auth_key="/nonexistent/key.pub"
+            )
+            errors = srv._validate_operator_session_auth(args)
+            self.assertTrue(any("not found" in e for e in errors))
+
+
+# ── unit: reverse tunnel healthcheck ──────────────────────────────────────────
+
+class TestPollReverseTunnel(unittest.TestCase):
+    def test_port_closed_returns_false(self):
+        port = find_free_port()
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            result = srv._poll_reverse_tunnel(port, timeout=2)
+        self.assertFalse(result)
+
+    def test_port_open_returns_true(self):
+        port = find_free_port()
+        with socket.socket() as srv_sock:
+            srv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            srv_sock.bind(("127.0.0.1", port))
+            srv_sock.listen(1)
+            import io
+            from contextlib import redirect_stdout
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = srv._poll_reverse_tunnel(port, timeout=5)
+        self.assertTrue(result)
 
 
 if __name__ == "__main__":
