@@ -1,11 +1,14 @@
 # Build outputs
 dist/
+src/bbx_busybox_applets.h
+src/bbx_heavy_tools.h
 *.o
 *.a
 *.so
 *.so.*
 *.tmp
 *.log
+__pycache__/
 
 # Runtime/generated payloads
 runtime/
