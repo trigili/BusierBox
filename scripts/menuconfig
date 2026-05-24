@@ -52,52 +52,6 @@ onoff() {
     if [ "$1" = yes ]; then printf on; else printf off; fi
 }
 
-group_applets_shell="sh ash printf echo test"
-group_applets_fileops="cat ls cp mv rm mkdir chmod touch readlink stat ln du install basename dirname"
-group_applets_disk="dd df mount umount tar gzip gunzip zcat sync"
-group_applets_process="ps free kill killall id whoami which uname env sleep nohup"
-group_applets_network="nc ping wget ip ifconfig netstat route hostname dnsdomainname"
-group_applets_text="grep egrep fgrep sed awk tee xargs find sort uniq cut head tail wc tr less"
-group_applets_system="dmesg sysctl date hexdump xxd od strings stty"
-
-configure_busybox_group_applets() {
-    _grp=$1
-    _title=$2
-    eval "_applets=\"\$group_applets_$_grp\""
-
-    # Determine which applets are currently enabled for this group
-    _items=""
-    for _a in $_applets; do
-        if [ -n "$BB_BUSYBOX_APPLETS" ]; then
-            has_item "$BB_BUSYBOX_APPLETS" "$_a" && _st=on || _st=off
-        else
-            has_item "$BB_BUSYBOX_GROUPS" "$_grp" && _st=on || _st=off
-        fi
-        _items="$_items $_a \"$_a\" $_st"
-    done
-
-    eval "dialog --title 'BusyBox: $_title applets' --checklist 'Select individual $_grp applets:' 22 64 16 $_items 2>'$temp_out'" || return 0
-    _selected=$(cat "$temp_out" | tr -d '"')
-
-    # Initialize BB_BUSYBOX_APPLETS from groups if not yet set explicitly
-    if [ -z "$BB_BUSYBOX_APPLETS" ]; then
-        for _g in $BB_BUSYBOX_GROUPS; do
-            eval "_gapp=\"\$group_applets_$_g\""
-            BB_BUSYBOX_APPLETS="${BB_BUSYBOX_APPLETS:+$BB_BUSYBOX_APPLETS }$_gapp"
-        done
-    fi
-
-    # Remove all applets from this group from the explicit list
-    _new=""
-    for _a in $BB_BUSYBOX_APPLETS; do
-        eval "_gapp=\"\$group_applets_$_grp\""
-        if ! has_item "$_gapp" "$_a"; then
-            _new="${_new:+$_new }$_a"
-        fi
-    done
-    # Add back the selected ones
-    BB_BUSYBOX_APPLETS="${_new:+$_new }${_selected}"
-}
 
 write_current_config() {
     out=$1
@@ -370,55 +324,18 @@ configure_payload_format() {
 }
 
 configure_busybox_groups() {
-    while :; do
-        status_shell=off; status_fileops=off; status_disk=off
-        status_process=off; status_network=off; status_text=off; status_system=off
-        has_item "$BB_BUSYBOX_GROUPS" "shell" && status_shell=on
-        has_item "$BB_BUSYBOX_GROUPS" "fileops" && status_fileops=on
-        has_item "$BB_BUSYBOX_GROUPS" "disk" && status_disk=on
-        has_item "$BB_BUSYBOX_GROUPS" "process" && status_process=on
-        has_item "$BB_BUSYBOX_GROUPS" "network" && status_network=on
-        has_item "$BB_BUSYBOX_GROUPS" "text" && status_text=on
-        has_item "$BB_BUSYBOX_GROUPS" "system" && status_system=on
-
-        dialog --title "BusyBox Applet Groups" \
-            --menu "Select a group to configure its applets, or toggle groups then go Back:" 20 72 9 \
-            "groups" "Toggle groups (coarse selection)" "" \
-            "shell" "Shell tools (sh, ash, echo, test) [$status_shell]" "" \
-            "fileops" "File tools (cat, ls, cp, mv, rm, ...) [$status_fileops]" "" \
-            "disk" "Disk tools (dd, df, mount, tar, ...) [$status_disk]" "" \
-            "process" "Process tools (ps, kill, id, uname, ...) [$status_process]" "" \
-            "network" "Network tools (nc, ping, wget, ...) [$status_network]" "" \
-            "text" "Text tools (grep, sed, awk, find, ...) [$status_text]" "" \
-            "system" "System tools (dmesg, date, hexdump, ...) [$status_system]" "" \
-            "0" "Back" \
-            2>"$temp_out" || return 0
-        _choice=$(cat "$temp_out")
-        case "$_choice" in
-            groups)
-                dialog --title "Payload / BusyBox applet groups" \
-                    --checklist "Select BusyBox applet groups (coarse):" 18 72 8 \
-                    "shell" "sh, ash, echo, test" "$status_shell" \
-                    "fileops" "cat, ls, cp, mv, rm, mkdir, chmod, touch" "$status_fileops" \
-                    "disk" "dd, df, mount, tar, gzip, gunzip, zcat" "$status_disk" \
-                    "process" "ps, free, kill, id, whoami, which, uname" "$status_process" \
-                    "network" "nc, ping, wget, ip, ifconfig, netstat" "$status_network" \
-                    "text" "grep, sed, awk, tee, xargs, find, sort" "$status_text" \
-                    "system" "dmesg, sysctl, date, hexdump" "$status_system" \
-                    2>"$temp_out" || true
-                BB_BUSYBOX_GROUPS=$(cat "$temp_out" | tr -d '"')
-                BB_BUSYBOX_APPLETS=""
-                ;;
-            shell) configure_busybox_group_applets shell "Shell" ;;
-            fileops) configure_busybox_group_applets fileops "File" ;;
-            disk) configure_busybox_group_applets disk "Disk" ;;
-            process) configure_busybox_group_applets process "Process" ;;
-            network) configure_busybox_group_applets network "Network" ;;
-            text) configure_busybox_group_applets text "Text" ;;
-            system) configure_busybox_group_applets system "System" ;;
-            0) return 0 ;;
-        esac
-    done
+    dialog --title "BusyBox Applet Groups" \
+        --checklist "Select which applet groups to include in the payload:" 18 72 7 \
+        "shell"   "sh, ash, printf, echo, test"                     "$(has_item "$BB_BUSYBOX_GROUPS" shell   && printf on || printf off)" \
+        "fileops" "cat, ls, cp, mv, rm, mkdir, chmod, touch, stat"  "$(has_item "$BB_BUSYBOX_GROUPS" fileops && printf on || printf off)" \
+        "disk"    "dd, df, mount, umount, tar, gzip, gunzip, sync"  "$(has_item "$BB_BUSYBOX_GROUPS" disk    && printf on || printf off)" \
+        "process" "ps, free, kill, killall, id, whoami, uname, env" "$(has_item "$BB_BUSYBOX_GROUPS" process && printf on || printf off)" \
+        "network" "nc, ping, wget, ip, ifconfig, netstat, route"    "$(has_item "$BB_BUSYBOX_GROUPS" network && printf on || printf off)" \
+        "text"    "grep, sed, awk, find, sort, head, tail, less"    "$(has_item "$BB_BUSYBOX_GROUPS" text    && printf on || printf off)" \
+        "system"  "dmesg, sysctl, date, hexdump, strings, stty"     "$(has_item "$BB_BUSYBOX_GROUPS" system  && printf on || printf off)" \
+        2>"$temp_out" || return 0
+    BB_BUSYBOX_GROUPS=$(cat "$temp_out" | tr -d '"')
+    BB_BUSYBOX_APPLETS=""
 }
 
 configure_heavy_tools() {
