@@ -43,11 +43,21 @@ BB_DROPBEAR_NO_ROOT_PASSWORD="${BB_DROPBEAR_NO_ROOT_PASSWORD:-no}"
 BB_DROPBEAR_AUTHORIZED_KEYS_FILE="${BB_DROPBEAR_AUTHORIZED_KEYS_FILE:-}"
 BB_DROPBEAR_PREGENERATE_HOSTKEY="${BB_DROPBEAR_PREGENERATE_HOSTKEY:-no}"
 BB_DROPBEAR_KEYTYPES="${BB_DROPBEAR_KEYTYPES:-rsa}"
+BB_OPERATOR_DBCLIENT_IDENTITY_FILE="${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-}"
 BB_USER_OVERLAY_ENABLE="${BB_USER_OVERLAY_ENABLE:-no}"
 BB_USER_OVERLAY_ROOT="${BB_USER_OVERLAY_ROOT:-}"
 BB_USER_OVERLAY_ALLOW_OVERRIDE="${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}"
 BB_DOTFILE_PROFILE="${BB_DOTFILE_PROFILE:-default-comfort}"
+BB_DOTFILE_APPS="${BB_DOTFILE_APPS:-profile zsh tmux gdb}"
 BB_DOTFILE_USER_PATH="${BB_DOTFILE_USER_PATH:-}"
+
+dotfile_selected() {
+    _needle=$1
+    for _x in $BB_DOTFILE_APPS; do
+        [ "$_x" = "$_needle" ] && return 0
+    done
+    return 1
+}
 
 stage_dotfiles() {
     _profile=$BB_DOTFILE_PROFILE
@@ -56,19 +66,21 @@ stage_dotfiles() {
         none) return 0 ;;
         user-supplied)
             if [ -n "$BB_DOTFILE_USER_PATH" ] && [ -d "$BB_DOTFILE_USER_PATH" ]; then
-                cp -r "$BB_DOTFILE_USER_PATH"/. runtime/payload/home/ 2>/dev/null || true
-                return 0
+                _src="$BB_DOTFILE_USER_PATH"
             fi
-            printf '%s\n' "build-payload: user-supplied dotfiles path not found: $BB_DOTFILE_USER_PATH; using default-comfort" >&2
-            _profile=default-comfort
+            if [ "$_src" != "$BB_DOTFILE_USER_PATH" ]; then
+                printf '%s\n' "build-payload: user-supplied dotfiles path not found: $BB_DOTFILE_USER_PATH; using default-comfort" >&2
+                _profile=default-comfort
+            fi
             ;;
     esac
     if [ -d "payloads/dotfiles/$_profile" ]; then
         _src="payloads/dotfiles/$_profile"
     fi
-    for _f in .profile .zshrc .tmux.conf .gdbinit; do
-        [ -f "$_src/$_f" ] && cp "$_src/$_f" "runtime/payload/home/$_f"
-    done
+    dotfile_selected profile && [ -f "$_src/.profile" ] && cp "$_src/.profile" "runtime/payload/home/.profile"
+    dotfile_selected zsh && [ -f "$_src/.zshrc" ] && cp "$_src/.zshrc" "runtime/payload/home/.zshrc"
+    dotfile_selected tmux && [ -f "$_src/.tmux.conf" ] && cp "$_src/.tmux.conf" "runtime/payload/home/.tmux.conf"
+    dotfile_selected gdb && [ -f "$_src/.gdbinit" ] && cp "$_src/.gdbinit" "runtime/payload/home/.gdbinit"
 }
 
 stage_dotfiles
@@ -144,14 +156,14 @@ for tool in zsh tmux strace gdbserver dropbear curl socat tcpdump rsync mtr iper
             stage_real_tool "$tool" "$(command -v doom)" doom || true
         elif [ "$tool" = doom ] && command -v chocolate-doom >/dev/null 2>&1; then
             stage_real_tool "$tool" "$(command -v chocolate-doom)" doom || true
-        elif command -v "$tool" >/dev/null 2>&1; then
-            stage_real_tool "$tool" "$(command -v "$tool")" "$tool" || true
         elif [ "$tool" = dropbear ]; then
             for dropbear_tool in dropbear dbclient dropbearkey; do
                 if command -v "$dropbear_tool" >/dev/null 2>&1; then
                     stage_real_tool "$tool" "$(command -v "$dropbear_tool")" "$dropbear_tool" || true
                 fi
             done
+        elif command -v "$tool" >/dev/null 2>&1; then
+            stage_real_tool "$tool" "$(command -v "$tool")" "$tool" || true
         fi
     fi
 done
@@ -168,6 +180,17 @@ if tool_selected dropbear && [ -n "$BB_DROPBEAR_AUTHORIZED_KEYS_FILE" ]; then
         printf '%s\n' "build-payload: staged authorized_keys from $BB_DROPBEAR_AUTHORIZED_KEYS_FILE"
     else
         printf '%s\n' "build-payload: WARNING: BB_DROPBEAR_AUTHORIZED_KEYS_FILE not found: $BB_DROPBEAR_AUTHORIZED_KEYS_FILE" >&2
+    fi
+fi
+
+if tool_selected dropbear && [ -n "$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
+    if [ -f "$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
+        mkdir -p runtime/payload/home/.ssh
+        cp "$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" runtime/payload/home/.ssh/id_dbclient
+        chmod 600 runtime/payload/home/.ssh/id_dbclient
+        printf '%s\n' "build-payload: staged dbclient identity from $BB_OPERATOR_DBCLIENT_IDENTITY_FILE"
+    else
+        printf '%s\n' "build-payload: WARNING: BB_OPERATOR_DBCLIENT_IDENTITY_FILE not found: $BB_OPERATOR_DBCLIENT_IDENTITY_FILE" >&2
     fi
 fi
 

@@ -50,14 +50,16 @@ BB_BUSYBOX_GROUPS=${BB_BUSYBOX_GROUPS:-shell fileops disk process network text s
 BB_BUSYBOX_APPLETS=${BB_BUSYBOX_APPLETS:-}
 BB_BUSYBOX_APPLET_OVERRIDES=${BB_BUSYBOX_APPLET_OVERRIDES:-}
 BB_DOTFILE_PROFILE=${BB_DOTFILE_PROFILE:-default-comfort}
+BB_DOTFILE_APPS=${BB_DOTFILE_APPS:-profile zsh tmux gdb}
 BB_DOTFILE_USER_PATH=${BB_DOTFILE_USER_PATH:-}
-if [ "${1:-}" = "--from-config" ] && [ -f "$config" ]; then
+if [ -f "$config" ]; then
     . "$config"
     BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
     BB_BUSYBOX_GROUPS=${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}
     BB_BUSYBOX_APPLETS=${BB_BUSYBOX_APPLETS:-}
     BB_BUSYBOX_APPLET_OVERRIDES=${BB_BUSYBOX_APPLET_OVERRIDES:-}
     BB_DOTFILE_PROFILE=${BB_DOTFILE_PROFILE:-default-comfort}
+    BB_DOTFILE_APPS=${BB_DOTFILE_APPS:-profile zsh tmux gdb}
     BB_DOTFILE_USER_PATH=${BB_DOTFILE_USER_PATH:-}
     BB_GDBSERVER_PROVIDER=${BB_GDBSERVER_PROVIDER:-auto}
     BB_GDBSERVER_USER_PATH=${BB_GDBSERVER_USER_PATH:-}
@@ -322,7 +324,10 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
         printf '%s\n' "EXCLUDED_REASON_${tool} := ${EXCLUSION_REASON:-known build failure for this tuple}"
     done
     printf '%s\n' "DOTFILE_PROFILE := ${BB_DOTFILE_PROFILE:-default-comfort}"
+    printf '%s\n' "DOTFILE_APPS := ${BB_DOTFILE_APPS:-profile zsh tmux gdb}"
     printf '%s\n' "DOTFILE_USER_PATH := ${BB_DOTFILE_USER_PATH:-}"
+    printf '%s\n' "OPERATOR_DBCLIENT_IDENTITY_FILE := ${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-}"
+    printf '%s\n' "OPERATOR_AUTHORIZED_KEY_FILE := ${BB_OPERATOR_AUTHORIZED_KEY_FILE:-}"
     printf '%s\n' "BUSYBOX_GROUPS := $BB_BUSYBOX_GROUPS"
     printf '%s\n' "BUSYBOX_APPLETS := $BB_BUSYBOX_APPLETS"
     printf '%s\n' "BUSYBOX_APPLET_OVERRIDES := $BB_BUSYBOX_APPLET_OVERRIDES"

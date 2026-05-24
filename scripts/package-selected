@@ -6,5 +6,20 @@ target=${TARGET:-}
 if [ -n "$target" ]; then
     scripts/package-target "$target"
 else
-    scripts/package-target --config
+    targets=
+    if [ -f configs/busierbox.conf ]; then
+        # shellcheck disable=SC1091
+        . ./configs/busierbox.conf
+        targets=${BB_TARGETS:-}
+        if [ "$targets" = "native" ] && [ "${BB_TARGET_PRESET:-native}" != "native" ]; then
+            targets=$BB_TARGET_PRESET
+        fi
+    fi
+    if [ -z "$targets" ]; then
+        scripts/package-target --config
+    else
+        for t in $targets; do
+            scripts/package-target "$t"
+        done
+    fi
 fi

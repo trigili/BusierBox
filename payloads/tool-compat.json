@@ -6,7 +6,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "May increase payload size and may need modules or terminfo depending on build options."
     },
@@ -15,7 +23,15 @@
       "requires_pty": true,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Needs /dev/pts, usable ptys, and terminal capability data."
     },
@@ -24,30 +40,65 @@
       "requires_pty": false,
       "requires_ptrace": true,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Requires ptrace support and architecture-specific syscall decoding."
     },
     "gdbserver": {
-      "providers": ["auto", "buildroot", "user", "overlay", "none"],
+      "providers": [
+        "auto",
+        "buildroot",
+        "user",
+        "overlay",
+        "none"
+      ],
       "requires_devpts": false,
       "requires_pty": false,
       "requires_ptrace": true,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "build_failures": [
         {
-          "arch": ["mipsel", "mips"],
-          "libc": ["musl"],
+          "arch": [
+            "mipsel",
+            "mips"
+          ],
+          "libc": [
+            "musl"
+          ],
           "reason": "Buildroot GDB 15.x BFD fails to link for mipsel/mips musl targets; gdbserver is pre-excluded in best-effort mode"
         }
       ],
       "known_provider_issues": [
         {
-          "arch": ["mipsel", "mips"],
-          "libc": ["musl"],
-          "static_policy": ["static-preferred", "static-required"],
+          "arch": [
+            "mipsel",
+            "mips"
+          ],
+          "libc": [
+            "musl"
+          ],
+          "static_policy": [
+            "static-preferred",
+            "static-required"
+          ],
           "provider": "buildroot",
           "severity": "warning",
           "message": "Buildroot GDB/BFD is known to fail for mipsel/mips+musl/static builds. The gdbserver Buildroot package will be pre-excluded in best-effort mode.",
@@ -61,7 +112,15 @@
       "requires_pty": true,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Server mode needs writable storage for host keys and usable ptys for interactive sessions."
     },
@@ -70,7 +129,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "TLS-enabled builds can increase payload size and may need CA data."
     },
@@ -79,7 +146,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Buildroot package provider; useful for relays, serial devices, and quick socket tests."
     },
@@ -88,7 +163,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Requires packet capture permissions and usable network interfaces on target."
     },
@@ -97,7 +180,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Buildroot package provider."
     },
@@ -106,7 +197,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "May require raw socket privileges for full diagnostics."
     },
@@ -115,7 +214,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Buildroot package provider."
     },
@@ -124,7 +231,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Requires kernel driver support for device-specific details."
     },
@@ -133,7 +248,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Requires cfg80211/nl80211 support and wireless hardware."
     },
@@ -142,7 +265,15 @@
       "requires_pty": true,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Needs a usable serial device and terminal settings."
     },
@@ -151,7 +282,15 @@
       "requires_pty": true,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Client-only staging from Buildroot mosh package; needs UDP connectivity to server."
     },
@@ -160,7 +299,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Buildroot Rust package; may increase host build requirements and build time."
     },
@@ -169,7 +316,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Buildroot package provider."
     },
@@ -178,7 +333,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Buildroot package provider."
     },
@@ -187,7 +350,15 @@
       "requires_pty": true,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Interactive ncurses UI; needs terminal support."
     },
@@ -196,7 +367,15 @@
       "requires_pty": true,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Needs ptys and terminal capability data."
     },
@@ -205,7 +384,15 @@
       "requires_pty": false,
       "requires_ptrace": true,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Requires ptrace support and architecture-specific ltrace support."
     },
@@ -214,7 +401,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Provided by Buildroot target binutils."
     },
@@ -223,7 +418,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Provided by Buildroot target binutils."
     },
@@ -232,7 +435,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Provided by the BusyBox applet set when enabled."
     },
@@ -241,7 +452,15 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Stages lsusb; output depends on usbfs/sysfs availability."
     },
@@ -250,9 +469,41 @@
       "requires_pty": false,
       "requires_ptrace": false,
       "minimum_kernel_floor": "2.6",
-      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
       "unsupported_libcs": [],
       "notes": "Stages lspci; many embedded targets do not expose PCI hardware."
+    },
+    "doom": {
+      "requires_devpts": false,
+      "requires_pty": false,
+      "requires_ptrace": false,
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": [],
+      "known_provider_issues": [
+        {
+          "severity": "warning",
+          "message": "doom is a fun optional runtime entry, but BusierBox does not fetch or bundle a Doom engine or game data.",
+          "suggested_action": "Provide a target-compatible doom/chocolate-doom binary through your overlay/local provider and stage any legally usable WAD data yourself."
+        }
+      ],
+      "notes": "Classic Doom-compatible game runtime. Must be supplied by overlay/local provider; BusierBox does not download game data."
     }
   }
 }

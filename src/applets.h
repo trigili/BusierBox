@@ -1,6 +1,8 @@
 #ifndef BUSIERBOX_APPLETS_H
 #define BUSIERBOX_APPLETS_H
 
+#include <stddef.h>
+
 struct bb_applet {
     const char *name;
     int (*main)(int argc, char **argv);
@@ -10,6 +12,7 @@ struct bb_applet {
 int bb_dispatch(const char *name, int argc, char **argv);
 void bb_list_applets(int verbose);
 int bb_exec_payload_applet(const char *name, int argc, char **argv);
+int bb_ensure_payload_dir(char *payload, size_t payloadsz);
 void bb_set_argv0(const char *argv0);
 void bb_print_applet_list(FILE *out);
 
@@ -22,6 +25,7 @@ int applet_config_info_main(int argc, char **argv);
 int applet_doctor_main(int argc, char **argv);
 int applet_fetch_full_main(int argc, char **argv);
 int applet_callback_main(int argc, char **argv);
+int applet_rshell_main(int argc, char **argv);
 
 extern const struct bb_applet bb_applets[];
 extern const unsigned int bb_applet_count;

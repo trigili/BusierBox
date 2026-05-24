@@ -48,25 +48,34 @@ ensure_buildroot() {
 stage_dotfiles() {
     mkdir -p runtime/payload/home
     _profile="${BB_DOTFILE_PROFILE:-default-comfort}"
+    _apps="${BB_DOTFILE_APPS:-profile zsh tmux gdb}"
     _user_path="${BB_DOTFILE_USER_PATH:-}"
+    _src=
     case "$_profile" in
         none) return 0 ;;
         user-supplied)
             if [ -n "$_user_path" ] && [ -d "$_user_path" ]; then
-                cp -r "$_user_path"/. runtime/payload/home/ 2>/dev/null || true
+                _src="$_user_path"
             else
                 printf '%s\n' "buildroot-build-payload: user-supplied dotfiles path not found: $_user_path; using default-comfort" >&2
                 _profile=default-comfort
             fi
             ;;
     esac
-    _src="payloads/dotfiles"
+    _src=${_src:-payloads/dotfiles}
     if [ "$_profile" = "default-minimal" ] || [ "$_profile" = "default-comfort" ] || [ "$_profile" = "default-operator" ]; then
         if [ -d "payloads/dotfiles/$_profile" ]; then
             _src="payloads/dotfiles/$_profile"
         fi
     fi
-    for _f in .profile .zshrc .tmux.conf .gdbinit; do
+    for _app in $_apps; do
+        case "$_app" in
+            profile) _f=.profile ;;
+            zsh) _f=.zshrc ;;
+            tmux) _f=.tmux.conf ;;
+            gdb) _f=.gdbinit ;;
+            *) continue ;;
+        esac
         [ -f "$_src/$_f" ] && cp "$_src/$_f" "runtime/payload/home/$_f"
     done
 }
@@ -297,8 +306,14 @@ write_manifest() {
 [ -f "$defconfig" ] || die "missing Buildroot defconfig $defconfig"
 requested_tools=$(profile_value REQUESTED_TOOLS)
 BB_DOTFILE_PROFILE=$(profile_value DOTFILE_PROFILE 2>/dev/null || true)
+BB_DOTFILE_APPS=$(profile_value DOTFILE_APPS 2>/dev/null || true)
 BB_DOTFILE_USER_PATH=$(profile_value DOTFILE_USER_PATH 2>/dev/null || true)
+_profile_operator_identity=$(profile_value OPERATOR_DBCLIENT_IDENTITY_FILE 2>/dev/null || true)
+BB_OPERATOR_DBCLIENT_IDENTITY_FILE=${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-$_profile_operator_identity}
+_profile_operator_authkey=$(profile_value OPERATOR_AUTHORIZED_KEY_FILE 2>/dev/null || true)
+BB_OPERATOR_AUTHORIZED_KEY_FILE=${BB_OPERATOR_AUTHORIZED_KEY_FILE:-$_profile_operator_authkey}
 BB_DOTFILE_PROFILE=${BB_DOTFILE_PROFILE:-default-comfort}
+BB_DOTFILE_APPS=${BB_DOTFILE_APPS:-profile zsh tmux gdb}
 BB_BUSYBOX_GROUPS=$(profile_value BUSYBOX_GROUPS 2>/dev/null || true)
 pre_excluded=$(profile_value EXCLUDED_TOOLS 2>/dev/null || true)
 GDBSERVER_PROVIDER=$(profile_value GDBSERVER_PROVIDER 2>/dev/null || true)
@@ -446,6 +461,26 @@ if tool_requested curl; then
 fi
 if tool_requested dropbear; then
     stage_first_found dropbear usr/sbin/dropbear sbin/dropbear usr/bin/dbclient bin/dbclient usr/bin/dropbearkey bin/dropbearkey || printf '%s\n' "buildroot-build-payload: requested dropbear but no built binary was found" >&2
+fi
+if tool_requested dropbear && [ -n "${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-}" ]; then
+    if [ -f "$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
+        mkdir -p runtime/payload/home/.ssh
+        cp "$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" runtime/payload/home/.ssh/id_dbclient
+        chmod 600 runtime/payload/home/.ssh/id_dbclient
+        printf '%s\n' "buildroot-build-payload: staged dbclient identity from $BB_OPERATOR_DBCLIENT_IDENTITY_FILE"
+    else
+        printf '%s\n' "buildroot-build-payload: WARNING: BB_OPERATOR_DBCLIENT_IDENTITY_FILE not found: $BB_OPERATOR_DBCLIENT_IDENTITY_FILE" >&2
+    fi
+fi
+if tool_requested dropbear && [ -n "${BB_OPERATOR_AUTHORIZED_KEY_FILE:-}" ]; then
+    if [ -f "$BB_OPERATOR_AUTHORIZED_KEY_FILE" ]; then
+        mkdir -p runtime/payload/home/.ssh
+        cp "$BB_OPERATOR_AUTHORIZED_KEY_FILE" runtime/payload/home/.ssh/authorized_keys
+        chmod 600 runtime/payload/home/.ssh/authorized_keys
+        printf '%s\n' "buildroot-build-payload: staged operator authorized_keys from $BB_OPERATOR_AUTHORIZED_KEY_FILE"
+    else
+        printf '%s\n' "buildroot-build-payload: WARNING: BB_OPERATOR_AUTHORIZED_KEY_FILE not found: $BB_OPERATOR_AUTHORIZED_KEY_FILE" >&2
+    fi
 fi
 if tool_requested zsh; then
     stage_first_found zsh bin/zsh usr/bin/zsh || printf '%s\n' "buildroot-build-payload: requested zsh but no built binary was found" >&2

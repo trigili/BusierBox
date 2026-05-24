@@ -56,17 +56,11 @@
 #ifndef BB_FULL_ZERO_ARG_MODE
 #define BB_FULL_ZERO_ARG_MODE "help"
 #endif
-#ifndef BB_FULL_BOOTSTRAP_EXTRACT
-#define BB_FULL_BOOTSTRAP_EXTRACT "yes"
+#ifndef BB_ZERO_ARG_CUSTOM_COMMAND
+#define BB_ZERO_ARG_CUSTOM_COMMAND ""
 #endif
-#ifndef BB_FULL_BOOTSTRAP_DOCTOR
-#define BB_FULL_BOOTSTRAP_DOCTOR "yes"
-#endif
-#ifndef BB_FULL_BOOTSTRAP_CALLBACK
-#define BB_FULL_BOOTSTRAP_CALLBACK "no"
-#endif
-#ifndef BB_FULL_BOOTSTRAP_OPERATOR_SESSION
-#define BB_FULL_BOOTSTRAP_OPERATOR_SESSION "no"
+#ifndef BB_RSHELL_MODE
+#define BB_RSHELL_MODE "ssh"
 #endif
 #ifndef BB_AUTORUN_GUARD_ENABLE
 #define BB_AUTORUN_GUARD_ENABLE "yes"
@@ -82,6 +76,12 @@
 #endif
 #ifndef BB_OPERATOR_REMOTE_FORWARD_PORT
 #define BB_OPERATOR_REMOTE_FORWARD_PORT "2200"
+#endif
+#ifndef BB_OPERATOR_SERVER_HOST
+#define BB_OPERATOR_SERVER_HOST ""
+#endif
+#ifndef BB_OPERATOR_TARGET_DROPBEAR_PORT
+#define BB_OPERATOR_TARGET_DROPBEAR_PORT "2222"
 #endif
 
 #define BBX_TRAILER_SIZE 512
@@ -182,11 +182,7 @@ static int bb_applet_supported(const char *name)
 
 static int operator_reverse_ssh_possible(void)
 {
-    if (!strcmp(BB_FULL_ZERO_ARG_MODE, "operator-session"))
-        return 1;
-    if (!strcmp(BB_FULL_ZERO_ARG_MODE, "bootstrap") && !strcmp(BB_FULL_BOOTSTRAP_OPERATOR_SESSION, "yes"))
-        return 1;
-    return !strcmp(BB_FULL_BOOTSTRAP_OPERATOR_SESSION, "yes");
+    return !strcmp(BB_FULL_ZERO_ARG_MODE, "shell");
 }
 
 static void print_autoexec_config(void)
@@ -194,10 +190,10 @@ static void print_autoexec_config(void)
     printf("stager_zero_arg_mode=%s\n", BB_STAGER_ZERO_ARG_MODE);
     printf("stager_post_receive_action=%s\n", BB_STAGER_POST_RECEIVE_ACTION);
     printf("full_zero_arg_mode=%s\n", BB_FULL_ZERO_ARG_MODE);
-    printf("full_bootstrap_extract=%s\n", BB_FULL_BOOTSTRAP_EXTRACT);
-    printf("full_bootstrap_doctor=%s\n", BB_FULL_BOOTSTRAP_DOCTOR);
-    printf("full_bootstrap_callback=%s\n", BB_FULL_BOOTSTRAP_CALLBACK);
-    printf("full_bootstrap_operator_session=%s\n", BB_FULL_BOOTSTRAP_OPERATOR_SESSION);
+    printf("zero_arg_custom_command_set=%s\n", BB_ZERO_ARG_CUSTOM_COMMAND[0] ? "yes" : "no");
+    printf("rshell_mode=%s\n", BB_RSHELL_MODE);
+    printf("rshell_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
+    printf("rshell_target_dropbear_port=%s\n", BB_OPERATOR_TARGET_DROPBEAR_PORT);
     printf("autorun_guard_enabled=%s\n", BB_AUTORUN_GUARD_ENABLE);
     printf("autorun_guard_path=%s\n", BB_AUTORUN_GUARD_PATH);
     printf("autorun_reentry_action=%s\n", BB_AUTORUN_REENTRY_ACTION);
@@ -1048,6 +1044,11 @@ static int ensure_payload(char *payload, size_t payloadsz)
     }
     snprintf(payload, payloadsz, "%s/payload", root);
     return payload_valid(payload) ? 0 : -1;
+}
+
+int bb_ensure_payload_dir(char *payload, size_t payloadsz)
+{
+    return ensure_payload(payload, payloadsz);
 }
 
 static int is_heavy_tool(const char *name)

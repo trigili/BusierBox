@@ -59,7 +59,8 @@ tests/qemu-system/rootfs/
 # AI Slop 🙂
 .antigravitycli/
 .codex/
-local_doc/
 
-# Local generated config
+# Local 
+local/*
+!local/.gitkeep
 configs/busierbox.conf

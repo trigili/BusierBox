@@ -18,26 +18,22 @@ grep -Eq 'usage: busierbox|native applets:' "$tmp/default.out"
 BUSIERBOX_NO_AUTORUN=1 "$bb" >"$tmp/no-autorun.out" 2>&1
 grep -Eq 'usage: busierbox|native applets:' "$tmp/no-autorun.out"
 
-BUSIERBOX_ZERO_ARG_MODE=doctor "$bb" >"$tmp/doctor.out" 2>&1
-grep -q '^artifact_tier=' "$tmp/doctor.out"
-
 guard="$tmp/guard"
-BUSIERBOX_AUTORUN_GUARD_PATH="$guard" BUSIERBOX_ZERO_ARG_MODE=bootstrap "$bb" >"$tmp/bootstrap.out" 2>&1 || {
-    cat "$tmp/bootstrap.out" >&2
-    exit 1
-}
-[ -f "$guard/autorun.lock" ]
+mkdir -p "$guard"
 
 cat >"$guard/autorun.lock" <<EOF
-mode=bootstrap
+mode=shell
 pid=$$
 started_at=0
 artifact_tier=test
 EOF
-BUSIERBOX_AUTORUN_GUARD_PATH="$guard" BUSIERBOX_ZERO_ARG_MODE=bootstrap "$bb" >"$tmp/reentry.out" 2>&1
+BUSIERBOX_AUTORUN_GUARD_PATH="$guard" BUSIERBOX_ZERO_ARG_MODE=shell "$bb" >"$tmp/reentry.out" 2>&1
 grep -q 'BusierBox autorun already active' "$tmp/reentry.out"
 
 "$bb" doctor >"$tmp/explicit-doctor.out" 2>&1
 grep -q '^artifact_tier=' "$tmp/explicit-doctor.out"
+
+"$bb" rshell --help >"$tmp/rshell-help.out" 2>&1
+grep -q 'usage: busierbox rshell' "$tmp/rshell-help.out"
 
 printf '%s\n' "zero-arg-autorun ok"
