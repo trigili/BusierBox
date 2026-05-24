@@ -184,7 +184,7 @@ apply_overlay_dir() {
     _label=$2
     _warn="runtime/payload/share/busierbox/overlay-warnings.txt"
     [ -d "$_src" ] || return 0
-    for _subdir in bin lib share home; do
+    for _subdir in bin lib share home etc; do
         _subdir_src="$_src/$_subdir"
         [ -d "$_subdir_src" ] || continue
         mkdir -p "runtime/payload/$_subdir"
@@ -192,7 +192,7 @@ apply_overlay_dir() {
             [ -e "$_f" ] || continue
             _fname="${_f##*/}"
             case "$_fname" in
-                .git|.gitignore|.gitmodules|*.swp|*~|.DS_Store|.keep|.gitkeep) continue ;;
+                .git|.gitignore|.gitmodules|*.swp|*~|.DS_Store|.keep|.gitkeep|THIS_IS_YOUR_ROOT_FILESYSTEM) continue ;;
             esac
             _target="runtime/payload/$_subdir/$_fname"
             if [ -e "$_target" ]; then
@@ -230,19 +230,15 @@ apply_overlays() {
         printf '%s\n' "buildroot-build-payload: WARNING: overlay root not found: $BB_USER_OVERLAY_ROOT" >&2
         return 0
     fi
-    _common="$BB_USER_OVERLAY_ROOT/common"
-    if [ -d "$_common" ]; then
-        apply_overlay_dir "$_common" "common"
-        printf '%s\n' "$_common" >>runtime/payload/overlay-paths.txt
-    fi
+    # The overlay root is the common directory; a <TARGET>/ subdir is applied on top.
+    apply_overlay_dir "$BB_USER_OVERLAY_ROOT" "common"
+    printf '%s\n' "$BB_USER_OVERLAY_ROOT" >>runtime/payload/overlay-paths.txt
     _toverlay="$BB_USER_OVERLAY_ROOT/$TARGET"
     if [ -d "$_toverlay" ]; then
         apply_overlay_dir "$_toverlay" "$TARGET"
         printf '%s\n' "$_toverlay" >>runtime/payload/overlay-paths.txt
     fi
-    if [ -d "$_common" ] || [ -d "$_toverlay" ]; then
-        printf '%s\n' "buildroot-build-payload: overlay applied from $BB_USER_OVERLAY_ROOT"
-    fi
+    printf '%s\n' "buildroot-build-payload: overlay applied from $BB_USER_OVERLAY_ROOT"
 }
 
 write_exclusion_reasons() {

@@ -26,15 +26,6 @@ BB_PAYLOAD_VERSION="dev"
 BB_BUILD_FULL="yes"
 BB_BUILD_STAGER="yes"
 BB_BUILD_INTERNAL_CORE="no"
-BB_STAGER_INCLUDE_SURVEY="yes"
-BB_STAGER_INCLUDE_DOCTOR="yes"
-BB_STAGER_INCLUDE_CONFIG_INFO="yes"
-BB_STAGER_INCLUDE_EXTRACT="yes"
-BB_STAGER_INCLUDE_MINIMAL_BUSYBOX="no"
-BB_STAGER_INCLUDE_WGET="no"
-BB_STAGER_INCLUDE_CURL="no"
-BB_STAGER_INCLUDE_NC="no"
-BB_STAGER_FETCH_FULL="yes"
 BB_STAGER_CALLBACK_ENABLE="no"
 BB_STAGER_CALLBACK_HOST=""
 BB_STAGER_CALLBACK_PORT="4444"
@@ -70,7 +61,7 @@ BB_DOTFILE_USER_PATH=""
 BB_GDBSERVER_PROVIDER="auto"
 BB_GDBSERVER_USER_PATH=""
 BB_USER_OVERLAY_ENABLE="no"
-BB_USER_OVERLAY_ROOT=""
+BB_USER_OVERLAY_ROOT="./overlay"
 BB_USER_OVERLAY_ALLOW_OVERRIDE="no"
 
 if [ -f "$CFG_FILE" ]; then
@@ -124,15 +115,6 @@ BB_PAYLOAD_VERSION="$BB_PAYLOAD_VERSION"
 BB_BUILD_FULL="$BB_BUILD_FULL"
 BB_BUILD_STAGER="$BB_BUILD_STAGER"
 BB_BUILD_INTERNAL_CORE="$BB_BUILD_INTERNAL_CORE"
-BB_STAGER_INCLUDE_SURVEY="$BB_STAGER_INCLUDE_SURVEY"
-BB_STAGER_INCLUDE_DOCTOR="$BB_STAGER_INCLUDE_DOCTOR"
-BB_STAGER_INCLUDE_CONFIG_INFO="$BB_STAGER_INCLUDE_CONFIG_INFO"
-BB_STAGER_INCLUDE_EXTRACT="$BB_STAGER_INCLUDE_EXTRACT"
-BB_STAGER_INCLUDE_MINIMAL_BUSYBOX="$BB_STAGER_INCLUDE_MINIMAL_BUSYBOX"
-BB_STAGER_INCLUDE_WGET="$BB_STAGER_INCLUDE_WGET"
-BB_STAGER_INCLUDE_CURL="$BB_STAGER_INCLUDE_CURL"
-BB_STAGER_INCLUDE_NC="$BB_STAGER_INCLUDE_NC"
-BB_STAGER_FETCH_FULL="$BB_STAGER_FETCH_FULL"
 BB_STAGER_CALLBACK_ENABLE="$BB_STAGER_CALLBACK_ENABLE"
 BB_STAGER_CALLBACK_HOST="$BB_STAGER_CALLBACK_HOST"
 BB_STAGER_CALLBACK_PORT="$BB_STAGER_CALLBACK_PORT"
@@ -429,36 +411,6 @@ configure_artifact_outputs() {
     return 0
 }
 
-configure_stager_features() {
-    dialog --title "Stager / Applet Features" \
-        --checklist "Select applets to compile into the stager binary:" 18 82 9 \
-        "survey"     "Include survey applet"                           "$(onoff "$BB_STAGER_INCLUDE_SURVEY")" \
-        "doctor"     "Include doctor applet"                           "$(onoff "$BB_STAGER_INCLUDE_DOCTOR")" \
-        "config-info" "Include config-info applet"                    "$(onoff "$BB_STAGER_INCLUDE_CONFIG_INFO")" \
-        "extract"    "Include extract applet"                          "$(onoff "$BB_STAGER_INCLUDE_EXTRACT")" \
-        "busybox"    "Include minimal BusyBox shell payload"           "$(onoff "$BB_STAGER_INCLUDE_MINIMAL_BUSYBOX")" \
-        "wget"       "Include wget in stager payload when practical"   "$(onoff "$BB_STAGER_INCLUDE_WGET")" \
-        "curl"       "Include curl in stager payload when practical"   "$(onoff "$BB_STAGER_INCLUDE_CURL")" \
-        "nc"         "Include nc in stager payload when practical"     "$(onoff "$BB_STAGER_INCLUDE_NC")" \
-        "fetch-full" "Include fetch-full helper in legacy stager"      "$(onoff "$BB_STAGER_FETCH_FULL")" \
-        2>"$temp_out" || return 0
-    _sel=$(cat "$temp_out" | tr -d '"')
-    BB_STAGER_INCLUDE_SURVEY=no; BB_STAGER_INCLUDE_DOCTOR=no
-    BB_STAGER_INCLUDE_CONFIG_INFO=no; BB_STAGER_INCLUDE_EXTRACT=no
-    BB_STAGER_INCLUDE_MINIMAL_BUSYBOX=no; BB_STAGER_INCLUDE_WGET=no
-    BB_STAGER_INCLUDE_CURL=no; BB_STAGER_INCLUDE_NC=no; BB_STAGER_FETCH_FULL=no
-    has_item "$_sel" survey      && BB_STAGER_INCLUDE_SURVEY=yes
-    has_item "$_sel" doctor      && BB_STAGER_INCLUDE_DOCTOR=yes
-    has_item "$_sel" config-info && BB_STAGER_INCLUDE_CONFIG_INFO=yes
-    has_item "$_sel" extract     && BB_STAGER_INCLUDE_EXTRACT=yes
-    has_item "$_sel" busybox     && BB_STAGER_INCLUDE_MINIMAL_BUSYBOX=yes
-    has_item "$_sel" wget        && BB_STAGER_INCLUDE_WGET=yes
-    has_item "$_sel" curl        && BB_STAGER_INCLUDE_CURL=yes
-    has_item "$_sel" nc          && BB_STAGER_INCLUDE_NC=yes
-    has_item "$_sel" fetch-full  && BB_STAGER_FETCH_FULL=yes
-    return 0
-}
-
 configure_stager_callback() {
     while :; do
         _cb_status="disabled"
@@ -548,26 +500,6 @@ configure_stager_callback() {
     done
 }
 
-configure_stager_options() {
-    while :; do
-        _feat_summary="survey=$BB_STAGER_INCLUDE_SURVEY doctor=$BB_STAGER_INCLUDE_DOCTOR extract=$BB_STAGER_INCLUDE_EXTRACT"
-        _cb_summary="$BB_STAGER_CALLBACK_ENABLE"
-        [ "$BB_STAGER_CALLBACK_ENABLE" = yes ] && \
-            _cb_summary="ENABLED host=${BB_STAGER_CALLBACK_HOST:-?} port=$BB_STAGER_CALLBACK_PORT"
-        dialog --title "BusierBox menuconfig / Stager Options" \
-            --menu "Configure the stager binary. The stager is a small bootstrap binary\nthat calls back and receives the full artifact." 16 82 4 \
-            "1" "Applet features:  $_feat_summary" \
-            "2" "Callback config:  $_cb_summary" \
-            "0" "Back" \
-            2>"$temp_out" || return 0
-        _choice=$(cat "$temp_out")
-        case "$_choice" in
-            1) configure_stager_features ;;
-            2) configure_stager_callback ;;
-            0) return 0 ;;
-        esac
-    done
-}
 
 busybox_group_status() {
     _group=$1
@@ -788,12 +720,11 @@ check_gdbserver_compat_interactive() {
             BB_USER_OVERLAY_ENABLE="yes"
             if [ -z "${BB_USER_OVERLAY_ROOT:-}" ]; then
                 dialog --title "Overlay root path" \
-                    --inputbox "Path to overlay root directory:" 9 78 "" \
+                    --inputbox "Path to overlay root directory:" 9 78 "./overlay" \
                     2>"$temp_out" || true
                 BB_USER_OVERLAY_ROOT=$(cat "$temp_out")
             fi
-            _tname="${BB_TARGET_NAME:-${BB_TARGET_ARCH}-linux-${BB_KERNEL_FLOOR}-${BB_TARGET_LIBC}}"
-            _expected="${BB_USER_OVERLAY_ROOT}/${_tname}/bin/gdbserver"
+            _expected="${BB_USER_OVERLAY_ROOT}/bin/gdbserver"
             dialog --title "gdbserver: Overlay path" \
                 --msgbox "Place your static gdbserver binary at:\n\n  ${_expected}\n\nbefore running make package." \
                 10 84
@@ -804,26 +735,19 @@ check_gdbserver_compat_interactive() {
 _overlay_mkdir() {
     _root=$1
     [ -n "$_root" ] || return 0
-    mkdir -p \
-        "$_root/common/bin" "$_root/common/lib" \
-        "$_root/common/share" "$_root/common/home"
-    _tname="${BB_TARGET_NAME:-${BB_TARGET_PRESET:-native}}"
-    [ -n "$_tname" ] && mkdir -p \
-        "$_root/$_tname/bin" "$_root/$_tname/lib" \
-        "$_root/$_tname/share" "$_root/$_tname/home"
+    mkdir -p "$_root/bin" "$_root/lib" "$_root/share" "$_root/home" "$_root/etc"
     dialog --title "Overlay directories created" \
-        --msgbox "Created overlay structure under:\n  $_root/common/\n  $_root/$_tname/" 10 72
+        --msgbox "Created overlay layout under: $_root\n\nPlace files in bin/, lib/, share/, home/, or etc/.\nThey are merged into the payload during build.\n\nFor target-specific files use a subdirectory named\nafter the target (e.g. $_root/mipsel-linux-musl/)." 14 72
 }
 
 configure_overlay() {
     while :; do
         dialog --title "Payload / User Overlay" \
-            --menu "Stage extra binaries and files into the payload from a local directory:" 18 78 6 \
+            --menu "Stage extra files into the payload from a local directory.\nPlace files in bin/, lib/, share/, home/, or etc/ inside the root." 18 82 5 \
             "1" "Overlay enabled: $BB_USER_OVERLAY_ENABLE" \
             "2" "Overlay root: ${BB_USER_OVERLAY_ROOT:-not set}" \
-            "3" "Allow override existing files: $BB_USER_OVERLAY_ALLOW_OVERRIDE" \
+            "3" "Allow override existing payload files: $BB_USER_OVERLAY_ALLOW_OVERRIDE" \
             "4" "Create overlay directories now" \
-            "?" "Layout: overlay-root/common/ and overlay-root/<target>/  are applied" \
             "0" "Back" \
             2>"$temp_out" || return 0
         _ch=$(cat "$temp_out")
@@ -833,22 +757,14 @@ configure_overlay() {
                     BB_USER_OVERLAY_ENABLE="no"
                 else
                     BB_USER_OVERLAY_ENABLE="yes"
-                    if [ -z "${BB_USER_OVERLAY_ROOT:-}" ]; then
-                        dialog --title "Overlay root path" \
-                            --inputbox "Path to overlay root directory.\n\nLayout: <root>/common/{bin,lib,share,home} and <root>/<target>/{bin,lib,share,home}" \
-                            11 78 "" 2>"$temp_out" || true
-                        BB_USER_OVERLAY_ROOT=$(cat "$temp_out")
-                        _overlay_mkdir "$BB_USER_OVERLAY_ROOT"
-                    fi
                 fi
                 ;;
             2)
                 dialog --title "Overlay root path" \
-                    --inputbox "Path to overlay root directory.\n\nLayout: <root>/common/{bin,lib,share,home} and <root>/<target>/{bin,lib,share,home}" \
-                    11 78 "${BB_USER_OVERLAY_ROOT:-}" \
+                    --inputbox "Path to overlay root directory.\n\nFiles in bin/, lib/, share/, home/, and etc/ are merged into the payload.\nTarget-specific files go in a <target>/ subdirectory." \
+                    12 78 "${BB_USER_OVERLAY_ROOT:-./overlay}" \
                     2>"$temp_out" || true
                 BB_USER_OVERLAY_ROOT=$(cat "$temp_out")
-                _overlay_mkdir "$BB_USER_OVERLAY_ROOT"
                 ;;
             3)
                 if [ "$BB_USER_OVERLAY_ALLOW_OVERRIDE" = "yes" ]; then
@@ -1117,6 +1033,48 @@ configure_full_callback() {
     done
 }
 
+configure_callbacks() {
+    while :; do
+        _scb="$BB_STAGER_CALLBACK_ENABLE"
+        [ "$BB_STAGER_CALLBACK_ENABLE" = yes ] && \
+            _scb="ENABLED host=${BB_STAGER_CALLBACK_HOST:-?} port=$BB_STAGER_CALLBACK_PORT"
+        _fcb="$BB_FULL_CALLBACK_ENABLE"
+        [ "$BB_FULL_CALLBACK_ENABLE" = yes ] && \
+            _fcb="ENABLED host=${BB_FULL_CALLBACK_HOST:-?} port=$BB_FULL_CALLBACK_PORT"
+        dialog --title "BusierBox menuconfig / Callbacks" \
+            --menu "Configure callback addresses compiled into each artifact.\nThe stager calls back on first run; the full artifact calls back\nvia 'busierbox callback'." 16 78 3 \
+            "1" "Stager:       $_scb" \
+            "2" "Full artifact: $_fcb" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1) configure_stager_callback ;;
+            2) configure_full_callback ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+configure_remote_access() {
+    while :; do
+        _db_status="$BB_DROPBEAR_SERVER_MODE"
+        has_item "$BB_HEAVY_TOOLS" "dropbear" || _db_status="(not in heavy tools)"
+        dialog --title "BusierBox menuconfig / Remote Access and Debug Tools" \
+            --menu "Configure SSH server and remote debugger settings:" 14 72 3 \
+            "1" "Dropbear SSH options (server=$_db_status)" \
+            "2" "gdbserver provider: $BB_GDBSERVER_PROVIDER" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1) configure_dropbear ;;
+            2) configure_gdbserver_provider ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
 configure_dotfiles() {
     while :; do
         dialog --title "Payload / Dotfiles and Shell Personalization" \
@@ -1158,39 +1116,36 @@ show_tool_warnings() {
 
 configure_payload() {
     while :; do
+        _cb_summary="stager=$BB_STAGER_CALLBACK_ENABLE full=$BB_FULL_CALLBACK_ENABLE"
         dialog --title "BusierBox menuconfig / Payload Options" \
-            --menu "Choose a submenu:" 24 78 13 \
+            --menu "Choose a submenu:" 21 78 10 \
             "1" "Artifact outputs: full=$BB_BUILD_FULL stager=$BB_BUILD_STAGER core=$BB_BUILD_INTERNAL_CORE" \
-            "2" "Stager options" \
+            "2" "Callbacks: $_cb_summary" \
             "3" "Archive format: $BB_PAYLOAD_FORMAT" \
             "4" "BusyBox applet groups" \
             "5" "Heavy tools" \
             "6" "Tool compatibility / warnings" \
-            "7" "Dropbear options" \
+            "7" "Remote access / debug tools" \
             "8" "Dotfiles / Shell personalization" \
-            "9" "User overlay (stage extra binaries): $BB_USER_OVERLAY_ENABLE" \
-            "10" "gdbserver provider: $BB_GDBSERVER_PROVIDER" \
-            "11" "Payload version: $BB_PAYLOAD_VERSION" \
-            "12" "Full artifact callback: $BB_FULL_CALLBACK_ENABLE" \
+            "9" "User overlay: $BB_USER_OVERLAY_ENABLE (${BB_USER_OVERLAY_ROOT:-not set})" \
+            "10" "Payload version: $BB_PAYLOAD_VERSION" \
             "0" "Back" \
             2>"$temp_out" || return 0
         choice=$(cat "$temp_out")
         case "$choice" in
             1) configure_artifact_outputs ;;
-            2) configure_stager_options ;;
+            2) configure_callbacks ;;
             3) configure_payload_format ;;
             4) configure_busybox_groups ;;
             5) configure_heavy_tools ;;
             6) show_tool_warnings ;;
-            7) configure_dropbear ;;
+            7) configure_remote_access ;;
             8) configure_dotfiles ;;
             9) configure_overlay ;;
-            10) configure_gdbserver_provider ;;
-            11)
+            10)
                 dialog --title "Payload version" --inputbox "Payload version string:" 9 60 "$BB_PAYLOAD_VERSION" 2>"$temp_out" || true
                 BB_PAYLOAD_VERSION=$(cat "$temp_out")
                 ;;
-            12) configure_full_callback ;;
             0) return 0 ;;
         esac
     done

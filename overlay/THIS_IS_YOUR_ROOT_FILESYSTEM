@@ -1,0 +1,17 @@
+Place files here to merge them into the payload at build time.
+
+  bin/     executables (chmod 755 applied automatically)
+  lib/     shared libraries and data
+  share/   architecture-independent data
+  home/    files staged into the payload home directory
+  etc/     configuration files
+
+For target-specific files (e.g. a MIPS binary that should only go
+into a mipsel build) use a subdirectory named after the target:
+
+  mipsel-linux-musl-host/bin/mytool
+
+Run "make menuconfig" > Payload Options > User overlay to enable,
+or set BB_USER_OVERLAY_ENABLE=yes BB_USER_OVERLAY_ROOT=./overlay.
+
+This file is never copied into the payload.
