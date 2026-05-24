@@ -51,6 +51,30 @@ if [ "${1:-}" = "--from-config" ] && [ -f "$config" ]; then
     BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
 fi
 
+STRICT_HEAVY_TOOLS=${BB_STRICT_HEAVY_TOOLS:-${STRICT_HEAVY_TOOLS:-0}}
+
+# Sets EXCLUSION_REASON and returns 1 if tool has a known build failure for
+# the current tuple, returns 0 if expected to build fine.
+check_tool_build_compat() {
+    _ctbc_tool=$1
+    EXCLUSION_REASON=
+    case "$_ctbc_tool:${TARGET_ARCH:-}:${TARGET_LIBC:-}" in
+        gdbserver:mipsel:musl|gdbserver:mips:musl)
+            EXCLUSION_REASON="Buildroot GDB BFD fails for ${TARGET_ARCH}-${TARGET_LIBC}; gdbserver not buildable on this tuple"
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+is_pre_excluded() {
+    _needle=$1
+    for _e in ${pre_excluded:-}; do
+        [ "$_e" = "$_needle" ] && return 0
+    done
+    return 1
+}
+
 die() {
     printf '%s\n' "gen-buildroot-defconfig: $*" >&2
     exit 1
@@ -82,8 +106,21 @@ if [ "$TARGET_STATIC_POLICY" = dynamic ]; then
     static_symbol=
 fi
 
+# Build pre-exclusion list for tools with known build failures (skipped unless strict mode)
+pre_excluded=
+if [ "$STRICT_HEAVY_TOOLS" != "1" ]; then
+    for tool in $BB_HEAVY_TOOLS; do
+        EXCLUSION_REASON=
+        if ! check_tool_build_compat "$tool"; then
+            pre_excluded="${pre_excluded:+$pre_excluded }$tool"
+            printf '%s\n' "gen-buildroot-defconfig: $tool pre-excluded (best-effort; use STRICT_HEAVY_TOOLS=1 to force): $EXCLUSION_REASON" >&2
+        fi
+    done
+fi
+
 needs_cxx=0
 for tool in $BB_HEAVY_TOOLS; do
+    is_pre_excluded "$tool" && continue
     case "$tool" in
         gdbserver) needs_cxx=1 ;;
     esac
@@ -141,6 +178,12 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     printf '%s\n' "BR2_PACKAGE_BUSYBOX=y"
     printf '%s\n' "BR2_PACKAGE_BUSYBOX_CONFIG=\"package/busybox/busybox.config\""
     for tool in $BB_HEAVY_TOOLS; do
+        if is_pre_excluded "$tool"; then
+            EXCLUSION_REASON=
+            check_tool_build_compat "$tool" || true
+            printf '%s\n' "# $tool pre-excluded (best-effort): ${EXCLUSION_REASON:-known build failure for this tuple}"
+            continue
+        fi
         case "$tool" in
             strace) printf '%s\n' "BR2_PACKAGE_STRACE=y" ;;
             curl)
@@ -176,6 +219,12 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     printf '%s\n' "STATIC_POLICY := $TARGET_STATIC_POLICY"
     printf '%s\n' "PAYLOAD_TIER := $TARGET_PAYLOAD_TIER"
     printf '%s\n' "REQUESTED_TOOLS := $BB_HEAVY_TOOLS"
+    printf '%s\n' "EXCLUDED_TOOLS := $pre_excluded"
+    for tool in ${pre_excluded:-}; do
+        EXCLUSION_REASON=
+        check_tool_build_compat "$tool" || true
+        printf '%s\n' "EXCLUDED_REASON_${tool} := ${EXCLUSION_REASON:-known build failure for this tuple}"
+    done
     printf '%s\n' "BUILDROOT_DEFCONFIG := $defconfig"
     printf '%s\n' "QEMU_USER := $TARGET_QEMU_USER"
 } >"$profile"

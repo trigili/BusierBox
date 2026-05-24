@@ -12,6 +12,7 @@ BUILDROOT_DIR=${BUILDROOT_DIR:-buildroot/buildroot-$BUILDROOT_VERSION}
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 OUT_BASE=${BUILDROOT_OUTPUT_BASE:-buildroot/output}
 JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)}
+STRICT_HEAVY_TOOLS=${STRICT_HEAVY_TOOLS:-0}
 PATH="$(pwd)/scripts/shims:$PATH"
 export PATH
 
@@ -110,6 +111,30 @@ payload_sha_file() {
     fi
 }
 
+in_list() {
+    _needle=$1; shift
+    for _x in "$@"; do [ "$_x" = "$_needle" ] && return 0; done
+    return 1
+}
+
+write_exclusion_reasons() {
+    _pre=$1
+    _failed=$2
+    _dir="runtime/payload/share/busierbox"
+    mkdir -p "$_dir"
+    _file="$_dir/exclusion-reasons.txt"
+    : >"$_file"
+    for _t in ${_pre:-}; do
+        _reason=$(profile_value "EXCLUDED_REASON_${_t}" 2>/dev/null || true)
+        [ -n "$_reason" ] || _reason="pre-excluded by gen-buildroot-defconfig"
+        printf '%s=%s\n' "$_t" "$_reason" >>"$_file"
+    done
+    for _t in ${_failed:-}; do
+        printf '%s=Buildroot build failed; optional heavy tool dropped in retry\n' "$_t" >>"$_file"
+    done
+    [ -s "$_file" ] || rm -f "$_file"
+}
+
 make_payload_archives() {
     rm -f dist/payload.tar dist/payload.tar.gz
     if tar --version 2>/dev/null | grep -qi 'GNU tar'; then
@@ -147,6 +172,7 @@ write_manifest() {
 [ -f "$profile" ] || die "unknown TARGET=$TARGET; missing $profile"
 [ -f "$defconfig" ] || die "missing Buildroot defconfig $defconfig"
 requested_tools=$(profile_value REQUESTED_TOOLS)
+pre_excluded=$(profile_value EXCLUDED_TOOLS 2>/dev/null || true)
 
 ensure_buildroot
 if [ "$PREPARE_ONLY" -eq 1 ]; then
@@ -164,8 +190,42 @@ if [ "${BUSIERBOX_BUILDROOT_CONFIG_ONLY:-0}" = "1" ]; then
 fi
 
 printf '%s\n' "building Buildroot BusyBox payload for $TARGET..."
-if ! make -C "$BUILDROOT_DIR" O="$(pwd)/$out_dir" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" -j"$JOBS"; then
-    die "Buildroot build failed for $TARGET; inspect $out_dir/build"
+build_failed_tools=
+_build_ok=0
+if make -C "$BUILDROOT_DIR" O="$(pwd)/$out_dir" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" -j"$JOBS"; then
+    _build_ok=1
+fi
+
+if [ "$_build_ok" = "0" ]; then
+    if [ "$STRICT_HEAVY_TOOLS" = "1" ]; then
+        die "Buildroot build failed for $TARGET; inspect $out_dir/build"
+    fi
+    printf '%s\n' "buildroot-build-payload: Buildroot build failed; retrying without optional heavy tools (set STRICT_HEAVY_TOOLS=1 to treat as fatal)..." >&2
+    for _t in $requested_tools; do
+        if in_list "$_t" ${pre_excluded:-}; then continue; fi
+        case "$_t" in
+            strace|gdbserver|curl|dropbear|zsh|tmux)
+                build_failed_tools="${build_failed_tools:+$build_failed_tools }$_t"
+                ;;
+        esac
+    done
+    _retry_cfg=$(mktemp)
+    grep -v \
+        -e '^BR2_PACKAGE_GDB' \
+        -e '^BR2_PACKAGE_STRACE' \
+        -e '^BR2_PACKAGE_LIBCURL' \
+        -e '^BR2_PACKAGE_DROPBEAR' \
+        -e '^BR2_PACKAGE_ZSH' \
+        -e '^BR2_PACKAGE_TMUX' \
+        -e 'BR2_TOOLCHAIN_BUILDROOT_CXX=y' \
+        "$out_dir/.config" >"$_retry_cfg" 2>/dev/null || true
+    printf '%s\n' "BR2_TOOLCHAIN_BUILDROOT_CXX=n" >>"$_retry_cfg"
+    cp "$_retry_cfg" "$out_dir/.config"
+    rm -f "$_retry_cfg"
+    make -C "$BUILDROOT_DIR" O="$(pwd)/$out_dir" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" olddefconfig
+    if ! make -C "$BUILDROOT_DIR" O="$(pwd)/$out_dir" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" -j"$JOBS"; then
+        die "Buildroot build failed even without optional heavy tools for $TARGET; inspect $out_dir/build"
+    fi
 fi
 
 busybox_src="$out_dir/target/bin/busybox"
@@ -207,6 +267,7 @@ sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
 stage_dotfiles
 printf '%s\n' "${BUSIERBOX_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION
 
+write_exclusion_reasons "${pre_excluded:-}" "${build_failed_tools:-}"
 write_manifest "$static_status" pending
 make_payload_archives
 if [ "$PAYLOAD_FORMAT" = "tar" ]; then selected=dist/payload.tar; else selected=dist/payload.tar.gz; fi

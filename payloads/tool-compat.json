@@ -35,7 +35,14 @@
       "minimum_kernel_floor": "2.6",
       "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
       "unsupported_libcs": [],
-      "notes": "Requires ptrace and enough target memory for debug sessions."
+      "build_failures": [
+        {
+          "arch": ["mipsel", "mips"],
+          "libc": ["musl"],
+          "reason": "Buildroot GDB 15.x BFD fails to link for mipsel/mips musl targets; gdbserver is pre-excluded in best-effort mode"
+        }
+      ],
+      "notes": "Requires ptrace and enough target memory for debug sessions. On mipsel/mips+musl the full GDB BFD library fails to build; use STRICT_HEAVY_TOOLS=1 to treat this as a fatal error."
     },
     "dropbear": {
       "requires_devpts": false,

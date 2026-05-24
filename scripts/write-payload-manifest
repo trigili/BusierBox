@@ -40,6 +40,17 @@ libdir = payload / "lib"
 if libdir.exists():
     libs = sorted(p.name for p in libdir.iterdir() if p.is_file() or p.is_symlink())
 
+exclusion_notes = {}
+notes_file = payload / "share" / "busierbox" / "exclusion-reasons.txt"
+if notes_file.exists():
+    for line in notes_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        idx = line.find("=")
+        if idx > 0:
+            exclusion_notes[line[:idx]] = line[idx + 1:]
+
 manifest = {
     "target": args.target,
     "arch": args.arch,
@@ -53,6 +64,7 @@ manifest = {
     "built_payload_tools": built,
     "staged_payload_tools": staged,
     "missing_payload_tools": missing,
+    "exclusion_notes": exclusion_notes,
     "included_shared_libs": libs,
     "payload_sha256": args.payload_sha256,
 }
