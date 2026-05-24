@@ -9,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c
 
-.PHONY: all build buildroot busybox payload package package-all package-all-presets package-native verify-artifact target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-all
+.PHONY: all build buildroot busybox payload package package-all package-all-presets package-native release verify-artifact target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-glinet test-all
 
 all: build
 
@@ -45,6 +45,9 @@ package-all-presets:
 package-native:
 	@PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/package-target native
 
+release:
+	@PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" BB_RELEASE_NAME="$(BB_RELEASE_NAME)" scripts/release-current "$(if $(TARGET),$(TARGET),--config)"
+
 verify-artifact:
 	@if [ -n "$(TARGET)" ]; then artifact="dist/busierbox-$(TARGET)"; else artifact="dist/busierbox-native"; fi; \
 	  scripts/verify-artifact "$$artifact"
@@ -73,8 +76,10 @@ detect-host:
 smoke: smoke-test
 
 smoke-test: package-native
+	@scripts/inspect-artifact dist/busierbox-native >/dev/null
 	@scripts/verify-artifact dist/busierbox-native
 	@tests/smoke/target-resolution.sh
+	@tests/smoke/busybox-selection.sh
 	@tests/smoke/payload-reality.sh
 	@./dist/busierbox-native list >/dev/null
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native survey --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 json validation unavailable"; fi
@@ -108,6 +113,9 @@ test-qemu-user: package
 
 test-qemu-system: package
 	@tests/qemu-system/run-qemu-system-matrix
+
+test-glinet:
+	@tests/integration/glinet/run
 
 test-all: smoke-test test-qemu-user test-qemu-system
 

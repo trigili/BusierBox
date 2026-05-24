@@ -12,6 +12,7 @@ import tarfile
 import tempfile
 
 TRAILER_SIZE = 512
+MAGIC = "BBXPAYLOADv1"
 NATIVE_ARCHES = {"native", "x86_64"}
 
 
@@ -20,29 +21,173 @@ def die(msg):
     raise SystemExit(1)
 
 
-def read_manifest(path):
+def read_payload(path):
     data = pathlib.Path(path).read_bytes()
+    if len(data) < TRAILER_SIZE:
+        die("artifact too small")
     trailer = data[-TRAILER_SIZE:].split(b"\0", 1)[0].decode("ascii", "replace")
+    lines = trailer.splitlines()
+    if not lines or lines[0] != MAGIC:
+        die("embedded payload trailer missing")
     meta = {}
-    for line in trailer.splitlines()[1:]:
+    for line in lines[1:]:
         if line == "END":
             break
         if "=" in line:
             k, v = line.split("=", 1)
             meta[k] = v
-    offset = int(meta.get("offset", "0"))
-    size = int(meta.get("size", "0"))
+    try:
+        offset = int(meta.get("offset", "0"))
+        size = int(meta.get("size", "0"))
+    except ValueError:
+        die("payload trailer has non-integer offset/size")
+    if offset <= 0 or size <= 0 or offset + size > len(data) - TRAILER_SIZE:
+        die("payload trailer offset/size outside artifact bounds")
     payload = data[offset : offset + size]
     if hashlib.sha256(payload).hexdigest() != meta.get("sha256"):
         die("embedded payload hash mismatch")
+    if meta.get("format") not in {"tar", "tgz"}:
+        die(f"unsupported embedded payload format: {meta.get('format', '')}")
     stream = io.BytesIO(payload)
     if meta.get("format") == "tgz":
-        stream = io.BytesIO(gzip.decompress(payload))
-    with tarfile.open(fileobj=stream, mode="r:") as tf:
+        try:
+            stream = io.BytesIO(gzip.decompress(payload))
+        except Exception as exc:
+            die(f"payload gzip decompression failed: {exc}")
+    try:
+        tf = tarfile.open(fileobj=stream, mode="r:")
+    except Exception as exc:
+        die(f"payload tar open failed: {exc}")
+    with tf:
+        members = {m.name: m for m in tf.getmembers()}
         member = tf.extractfile("payload/manifest.json")
         if not member:
             die("payload manifest missing")
-        return json.load(member)
+        try:
+            manifest = json.load(member)
+        except Exception as exc:
+            die(f"payload manifest is not valid JSON: {exc}")
+        regular_contents = {}
+        for name, info in members.items():
+            if not info.isfile():
+                continue
+            fh = tf.extractfile(info)
+            if fh:
+                regular_contents[name] = fh.read(16384)
+        return meta, manifest, members, regular_contents
+
+
+def require_list(manifest, key):
+    val = manifest.get(key)
+    if not isinstance(val, list):
+        die(f"manifest {key} must be a list")
+    seen = set()
+    for item in val:
+        if not isinstance(item, str) or not item:
+            die(f"manifest {key} contains invalid item")
+        if item in seen:
+            die(f"manifest {key} contains duplicate item: {item}")
+        seen.add(item)
+    return val
+
+
+def member_exists(members, name):
+    return name in members
+
+
+def check_executable_member(members, name, label):
+    info = members.get(name)
+    if not info:
+        die(f"{label} missing from payload: {name}")
+    if info.isfile() and not (info.mode & 0o111):
+        die(f"{label} is not executable in payload: {name}")
+    if not (info.isfile() or info.issym() or info.islnk()):
+        die(f"{label} is not a file/link in payload: {name}")
+
+
+def verify_static(meta, manifest, members, contents):
+    busybox = "payload/bin/busybox"
+    check_executable_member(members, busybox, "BusyBox")
+
+    applets = require_list(manifest, "busybox_applets")
+    staged = require_list(manifest, "staged_payload_tools")
+    built = require_list(manifest, "built_payload_tools")
+    requested = require_list(manifest, "requested_payload_tools")
+    missing = require_list(manifest, "missing_payload_tools")
+    overlay_tools = require_list(manifest, "overlay_tools")
+    overlay_files = require_list(manifest, "overlay_files")
+    overlay_paths = require_list(manifest, "overlay_applied_paths")
+    symlink_skips = require_list(manifest, "applet_symlink_skips")
+
+    expected_missing = sorted(tool for tool in requested if tool not in built)
+    if sorted(missing) != expected_missing:
+        die(f"manifest missing_payload_tools inconsistent: expected {' '.join(expected_missing)} got {' '.join(sorted(missing))}")
+    reasons = manifest.get("missing_payload_tool_reasons", {})
+    if missing and not isinstance(reasons, dict):
+        die("manifest missing_payload_tool_reasons must be an object when tools are missing")
+    for tool in missing:
+        if not reasons.get(tool):
+            die(f"missing tool lacks reason: {tool}")
+
+    for applet in applets:
+        if applet == "busybox":
+            continue
+        path = f"payload/bin/{applet}"
+        if applet in symlink_skips:
+            if not member_exists(members, path):
+                die(f"skipped applet has no payload/bin entry: {applet}")
+            continue
+        info = members.get(path)
+        if not info:
+            die(f"BusyBox applet symlink missing: {path}")
+        if not info.issym():
+            die(f"BusyBox applet entry is not a symlink: {path}")
+        if info.linkname != "busybox":
+            die(f"BusyBox applet symlink target is not busybox: {path} -> {info.linkname}")
+
+    for tool in staged:
+        check_executable_member(members, f"payload/bin/{tool}", "staged tool")
+
+    for tool in overlay_tools:
+        if tool not in staged:
+            die(f"overlay tool not listed as staged: {tool}")
+        check_executable_member(members, f"payload/bin/{tool}", "overlay tool")
+
+    for item in overlay_files:
+        if ":" not in item:
+            die(f"overlay file entry lacks label/path: {item}")
+        rel = item.split(":", 1)[1]
+        if not member_exists(members, f"payload/{rel}"):
+            die(f"overlay file listed but missing from payload: {rel}")
+    for item in overlay_paths:
+        if not isinstance(item, str) or not item:
+            die("overlay_applied_paths contains invalid entry")
+
+    bad_needles = (b"mock heavy tool", b"payload is not staged")
+    for name, data in contents.items():
+        if not name.startswith("payload/bin/"):
+            continue
+        for needle in bad_needles:
+            if needle in data:
+                die(f"placeholder payload script detected: {name}")
+
+    if "tmux" in staged:
+        has_terminfo = any(
+            name.startswith("payload/share/terminfo/") and (name.endswith("/tmux") or name.endswith("/tmux-256color") or name.endswith("/screen") or name.endswith("/xterm"))
+            for name in members
+        )
+        if not has_terminfo:
+            die("tmux is staged but no terminal capability data was found")
+
+    manifest_sha = manifest.get("payload_sha256")
+    if not isinstance(manifest_sha, str) or not manifest_sha:
+        die("manifest payload_sha256 is missing")
+    if manifest_sha != "pending" and (len(manifest_sha) != 64 or any(c not in "0123456789abcdef" for c in manifest_sha.lower())):
+        die("manifest payload_sha256 is not a sha256 hex string")
+
+
+def has_command(manifest, name):
+    return name in (manifest.get("busybox_applets") or []) or name in (manifest.get("staged_payload_tools") or [])
 
 
 def run(cmd, cwd, log):
@@ -55,7 +200,8 @@ if len(sys.argv) != 2:
     die("usage: scripts/verify-artifact dist/busierbox-<target>")
 
 artifact = pathlib.Path(sys.argv[1]).resolve()
-manifest = read_manifest(artifact)
+meta, manifest, members, contents = read_payload(artifact)
+verify_static(meta, manifest, members, contents)
 target = manifest.get("target") or artifact.name.replace("busierbox-", "")
 artdir = pathlib.Path("tests/artifacts/verify-artifact") / target
 artdir.mkdir(parents=True, exist_ok=True)
@@ -88,10 +234,25 @@ with tempfile.TemporaryDirectory(prefix="busierbox-verify-") as td:
     bb.chmod(0o755)
     cmd_prefix = [backend] if backend != "native" else []
     with (artdir / "verify.log").open("w", encoding="utf-8") as log:
-        for args in (["list", "--plain"], ["config-info"], ["doctor"], ["extract"], ["sh", "-c", "echo verify-ok"]):
+        for args in (["list", "--plain"], ["config-info"], ["doctor"], ["extract"], ["extract"], ["sh", "-c", "echo verify-ok"]):
             rc, out = run(cmd_prefix + ["./busierbox"] + args, td, log)
             if rc != 0:
                 die(f"{args[0]} failed; see {artdir / 'verify.log'}")
+        rc, out = run(cmd_prefix + ["./busierbox", "sh", "-c", 'p="$(pwd)/.busierbox/payload/bin"; case ":$PATH:" in *":$p:"*":$p:"*) exit 11;; esac; which ls >/dev/null'], td, log)
+        if rc != 0:
+            die(f"PATH duplicate prevention sanity failed; see {artdir / 'verify.log'}")
+        if has_command(manifest, "zsh"):
+            rc, out = run(cmd_prefix + ["./busierbox", "zsh", "-fc", "command -v ls >/dev/null"], td, log)
+            if rc != 0:
+                die(f"zsh startup sanity failed; see {artdir / 'verify.log'}")
+        if has_command(manifest, "tmux"):
+            rc, out = run(cmd_prefix + ["./busierbox", "tmux", "-V"], td, log)
+            if rc != 0:
+                die(f"tmux version probe failed; see {artdir / 'verify.log'}")
+        if has_command(manifest, "nc"):
+            rc, out = run(cmd_prefix + ["./busierbox", "nc", "--help"], td, log)
+            if rc != 0:
+                die(f"nc help probe failed; see {artdir / 'verify.log'}")
         rc, listing = run(cmd_prefix + ["./busierbox", "list", "--plain"], td, log)
         if rc != 0:
             die(f"list --plain failed; see {artdir / 'verify.log'}")

@@ -15,11 +15,13 @@ if [ ! -x runtime/payload/bin/busybox ]; then
     printf '%s\n' "runtime/payload/bin/busybox missing; run make busybox first" >&2
     exit 1
 fi
+busybox_tmp="runtime/busybox.$$"
+cp runtime/payload/bin/busybox "$busybox_tmp"
+rm -rf runtime/payload
+mkdir -p runtime/payload/bin runtime/payload/lib runtime/payload/share runtime/payload/home
+mv "$busybox_tmp" runtime/payload/bin/busybox
+chmod 0755 runtime/payload/bin/busybox
 printf '%s\n' "$VERSION" >runtime/payload/VERSION
-cp payloads/dotfiles/.profile runtime/payload/home/.profile
-cp payloads/dotfiles/.tmux.conf runtime/payload/home/.tmux.conf
-cp payloads/dotfiles/.zshrc runtime/payload/home/.zshrc
-cp payloads/dotfiles/.gdbinit runtime/payload/home/.gdbinit
 
 # Read config if it exists
 config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
@@ -28,9 +30,37 @@ if [ -f "$config" ]; then
 fi
 BB_HEAVY_TOOLS="${BB_HEAVY_TOOLS:-}"
 BB_DROPBEAR_SERVER_MODE="${BB_DROPBEAR_SERVER_MODE:-no}"
+BB_DOTFILE_PROFILE="${BB_DOTFILE_PROFILE:-default-comfort}"
+BB_DOTFILE_USER_PATH="${BB_DOTFILE_USER_PATH:-}"
+
+stage_dotfiles() {
+    _profile=$BB_DOTFILE_PROFILE
+    _src=payloads/dotfiles
+    case "$_profile" in
+        none) return 0 ;;
+        user-supplied)
+            if [ -n "$BB_DOTFILE_USER_PATH" ] && [ -d "$BB_DOTFILE_USER_PATH" ]; then
+                cp -r "$BB_DOTFILE_USER_PATH"/. runtime/payload/home/ 2>/dev/null || true
+                return 0
+            fi
+            printf '%s\n' "build-payload: user-supplied dotfiles path not found: $BB_DOTFILE_USER_PATH; using default-comfort" >&2
+            _profile=default-comfort
+            ;;
+    esac
+    if [ -d "payloads/dotfiles/$_profile" ]; then
+        _src="payloads/dotfiles/$_profile"
+    fi
+    for _f in .profile .zshrc .tmux.conf .gdbinit; do
+        [ -f "$_src/$_f" ] && cp "$_src/$_f" "runtime/payload/home/$_f"
+    done
+}
+
+stage_dotfiles
 
 # Clean out unconfigured/stale files from previous builds or default template
-for tool in zsh tmux strace gdbserver dropbear dbclient dropbearkey curl dropbear-bin; do
+for tool in zsh tmux strace gdbserver dropbear dbclient dropbearkey curl dropbear-bin \
+    socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client rg ripgrep jq file htop screen \
+    ltrace readelf objdump lsusb lspci; do
     rm -f "runtime/payload/bin/$tool"
 done
 rm -f runtime/payload/busybox-applets.txt runtime/payload/staged-tools.txt runtime/payload/built-tools.txt
@@ -55,18 +85,46 @@ stage_real_tool() {
     return 0
 }
 
-# Set up only selected heavy tools
-for tool in zsh tmux strace gdbserver dropbear curl; do
-    configured=0
+tool_selected() {
+    needle=$1
     for t in $BB_HEAVY_TOOLS; do
-        if [ "$t" = "$tool" ]; then
-            configured=1
-            break
-        fi
+        [ "$t" = "$needle" ] && return 0
     done
+    return 1
+}
 
-    if [ "$configured" = 1 ]; then
-        if command -v "$tool" >/dev/null 2>&1; then
+stage_host_terminfo() {
+    needed=0
+    tool_selected tmux && needed=1
+    tool_selected screen && needed=1
+    tool_selected htop && needed=1
+    [ "$needed" -eq 1 ] || return 0
+
+    for root in /usr/share/terminfo /lib/terminfo /usr/lib/terminfo; do
+        [ -d "$root" ] || continue
+        for term in t/tmux t/tmux-256color t/tmux-direct s/screen s/screen-256color x/xterm x/xterm-256color; do
+            [ -f "$root/$term" ] || continue
+            mkdir -p "runtime/payload/share/terminfo/${term%/*}"
+            cp "$root/$term" "runtime/payload/share/terminfo/$term"
+        done
+    done
+    if [ -d runtime/payload/share/terminfo ]; then
+        printf '%s\n' "build-payload: staged host terminfo entries"
+    else
+        printf '%s\n' "build-payload: WARNING: terminal tools selected but no host terminfo entries were found" >&2
+    fi
+}
+
+# Set up only selected heavy tools
+for tool in zsh tmux strace gdbserver dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils; do
+    if tool_selected "$tool"; then
+        if [ "$tool" = ripgrep ] && command -v rg >/dev/null 2>&1; then
+            stage_real_tool "$tool" "$(command -v rg)" rg || true
+        elif [ "$tool" = usbutils ] && command -v lsusb >/dev/null 2>&1; then
+            stage_real_tool "$tool" "$(command -v lsusb)" lsusb || true
+        elif [ "$tool" = pciutils ] && command -v lspci >/dev/null 2>&1; then
+            stage_real_tool "$tool" "$(command -v lspci)" lspci || true
+        elif command -v "$tool" >/dev/null 2>&1; then
             stage_real_tool "$tool" "$(command -v "$tool")" "$tool" || true
         elif [ "$tool" = dropbear ]; then
             for dropbear_tool in dropbear dbclient dropbearkey; do
@@ -82,6 +140,16 @@ sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
 sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
 
 scripts/install-busybox-symlinks runtime/payload
+stage_host_terminfo
+
+for tool in xxd; do
+    if tool_selected "$tool" && [ -e "runtime/payload/bin/$tool" ]; then
+        printf '%s\n' "$tool" >>runtime/payload/staged-tools.txt
+        printf '%s\n' "$tool" >>runtime/payload/built-tools.txt
+    fi
+done
+sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
+sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
 
 payload_sha() {
     if command -v sha256sum >/dev/null 2>&1; then

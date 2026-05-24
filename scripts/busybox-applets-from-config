@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+
+cfg=${1:?busybox .config required}
+
+[ -f "$cfg" ] || {
+    printf '%s\n' "busybox-applets-from-config: missing config: $cfg" >&2
+    exit 1
+}
+
+scripts/busybox-applet-map | awk -v cfg="$cfg" '
+    BEGIN {
+        while ((getline line < cfg) > 0) {
+            if (line ~ /^CONFIG_[A-Za-z0-9_]+=y$/) {
+                sub(/=y$/, "", line)
+                enabled[line] = 1
+            }
+        }
+        close(cfg)
+    }
+    {
+        applet = $2
+        sym = $3
+        if (applet == "sh_is_ash" || applet == "nc_server")
+            next
+        if (enabled[sym])
+            print applet
+    }
+' | sort -u

@@ -1,0 +1,81 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    printf '%s\n' "usage: scripts/release-current [TARGET|--config]" >&2
+}
+
+target_arg=${1:---config}
+case "$target_arg" in
+    -h|--help) usage; exit 0 ;;
+esac
+
+if [ -f configs/busierbox.conf ]; then
+    . ./configs/busierbox.conf
+fi
+
+if [ "$target_arg" = --config ] || [ "$target_arg" = config ]; then
+    resolved=$(scripts/resolve-target --config 2>&1) || {
+        printf '%s\n' "release-current: $resolved" >&2
+        exit 1
+    }
+else
+    resolved=$(scripts/resolve-target "$target_arg" 2>&1) || {
+        printf '%s\n' "release-current: $resolved" >&2
+        exit 1
+    }
+fi
+eval "$resolved"
+
+target=$TARGET_NAME
+version=${BB_PAYLOAD_VERSION:-dev}
+release_name=${BB_RELEASE_NAME:-$version-$target}
+release_dir=${BB_RELEASE_DIR:-dist/releases/$release_name}
+
+TARGET="$target_arg" VERIFY=1 scripts/package-selected
+
+artifact="dist/busierbox-$target"
+[ -f "$artifact" ] || {
+    printf '%s\n' "release-current: artifact missing after package: $artifact" >&2
+    exit 1
+}
+
+mkdir -p "$release_dir/manifests"
+cp "$artifact" "$release_dir/"
+[ -f "$artifact.sha256" ] && cp "$artifact.sha256" "$release_dir/"
+
+if [ -f "dist/payload-$target.tar" ]; then
+    cp "dist/payload-$target.tar" "$release_dir/"
+fi
+if [ -f "dist/payload-$target.tar.sha256" ]; then
+    cp "dist/payload-$target.tar.sha256" "$release_dir/"
+fi
+if [ -f "dist/payload-$target.tar.gz" ]; then
+    cp "dist/payload-$target.tar.gz" "$release_dir/"
+fi
+if [ -f "dist/payload-$target.tar.gz.sha256" ]; then
+    cp "dist/payload-$target.tar.gz.sha256" "$release_dir/"
+fi
+
+scripts/inspect-artifact "$artifact" >"$release_dir/manifests/$target.inspect.txt"
+
+(
+    cd "$release_dir"
+    if command -v sha256sum >/dev/null 2>&1; then
+        : >SHA256SUMS
+        find . ! -name . -prune -type f ! -name SHA256SUMS | LC_ALL=C sort |
+        while IFS= read -r file; do
+            sha256sum "$file" >>SHA256SUMS
+        done
+    elif command -v shasum >/dev/null 2>&1; then
+        : >SHA256SUMS
+        find . ! -name . -prune -type f ! -name SHA256SUMS | LC_ALL=C sort |
+        while IFS= read -r file; do
+            shasum -a 256 "$file" >>SHA256SUMS
+        done
+    else
+        printf '%s\n' "sha256 tool unavailable" >SHA256SUMS
+    fi
+)
+
+printf '%s\n' "release staged: $release_dir"

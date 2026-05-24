@@ -7,113 +7,37 @@ set -eu
 BUSYBOX_DIR="${BUSYBOX_DIR:-third_party/busybox}"
 GROUPS="${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}"
 APPLETS="${BB_BUSYBOX_APPLETS:-}"
+OVERRIDES="${BB_BUSYBOX_APPLET_OVERRIDES:-}"
 
 if [ ! -d "$BUSYBOX_DIR" ]; then
     printf '%s\n' "gen-busybox-config: $BUSYBOX_DIR not found; run: git submodule update --init" >&2
     exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# Group → CONFIG symbol mapping.
-# Each line: GROUP APPLET CONFIG_SYMBOL
-# ---------------------------------------------------------------------------
-# shellcheck disable=SC2016
 applet_map() {
-cat <<'APPLETS'
-shell       sh          CONFIG_ASH=y
-shell       ash         CONFIG_ASH=y
-shell       sh_is_ash   CONFIG_SH_IS_ASH=y
-shell       printf      CONFIG_ASH_PRINTF=y
-shell       echo        CONFIG_ASH_ECHO=y
-shell       test        CONFIG_ASH_TEST=y
-
-fileops     cat         CONFIG_CAT=y
-fileops     ls          CONFIG_LS=y
-fileops     cp          CONFIG_CP=y
-fileops     mv          CONFIG_MV=y
-fileops     rm          CONFIG_RM=y
-fileops     mkdir       CONFIG_MKDIR=y
-fileops     chmod       CONFIG_CHMOD=y
-fileops     touch       CONFIG_TOUCH=y
-fileops     readlink    CONFIG_READLINK=y
-fileops     stat        CONFIG_STAT=y
-fileops     ln          CONFIG_LN=y
-fileops     du          CONFIG_DU=y
-fileops     install     CONFIG_INSTALL=y
-fileops     basename    CONFIG_BASENAME=y
-fileops     dirname     CONFIG_DIRNAME=y
-
-disk        dd          CONFIG_DD=y
-disk        df          CONFIG_DF=y
-disk        mount       CONFIG_MOUNT=y
-disk        umount      CONFIG_UMOUNT=y
-disk        tar         CONFIG_TAR=y
-disk        gzip        CONFIG_GZIP=y
-disk        gunzip      CONFIG_GUNZIP=y
-disk        zcat        CONFIG_ZCAT=y
-disk        sync        CONFIG_SYNC=y
-
-process     ps          CONFIG_PS=y
-process     free        CONFIG_FREE=y
-process     kill        CONFIG_KILL=y
-process     killall     CONFIG_KILLALL=y
-process     id          CONFIG_ID=y
-process     whoami      CONFIG_WHOAMI=y
-process     which       CONFIG_WHICH=y
-process     uname       CONFIG_UNAME=y
-process     env         CONFIG_ENV=y
-process     sleep       CONFIG_SLEEP=y
-process     nohup       CONFIG_NOHUP=y
-
-network     nc          CONFIG_NC=y
-network     ping        CONFIG_PING=y
-network     wget        CONFIG_WGET=y
-network     ip          CONFIG_IP=y
-network     ifconfig    CONFIG_IFCONFIG=y
-network     netstat     CONFIG_NETSTAT=y
-network     route       CONFIG_ROUTE=y
-network     hostname    CONFIG_HOSTNAME=y
-network     dnsdomainname CONFIG_DNSDOMAINNAME=y
-
-text        grep        CONFIG_GREP=y
-text        egrep       CONFIG_EGREP=y
-text        fgrep       CONFIG_FGREP=y
-text        sed         CONFIG_SED=y
-text        awk         CONFIG_AWK=y
-text        tee         CONFIG_TEE=y
-text        xargs       CONFIG_XARGS=y
-text        find        CONFIG_FIND=y
-text        sort        CONFIG_SORT=y
-text        uniq        CONFIG_UNIQ=y
-text        cut         CONFIG_CUT=y
-text        head        CONFIG_HEAD=y
-text        tail        CONFIG_TAIL=y
-text        wc          CONFIG_WC=y
-text        tr          CONFIG_TR=y
-text        less        CONFIG_LESS=y
-
-system      dmesg       CONFIG_DMESG=y
-system      sysctl      CONFIG_SYSCTL=y
-system      date        CONFIG_DATE=y
-system      hexdump     CONFIG_HEXDUMP=y
-system      xxd         CONFIG_XXD=y
-system      od          CONFIG_OD=y
-system      strings     CONFIG_STRINGS=y
-system      stty        CONFIG_STTY=y
-APPLETS
+    scripts/busybox-applet-map
 }
 
-# Build a set of CONFIG lines for selected groups and individual applets
 selected_configs() {
-    for grp in $GROUPS; do
-        applet_map | awk -v g="$grp" '$1 == g { print $3 }'
-    done
-    # Also enable individually listed applets
-    if [ -n "$APPLETS" ]; then
-        for applet in $APPLETS; do
-            applet_map | awk -v a="$applet" '$2 == a { print $3 }'
-        done
-    fi
+    applet_map | awk -v groups="$GROUPS" -v applets="$APPLETS" -v overrides="$OVERRIDES" '
+        BEGIN {
+            split(groups, g)
+            for (i in g) enabled_group[g[i]] = 1
+            split(applets, a)
+            for (i in a) if (a[i] != "") forced[a[i]] = 1
+            split(overrides, o)
+            for (i in o) {
+                if (o[i] ~ /^\+/) forced[substr(o[i], 2)] = 1
+                else if (o[i] ~ /^-/) disabled[substr(o[i], 2)] = 1
+                else if (o[i] != "") forced[o[i]] = 1
+            }
+        }
+        ($1 in enabled_group || $2 in forced) && !($2 in disabled) { print $3 }
+    '
+}
+
+all_mapped_configs() {
+    applet_map | awk '{ print $3 }' | sort -u
 }
 
 # Start from allnoconfig to ensure we only get what we asked for.
@@ -133,6 +57,15 @@ enable() {
         sed -i "s/^$sym=.*/$sym=y/" "$cfg_file"
     else
         printf '%s=y\n' "$sym" >>"$cfg_file"
+    fi
+}
+
+disable() {
+    sym=$1
+    if grep -q "^$sym=" "$cfg_file"; then
+        sed -i "s/^$sym=.*/# $sym is not set/" "$cfg_file"
+    elif ! grep -q "^# $sym is not set" "$cfg_file"; then
+        printf '# %s is not set\n' "$sym" >>"$cfg_file"
     fi
 }
 
@@ -160,9 +93,11 @@ setstr CONFIG_CROSS_COMPILER_PREFIX ""
 setstr CONFIG_BUSYBOX_EXEC_PATH "/proc/self/exe"
 
 # Enable selected applets
+for sym_name in $(all_mapped_configs); do
+    disable "$sym_name"
+done
 for sym in $(selected_configs | sort -u); do
-    sym_name=$(echo "$sym" | cut -d= -f1)
-    enable "$sym_name"
+    enable "$sym"
 done
 
 # Resolve dependencies

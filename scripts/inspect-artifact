@@ -16,6 +16,102 @@ def die(msg):
     raise SystemExit(1)
 
 
+def require_list(manifest, key):
+    val = manifest.get(key)
+    if not isinstance(val, list):
+        die(f"manifest {key} must be a list")
+    seen = set()
+    for item in val:
+        if not isinstance(item, str) or not item:
+            die(f"manifest {key} contains invalid item")
+        if item in seen:
+            die(f"manifest {key} contains duplicate item: {item}")
+        seen.add(item)
+    return val
+
+
+def check_executable_member(members, name, label):
+    info = members.get(name)
+    if not info:
+        die(f"{label} missing from payload: {name}")
+    if info.isfile() and not (info.mode & 0o111):
+        die(f"{label} is not executable in payload: {name}")
+    if not (info.isfile() or info.issym() or info.islnk()):
+        die(f"{label} is not a file/link in payload: {name}")
+
+
+def validate_static(manifest, members, contents):
+    check_executable_member(members, "payload/bin/busybox", "BusyBox")
+    applets = require_list(manifest, "busybox_applets")
+    staged = require_list(manifest, "staged_payload_tools")
+    built = require_list(manifest, "built_payload_tools")
+    requested = require_list(manifest, "requested_payload_tools")
+    missing = require_list(manifest, "missing_payload_tools")
+    overlay_tools = require_list(manifest, "overlay_tools")
+    overlay_files = require_list(manifest, "overlay_files")
+    overlay_paths = require_list(manifest, "overlay_applied_paths")
+    symlink_skips = require_list(manifest, "applet_symlink_skips")
+
+    expected_missing = sorted(tool for tool in requested if tool not in built)
+    if sorted(missing) != expected_missing:
+        die(f"manifest missing_payload_tools inconsistent: expected {' '.join(expected_missing)} got {' '.join(sorted(missing))}")
+    reasons = manifest.get("missing_payload_tool_reasons", {})
+    if missing and not isinstance(reasons, dict):
+        die("manifest missing_payload_tool_reasons must be an object when tools are missing")
+    for tool in missing:
+        if not reasons.get(tool):
+            die(f"missing tool lacks reason: {tool}")
+
+    for applet in applets:
+        if applet == "busybox":
+            continue
+        path = f"payload/bin/{applet}"
+        info = members.get(path)
+        if applet in symlink_skips:
+            if not info:
+                die(f"skipped applet has no payload/bin entry: {applet}")
+            continue
+        if not info:
+            die(f"BusyBox applet symlink missing: {path}")
+        if not info.issym():
+            die(f"BusyBox applet entry is not a symlink: {path}")
+        if info.linkname != "busybox":
+            die(f"BusyBox applet symlink target is not busybox: {path} -> {info.linkname}")
+
+    for tool in staged:
+        check_executable_member(members, f"payload/bin/{tool}", "staged tool")
+    for tool in overlay_tools:
+        if tool not in staged:
+            die(f"overlay tool not listed as staged: {tool}")
+        check_executable_member(members, f"payload/bin/{tool}", "overlay tool")
+    for item in overlay_files:
+        if ":" not in item:
+            die(f"overlay file entry lacks label/path: {item}")
+        rel = item.split(":", 1)[1]
+        if f"payload/{rel}" not in members:
+            die(f"overlay file listed but missing from payload: {rel}")
+    for item in overlay_paths:
+        if not isinstance(item, str) or not item:
+            die("overlay_applied_paths contains invalid entry")
+
+    bad_needles = (b"mock heavy tool", b"payload is not staged")
+    for name, data in contents.items():
+        if not name.startswith("payload/bin/"):
+            continue
+        for needle in bad_needles:
+            if needle in data:
+                die(f"placeholder payload script detected: {name}")
+
+    if "tmux" in staged:
+        has_terminfo = any(
+            name.startswith("payload/share/terminfo/")
+            and (name.endswith("/tmux") or name.endswith("/tmux-256color") or name.endswith("/screen") or name.endswith("/xterm"))
+            for name in members
+        )
+        if not has_terminfo:
+            die("tmux is staged but no terminal capability data was found")
+
+
 if len(sys.argv) != 2:
     die("usage: scripts/inspect-artifact dist/busierbox-<target>")
 
@@ -47,18 +143,28 @@ for key in ("offset", "size", "sha256", "version", "format", "compressed_size"):
 print(f"hash_ok={'yes' if hash_ok else 'no'}")
 
 manifest = None
+members = {}
+contents = {}
 stream = io.BytesIO(payload)
 try:
     if meta.get("format") == "tgz":
         stream = io.BytesIO(gzip.decompress(payload))
     with tarfile.open(fileobj=stream, mode="r:") as tf:
+        members = {m.name: m for m in tf.getmembers()}
         member = tf.extractfile("payload/manifest.json")
         if member:
             manifest = json.load(member)
+        for name, info in members.items():
+            if not info.isfile():
+                continue
+            fh = tf.extractfile(info)
+            if fh:
+                contents[name] = fh.read(16384)
 except Exception as exc:
-    print(f"manifest_error={exc}")
+    die(f"payload inspection failed: {exc}")
 
 if manifest:
+    validate_static(manifest, members, contents)
     print(f"manifest_target={manifest.get('target', '')}")
     print(f"manifest_arch={manifest.get('arch', '')}")
     print(f"manifest_libc={manifest.get('libc', '')}")
@@ -75,6 +181,8 @@ if manifest:
         print("user_provided_tools=" + " ".join(manifest["user_provided_tools"]))
     for w in manifest.get("overlay_warnings") or []:
         print(f"overlay_warning={w}")
+else:
+    die("payload manifest missing")
 
 if not hash_ok:
     raise SystemExit(1)

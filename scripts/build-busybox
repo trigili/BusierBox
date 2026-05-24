@@ -21,6 +21,8 @@ fi
 
 if [ -n "${BB_BUSYBOX_GROUPS:-}" ]; then
     export BB_BUSYBOX_GROUPS
+    export BB_BUSYBOX_APPLETS="${BB_BUSYBOX_APPLETS:-}"
+    export BB_BUSYBOX_APPLET_OVERRIDES="${BB_BUSYBOX_APPLET_OVERRIDES:-}"
     export BUSYBOX_DIR="$BB_DIR"
     scripts/gen-busybox-config
     make -C "$BB_DIR" clean >/dev/null

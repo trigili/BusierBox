@@ -4,9 +4,11 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ptrace.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
@@ -1270,12 +1272,190 @@ static int json_array_summary(const char *json, const char *key, FILE *out)
     return count;
 }
 
+static const char *json_bool_value(const char *json, const char *key)
+{
+    char needle[96];
+    const char *p;
+    snprintf(needle, sizeof(needle), "\"%s\"", key);
+    p = strstr(json, needle);
+    if (!p)
+        return "unknown";
+    p = strchr(p, ':');
+    if (!p)
+        return "unknown";
+    p++;
+    while (*p == ' ' || *p == '\t' || *p == '\n')
+        p++;
+    if (!strncmp(p, "true", 4))
+        return "yes";
+    if (!strncmp(p, "false", 5))
+        return "no";
+    return "unknown";
+}
+
+static int json_object_summary(const char *json, const char *key, FILE *out)
+{
+    char needle[96];
+    const char *p, *end;
+    int count = 0, first = 1;
+    snprintf(needle, sizeof(needle), "\"%s\"", key);
+    p = strstr(json, needle);
+    if (!p)
+        return 0;
+    p = strchr(p, '{');
+    if (!p)
+        return 0;
+    end = strchr(p, '}');
+    if (!end)
+        return 0;
+    fputc('{', out);
+    while (p < end) {
+        const char *q = strchr(p, '"');
+        const char *r, *v, *w;
+        if (!q || q >= end)
+            break;
+        r = strchr(q + 1, '"');
+        if (!r || r >= end)
+            break;
+        v = strchr(r + 1, '"');
+        if (!v || v >= end)
+            break;
+        w = strchr(v + 1, '"');
+        if (!w || w >= end)
+            break;
+        if (!first)
+            fputc(',', out);
+        fwrite(q + 1, 1, (size_t)(r - q - 1), out);
+        fputc('=', out);
+        fwrite(v + 1, 1, (size_t)(w - v - 1), out);
+        first = 0;
+        count++;
+        p = w + 1;
+    }
+    fputc('}', out);
+    return count;
+}
+
+static int path_entry_count(const char *path, const char *entry)
+{
+    char *dup, *save = NULL, *p;
+    int count = 0;
+    if (!path || !entry || !*entry)
+        return 0;
+    dup = strdup(path);
+    if (!dup)
+        return 0;
+    for (p = strtok_r(dup, ":", &save); p; p = strtok_r(NULL, ":", &save)) {
+        if (!strcmp(*p ? p : ".", entry))
+            count++;
+    }
+    free(dup);
+    return count;
+}
+
+static int path_has_duplicate_entries(const char *path)
+{
+    char *outer, *save = NULL, *p;
+    int dup = 0;
+    if (!path)
+        return 0;
+    outer = strdup(path);
+    if (!outer)
+        return 0;
+    for (p = strtok_r(outer, ":", &save); p; p = strtok_r(NULL, ":", &save)) {
+        if (path_entry_count(path, *p ? p : ".") > 1) {
+            dup = 1;
+            break;
+        }
+    }
+    free(outer);
+    return dup;
+}
+
+static const char *ptrace_probe_status(void)
+{
+    pid_t child, r;
+    int status;
+
+    child = fork();
+    if (child < 0)
+        return "fork-failed";
+    if (child == 0) {
+        if (ptrace(PTRACE_TRACEME, 0, NULL, NULL) < 0)
+            _exit(2);
+        raise(SIGSTOP);
+        _exit(0);
+    }
+    r = waitpid(child, &status, 0);
+    if (r != child) {
+        kill(child, SIGKILL);
+        waitpid(child, NULL, 0);
+        return "unknown";
+    }
+    if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSTOP) {
+        ptrace(PTRACE_CONT, child, NULL, 0);
+        waitpid(child, &status, 0);
+        return "basic-ok";
+    }
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 2)
+        return "denied";
+    kill(child, SIGKILL);
+    waitpid(child, NULL, 0);
+    return "unknown";
+}
+
+static unsigned long long statvfs_available_bytes(const char *path)
+{
+    struct statvfs v;
+    if (statvfs(path, &v) != 0)
+        return 0;
+    return (unsigned long long)v.f_bavail * (unsigned long long)v.f_frsize;
+}
+
+static unsigned long long mem_available_kb(void)
+{
+    FILE *fp = fopen("/proc/meminfo", "r");
+    char key[64], unit[32];
+    unsigned long long val;
+    if (!fp)
+        return 0;
+    while (fscanf(fp, "%63s %llu %31s\n", key, &val, unit) == 3) {
+        if (!strcmp(key, "MemAvailable:")) {
+            fclose(fp);
+            return val;
+        }
+    }
+    fclose(fp);
+    return 0;
+}
+
+static int has_default_route(void)
+{
+    FILE *fp = fopen("/proc/net/route", "r");
+    char line[256], iface[64], dest[64];
+    if (!fp)
+        return 0;
+    if (!fgets(line, sizeof(line), fp)) {
+        fclose(fp);
+        return 0;
+    }
+    while (fgets(line, sizeof(line), fp)) {
+        if (sscanf(line, "%63s %63s", iface, dest) == 2 && !strcmp(dest, "00000000")) {
+            fclose(fp);
+            return 1;
+        }
+    }
+    fclose(fp);
+    return 0;
+}
+
 int applet_doctor_main(int argc, char **argv)
 {
     struct embedded_payload ep;
     char payload[PATH_MAX], manifest_path[PATH_MAX], busybox[PATH_MAX];
     char root[PATH_MAX];
     char *manifest = NULL;
+    int have_payload = 0;
     int applet_count = 0;
 
     memset(&ep, 0, sizeof(ep));
@@ -1298,6 +1478,7 @@ int applet_doctor_main(int argc, char **argv)
     }
 
     if (candidate_payload(payload, sizeof(payload)) == 0) {
+        have_payload = 1;
         printf("extracted_payload=yes\n");
         printf("payload_dir=%s\n", payload);
     } else {
@@ -1306,7 +1487,7 @@ int applet_doctor_main(int argc, char **argv)
             printf("candidate_extract_root=%s\n", root);
     }
 
-    if (candidate_payload(payload, sizeof(payload)) == 0) {
+    if (have_payload) {
         snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
         printf("busybox_present=%s\n", executable_file(busybox) ? "yes" : "no");
         snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", payload);
@@ -1328,6 +1509,19 @@ int applet_doctor_main(int argc, char **argv)
         printf("missing_tools=");
         json_array_summary(manifest, "missing_payload_tools", stdout);
         printf("\n");
+        printf("missing_tool_reasons=");
+        json_object_summary(manifest, "missing_payload_tool_reasons", stdout);
+        printf("\n");
+        printf("overlay_enabled=%s\n", json_bool_value(manifest, "overlay_enabled"));
+        printf("overlay_tools=");
+        json_array_summary(manifest, "overlay_tools", stdout);
+        printf("\n");
+        printf("overlay_files=");
+        json_array_summary(manifest, "overlay_files", stdout);
+        printf("\n");
+        printf("overlay_warnings=");
+        json_array_summary(manifest, "overlay_warnings", stdout);
+        printf("\n");
         free(manifest);
     } else {
         int i;
@@ -1336,23 +1530,48 @@ int applet_doctor_main(int argc, char **argv)
         printf("busybox_applets_count=%d\n", applet_count);
     }
 
-    if (candidate_payload(payload, sizeof(payload)) == 0) {
+    if (have_payload) {
         char symlink_count_path[PATH_MAX], symlink_count[32] = "unknown";
+        char terminfo[PATH_MAX], tmux_ti[PATH_MAX], zsh_path[PATH_MAX];
+        char bin_dir[PATH_MAX];
         snprintf(symlink_count_path, sizeof(symlink_count_path),
                  "%s/share/busierbox/applet-symlink-count.txt", payload);
         read_first_line(symlink_count_path, symlink_count, sizeof(symlink_count));
         printf("applet_symlink_count=%s\n", symlink_count);
+        snprintf(terminfo, sizeof(terminfo), "%s/share/terminfo", payload);
+        snprintf(tmux_ti, sizeof(tmux_ti), "%s/share/terminfo/t/tmux", payload);
+        printf("terminfo_present=%s\n", path_exists(terminfo) ? "yes" : "no");
+        printf("tmux_terminfo_present=%s\n", path_exists(tmux_ti) ? "yes" : "no");
+        snprintf(zsh_path, sizeof(zsh_path), "%s/bin/zsh", payload);
+        printf("zsh_present=%s\n", executable_file(zsh_path) ? "yes" : "no");
+        snprintf(bin_dir, sizeof(bin_dir), "%s/bin", payload);
+        printf("payload_bin_path_count=%d\n", path_entry_count(getenv("PATH"), bin_dir));
     }
+    printf("path_has_duplicates=%s\n", path_has_duplicate_entries(getenv("PATH")) ? "yes" : "no");
+    printf("home_set=%s\n", getenv("HOME") && *getenv("HOME") ? "yes" : "no");
+    printf("shell_set=%s\n", getenv("SHELL") && *getenv("SHELL") ? "yes" : "no");
 
     if (choose_extract_root(root, sizeof(root)) == 0) {
         printf("extract_root_writable_executable=yes\n");
+        printf("extract_root=%s\n", root);
         printf("extract_root_noexec=%s\n", dir_is_noexec(root) ? "yes" : "no");
         printf("extract_root_free_space_ok=%s\n", enough_space_size(ep.present ? ep.size : 1, root) ? "yes" : "no");
+        printf("extract_root_available_bytes=%llu\n", statvfs_available_bytes(root));
     } else {
         puts("extract_root_writable_executable=no");
     }
+    printf("mem_available_kb=%llu\n", mem_available_kb());
     printf("devpts_available=%s\n", path_exists("/dev/pts") ? "yes" : "no");
-    printf("ptrace_probe=not-checked\n");
+    printf("ptrace_probe=%s\n", ptrace_probe_status());
+    printf("default_route_present=%s\n", has_default_route() ? "yes" : "no");
+    if (!path_exists("/dev/pts"))
+        puts("recommendation=mount devpts for tmux/dropbear interactive sessions");
+    if (have_payload) {
+        char ti[PATH_MAX];
+        snprintf(ti, sizeof(ti), "%s/share/terminfo", payload);
+        if (!path_exists(ti))
+            puts("recommendation=stage terminfo when using tmux/screen/htop");
+    }
     return 0;
 }
 

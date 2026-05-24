@@ -47,12 +47,16 @@ eval "$resolved"
 
 BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
 BB_BUSYBOX_GROUPS=${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}
+BB_BUSYBOX_APPLETS=${BB_BUSYBOX_APPLETS:-}
+BB_BUSYBOX_APPLET_OVERRIDES=${BB_BUSYBOX_APPLET_OVERRIDES:-}
 BB_DOTFILE_PROFILE=${BB_DOTFILE_PROFILE:-default-comfort}
 BB_DOTFILE_USER_PATH=${BB_DOTFILE_USER_PATH:-}
 if [ "${1:-}" = "--from-config" ] && [ -f "$config" ]; then
     . "$config"
     BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
     BB_BUSYBOX_GROUPS=${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}
+    BB_BUSYBOX_APPLETS=${BB_BUSYBOX_APPLETS:-}
+    BB_BUSYBOX_APPLET_OVERRIDES=${BB_BUSYBOX_APPLET_OVERRIDES:-}
     BB_DOTFILE_PROFILE=${BB_DOTFILE_PROFILE:-default-comfort}
     BB_DOTFILE_USER_PATH=${BB_DOTFILE_USER_PATH:-}
     BB_GDBSERVER_PROVIDER=${BB_GDBSERVER_PROVIDER:-auto}
@@ -144,7 +148,7 @@ needs_cxx=0
 for tool in $BB_HEAVY_TOOLS; do
     is_pre_excluded "$tool" && continue
     case "$tool" in
-        gdbserver) needs_cxx=1 ;;
+        gdbserver|mosh-client|ripgrep) needs_cxx=1 ;;
     esac
 done
 
@@ -198,7 +202,7 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     printf '%s\n' "BR2_TARGET_GENERIC_HOSTNAME=\"$hostname\""
     printf '%s\n' "BR2_TARGET_GENERIC_ISSUE=\"BusierBox $TARGET_NAME payload\""
     printf '%s\n' "BR2_PACKAGE_BUSYBOX=y"
-    _bbcfg=$(BB_BUSYBOX_GROUPS="${BB_BUSYBOX_GROUPS:-}" TARGET="$TARGET_NAME" BUILDROOT_VERSION="${BUILDROOT_VERSION:-2026.02.2}" OUT_DIR="$(pwd)/$defconfig_dir" scripts/gen-buildroot-busybox-config 2>/dev/null) || _bbcfg=
+    _bbcfg=$(BB_BUSYBOX_GROUPS="${BB_BUSYBOX_GROUPS:-}" BB_BUSYBOX_APPLETS="${BB_BUSYBOX_APPLETS:-}" BB_BUSYBOX_APPLET_OVERRIDES="${BB_BUSYBOX_APPLET_OVERRIDES:-}" TARGET="$TARGET_NAME" BUILDROOT_VERSION="${BUILDROOT_VERSION:-2026.02.2}" OUT_DIR="$(pwd)/$defconfig_dir" scripts/gen-buildroot-busybox-config 2>/dev/null) || _bbcfg=
     if [ -n "$_bbcfg" ] && [ -f "$_bbcfg" ]; then
         printf '%s\n' "BR2_PACKAGE_BUSYBOX_CONFIG=\"$_bbcfg\""
     else
@@ -236,6 +240,30 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
                 printf '%s\n' "BR2_PACKAGE_GDB=y"
                 printf '%s\n' "BR2_PACKAGE_GDB_SERVER=y"
                 ;;
+            socat) printf '%s\n' "BR2_PACKAGE_SOCAT=y" ;;
+            tcpdump) printf '%s\n' "BR2_PACKAGE_TCPDUMP=y" ;;
+            rsync) printf '%s\n' "BR2_PACKAGE_RSYNC=y" ;;
+            mtr) printf '%s\n' "BR2_PACKAGE_MTR=y" ;;
+            iperf3) printf '%s\n' "BR2_PACKAGE_IPERF3=y" ;;
+            ethtool) printf '%s\n' "BR2_PACKAGE_ETHTOOL=y" ;;
+            iw) printf '%s\n' "BR2_PACKAGE_IW=y" ;;
+            minicom) printf '%s\n' "BR2_PACKAGE_MINICOM=y" ;;
+            mosh-client) printf '%s\n' "BR2_PACKAGE_MOSH=y" ;;
+            ripgrep) printf '%s\n' "BR2_PACKAGE_RIPGREP=y" ;;
+            jq) printf '%s\n' "BR2_PACKAGE_JQ=y" ;;
+            file) printf '%s\n' "BR2_PACKAGE_FILE=y" ;;
+            htop) printf '%s\n' "BR2_PACKAGE_HTOP=y" ;;
+            screen) printf '%s\n' "BR2_PACKAGE_SCREEN=y" ;;
+            ltrace) printf '%s\n' "BR2_PACKAGE_LTRACE=y" ;;
+            readelf|objdump)
+                printf '%s\n' "BR2_PACKAGE_BINUTILS=y"
+                printf '%s\n' "BR2_PACKAGE_BINUTILS_TARGET=y"
+                ;;
+            xxd)
+                printf '%s\n' "# xxd is provided by the selected BusyBox applet set when staged"
+                ;;
+            usbutils) printf '%s\n' "BR2_PACKAGE_USBUTILS=y" ;;
+            pciutils) printf '%s\n' "BR2_PACKAGE_PCIUTILS=y" ;;
             *) printf '%s\n' "# Unknown heavy tool requested: $tool" ;;
         esac
     done
@@ -275,6 +303,8 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     printf '%s\n' "DOTFILE_PROFILE := ${BB_DOTFILE_PROFILE:-default-comfort}"
     printf '%s\n' "DOTFILE_USER_PATH := ${BB_DOTFILE_USER_PATH:-}"
     printf '%s\n' "BUSYBOX_GROUPS := $BB_BUSYBOX_GROUPS"
+    printf '%s\n' "BUSYBOX_APPLETS := $BB_BUSYBOX_APPLETS"
+    printf '%s\n' "BUSYBOX_APPLET_OVERRIDES := $BB_BUSYBOX_APPLET_OVERRIDES"
     printf '%s\n' "GDBSERVER_PROVIDER := $BB_GDBSERVER_PROVIDER"
     printf '%s\n' "GDBSERVER_USER_PATH := ${BB_GDBSERVER_USER_PATH:-}"
     printf '%s\n' "USER_OVERLAY_ENABLE := $BB_USER_OVERLAY_ENABLE"

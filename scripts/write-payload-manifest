@@ -36,7 +36,7 @@ payload = pathlib.Path(args.payload_dir)
 requested = sorted([x for x in args.requested_tools.split() if x])
 staged = read_list(payload / "staged-tools.txt")
 built = read_list(payload / "built-tools.txt")
-missing = sorted([x for x in requested if x not in staged])
+missing = sorted([x for x in requested if x not in built])
 applets = read_list(payload / "busybox-applets.txt")
 libs = []
 libdir = payload / "lib"
@@ -53,6 +53,10 @@ if notes_file.exists():
         idx = line.find("=")
         if idx > 0:
             exclusion_notes[line[:idx]] = line[idx + 1:]
+
+missing_reasons = {}
+for tool in missing:
+    missing_reasons[tool] = exclusion_notes.get(tool, "requested tool was not staged by any provider")
 
 overlay_tools = read_list(payload / "overlay-tools.txt")
 user_provided = read_list(payload / "user-provided-tools.txt")
@@ -85,6 +89,7 @@ manifest = {
     "built_payload_tools": built,
     "staged_payload_tools": staged,
     "missing_payload_tools": missing,
+    "missing_payload_tool_reasons": missing_reasons,
     "exclusion_notes": exclusion_notes,
     "overlay_enabled": args.overlay_enable == "yes",
     "overlay_root": args.overlay_root,

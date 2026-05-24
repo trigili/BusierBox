@@ -1,0 +1,95 @@
+#!/bin/sh
+# Shared BusyBox applet group map.
+# Columns: group applet CONFIG_SYMBOL description
+set -eu
+
+cat <<'EOF'
+shell sh CONFIG_ASH POSIX shell
+shell ash CONFIG_ASH BusyBox ash
+shell sh_is_ash CONFIG_SH_IS_ASH /bin/sh uses ash
+shell printf CONFIG_PRINTF printf
+shell echo CONFIG_ECHO echo
+shell test CONFIG_TEST test
+fileops cat CONFIG_CAT concatenate files
+fileops ls CONFIG_LS list files
+fileops cp CONFIG_CP copy files
+fileops mv CONFIG_MV move files
+fileops rm CONFIG_RM remove files
+fileops mkdir CONFIG_MKDIR create directories
+fileops chmod CONFIG_CHMOD change modes
+fileops touch CONFIG_TOUCH touch files
+fileops readlink CONFIG_READLINK read links
+fileops stat CONFIG_STAT file status
+fileops ln CONFIG_LN create links
+fileops du CONFIG_DU disk usage
+fileops install CONFIG_INSTALL install files
+fileops basename CONFIG_BASENAME path basename
+fileops dirname CONFIG_DIRNAME path dirname
+disk dd CONFIG_DD copy blocks
+disk df CONFIG_DF filesystem usage
+disk mount CONFIG_MOUNT mount filesystems
+disk umount CONFIG_UMOUNT unmount filesystems
+disk tar CONFIG_TAR tar archives
+disk gzip CONFIG_GZIP gzip compressor
+disk gunzip CONFIG_GUNZIP gzip decompressor
+disk zcat CONFIG_ZCAT gzip cat
+disk sync CONFIG_SYNC sync filesystems
+process ps CONFIG_PS process list
+process free CONFIG_FREE memory summary
+process kill CONFIG_KILL signal process
+process killall CONFIG_KILLALL signal by name
+process id CONFIG_ID identity
+process whoami CONFIG_WHOAMI username
+process which CONFIG_WHICH command lookup
+process uname CONFIG_UNAME system name
+process env CONFIG_ENV environment
+process sleep CONFIG_SLEEP sleep
+process nohup CONFIG_NOHUP no hangup
+network nc CONFIG_NC netcat
+network nc_server CONFIG_NC_SERVER netcat listen mode
+network ping CONFIG_PING ICMP ping
+network wget CONFIG_WGET HTTP download
+network ip CONFIG_IP iproute tool
+network ifconfig CONFIG_IFCONFIG interface config
+network netstat CONFIG_NETSTAT network status
+network route CONFIG_ROUTE route table
+network hostname CONFIG_HOSTNAME hostname
+network dnsdomainname CONFIG_DNSDOMAINNAME DNS domain
+text grep CONFIG_GREP grep
+text egrep CONFIG_EGREP extended grep
+text fgrep CONFIG_FGREP fixed grep
+text sed CONFIG_SED stream editor
+text awk CONFIG_AWK awk
+text tee CONFIG_TEE tee
+text xargs CONFIG_XARGS xargs
+text find CONFIG_FIND find files
+text sort CONFIG_SORT sort
+text uniq CONFIG_UNIQ unique lines
+text cut CONFIG_CUT cut fields
+text head CONFIG_HEAD head
+text tail CONFIG_TAIL tail
+text wc CONFIG_WC word count
+text tr CONFIG_TR translate chars
+text less CONFIG_LESS pager
+system dmesg CONFIG_DMESG kernel ring buffer
+system sysctl CONFIG_BB_SYSCTL sysctl
+system date CONFIG_DATE date
+system hexdump CONFIG_HEXDUMP hex dump
+system xxd CONFIG_XXD xxd hex dump
+system od CONFIG_OD octal dump
+system strings CONFIG_STRINGS strings
+system stty CONFIG_STTY terminal settings
+dangerous nuke CONFIG_NUKE destructive file removal
+dangerous devmem CONFIG_DEVMEM physical memory access
+dangerous halt CONFIG_HALT halt system
+dangerous poweroff CONFIG_POWEROFF power off system
+dangerous reboot CONFIG_REBOOT reboot system
+dangerous fdisk CONFIG_FDISK partition editor
+dangerous mkfs_ext2 CONFIG_MKFS_EXT2 format ext2
+dangerous mkfs_minix CONFIG_MKFS_MINIX format minix
+dangerous mkfs_vfat CONFIG_MKFS_VFAT format vfat
+dangerous flash_eraseall CONFIG_FLASH_ERASEALL erase flash
+dangerous flashcp CONFIG_FLASHCP copy to flash
+dangerous flash_lock CONFIG_FLASH_LOCK lock flash
+dangerous flash_unlock CONFIG_FLASH_UNLOCK unlock flash
+EOF

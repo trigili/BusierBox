@@ -1,0 +1,87 @@
+#!/bin/sh
+set -eu
+
+artifact=${1:-${ARTIFACT:-dist/busierbox-mipsel-linux-4.x-musl}}
+router=${ROUTER:-root@192.168.8.1}
+remote_dir=${REMOTE_DIR:-/tmp/busierbox-itest}
+keep=${KEEP_ARTIFACTS:-0}
+
+[ -f "$artifact" ] || {
+    printf '%s\n' "glinet push-and-test: artifact not found: $artifact" >&2
+    exit 1
+}
+
+artifact=$(cd "$(dirname "$artifact")" && pwd)/$(basename "$artifact")
+artifact_name=$(basename "$artifact")
+serve_dir=$(dirname "$artifact")
+bind_addr=${BIND_ADDR:-}
+port=${PORT:-0}
+
+if [ -z "$bind_addr" ]; then
+    bind_addr=$(ip route get 192.168.8.1 2>/dev/null | awk '{for (i=1; i<NF; i++) if ($i == "src") {print $(i+1); exit}}' || true)
+fi
+[ -n "$bind_addr" ] || bind_addr=0.0.0.0
+
+tmp=${TMPDIR:-/tmp}/busierbox-glinet-http.$$
+rm -f "$tmp"
+cleanup() {
+    if [ -f "$tmp.pid" ]; then
+        kill "$(cat "$tmp.pid")" 2>/dev/null || true
+        rm -f "$tmp.pid"
+    fi
+    rm -f "$tmp"
+    if [ "$keep" != "1" ]; then
+        ssh "$router" "rm -rf '$remote_dir'" >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup EXIT HUP INT TERM
+
+python3 - "$serve_dir" "$bind_addr" "$port" "$tmp" <<'PY' &
+import functools
+import http.server
+import pathlib
+import socketserver
+import sys
+
+directory, bind, port, marker = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
+handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=directory)
+with socketserver.TCPServer((bind, port), handler) as httpd:
+    pathlib.Path(marker).write_text(str(httpd.server_address[1]), encoding="ascii")
+    httpd.serve_forever()
+PY
+printf '%s\n' "$!" >"$tmp.pid"
+
+i=0
+while [ ! -s "$tmp" ]; do
+    i=$((i + 1))
+    [ "$i" -lt 50 ] || {
+        printf '%s\n' "glinet push-and-test: HTTP server did not start" >&2
+        exit 1
+    }
+    sleep 0.1
+done
+port=$(cat "$tmp")
+url_host=$bind_addr
+[ "$url_host" = "0.0.0.0" ] && url_host=$(hostname -I 2>/dev/null | awk '{print $1}')
+[ -n "$url_host" ] || {
+    printf '%s\n' "glinet push-and-test: unable to determine local address; set BIND_ADDR" >&2
+    exit 1
+}
+url="http://$url_host:$port/$artifact_name"
+
+ssh "$router" "set -eu
+    rm -rf '$remote_dir'
+    mkdir -p '$remote_dir'
+    cd '$remote_dir'
+    if wget --help >/dev/null 2>&1; then
+        wget -O busierbox '$url'
+    elif curl --help >/dev/null 2>&1; then
+        curl -fL -o busierbox '$url'
+    else
+        echo 'neither wget nor curl is available on router' >&2
+        exit 1
+    fi
+    chmod +x busierbox
+"
+
+tests/integration/glinet/smoke "$artifact"

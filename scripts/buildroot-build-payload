@@ -61,7 +61,7 @@ stage_dotfiles() {
             ;;
     esac
     _src="payloads/dotfiles"
-    if [ "$_profile" = "default-minimal" ] || [ "$_profile" = "default-comfort" ]; then
+    if [ "$_profile" = "default-minimal" ] || [ "$_profile" = "default-comfort" ] || [ "$_profile" = "default-operator" ]; then
         if [ -d "payloads/dotfiles/$_profile" ]; then
             _src="payloads/dotfiles/$_profile"
         fi
@@ -344,7 +344,7 @@ if [ "$_build_ok" = "0" ]; then
     for _t in $requested_tools; do
         if in_list "$_t" ${pre_excluded:-}; then continue; fi
         case "$_t" in
-            strace|gdbserver|curl|dropbear|zsh|tmux)
+            strace|gdbserver|curl|dropbear|zsh|tmux|socat|tcpdump|rsync|mtr|iperf3|ethtool|iw|minicom|mosh-client|ripgrep|jq|file|htop|screen|ltrace|readelf|objdump|usbutils|pciutils)
                 build_failed_tools="${build_failed_tools:+$build_failed_tools }$_t"
                 ;;
         esac
@@ -357,6 +357,24 @@ if [ "$_build_ok" = "0" ]; then
         -e '^BR2_PACKAGE_DROPBEAR' \
         -e '^BR2_PACKAGE_ZSH' \
         -e '^BR2_PACKAGE_TMUX' \
+        -e '^BR2_PACKAGE_SOCAT' \
+        -e '^BR2_PACKAGE_TCPDUMP' \
+        -e '^BR2_PACKAGE_RSYNC' \
+        -e '^BR2_PACKAGE_MTR' \
+        -e '^BR2_PACKAGE_IPERF3' \
+        -e '^BR2_PACKAGE_ETHTOOL' \
+        -e '^BR2_PACKAGE_IW' \
+        -e '^BR2_PACKAGE_MINICOM' \
+        -e '^BR2_PACKAGE_MOSH' \
+        -e '^BR2_PACKAGE_RIPGREP' \
+        -e '^BR2_PACKAGE_JQ' \
+        -e '^BR2_PACKAGE_FILE' \
+        -e '^BR2_PACKAGE_HTOP' \
+        -e '^BR2_PACKAGE_SCREEN' \
+        -e '^BR2_PACKAGE_LTRACE' \
+        -e '^BR2_PACKAGE_BINUTILS' \
+        -e '^BR2_PACKAGE_USBUTILS' \
+        -e '^BR2_PACKAGE_PCIUTILS' \
         -e 'BR2_TOOLCHAIN_BUILDROOT_CXX=y' \
         "$out_dir/.config" >"$_retry_cfg" 2>/dev/null || true
     printf '%s\n' "BR2_TOOLCHAIN_BUILDROOT_CXX=n" >>"$_retry_cfg"
@@ -377,7 +395,12 @@ mkdir -p runtime/payload/bin runtime/payload/lib runtime/payload/share runtime/p
 cp "$busybox_src" runtime/payload/bin/busybox
 chmod 0755 runtime/payload/bin/busybox
 static_status=$(copy_shared_libs_if_dynamic runtime/payload/bin/busybox)
-scripts/discover-buildroot-applets "$out_dir/target" runtime/payload/busybox-applets.txt
+_bb_build_cfg=$(find "$out_dir/build" -maxdepth 2 -path '*/busybox-*/.config' -type f | sort | sed -n '1p')
+if [ -n "$_bb_build_cfg" ]; then
+    scripts/busybox-applets-from-config "$_bb_build_cfg" >runtime/payload/busybox-applets.txt
+else
+    scripts/discover-buildroot-applets "$out_dir/target" runtime/payload/busybox-applets.txt
+fi
 rm -f runtime/payload/staged-tools.txt runtime/payload/built-tools.txt \
     runtime/payload/user-provided-tools.txt runtime/payload/overlay-tools.txt \
     runtime/payload/overlay-files.txt runtime/payload/overlay-paths.txt
@@ -434,6 +457,63 @@ fi
 if tool_requested tmux; then
     stage_first_found tmux usr/bin/tmux bin/tmux || printf '%s\n' "buildroot-build-payload: requested tmux but no built binary was found" >&2
 fi
+if tool_requested socat; then
+    stage_first_found socat usr/bin/socat bin/socat || printf '%s\n' "buildroot-build-payload: requested socat but no built binary was found" >&2
+fi
+if tool_requested tcpdump; then
+    stage_first_found tcpdump usr/sbin/tcpdump usr/bin/tcpdump sbin/tcpdump bin/tcpdump || printf '%s\n' "buildroot-build-payload: requested tcpdump but no built binary was found" >&2
+fi
+if tool_requested rsync; then
+    stage_first_found rsync usr/bin/rsync bin/rsync || printf '%s\n' "buildroot-build-payload: requested rsync but no built binary was found" >&2
+fi
+if tool_requested mtr; then
+    stage_first_found mtr usr/sbin/mtr usr/bin/mtr sbin/mtr bin/mtr || printf '%s\n' "buildroot-build-payload: requested mtr but no built binary was found" >&2
+fi
+if tool_requested iperf3; then
+    stage_first_found iperf3 usr/bin/iperf3 bin/iperf3 || printf '%s\n' "buildroot-build-payload: requested iperf3 but no built binary was found" >&2
+fi
+if tool_requested ethtool; then
+    stage_first_found ethtool usr/sbin/ethtool usr/bin/ethtool sbin/ethtool bin/ethtool || printf '%s\n' "buildroot-build-payload: requested ethtool but no built binary was found" >&2
+fi
+if tool_requested iw; then
+    stage_first_found iw usr/sbin/iw usr/bin/iw sbin/iw bin/iw || printf '%s\n' "buildroot-build-payload: requested iw but no built binary was found" >&2
+fi
+if tool_requested minicom; then
+    stage_first_found minicom usr/bin/minicom bin/minicom || printf '%s\n' "buildroot-build-payload: requested minicom but no built binary was found" >&2
+fi
+if tool_requested mosh-client; then
+    stage_first_found mosh-client usr/bin/mosh-client bin/mosh-client || printf '%s\n' "buildroot-build-payload: requested mosh-client but no built binary was found" >&2
+fi
+if tool_requested ripgrep; then
+    stage_first_found ripgrep usr/bin/rg bin/rg usr/bin/ripgrep bin/ripgrep || printf '%s\n' "buildroot-build-payload: requested ripgrep but no built binary was found" >&2
+fi
+if tool_requested jq; then
+    stage_first_found jq usr/bin/jq bin/jq || printf '%s\n' "buildroot-build-payload: requested jq but no built binary was found" >&2
+fi
+if tool_requested file; then
+    stage_first_found file usr/bin/file bin/file || printf '%s\n' "buildroot-build-payload: requested file but no built binary was found" >&2
+fi
+if tool_requested htop; then
+    stage_first_found htop usr/bin/htop bin/htop || printf '%s\n' "buildroot-build-payload: requested htop but no built binary was found" >&2
+fi
+if tool_requested screen; then
+    stage_first_found screen usr/bin/screen bin/screen || printf '%s\n' "buildroot-build-payload: requested screen but no built binary was found" >&2
+fi
+if tool_requested ltrace; then
+    stage_first_found ltrace usr/bin/ltrace bin/ltrace || printf '%s\n' "buildroot-build-payload: requested ltrace but no built binary was found" >&2
+fi
+if tool_requested readelf; then
+    stage_first_found readelf usr/bin/readelf bin/readelf || printf '%s\n' "buildroot-build-payload: requested readelf but no built binary was found" >&2
+fi
+if tool_requested objdump; then
+    stage_first_found objdump usr/bin/objdump bin/objdump || printf '%s\n' "buildroot-build-payload: requested objdump but no built binary was found" >&2
+fi
+if tool_requested usbutils; then
+    stage_first_found usbutils usr/bin/lsusb bin/lsusb || printf '%s\n' "buildroot-build-payload: requested usbutils but no built binary was found" >&2
+fi
+if tool_requested pciutils; then
+    stage_first_found pciutils usr/bin/lspci bin/lspci || printf '%s\n' "buildroot-build-payload: requested pciutils but no built binary was found" >&2
+fi
 
 # Stage terminfo database if built
 for ti_src in "$out_dir/target/usr/share/terminfo" "$out_dir/target/lib/terminfo"; do
@@ -459,6 +539,15 @@ sort -u runtime/payload/overlay-tools.txt -o runtime/payload/overlay-tools.txt
 sort -u runtime/payload/user-provided-tools.txt -o runtime/payload/user-provided-tools.txt
 
 scripts/install-busybox-symlinks runtime/payload
+
+for _bb_tool in xxd; do
+    if tool_requested "$_bb_tool" && [ -e "runtime/payload/bin/$_bb_tool" ]; then
+        printf '%s\n' "$_bb_tool" >>runtime/payload/staged-tools.txt
+        printf '%s\n' "$_bb_tool" >>runtime/payload/built-tools.txt
+    fi
+done
+sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
+sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
 
 stage_dotfiles
 printf '%s\n' "${BUSIERBOX_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION

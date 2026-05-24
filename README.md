@@ -45,7 +45,7 @@ busierbox dropbear  -> payload/bin/dropbear
 busierbox curl      -> payload/bin/curl
 ```
 
-The current implementation stages placeholder launchers for heavy tools. Full tmux, strace, gdbserver, dropbear, and curl builds are future Tier 2 payload work.
+Heavy tools are only advertised when a real executable was staged into `payload/bin`. Requested tools that cannot be provided remain visible in the payload manifest as missing, with a reason, but do not become placeholder commands.
 
 ## Layout
 
@@ -148,12 +148,22 @@ These generated paths are ignored by git. Buildroot then builds the cross toolch
 The payload manifest separates intent from reality:
 
 - `requested_payload_tools`: tools selected in config/menuconfig
-- `built_payload_tools`: requested tools for which Buildroot or the host produced binaries
+- `built_payload_tools`: requested tools for which a provider produced usable staged output
 - `staged_payload_tools`: executable tools copied into `payload/bin`
-- `missing_payload_tools`: requested tools that were not staged
+- `missing_payload_tools`: requested tools no provider satisfied
+- `missing_payload_tool_reasons`: per-tool reasons for missing requested tools
 - `busybox_applets`: applets actually discovered in the staged BusyBox payload
 
 BusierBox generates its advertised dispatch lists from `runtime/payload/busybox-applets.txt` and `runtime/payload/staged-tools.txt`. It does not advertise requested-but-missing tools, and missing heavy tools are recorded under the manifest plus `payload/share/busierbox/missing-tools.txt` instead of placeholder executables.
+
+BusyBox applet selection is hierarchical in `make menuconfig`. Group checkboxes set sensible defaults, and each group has an applet submenu for overrides. Manual configs can use:
+
+```text
+BB_BUSYBOX_GROUPS="shell fileops disk process text system"
+BB_BUSYBOX_APPLET_OVERRIDES="+nc -nuke"
+```
+
+`+nc` enables `nc` without selecting unrelated network tools. `-nuke` disables only the dangerous `nuke` applet while leaving the rest of the selected defaults intact. Dangerous or destructive applets such as `nuke`, `devmem`, reboot/poweroff, fdisk/mkfs, and flash tools live in the dedicated `dangerous` group where practical.
 
 Supported generated tuple families currently include `mipsel`/`mips` with `musl` or `uclibc`, and `armv7`, `aarch64`, `x86_64`, and `i386` with `musl`. Unsupported combinations fail clearly during target resolution or defconfig generation.
 
@@ -184,7 +194,19 @@ chmod +x /tmp/busierbox
 /tmp/busierbox sh
 ```
 
-Tool compatibility metadata lives in `payloads/tool-compat.json`. Menuconfig shows warnings for selected heavy tools such as `tmux`, `strace`, `gdbserver`, `dropbear`, `curl`, and `zsh`; it does not hard-block uncertain cases. Generated Buildroot defconfigs enable supported package symbols for selected heavy tools (`strace`, `libcurl` with the `curl` binary, `dropbear`, `zsh`, `tmux`, and `gdbserver`). If Buildroot drops a package due to dependencies or the binary cannot be found after the build, the tool is listed as missing and is not dispatchable.
+Tool compatibility metadata lives in `payloads/tool-compat.json`. Menuconfig shows warnings for selected heavy tools such as `tmux`, `strace`, `gdbserver`, `dropbear`, `curl`, `zsh`, and the expanded operator tool set; it does not hard-block uncertain cases.
+
+Generated Buildroot defconfigs enable supported package symbols for selected heavy tools:
+
+```text
+Networking/operator: socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client
+Text/utility:        ripgrep jq file htop screen
+Debug/RE:            strace gdbserver ltrace readelf objdump xxd
+System inspection:   usbutils pciutils
+Shell/transport:     zsh tmux curl dropbear
+```
+
+Some provider names differ from staged command names. For example, selecting `ripgrep` stages `rg`, `usbutils` stages `lsusb`, and `pciutils` stages `lspci`. This is intentional: requested provider intent and staged dispatch commands are tracked separately. If Buildroot drops a package due to dependencies or the binary cannot be found after the build, the tool is listed as missing with a reason and is not dispatchable.
 
 Artifact inspection and verification:
 
@@ -195,7 +217,16 @@ make verify-artifact TARGET=native
 VERIFY=1 make package TARGET=native
 ```
 
-`scripts/inspect-artifact` parses the embedded payload trailer and manifest without executing the target binary. `scripts/verify-artifact` also executes the artifact when native or when qemu-user is available; otherwise it performs non-execution inspection and skips execution clearly. Verification copies only the self-extracting artifact to a temp directory, runs `list`, `config-info`, `doctor`, `extract`, `sh`, and help probes for advertised payload commands.
+`scripts/inspect-artifact` parses the embedded payload trailer and manifest without executing the target binary, then validates manifest consistency, applet symlink records, staged heavy tools, overlay records, missing-tool reasons, placeholder scripts, and tmux terminfo. `scripts/verify-artifact` performs the same static checks and also executes the artifact when native or when qemu-user is available; otherwise it performs non-execution inspection and skips execution clearly. Verification copies only the self-extracting artifact to a temp directory, runs `list`, `config-info`, `doctor`, repeated `extract`, `sh`, duplicate-PATH checks, zsh/tmux/nc probes when staged, and help probes for advertised payload commands.
+
+Release staging groundwork is intentionally single-target for now:
+
+```sh
+make release
+make release TARGET=glinet-mt7621-openwrt-musl BB_RELEASE_NAME=dev-glinet
+```
+
+The release target packages and verifies the selected artifact, then stages it under `dist/releases/<name>/` with checksums, payload archives when present, and an inspector manifest under `dist/releases/<name>/manifests/`. Future release matrix work can build on the same artifact layout without changing normal `make package` behavior.
 
 Run smoke tests:
 
@@ -250,6 +281,8 @@ When launching payload tools BusierBox sets:
 
 `./busierbox doctor` reports embedded payload presence, format, size, hash status, extraction status, payload directory, manifest presence, BusyBox presence, BusyBox applet count, staged tools, missing requested tools, candidate extraction health, `/dev/pts`, and a conservative ptrace status.
 
+Doctor also reports payload identity/staleness, applet symlink count, overlay status and warnings, missing-tool reasons, terminfo availability, zsh presence, PATH duplicate hints, extraction free space, available memory, default-route presence, and recommendations for common tmux/dropbear/terminfo failures.
+
 `./busierbox config-info` reports the BusierBox build, extraction status, payload directory, payload hash, BusyBox dispatch status, and the payload manifest summary when available.
 
 ## Tiers
@@ -280,9 +313,58 @@ Tier 2: heavy debug payloads.
 - `gdbserver`
 - `dropbear`
 - `curl`
-- additional target-specific tools
+- `socat`, `tcpdump`, `rsync`, `mtr`, `iperf3`
+- `ethtool`, `iw`, `minicom`, `mosh-client`
+- `ripgrep`/`rg`, `jq`, `file`, `htop`, `screen`
+- `ltrace`, `readelf`, `objdump`, `xxd`
+- `lsusb` from `usbutils`, `lspci` from `pciutils`
 
 Tier 2 should stay optional and Buildroot-friendly.
+
+## Overlays And Shell Customization
+
+User overlays are the escape hatch for personal tools and dotfiles. Enable them in `make menuconfig` or set:
+
+```text
+BB_USER_OVERLAY_ENABLE="yes"
+BB_USER_OVERLAY_ROOT="/path/to/overlay-root"
+```
+
+The layout is:
+
+```text
+overlay-root/common/bin/
+overlay-root/common/lib/
+overlay-root/common/share/
+overlay-root/common/home/
+overlay-root/<target>/bin/
+overlay-root/<target>/lib/
+overlay-root/<target>/share/
+overlay-root/<target>/home/
+```
+
+`common/` applies to every target, and `<target>/` applies only to that target name such as `mipsel-linux-4.x-musl`. Overlay binaries are marked as staged tools, recorded in the manifest, and checked for likely architecture mismatches when the host `file` command is available. Conflicts are not overwritten unless `BB_USER_OVERLAY_ALLOW_OVERRIDE=yes`; conflicts and warnings are reported in the payload diagnostics and `doctor`.
+
+Default dotfile profiles live under `payloads/dotfiles/`:
+
+- `default-minimal`
+- `default-comfort`
+- `default-operator`
+- `user-supplied`
+- `none`
+
+The payload sets `BUSIERBOX_PAYLOAD_DIR`, `PATH`, `HOME`, `SHELL`, `ZDOTDIR`, `TERM`, `TERMINFO_DIRS`, and `LD_LIBRARY_PATH` as needed when dispatching tools. To use a personal Oh My Zsh setup, do not make BusierBox fetch it. Place `.oh-my-zsh` and `.zshrc` under `overlay-root/common/home/` or `overlay-root/<target>/home/`, or select the `user-supplied` dotfile profile and point it at a local dotfile directory before packaging.
+
+## GL.iNet Integration Testing
+
+For the GL-MT1300 / MT7621 target reachable as `root@192.168.8.1`:
+
+```sh
+make package
+make test-glinet
+```
+
+The GL.iNet harness lives in `tests/integration/glinet/`. It starts a temporary local Python HTTP server, picks a local bind address when possible, downloads the artifact on the router with `wget` or `curl`, extracts under `/tmp/busierbox-itest` by default, runs `doctor`, verifies stale extraction reuse, checks PATH duplication, verifies BusyBox symlinks and advertised staged tools, launches zsh when staged, checks tmux/curl/strace when staged, validates overlay tools when present, and cleans up after success or failure. Use `KEEP_ARTIFACTS=1` to leave remote files for debugging, or override `ROUTER`, `REMOTE_DIR`, `BIND_ADDR`, `PORT`, and `ARTIFACT`.
 
 ## QEMU User Validation
 

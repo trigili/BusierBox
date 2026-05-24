@@ -2,12 +2,14 @@
 set -eu
 
 # Generates buildroot/generated-configs/<target>-busybox.config
-# based on BB_BUSYBOX_GROUPS, starting from Buildroot's base config.
+# based on BB_BUSYBOX_GROUPS plus applet overrides.
 # Usage: BB_BUSYBOX_GROUPS="..." TARGET=<name> scripts/gen-buildroot-busybox-config
 # Prints the path to the generated config file.
 
 TARGET=${TARGET:-native}
 GROUPS="${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}"
+APPLETS="${BB_BUSYBOX_APPLETS:-}"
+OVERRIDES="${BB_BUSYBOX_APPLET_OVERRIDES:-}"
 BUILDROOT_VERSION="${BUILDROOT_VERSION:-2026.02.2}"
 BUILDROOT_DIR="${BUILDROOT_DIR:-buildroot/buildroot-$BUILDROOT_VERSION}"
 OUT_DIR="${OUT_DIR:-buildroot/generated-configs}"
@@ -36,37 +38,69 @@ enable_sym() {
     fi
 }
 
-for grp in $GROUPS; do
-    case "$grp" in
-        shell)
-            for sym in CONFIG_ASH CONFIG_SH_IS_ASH CONFIG_ASH_PRINTF CONFIG_ASH_ECHO CONFIG_ASH_TEST; do
-                enable_sym "$sym" "$outfile"
-            done ;;
-        fileops)
-            for sym in CONFIG_CAT CONFIG_LS CONFIG_CP CONFIG_MV CONFIG_RM CONFIG_MKDIR CONFIG_CHMOD CONFIG_TOUCH CONFIG_READLINK CONFIG_STAT CONFIG_LN CONFIG_DU CONFIG_INSTALL CONFIG_BASENAME CONFIG_DIRNAME; do
-                enable_sym "$sym" "$outfile"
-            done ;;
-        disk)
-            for sym in CONFIG_DD CONFIG_DF CONFIG_MOUNT CONFIG_UMOUNT CONFIG_TAR CONFIG_GZIP CONFIG_GUNZIP CONFIG_ZCAT CONFIG_SYNC; do
-                enable_sym "$sym" "$outfile"
-            done ;;
-        process)
-            for sym in CONFIG_PS CONFIG_FREE CONFIG_KILL CONFIG_KILLALL CONFIG_ID CONFIG_WHOAMI CONFIG_WHICH CONFIG_UNAME CONFIG_ENV CONFIG_SLEEP CONFIG_NOHUP; do
-                enable_sym "$sym" "$outfile"
-            done ;;
-        network)
-            for sym in CONFIG_NC CONFIG_NC_SERVER CONFIG_PING CONFIG_WGET CONFIG_IP CONFIG_IFCONFIG CONFIG_NETSTAT CONFIG_ROUTE CONFIG_HOSTNAME CONFIG_DNSDOMAINNAME; do
-                enable_sym "$sym" "$outfile"
-            done ;;
-        text)
-            for sym in CONFIG_GREP CONFIG_EGREP CONFIG_FGREP CONFIG_SED CONFIG_AWK CONFIG_TEE CONFIG_XARGS CONFIG_FIND CONFIG_SORT CONFIG_UNIQ CONFIG_CUT CONFIG_HEAD CONFIG_TAIL CONFIG_WC CONFIG_TR CONFIG_LESS; do
-                enable_sym "$sym" "$outfile"
-            done ;;
-        system)
-            for sym in CONFIG_DMESG CONFIG_SYSCTL CONFIG_DATE CONFIG_HEXDUMP CONFIG_XXD CONFIG_OD CONFIG_STRINGS CONFIG_STTY; do
-                enable_sym "$sym" "$outfile"
-            done ;;
-    esac
+disable_sym() {
+    _sym=$1
+    _f=$2
+    if grep -q "^$_sym=" "$_f"; then
+        sed -i "s|^$_sym=.*|# $_sym is not set|" "$_f"
+    elif ! grep -q "^# $_sym is not set" "$_f"; then
+        printf '# %s is not set\n' "$_sym" >>"$_f"
+    fi
+}
+
+grep '^CONFIG_.*=y$' "$base" | sed 's/=y$//' |
+while IFS= read -r sym; do
+    [ -n "$sym" ] && disable_sym "$sym" "$outfile"
+done
+
+# Buildroot 2026.02.2 still carries a few BusyBox config symbols that
+# upstream BusyBox no longer accepts. Remove them after the broad disable pass
+# so old defaults do not produce noisy "nonexistent symbol" warnings.
+for sym in CONFIG_ASH_SLEEP; do
+    sed -i "/^$sym=/d;/^# $sym is not set/d" "$outfile"
+done
+
+for sym in \
+    CONFIG_HAVE_DOT_CONFIG \
+    CONFIG_BUSYBOX \
+    CONFIG_SHOW_USAGE \
+    CONFIG_FEATURE_VERBOSE_USAGE \
+    CONFIG_LONG_OPTS \
+    CONFIG_LFS \
+    CONFIG_FEATURE_DEVPTS \
+    CONFIG_FEATURE_INSTALLER \
+    CONFIG_INSTALL_APPLET_SYMLINKS \
+    CONFIG_FEATURE_SUID \
+    CONFIG_FEATURE_SYSLOG_INFO \
+    CONFIG_STATIC_LIBGCC \
+    CONFIG_FEATURE_BUFFERS_USE_MALLOC \
+    CONFIG_FEATURE_USE_SENDFILE \
+    CONFIG_FEATURE_EDITING \
+    CONFIG_FEATURE_TAB_COMPLETION \
+    CONFIG_FEATURE_EDITING_FANCY_PROMPT \
+    CONFIG_FEATURE_RTMINMAX \
+    CONFIG_SH_IS_ASH
+do
+    enable_sym "$sym" "$outfile"
+done
+
+scripts/busybox-applet-map | awk -v groups="$GROUPS" -v applets="$APPLETS" -v overrides="$OVERRIDES" '
+    BEGIN {
+        split(groups, g)
+        for (i in g) enabled_group[g[i]] = 1
+        split(applets, a)
+        for (i in a) if (a[i] != "") forced[a[i]] = 1
+        split(overrides, o)
+        for (i in o) {
+            if (o[i] ~ /^\+/) forced[substr(o[i], 2)] = 1
+            else if (o[i] ~ /^-/) disabled[substr(o[i], 2)] = 1
+            else if (o[i] != "") forced[o[i]] = 1
+        }
+    }
+    ($1 in enabled_group || $2 in forced) && !($2 in disabled) { print $3 }
+' | sort -u |
+while IFS= read -r sym; do
+    [ -n "$sym" ] && enable_sym "$sym" "$outfile"
 done
 
 printf '%s\n' "$outfile"

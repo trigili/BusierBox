@@ -10,7 +10,9 @@ The test harness is layered so developers can get useful signal without propriet
 
 `make test-qemu-system` boots locally supplied Buildroot/OpenWrt-style QEMU environments when enabled in `tests/matrix/environments.example.json`. All entries are disabled by default and no kernel/rootfs images are committed. Missing QEMU binaries, kernels, rootfses, or BusierBox binaries are reported as `SKIP`.
 
-`make test-all` runs all three layers.
+`make test-glinet` runs the real-device GL.iNet MT7621 integration harness against `root@192.168.8.1` by default. It builds the configured artifact unless `SKIP_BUILD=1`, serves it over a temporary local HTTP server, downloads it on the router, runs extraction and doctor checks, validates PATH and BusyBox applet symlinks, and checks staged tools such as zsh, tmux, curl, and strace when present.
+
+`make test-all` runs the local smoke and QEMU layers. Real-device GL.iNet testing is kept as an explicit `make test-glinet` target because it depends on reachable hardware.
 
 ## Smoke Contract
 
@@ -102,6 +104,24 @@ tests/artifacts/qemu-system/<environment>/
 ```
 
 Some boards or generated rootfses may need a different disk interface than the default `if=virtio`; adjust the runner or matrix when adding that environment.
+
+## GL.iNet Real Device
+
+Run:
+
+```sh
+make test-glinet
+```
+
+Useful overrides:
+
+```sh
+ROUTER=root@192.168.8.1 make test-glinet
+SKIP_BUILD=1 ARTIFACT=dist/busierbox-mipsel-linux-4.x-musl tests/integration/glinet/push-and-test
+KEEP_ARTIFACTS=1 tests/integration/glinet/push-and-test dist/busierbox-mipsel-linux-4.x-musl
+```
+
+The default remote directory is `/tmp/busierbox-itest`, which avoids the small persistent root filesystem on many OpenWrt-style devices. Override `REMOTE_DIR` only when that location has enough free space for the artifact plus extraction. The harness fails loudly for missing advertised tools, missing applet symlinks, broken extraction, duplicate payload PATH entries, zsh without payload commands, and overlay tool drift.
 
 ## Environment Coverage
 

@@ -1,0 +1,50 @@
+#!/bin/sh
+set -eu
+
+artifact=${1:-${ARTIFACT:-dist/busierbox-mipsel-linux-4.x-musl}}
+router=${ROUTER:-root@192.168.8.1}
+remote_dir=${REMOTE_DIR:-/tmp/busierbox-itest}
+remote_bin="$remote_dir/busierbox"
+
+[ -f "$artifact" ] || {
+    printf '%s\n' "glinet smoke: artifact not found: $artifact" >&2
+    exit 1
+}
+
+ssh "$router" "set -eu
+    test -x '$remote_bin'
+    rm -rf '$remote_dir/extract'
+    mkdir -p '$remote_dir/extract'
+    cd '$remote_dir'
+    ./busierbox doctor >doctor.out 2>&1 || { cat doctor.out; exit 1; }
+    ./busierbox extract >extract.out 2>&1 || { cat extract.out; exit 1; }
+    ./busierbox extract >extract-2.out 2>&1 || { cat extract-2.out; exit 1; }
+    test -d .busierbox/payload/bin
+    test -x .busierbox/payload/bin/busybox
+    test -f .busierbox/payload/manifest.json
+    PATH=\"\$PWD/.busierbox/payload/bin:\$PATH\"
+    case \":\$PATH:\" in
+        *:\$PWD/.busierbox/payload/bin:*\$PWD/.busierbox/payload/bin:*) echo 'payload/bin duplicated in PATH' >&2; exit 1 ;;
+    esac
+    for app in sh cp ls nc; do
+        test -e \".busierbox/payload/bin/\$app\" || { echo \"missing applet symlink: \$app\" >&2; exit 1; }
+    done
+    ./busierbox list --plain | awk '\$1 == \"busybox\" || \$1 == \"tool\" {print \$2}' > listed-tools.txt
+    while IFS= read -r name; do
+        [ -n \"\$name\" ] || continue
+        test -e \".busierbox/payload/bin/\$name\" || { echo \"advertised tool missing: \$name\" >&2; exit 1; }
+    done < listed-tools.txt
+    ./busierbox sh -c 'which cp >/dev/null && which nc >/dev/null'
+    if test -x .busierbox/payload/bin/zsh; then ./busierbox zsh -fc 'command -v nc >/dev/null'; fi
+    if test -x .busierbox/payload/bin/tmux; then ./busierbox tmux -V >/dev/null; fi
+    if test -x .busierbox/payload/bin/curl; then ./busierbox curl --version >/dev/null; fi
+    if test -x .busierbox/payload/bin/strace; then ./busierbox strace -V >/dev/null; fi
+    if test -s .busierbox/payload/overlay-tools.txt; then
+        while IFS= read -r tool; do
+            [ -n \"\$tool\" ] || continue
+            test -x \".busierbox/payload/bin/\$tool\" || { echo \"overlay tool missing: \$tool\" >&2; exit 1; }
+        done < .busierbox/payload/overlay-tools.txt
+    fi
+"
+
+printf '%s\n' "glinet smoke ok"
