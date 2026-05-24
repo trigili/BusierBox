@@ -195,7 +195,7 @@ configure_target_tuple() {
         case "$choice" in
             1) configure_presets ;;
             2)
-                dialog --title "Target architecture" --menu "Select architecture:" 17 60 9 \
+                if dialog --title "Target architecture" --menu "Select architecture:" 17 60 9 \
                     "native" "Native host build" \
                     "mipsel" "MIPS little-endian" \
                     "mips" "MIPS big-endian" \
@@ -205,77 +205,95 @@ configure_target_tuple() {
                     "x86_64" "x86_64" \
                     "powerpc" "PowerPC" \
                     "riscv64" "RISC-V 64" \
-                    2>"$temp_out" || true
-                BB_TARGET_ARCH=$(cat "$temp_out" | tr -d '"')
+                    2>"$temp_out"
+                then
+                    BB_TARGET_ARCH=$(cat "$temp_out" | tr -d '"')
+                fi
                 ;;
             3)
-                dialog --title "CPU/family" --menu "Select CPU/family hint:" 15 64 6 \
+                if dialog --title "CPU/family" --menu "Select CPU/family hint:" 15 64 6 \
                     "generic" "Generic for architecture" \
                     "mips32r2-24kc" "MIPS32r2 / 24Kc-ish" \
                     "cortex-a7" "ARM Cortex-A7" \
                     "cortex-a9" "ARM Cortex-A9" \
                     "cortex-a53" "ARM Cortex-A53" \
                     "host" "Native host" \
-                    2>"$temp_out" || true
-                BB_TARGET_CPU=$(cat "$temp_out" | tr -d '"')
+                    2>"$temp_out"
+                then
+                    BB_TARGET_CPU=$(cat "$temp_out" | tr -d '"')
+                fi
                 ;;
             4)
-                dialog --title "Endianness" --menu "Select endianness:" 12 50 3 \
+                if dialog --title "Endianness" --menu "Select endianness:" 12 50 3 \
                     "auto" "Infer from architecture" \
                     "little" "Little endian" \
                     "big" "Big endian" \
-                    2>"$temp_out" || true
-                BB_TARGET_ENDIAN=$(cat "$temp_out" | tr -d '"')
+                    2>"$temp_out"
+                then
+                    BB_TARGET_ENDIAN=$(cat "$temp_out" | tr -d '"')
+                fi
                 ;;
             5)
-                dialog --title "ABI/floating point" --menu "Select ABI/floating-point profile:" 15 64 6 \
+                if dialog --title "ABI/floating point" --menu "Select ABI/floating-point profile:" 15 64 6 \
                     "default" "Default for architecture" \
                     "softfloat" "Soft float" \
                     "hardfloat" "Hard float" \
                     "eabi" "ARM EABI" \
                     "eabihf" "ARM EABI hard float" \
                     "o32" "MIPS o32" \
-                    2>"$temp_out" || true
-                BB_TARGET_ABI=$(cat "$temp_out" | tr -d '"')
+                    2>"$temp_out"
+                then
+                    BB_TARGET_ABI=$(cat "$temp_out" | tr -d '"')
+                fi
                 ;;
             6)
-                dialog --title "Libc" --menu "Select libc:" 12 50 3 \
+                if dialog --title "Libc" --menu "Select libc:" 12 50 3 \
                     "musl" "musl libc" \
                     "uclibc" "uClibc-ng" \
                     "host" "Native host libc" \
-                    2>"$temp_out" || true
-                BB_TARGET_LIBC=$(cat "$temp_out" | tr -d '"')
+                    2>"$temp_out"
+                then
+                    BB_TARGET_LIBC=$(cat "$temp_out" | tr -d '"')
+                fi
                 ;;
             7)
-                dialog --title "Kernel floor" --menu "Select kernel floor:" 15 50 6 \
+                if dialog --title "Kernel floor" --menu "Select kernel floor:" 15 50 6 \
                     "2.6" "Linux 2.6" \
                     "3.x" "Linux 3.x" \
                     "4.x" "Linux 4.x" \
                     "5.x" "Linux 5.x" \
                     "current" "Current" \
                     "host" "Native host" \
-                    2>"$temp_out" || true
-                BB_KERNEL_FLOOR=$(cat "$temp_out" | tr -d '"')
+                    2>"$temp_out"
+                then
+                    BB_KERNEL_FLOOR=$(cat "$temp_out" | tr -d '"')
+                fi
                 ;;
             8)
-                dialog --title "Static/dynamic policy" --menu "Select policy:" 12 64 3 \
+                if dialog --title "Static/dynamic policy" --menu "Select policy:" 12 64 3 \
                     "static-preferred" "Prefer static payload/core" \
                     "static-required" "Fail when static is unavailable" \
                     "dynamic" "Allow dynamic payload libraries" \
-                    2>"$temp_out" || true
-                BB_STATIC_POLICY=$(cat "$temp_out" | tr -d '"')
+                    2>"$temp_out"
+                then
+                    BB_STATIC_POLICY=$(cat "$temp_out" | tr -d '"')
+                fi
                 ;;
             9)
-                dialog --title "Payload tier" --menu "Select payload tier:" 12 60 3 \
+                if dialog --title "Payload tier" --menu "Select payload tier:" 12 60 3 \
                     "core" "BusyBox-focused core tools" \
                     "debug" "Core plus debug-heavy tools" \
                     "minimal" "Smallest practical payload" \
-                    2>"$temp_out" || true
-                BB_PAYLOAD_TIER=$(cat "$temp_out" | tr -d '"')
+                    2>"$temp_out"
+                then
+                    BB_PAYLOAD_TIER=$(cat "$temp_out" | tr -d '"')
+                fi
                 ;;
             10)
-                dialog --title "Target name override" --inputbox "Leave blank to generate from tuple fields." 9 70 "$BB_TARGET_NAME" 2>"$temp_out" || true
-                BB_TARGET_NAME=$(cat "$temp_out")
+                if dialog --title "Target name override" --inputbox "Leave blank to generate from tuple fields." 9 70 "$BB_TARGET_NAME" 2>"$temp_out"
+                then
+                    BB_TARGET_NAME=$(cat "$temp_out")
+                fi
                 ;;
             11)
                 summary=$(target_summary_text)

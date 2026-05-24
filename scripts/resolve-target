@@ -59,8 +59,13 @@ if [ "$mode" = config ]; then
     BB_TARGET_ENDIAN=${BB_TARGET_ENDIAN:-auto}
     BB_TARGET_CPU=${BB_TARGET_CPU:-generic}
     BB_TARGET_ABI=${BB_TARGET_ABI:-default}
-    BB_TARGET_LIBC=${BB_TARGET_LIBC:-host}
-    BB_KERNEL_FLOOR=${BB_KERNEL_FLOOR:-host}
+    if [ "$BB_TARGET_ARCH" = native ]; then
+        BB_TARGET_LIBC=${BB_TARGET_LIBC:-host}
+        BB_KERNEL_FLOOR=${BB_KERNEL_FLOOR:-host}
+    else
+        BB_TARGET_LIBC=${BB_TARGET_LIBC:-}
+        BB_KERNEL_FLOOR=${BB_KERNEL_FLOOR:-}
+    fi
     BB_STATIC_POLICY=${BB_STATIC_POLICY:-static-preferred}
     BB_PAYLOAD_TIER=${BB_PAYLOAD_TIER:-core}
     BB_TARGET_NAME=${BB_TARGET_NAME:-}
@@ -100,6 +105,13 @@ notes = ""
 if arch == "native":
     supported = True
     notes = "native host tuple"
+elif not libc or not kernel:
+    missing = []
+    if not libc:
+        missing.append("libc")
+    if not kernel:
+        missing.append("kernel_floor")
+    notes = "missing required tuple field(s): " + ", ".join(missing)
 elif (arch, libc) in {
     ("mipsel", "musl"),
     ("mipsel", "uclibc"),
