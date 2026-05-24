@@ -340,6 +340,15 @@ int applet_rshell_main(int argc, char **argv)
     }
 
     strcat(cmd, "set -eu; ");
+    /* Kill any leftover payload dropbear/dbclient from previous sessions so the
+     * new one can bind the configured port cleanly. */
+    strcat(cmd, "pkill -f ");
+    shquote_append(cmd, sizeof(cmd), dropbear);
+    strcat(cmd, " 2>/dev/null || true; ");
+    strcat(cmd, "pkill -f ");
+    shquote_append(cmd, sizeof(cmd), dbclient);
+    strcat(cmd, " 2>/dev/null || true; ");
+    strcat(cmd, "sleep 1; ");
     strcat(cmd, "mkdir -p ");
     shquote_append(cmd, sizeof(cmd), rootssh);
     strcat(cmd, " ");
@@ -381,14 +390,13 @@ int applet_rshell_main(int argc, char **argv)
     strcat(cmd, "echo rshell_started=yes; echo dropbear_pid=$dbpid; echo dbclient_pid=$dcpid; ");
     strcat(cmd, "echo connect_hint='ssh -p " BB_OPERATOR_REMOTE_FORWARD_PORT " root@127.0.0.1'");
 
-    /* Use popen so we can capture the dropbear PID and write it to the autorun
-     * guard lock.  This prevents a second zero-arg busierbox invocation (e.g.
-     * from inside the reverse tunnel) from triggering another rshell while
-     * dropbear is still alive. */
+    /* Use popen so we can capture the dbclient PID and write it to the autorun
+     * guard lock.  dbclient stays alive exactly as long as the tunnel is open,
+     * so a live dbclient PID means a second rshell should be blocked. */
     {
         FILE *fp;
         char line[256];
-        long dropbear_pid = -1;
+        long dbclient_pid = -1;
         int exit_status = 0;
 
         fp = popen(cmd, "r");
@@ -397,16 +405,17 @@ int applet_rshell_main(int argc, char **argv)
         while (fgets(line, sizeof(line), fp)) {
             fputs(line, stdout);
             fflush(stdout);
-            if (strncmp(line, "dropbear_pid=", 13) == 0)
-                dropbear_pid = strtol(line + 13, NULL, 10);
+            if (strncmp(line, "dbclient_pid=", 13) == 0)
+                dbclient_pid = strtol(line + 13, NULL, 10);
         }
         rc = pclose(fp);
         if (rc != -1 && WIFEXITED(rc))
             exit_status = WEXITSTATUS(rc);
 
-        /* Write/update the autorun guard lock with dropbear's PID so that
-         * subsequent zero-arg invocations see a live process and block. */
-        if (dropbear_pid > 0 && yes_value(BB_AUTORUN_GUARD_ENABLE)) {
+        /* Write the autorun guard lock with dbclient's PID.  dbclient is alive
+         * exactly as long as the reverse tunnel is open, so zero-arg reentry
+         * while the tunnel is up will hit a live PID and be blocked. */
+        if (dbclient_pid > 0 && yes_value(BB_AUTORUN_GUARD_ENABLE)) {
             char lock_path[PATH_MAX];
             int lfd;
             const char *gp = autorun_guard_path();
@@ -415,7 +424,7 @@ int applet_rshell_main(int argc, char **argv)
             lfd = open(lock_path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
             if (lfd >= 0) {
                 dprintf(lfd, "mode=rshell\npid=%ld\nstarted_at=%ld\nartifact_tier=%s\n",
-                        dropbear_pid, (long)time(NULL), BUSIERBOX_ARTIFACT_TIER);
+                        dbclient_pid, (long)time(NULL), BUSIERBOX_ARTIFACT_TIER);
                 close(lfd);
             }
         }
