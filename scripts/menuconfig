@@ -347,6 +347,11 @@ configure_busybox_group_applets() {
     has_item "$BB_BUSYBOX_GROUPS" "$_group" && _group_enabled=yes
 
     scripts/busybox-applet-map | awk -v group="$_group" -v group_enabled="$_group_enabled" -v overrides="$BB_BUSYBOX_APPLET_OVERRIDES" '
+        function quote(s,    q) {
+            q = sprintf("%c", 39)
+            gsub(q, q "\\" q q, s)
+            return q s q
+        }
         BEGIN {
             split(overrides, o)
             for (i in o) {
@@ -360,8 +365,7 @@ configure_busybox_group_applets() {
             if ($2 in disabled) state = "off"
             desc = ""
             for (i = 4; i <= NF; i++) desc = desc (i == 4 ? "" : " ") $i
-            gsub(/\047/, "'\\''", desc)
-            printf "'\''%s'\'' '\''%s'\'' '\''%s'\'' ", $2, desc, state
+            printf "%s %s %s ", quote($2), quote(desc), quote(state)
         }
     ' >"$temp_cfg"
 
