@@ -486,6 +486,23 @@ static int handle_send_file(int fd, const char *cmd, const struct opts *opts)
     return send_result(fd, "send_file", 1, extra);
 }
 
+static int json_get_bool(const char *json, const char *key)
+{
+    char pat[96];
+    const char *p;
+    snprintf(pat, sizeof(pat), "\"%s\"", key);
+    p = strstr(json, pat);
+    if (!p)
+        return 0;
+    p = strchr(p + strlen(pat), ':');
+    if (!p)
+        return 0;
+    p++;
+    while (*p == ' ' || *p == '\t')
+        p++;
+    return strncmp(p, "true", 4) == 0;
+}
+
 static int handle_exec(int fd, const char *cmd)
 {
     char *argv[16];
@@ -495,9 +512,36 @@ static int handle_exec(int fd, const char *cmd)
     size_t elen = 0;
     pid_t pid;
     int i;
+    int background = json_get_bool(cmd, "background");
+
     argc = json_get_argv(cmd, argv, 16);
     if (argc == 0)
         return send_result(fd, "exec", 0, "\"message\":\"empty argv\"");
+
+    if (background) {
+        /* Double-fork: parent returns immediately; grandchild runs detached. */
+        pid = fork();
+        if (pid < 0)
+            return send_result(fd, "exec", 0, "\"message\":\"fork failed\"");
+        if (pid == 0) {
+            pid_t gp = fork();
+            if (gp != 0)
+                _exit(0);
+            setsid();
+            execv(argv[0], argv);
+            _exit(127);
+        }
+        waitpid(pid, &status, 0);
+        {
+            char extra[64];
+            snprintf(extra, sizeof(extra), "\"background\":true,\"pid\":%ld", (long)pid);
+            send_result(fd, "exec", 1, extra);
+        }
+        for (i = 0; i < argc; i++)
+            free(argv[i]);
+        return 0;
+    }
+
     if (pipe(pfd) != 0)
         return send_result(fd, "exec", 0, "\"message\":\"pipe failed\"");
     pid = fork();

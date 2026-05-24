@@ -45,9 +45,24 @@ BB_STAGER_RETRY_DELAY="2"
 BB_STAGER_OUTPUT_PATH="/tmp/busierbox-full"
 BB_STAGER_AUTO_EXEC="doctor"
 BB_STAGER_CALLBACK_SHELL="sh"
+BB_FULL_CALLBACK_ENABLE="no"
+BB_FULL_CALLBACK_HOST=""
+BB_FULL_CALLBACK_PORT="4444"
+BB_FULL_CALLBACK_TOKEN=""
+BB_FULL_CALLBACK_TIMEOUT="10"
+BB_FULL_CALLBACK_RETRY_COUNT="3"
+BB_FULL_CALLBACK_RETRY_DELAY="2"
+BB_FULL_CALLBACK_AUTO_EXEC="doctor"
 BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
 BB_HEAVY_TOOLS=""
 BB_DROPBEAR_SERVER_MODE="no"
+BB_DROPBEAR_BIND_HOST="0.0.0.0"
+BB_DROPBEAR_LISTEN_PORT="22"
+BB_DROPBEAR_AUTHORIZED_KEYS_FILE=""
+BB_DROPBEAR_KEYTYPES="rsa ecdsa"
+BB_DROPBEAR_NO_PASSWORD_AUTH="no"
+BB_DROPBEAR_NO_ROOT_PASSWORD="no"
+BB_DROPBEAR_PREGENERATE_HOSTKEY="no"
 BB_BUSYBOX_APPLETS=""
 BB_BUSYBOX_APPLET_OVERRIDES=""
 BB_DOTFILE_PROFILE="default-comfort"
@@ -128,9 +143,24 @@ BB_STAGER_RETRY_DELAY="$BB_STAGER_RETRY_DELAY"
 BB_STAGER_OUTPUT_PATH="$BB_STAGER_OUTPUT_PATH"
 BB_STAGER_AUTO_EXEC="$BB_STAGER_AUTO_EXEC"
 BB_STAGER_CALLBACK_SHELL="$BB_STAGER_CALLBACK_SHELL"
+BB_FULL_CALLBACK_ENABLE="$BB_FULL_CALLBACK_ENABLE"
+BB_FULL_CALLBACK_HOST="$BB_FULL_CALLBACK_HOST"
+BB_FULL_CALLBACK_PORT="$BB_FULL_CALLBACK_PORT"
+BB_FULL_CALLBACK_TOKEN="$BB_FULL_CALLBACK_TOKEN"
+BB_FULL_CALLBACK_TIMEOUT="$BB_FULL_CALLBACK_TIMEOUT"
+BB_FULL_CALLBACK_RETRY_COUNT="$BB_FULL_CALLBACK_RETRY_COUNT"
+BB_FULL_CALLBACK_RETRY_DELAY="$BB_FULL_CALLBACK_RETRY_DELAY"
+BB_FULL_CALLBACK_AUTO_EXEC="$BB_FULL_CALLBACK_AUTO_EXEC"
 BB_BUSYBOX_GROUPS="$BB_BUSYBOX_GROUPS"
 BB_HEAVY_TOOLS="$BB_HEAVY_TOOLS"
 BB_DROPBEAR_SERVER_MODE="$BB_DROPBEAR_SERVER_MODE"
+BB_DROPBEAR_BIND_HOST="$BB_DROPBEAR_BIND_HOST"
+BB_DROPBEAR_LISTEN_PORT="$BB_DROPBEAR_LISTEN_PORT"
+BB_DROPBEAR_AUTHORIZED_KEYS_FILE="$BB_DROPBEAR_AUTHORIZED_KEYS_FILE"
+BB_DROPBEAR_KEYTYPES="$BB_DROPBEAR_KEYTYPES"
+BB_DROPBEAR_NO_PASSWORD_AUTH="$BB_DROPBEAR_NO_PASSWORD_AUTH"
+BB_DROPBEAR_NO_ROOT_PASSWORD="$BB_DROPBEAR_NO_ROOT_PASSWORD"
+BB_DROPBEAR_PREGENERATE_HOSTKEY="$BB_DROPBEAR_PREGENERATE_HOSTKEY"
 BB_BUSYBOX_APPLETS="$BB_BUSYBOX_APPLETS"
 BB_BUSYBOX_APPLET_OVERRIDES="$BB_BUSYBOX_APPLET_OVERRIDES"
 BB_DOTFILE_PROFILE="$BB_DOTFILE_PROFILE"
@@ -399,63 +429,144 @@ configure_artifact_outputs() {
     return 0
 }
 
-configure_stager_options() {
-    dialog --title "Stager Options" \
-        --checklist "Configure optional stager capabilities. Callback support is explicit and non-persistent." 20 82 10 \
-        "survey" "Include survey applet" "$(onoff "$BB_STAGER_INCLUDE_SURVEY")" \
-        "doctor" "Include doctor applet" "$(onoff "$BB_STAGER_INCLUDE_DOCTOR")" \
-        "config-info" "Include config-info applet" "$(onoff "$BB_STAGER_INCLUDE_CONFIG_INFO")" \
-        "extract" "Include extract applet" "$(onoff "$BB_STAGER_INCLUDE_EXTRACT")" \
-        "busybox" "Include minimal BusyBox shell payload" "$(onoff "$BB_STAGER_INCLUDE_MINIMAL_BUSYBOX")" \
-        "wget" "Include wget in stager payload when practical" "$(onoff "$BB_STAGER_INCLUDE_WGET")" \
-        "curl" "Include curl in stager payload when practical" "$(onoff "$BB_STAGER_INCLUDE_CURL")" \
-        "nc" "Include nc in stager payload when practical" "$(onoff "$BB_STAGER_INCLUDE_NC")" \
-        "fetch-full" "Include fetch-full helper in legacy launcher stager" "$(onoff "$BB_STAGER_FETCH_FULL")" \
-        "callback" "Enable compiled callback on no-argument stager run" "$(onoff "$BB_STAGER_CALLBACK_ENABLE")" \
+configure_stager_features() {
+    dialog --title "Stager / Applet Features" \
+        --checklist "Select applets to compile into the stager binary:" 18 82 9 \
+        "survey"     "Include survey applet"                           "$(onoff "$BB_STAGER_INCLUDE_SURVEY")" \
+        "doctor"     "Include doctor applet"                           "$(onoff "$BB_STAGER_INCLUDE_DOCTOR")" \
+        "config-info" "Include config-info applet"                    "$(onoff "$BB_STAGER_INCLUDE_CONFIG_INFO")" \
+        "extract"    "Include extract applet"                          "$(onoff "$BB_STAGER_INCLUDE_EXTRACT")" \
+        "busybox"    "Include minimal BusyBox shell payload"           "$(onoff "$BB_STAGER_INCLUDE_MINIMAL_BUSYBOX")" \
+        "wget"       "Include wget in stager payload when practical"   "$(onoff "$BB_STAGER_INCLUDE_WGET")" \
+        "curl"       "Include curl in stager payload when practical"   "$(onoff "$BB_STAGER_INCLUDE_CURL")" \
+        "nc"         "Include nc in stager payload when practical"     "$(onoff "$BB_STAGER_INCLUDE_NC")" \
+        "fetch-full" "Include fetch-full helper in legacy stager"      "$(onoff "$BB_STAGER_FETCH_FULL")" \
         2>"$temp_out" || return 0
     _sel=$(cat "$temp_out" | tr -d '"')
-    BB_STAGER_INCLUDE_SURVEY=no
-    BB_STAGER_INCLUDE_DOCTOR=no
-    BB_STAGER_INCLUDE_CONFIG_INFO=no
-    BB_STAGER_INCLUDE_EXTRACT=no
-    BB_STAGER_INCLUDE_MINIMAL_BUSYBOX=no
-    BB_STAGER_INCLUDE_WGET=no
-    BB_STAGER_INCLUDE_CURL=no
-    BB_STAGER_INCLUDE_NC=no
-    BB_STAGER_FETCH_FULL=no
-    BB_STAGER_CALLBACK_ENABLE=no
-    has_item "$_sel" survey && BB_STAGER_INCLUDE_SURVEY=yes
-    has_item "$_sel" doctor && BB_STAGER_INCLUDE_DOCTOR=yes
+    BB_STAGER_INCLUDE_SURVEY=no; BB_STAGER_INCLUDE_DOCTOR=no
+    BB_STAGER_INCLUDE_CONFIG_INFO=no; BB_STAGER_INCLUDE_EXTRACT=no
+    BB_STAGER_INCLUDE_MINIMAL_BUSYBOX=no; BB_STAGER_INCLUDE_WGET=no
+    BB_STAGER_INCLUDE_CURL=no; BB_STAGER_INCLUDE_NC=no; BB_STAGER_FETCH_FULL=no
+    has_item "$_sel" survey      && BB_STAGER_INCLUDE_SURVEY=yes
+    has_item "$_sel" doctor      && BB_STAGER_INCLUDE_DOCTOR=yes
     has_item "$_sel" config-info && BB_STAGER_INCLUDE_CONFIG_INFO=yes
-    has_item "$_sel" extract && BB_STAGER_INCLUDE_EXTRACT=yes
-    has_item "$_sel" busybox && BB_STAGER_INCLUDE_MINIMAL_BUSYBOX=yes
-    has_item "$_sel" wget && BB_STAGER_INCLUDE_WGET=yes
-    has_item "$_sel" curl && BB_STAGER_INCLUDE_CURL=yes
-    has_item "$_sel" nc && BB_STAGER_INCLUDE_NC=yes
-    has_item "$_sel" fetch-full && BB_STAGER_FETCH_FULL=yes
-    has_item "$_sel" callback && BB_STAGER_CALLBACK_ENABLE=yes
-    if [ "$BB_STAGER_CALLBACK_ENABLE" = yes ]; then
-        dialog --title "Stager Callback Host" --inputbox "Callback host/IP. Leave blank to configure later." 9 70 "$BB_STAGER_CALLBACK_HOST" 2>"$temp_out" || true
-        BB_STAGER_CALLBACK_HOST=$(cat "$temp_out")
-        dialog --title "Stager Callback Port" --inputbox "Callback port. Leave blank to configure later." 9 70 "$BB_STAGER_CALLBACK_PORT" 2>"$temp_out" || true
-        BB_STAGER_CALLBACK_PORT=$(cat "$temp_out")
-        dialog --title "Stager Token" --inputbox "Shared token. Generate one with: openssl rand -hex 16" 9 78 "$BB_STAGER_TOKEN" 2>"$temp_out" || true
-        BB_STAGER_TOKEN=$(cat "$temp_out")
-        dialog --title "Stager Retry Count" --inputbox "Connection attempts before giving up." 9 70 "$BB_STAGER_RETRY_COUNT" 2>"$temp_out" || true
-        BB_STAGER_RETRY_COUNT=$(cat "$temp_out")
-        dialog --title "Stager Retry Delay" --inputbox "Seconds between callback attempts." 9 70 "$BB_STAGER_RETRY_DELAY" 2>"$temp_out" || true
-        BB_STAGER_RETRY_DELAY=$(cat "$temp_out")
-        dialog --title "Received Full Artifact Path" --inputbox "Where the stager should write the received full artifact." 9 78 "$BB_STAGER_OUTPUT_PATH" 2>"$temp_out" || true
-        BB_STAGER_OUTPUT_PATH=$(cat "$temp_out")
-        dialog --title "Auto-exec After Receive" --radiolist "Select explicit post-upload action:" 13 60 3 \
-            "none" "Do not run received artifact" "$([ "$BB_STAGER_AUTO_EXEC" = none ] && printf on || printf off)" \
-            "doctor" "Run received artifact doctor" "$([ "$BB_STAGER_AUTO_EXEC" = doctor ] && printf on || printf off)" \
-            "survey" "Run received artifact survey" "$([ "$BB_STAGER_AUTO_EXEC" = survey ] && printf on || printf off)" \
-            2>"$temp_out" || true
-        _auto_exec=$(cat "$temp_out" | tr -d '"')
-        [ -n "$_auto_exec" ] && BB_STAGER_AUTO_EXEC="$_auto_exec"
-    fi
+    has_item "$_sel" extract     && BB_STAGER_INCLUDE_EXTRACT=yes
+    has_item "$_sel" busybox     && BB_STAGER_INCLUDE_MINIMAL_BUSYBOX=yes
+    has_item "$_sel" wget        && BB_STAGER_INCLUDE_WGET=yes
+    has_item "$_sel" curl        && BB_STAGER_INCLUDE_CURL=yes
+    has_item "$_sel" nc          && BB_STAGER_INCLUDE_NC=yes
+    has_item "$_sel" fetch-full  && BB_STAGER_FETCH_FULL=yes
     return 0
+}
+
+configure_stager_callback() {
+    while :; do
+        _cb_status="disabled"
+        [ "$BB_STAGER_CALLBACK_ENABLE" = yes ] && _cb_status="ENABLED"
+        _host_disp="${BB_STAGER_CALLBACK_HOST:-not set}"
+        _tok_disp="not set"
+        [ -n "$BB_STAGER_TOKEN" ] && _tok_disp="set (${#BB_STAGER_TOKEN} chars)"
+        dialog --title "Stager / Callback Configuration" \
+            --menu "Stager callback: $_cb_status\nThe stager calls back to your server on first run (no args).\nConnection is explicit and non-persistent." 18 78 9 \
+            "1" "Enable callback: $BB_STAGER_CALLBACK_ENABLE" \
+            "2" "Server host: $_host_disp" \
+            "3" "Server port: $BB_STAGER_CALLBACK_PORT" \
+            "4" "Token: $_tok_disp" \
+            "5" "Connect timeout: ${BB_STAGER_CONNECT_TIMEOUT}s" \
+            "6" "Retry count: $BB_STAGER_RETRY_COUNT" \
+            "7" "Retry delay: ${BB_STAGER_RETRY_DELAY}s" \
+            "8" "Output path (where to write received artifact): $BB_STAGER_OUTPUT_PATH" \
+            "9" "Auto-exec after receive: $BB_STAGER_AUTO_EXEC" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1)
+                if [ "$BB_STAGER_CALLBACK_ENABLE" = yes ]; then
+                    BB_STAGER_CALLBACK_ENABLE=no
+                else
+                    BB_STAGER_CALLBACK_ENABLE=yes
+                fi
+                ;;
+            2)
+                dialog --title "Stager Callback Host" \
+                    --inputbox "Callback server host/IP (your workstation). Leave blank to configure later." \
+                    9 72 "$BB_STAGER_CALLBACK_HOST" 2>"$temp_out" || true
+                BB_STAGER_CALLBACK_HOST=$(cat "$temp_out")
+                ;;
+            3)
+                dialog --title "Stager Callback Port" \
+                    --inputbox "Server port (must match busierbox-server --listen port)." \
+                    9 60 "$BB_STAGER_CALLBACK_PORT" 2>"$temp_out" || true
+                BB_STAGER_CALLBACK_PORT=$(cat "$temp_out")
+                ;;
+            4)
+                dialog --title "Stager Token" \
+                    --inputbox "Shared token. Generate with: openssl rand -hex 16\nMust match busierbox-server --token." \
+                    10 78 "$BB_STAGER_TOKEN" 2>"$temp_out" || true
+                BB_STAGER_TOKEN=$(cat "$temp_out")
+                ;;
+            5)
+                dialog --title "Connect Timeout" \
+                    --inputbox "Seconds before a connection attempt times out." \
+                    9 60 "$BB_STAGER_CONNECT_TIMEOUT" 2>"$temp_out" || true
+                BB_STAGER_CONNECT_TIMEOUT=$(cat "$temp_out")
+                ;;
+            6)
+                dialog --title "Retry Count" \
+                    --inputbox "Number of connection attempts before giving up." \
+                    9 60 "$BB_STAGER_RETRY_COUNT" 2>"$temp_out" || true
+                BB_STAGER_RETRY_COUNT=$(cat "$temp_out")
+                ;;
+            7)
+                dialog --title "Retry Delay" \
+                    --inputbox "Seconds between connection attempts." \
+                    9 60 "$BB_STAGER_RETRY_DELAY" 2>"$temp_out" || true
+                BB_STAGER_RETRY_DELAY=$(cat "$temp_out")
+                ;;
+            8)
+                dialog --title "Output Path" \
+                    --inputbox "Where the stager writes the received full artifact on target." \
+                    9 78 "$BB_STAGER_OUTPUT_PATH" 2>"$temp_out" || true
+                BB_STAGER_OUTPUT_PATH=$(cat "$temp_out")
+                ;;
+            9)
+                dialog --title "Auto-exec After Receive" \
+                    --radiolist "Command to run on received artifact after download:" 13 60 3 \
+                    "none"   "Do not run received artifact" \
+                    "$([ "$BB_STAGER_AUTO_EXEC" = none   ] && printf on || printf off)" \
+                    "doctor" "Run doctor (recommended)" \
+                    "$([ "$BB_STAGER_AUTO_EXEC" = doctor ] && printf on || printf off)" \
+                    "survey" "Run survey only" \
+                    "$([ "$BB_STAGER_AUTO_EXEC" = survey ] && printf on || printf off)" \
+                    2>"$temp_out" || true
+                _auto_exec=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_auto_exec" ] && BB_STAGER_AUTO_EXEC="$_auto_exec"
+                ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+configure_stager_options() {
+    while :; do
+        _feat_summary="survey=$BB_STAGER_INCLUDE_SURVEY doctor=$BB_STAGER_INCLUDE_DOCTOR extract=$BB_STAGER_INCLUDE_EXTRACT"
+        _cb_summary="$BB_STAGER_CALLBACK_ENABLE"
+        [ "$BB_STAGER_CALLBACK_ENABLE" = yes ] && \
+            _cb_summary="ENABLED host=${BB_STAGER_CALLBACK_HOST:-?} port=$BB_STAGER_CALLBACK_PORT"
+        dialog --title "BusierBox menuconfig / Stager Options" \
+            --menu "Configure the stager binary. The stager is a small bootstrap binary\nthat calls back and receives the full artifact." 16 82 4 \
+            "1" "Applet features:  $_feat_summary" \
+            "2" "Callback config:  $_cb_summary" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1) configure_stager_features ;;
+            2) configure_stager_callback ;;
+            0) return 0 ;;
+        esac
+    done
 }
 
 busybox_group_status() {
@@ -690,6 +801,20 @@ check_gdbserver_compat_interactive() {
     esac
 }
 
+_overlay_mkdir() {
+    _root=$1
+    [ -n "$_root" ] || return 0
+    mkdir -p \
+        "$_root/common/bin" "$_root/common/lib" \
+        "$_root/common/share" "$_root/common/home"
+    _tname="${BB_TARGET_NAME:-${BB_TARGET_PRESET:-native}}"
+    [ -n "$_tname" ] && mkdir -p \
+        "$_root/$_tname/bin" "$_root/$_tname/lib" \
+        "$_root/$_tname/share" "$_root/$_tname/home"
+    dialog --title "Overlay directories created" \
+        --msgbox "Created overlay structure under:\n  $_root/common/\n  $_root/$_tname/" 10 72
+}
+
 configure_overlay() {
     while :; do
         dialog --title "Payload / User Overlay" \
@@ -697,6 +822,7 @@ configure_overlay() {
             "1" "Overlay enabled: $BB_USER_OVERLAY_ENABLE" \
             "2" "Overlay root: ${BB_USER_OVERLAY_ROOT:-not set}" \
             "3" "Allow override existing files: $BB_USER_OVERLAY_ALLOW_OVERRIDE" \
+            "4" "Create overlay directories now" \
             "?" "Layout: overlay-root/common/ and overlay-root/<target>/  are applied" \
             "0" "Back" \
             2>"$temp_out" || return 0
@@ -707,6 +833,13 @@ configure_overlay() {
                     BB_USER_OVERLAY_ENABLE="no"
                 else
                     BB_USER_OVERLAY_ENABLE="yes"
+                    if [ -z "${BB_USER_OVERLAY_ROOT:-}" ]; then
+                        dialog --title "Overlay root path" \
+                            --inputbox "Path to overlay root directory.\n\nLayout: <root>/common/{bin,lib,share,home} and <root>/<target>/{bin,lib,share,home}" \
+                            11 78 "" 2>"$temp_out" || true
+                        BB_USER_OVERLAY_ROOT=$(cat "$temp_out")
+                        _overlay_mkdir "$BB_USER_OVERLAY_ROOT"
+                    fi
                 fi
                 ;;
             2)
@@ -715,12 +848,21 @@ configure_overlay() {
                     11 78 "${BB_USER_OVERLAY_ROOT:-}" \
                     2>"$temp_out" || true
                 BB_USER_OVERLAY_ROOT=$(cat "$temp_out")
+                _overlay_mkdir "$BB_USER_OVERLAY_ROOT"
                 ;;
             3)
                 if [ "$BB_USER_OVERLAY_ALLOW_OVERRIDE" = "yes" ]; then
                     BB_USER_OVERLAY_ALLOW_OVERRIDE="no"
                 else
                     BB_USER_OVERLAY_ALLOW_OVERRIDE="yes"
+                fi
+                ;;
+            4)
+                if [ -z "${BB_USER_OVERLAY_ROOT:-}" ]; then
+                    dialog --title "No overlay root set" \
+                        --msgbox "Set an overlay root path (option 2) first." 8 50
+                else
+                    _overlay_mkdir "$BB_USER_OVERLAY_ROOT"
                 fi
                 ;;
             0) return 0 ;;
@@ -799,20 +941,180 @@ configure_heavy_tools() {
 
 configure_dropbear() {
     if ! has_item "$BB_HEAVY_TOOLS" "dropbear"; then
-        dialog --title "Payload / Dropbear" --msgbox "Dropbear is not selected in Heavy tools." 8 50
+        dialog --title "Payload / Dropbear" \
+            --msgbox "Dropbear is not selected in Heavy tools.\nEnable it under Heavy Tools first." 9 56
         return 0
     fi
-    status_db_server=off
-    [ "$BB_DROPBEAR_SERVER_MODE" = "yes" ] && status_db_server=on
-    dialog --title "Payload / Dropbear options" \
-        --checklist "Dropbear configuration sub-options:" 12 64 2 \
-        "server" "Enable server wrapper (auto-generate host keys)" "$status_db_server" \
-        2>"$temp_out" || return 0
-    if grep -q "server" "$temp_out"; then
-        BB_DROPBEAR_SERVER_MODE="yes"
-    else
-        BB_DROPBEAR_SERVER_MODE="no"
-    fi
+    while :; do
+        _auth_keys_disp="${BB_DROPBEAR_AUTHORIZED_KEYS_FILE:-none}"
+        _pregen_info=""
+        [ "$BB_DROPBEAR_PREGENERATE_HOSTKEY" = yes ] && \
+            _pregen_info=" (key will be embedded at build time)"
+        dialog --title "Payload / Dropbear Options" \
+            --menu "Configure how Dropbear is staged and launched.\ndropbear = SSH server  dbclient = SSH client  dropbearkey = key generator" 22 80 10 \
+            "1" "Server mode (listen for incoming SSH):    $BB_DROPBEAR_SERVER_MODE" \
+            "2" "Server bind host:                        ${BB_DROPBEAR_BIND_HOST:-0.0.0.0}" \
+            "3" "Server listen port:                      ${BB_DROPBEAR_LISTEN_PORT:-22}" \
+            "4" "Authorized keys file (stage from host):  $_auth_keys_disp" \
+            "5" "Key types to stage/generate:             ${BB_DROPBEAR_KEYTYPES:-rsa ecdsa}" \
+            "6" "Pre-generate host key at build time:     $BB_DROPBEAR_PREGENERATE_HOSTKEY$_pregen_info" \
+            "7" "Disable password authentication:         $BB_DROPBEAR_NO_PASSWORD_AUTH" \
+            "8" "Disable root password login:             $BB_DROPBEAR_NO_ROOT_PASSWORD" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1)
+                if [ "$BB_DROPBEAR_SERVER_MODE" = yes ]; then
+                    BB_DROPBEAR_SERVER_MODE=no
+                else
+                    BB_DROPBEAR_SERVER_MODE=yes
+                fi
+                ;;
+            2)
+                dialog --title "Dropbear Bind Host" \
+                    --inputbox "Interface to listen on (0.0.0.0 = all, 127.0.0.1 = loopback only).\nUsed by server mode wrapper." \
+                    10 72 "${BB_DROPBEAR_BIND_HOST:-0.0.0.0}" 2>"$temp_out" || true
+                BB_DROPBEAR_BIND_HOST=$(cat "$temp_out")
+                ;;
+            3)
+                dialog --title "Dropbear Listen Port" \
+                    --inputbox "Port for server mode. Use 22 for standard SSH,\nor a high port (e.g. 2222) to avoid conflicts." \
+                    10 72 "${BB_DROPBEAR_LISTEN_PORT:-22}" 2>"$temp_out" || true
+                BB_DROPBEAR_LISTEN_PORT=$(cat "$temp_out")
+                ;;
+            4)
+                dialog --title "Authorized Keys File" \
+                    --inputbox "Path to an authorized_keys file on this build machine.\nIt will be staged to payload/home/.ssh/authorized_keys.\nLeave blank to skip." \
+                    11 78 "$BB_DROPBEAR_AUTHORIZED_KEYS_FILE" 2>"$temp_out" || true
+                _f=$(cat "$temp_out")
+                if [ -n "$_f" ] && [ ! -f "$_f" ]; then
+                    dialog --title "Warning" --msgbox "File not found: $_f\nValue will be saved but staging may fail at build time." 8 72
+                fi
+                BB_DROPBEAR_AUTHORIZED_KEYS_FILE="$_f"
+                ;;
+            5)
+                dialog --title "Key Types" \
+                    --checklist "Select key types to stage/generate for Dropbear:" 12 64 3 \
+                    "rsa"     "RSA key (widely compatible)"     "$(has_item "$BB_DROPBEAR_KEYTYPES" rsa    && printf on || printf off)" \
+                    "ecdsa"   "ECDSA key (faster handshake)"    "$(has_item "$BB_DROPBEAR_KEYTYPES" ecdsa  && printf on || printf off)" \
+                    "ed25519" "Ed25519 key (modern, compact)"   "$(has_item "$BB_DROPBEAR_KEYTYPES" ed25519 && printf on || printf off)" \
+                    2>"$temp_out" || true
+                _sel=$(cat "$temp_out" | tr -d '"')
+                BB_DROPBEAR_KEYTYPES=""
+                has_item "$_sel" rsa     && BB_DROPBEAR_KEYTYPES="${BB_DROPBEAR_KEYTYPES:+$BB_DROPBEAR_KEYTYPES }rsa"
+                has_item "$_sel" ecdsa   && BB_DROPBEAR_KEYTYPES="${BB_DROPBEAR_KEYTYPES:+$BB_DROPBEAR_KEYTYPES }ecdsa"
+                has_item "$_sel" ed25519 && BB_DROPBEAR_KEYTYPES="${BB_DROPBEAR_KEYTYPES:+$BB_DROPBEAR_KEYTYPES }ed25519"
+                [ -z "$BB_DROPBEAR_KEYTYPES" ] && BB_DROPBEAR_KEYTYPES="rsa"
+                ;;
+            6)
+                if [ "$BB_DROPBEAR_PREGENERATE_HOSTKEY" = yes ]; then
+                    BB_DROPBEAR_PREGENERATE_HOSTKEY=no
+                else
+                    dialog --title "Pre-generate Host Key" \
+                        --yesno "Generate a Dropbear RSA host key during the build and stage it\ninto the payload? The same key will be in every artifact built\nfrom this config — appropriate for single-target deployments.\n\nContinue?" 12 72 && \
+                        BB_DROPBEAR_PREGENERATE_HOSTKEY=yes || true
+                fi
+                ;;
+            7)
+                if [ "$BB_DROPBEAR_NO_PASSWORD_AUTH" = yes ]; then
+                    BB_DROPBEAR_NO_PASSWORD_AUTH=no
+                else
+                    BB_DROPBEAR_NO_PASSWORD_AUTH=yes
+                fi
+                ;;
+            8)
+                if [ "$BB_DROPBEAR_NO_ROOT_PASSWORD" = yes ]; then
+                    BB_DROPBEAR_NO_ROOT_PASSWORD=no
+                else
+                    BB_DROPBEAR_NO_ROOT_PASSWORD=yes
+                fi
+                ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+configure_full_callback() {
+    while :; do
+        _cb_status="disabled"
+        [ "$BB_FULL_CALLBACK_ENABLE" = yes ] && _cb_status="ENABLED"
+        _host_disp="${BB_FULL_CALLBACK_HOST:-not set}"
+        _tok_disp="not set"
+        [ -n "$BB_FULL_CALLBACK_TOKEN" ] && _tok_disp="set (${#BB_FULL_CALLBACK_TOKEN} chars)"
+        dialog --title "Full Artifact / Callback Configuration" \
+            --menu "Full artifact callback: $_cb_status\n'busierbox callback' connects to your operator server.\nRun after full artifact is deployed — no stager needed." 18 78 9 \
+            "1" "Enable compiled-in callback defaults: $BB_FULL_CALLBACK_ENABLE" \
+            "2" "Server host: $_host_disp" \
+            "3" "Server port: $BB_FULL_CALLBACK_PORT" \
+            "4" "Token: $_tok_disp" \
+            "5" "Connect timeout: ${BB_FULL_CALLBACK_TIMEOUT}s" \
+            "6" "Retry count: $BB_FULL_CALLBACK_RETRY_COUNT" \
+            "7" "Retry delay: ${BB_FULL_CALLBACK_RETRY_DELAY}s" \
+            "8" "Auto-exec after receive: $BB_FULL_CALLBACK_AUTO_EXEC" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1)
+                if [ "$BB_FULL_CALLBACK_ENABLE" = yes ]; then
+                    BB_FULL_CALLBACK_ENABLE=no
+                else
+                    BB_FULL_CALLBACK_ENABLE=yes
+                fi
+                ;;
+            2)
+                dialog --title "Full Callback Host" \
+                    --inputbox "Operator server host/IP. Leave blank to always use --host at runtime." \
+                    9 72 "$BB_FULL_CALLBACK_HOST" 2>"$temp_out" || true
+                BB_FULL_CALLBACK_HOST=$(cat "$temp_out")
+                ;;
+            3)
+                dialog --title "Full Callback Port" \
+                    --inputbox "Server port (must match busierbox-server --listen port)." \
+                    9 60 "$BB_FULL_CALLBACK_PORT" 2>"$temp_out" || true
+                BB_FULL_CALLBACK_PORT=$(cat "$temp_out")
+                ;;
+            4)
+                dialog --title "Full Callback Token" \
+                    --inputbox "Shared token. Generate with: openssl rand -hex 16\nMust match busierbox-server --token." \
+                    10 78 "$BB_FULL_CALLBACK_TOKEN" 2>"$temp_out" || true
+                BB_FULL_CALLBACK_TOKEN=$(cat "$temp_out")
+                ;;
+            5)
+                dialog --title "Connect Timeout" \
+                    --inputbox "Seconds before a connection attempt times out." \
+                    9 60 "$BB_FULL_CALLBACK_TIMEOUT" 2>"$temp_out" || true
+                BB_FULL_CALLBACK_TIMEOUT=$(cat "$temp_out")
+                ;;
+            6)
+                dialog --title "Retry Count" \
+                    --inputbox "Number of connection attempts before giving up." \
+                    9 60 "$BB_FULL_CALLBACK_RETRY_COUNT" 2>"$temp_out" || true
+                BB_FULL_CALLBACK_RETRY_COUNT=$(cat "$temp_out")
+                ;;
+            7)
+                dialog --title "Retry Delay" \
+                    --inputbox "Seconds between connection attempts." \
+                    9 60 "$BB_FULL_CALLBACK_RETRY_DELAY" 2>"$temp_out" || true
+                BB_FULL_CALLBACK_RETRY_DELAY=$(cat "$temp_out")
+                ;;
+            8)
+                dialog --title "Auto-exec After Receive" \
+                    --radiolist "Command to run on received artifact after download:" 13 60 3 \
+                    "none"   "Do not run received artifact" \
+                    "$([ "$BB_FULL_CALLBACK_AUTO_EXEC" = none   ] && printf on || printf off)" \
+                    "doctor" "Run doctor (recommended)" \
+                    "$([ "$BB_FULL_CALLBACK_AUTO_EXEC" = doctor ] && printf on || printf off)" \
+                    "survey" "Run survey only" \
+                    "$([ "$BB_FULL_CALLBACK_AUTO_EXEC" = survey ] && printf on || printf off)" \
+                    2>"$temp_out" || true
+                _auto_exec=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_auto_exec" ] && BB_FULL_CALLBACK_AUTO_EXEC="$_auto_exec"
+                ;;
+            0) return 0 ;;
+        esac
+    done
 }
 
 configure_dotfiles() {
@@ -857,7 +1159,7 @@ show_tool_warnings() {
 configure_payload() {
     while :; do
         dialog --title "BusierBox menuconfig / Payload Options" \
-            --menu "Choose a submenu:" 22 78 12 \
+            --menu "Choose a submenu:" 24 78 13 \
             "1" "Artifact outputs: full=$BB_BUILD_FULL stager=$BB_BUILD_STAGER core=$BB_BUILD_INTERNAL_CORE" \
             "2" "Stager options" \
             "3" "Archive format: $BB_PAYLOAD_FORMAT" \
@@ -869,6 +1171,7 @@ configure_payload() {
             "9" "User overlay (stage extra binaries): $BB_USER_OVERLAY_ENABLE" \
             "10" "gdbserver provider: $BB_GDBSERVER_PROVIDER" \
             "11" "Payload version: $BB_PAYLOAD_VERSION" \
+            "12" "Full artifact callback: $BB_FULL_CALLBACK_ENABLE" \
             "0" "Back" \
             2>"$temp_out" || return 0
         choice=$(cat "$temp_out")
@@ -887,6 +1190,7 @@ configure_payload() {
                 dialog --title "Payload version" --inputbox "Payload version string:" 9 60 "$BB_PAYLOAD_VERSION" 2>"$temp_out" || true
                 BB_PAYLOAD_VERSION=$(cat "$temp_out")
                 ;;
+            12) configure_full_callback ;;
             0) return 0 ;;
         esac
     done
@@ -894,7 +1198,30 @@ configure_payload() {
 
 show_summary() {
     summary=$(target_summary_text)
-    dialog --title "BusierBox configuration summary" --msgbox "$summary\n\nPayload:\n  format=$BB_PAYLOAD_FORMAT\n  version=$BB_PAYLOAD_VERSION\n  BusyBox groups=$BB_BUSYBOX_GROUPS\n  heavy tools=$BB_HEAVY_TOOLS\n  dropbear server=$BB_DROPBEAR_SERVER_MODE" 24 82
+    _db_detail=""
+    if [ "$BB_DROPBEAR_SERVER_MODE" = yes ]; then
+        _db_detail=" (${BB_DROPBEAR_BIND_HOST:-0.0.0.0}:${BB_DROPBEAR_LISTEN_PORT:-22}"
+        [ "$BB_DROPBEAR_NO_PASSWORD_AUTH" = yes ] && _db_detail="${_db_detail},no-pw"
+        [ "$BB_DROPBEAR_PREGENERATE_HOSTKEY" = yes ] && _db_detail="${_db_detail},pregen-key"
+        _db_detail="${_db_detail})"
+    fi
+    _cb_detail=""
+    if [ "$BB_FULL_CALLBACK_ENABLE" = yes ]; then
+        _cb_host="${BB_FULL_CALLBACK_HOST:-<runtime>}"
+        _cb_detail=" (${_cb_host}:${BB_FULL_CALLBACK_PORT}, auto=${BB_FULL_CALLBACK_AUTO_EXEC})"
+    fi
+    dialog --title "BusierBox configuration summary" --msgbox \
+"$summary
+
+Payload:
+  format=$BB_PAYLOAD_FORMAT  version=$BB_PAYLOAD_VERSION
+  BusyBox groups: $BB_BUSYBOX_GROUPS
+  heavy tools: ${BB_HEAVY_TOOLS:-none}
+  dropbear server=$BB_DROPBEAR_SERVER_MODE$_db_detail
+    keytypes=$BB_DROPBEAR_KEYTYPES
+    auth_keys=${BB_DROPBEAR_AUTHORIZED_KEYS_FILE:-none}
+  full callback=$BB_FULL_CALLBACK_ENABLE$_cb_detail
+  stager callback=$BB_STAGER_CALLBACK_ENABLE" 30 82
 }
 
 while :; do

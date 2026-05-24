@@ -28,6 +28,9 @@
 #ifndef BB_ENABLE_FETCH_FULL
 #define BB_ENABLE_FETCH_FULL 1
 #endif
+#ifndef BB_ENABLE_CALLBACK
+#define BB_ENABLE_CALLBACK 1
+#endif
 
 const struct bb_applet bb_applets[] = {
     {"list", applet_list_main, "list native applets and payload tools"},
@@ -47,6 +50,9 @@ const struct bb_applet bb_applets[] = {
 #endif
 #if BB_ENABLE_FETCH_FULL
     {"fetch-full", applet_fetch_full_main, "download a full BusierBox artifact"},
+#endif
+#if BB_ENABLE_CALLBACK
+    {"callback", applet_callback_main, "call back to operator station using stager protocol"},
 #endif
 };
 
