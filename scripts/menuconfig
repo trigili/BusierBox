@@ -23,6 +23,22 @@ BB_TARGET_QEMU_USER=""
 
 BB_PAYLOAD_FORMAT="tgz"
 BB_PAYLOAD_VERSION="dev"
+BB_BUILD_FULL="yes"
+BB_BUILD_STAGER="yes"
+BB_BUILD_INTERNAL_CORE="no"
+BB_STAGER_INCLUDE_SURVEY="yes"
+BB_STAGER_INCLUDE_DOCTOR="yes"
+BB_STAGER_INCLUDE_CONFIG_INFO="yes"
+BB_STAGER_INCLUDE_EXTRACT="yes"
+BB_STAGER_INCLUDE_MINIMAL_BUSYBOX="no"
+BB_STAGER_INCLUDE_WGET="no"
+BB_STAGER_INCLUDE_CURL="no"
+BB_STAGER_INCLUDE_NC="no"
+BB_STAGER_FETCH_FULL="yes"
+BB_STAGER_CALLBACK_ENABLE="no"
+BB_STAGER_CALLBACK_HOST=""
+BB_STAGER_CALLBACK_PORT=""
+BB_STAGER_CALLBACK_SHELL="sh"
 BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
 BB_HEAVY_TOOLS=""
 BB_DROPBEAR_SERVER_MODE="no"
@@ -84,6 +100,22 @@ BB_TARGETS="native"
 
 BB_PAYLOAD_FORMAT="$BB_PAYLOAD_FORMAT"
 BB_PAYLOAD_VERSION="$BB_PAYLOAD_VERSION"
+BB_BUILD_FULL="$BB_BUILD_FULL"
+BB_BUILD_STAGER="$BB_BUILD_STAGER"
+BB_BUILD_INTERNAL_CORE="$BB_BUILD_INTERNAL_CORE"
+BB_STAGER_INCLUDE_SURVEY="$BB_STAGER_INCLUDE_SURVEY"
+BB_STAGER_INCLUDE_DOCTOR="$BB_STAGER_INCLUDE_DOCTOR"
+BB_STAGER_INCLUDE_CONFIG_INFO="$BB_STAGER_INCLUDE_CONFIG_INFO"
+BB_STAGER_INCLUDE_EXTRACT="$BB_STAGER_INCLUDE_EXTRACT"
+BB_STAGER_INCLUDE_MINIMAL_BUSYBOX="$BB_STAGER_INCLUDE_MINIMAL_BUSYBOX"
+BB_STAGER_INCLUDE_WGET="$BB_STAGER_INCLUDE_WGET"
+BB_STAGER_INCLUDE_CURL="$BB_STAGER_INCLUDE_CURL"
+BB_STAGER_INCLUDE_NC="$BB_STAGER_INCLUDE_NC"
+BB_STAGER_FETCH_FULL="$BB_STAGER_FETCH_FULL"
+BB_STAGER_CALLBACK_ENABLE="$BB_STAGER_CALLBACK_ENABLE"
+BB_STAGER_CALLBACK_HOST="$BB_STAGER_CALLBACK_HOST"
+BB_STAGER_CALLBACK_PORT="$BB_STAGER_CALLBACK_PORT"
+BB_STAGER_CALLBACK_SHELL="$BB_STAGER_CALLBACK_SHELL"
 BB_BUSYBOX_GROUPS="$BB_BUSYBOX_GROUPS"
 BB_HEAVY_TOOLS="$BB_HEAVY_TOOLS"
 BB_DROPBEAR_SERVER_MODE="$BB_DROPBEAR_SERVER_MODE"
@@ -112,9 +144,12 @@ target_summary_text() {
 save_config() {
     write_current_config "$temp_cfg"
     compat_warnings=$(scripts/print-tool-compat "$temp_cfg" 2>/dev/null || true)
-    if [ -n "$compat_warnings" ] && [ "$compat_warnings" != "No heavy tools selected." ]; then
+    case "$compat_warnings" in
+        ""|"No heavy tools selected."|"No compatibility warnings for selected heavy tools.") ;;
+        *)
         dialog --title "Payload compatibility warnings" --msgbox "$compat_warnings" 18 86
-    fi
+        ;;
+    esac
 
     if [ -f "$CFG_FILE" ] && diff -u "$CFG_FILE" "$temp_cfg" >"$temp_out" 2>/dev/null; then
         dialog --title "BusierBox: No changes" --msgbox "Configuration matches current settings. Nothing to save." 8 55
@@ -333,6 +368,71 @@ configure_payload_format() {
         "tar" "Plain ustar payload (debug/recovery)" "$status_tar" \
         2>"$temp_out" || return 0
     BB_PAYLOAD_FORMAT=$(cat "$temp_out" | tr -d '"')
+}
+
+configure_artifact_outputs() {
+    dialog --title "Artifact Outputs" \
+        --checklist "Select artifacts to build. Core is internal/debug only and is staged under dist/internal/." 14 78 3 \
+        "full" "Build full artifact with embedded payload" "$(onoff "$BB_BUILD_FULL")" \
+        "stager" "Build stager artifact for bootstrap/fetch-full" "$(onoff "$BB_BUILD_STAGER")" \
+        "core" "Build internal core artifact without embedded payload" "$(onoff "$BB_BUILD_INTERNAL_CORE")" \
+        2>"$temp_out" || return 0
+    _sel=$(cat "$temp_out" | tr -d '"')
+    BB_BUILD_FULL=no
+    BB_BUILD_STAGER=no
+    BB_BUILD_INTERNAL_CORE=no
+    has_item "$_sel" full && BB_BUILD_FULL=yes
+    has_item "$_sel" stager && BB_BUILD_STAGER=yes
+    has_item "$_sel" core && BB_BUILD_INTERNAL_CORE=yes
+}
+
+configure_stager_options() {
+    dialog --title "Stager Options" \
+        --checklist "Configure optional stager capabilities. Callback support is explicit and non-persistent." 20 82 11 \
+        "survey" "Include survey applet" "$(onoff "$BB_STAGER_INCLUDE_SURVEY")" \
+        "doctor" "Include doctor applet" "$(onoff "$BB_STAGER_INCLUDE_DOCTOR")" \
+        "config-info" "Include config-info applet" "$(onoff "$BB_STAGER_INCLUDE_CONFIG_INFO")" \
+        "extract" "Include extract applet" "$(onoff "$BB_STAGER_INCLUDE_EXTRACT")" \
+        "busybox" "Include minimal BusyBox shell payload" "$(onoff "$BB_STAGER_INCLUDE_MINIMAL_BUSYBOX")" \
+        "wget" "Include wget in stager payload when practical" "$(onoff "$BB_STAGER_INCLUDE_WGET")" \
+        "curl" "Include curl in stager payload when practical" "$(onoff "$BB_STAGER_INCLUDE_CURL")" \
+        "nc" "Include nc in stager payload when practical" "$(onoff "$BB_STAGER_INCLUDE_NC")" \
+        "fetch-full" "Include fetch-full helper" "$(onoff "$BB_STAGER_FETCH_FULL")" \
+        "callback" "Enable explicit callback/connect-back config" "$(onoff "$BB_STAGER_CALLBACK_ENABLE")" \
+        2>"$temp_out" || return 0
+    _sel=$(cat "$temp_out" | tr -d '"')
+    BB_STAGER_INCLUDE_SURVEY=no
+    BB_STAGER_INCLUDE_DOCTOR=no
+    BB_STAGER_INCLUDE_CONFIG_INFO=no
+    BB_STAGER_INCLUDE_EXTRACT=no
+    BB_STAGER_INCLUDE_MINIMAL_BUSYBOX=no
+    BB_STAGER_INCLUDE_WGET=no
+    BB_STAGER_INCLUDE_CURL=no
+    BB_STAGER_INCLUDE_NC=no
+    BB_STAGER_FETCH_FULL=no
+    BB_STAGER_CALLBACK_ENABLE=no
+    has_item "$_sel" survey && BB_STAGER_INCLUDE_SURVEY=yes
+    has_item "$_sel" doctor && BB_STAGER_INCLUDE_DOCTOR=yes
+    has_item "$_sel" config-info && BB_STAGER_INCLUDE_CONFIG_INFO=yes
+    has_item "$_sel" extract && BB_STAGER_INCLUDE_EXTRACT=yes
+    has_item "$_sel" busybox && BB_STAGER_INCLUDE_MINIMAL_BUSYBOX=yes
+    has_item "$_sel" wget && BB_STAGER_INCLUDE_WGET=yes
+    has_item "$_sel" curl && BB_STAGER_INCLUDE_CURL=yes
+    has_item "$_sel" nc && BB_STAGER_INCLUDE_NC=yes
+    has_item "$_sel" fetch-full && BB_STAGER_FETCH_FULL=yes
+    has_item "$_sel" callback && BB_STAGER_CALLBACK_ENABLE=yes
+    if [ "$BB_STAGER_CALLBACK_ENABLE" = yes ]; then
+        dialog --title "Stager Callback Host" --inputbox "Callback host/IP. Leave blank to configure later." 9 70 "$BB_STAGER_CALLBACK_HOST" 2>"$temp_out" || true
+        BB_STAGER_CALLBACK_HOST=$(cat "$temp_out")
+        dialog --title "Stager Callback Port" --inputbox "Callback port. Leave blank to configure later." 9 70 "$BB_STAGER_CALLBACK_PORT" 2>"$temp_out" || true
+        BB_STAGER_CALLBACK_PORT=$(cat "$temp_out")
+        dialog --title "Stager Callback Shell" --radiolist "Select callback shell preference:" 12 50 2 \
+            "sh" "POSIX shell" "$([ "$BB_STAGER_CALLBACK_SHELL" = sh ] && printf on || printf off)" \
+            "zsh" "zsh if available in full payload" "$([ "$BB_STAGER_CALLBACK_SHELL" = zsh ] && printf on || printf off)" \
+            2>"$temp_out" || true
+        _shell=$(cat "$temp_out" | tr -d '"')
+        [ -n "$_shell" ] && BB_STAGER_CALLBACK_SHELL="$_shell"
+    fi
 }
 
 busybox_group_status() {
@@ -732,29 +832,33 @@ show_tool_warnings() {
 configure_payload() {
     while :; do
         dialog --title "BusierBox menuconfig / Payload Options" \
-            --menu "Choose a submenu:" 20 78 10 \
-            "1" "Archive format: $BB_PAYLOAD_FORMAT" \
-            "2" "BusyBox applet groups" \
-            "3" "Heavy tools" \
-            "4" "Tool compatibility / warnings" \
-            "5" "Dropbear options" \
-            "6" "Dotfiles / Shell personalization" \
-            "7" "User overlay (stage extra binaries): $BB_USER_OVERLAY_ENABLE" \
-            "8" "gdbserver provider: $BB_GDBSERVER_PROVIDER" \
-            "9" "Payload version: $BB_PAYLOAD_VERSION" \
+            --menu "Choose a submenu:" 22 78 12 \
+            "1" "Artifact outputs: full=$BB_BUILD_FULL stager=$BB_BUILD_STAGER core=$BB_BUILD_INTERNAL_CORE" \
+            "2" "Stager options" \
+            "3" "Archive format: $BB_PAYLOAD_FORMAT" \
+            "4" "BusyBox applet groups" \
+            "5" "Heavy tools" \
+            "6" "Tool compatibility / warnings" \
+            "7" "Dropbear options" \
+            "8" "Dotfiles / Shell personalization" \
+            "9" "User overlay (stage extra binaries): $BB_USER_OVERLAY_ENABLE" \
+            "10" "gdbserver provider: $BB_GDBSERVER_PROVIDER" \
+            "11" "Payload version: $BB_PAYLOAD_VERSION" \
             "0" "Back" \
             2>"$temp_out" || return 0
         choice=$(cat "$temp_out")
         case "$choice" in
-            1) configure_payload_format ;;
-            2) configure_busybox_groups ;;
-            3) configure_heavy_tools ;;
-            4) show_tool_warnings ;;
-            5) configure_dropbear ;;
-            6) configure_dotfiles ;;
-            7) configure_overlay ;;
-            8) configure_gdbserver_provider ;;
-            9)
+            1) configure_artifact_outputs ;;
+            2) configure_stager_options ;;
+            3) configure_payload_format ;;
+            4) configure_busybox_groups ;;
+            5) configure_heavy_tools ;;
+            6) show_tool_warnings ;;
+            7) configure_dropbear ;;
+            8) configure_dotfiles ;;
+            9) configure_overlay ;;
+            10) configure_gdbserver_provider ;;
+            11)
                 dialog --title "Payload version" --inputbox "Payload version string:" 9 60 "$BB_PAYLOAD_VERSION" 2>"$temp_out" || true
                 BB_PAYLOAD_VERSION=$(cat "$temp_out")
                 ;;

@@ -2,7 +2,7 @@
 set -eu
 
 target=${TARGET:-mipsel-linux-4.x-musl}
-artifact=${ARTIFACT:-dist/busierbox-$target}
+artifact=${ARTIFACT:-dist/busierbox-$target-full}
 
 if [ "${SKIP_BUILD:-0}" != "1" ]; then
     TARGET="$target" make package

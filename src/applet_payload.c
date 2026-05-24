@@ -27,6 +27,27 @@
 #define BUSIERBOX_PAYLOAD_VERSION "dev"
 #endif
 
+#ifndef BUSIERBOX_ARTIFACT_TIER
+#define BUSIERBOX_ARTIFACT_TIER "core"
+#endif
+
+#ifndef BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS
+#define BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS 0
+#endif
+
+#ifndef BB_STAGER_CALLBACK_ENABLE
+#define BB_STAGER_CALLBACK_ENABLE "no"
+#endif
+#ifndef BB_STAGER_CALLBACK_HOST
+#define BB_STAGER_CALLBACK_HOST ""
+#endif
+#ifndef BB_STAGER_CALLBACK_PORT
+#define BB_STAGER_CALLBACK_PORT ""
+#endif
+#ifndef BB_STAGER_CALLBACK_SHELL
+#define BB_STAGER_CALLBACK_SHELL "sh"
+#endif
+
 #define BBX_TRAILER_SIZE 512
 #define BBX_MAGIC "BBXPAYLOADv1"
 #define BBX_PAYLOAD_ID_FILE ".busierbox-payload-id"
@@ -53,22 +74,26 @@ void bb_print_applet_list(FILE *out)
     const char **all_tools;
     int col = 0;
 
-    fprintf(out, "busierbox: launcher, survey, and payload runtime manager\n\n");
+    fprintf(out, "busierbox: %s artifact, launcher, survey, and payload runtime manager\n\n", BUSIERBOX_ARTIFACT_TIER);
     fprintf(out, "usage: busierbox <command> [args...]\n");
     fprintf(out, "       <command> [args...]   when invoked through a symlink\n\n");
     
-    fprintf(out, "native applets:\n");
-    fprintf(out, "  clean, config-info, doctor, envfix, extract, list, survey\n\n");
+    fprintf(out, "native applets:\n  ");
+    for (i = 0; i < (int)bb_applet_count; i++)
+        fprintf(out, "%s%s", i ? ", " : "", bb_applets[i].name);
+    fprintf(out, "\n\n");
     
-    for (i = 0; busybox_tools[i]; i++) {
-        total++;
-    }
-    for (i = 0; heavy_tools[i]; i++) {
-        total++;
+    if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
+        for (i = 0; busybox_tools[i]; i++) {
+            total++;
+        }
+        for (i = 0; heavy_tools[i]; i++) {
+            total++;
+        }
     }
     
     if (total == 0) {
-        fprintf(out, "no payload tools staged.\n");
+        fprintf(out, "no payload tools advertised by this artifact tier.\n");
         return;
     }
 
@@ -78,11 +103,13 @@ void bb_print_applet_list(FILE *out)
         return;
     }
     
-    for (i = 0; busybox_tools[i]; i++) {
-        all_tools[idx++] = busybox_tools[i];
-    }
-    for (i = 0; heavy_tools[i]; i++) {
-        all_tools[idx++] = heavy_tools[i];
+    if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
+        for (i = 0; busybox_tools[i]; i++) {
+            all_tools[idx++] = busybox_tools[i];
+        }
+        for (i = 0; heavy_tools[i]; i++) {
+            all_tools[idx++] = heavy_tools[i];
+        }
     }
     all_tools[idx] = NULL;
     
@@ -1026,6 +1053,119 @@ static int execv_alloc(const char *path, char **argv)
     fprintf(stderr, "busierbox: exec %s failed: %s\n", path, strerror(errno));
     return errno == ENOENT ? 127 : 126;
 }
+
+static int wait_status_ok(pid_t pid)
+{
+    int status;
+    if (waitpid(pid, &status, 0) < 0)
+        return 0;
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+}
+
+static int run_downloader(const char *tool, const char *url, const char *out)
+{
+    pid_t pid = fork();
+    if (pid < 0)
+        return -1;
+    if (pid == 0) {
+        if (!strcmp(tool, "wget"))
+            execlp("wget", "wget", "-O", out, url, (char *)NULL);
+        else
+            execlp("curl", "curl", "-fL", "-o", out, url, (char *)NULL);
+        _exit(127);
+    }
+    return wait_status_ok(pid) ? 0 : -1;
+}
+
+static int file_sha256_hex(const char *path, char out[65])
+{
+    FILE *fp = fopen(path, "rb");
+    bb_sha256_ctx ctx;
+    uint8_t buf[8192], hash[32];
+    size_t n;
+    if (!fp)
+        return -1;
+    bb_sha256_init(&ctx);
+    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0)
+        bb_sha256_update(&ctx, buf, n);
+    if (ferror(fp)) {
+        fclose(fp);
+        return -1;
+    }
+    fclose(fp);
+    bb_sha256_final(&ctx, hash);
+    bb_sha256_hex(hash, out);
+    return 0;
+}
+
+int applet_fetch_full_main(int argc, char **argv)
+{
+    const char *url = NULL;
+    const char *out = "busierbox-full";
+    const char *expected_sha = NULL;
+    int exec_after = 0;
+    int i;
+
+    if (is_help(argc, argv)) {
+        puts("usage: busierbox fetch-full URL [OUT] [--sha256 HASH] [--exec]");
+        puts("Downloads a full BusierBox artifact with wget or curl, chmods it executable,");
+        puts("optionally verifies a sha256 hash, and optionally execs it.");
+        return 0;
+    }
+    for (i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--exec")) {
+            exec_after = 1;
+        } else if (!strcmp(argv[i], "--sha256")) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "fetch-full: --sha256 requires a hash\n");
+                return 2;
+            }
+            expected_sha = argv[++i];
+        } else if (!url) {
+            url = argv[i];
+        } else {
+            out = argv[i];
+        }
+    }
+    if (!url) {
+        fprintf(stderr, "fetch-full: URL required\n");
+        return 2;
+    }
+    printf("fetch-full: downloading %s -> %s\n", url, out);
+    if (run_downloader("wget", url, out) != 0 && run_downloader("curl", url, out) != 0) {
+        fprintf(stderr, "fetch-full: download failed; need wget or curl in PATH\n");
+        return 1;
+    }
+    if (expected_sha) {
+        char got[65];
+        if (file_sha256_hex(out, got) != 0) {
+            fprintf(stderr, "fetch-full: unable to hash %s\n", out);
+            return 1;
+        }
+        if (strcmp(got, expected_sha)) {
+            fprintf(stderr, "fetch-full: sha256 mismatch for %s\nexpected: %s\n     got: %s\n", out, expected_sha, got);
+            return 1;
+        }
+    }
+    if (chmod(out, 0755) != 0) {
+        fprintf(stderr, "fetch-full: chmod %s failed: %s\n", out, strerror(errno));
+        return 1;
+    }
+    if (exec_after) {
+        char exec_path[PATH_MAX];
+        char *child[] = {exec_path, "doctor", NULL};
+        if (strchr(out, '/'))
+            snprintf(exec_path, sizeof(exec_path), "%s", out);
+        else
+            snprintf(exec_path, sizeof(exec_path), "./%s", out);
+        execv(exec_path, child);
+        fprintf(stderr, "fetch-full: exec %s failed: %s\n", exec_path, strerror(errno));
+        return errno == ENOENT ? 127 : 126;
+    }
+    puts("fetch-full: ok");
+    return 0;
+}
+
 int bb_exec_payload_applet(const char *name, int argc, char **argv)
 {
     char payload[PATH_MAX], exe[PATH_MAX];
@@ -1084,26 +1224,30 @@ int applet_list_main(int argc, char **argv)
         return 0;
     }
     if (argc > 1 && !strcmp(argv[1], "--plain")) {
-        puts("native clean");
-        puts("native config-info");
-        puts("native doctor");
-        puts("native envfix");
-        puts("native extract");
-        puts("native list");
-        puts("native survey");
-        for (i = 0; busybox_tools[i]; i++)
-            printf("busybox %s\n", busybox_tools[i]);
-        for (i = 0; heavy_tools[i]; i++)
-            printf("tool %s\n", heavy_tools[i]);
+        for (i = 0; i < (int)bb_applet_count; i++)
+            printf("native %s\n", bb_applets[i].name);
+        if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
+            for (i = 0; busybox_tools[i]; i++)
+                printf("busybox %s\n", busybox_tools[i]);
+            for (i = 0; heavy_tools[i]; i++)
+                printf("tool %s\n", heavy_tools[i]);
+        }
         return 0;
     }
     if (argc > 1 && !strcmp(argv[1], "--json")) {
-        printf("{\"native\":[\"clean\",\"config-info\",\"doctor\",\"envfix\",\"extract\",\"list\",\"survey\"],\"busybox_applets\":[");
-        for (i = 0; busybox_tools[i]; i++)
-            printf("%s\"%s\"", i ? "," : "", busybox_tools[i]);
+        printf("{\"artifact_tier\":\"%s\",\"native\":[", BUSIERBOX_ARTIFACT_TIER);
+        for (i = 0; i < (int)bb_applet_count; i++)
+            printf("%s\"%s\"", i ? "," : "", bb_applets[i].name);
+        printf("],\"busybox_applets\":[");
+        if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
+            for (i = 0; busybox_tools[i]; i++)
+                printf("%s\"%s\"", i ? "," : "", busybox_tools[i]);
+        }
         printf("],\"staged_tools\":[");
-        for (i = 0; heavy_tools[i]; i++)
-            printf("%s\"%s\"", i ? "," : "", heavy_tools[i]);
+        if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
+            for (i = 0; heavy_tools[i]; i++)
+                printf("%s\"%s\"", i ? "," : "", heavy_tools[i]);
+        }
         printf("]}\n");
         return 0;
     }
@@ -1566,6 +1710,14 @@ int applet_doctor_main(int argc, char **argv)
     printf("default_route_present=%s\n", has_default_route() ? "yes" : "no");
     if (!path_exists("/dev/pts"))
         puts("recommendation=mount devpts for tmux/dropbear interactive sessions");
+    printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
+    printf("stager_callback_enabled=%s\n", BB_STAGER_CALLBACK_ENABLE);
+    if (!strcmp(BB_STAGER_CALLBACK_ENABLE, "yes")) {
+        printf("stager_callback_host=%s\n", BB_STAGER_CALLBACK_HOST[0] ? BB_STAGER_CALLBACK_HOST : "unset");
+        printf("stager_callback_port=%s\n", BB_STAGER_CALLBACK_PORT[0] ? BB_STAGER_CALLBACK_PORT : "unset");
+        printf("stager_callback_shell=%s\n", BB_STAGER_CALLBACK_SHELL);
+        puts("recommendation=callback support is explicit and non-persistent; verify target egress before use");
+    }
     if (have_payload) {
         char ti[PATH_MAX];
         snprintf(ti, sizeof(ti), "%s/share/terminfo", payload);
@@ -1580,6 +1732,9 @@ int applet_config_info_main(int argc, char **argv)
     char payload[PATH_MAX], hash_path[PATH_MAX], hash[256] = "unknown";
     char manifest[PATH_MAX];
     char exe_dir[PATH_MAX];
+    struct embedded_payload ep;
+    int have_embedded;
+    int have_payload;
     int i;
 
     if (is_help(argc, argv)) {
@@ -1593,19 +1748,36 @@ int applet_config_info_main(int argc, char **argv)
     puts("libc=unknown");
 #endif
     puts("core_static_status=see build output");
+    printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
+    printf("stager_callback_enabled=%s\n", BB_STAGER_CALLBACK_ENABLE);
+    if (!strcmp(BB_STAGER_CALLBACK_ENABLE, "yes")) {
+        printf("stager_callback_host=%s\n", BB_STAGER_CALLBACK_HOST);
+        printf("stager_callback_port=%s\n", BB_STAGER_CALLBACK_PORT);
+        printf("stager_callback_shell=%s\n", BB_STAGER_CALLBACK_SHELL);
+    }
+    have_embedded = get_embedded_payload(&ep) == 0;
+    have_payload = candidate_payload(payload, sizeof(payload)) == 0;
+    printf("embedded_payload=%s\n", have_embedded ? "yes" : "no");
     printf("payload_version=%s\n", BUSIERBOX_PAYLOAD_VERSION);
     if (read_exe_dir(exe_dir, sizeof(exe_dir)) == 0) {
         snprintf(hash_path, sizeof(hash_path), "%s/payload.tar.gz.sha256", exe_dir);
         read_first_line(hash_path, hash, sizeof(hash));
     }
     printf("payload_archive_hash=%s\n", hash);
-    puts("native_applets=list survey envfix extract clean config-info doctor");
-    printf("payload_present=%s\n", candidate_payload(payload, sizeof(payload)) == 0 ? payload : "no");
-    printf("payload_tools_present=");
-    for (i = 0; heavy_tools[i]; i++)
-        printf("%s%s:%s", i ? "," : "", heavy_tools[i], candidate_payload(payload, sizeof(payload)) == 0 ? "yes" : "unknown");
+    printf("native_applets=");
+    for (i = 0; i < (int)bb_applet_count; i++)
+        printf("%s%s", i ? " " : "", bb_applets[i].name);
     printf("\n");
-    if (candidate_payload(payload, sizeof(payload)) == 0) {
+    printf("payload_present=%s\n", have_payload ? payload : "no");
+    printf("payload_tools_present=");
+    if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
+        for (i = 0; heavy_tools[i]; i++)
+            printf("%s%s:%s", i ? "," : "", heavy_tools[i], have_payload ? "yes" : "available-after-extract");
+    } else {
+        printf("none");
+    }
+    printf("\n");
+    if (have_payload) {
         char busybox[PATH_MAX];
         snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
         printf("busybox_present=%s\n", executable_file(busybox) ? "yes" : "no");

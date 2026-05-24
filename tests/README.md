@@ -4,7 +4,7 @@ The test harness is layered so developers can get useful signal without propriet
 
 ## Layers
 
-`make smoke-test` builds `dist/busierbox-native`, runs `scripts/verify-artifact` on it, runs the native host binary, and validates the Tier 0 applet contract. It also checks target tuple resolution, generated mipsel musl Buildroot config creation, payload manifest reality for missing tools, placeholder regression, `survey --json` parsing, `scripts/config-from-survey`, and copy-only self-extraction outside the repository.
+`make smoke-test` builds `dist/busierbox-native-full` plus `dist/busierbox-native-stager`, runs `scripts/verify-artifact` on the full artifact, runs the native host binary, and validates the Tier 0 applet contract. It also checks artifact tier behavior, target tuple resolution, generated mipsel musl Buildroot config creation, payload manifest reality for missing tools, placeholder regression, `survey --json` parsing, `scripts/config-from-survey`, and copy-only self-extraction outside the repository.
 
 `make test-qemu-user` runs target binaries under qemu-user when both the target binary and qemu interpreter exist. Missing cross binaries or interpreters are reported as `SKIP`, not as hard failures. This layer validates ELF compatibility, basic syscall compatibility, and applet behavior.
 
@@ -61,7 +61,7 @@ Representative qemu-user targets live in `tests/matrix/targets.example.json`:
 - x86: `i386-linux-2.6-musl`
 - host/native: `native`
 
-Each entry names the expected self-extracting BusierBox binary under `dist/` and the qemu-user interpreter. Add new generated targets by adding or editing a preset in `targets/presets.json` when useful, ensuring `scripts/gen-buildroot-defconfig` supports the tuple, producing `dist/busierbox-<target>`, running `scripts/inspect-artifact` and `scripts/verify-artifact`, and adding a matrix entry with `name`, `arch`, `binary`, and `qemu_user`.
+Each entry names the expected self-extracting BusierBox binary under `dist/` and the qemu-user interpreter. Add new generated targets by adding or editing a preset in `targets/presets.json` when useful, ensuring `scripts/gen-buildroot-defconfig` supports the tuple, producing `dist/busierbox-<target>-full`, running `scripts/check-buildroot-tool-mappings`, `scripts/inspect-artifact`, and `scripts/verify-artifact`, and adding a matrix entry with `name`, `arch`, `binary`, and `qemu_user`.
 
 ## QEMU User
 
@@ -71,7 +71,7 @@ Run:
 make test-qemu-user
 ```
 
-The runner prefers `qemu-*-static` but also accepts non-static qemu-user binaries when available. For the host profile it runs `dist/busierbox-native` directly with `qemu_user` set to `native`. Normal qemu-user tests copy only the self-extracting BusierBox artifact, not a separate payload archive.
+The runner prefers `qemu-*-static` but also accepts non-static qemu-user binaries when available. For the host profile it runs `dist/busierbox-native-full` directly with `qemu_user` set to `native`. Normal qemu-user tests copy only the self-extracting BusierBox artifact, not a separate payload archive.
 
 Artifacts are written to:
 
@@ -117,8 +117,8 @@ Useful overrides:
 
 ```sh
 ROUTER=root@192.168.8.1 make test-glinet
-SKIP_BUILD=1 ARTIFACT=dist/busierbox-mipsel-linux-4.x-musl tests/integration/glinet/push-and-test
-KEEP_ARTIFACTS=1 tests/integration/glinet/push-and-test dist/busierbox-mipsel-linux-4.x-musl
+SKIP_BUILD=1 ARTIFACT=dist/busierbox-mipsel-linux-4.x-musl-full tests/integration/glinet/push-and-test
+KEEP_ARTIFACTS=1 tests/integration/glinet/push-and-test dist/busierbox-mipsel-linux-4.x-musl-full
 ```
 
 The default remote directory is `/tmp/busierbox-itest`, which avoids the small persistent root filesystem on many OpenWrt-style devices. Override `REMOTE_DIR` only when that location has enough free space for the artifact plus extraction. The harness fails loudly for missing advertised tools, missing applet symlinks, broken extraction, duplicate payload PATH entries, zsh without payload commands, and overlay tool drift.

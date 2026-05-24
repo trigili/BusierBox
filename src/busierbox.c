@@ -13,14 +13,41 @@
 #define PATH_MAX 4096
 #endif
 
+#ifndef BB_ENABLE_SURVEY
+#define BB_ENABLE_SURVEY 1
+#endif
+#ifndef BB_ENABLE_DOCTOR
+#define BB_ENABLE_DOCTOR 1
+#endif
+#ifndef BB_ENABLE_CONFIG_INFO
+#define BB_ENABLE_CONFIG_INFO 1
+#endif
+#ifndef BB_ENABLE_EXTRACT
+#define BB_ENABLE_EXTRACT 1
+#endif
+#ifndef BB_ENABLE_FETCH_FULL
+#define BB_ENABLE_FETCH_FULL 1
+#endif
+
 const struct bb_applet bb_applets[] = {
     {"list", applet_list_main, "list native applets and payload tools"},
+#if BB_ENABLE_SURVEY
     {"survey", applet_survey_main, "print embedded Linux triage information"},
+#endif
     {"envfix", applet_envfix_main, "print or apply environment repair commands"},
+#if BB_ENABLE_EXTRACT
     {"extract", applet_extract_main, "extract or reuse the payload runtime"},
+#endif
     {"clean", applet_clean_main, "remove local extracted payload runtime"},
+#if BB_ENABLE_CONFIG_INFO
     {"config-info", applet_config_info_main, "print build and payload information"},
+#endif
+#if BB_ENABLE_DOCTOR
     {"doctor", applet_doctor_main, "inspect embedded and extracted payload health"},
+#endif
+#if BB_ENABLE_FETCH_FULL
+    {"fetch-full", applet_fetch_full_main, "download a full BusierBox artifact"},
+#endif
 };
 
 const unsigned int bb_applet_count = sizeof(bb_applets) / sizeof(bb_applets[0]);

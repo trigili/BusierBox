@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import pathlib
+import re
+import sys
+
+
+TOOL_SYMBOLS = {
+    "strace": ["BR2_PACKAGE_STRACE"],
+    "curl": ["BR2_PACKAGE_LIBCURL", "BR2_PACKAGE_LIBCURL_CURL"],
+    "dropbear": ["BR2_PACKAGE_DROPBEAR", "BR2_PACKAGE_DROPBEAR_CLIENT"],
+    "zsh": ["BR2_PACKAGE_ZSH"],
+    "tmux": ["BR2_PACKAGE_TMUX"],
+    "gdbserver": ["BR2_PACKAGE_GDB", "BR2_PACKAGE_GDB_SERVER"],
+    "socat": ["BR2_PACKAGE_SOCAT"],
+    "tcpdump": ["BR2_PACKAGE_TCPDUMP"],
+    "rsync": ["BR2_PACKAGE_RSYNC"],
+    "mtr": ["BR2_PACKAGE_MTR"],
+    "iperf3": ["BR2_PACKAGE_IPERF3"],
+    "ethtool": ["BR2_PACKAGE_ETHTOOL"],
+    "iw": ["BR2_PACKAGE_IW"],
+    "minicom": ["BR2_PACKAGE_MINICOM"],
+    "mosh-client": ["BR2_PACKAGE_MOSH"],
+    "ripgrep": ["BR2_PACKAGE_RIPGREP"],
+    "jq": ["BR2_PACKAGE_JQ"],
+    "file": ["BR2_PACKAGE_FILE"],
+    "htop": ["BR2_PACKAGE_HTOP"],
+    "screen": ["BR2_PACKAGE_SCREEN"],
+    "ltrace": ["BR2_PACKAGE_LTRACE"],
+    "readelf": ["BR2_PACKAGE_BINUTILS", "BR2_PACKAGE_BINUTILS_TARGET"],
+    "objdump": ["BR2_PACKAGE_BINUTILS", "BR2_PACKAGE_BINUTILS_TARGET"],
+    "usbutils": ["BR2_PACKAGE_USBUTILS"],
+    "pciutils": ["BR2_PACKAGE_PCIUTILS"],
+}
+
+PROVIDER_ONLY = {
+    "xxd": "provided by selected BusyBox applet; no Buildroot package symbol emitted",
+}
+
+CXX_TOOLS = {"gdbserver", "mosh-client", "ripgrep"}
+TERMINFO_TOOLS = {"tmux", "screen", "htop", "mosh-client", "minicom"}
+
+
+def load_config(path):
+    vals = {}
+    p = pathlib.Path(path)
+    if not p.exists():
+        return vals
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        vals[key] = val.strip().strip('"')
+    return vals
+
+
+def buildroot_symbols(root):
+    symbols = {}
+    config_re = re.compile(r"^\s*config\s+(BR2_[A-Za-z0-9_]+)\s*$")
+    dep_re = re.compile(r"^\s*(depends on|select)\s+(.+?)\s*$")
+    for path in pathlib.Path(root).rglob("Config.in*"):
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        current = None
+        deps = []
+        for line in lines:
+            m = config_re.match(line)
+            if m:
+                if current:
+                    symbols[current] = (path, deps)
+                current = m.group(1)
+                deps = []
+                continue
+            if current:
+                d = dep_re.match(line)
+                if d:
+                    deps.append(line.strip())
+        if current:
+            symbols[current] = (path, deps)
+    return symbols
+
+
+def issue_matches(issue, arch, libc, static_policy, provider):
+    arches = issue.get("arch") or []
+    libcs = issue.get("libc") or []
+    policies = issue.get("static_policy") or []
+    issue_provider = issue.get("provider", "")
+    return (
+        (not arches or arch in arches)
+        and (not libcs or libc in libcs)
+        and (not policies or static_policy in policies)
+        and (not issue_provider or provider in (issue_provider, "auto"))
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="configs/busierbox.conf")
+    parser.add_argument("--buildroot-dir", default="buildroot/buildroot-2026.02.2")
+    parser.add_argument("--compat", default="payloads/tool-compat.json")
+    parser.add_argument("--tools", default="")
+    parser.add_argument("--strict", action="store_true", help="exit nonzero for untested/provider-required mappings too")
+    args = parser.parse_args()
+
+    cfg = load_config(args.config)
+    arch = cfg.get("BB_TARGET_ARCH", "native")
+    libc = cfg.get("BB_TARGET_LIBC", "host")
+    static_policy = cfg.get("BB_STATIC_POLICY", "static-preferred")
+    gdb_provider = cfg.get("BB_GDBSERVER_PROVIDER", "auto")
+    tools = args.tools.split() if args.tools else (cfg.get("BB_HEAVY_TOOLS", "").split() or sorted(set(TOOL_SYMBOLS) | set(PROVIDER_ONLY)))
+
+    br = pathlib.Path(args.buildroot_dir)
+    if not br.exists():
+        print(f"broken buildroot-tree missing path={br}")
+        return 1
+    symbols = buildroot_symbols(br)
+    compat = {}
+    cp = pathlib.Path(args.compat)
+    if cp.exists():
+        compat = json.loads(cp.read_text(encoding="utf-8")).get("tools", {})
+
+    bad = 0
+    soft = 0
+    for tool in tools:
+        provider = gdb_provider if tool == "gdbserver" else "buildroot"
+        notes = []
+        if tool in PROVIDER_ONLY:
+            print(f"{tool}\tprovider-required\tprovider=busybox\treason={PROVIDER_ONLY[tool]}")
+            soft += 1
+            continue
+        mapped = TOOL_SYMBOLS.get(tool)
+        if not mapped:
+            print(f"{tool}\tuntested\tprovider=unknown\treason=no Buildroot mapping metadata")
+            soft += 1
+            continue
+        if tool == "gdbserver" and provider in {"user", "overlay", "none"}:
+            print(f"{tool}\tprovider-required\tprovider={provider}\treason=no Buildroot symbols emitted for selected provider")
+            soft += 1
+            continue
+        missing = [s for s in mapped if s not in symbols]
+        if missing:
+            print(f"{tool}\tbroken\tmissing_symbols={','.join(missing)}")
+            bad += 1
+            continue
+        deps = []
+        for sym in mapped:
+            deps.extend(symbols[sym][1])
+        meta = compat.get(tool, {})
+        provider_issues = [
+            issue for issue in meta.get("known_provider_issues") or []
+            if issue_matches(issue, arch, libc, static_policy, provider)
+        ]
+        if provider_issues:
+            issue = provider_issues[0]
+            print(f"{tool}\tincompatible-for-tuple\tprovider={provider}\tsymbols={','.join(mapped)}\treason={issue.get('message', '')}")
+            soft += 1
+            continue
+        if tool in CXX_TOOLS:
+            notes.append("requires-cxx")
+        if tool in TERMINFO_TOOLS:
+            notes.append("may-need-ncurses-terminfo")
+        if static_policy != "dynamic" and any("!BR2_STATIC_LIBS" in d or "BR2_SHARED_LIBS" in d for d in deps):
+            print(f"{tool}\tincompatible-for-tuple\tprovider={provider}\tsymbols={','.join(mapped)}\treason=Buildroot dependency excludes static builds")
+            soft += 1
+            continue
+        dep_text = ";".join(deps) if deps else "none"
+        note_text = ",".join(notes) if notes else "none"
+        print(f"{tool}\tsupported\tprovider={provider}\tsymbols={','.join(mapped)}\tdeps={dep_text}\tnotes={note_text}")
+
+    if bad:
+        return 1
+    if soft and args.strict:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

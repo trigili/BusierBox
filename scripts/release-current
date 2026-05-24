@@ -34,7 +34,7 @@ release_dir=${BB_RELEASE_DIR:-dist/releases/$release_name}
 
 TARGET="$target_arg" VERIFY=1 scripts/package-selected
 
-artifact="dist/busierbox-$target"
+artifact="dist/busierbox-$target-full"
 [ -f "$artifact" ] || {
     printf '%s\n' "release-current: artifact missing after package: $artifact" >&2
     exit 1
@@ -43,6 +43,13 @@ artifact="dist/busierbox-$target"
 mkdir -p "$release_dir/manifests"
 cp "$artifact" "$release_dir/"
 [ -f "$artifact.sha256" ] && cp "$artifact.sha256" "$release_dir/"
+
+if [ -f "dist/busierbox-$target-stager" ]; then
+    cp "dist/busierbox-$target-stager" "$release_dir/"
+fi
+if [ -f "dist/busierbox-$target-stager.sha256" ]; then
+    cp "dist/busierbox-$target-stager.sha256" "$release_dir/"
+fi
 
 if [ -f "dist/payload-$target.tar" ]; then
     cp "dist/payload-$target.tar" "$release_dir/"
@@ -57,19 +64,22 @@ if [ -f "dist/payload-$target.tar.gz.sha256" ]; then
     cp "dist/payload-$target.tar.gz.sha256" "$release_dir/"
 fi
 
-scripts/inspect-artifact "$artifact" >"$release_dir/manifests/$target.inspect.txt"
+scripts/inspect-artifact "$artifact" >"$release_dir/manifests/$target-full.inspect.txt"
+if [ "$target" = native ] && [ -f "dist/busierbox-$target-stager" ]; then
+    "dist/busierbox-$target-stager" config-info >"$release_dir/manifests/$target-stager.config-info.txt" 2>&1 || true
+fi
 
 (
     cd "$release_dir"
     if command -v sha256sum >/dev/null 2>&1; then
         : >SHA256SUMS
-        find . ! -name . -prune -type f ! -name SHA256SUMS | LC_ALL=C sort |
+        find . -type f ! -name SHA256SUMS | LC_ALL=C sort |
         while IFS= read -r file; do
             sha256sum "$file" >>SHA256SUMS
         done
     elif command -v shasum >/dev/null 2>&1; then
         : >SHA256SUMS
-        find . ! -name . -prune -type f ! -name SHA256SUMS | LC_ALL=C sort |
+        find . -type f ! -name SHA256SUMS | LC_ALL=C sort |
         while IFS= read -r file; do
             shasum -a 256 "$file" >>SHA256SUMS
         done

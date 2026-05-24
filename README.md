@@ -61,8 +61,10 @@ runtime/payload/         staged payload tree
 runtime/payload/bin/     BusyBox and future tool binaries
 runtime/payload/lib/     bundled shared libraries when static builds are unavailable
 runtime/payload/home/    payload HOME
-dist/busierbox-<target>  self-extracting target-specific artifact
-dist/busierbox           native convenience alias, when native is packaged
+dist/busierbox-<target>-full    self-extracting target-specific artifact
+dist/busierbox-<target>-stager  small bootstrap/fetch-full artifact
+dist/internal/                  internal payload-less cores when enabled
+dist/busierbox                  native convenience alias, when native is packaged
 dist/payload-<target>.*  optional payload archives/debug artifacts
 ```
 
@@ -88,7 +90,7 @@ Build native BusyBox:
 make busybox
 ```
 
-Configure the active target tuple and package one artifact:
+Configure the active target tuple and package deployable artifacts:
 
 ```sh
 make menuconfig
@@ -96,7 +98,7 @@ make package
 ls dist/busierbox-*
 ```
 
-`make package` reads the active tuple fields in `configs/busierbox.conf`, generates Buildroot backend files when needed, and builds one target-specific artifact. Presets are convenience templates that populate tuple fields; the tuple is the source of truth.
+`make package` reads the active tuple fields in `configs/busierbox.conf`, generates Buildroot backend files when needed, and builds target-specific outputs. Presets are convenience templates that populate tuple fields; the tuple is the source of truth.
 
 ```text
 BB_TARGET_ARCH="mipsel"
@@ -109,13 +111,38 @@ BB_STATIC_POLICY="static-preferred"
 BB_PAYLOAD_TIER="debug"
 ```
 
-produces:
+produces deployable tiered artifacts:
 
 ```text
-dist/busierbox-mipsel-linux-4.x-musl
+dist/busierbox-mipsel-linux-4.x-musl-full
+dist/busierbox-mipsel-linux-4.x-musl-stager
 ```
 
-Each `dist/busierbox-<target>` is a self-extracting binary for one target. It contains a BusierBox core built for that target plus a payload archive built for that same target. These are not multi-architecture binaries, and packaging must not reuse a native core for a foreign payload.
+`-full` is the feature-complete self-extracting artifact. It contains a BusierBox core built for that target plus a payload archive built for that same target. `-stager` is intentionally small and identifies itself as a stager; it does not advertise payload tools and provides `fetch-full` to download a full artifact with target `wget` or `curl`. A compatibility copy without the `-full` suffix is still written for existing scripts. Internal payload-less cores are written only under `dist/internal/` when enabled and should not be deployed as normal artifacts.
+
+Artifact output knobs:
+
+```sh
+BB_BUILD_FULL="yes"
+BB_BUILD_STAGER="yes"
+BB_BUILD_INTERNAL_CORE="no"
+```
+
+Stager fetch example:
+
+```sh
+./busierbox-mipsel-linux-4.x-musl-stager fetch-full http://host/busierbox-mipsel-linux-4.x-musl-full ./busierbox-full --sha256 <hash>
+./busierbox-full doctor
+```
+
+Callback/connect-back configuration is explicit, visible in `doctor` and `config-info`, and non-persistent by default:
+
+```sh
+BB_STAGER_CALLBACK_ENABLE="no"
+BB_STAGER_CALLBACK_HOST=""
+BB_STAGER_CALLBACK_PORT=""
+BB_STAGER_CALLBACK_SHELL="sh"
+```
 
 Convenience commands:
 
@@ -126,7 +153,7 @@ make package TARGET=glinet-mt7621-openwrt-musl
 make package-all-presets
 ```
 
-For backwards compatibility, packaging `native` also writes `dist/busierbox` as a convenience copy of `dist/busierbox-native`.
+For backwards compatibility, packaging also writes `dist/busierbox-<target>` as a copy of `dist/busierbox-<target>-full`; packaging `native` also writes `dist/busierbox`.
 
 Buildroot-backed targets use the pinned Buildroot source from `manifests/sources.lock.json`:
 
@@ -143,7 +170,7 @@ buildroot/generated-configs/<target>_defconfig
 payloads/generated-profiles/<target>.mk
 ```
 
-These generated paths are ignored by git. Buildroot then builds the cross toolchain and BusyBox, stages `runtime/payload/bin/busybox`, discovers the actual installed BusyBox applets from the target rootfs, stages only real heavy-tool binaries that were built, writes `runtime/payload/manifest.json`, creates ustar-compatible payload archives, builds the BusierBox core with the Buildroot cross compiler, embeds the target payload, and writes `dist/busierbox-<target>.sha256`.
+These generated paths are ignored by git. Buildroot then builds the cross toolchain and BusyBox, stages `runtime/payload/bin/busybox`, discovers the actual installed BusyBox applets from the target rootfs, stages only real heavy-tool binaries that were built, writes `runtime/payload/manifest.json`, creates ustar-compatible payload archives, builds the BusierBox core with the Buildroot cross compiler, embeds the target payload, and writes `dist/busierbox-<target>-full.sha256`.
 
 The payload manifest separates intent from reality:
 
@@ -182,9 +209,9 @@ make menuconfig
 
 make fetch-sources
 make package VERIFY=1
-scripts/inspect-artifact dist/busierbox-mipsel-linux-4.x-musl
-scripts/verify-artifact dist/busierbox-mipsel-linux-4.x-musl
-scp dist/busierbox-mipsel-linux-4.x-musl root@router:/tmp/busierbox
+scripts/inspect-artifact dist/busierbox-mipsel-linux-4.x-musl-full
+scripts/verify-artifact dist/busierbox-mipsel-linux-4.x-musl-full
+scp dist/busierbox-mipsel-linux-4.x-musl-full root@router:/tmp/busierbox
 ssh root@router
 chmod +x /tmp/busierbox
 /tmp/busierbox doctor
@@ -211,8 +238,8 @@ Some provider names differ from staged command names. For example, selecting `ri
 Artifact inspection and verification:
 
 ```sh
-scripts/inspect-artifact dist/busierbox-native
-scripts/verify-artifact dist/busierbox-native
+scripts/inspect-artifact dist/busierbox-native-full
+scripts/verify-artifact dist/busierbox-native-full
 make verify-artifact TARGET=native
 VERIFY=1 make package TARGET=native
 ```
@@ -227,6 +254,15 @@ make release TARGET=glinet-mt7621-openwrt-musl BB_RELEASE_NAME=dev-glinet
 ```
 
 The release target packages and verifies the selected artifact, then stages it under `dist/releases/<name>/` with checksums, payload archives when present, and an inspector manifest under `dist/releases/<name>/manifests/`. Future release matrix work can build on the same artifact layout without changing normal `make package` behavior.
+
+Validate Buildroot heavy-tool mappings against the checked-out Buildroot tree:
+
+```sh
+scripts/check-buildroot-tool-mappings
+scripts/check-buildroot-tool-mappings --tools "socat tcpdump htop ltrace mosh-client"
+```
+
+The mapping checker distinguishes `supported`, `incompatible-for-tuple`, `provider-required`, `untested`, and `broken`. It catches nonexistent Buildroot symbols and known static-build exclusions before packaging emits invalid defconfig entries.
 
 Run smoke tests:
 
@@ -368,7 +404,7 @@ The GL.iNet harness lives in `tests/integration/glinet/`. It starts a temporary 
 
 ## QEMU User Validation
 
-`make test-qemu-user` copies only the selected `dist/busierbox-<target>` self-extracting binary into per-target artifact directories, runs `extract`, dispatches common applets, captures `survey.json`, captures `config-info`, and validates survey JSON. Missing qemu interpreters or missing target artifacts are reported as skips. `scripts/verify-artifact` is the stricter packaging-time check for advertised command reality; it catches commands that are listed but not dispatchable.
+`make test-qemu-user` copies only the selected `dist/busierbox-<target>-full` self-extracting binary into per-target artifact directories, runs `extract`, dispatches common applets, captures `survey.json`, captures `config-info`, and validates survey JSON. Missing qemu interpreters or missing target artifacts are reported as skips. `scripts/verify-artifact` is the stricter packaging-time check for advertised command reality; it catches commands that are listed but not dispatchable.
 
 The primary generated OpenWrt-style target is `mipsel-linux-4.x-musl`. Legacy `mipsel-linux-2.6-uclibc` and ARMv7 musl remain available through presets/templates.
 

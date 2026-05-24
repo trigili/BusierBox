@@ -6,7 +6,7 @@
       "arch": "native",
       "kernel_floor": "host",
       "libc_family": "host",
-      "binary": "dist/busierbox-native",
+      "binary": "dist/busierbox-native-full",
       "qemu_user": "native",
       "expected_constraints": []
     },
@@ -15,7 +15,7 @@
       "arch": "x86_64",
       "kernel_floor": "current",
       "libc_family": "musl",
-      "binary": "dist/busierbox-x86_64-linux-current-musl",
+      "binary": "dist/busierbox-x86_64-linux-current-musl-full",
       "qemu_user": "qemu-x86_64-static",
       "expected_constraints": []
     },
@@ -24,7 +24,7 @@
       "arch": "i386",
       "kernel_floor": "2.6",
       "libc_family": "musl",
-      "binary": "dist/busierbox-i386-linux-2.6-musl",
+      "binary": "dist/busierbox-i386-linux-2.6-musl-full",
       "qemu_user": "qemu-i386-static",
       "expected_constraints": []
     },
@@ -33,7 +33,7 @@
       "arch": "aarch64",
       "kernel_floor": "4.x",
       "libc_family": "musl",
-      "binary": "dist/busierbox-aarch64-linux-4.x-musl",
+      "binary": "dist/busierbox-aarch64-linux-4.x-musl-full",
       "qemu_user": "qemu-aarch64-static",
       "expected_constraints": []
     },
@@ -43,7 +43,7 @@
       "abi": "hardfloat",
       "kernel_floor": "3.x",
       "libc_family": "musl",
-      "binary": "dist/busierbox-armv7-linux-3.x-musl",
+      "binary": "dist/busierbox-armv7-linux-3.x-musl-full",
       "qemu_user": "qemu-arm-static",
       "expected_constraints": []
     },
@@ -53,7 +53,7 @@
       "abi": "eabi",
       "kernel_floor": "2.6",
       "libc_family": "uclibc",
-      "binary": "dist/busierbox-armv5-linux-2.6-uclibc-eabi",
+      "binary": "dist/busierbox-armv5-linux-2.6-uclibc-eabi-full",
       "qemu_user": "qemu-arm-static",
       "expected_constraints": []
     },
@@ -63,7 +63,7 @@
       "endian": "little",
       "kernel_floor": "4.x",
       "libc_family": "musl",
-      "binary": "dist/busierbox-mipsel-linux-4.x-musl",
+      "binary": "dist/busierbox-mipsel-linux-4.x-musl-full",
       "qemu_user": "qemu-mipsel-static",
       "expected_constraints": ["openwrt_class"]
     },
@@ -73,7 +73,7 @@
       "endian": "little",
       "kernel_floor": "2.6",
       "libc_family": "musl",
-      "binary": "dist/busierbox-mipsel-linux-2.6-musl",
+      "binary": "dist/busierbox-mipsel-linux-2.6-musl-full",
       "qemu_user": "qemu-mipsel-static",
       "expected_constraints": []
     },
@@ -83,7 +83,7 @@
       "endian": "big",
       "kernel_floor": "2.6",
       "libc_family": "musl",
-      "binary": "dist/busierbox-mips-linux-2.6-musl",
+      "binary": "dist/busierbox-mips-linux-2.6-musl-full",
       "qemu_user": "qemu-mips-static",
       "expected_constraints": ["endian_coverage"]
     },
@@ -93,7 +93,7 @@
       "endian": "little",
       "kernel_floor": "2.6",
       "libc_family": "uclibc",
-      "binary": "dist/busierbox-mipsel-linux-2.6-uclibc",
+      "binary": "dist/busierbox-mipsel-linux-2.6-uclibc-full",
       "qemu_user": "qemu-mipsel-static",
       "expected_constraints": ["tiny_tmp", "old_syscalls"]
     },
@@ -103,7 +103,7 @@
       "endian": "big",
       "kernel_floor": "2.6",
       "libc_family": "uclibc",
-      "binary": "dist/busierbox-mips-linux-2.6-uclibc",
+      "binary": "dist/busierbox-mips-linux-2.6-uclibc-full",
       "qemu_user": "qemu-mips-static",
       "expected_constraints": ["endian_coverage"]
     }

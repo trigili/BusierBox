@@ -83,7 +83,27 @@ check_tool_build_compat() {
             EXCLUSION_REASON="Buildroot GDB BFD fails for ${TARGET_ARCH}-${TARGET_LIBC}; gdbserver not buildable on this tuple"
             return 1
             ;;
+        ltrace:*:musl)
+            EXCLUSION_REASON="Buildroot ltrace depends on uClibc or glibc and is unavailable for musl"
+            return 1
+            ;;
     esac
+    if [ "${TARGET_STATIC_POLICY:-static-preferred}" != dynamic ]; then
+        case "$_ctbc_tool" in
+            htop)
+                EXCLUSION_REASON="Buildroot htop depends on dynamic libraries (!BR2_STATIC_LIBS)"
+                return 1
+                ;;
+            ltrace)
+                EXCLUSION_REASON="Buildroot ltrace depends on dynamic libraries (!BR2_STATIC_LIBS)"
+                return 1
+                ;;
+            mosh-client)
+                EXCLUSION_REASON="Buildroot mosh depends on dynamic libraries through protobuf (!BR2_STATIC_LIBS)"
+                return 1
+                ;;
+        esac
+    fi
     return 0
 }
 

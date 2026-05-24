@@ -12,6 +12,22 @@ requested_target=$target
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 BUILDROOT_OUTPUT_BASE=${BUILDROOT_OUTPUT_BASE:-buildroot/output}
 VERIFY=${VERIFY:-0}
+BB_BUILD_FULL=${BB_BUILD_FULL:-yes}
+BB_BUILD_STAGER=${BB_BUILD_STAGER:-yes}
+BB_BUILD_INTERNAL_CORE=${BB_BUILD_INTERNAL_CORE:-no}
+
+case "$BB_BUILD_FULL:$BB_BUILD_STAGER:$BB_BUILD_INTERNAL_CORE" in
+    yes:*|*:yes:*|*:*:yes) ;;
+    *) die "no artifact outputs enabled" ;;
+esac
+
+if [ -f configs/busierbox.conf ]; then
+    . ./configs/busierbox.conf
+fi
+
+BB_BUILD_FULL=${BB_BUILD_FULL:-yes}
+BB_BUILD_STAGER=${BB_BUILD_STAGER:-yes}
+BB_BUILD_INTERNAL_CORE=${BB_BUILD_INTERNAL_CORE:-no}
 
 die() {
     printf '%s\n' "package-target: $*" >&2
@@ -56,6 +72,13 @@ find_cross_cc() {
     find "$host_bin" \( -type f -o -type l \) -name '*-gcc' ! -name gcc | sort | sed -n '1p'
 }
 
+bool01() {
+    case "$1" in
+        yes|1|true|on) printf 1 ;;
+        *) printf 0 ;;
+    esac
+}
+
 if [ "$target" = --config ] || [ "$target" = config ]; then
     resolved=$(scripts/resolve-target --config 2>&1) || die "$resolved"
 else
@@ -78,10 +101,13 @@ target=$TARGET_NAME
 
 [ "$TARGET_STATUS" = supported ] || die "target $target is $TARGET_STATUS: $TARGET_NOTES"
 
-mkdir -p dist
+mkdir -p dist dist/internal
 
-core="dist/busierbox-$target.core"
-artifact="dist/busierbox-$target"
+core="dist/internal/busierbox-$target.core"
+full_core="dist/internal/busierbox-$target.full-core"
+artifact="dist/busierbox-$target-full"
+compat_artifact="dist/busierbox-$target"
+stager_artifact="dist/busierbox-$target-stager"
 suffix=$(payload_suffix)
 payload="dist/payload-$target.$suffix"
 
@@ -89,7 +115,7 @@ if [ "$target" = native ]; then
     scripts/build-busybox
     TARGET="$target" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" scripts/build-payload
     copy_payload_artifacts
-    OUT="$core" scripts/build-native
+    OUT="$full_core" ARTIFACT_TIER=full ADVERTISE_PAYLOAD_TOOLS=1 scripts/build-native
 else
     if [ "$TARGET_SOURCE" = config ]; then
         gen_output=$(scripts/gen-buildroot-defconfig --from-config)
@@ -108,20 +134,59 @@ else
     if [ -z "$cross_cc" ]; then
         die "target $target payload support exists, but BusierBox core cross-compile is not wired yet"
     fi
-    CC="$cross_cc" OUT="$core" scripts/build-native
+    CC="$cross_cc" OUT="$full_core" ARTIFACT_TIER=full ADVERTISE_PAYLOAD_TOOLS=1 scripts/build-native
 fi
 
 scripts/check-payload-tar "dist/payload-$target.tar"
-scripts/embed-payload "$core" "$payload" "$artifact"
-sha256_write "$artifact" "$artifact.sha256"
+if [ "$BB_BUILD_FULL" = yes ]; then
+    scripts/embed-payload "$full_core" "$payload" "$artifact"
+    rm -f "$full_core"
+    sha256_write "$artifact" "$artifact.sha256"
+    cp "$artifact" "$compat_artifact"
+    cp "$artifact.sha256" "$compat_artifact.sha256"
+else
+    rm -f "$full_core"
+fi
 
-if [ "$VERIFY" = 1 ]; then
+if [ "$BB_BUILD_STAGER" = yes ]; then
+    stager_survey=$(bool01 "${BB_STAGER_INCLUDE_SURVEY:-yes}")
+    stager_doctor=$(bool01 "${BB_STAGER_INCLUDE_DOCTOR:-yes}")
+    stager_config_info=$(bool01 "${BB_STAGER_INCLUDE_CONFIG_INFO:-yes}")
+    stager_extract=$(bool01 "${BB_STAGER_INCLUDE_EXTRACT:-yes}")
+    stager_fetch_full=$(bool01 "${BB_STAGER_FETCH_FULL:-yes}")
+    if [ "$target" = native ]; then
+        OUT="$stager_artifact" ARTIFACT_TIER=stager ADVERTISE_PAYLOAD_TOOLS=0 BB_ENABLE_SURVEY="$stager_survey" BB_ENABLE_DOCTOR="$stager_doctor" BB_ENABLE_CONFIG_INFO="$stager_config_info" BB_ENABLE_EXTRACT="$stager_extract" BB_ENABLE_FETCH_FULL="$stager_fetch_full" BB_STAGER_CALLBACK_ENABLE="${BB_STAGER_CALLBACK_ENABLE:-no}" BB_STAGER_CALLBACK_HOST="${BB_STAGER_CALLBACK_HOST:-}" BB_STAGER_CALLBACK_PORT="${BB_STAGER_CALLBACK_PORT:-}" BB_STAGER_CALLBACK_SHELL="${BB_STAGER_CALLBACK_SHELL:-sh}" scripts/build-native
+    else
+        CC="$cross_cc" OUT="$stager_artifact" ARTIFACT_TIER=stager ADVERTISE_PAYLOAD_TOOLS=0 BB_ENABLE_SURVEY="$stager_survey" BB_ENABLE_DOCTOR="$stager_doctor" BB_ENABLE_CONFIG_INFO="$stager_config_info" BB_ENABLE_EXTRACT="$stager_extract" BB_ENABLE_FETCH_FULL="$stager_fetch_full" BB_STAGER_CALLBACK_ENABLE="${BB_STAGER_CALLBACK_ENABLE:-no}" BB_STAGER_CALLBACK_HOST="${BB_STAGER_CALLBACK_HOST:-}" BB_STAGER_CALLBACK_PORT="${BB_STAGER_CALLBACK_PORT:-}" BB_STAGER_CALLBACK_SHELL="${BB_STAGER_CALLBACK_SHELL:-sh}" scripts/build-native
+    fi
+    sha256_write "$stager_artifact" "$stager_artifact.sha256"
+fi
+
+if [ "$BB_BUILD_INTERNAL_CORE" = yes ]; then
+    if [ "$target" = native ]; then
+        OUT="$core" ARTIFACT_TIER=core ADVERTISE_PAYLOAD_TOOLS=0 scripts/build-native
+    else
+        CC="$cross_cc" OUT="$core" ARTIFACT_TIER=core ADVERTISE_PAYLOAD_TOOLS=0 scripts/build-native
+    fi
+fi
+
+if [ "$VERIFY" = 1 ] && [ "$BB_BUILD_FULL" = yes ]; then
     scripts/verify-artifact "$artifact"
 fi
 
-if [ "$target" = native ]; then
+if [ "$target" = native ] && [ "$BB_BUILD_FULL" = yes ]; then
+    cp "$artifact" dist/busierbox-full
+    cp "$artifact.sha256" dist/busierbox-full.sha256
     cp "$artifact" dist/busierbox
     cp "$artifact.sha256" dist/busierbox.sha256
 fi
 
-printf '%s\n' "PASS $target -> $artifact"
+if [ "$BB_BUILD_FULL" = yes ]; then
+    primary_output=$artifact
+elif [ "$BB_BUILD_STAGER" = yes ]; then
+    primary_output=$stager_artifact
+else
+    primary_output=$core
+fi
+
+printf '%s\n' "PASS $target -> $primary_output"

@@ -9,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c
 
-.PHONY: all build buildroot busybox payload package package-all package-all-presets package-native release verify-artifact target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-glinet test-all
+.PHONY: all build buildroot busybox payload package package-all package-all-presets package-native release verify-artifact check-buildroot-tool-mappings target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-glinet test-all
 
 all: build
 
@@ -49,8 +49,11 @@ release:
 	@PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" BB_RELEASE_NAME="$(BB_RELEASE_NAME)" scripts/release-current "$(if $(TARGET),$(TARGET),--config)"
 
 verify-artifact:
-	@if [ -n "$(TARGET)" ]; then artifact="dist/busierbox-$(TARGET)"; else artifact="dist/busierbox-native"; fi; \
+	@if [ -n "$(TARGET)" ]; then artifact="dist/busierbox-$(TARGET)-full"; else artifact="dist/busierbox-native-full"; fi; \
 	  scripts/verify-artifact "$$artifact"
+
+check-buildroot-tool-mappings:
+	@scripts/check-buildroot-tool-mappings
 
 target-summary:
 	@scripts/resolve-target --config
@@ -76,26 +79,27 @@ detect-host:
 smoke: smoke-test
 
 smoke-test: package-native
-	@scripts/inspect-artifact dist/busierbox-native >/dev/null
-	@scripts/verify-artifact dist/busierbox-native
+	@scripts/inspect-artifact dist/busierbox-native-full >/dev/null
+	@scripts/verify-artifact dist/busierbox-native-full
+	@tests/smoke/artifact-tiers.sh
 	@tests/smoke/target-resolution.sh
 	@tests/smoke/busybox-selection.sh
 	@tests/smoke/payload-reality.sh
-	@./dist/busierbox-native list >/dev/null
-	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native survey --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 json validation unavailable"; fi
-	@./dist/busierbox-native survey >/dev/null
-	@./dist/busierbox-native envfix >/dev/null
-	@./dist/busierbox-native extract >/dev/null
-	@./dist/busierbox-native extract >/dev/null
-	@./dist/busierbox-native sh -c 'echo ok' >/dev/null
-	@./dist/busierbox-native cp --help >/dev/null 2>&1
-	@./dist/busierbox-native dd --help >/dev/null 2>&1
-	@./dist/busierbox-native nc --help >/dev/null 2>&1
-	@./dist/busierbox-native config-info >/dev/null
-	@if command -v python3 >/dev/null 2>&1; then tmp=$$(mktemp -d); ./dist/busierbox-native survey --json > $$tmp/survey.json; tests/smoke/validate-survey-json.py $$tmp/survey.json >/dev/null; scripts/config-from-survey $$tmp/survey.json >/dev/null; rm -rf $$tmp; else printf '%s\n' "skip: python3 survey config validation unavailable"; fi
+	@./dist/busierbox-native-full list >/dev/null
+	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full survey --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 json validation unavailable"; fi
+	@./dist/busierbox-native-full survey >/dev/null
+	@./dist/busierbox-native-full envfix >/dev/null
+	@./dist/busierbox-native-full extract >/dev/null
+	@./dist/busierbox-native-full extract >/dev/null
+	@./dist/busierbox-native-full sh -c 'echo ok' >/dev/null
+	@./dist/busierbox-native-full cp --help >/dev/null 2>&1
+	@./dist/busierbox-native-full dd --help >/dev/null 2>&1
+	@./dist/busierbox-native-full nc --help >/dev/null 2>&1
+	@./dist/busierbox-native-full config-info >/dev/null
+	@if command -v python3 >/dev/null 2>&1; then tmp=$$(mktemp -d); ./dist/busierbox-native-full survey --json > $$tmp/survey.json; tests/smoke/validate-survey-json.py $$tmp/survey.json >/dev/null; scripts/config-from-survey $$tmp/survey.json >/dev/null; rm -rf $$tmp; else printf '%s\n' "skip: python3 survey config validation unavailable"; fi
 	@printf '%s\n' "smoke: testing out-of-cwd embedded extraction (catches exe-wipe bugs)..."
 	@_bbx_tmp=$$(mktemp -d) && \
-	  cp dist/busierbox-native "$$_bbx_tmp/busierbox" && \
+	  cp dist/busierbox-native-full "$$_bbx_tmp/busierbox" && \
 	  chmod +x "$$_bbx_tmp/busierbox" && \
 	  cd "$$_bbx_tmp" && \
 	  ./busierbox extract >/dev/null && \
@@ -122,5 +126,6 @@ test-all: smoke-test test-qemu-user test-qemu-system
 clean:
 	@rm -f dist/busierbox dist/busierbox.sha256 dist/busierbox-*
 	@rm -f dist/*.core dist/*.tmp dist/payload*.tar dist/payload*.tar.sha256 dist/payload*.tar.gz dist/payload*.tar.gz.sha256
+	@rm -rf dist/internal
 	@rm -f src/bbx_busybox_applets.h src/bbx_heavy_tools.h
 	@rm -rf .busierbox

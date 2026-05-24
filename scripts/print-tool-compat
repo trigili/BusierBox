@@ -58,15 +58,8 @@ for tool in tools:
         reqs.append("pty support")
     if meta.get("requires_ptrace"):
         reqs.append("ptrace")
-    note = meta.get("notes", "")
-    if reqs or note:
-        detail = ", ".join(reqs)
-        if detail and note:
-            warnings.append(f"{tool}: may require {detail}. {note}")
-        elif detail:
-            warnings.append(f"{tool}: may require {detail}.")
-        elif note:
-            warnings.append(f"{tool}: {note}")
+    if reqs:
+        warnings.append(f"{tool}: target runtime must provide {', '.join(reqs)}.")
     # Check provider issues
     provider = tool_providers.get(tool, "auto")
     for issue in meta.get("known_provider_issues") or []:
@@ -86,5 +79,5 @@ for tool in tools:
 if warnings:
     print("\n".join(warnings))
 else:
-    print("No tuple-level compatibility warnings for selected heavy tools.")
+    print("No compatibility warnings for selected heavy tools.")
 PY
