@@ -3,8 +3,3 @@ export PATH="$BUSIERBOX_PAYLOAD_DIR/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin
 [ -n "${TERM:-}" ] || export TERM=vt100
 [ -n "${HOME:-}" ] || export HOME="$BUSIERBOX_PAYLOAD_DIR/home"
 [ -n "${ZDOTDIR:-}" ] || export ZDOTDIR="$HOME"
-if [ -n "${BUSIERBOX_PAYLOAD_DIR:-}" ] && [ -d "$BUSIERBOX_PAYLOAD_DIR/share/terminfo" ]; then
-    export TERMINFO_DIRS="$BUSIERBOX_PAYLOAD_DIR/share/terminfo:/usr/share/terminfo:/lib/terminfo"
-fi
-echo "BusierBox payload: ${BUSIERBOX_PAYLOAD_DIR:-unknown}" 2>/dev/null || true
-

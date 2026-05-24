@@ -27,6 +27,7 @@
 
 #define BBX_TRAILER_SIZE 512
 #define BBX_MAGIC "BBXPAYLOADv1"
+#define BBX_PAYLOAD_ID_FILE ".busierbox-payload-id"
 
 static const char *busybox_tools[] = {
 #include "bbx_busybox_applets.h"
@@ -747,6 +748,62 @@ static int verify_embedded_hash(const struct embedded_payload *ep)
     return strcmp(hex, ep->sha256) == 0 ? 0 : -1;
 }
 
+static void write_payload_id(const struct embedded_payload *ep, const char *payload_dir)
+{
+    char id_path[PATH_MAX];
+    FILE *fp;
+    snprintf(id_path, sizeof(id_path), "%s/%s", payload_dir, BBX_PAYLOAD_ID_FILE);
+    fp = fopen(id_path, "w");
+    if (!fp)
+        return;
+    fprintf(fp, "sha256=%s\n", ep->sha256);
+    fprintf(fp, "size=%llu\n", ep->size);
+    fprintf(fp, "version=%s\n", ep->version);
+    fprintf(fp, "format=%s\n", ep->format);
+    fclose(fp);
+}
+
+static int payload_id_matches(const struct embedded_payload *ep, const char *payload_dir)
+{
+    char id_path[PATH_MAX], line[256], key[64], val[192];
+    char found_sha256[65] = "", found_size[32] = "", found_version[128] = "", found_format[16] = "";
+    char expected_size[32];
+    FILE *fp;
+
+    if (!ep->present)
+        return 1;
+    snprintf(id_path, sizeof(id_path), "%s/%s", payload_dir, BBX_PAYLOAD_ID_FILE);
+    fp = fopen(id_path, "r");
+    if (!fp)
+        return 0;
+    while (fgets(line, sizeof(line), fp)) {
+        char *eq;
+        line[strcspn(line, "\r\n")] = '\0';
+        eq = strchr(line, '=');
+        if (!eq)
+            continue;
+        *eq++ = '\0';
+        strncpy(key, line, sizeof(key) - 1);
+        key[sizeof(key) - 1] = '\0';
+        strncpy(val, eq, sizeof(val) - 1);
+        val[sizeof(val) - 1] = '\0';
+        if (!strcmp(key, "sha256"))
+            strncpy(found_sha256, val, sizeof(found_sha256) - 1);
+        else if (!strcmp(key, "size"))
+            strncpy(found_size, val, sizeof(found_size) - 1);
+        else if (!strcmp(key, "version"))
+            strncpy(found_version, val, sizeof(found_version) - 1);
+        else if (!strcmp(key, "format"))
+            strncpy(found_format, val, sizeof(found_format) - 1);
+    }
+    fclose(fp);
+    snprintf(expected_size, sizeof(expected_size), "%llu", ep->size);
+    return strcmp(found_sha256, ep->sha256) == 0 &&
+           strcmp(found_size, expected_size) == 0 &&
+           strcmp(found_version, ep->version) == 0 &&
+           strcmp(found_format, ep->format) == 0;
+}
+
 static int extract_embedded_to_root(const struct embedded_payload *ep, const char *root)
 {
     char lock[PATH_MAX], tmp[PATH_MAX], final[PATH_MAX], extracted[PATH_MAX];
@@ -821,6 +878,7 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
     }
     rm_rf(tmp);
     rmdir(lock);
+    write_payload_id(ep, final);
     return 0;
 }
 
@@ -874,12 +932,20 @@ static int ensure_payload(char *payload, size_t payloadsz)
 {
     char archive[PATH_MAX], root[PATH_MAX];
     struct embedded_payload ep;
+    int have_ep = (get_embedded_payload(&ep) == 0);
 
-    if (candidate_payload(payload, payloadsz) == 0)
-        return 0;
+    if (candidate_payload(payload, payloadsz) == 0) {
+        if (have_ep && !payload_id_matches(&ep, payload)) {
+            fprintf(stderr, "busierbox: extracted payload is from a different binary; re-extracting...\n");
+            rm_rf(payload);
+            /* fall through to extract */
+        } else {
+            return 0;
+        }
+    }
     if (choose_extract_root(root, sizeof(root)) != 0)
         return -1;
-    if (get_embedded_payload(&ep) == 0) {
+    if (have_ep) {
         if (extract_embedded_to_root(&ep, root) != 0)
             return -1;
     } else {
@@ -914,13 +980,24 @@ static void set_payload_env(const char *payload)
     setenv("PATH", path, 1);
     setenv("HOME", home, 1);
     if (!getenv("TERM"))
-        setenv("TERM", "vt100", 1);
+        setenv("TERM", "xterm-256color", 1);
     snprintf(lib, sizeof(lib), "%s/home", payload);
     if (path_exists(lib))
         setenv("ZDOTDIR", lib, 1);
     snprintf(lib, sizeof(lib), "%s/lib", payload);
     if (path_exists(lib))
         setenv("LD_LIBRARY_PATH", lib, 1);
+    snprintf(lib, sizeof(lib), "%s/share/terminfo", payload);
+    if (path_exists(lib)) {
+        const char *old_ti = getenv("TERMINFO_DIRS");
+        if (old_ti && *old_ti) {
+            char ti_path[PATH_MAX * 2];
+            snprintf(ti_path, sizeof(ti_path), "%s:%s", lib, old_ti);
+            setenv("TERMINFO_DIRS", ti_path, 1);
+        } else {
+            setenv("TERMINFO_DIRS", lib, 1);
+        }
+    }
 }
 
 static int execv_alloc(const char *path, char **argv)
@@ -1005,13 +1082,26 @@ int applet_extract_main(int argc, char **argv)
 {
     char payload[PATH_MAX], archive[PATH_MAX], root[PATH_MAX];
     struct embedded_payload ep;
+    int i, force = 0;
 
+    for (i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--force"))
+            force = 1;
+    }
     if (is_help(argc, argv)) {
-        puts("usage: busierbox extract");
+        puts("usage: busierbox extract [--force]");
         puts("Extracts embedded payload into a writable runtime directory.");
+        puts("  --force  Remove any existing extracted payload before extracting.");
         return 0;
     }
-    if (candidate_payload(payload, sizeof(payload)) == 0) {
+    if (force) {
+        char old_payload[PATH_MAX];
+        if (candidate_payload(old_payload, sizeof(old_payload)) == 0) {
+            printf("extract: removing existing payload at %s\n", old_payload);
+            rm_rf(old_payload);
+        }
+    }
+    if (!force && candidate_payload(payload, sizeof(payload)) == 0) {
         printf("payload: reuse %s\n", payload);
         return 0;
     }
@@ -1191,6 +1281,8 @@ int applet_doctor_main(int argc, char **argv)
         printf("busybox_present=%s\n", executable_file(busybox) ? "yes" : "no");
         snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", payload);
         printf("payload_manifest_found=%s\n", path_exists(manifest_path) ? "yes" : "no");
+        if (ep.present)
+            printf("payload_identity_match=%s\n", payload_id_matches(&ep, payload) ? "yes" : "no (stale or different binary)");
         if (path_exists(manifest_path))
             manifest = read_text_file(manifest_path, 1024 * 1024);
     }

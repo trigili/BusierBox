@@ -1,0 +1,72 @@
+#!/bin/sh
+set -eu
+
+# Generates buildroot/generated-configs/<target>-busybox.config
+# based on BB_BUSYBOX_GROUPS, starting from Buildroot's base config.
+# Usage: BB_BUSYBOX_GROUPS="..." TARGET=<name> scripts/gen-buildroot-busybox-config
+# Prints the path to the generated config file.
+
+TARGET=${TARGET:-native}
+GROUPS="${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}"
+BUILDROOT_VERSION="${BUILDROOT_VERSION:-2026.02.2}"
+BUILDROOT_DIR="${BUILDROOT_DIR:-buildroot/buildroot-$BUILDROOT_VERSION}"
+OUT_DIR="${OUT_DIR:-buildroot/generated-configs}"
+
+outfile="$OUT_DIR/${TARGET}-busybox.config"
+base="$BUILDROOT_DIR/package/busybox/busybox.config"
+
+mkdir -p "$OUT_DIR"
+
+if [ ! -f "$base" ]; then
+    printf '%s\n' "gen-buildroot-busybox-config: Buildroot busybox config not found: $base" >&2
+    exit 1
+fi
+
+cp "$base" "$outfile"
+
+enable_sym() {
+    _sym=$1
+    _f=$2
+    if grep -q "^# $_sym is not set" "$_f"; then
+        sed -i "s|^# $_sym is not set|$_sym=y|" "$_f"
+    elif grep -q "^$_sym=" "$_f"; then
+        sed -i "s|^$_sym=.*|$_sym=y|" "$_f"
+    else
+        printf '%s=y\n' "$_sym" >>"$_f"
+    fi
+}
+
+for grp in $GROUPS; do
+    case "$grp" in
+        shell)
+            for sym in CONFIG_ASH CONFIG_SH_IS_ASH CONFIG_ASH_PRINTF CONFIG_ASH_ECHO CONFIG_ASH_TEST; do
+                enable_sym "$sym" "$outfile"
+            done ;;
+        fileops)
+            for sym in CONFIG_CAT CONFIG_LS CONFIG_CP CONFIG_MV CONFIG_RM CONFIG_MKDIR CONFIG_CHMOD CONFIG_TOUCH CONFIG_READLINK CONFIG_STAT CONFIG_LN CONFIG_DU CONFIG_INSTALL CONFIG_BASENAME CONFIG_DIRNAME; do
+                enable_sym "$sym" "$outfile"
+            done ;;
+        disk)
+            for sym in CONFIG_DD CONFIG_DF CONFIG_MOUNT CONFIG_UMOUNT CONFIG_TAR CONFIG_GZIP CONFIG_GUNZIP CONFIG_ZCAT CONFIG_SYNC; do
+                enable_sym "$sym" "$outfile"
+            done ;;
+        process)
+            for sym in CONFIG_PS CONFIG_FREE CONFIG_KILL CONFIG_KILLALL CONFIG_ID CONFIG_WHOAMI CONFIG_WHICH CONFIG_UNAME CONFIG_ENV CONFIG_SLEEP CONFIG_NOHUP; do
+                enable_sym "$sym" "$outfile"
+            done ;;
+        network)
+            for sym in CONFIG_NC CONFIG_NC_SERVER CONFIG_PING CONFIG_WGET CONFIG_IP CONFIG_IFCONFIG CONFIG_NETSTAT CONFIG_ROUTE CONFIG_HOSTNAME CONFIG_DNSDOMAINNAME; do
+                enable_sym "$sym" "$outfile"
+            done ;;
+        text)
+            for sym in CONFIG_GREP CONFIG_EGREP CONFIG_FGREP CONFIG_SED CONFIG_AWK CONFIG_TEE CONFIG_XARGS CONFIG_FIND CONFIG_SORT CONFIG_UNIQ CONFIG_CUT CONFIG_HEAD CONFIG_TAIL CONFIG_WC CONFIG_TR CONFIG_LESS; do
+                enable_sym "$sym" "$outfile"
+            done ;;
+        system)
+            for sym in CONFIG_DMESG CONFIG_SYSCTL CONFIG_DATE CONFIG_HEXDUMP CONFIG_XXD CONFIG_OD CONFIG_STRINGS CONFIG_STTY; do
+                enable_sym "$sym" "$outfile"
+            done ;;
+    esac
+done
+
+printf '%s\n' "$outfile"

@@ -7,4 +7,3 @@ if [ -n "${BUSIERBOX_PAYLOAD_DIR:-}" ] && [ -d "$BUSIERBOX_PAYLOAD_DIR/share/ter
     export TERMINFO_DIRS="$BUSIERBOX_PAYLOAD_DIR/share/terminfo:/usr/share/terminfo:/lib/terminfo"
 fi
 echo "BusierBox payload: ${BUSIERBOX_PAYLOAD_DIR:-unknown}" 2>/dev/null || true
-

@@ -47,10 +47,28 @@ ensure_buildroot() {
 
 stage_dotfiles() {
     mkdir -p runtime/payload/home
-    cp payloads/dotfiles/.profile runtime/payload/home/.profile
-    cp payloads/dotfiles/.tmux.conf runtime/payload/home/.tmux.conf
-    cp payloads/dotfiles/.zshrc runtime/payload/home/.zshrc
-    cp payloads/dotfiles/.gdbinit runtime/payload/home/.gdbinit
+    _profile="${BB_DOTFILE_PROFILE:-default-comfort}"
+    _user_path="${BB_DOTFILE_USER_PATH:-}"
+    case "$_profile" in
+        none) return 0 ;;
+        user-supplied)
+            if [ -n "$_user_path" ] && [ -d "$_user_path" ]; then
+                cp -r "$_user_path"/. runtime/payload/home/ 2>/dev/null || true
+            else
+                printf '%s\n' "buildroot-build-payload: user-supplied dotfiles path not found: $_user_path; using default-comfort" >&2
+                _profile=default-comfort
+            fi
+            ;;
+    esac
+    _src="payloads/dotfiles"
+    if [ "$_profile" = "default-minimal" ] || [ "$_profile" = "default-comfort" ]; then
+        if [ -d "payloads/dotfiles/$_profile" ]; then
+            _src="payloads/dotfiles/$_profile"
+        fi
+    fi
+    for _f in .profile .zshrc .tmux.conf .gdbinit; do
+        [ -f "$_src/$_f" ] && cp "$_src/$_f" "runtime/payload/home/$_f"
+    done
 }
 
 copy_shared_libs_if_dynamic() {
@@ -172,6 +190,10 @@ write_manifest() {
 [ -f "$profile" ] || die "unknown TARGET=$TARGET; missing $profile"
 [ -f "$defconfig" ] || die "missing Buildroot defconfig $defconfig"
 requested_tools=$(profile_value REQUESTED_TOOLS)
+BB_DOTFILE_PROFILE=$(profile_value DOTFILE_PROFILE 2>/dev/null || true)
+BB_DOTFILE_USER_PATH=$(profile_value DOTFILE_USER_PATH 2>/dev/null || true)
+BB_DOTFILE_PROFILE=${BB_DOTFILE_PROFILE:-default-comfort}
+BB_BUSYBOX_GROUPS=$(profile_value BUSYBOX_GROUPS 2>/dev/null || true)
 pre_excluded=$(profile_value EXCLUDED_TOOLS 2>/dev/null || true)
 
 ensure_buildroot
@@ -261,6 +283,16 @@ fi
 if tool_requested tmux; then
     stage_first_found tmux usr/bin/tmux bin/tmux || printf '%s\n' "buildroot-build-payload: requested tmux but no built binary was found" >&2
 fi
+
+# Stage terminfo database if built
+for ti_src in "$out_dir/target/usr/share/terminfo" "$out_dir/target/lib/terminfo"; do
+    if [ -d "$ti_src" ]; then
+        mkdir -p runtime/payload/share/terminfo
+        cp -r "$ti_src/." runtime/payload/share/terminfo/
+        printf '%s\n' "buildroot-build-payload: staged terminfo from $ti_src"
+        break
+    fi
+done
 
 sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
 sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt

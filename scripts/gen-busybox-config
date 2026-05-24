@@ -6,6 +6,7 @@ set -eu
 
 BUSYBOX_DIR="${BUSYBOX_DIR:-third_party/busybox}"
 GROUPS="${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}"
+APPLETS="${BB_BUSYBOX_APPLETS:-}"
 
 if [ ! -d "$BUSYBOX_DIR" ]; then
     printf '%s\n' "gen-busybox-config: $BUSYBOX_DIR not found; run: git submodule update --init" >&2
@@ -102,11 +103,17 @@ system      stty        CONFIG_STTY=y
 APPLETS
 }
 
-# Build a set of CONFIG lines for selected groups
+# Build a set of CONFIG lines for selected groups and individual applets
 selected_configs() {
     for grp in $GROUPS; do
         applet_map | awk -v g="$grp" '$1 == g { print $3 }'
-    done | sort -u
+    done
+    # Also enable individually listed applets
+    if [ -n "$APPLETS" ]; then
+        for applet in $APPLETS; do
+            applet_map | awk -v a="$applet" '$2 == a { print $3 }'
+        done
+    fi
 }
 
 # Start from allnoconfig to ensure we only get what we asked for.
@@ -153,7 +160,7 @@ setstr CONFIG_CROSS_COMPILER_PREFIX ""
 setstr CONFIG_BUSYBOX_EXEC_PATH "/proc/self/exe"
 
 # Enable selected applets
-for sym in $(selected_configs); do
+for sym in $(selected_configs | sort -u); do
     sym_name=$(echo "$sym" | cut -d= -f1)
     enable "$sym_name"
 done
@@ -161,5 +168,5 @@ done
 # Resolve dependencies
 (cd "$BUSYBOX_DIR" && yes "" | make oldconfig >/dev/null 2>&1)
 
-n_applets=$(selected_configs | wc -l)
+n_applets=$(selected_configs | sort -u | wc -l)
 printf '%s\n' "gen-busybox-config: config written ($n_applets applet entries, dependencies resolved)"

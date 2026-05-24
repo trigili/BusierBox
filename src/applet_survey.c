@@ -4,13 +4,16 @@
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ptrace.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "applets.h"
@@ -305,6 +308,33 @@ static void json_mounts(void)
 
 static const char *ptrace_status(void)
 {
+    pid_t child, r;
+    int status;
+
+    child = fork();
+    if (child < 0)
+        return "fork-failed";
+    if (child == 0) {
+        if (ptrace(PTRACE_TRACEME, 0, NULL, NULL) < 0)
+            _exit(2);
+        raise(SIGSTOP);
+        _exit(0);
+    }
+    r = waitpid(child, &status, 0);
+    if (r != child) {
+        kill(child, SIGKILL);
+        waitpid(child, NULL, 0);
+        return "unknown";
+    }
+    if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSTOP) {
+        ptrace(PTRACE_CONT, child, NULL, 0);
+        waitpid(child, &status, 0);
+        return "basic-ok";
+    }
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 2)
+        return "denied";
+    kill(child, SIGKILL);
+    waitpid(child, NULL, 0);
     return "unknown";
 }
 
@@ -326,6 +356,7 @@ int applet_survey_main(int argc, char **argv)
     if (!getcwd(cwd, sizeof(cwd)))
         snprintf(cwd, sizeof(cwd), "unknown");
     pc = proc_count();
+    const char *ptrace_st = ptrace_status();
 
     if (json) {
         printf("{\"busierbox\":{\"version\":"); json_string(BUSIERBOX_VERSION);
@@ -355,13 +386,13 @@ int applet_survey_main(int argc, char **argv)
         printf(",\"process_count\":"); pc >= 0 ? printf("%d", pc) : printf("null");
         printf(",\"meminfo\":"); json_meminfo();
         printf(",\"interfaces\":"); json_netdev();
-        printf(",\"ptrace\":"); json_string(ptrace_status());
+        printf(",\"ptrace\":"); json_string(ptrace_st);
         printf(",\"recommendations\":{\"zero_write_supported\":true,\"payload_mode_possible\":%s,\"likely_zsh_supported\":%s,\"likely_tmux_supported\":%s,\"likely_strace_supported\":%s,\"likely_gdbserver_supported\":%s,\"likely_payload_reuse_supported\":%s,\"recommended_extract_dir\":",
                strcmp(recommended_extract_dir(), "none") ? "true" : "false",
                strcmp(recommended_extract_dir(), "none") ? "true" : "false",
                access("/dev/pts", F_OK) == 0 ? "true" : "false",
-               !strcmp(ptrace_status(), "basic-ok") ? "true" : "false",
-               !strcmp(ptrace_status(), "basic-ok") ? "true" : "false",
+               !strcmp(ptrace_st, "basic-ok") ? "true" : "false",
+               !strcmp(ptrace_st, "basic-ok") ? "true" : "false",
                access(".", W_OK | X_OK) == 0 ? "true" : "false");
         json_string(recommended_extract_dir());
         printf(",\"payload_recommendation_reason\":");
@@ -384,14 +415,14 @@ int applet_survey_main(int argc, char **argv)
     if (pc >= 0) printf("%d\n", pc);
     print_meminfo_human();
     print_netdev_human();
-    printf("ptrace: %s\n", ptrace_status());
+    printf("ptrace: %s\n", ptrace_st);
     printf("recommendations:\n");
     printf("  zero_write_supported: yes\n");
     printf("  payload_mode_possible: %s\n", strcmp(recommended_extract_dir(), "none") ? "yes" : "no");
     printf("  likely_zsh_supported: %s\n", strcmp(recommended_extract_dir(), "none") ? "yes" : "unknown");
     printf("  likely_tmux_supported: %s\n", access("/dev/pts", F_OK) == 0 ? "yes" : "unknown");
-    printf("  likely_strace_supported: %s\n", !strcmp(ptrace_status(), "basic-ok") ? "yes" : "unknown");
-    printf("  likely_gdbserver_supported: %s\n", !strcmp(ptrace_status(), "basic-ok") ? "yes" : "unknown");
+    printf("  likely_strace_supported: %s\n", !strcmp(ptrace_st, "basic-ok") ? "yes" : "unknown");
+    printf("  likely_gdbserver_supported: %s\n", !strcmp(ptrace_st, "basic-ok") ? "yes" : "unknown");
     printf("  likely_payload_reuse_supported: %s\n", access(".", W_OK | X_OK) == 0 ? "yes" : "unknown");
     printf("  recommended_extract_dir: %s\n", recommended_extract_dir());
     printf("  payload_recommendation_reason: %s\n", strcmp(recommended_extract_dir(), "none") ? "found writable executable extraction directory" : "no writable executable extraction directory found");
