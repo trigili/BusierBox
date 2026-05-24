@@ -9,6 +9,20 @@ target=${1:-}
 [ -n "$target" ] || { usage; exit 2; }
 requested_target=$target
 
+capture_env_override() {
+    name=$1
+    eval "case \"\${$name+x}\" in x) ${name}_ENV_SET=1; ${name}_ENV_VALUE=\${$name} ;; *) ${name}_ENV_SET=0; ${name}_ENV_VALUE= ;; esac"
+}
+
+restore_env_override() {
+    name=$1
+    eval "if [ \"\$${name}_ENV_SET\" = 1 ]; then $name=\$${name}_ENV_VALUE; fi"
+}
+
+for _name in BB_BUILD_FULL BB_BUILD_STAGER BB_BUILD_INTERNAL_CORE BB_STAGER_CALLBACK_ENABLE BB_STAGER_CALLBACK_HOST BB_STAGER_CALLBACK_PORT BB_STAGER_TOKEN BB_STAGER_CONNECT_TIMEOUT BB_STAGER_RETRY_COUNT BB_STAGER_RETRY_DELAY BB_STAGER_OUTPUT_PATH BB_STAGER_AUTO_EXEC; do
+    capture_env_override "$_name"
+done
+
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 BUILDROOT_OUTPUT_BASE=${BUILDROOT_OUTPUT_BASE:-buildroot/output}
 VERIFY=${VERIFY:-0}
@@ -24,6 +38,11 @@ esac
 if [ -f configs/busierbox.conf ]; then
     . ./configs/busierbox.conf
 fi
+
+for _name in BB_BUILD_FULL BB_BUILD_STAGER BB_BUILD_INTERNAL_CORE BB_STAGER_CALLBACK_ENABLE BB_STAGER_CALLBACK_HOST BB_STAGER_CALLBACK_PORT BB_STAGER_TOKEN BB_STAGER_CONNECT_TIMEOUT BB_STAGER_RETRY_COUNT BB_STAGER_RETRY_DELAY BB_STAGER_OUTPUT_PATH BB_STAGER_AUTO_EXEC; do
+    restore_env_override "$_name"
+done
+unset _name
 
 BB_BUILD_FULL=${BB_BUILD_FULL:-yes}
 BB_BUILD_STAGER=${BB_BUILD_STAGER:-yes}
@@ -149,15 +168,10 @@ else
 fi
 
 if [ "$BB_BUILD_STAGER" = yes ]; then
-    stager_survey=$(bool01 "${BB_STAGER_INCLUDE_SURVEY:-yes}")
-    stager_doctor=$(bool01 "${BB_STAGER_INCLUDE_DOCTOR:-yes}")
-    stager_config_info=$(bool01 "${BB_STAGER_INCLUDE_CONFIG_INFO:-yes}")
-    stager_extract=$(bool01 "${BB_STAGER_INCLUDE_EXTRACT:-yes}")
-    stager_fetch_full=$(bool01 "${BB_STAGER_FETCH_FULL:-yes}")
     if [ "$target" = native ]; then
-        OUT="$stager_artifact" ARTIFACT_TIER=stager ADVERTISE_PAYLOAD_TOOLS=0 BB_ENABLE_SURVEY="$stager_survey" BB_ENABLE_DOCTOR="$stager_doctor" BB_ENABLE_CONFIG_INFO="$stager_config_info" BB_ENABLE_EXTRACT="$stager_extract" BB_ENABLE_FETCH_FULL="$stager_fetch_full" BB_STAGER_CALLBACK_ENABLE="${BB_STAGER_CALLBACK_ENABLE:-no}" BB_STAGER_CALLBACK_HOST="${BB_STAGER_CALLBACK_HOST:-}" BB_STAGER_CALLBACK_PORT="${BB_STAGER_CALLBACK_PORT:-}" BB_STAGER_CALLBACK_SHELL="${BB_STAGER_CALLBACK_SHELL:-sh}" scripts/build-native
+        OUT="$stager_artifact" BB_STAGER_TARGET_NAME="$target" BB_STAGER_CALLBACK_ENABLE="${BB_STAGER_CALLBACK_ENABLE:-no}" BB_STAGER_CALLBACK_HOST="${BB_STAGER_CALLBACK_HOST:-}" BB_STAGER_CALLBACK_PORT="${BB_STAGER_CALLBACK_PORT:-4444}" BB_STAGER_TOKEN="${BB_STAGER_TOKEN:-}" BB_STAGER_CONNECT_TIMEOUT="${BB_STAGER_CONNECT_TIMEOUT:-10}" BB_STAGER_RETRY_COUNT="${BB_STAGER_RETRY_COUNT:-3}" BB_STAGER_RETRY_DELAY="${BB_STAGER_RETRY_DELAY:-2}" BB_STAGER_OUTPUT_PATH="${BB_STAGER_OUTPUT_PATH:-/tmp/busierbox-full}" BB_STAGER_AUTO_EXEC="${BB_STAGER_AUTO_EXEC:-doctor}" scripts/build-stager
     else
-        CC="$cross_cc" OUT="$stager_artifact" ARTIFACT_TIER=stager ADVERTISE_PAYLOAD_TOOLS=0 BB_ENABLE_SURVEY="$stager_survey" BB_ENABLE_DOCTOR="$stager_doctor" BB_ENABLE_CONFIG_INFO="$stager_config_info" BB_ENABLE_EXTRACT="$stager_extract" BB_ENABLE_FETCH_FULL="$stager_fetch_full" BB_STAGER_CALLBACK_ENABLE="${BB_STAGER_CALLBACK_ENABLE:-no}" BB_STAGER_CALLBACK_HOST="${BB_STAGER_CALLBACK_HOST:-}" BB_STAGER_CALLBACK_PORT="${BB_STAGER_CALLBACK_PORT:-}" BB_STAGER_CALLBACK_SHELL="${BB_STAGER_CALLBACK_SHELL:-sh}" scripts/build-native
+        CC="$cross_cc" OUT="$stager_artifact" BB_STAGER_TARGET_NAME="$target" BB_STAGER_CALLBACK_ENABLE="${BB_STAGER_CALLBACK_ENABLE:-no}" BB_STAGER_CALLBACK_HOST="${BB_STAGER_CALLBACK_HOST:-}" BB_STAGER_CALLBACK_PORT="${BB_STAGER_CALLBACK_PORT:-4444}" BB_STAGER_TOKEN="${BB_STAGER_TOKEN:-}" BB_STAGER_CONNECT_TIMEOUT="${BB_STAGER_CONNECT_TIMEOUT:-10}" BB_STAGER_RETRY_COUNT="${BB_STAGER_RETRY_COUNT:-3}" BB_STAGER_RETRY_DELAY="${BB_STAGER_RETRY_DELAY:-2}" BB_STAGER_OUTPUT_PATH="${BB_STAGER_OUTPUT_PATH:-/tmp/busierbox-full}" BB_STAGER_AUTO_EXEC="${BB_STAGER_AUTO_EXEC:-doctor}" scripts/build-stager
     fi
     sha256_write "$stager_artifact" "$stager_artifact.sha256"
 fi

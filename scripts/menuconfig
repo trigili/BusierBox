@@ -37,7 +37,13 @@ BB_STAGER_INCLUDE_NC="no"
 BB_STAGER_FETCH_FULL="yes"
 BB_STAGER_CALLBACK_ENABLE="no"
 BB_STAGER_CALLBACK_HOST=""
-BB_STAGER_CALLBACK_PORT=""
+BB_STAGER_CALLBACK_PORT="4444"
+BB_STAGER_TOKEN=""
+BB_STAGER_CONNECT_TIMEOUT="10"
+BB_STAGER_RETRY_COUNT="3"
+BB_STAGER_RETRY_DELAY="2"
+BB_STAGER_OUTPUT_PATH="/tmp/busierbox-full"
+BB_STAGER_AUTO_EXEC="doctor"
 BB_STAGER_CALLBACK_SHELL="sh"
 BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
 BB_HEAVY_TOOLS=""
@@ -115,6 +121,12 @@ BB_STAGER_FETCH_FULL="$BB_STAGER_FETCH_FULL"
 BB_STAGER_CALLBACK_ENABLE="$BB_STAGER_CALLBACK_ENABLE"
 BB_STAGER_CALLBACK_HOST="$BB_STAGER_CALLBACK_HOST"
 BB_STAGER_CALLBACK_PORT="$BB_STAGER_CALLBACK_PORT"
+BB_STAGER_TOKEN="$BB_STAGER_TOKEN"
+BB_STAGER_CONNECT_TIMEOUT="$BB_STAGER_CONNECT_TIMEOUT"
+BB_STAGER_RETRY_COUNT="$BB_STAGER_RETRY_COUNT"
+BB_STAGER_RETRY_DELAY="$BB_STAGER_RETRY_DELAY"
+BB_STAGER_OUTPUT_PATH="$BB_STAGER_OUTPUT_PATH"
+BB_STAGER_AUTO_EXEC="$BB_STAGER_AUTO_EXEC"
 BB_STAGER_CALLBACK_SHELL="$BB_STAGER_CALLBACK_SHELL"
 BB_BUSYBOX_GROUPS="$BB_BUSYBOX_GROUPS"
 BB_HEAVY_TOOLS="$BB_HEAVY_TOOLS"
@@ -384,11 +396,12 @@ configure_artifact_outputs() {
     has_item "$_sel" full && BB_BUILD_FULL=yes
     has_item "$_sel" stager && BB_BUILD_STAGER=yes
     has_item "$_sel" core && BB_BUILD_INTERNAL_CORE=yes
+    return 0
 }
 
 configure_stager_options() {
     dialog --title "Stager Options" \
-        --checklist "Configure optional stager capabilities. Callback support is explicit and non-persistent." 20 82 11 \
+        --checklist "Configure optional stager capabilities. Callback support is explicit and non-persistent." 20 82 10 \
         "survey" "Include survey applet" "$(onoff "$BB_STAGER_INCLUDE_SURVEY")" \
         "doctor" "Include doctor applet" "$(onoff "$BB_STAGER_INCLUDE_DOCTOR")" \
         "config-info" "Include config-info applet" "$(onoff "$BB_STAGER_INCLUDE_CONFIG_INFO")" \
@@ -397,8 +410,8 @@ configure_stager_options() {
         "wget" "Include wget in stager payload when practical" "$(onoff "$BB_STAGER_INCLUDE_WGET")" \
         "curl" "Include curl in stager payload when practical" "$(onoff "$BB_STAGER_INCLUDE_CURL")" \
         "nc" "Include nc in stager payload when practical" "$(onoff "$BB_STAGER_INCLUDE_NC")" \
-        "fetch-full" "Include fetch-full helper" "$(onoff "$BB_STAGER_FETCH_FULL")" \
-        "callback" "Enable explicit callback/connect-back config" "$(onoff "$BB_STAGER_CALLBACK_ENABLE")" \
+        "fetch-full" "Include fetch-full helper in legacy launcher stager" "$(onoff "$BB_STAGER_FETCH_FULL")" \
+        "callback" "Enable compiled callback on no-argument stager run" "$(onoff "$BB_STAGER_CALLBACK_ENABLE")" \
         2>"$temp_out" || return 0
     _sel=$(cat "$temp_out" | tr -d '"')
     BB_STAGER_INCLUDE_SURVEY=no
@@ -426,13 +439,23 @@ configure_stager_options() {
         BB_STAGER_CALLBACK_HOST=$(cat "$temp_out")
         dialog --title "Stager Callback Port" --inputbox "Callback port. Leave blank to configure later." 9 70 "$BB_STAGER_CALLBACK_PORT" 2>"$temp_out" || true
         BB_STAGER_CALLBACK_PORT=$(cat "$temp_out")
-        dialog --title "Stager Callback Shell" --radiolist "Select callback shell preference:" 12 50 2 \
-            "sh" "POSIX shell" "$([ "$BB_STAGER_CALLBACK_SHELL" = sh ] && printf on || printf off)" \
-            "zsh" "zsh if available in full payload" "$([ "$BB_STAGER_CALLBACK_SHELL" = zsh ] && printf on || printf off)" \
+        dialog --title "Stager Token" --inputbox "Shared token. Generate one with: openssl rand -hex 16" 9 78 "$BB_STAGER_TOKEN" 2>"$temp_out" || true
+        BB_STAGER_TOKEN=$(cat "$temp_out")
+        dialog --title "Stager Retry Count" --inputbox "Connection attempts before giving up." 9 70 "$BB_STAGER_RETRY_COUNT" 2>"$temp_out" || true
+        BB_STAGER_RETRY_COUNT=$(cat "$temp_out")
+        dialog --title "Stager Retry Delay" --inputbox "Seconds between callback attempts." 9 70 "$BB_STAGER_RETRY_DELAY" 2>"$temp_out" || true
+        BB_STAGER_RETRY_DELAY=$(cat "$temp_out")
+        dialog --title "Received Full Artifact Path" --inputbox "Where the stager should write the received full artifact." 9 78 "$BB_STAGER_OUTPUT_PATH" 2>"$temp_out" || true
+        BB_STAGER_OUTPUT_PATH=$(cat "$temp_out")
+        dialog --title "Auto-exec After Receive" --radiolist "Select explicit post-upload action:" 13 60 3 \
+            "none" "Do not run received artifact" "$([ "$BB_STAGER_AUTO_EXEC" = none ] && printf on || printf off)" \
+            "doctor" "Run received artifact doctor" "$([ "$BB_STAGER_AUTO_EXEC" = doctor ] && printf on || printf off)" \
+            "survey" "Run received artifact survey" "$([ "$BB_STAGER_AUTO_EXEC" = survey ] && printf on || printf off)" \
             2>"$temp_out" || true
-        _shell=$(cat "$temp_out" | tr -d '"')
-        [ -n "$_shell" ] && BB_STAGER_CALLBACK_SHELL="$_shell"
+        _auto_exec=$(cat "$temp_out" | tr -d '"')
+        [ -n "$_auto_exec" ] && BB_STAGER_AUTO_EXEC="$_auto_exec"
     fi
+    return 0
 }
 
 busybox_group_status() {
@@ -503,6 +526,7 @@ configure_busybox_group_applets() {
 $(scripts/busybox-applet-map | awk -v group="$_group" '$1 == group { print $2 }')
 EOF
     BB_BUSYBOX_APPLET_OVERRIDES="$_new_overrides"
+    return 0
 }
 
 configure_busybox_groups() {
@@ -770,6 +794,7 @@ configure_heavy_tools() {
         2>"$temp_out" || return 0
     BB_HEAVY_TOOLS=$(cat "$temp_out" | tr -d '"')
     check_gdbserver_compat_interactive
+    return 0
 }
 
 configure_dropbear() {

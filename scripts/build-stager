@@ -1,0 +1,49 @@
+#!/bin/sh
+set -eu
+
+: "${CC:=cc}"
+: "${CFLAGS:=-Os -Wall -Wextra -std=c99}"
+: "${CPPFLAGS:=}"
+: "${LDFLAGS:=}"
+: "${OUT:=dist/busierbox-native-stager}"
+: "${BB_STAGER_TARGET_NAME:=native}"
+: "${BB_STAGER_CALLBACK_ENABLE:=no}"
+: "${BB_STAGER_CALLBACK_HOST:=}"
+: "${BB_STAGER_CALLBACK_PORT:=4444}"
+: "${BB_STAGER_TOKEN:=}"
+: "${BB_STAGER_CONNECT_TIMEOUT:=10}"
+: "${BB_STAGER_RETRY_COUNT:=3}"
+: "${BB_STAGER_RETRY_DELAY:=2}"
+: "${BB_STAGER_OUTPUT_PATH:=/tmp/busierbox-full}"
+: "${BB_STAGER_AUTO_EXEC:=doctor}"
+
+tmp="${OUT}.$$.tmp"
+mkdir -p "$(dirname "$OUT")" dist
+
+quote_c() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+CPPFLAGS="$CPPFLAGS -DBB_STAGER_TARGET_NAME=\"$(quote_c "$BB_STAGER_TARGET_NAME")\""
+CPPFLAGS="$CPPFLAGS -DBB_STAGER_CALLBACK_ENABLE=\"$(quote_c "$BB_STAGER_CALLBACK_ENABLE")\""
+CPPFLAGS="$CPPFLAGS -DBB_STAGER_CALLBACK_HOST=\"$(quote_c "$BB_STAGER_CALLBACK_HOST")\""
+CPPFLAGS="$CPPFLAGS -DBB_STAGER_CALLBACK_PORT=\"$(quote_c "$BB_STAGER_CALLBACK_PORT")\""
+CPPFLAGS="$CPPFLAGS -DBB_STAGER_TOKEN=\"$(quote_c "$BB_STAGER_TOKEN")\""
+CPPFLAGS="$CPPFLAGS -DBB_STAGER_CONNECT_TIMEOUT=$BB_STAGER_CONNECT_TIMEOUT"
+CPPFLAGS="$CPPFLAGS -DBB_STAGER_RETRY_COUNT=$BB_STAGER_RETRY_COUNT"
+CPPFLAGS="$CPPFLAGS -DBB_STAGER_RETRY_DELAY=$BB_STAGER_RETRY_DELAY"
+CPPFLAGS="$CPPFLAGS -DBB_STAGER_OUTPUT_PATH=\"$(quote_c "$BB_STAGER_OUTPUT_PATH")\""
+CPPFLAGS="$CPPFLAGS -DBB_STAGER_AUTO_EXEC=\"$(quote_c "$BB_STAGER_AUTO_EXEC")\""
+
+printf '%s\n' "building BusierBox stager..."
+if "$CC" $CPPFLAGS $CFLAGS -static -o "$tmp" src/stager.c src/sha256.c $LDFLAGS >/dev/null 2>&1; then
+    mv "$tmp" "$OUT"
+    printf '%s\n' "built $OUT with static linking"
+else
+    rm -f "$tmp"
+    printf '%s\n' "static stager link unavailable; falling back to dynamic link" >&2
+    "$CC" $CPPFLAGS $CFLAGS -o "$tmp" src/stager.c src/sha256.c $LDFLAGS
+    mv "$tmp" "$OUT"
+    printf '%s\n' "built $OUT with dynamic linking"
+fi
+chmod 0755 "$OUT"

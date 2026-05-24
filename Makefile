@@ -9,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c
 
-.PHONY: all build buildroot busybox payload package package-all package-all-presets package-native release verify-artifact check-buildroot-tool-mappings target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-glinet test-all
+.PHONY: all build buildroot busybox payload package package-full package-stager package-all package-all-presets package-native release verify-artifact check-buildroot-tool-mappings target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-glinet test-all
 
 all: build
 
@@ -29,6 +29,12 @@ payload:
 
 package:
 	@TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" STRICT="$(STRICT)" VERIFY="$(VERIFY)" scripts/package-selected
+
+package-full:
+	@BB_BUILD_FULL=yes BB_BUILD_STAGER=no BB_BUILD_INTERNAL_CORE=no TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" STRICT="$(STRICT)" VERIFY="$(VERIFY)" scripts/package-selected
+
+package-stager:
+	@BB_BUILD_FULL=no BB_BUILD_STAGER=yes BB_BUILD_INTERNAL_CORE=no TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" STRICT="$(STRICT)" VERIFY="$(VERIFY)" scripts/package-selected
 
 package-all: package
 
@@ -82,6 +88,7 @@ smoke-test: package-native
 	@scripts/inspect-artifact dist/busierbox-native-full >/dev/null
 	@scripts/verify-artifact dist/busierbox-native-full
 	@tests/smoke/artifact-tiers.sh
+	@tests/smoke/stager-server.sh
 	@tests/smoke/target-resolution.sh
 	@tests/smoke/busybox-selection.sh
 	@tests/smoke/payload-reality.sh

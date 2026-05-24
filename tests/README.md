@@ -119,6 +119,7 @@ Useful overrides:
 ROUTER=root@192.168.8.1 make test-glinet
 SKIP_BUILD=1 ARTIFACT=dist/busierbox-mipsel-linux-4.x-musl-full tests/integration/glinet/push-and-test
 KEEP_ARTIFACTS=1 tests/integration/glinet/push-and-test dist/busierbox-mipsel-linux-4.x-musl-full
+BUSIERBOX_SERVER_HOST=192.168.8.241 BUSIERBOX_STAGER_TOKEN=testtoken tests/integration/glinet/stager-callback
 ```
 
 The default remote directory is `/tmp/busierbox-itest`, which avoids the small persistent root filesystem on many OpenWrt-style devices. Override `REMOTE_DIR` only when that location has enough free space for the artifact plus extraction. The harness fails loudly for missing advertised tools, missing applet symlinks, broken extraction, duplicate payload PATH entries, zsh without payload commands, and overlay tool drift.

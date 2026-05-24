@@ -15,13 +15,9 @@ stager=${2:-dist/busierbox-native-stager}
 
 "$full" config-info | grep -q '^artifact_tier=full$'
 "$full" config-info | grep -q '^embedded_payload=yes$'
-"$stager" config-info | grep -q '^artifact_tier=stager$'
-"$stager" config-info | grep -q '^embedded_payload=no$'
-"$stager" fetch-full --help >/dev/null
-
-if "$stager" list --plain | awk '$1 == "busybox" || $1 == "tool" { found = 1 } END { exit found ? 0 : 1 }'; then
-    printf '%s\n' "artifact-tiers: stager advertised payload tools" >&2
-    exit 1
+"$stager" --help >/dev/null
+if command -v python3 >/dev/null 2>&1; then
+    "$stager" survey --json | python3 -m json.tool >/dev/null
 fi
 
 if [ -e dist/busierbox-native.core ]; then

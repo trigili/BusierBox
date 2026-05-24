@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+import socket
+import subprocess
+
+
+def candidate_ips():
+    seen = set()
+    ips = []
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            ips.append(s.getsockname()[0])
+    except OSError:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ips.append(info[4][0])
+    except OSError:
+        pass
+    try:
+        out = subprocess.check_output(["ip", "-4", "-o", "addr", "show", "scope", "global"], text=True)
+        for line in out.splitlines():
+            fields = line.split()
+            if len(fields) >= 4:
+                ips.append(fields[3].split("/", 1)[0])
+    except (OSError, subprocess.SubprocessError):
+        pass
+    for ip in ips:
+        if ip and not ip.startswith("127.") and ip not in seen:
+            seen.add(ip)
+            yield ip
+
+
+if __name__ == "__main__":
+    for ip in candidate_ips():
+        print(ip)

