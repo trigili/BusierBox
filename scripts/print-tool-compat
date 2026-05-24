@@ -1,0 +1,64 @@
+#!/bin/sh
+set -eu
+
+config=${1:-configs/busierbox.conf}
+compat=${BUSIERBOX_TOOL_COMPAT:-payloads/tool-compat.json}
+
+[ -f "$compat" ] || {
+    printf '%s\n' "tool compatibility metadata missing: $compat" >&2
+    exit 1
+}
+
+if [ -f "$config" ]; then
+    . "$config"
+fi
+
+tools=${BB_HEAVY_TOOLS:-}
+[ -n "$tools" ] || {
+    printf '%s\n' "No heavy tools selected."
+    exit 0
+}
+
+eval "$(BUSIERBOX_CONFIG="$config" scripts/resolve-target --config)"
+
+python3 - "$compat" "$TARGET_ARCH" "$TARGET_LIBC" "$TARGET_KERNEL_FLOOR" $tools <<'PY'
+import json
+import sys
+
+compat, arch, libc, kernel, *tools = sys.argv[1:]
+with open(compat, "r", encoding="utf-8") as fh:
+    data = json.load(fh).get("tools", {})
+
+warnings = []
+for tool in tools:
+    meta = data.get(tool)
+    if not meta:
+        warnings.append(f"{tool}: no compatibility metadata yet.")
+        continue
+    arches = meta.get("supported_arches") or []
+    if arch not in arches:
+        warnings.append(f"{tool}: arch {arch} is not listed as supported.")
+    if libc in (meta.get("unsupported_libcs") or []):
+        warnings.append(f"{tool}: libc {libc} is listed as unsupported.")
+    reqs = []
+    if meta.get("requires_devpts"):
+        reqs.append("/dev/pts")
+    if meta.get("requires_pty"):
+        reqs.append("pty support")
+    if meta.get("requires_ptrace"):
+        reqs.append("ptrace")
+    note = meta.get("notes", "")
+    if reqs or note:
+        detail = ", ".join(reqs)
+        if detail and note:
+            warnings.append(f"{tool}: may require {detail}. {note}")
+        elif detail:
+            warnings.append(f"{tool}: may require {detail}.")
+        elif note:
+            warnings.append(f"{tool}: {note}")
+
+if warnings:
+    print("\n".join(warnings))
+else:
+    print("No tuple-level compatibility warnings for selected heavy tools.")
+PY

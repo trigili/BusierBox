@@ -1,6 +1,5 @@
 # Build outputs
-dist/*
-!dist/.gitkeep
+dist/
 *.o
 *.a
 *.so
@@ -9,28 +8,22 @@ dist/*
 *.log
 
 # Runtime/generated payloads
-runtime/payload/*
-!runtime/payload/.gitkeep
-!runtime/payload/bin/
-!runtime/payload/bin/.gitkeep
-!runtime/payload/lib/
-!runtime/payload/lib/.gitkeep
-!runtime/payload/share/
-!runtime/payload/share/.gitkeep
-!runtime/payload/home/
-!runtime/payload/home/.gitkeep
+runtime/
 
 # Local extraction
 .busierbox/
+dist/.busierbox/
 
 # Buildroot
 buildroot/buildroot-*/
-buildroot/output/*
-!buildroot/output/.gitkeep
+buildroot/output/
+buildroot/generated-configs/
+
+# Generated tuple metadata
+payloads/generated-profiles/
 
 # Download/source cache
-dl/*
-!dl/.gitkeep
+dl/
 
 # SDK/release/cache artifacts
 *.tar
@@ -43,10 +36,8 @@ dl/*
 *.sha256sum
 
 # Tests/QEMU
-tests/artifacts/*
-!tests/artifacts/.gitkeep
-tests/qemu-system/rootfs/*
-!tests/qemu-system/rootfs/.gitkeep
+tests/artifacts/
+tests/qemu-system/rootfs/
 *.qcow2
 *.img
 *.ext2
@@ -65,4 +56,6 @@ tests/qemu-system/rootfs/*
 .antigravitycli/
 .codex/
 local_doc/
-AGENTS.md
+
+# Local generated config
+configs/busierbox.conf

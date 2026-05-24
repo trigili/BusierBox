@@ -50,9 +50,12 @@ The current implementation stages placeholder launchers for heavy tools. Full tm
 ## Layout
 
 ```text
-buildroot/configs/       target Buildroot defconfigs
+buildroot/configs/       checked-in Buildroot defconfigs
+buildroot/generated-configs/ generated tuple Buildroot defconfigs
 buildroot/external/      BusierBox Buildroot external tree
-payloads/profiles/       target metadata used by payload packaging
+targets/presets.json     preset templates that populate target tuples
+payloads/profiles/       checked-in target metadata used by payload packaging
+payloads/generated-profiles/ generated tuple payload metadata
 payloads/dotfiles/       default .profile, .zshrc, .tmux.conf, .gdbinit
 runtime/payload/         staged payload tree
 runtime/payload/bin/     BusyBox and future tool binaries
@@ -85,7 +88,7 @@ Build native BusyBox:
 make busybox
 ```
 
-Configure targets and package artifacts:
+Configure the active target tuple and package one artifact:
 
 ```sh
 make menuconfig
@@ -93,18 +96,23 @@ make package
 ls dist/busierbox-*
 ```
 
-`make package` reads `configs/busierbox.conf` and builds one artifact per selected `BB_TARGETS` entry. For example:
+`make package` reads the active tuple fields in `configs/busierbox.conf`, generates Buildroot backend files when needed, and builds one target-specific artifact. Presets are convenience templates that populate tuple fields; the tuple is the source of truth.
 
 ```text
-BB_TARGETS="native x86_64-linux-current-musl armv7-linux-3.x-musl mipsel-linux-2.6-uclibc"
+BB_TARGET_ARCH="mipsel"
+BB_TARGET_ENDIAN="little"
+BB_TARGET_CPU="mips32r2-24kc"
+BB_TARGET_ABI="default"
+BB_TARGET_LIBC="musl"
+BB_KERNEL_FLOOR="4.x"
+BB_STATIC_POLICY="static-preferred"
+BB_PAYLOAD_TIER="debug"
 ```
 
-produces target-named outputs where supported:
+produces:
 
 ```text
-dist/busierbox-native
-dist/busierbox-armv7-linux-3.x-musl
-dist/busierbox-mipsel-linux-2.6-uclibc
+dist/busierbox-mipsel-linux-4.x-musl
 ```
 
 Each `dist/busierbox-<target>` is a self-extracting binary for one target. It contains a BusierBox core built for that target plus a payload archive built for that same target. These are not multi-architecture binaries, and packaging must not reuse a native core for a foreign payload.
@@ -114,8 +122,8 @@ Convenience commands:
 ```sh
 make package-native
 make package TARGET=native
-make package TARGET=mipsel-linux-2.6-uclibc
-make package-all
+make package TARGET=glinet-mt7621-openwrt-musl
+make package-all-presets
 ```
 
 For backwards compatibility, packaging `native` also writes `dist/busierbox` as a convenience copy of `dist/busierbox-native`.
@@ -124,15 +132,45 @@ Buildroot-backed targets use the pinned Buildroot source from `manifests/sources
 
 ```sh
 make fetch-sources
-make package TARGET=mipsel-linux-2.6-uclibc
+make package
 make package TARGET=armv7-linux-3.x-musl
 ```
 
-Buildroot builds the cross toolchain and BusyBox, stages `runtime/payload/bin/busybox`, copies default dotfiles into `runtime/payload/home`, permits bundled shared libraries in `runtime/payload/lib` when a fully static payload is unavailable, writes `runtime/payload/manifest.json`, creates ustar-compatible payload archives, builds the BusierBox core with the Buildroot cross compiler, embeds the target payload, and writes `dist/busierbox-<target>.sha256`.
+For generated tuples, `scripts/gen-buildroot-defconfig` writes:
 
-Known target metadata lives in `targets/profiles.json`. Currently supported profiles are `native`, `armv7-linux-3.x-musl`, and `mipsel-linux-2.6-uclibc`. Other listed profiles are scaffold entries until their payload profile and Buildroot defconfig are added. Strict packaging is the default: scaffold or unsupported selections fail clearly. Use `STRICT=0 make package` to skip scaffold entries and print a summary.
+```text
+buildroot/generated-configs/<target>_defconfig
+payloads/generated-profiles/<target>.mk
+```
 
-The custom tuple UI records intent in `configs/busierbox.conf`, but arbitrary backend generation is future work. When enabled, packaging includes the generated custom target name in the plan and then fails or skips clearly instead of pretending it was built.
+These generated paths are ignored by git. Buildroot then builds the cross toolchain and BusyBox, stages `runtime/payload/bin/busybox`, copies default dotfiles into `runtime/payload/home`, permits bundled shared libraries in `runtime/payload/lib` when a fully static payload is unavailable, writes `runtime/payload/manifest.json`, creates ustar-compatible payload archives, builds the BusierBox core with the Buildroot cross compiler, embeds the target payload, and writes `dist/busierbox-<target>.sha256`.
+
+Supported generated tuple families currently include `mipsel`/`mips` with `musl` or `uclibc`, and `armv7`, `aarch64`, `x86_64`, and `i386` with `musl`. Unsupported combinations fail clearly during target resolution or defconfig generation.
+
+GL.iNet/OpenWrt-ish MIPS little-endian musl example:
+
+```sh
+make menuconfig
+# Target Configuration
+#   Preset profiles -> GL.iNet MT7621/OpenWrt musl
+# or manually:
+#   arch=mipsel
+#   cpu=mips32r2-24kc
+#   endian=little
+#   libc=musl
+#   kernel_floor=4.x
+
+make fetch-sources
+make package
+scp dist/busierbox-mipsel-linux-4.x-musl root@router:/tmp/busierbox
+ssh root@router
+chmod +x /tmp/busierbox
+/tmp/busierbox survey
+/tmp/busierbox extract
+/tmp/busierbox sh
+```
+
+Tool compatibility metadata lives in `payloads/tool-compat.json`. Menuconfig shows warnings for selected heavy tools such as `tmux`, `strace`, `gdbserver`, `dropbear`, `curl`, and `zsh`; it does not hard-block uncertain cases. Runtime `survey` should later validate facts such as `/dev/pts`, writable executable extraction space, ptrace availability, free space, terminfo, and shell environment sanity.
 
 Run smoke tests:
 
@@ -220,7 +258,7 @@ Tier 2 should stay optional and Buildroot-friendly.
 
 `make test-qemu-user` copies only the selected `dist/busierbox-<target>` self-extracting binary into per-target artifact directories, runs `extract`, dispatches `sh`, `cp`, `dd`, `nc`, captures `survey.json`, captures `config-info`, and validates survey JSON. Missing qemu interpreters or missing target artifacts are reported as skips.
 
-The primary Buildroot-backed target profile is `mipsel-linux-2.6-uclibc`; the secondary supported profile is `armv7-linux-3.x-musl`.
+The primary generated OpenWrt-style target is `mipsel-linux-4.x-musl`. Legacy `mipsel-linux-2.6-uclibc` and ARMv7 musl remain available through presets/templates.
 
 ## Offline SDK Model
 

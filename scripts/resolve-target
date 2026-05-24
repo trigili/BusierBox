@@ -1,40 +1,41 @@
 #!/bin/sh
 set -eu
 
-registry=${BUSIERBOX_TARGET_REGISTRY:-targets/profiles.json}
-mode=shell
+presets=${BUSIERBOX_PRESETS:-targets/presets.json}
+config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
+mode=target
 target=
 
 case "${1:-}" in
     --list)
         mode=list
         ;;
-    --custom)
-        mode=custom
+    --config|--custom)
+        mode=config
         ;;
     --help|-h)
         cat <<'EOF'
 usage:
-  scripts/resolve-target TARGET
+  scripts/resolve-target --config
   scripts/resolve-target --list
-  scripts/resolve-target --custom
+  scripts/resolve-target PRESET_OR_TARGET
 
-Prints shell assignments for known TARGET profiles. Custom tuple output is
-informational and reports scaffold status until backend generation exists.
+Prints shell assignments describing the active tuple target. Presets are
+templates; the emitted TARGET_NAME is generated from tuple fields unless an
+explicit target name override is configured.
 EOF
         exit 0
         ;;
     "")
-        printf '%s\n' "resolve-target: missing TARGET" >&2
-        exit 2
+        mode=config
         ;;
     *)
         target=$1
         ;;
 esac
 
-[ -f "$registry" ] || {
-    printf '%s\n' "resolve-target: missing registry $registry" >&2
+[ -f "$presets" ] || {
+    printf '%s\n' "resolve-target: missing presets $presets" >&2
     exit 1
 }
 
@@ -43,81 +44,165 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
+if [ "$mode" = config ]; then
+    if [ -f "$config" ]; then
+        . "$config"
+    fi
+    if [ -z "${BB_TARGET_ARCH:-}" ] && [ "${BB_ENABLE_CUSTOM_TARGET:-no}" = yes ]; then
+        BB_TARGET_ARCH=${BB_CUSTOM_ARCH:-native}
+        BB_TARGET_ENDIAN=${BB_CUSTOM_ENDIAN:-auto}
+        BB_TARGET_ABI=${BB_CUSTOM_ABI:-default}
+        BB_TARGET_LIBC=${BB_CUSTOM_LIBC:-host}
+        BB_KERNEL_FLOOR=${BB_CUSTOM_KERNEL_FLOOR:-host}
+    fi
+    BB_TARGET_ARCH=${BB_TARGET_ARCH:-native}
+    BB_TARGET_ENDIAN=${BB_TARGET_ENDIAN:-auto}
+    BB_TARGET_CPU=${BB_TARGET_CPU:-generic}
+    BB_TARGET_ABI=${BB_TARGET_ABI:-default}
+    BB_TARGET_LIBC=${BB_TARGET_LIBC:-host}
+    BB_KERNEL_FLOOR=${BB_KERNEL_FLOOR:-host}
+    BB_STATIC_POLICY=${BB_STATIC_POLICY:-static-preferred}
+    BB_PAYLOAD_TIER=${BB_PAYLOAD_TIER:-core}
+    BB_TARGET_NAME=${BB_TARGET_NAME:-}
+    BB_TARGET_QEMU_USER=${BB_TARGET_QEMU_USER:-}
+
+    python3 - "$BB_TARGET_ARCH" "$BB_TARGET_ENDIAN" "$BB_TARGET_CPU" "$BB_TARGET_ABI" "$BB_TARGET_LIBC" "$BB_KERNEL_FLOOR" "$BB_STATIC_POLICY" "$BB_PAYLOAD_TIER" "$BB_TARGET_NAME" "$BB_TARGET_QEMU_USER" <<'PY'
+import shlex
+import sys
+
+arch, endian, cpu, abi, libc, kernel, static_policy, tier, override, qemu = sys.argv[1:]
+
+def generated_name():
+    if override:
+        return override
+    if arch == "native":
+        return "native"
+    name = f"{arch}-linux-{kernel}-{libc}"
+    if abi and abi not in ("default", "hardfloat"):
+        name = f"{name}-{abi}"
+    return name
+
+def default_qemu():
+    if qemu:
+        return qemu
+    return {
+        "native": "native",
+        "mipsel": "qemu-mipsel-static",
+        "mips": "qemu-mips-static",
+        "armv7": "qemu-arm-static",
+        "aarch64": "qemu-aarch64-static",
+        "x86_64": "qemu-x86_64-static",
+        "i386": "qemu-i386-static",
+    }.get(arch, "")
+
+supported = False
+notes = ""
+if arch == "native":
+    supported = True
+    notes = "native host tuple"
+elif (arch, libc) in {
+    ("mipsel", "musl"),
+    ("mipsel", "uclibc"),
+    ("mips", "musl"),
+    ("mips", "uclibc"),
+    ("armv7", "musl"),
+    ("aarch64", "musl"),
+    ("x86_64", "musl"),
+    ("i386", "musl"),
+}:
+    supported = True
+    notes = "Buildroot defconfig can be generated from tuple"
+else:
+    notes = f"unsupported generated tuple arch={arch} libc={libc}"
+
+name = generated_name()
+
+def emit(key, value):
+    print(f"{key}={shlex.quote(str(value or ''))}")
+
+emit("TARGET_NAME", name)
+emit("TARGET_STATUS", "supported" if supported else "unsupported")
+emit("TARGET_SOURCE", "config")
+emit("TARGET_ARCH", arch)
+emit("TARGET_ENDIAN", endian)
+emit("TARGET_CPU", cpu)
+emit("TARGET_ABI", abi)
+emit("TARGET_LIBC", libc)
+emit("TARGET_KERNEL_FLOOR", kernel)
+emit("TARGET_STATIC_POLICY", static_policy)
+emit("TARGET_PAYLOAD_TIER", tier)
+emit("TARGET_QEMU_USER", default_qemu())
+emit("TARGET_PROFILE_FILE", "" if arch == "native" else f"payloads/generated-profiles/{name}.mk")
+emit("TARGET_BUILDROOT_DEFCONFIG", "" if arch == "native" else f"buildroot/generated-configs/{name}_defconfig")
+emit("TARGET_NOTES", notes)
+PY
+    exit 0
+fi
+
 if [ "$mode" = list ]; then
-    python3 - "$registry" <<'PY'
+    python3 - "$presets" <<'PY'
 import json
 import sys
 
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-for p in data.get("profiles", []):
-    desc = p.get("notes") or p.get("status", "")
-    print("\t".join([p.get("name", ""), p.get("status", ""), desc]))
+for p in data.get("presets", []):
+    print("\t".join([
+        p.get("preset_name", ""),
+        p.get("support_status", ""),
+        p.get("description", ""),
+    ]))
 PY
     exit 0
 fi
 
-if [ "$mode" = custom ]; then
-    if [ -f configs/busierbox.conf ]; then
-        . configs/busierbox.conf
-    fi
-    arch=${BB_CUSTOM_ARCH:-unknown}
-    libc=${BB_CUSTOM_LIBC:-unknown}
-    kernel=${BB_CUSTOM_KERNEL_FLOOR:-unknown}
-    abi=${BB_CUSTOM_ABI:-default}
-    endian=${BB_CUSTOM_ENDIAN:-auto}
-    name="$arch-linux-$kernel-$libc"
-    if [ "$abi" != default ]; then
-        name="$name-$abi"
-    fi
-    cat <<EOF
-TARGET_NAME='$name'
-TARGET_STATUS='scaffold'
-TARGET_ARCH='$arch'
-TARGET_ENDIAN='$endian'
-TARGET_ABI='$abi'
-TARGET_LIBC='$libc'
-TARGET_KERNEL_FLOOR='$kernel'
-TARGET_QEMU_USER=''
-TARGET_PROFILE_FILE=''
-TARGET_BUILDROOT_DEFCONFIG=''
-TARGET_NOTES='custom tuple backend generation is not implemented yet'
-EOF
-    exit 0
-fi
-
-python3 - "$registry" "$target" <<'PY'
+python3 - "$presets" "$target" <<'PY'
 import json
 import shlex
 import sys
 
-registry, target = sys.argv[1:]
-with open(registry, "r", encoding="utf-8") as fh:
+presets, target = sys.argv[1:]
+with open(presets, "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-profile = None
-for item in data.get("profiles", []):
-    if item.get("name") == target:
-        profile = item
+preset = None
+for item in data.get("presets", []):
+    if item.get("preset_name") == target:
+        preset = item
         break
-
-if profile is None:
-    print(f"resolve-target: unknown target {target}", file=sys.stderr)
-    sys.exit(3)
 
 def emit(key, value):
     print(f"{key}={shlex.quote(str(value or ''))}")
 
-emit("TARGET_NAME", profile.get("name"))
-emit("TARGET_STATUS", profile.get("status"))
-emit("TARGET_ARCH", profile.get("arch"))
-emit("TARGET_ENDIAN", profile.get("endian"))
-emit("TARGET_ABI", profile.get("abi"))
-emit("TARGET_LIBC", profile.get("libc"))
-emit("TARGET_KERNEL_FLOOR", profile.get("kernel_floor"))
-emit("TARGET_QEMU_USER", profile.get("qemu_user"))
-emit("TARGET_PROFILE_FILE", profile.get("profile_file"))
-emit("TARGET_BUILDROOT_DEFCONFIG", profile.get("buildroot_defconfig"))
-emit("TARGET_NOTES", profile.get("notes"))
+if preset is None:
+    # Treat a stable target-looking name as an explicit generated target only
+    # if it matches the current active tuple. This avoids silently inventing
+    # tuple fields from lossy string parsing.
+    print(f"resolve-target: unknown preset or active target {target}", file=sys.stderr)
+    sys.exit(3)
+
+arch = preset.get("arch", "")
+abi = preset.get("abi", "default")
+libc = preset.get("libc", "")
+kernel = preset.get("kernel_floor", "")
+name = preset.get("target_name") or ("native" if arch == "native" else f"{arch}-linux-{kernel}-{libc}")
+if arch != "native" and abi not in ("", "default", "hardfloat") and not name.endswith(f"-{abi}"):
+    name = f"{name}-{abi}"
+
+emit("TARGET_NAME", name)
+emit("TARGET_STATUS", preset.get("support_status", "unsupported"))
+emit("TARGET_SOURCE", "preset")
+emit("TARGET_ARCH", arch)
+emit("TARGET_ENDIAN", preset.get("endian", "auto"))
+emit("TARGET_CPU", preset.get("cpu", "generic"))
+emit("TARGET_ABI", abi)
+emit("TARGET_LIBC", libc)
+emit("TARGET_KERNEL_FLOOR", kernel)
+emit("TARGET_STATIC_POLICY", preset.get("static_policy", "static-preferred"))
+emit("TARGET_PAYLOAD_TIER", preset.get("payload_tier", "core"))
+emit("TARGET_QEMU_USER", preset.get("qemu_user", ""))
+emit("TARGET_PROFILE_FILE", "" if arch == "native" else f"payloads/generated-profiles/{name}.mk")
+emit("TARGET_BUILDROOT_DEFCONFIG", "" if arch == "native" else f"buildroot/generated-configs/{name}_defconfig")
+emit("TARGET_NOTES", preset.get("notes", ""))
 PY

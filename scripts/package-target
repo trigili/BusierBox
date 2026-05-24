@@ -2,11 +2,12 @@
 set -eu
 
 usage() {
-    printf '%s\n' "usage: scripts/package-target TARGET" >&2
+    printf '%s\n' "usage: scripts/package-target TARGET|--config" >&2
 }
 
 target=${1:-}
 [ -n "$target" ] || { usage; exit 2; }
+requested_target=$target
 
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 BUILDROOT_OUTPUT_BASE=${BUILDROOT_OUTPUT_BASE:-buildroot/output}
@@ -51,10 +52,28 @@ find_cross_cc() {
     out_dir="$BUILDROOT_OUTPUT_BASE/$target"
     host_bin="$out_dir/host/bin"
     [ -d "$host_bin" ] || return 1
-    find "$host_bin" -type f -name '*-gcc' ! -name gcc | sort | sed -n '1p'
+    find "$host_bin" \( -type f -o -type l \) -name '*-gcc' ! -name gcc | sort | sed -n '1p'
 }
 
-eval "$(scripts/resolve-target "$target")"
+if [ "$target" = --config ] || [ "$target" = config ]; then
+    resolved=$(scripts/resolve-target --config 2>&1) || die "$resolved"
+else
+    if ! resolved=$(scripts/resolve-target "$target" 2>&1); then
+        resolve_error=$resolved
+        if active=$(scripts/resolve-target --config 2>/dev/null); then
+            eval "$active"
+            if [ "${TARGET_NAME:-}" = "$target" ]; then
+                resolved=$active
+            else
+                die "$resolve_error"
+            fi
+        else
+            die "$resolve_error"
+        fi
+    fi
+fi
+eval "$resolved"
+target=$TARGET_NAME
 
 [ "$TARGET_STATUS" = supported ] || die "target $target is $TARGET_STATUS: $TARGET_NOTES"
 
@@ -71,9 +90,18 @@ if [ "$target" = native ]; then
     copy_payload_artifacts
     OUT="$core" scripts/build-native
 else
-    [ -n "$TARGET_PROFILE_FILE" ] && [ -f "$TARGET_PROFILE_FILE" ] || die "target $target is supported in registry but missing profile file $TARGET_PROFILE_FILE"
-    [ -n "$TARGET_BUILDROOT_DEFCONFIG" ] && [ -f "$TARGET_BUILDROOT_DEFCONFIG" ] || die "target $target is supported in registry but missing Buildroot defconfig $TARGET_BUILDROOT_DEFCONFIG"
-    TARGET="$target" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" BUILDROOT_OUTPUT_BASE="$BUILDROOT_OUTPUT_BASE" scripts/buildroot-build-payload
+    if [ "$TARGET_SOURCE" = config ]; then
+        gen_output=$(scripts/gen-buildroot-defconfig --from-config)
+    else
+        gen_output=$(scripts/gen-buildroot-defconfig "$requested_target")
+    fi
+    printf '%s\n' "$gen_output"
+    eval "$(printf '%s\n' "$gen_output" | sed -n 's/^\(BUILDROOT_DEFCONFIG\|PAYLOAD_PROFILE\)=/GEN_\1=/p')"
+    TARGET_PROFILE_FILE=${GEN_PAYLOAD_PROFILE:-$TARGET_PROFILE_FILE}
+    TARGET_BUILDROOT_DEFCONFIG=${GEN_BUILDROOT_DEFCONFIG:-$TARGET_BUILDROOT_DEFCONFIG}
+    [ -n "$TARGET_PROFILE_FILE" ] && [ -f "$TARGET_PROFILE_FILE" ] || die "generated profile missing for $target"
+    [ -n "$TARGET_BUILDROOT_DEFCONFIG" ] && [ -f "$TARGET_BUILDROOT_DEFCONFIG" ] || die "generated Buildroot defconfig missing for $target"
+    TARGET="$target" TARGET_PROFILE_FILE="$TARGET_PROFILE_FILE" TARGET_BUILDROOT_DEFCONFIG="$TARGET_BUILDROOT_DEFCONFIG" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" BUILDROOT_OUTPUT_BASE="$BUILDROOT_OUTPUT_BASE" scripts/buildroot-build-payload
     copy_payload_artifacts
     cross_cc=$(find_cross_cc || true)
     if [ -z "$cross_cc" ]; then

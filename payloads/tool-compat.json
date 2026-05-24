@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "tools": {
+    "zsh": {
+      "requires_devpts": false,
+      "requires_pty": false,
+      "requires_ptrace": false,
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "unsupported_libcs": [],
+      "notes": "May increase payload size and may need modules or terminfo depending on build options."
+    },
+    "tmux": {
+      "requires_devpts": true,
+      "requires_pty": true,
+      "requires_ptrace": false,
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "unsupported_libcs": [],
+      "notes": "Needs /dev/pts, usable ptys, and terminal capability data."
+    },
+    "strace": {
+      "requires_devpts": false,
+      "requires_pty": false,
+      "requires_ptrace": true,
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "unsupported_libcs": [],
+      "notes": "Requires ptrace support and architecture-specific syscall decoding."
+    },
+    "gdbserver": {
+      "requires_devpts": false,
+      "requires_pty": false,
+      "requires_ptrace": true,
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "unsupported_libcs": [],
+      "notes": "Requires ptrace and enough target memory for debug sessions."
+    },
+    "dropbear": {
+      "requires_devpts": false,
+      "requires_pty": true,
+      "requires_ptrace": false,
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "unsupported_libcs": [],
+      "notes": "Server mode needs writable storage for host keys and usable ptys for interactive sessions."
+    },
+    "curl": {
+      "requires_devpts": false,
+      "requires_pty": false,
+      "requires_ptrace": false,
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": ["mipsel", "mips", "armv7", "aarch64", "x86_64", "i386", "native"],
+      "unsupported_libcs": [],
+      "notes": "TLS-enabled builds can increase payload size and may need CA data."
+    }
+  }
+}

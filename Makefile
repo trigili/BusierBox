@@ -9,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c
 
-.PHONY: all build buildroot busybox payload package package-all package-native clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-all
+.PHONY: all build buildroot busybox payload package package-all package-all-presets package-native target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-all
 
 all: build
 
@@ -32,8 +32,21 @@ package:
 
 package-all: package
 
+package-all-presets:
+	@scripts/resolve-target --list | while IFS='	' read -r preset status desc; do \
+	  if [ "$$status" = supported ]; then \
+	    printf '%s\n' "package preset $$preset"; \
+	    PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/package-target "$$preset"; \
+	  else \
+	    printf '%s\n' "skip preset $$preset ($$status): $$desc"; \
+	  fi; \
+	done
+
 package-native:
 	@PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/package-target native
+
+target-summary:
+	@scripts/resolve-target --config
 
 menuconfig:
 	@scripts/menuconfig
@@ -56,6 +69,7 @@ detect-host:
 smoke: smoke-test
 
 smoke-test: package-native
+	@tests/smoke/target-resolution.sh
 	@./dist/busierbox-native list >/dev/null
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native survey --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 json validation unavailable"; fi
 	@./dist/busierbox-native survey >/dev/null

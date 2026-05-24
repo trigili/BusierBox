@@ -1,15 +1,24 @@
 # BusierBox example build configuration
 # Copy to configs/busierbox.conf or generate with: make menuconfig
 
+# Active target tuple. Presets populate these fields; the tuple is the source of truth.
+BB_TARGET_PRESET="glinet-mt7621-openwrt-musl"
+BB_TARGET_NAME=""
+BB_TARGET_ARCH="mipsel"
+BB_TARGET_ENDIAN="little"
+BB_TARGET_CPU="mips32r2-24kc"
+BB_TARGET_ABI="default"
+BB_TARGET_LIBC="musl"
+BB_KERNEL_FLOOR="4.x"
+BB_STATIC_POLICY="static-preferred"
+BB_PAYLOAD_TIER="debug"
+BB_TARGET_QEMU_USER="qemu-mipsel-static"
+
+# Legacy release-matrix selection is not used by normal make package.
 BB_TARGETS="native"
+
 BB_PAYLOAD_FORMAT="tgz"
 BB_PAYLOAD_VERSION="dev"
 BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
 BB_HEAVY_TOOLS=""
 BB_DROPBEAR_SERVER_MODE="no"
-BB_ENABLE_CUSTOM_TARGET="no"
-BB_CUSTOM_ARCH="mipsel"
-BB_CUSTOM_ENDIAN="little"
-BB_CUSTOM_LIBC="musl"
-BB_CUSTOM_KERNEL_FLOOR="2.6"
-BB_CUSTOM_ABI="default"

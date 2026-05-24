@@ -4,7 +4,7 @@ The test harness is layered so developers can get useful signal without propriet
 
 ## Layers
 
-`make smoke-test` builds `dist/busierbox-native`, runs the native host binary, and validates the Tier 0 applet contract. It also checks that `survey --json` parses, that `scripts/config-from-survey` can turn survey data into build recommendations, and that a copy outside the repository can self-extract without a separate payload archive.
+`make smoke-test` builds `dist/busierbox-native`, runs the native host binary, and validates the Tier 0 applet contract. It also checks target tuple resolution, generated mipsel musl Buildroot config creation, `survey --json` parsing, `scripts/config-from-survey`, and copy-only self-extraction outside the repository.
 
 `make test-qemu-user` runs target binaries under qemu-user when both the target binary and qemu interpreter exist. Missing cross binaries or interpreters are reported as `SKIP`, not as hard failures. This layer validates ELF compatibility, basic syscall compatibility, and applet behavior.
 
@@ -49,6 +49,7 @@ Every backend runs the same Tier 0 smoke contract:
 Representative qemu-user targets live in `tests/matrix/targets.example.json`:
 
 - mipsel router class: `mipsel-linux-2.6-uclibc`
+- OpenWrt-style MIPS little-endian musl: `mipsel-linux-4.x-musl`
 - MIPS big-endian router class: `mips-linux-2.6-uclibc`
 - ARMv5 EABI: `armv5-linux-2.6-uclibc-eabi`
 - ARMv7 hardfloat: `armv7-linux-3.x-musl`
@@ -56,7 +57,7 @@ Representative qemu-user targets live in `tests/matrix/targets.example.json`:
 - x86: `i386-linux-2.6-musl`
 - host/native: `native`
 
-Each entry names the expected self-extracting BusierBox binary under `dist/` and the qemu-user interpreter. Add new targets by adding a `targets/profiles.json` entry, a pinned build profile, producing `dist/busierbox-<target>`, and adding a matrix entry with `name`, `arch`, `binary`, and `qemu_user`.
+Each entry names the expected self-extracting BusierBox binary under `dist/` and the qemu-user interpreter. Add new generated targets by adding or editing a preset in `targets/presets.json` when useful, ensuring `scripts/gen-buildroot-defconfig` supports the tuple, producing `dist/busierbox-<target>`, and adding a matrix entry with `name`, `arch`, `binary`, and `qemu_user`.
 
 ## QEMU User
 

@@ -15,8 +15,8 @@ JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)}
 PATH="$(pwd)/scripts/shims:$PATH"
 export PATH
 
-profile="payloads/profiles/$TARGET.mk"
-defconfig="buildroot/configs/${TARGET}_defconfig"
+profile=${TARGET_PROFILE_FILE:-payloads/profiles/$TARGET.mk}
+defconfig=${TARGET_BUILDROOT_DEFCONFIG:-buildroot/configs/${TARGET}_defconfig}
 out_dir="$OUT_BASE/$TARGET"
 
 profile_value() {

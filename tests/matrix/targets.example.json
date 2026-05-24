@@ -58,6 +58,16 @@
       "expected_constraints": []
     },
     {
+      "name": "mipsel-linux-4.x-musl",
+      "arch": "mipsel",
+      "endian": "little",
+      "kernel_floor": "4.x",
+      "libc_family": "musl",
+      "binary": "dist/busierbox-mipsel-linux-4.x-musl",
+      "qemu_user": "qemu-mipsel-static",
+      "expected_constraints": ["openwrt_class"]
+    },
+    {
       "name": "mipsel-linux-2.6-musl",
       "arch": "mipsel",
       "endian": "little",
