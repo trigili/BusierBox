@@ -265,54 +265,45 @@ def pipe(src, dst):
                 pass
 
 
-class _DropbearCompatTransport(paramiko.Transport if HAVE_PARAMIKO else object):
-    """Paramiko Transport that handles Dropbear's RFC 4253 kex_follows packet.
+class _KexGuess2CompatTransport(paramiko.Transport if HAVE_PARAMIKO else object):
+    """Paramiko Transport that handles Dropbear's KEXGUESS2 optimistic packet.
 
-    Dropbear sets first_kex_packet_follows=True and immediately sends an
-    optimistic kex packet for its first-preference algorithm (sntrup761 PQ
-    hybrid).  Paramiko reads the kex_follows flag but never discards the
-    guessed packet when the guess is wrong, so it tries to parse a sntrup761
-    ECDH blob as a group14 DH mpint and raises "Client kex 'e' is out of
-    range".  Per RFC 4253 §7.1 the server MUST ignore that packet; we wrap
-    kex_engine.parse_next to do so when kex_follows=True.
+    Dropbear advertises kexguess2@matt.ucc.asn.au and sets kex_follows=True in
+    its KEXINIT, meaning it speculatively sends its preferred-algorithm kex init
+    packet immediately.  If the agreed algorithm differs from the client's first
+    choice, that speculative packet must be silently discarded per RFC 4253 §7.1.
+    Paramiko ignores kex_follows=True entirely, so we intercept it here.
     """
 
+    def _really_parse_kex_init(self, m, ignore_first_byte=False):
+        parsed = super()._really_parse_kex_init(m, ignore_first_byte=ignore_first_byte)
+        real_algos = [
+            a for a in parsed.get("kex_algo_list", [])
+            if not a.startswith("kexguess2") and not a.startswith("ext-info")
+            and not a.startswith("kex-strict")
+        ]
+        self._kexguess2_follows = parsed.get("kex_follows", False)
+        self._kexguess2_client_first = real_algos[0] if real_algos else None
+        return parsed
+
     def _parse_kex_init(self, m):
-        # Peek at kex_follows without permanently consuming m.
-        # SSH_MSG_KEXINIT body: 16-byte cookie, 10 name-list strings, boolean.
-        m.rewind()
-        m.get_bytes(16)
-        for _ in range(10):
-            m.get_string()
-        kex_follows = m.get_boolean()
-        m.rewind()
-
         super()._parse_kex_init(m)
+        if not (self._kexguess2_follows and self.server_mode):
+            return
+        agreed = getattr(self.kex_engine, "name", None)
+        if agreed == self._kexguess2_client_first:
+            return  # guess was correct; no discard needed
+        _original = self.kex_engine.parse_next
+        _skipped = [False]
 
-        if kex_follows:
-            # The client's first-preference algorithm doesn't match ours, so
-            # the guess packet is wrong.  Wrap parse_next to silently discard
-            # it; Dropbear will then send the correct SSH_MSG_KEXDH_INIT.
-            #
-            # We also must restore self._expected_packet after discarding, so
-            # the real follow-up kex packet is still dispatched to the kex
-            # engine.  Paramiko clears _expected_packet before calling
-            # parse_next, so without the restore the real packet falls through
-            # to the "Oops, unhandled type 30" branch.
-            _engine = self.kex_engine
-            _orig = _engine.parse_next
-            _skipped = [False]
-            _transport = self
+        def _skip_once(ptype, msg):
+            if not _skipped[0]:
+                _skipped[0] = True
+                self._expect_packet(ptype)
+                return
+            return _original(ptype, msg)
 
-            def _skip_first(ptype, msg):
-                if not _skipped[0]:
-                    _skipped[0] = True
-                    _engine.parse_next = _orig
-                    _transport._expected_packet = (ptype,)
-                    return
-                return _orig(ptype, msg)
-
-            _engine.parse_next = _skip_first
+        self.kex_engine.parse_next = _skip_once
 
 
 def serve_ssh(cfg, timeout):
@@ -340,7 +331,7 @@ def serve_ssh(cfg, timeout):
             return 1
     print(f"Connection from {addr[0]}:{addr[1]}")
 
-    transport = _DropbearCompatTransport(client)
+    transport = _KexGuess2CompatTransport(client)
     transport.add_server_key(host_key)
     # Pin to the one kex algorithm both Paramiko and the Dropbear build support.
     # Dropbear's first preference is sntrup761 (PQ hybrid), which Paramiko
