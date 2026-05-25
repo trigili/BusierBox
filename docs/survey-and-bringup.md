@@ -31,6 +31,8 @@ scripts/busierbox-bringup --host root@192.168.8.1 --operator-host auto
 
 The bring-up script creates `local/bringup-runs/<timestamp>/`, builds a survey artifact, transfers it under `/tmp/busierbox-bringup-<timestamp>/`, captures `survey --json` and `config-info`, runs `scripts/config-from-survey`, and writes `recommended.conf` plus `summary.json`.
 
+See [bringup.md](bringup.md) for the full command reference and safety model.
+
 Useful commands:
 
 ```sh

@@ -13,6 +13,32 @@ BusierBox is not a BusyBox replacement and is not a BusyBox fork. BusierBox mana
 - 🧹 Cleanup visibility: `busierbox cleanup-ledger --json` and `busierbox clean --dry-run` show BusierBox-controlled runtime paths before removal.
 - 🔒 Safe defaults: no external writes and no network autorun unless explicitly configured.
 
+Typical workflow:
+
+1. Pick a target preset such as `glinet-mt7621-openwrt-musl`.
+2. Pick a payload preset such as `survey-core`, `default`, or `ssh-operator`.
+3. Build a self-extracting artifact.
+4. Copy the artifact to the target.
+5. Run `survey`, `config-info`, `doctor`, `extract`, and optionally `rshell`.
+6. Validate with `scripts/integration-glinet` when the GL.iNet exemplar target is available.
+
+```sh
+make menuconfig
+make package TARGET=glinet-mt7621-openwrt-musl
+scp dist/busierbox-glinet-mt7621-openwrt-musl-full root@192.168.8.1:/tmp/busierbox
+ssh root@192.168.8.1 'chmod +x /tmp/busierbox && /tmp/busierbox survey --json'
+```
+
+For first contact with a target, `scripts/busierbox-bringup` wraps the survey
+and recommendation loop:
+
+```sh
+scripts/busierbox-bringup --host root@192.168.8.1 --operator-host auto
+```
+
+Bringup is a guided onboarding flow. `scripts/integration-glinet` is the
+repeatable validation harness for known-safe test cases.
+
 ## Architecture
 
 The core binary stays small and static-first:
@@ -108,6 +134,12 @@ ls dist/busierbox-*
 
 `make package` reads the active tuple fields in `configs/busierbox.conf`, generates Buildroot backend files when needed, and builds target-specific outputs. Presets are convenience templates that populate tuple fields; the tuple is the source of truth.
 
+Target presets describe architecture/libc/kernel tuples. Payload presets
+describe runtime behavior and staged tools. Payload presets do not change the
+target tuple; they set choices such as core-only versus extract mode, zero-arg
+behavior, reverse-access transport, heavy tools, dotfiles, and external-write
+policy.
+
 ```text
 BB_TARGET_ARCH="mipsel"
 BB_TARGET_ENDIAN="little"
@@ -154,6 +186,11 @@ Reverse access is explicit and operator-controlled. BusierBox does not install p
 ./busierbox rshell status
 ./busierbox rshell stop
 ```
+
+By default, artifacts do not initiate reverse access when run with no arguments.
+Presets that do enable zero-arg reverse access say so in their metadata. Root
+authorized-key writes and persistence installation remain disabled unless
+explicitly configured and applied.
 
 Convenience commands:
 
@@ -281,6 +318,15 @@ Run smoke tests:
 ```sh
 make smoke-test
 ```
+
+Workflow documentation:
+
+- [Survey and bring-up](docs/survey-and-bringup.md)
+- [Bringup script](docs/bringup.md)
+- [Payload presets](docs/payload-presets.md)
+- [GL.iNet integration](docs/integration-glinet.md)
+- [Persistence](docs/persistence.md)
+- [Manifest and support token](docs/manifest.md)
 
 The build attempts static linking for BusierBox and BusyBox. If a payload tool cannot be built fully static, the intended fallback is to bundle its required shared libraries in `runtime/payload/lib` and set `LD_LIBRARY_PATH` when dispatching payload tools. The build should print warnings rather than silently producing a broken payload.
 
