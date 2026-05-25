@@ -965,9 +965,27 @@ static int run_zero_arg_mode(const char *mode)
     return 2;
 }
 
+static const char *zero_arg_log_mode(void)
+{
+    const char *mode = getenv("BUSIERBOX_ZERO_ARG_LOG_MODE");
+    return (mode && *mode) ? mode : BB_ZERO_ARG_LOG_MODE;
+}
+
+static int zero_arg_log_at_least_status(const char *log_mode)
+{
+    return !strcmp(log_mode, "status") || !strcmp(log_mode, "verbose");
+}
+
+static int zero_arg_log_verbose(const char *log_mode)
+{
+    return !strcmp(log_mode, "verbose");
+}
+
 static int zero_arg_main(void)
 {
     const char *mode = getenv("BUSIERBOX_ZERO_ARG_MODE");
+    const char *log_mode = zero_arg_log_mode();
+    int rc;
     if (!mode || !*mode) {
         mode = BB_ZERO_ARG_MODE;
     }
@@ -975,7 +993,7 @@ static int zero_arg_main(void)
         usage(stdout);
         return 0;
     }
-    if (!strcmp(BB_ZERO_ARG_LOG_MODE, "none")) {
+    if (!strcmp(log_mode, "none")) {
         int _devnull = open("/dev/null", O_WRONLY);
         if (_devnull >= 0) {
             dup2(_devnull, STDOUT_FILENO);
@@ -985,7 +1003,14 @@ static int zero_arg_main(void)
     }
     if (!acquire_autorun_guard(mode))
         return 0;
-    return run_zero_arg_mode(mode);
+    if (zero_arg_log_at_least_status(log_mode))
+        fprintf(stderr, "busierbox: zero-arg mode=%s\n", mode);
+    if (zero_arg_log_verbose(log_mode))
+        fprintf(stderr, "busierbox: zero-arg log_mode=%s runtime=%s\n", log_mode, BB_RUNTIME_MODE);
+    rc = run_zero_arg_mode(mode);
+    if (zero_arg_log_at_least_status(log_mode))
+        fprintf(stderr, "busierbox: zero-arg exit=%d\n", rc);
+    return rc;
 }
 
 int main(int argc, char **argv)

@@ -15,6 +15,14 @@ if BUSIERBOX_ZERO_ARG_MODE=help "$bb" >"$tmp/default.out" 2>&1; then
 fi
 grep -Eq 'usage: busierbox|native applets:' "$tmp/default.out"
 
+BUSIERBOX_ZERO_ARG_MODE=help BUSIERBOX_ZERO_ARG_LOG_MODE=none "$bb" >"$tmp/none.out" 2>"$tmp/none.err" || true
+[ ! -s "$tmp/none.out" ]
+[ ! -s "$tmp/none.err" ]
+
+BUSIERBOX_ZERO_ARG_MODE=help BUSIERBOX_ZERO_ARG_LOG_MODE=status "$bb" >"$tmp/status.out" 2>"$tmp/status.err" || true
+grep -q 'zero-arg mode=help' "$tmp/status.err"
+grep -q 'zero-arg exit=' "$tmp/status.err"
+
 BUSIERBOX_NO_AUTORUN=1 "$bb" >"$tmp/no-autorun.out" 2>&1
 grep -Eq 'usage: busierbox|native applets:' "$tmp/no-autorun.out"
 
