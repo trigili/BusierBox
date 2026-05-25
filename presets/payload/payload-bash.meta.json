@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "name": "payload-bash",
+  "description": "Extract BusyBox plus bash; help on zero-arg; no reverse access.",
+  "menu_label": "Extract BusyBox plus bash; help on zero-arg; no reverse access",
+  "risk_level": "low",
+  "size_hint": "medium",
+  "autorun": "none",
+  "network_behavior": "no reverse access by default",
+  "external_write_behavior": "disabled",
+  "validated_cases": [
+    "payload-presets: payload-bash",
+    "dotfiles-by-app: bash"
+  ],
+  "notes": "Use when the target workflow benefits from bash syntax or a staged .bashrc without enabling the larger full-debug preset."
+}
+

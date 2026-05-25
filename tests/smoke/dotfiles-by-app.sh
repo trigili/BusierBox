@@ -10,17 +10,21 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 printf '%s\n' '# user zsh' >"$tmp/zshrc"
+printf '%s\n' '# user bash' >"$tmp/bashrc"
 
 BB_RUNTIME_MODE=extract \
 BB_DOTFILES_ENABLE=yes \
 BB_DOTFILE_ZSH_MODE=user \
 BB_DOTFILE_ZSH_USER_FILE="$tmp/zshrc" \
+BB_DOTFILE_BASH_MODE=user \
+BB_DOTFILE_BASH_USER_FILE="$tmp/bashrc" \
 BB_DOTFILE_TMUX_MODE=none \
 BB_DOTFILE_GDB_MODE=default \
 BB_DOTFILE_PROFILE_MODE=none \
 scripts/build-payload >/dev/null
 
 grep -q '# user zsh' runtime/payload/home/.zshrc
+grep -q '# user bash' runtime/payload/home/.bashrc
 [ ! -e runtime/payload/home/.tmux.conf ]
 [ -e runtime/payload/home/.gdbinit ]
 [ ! -e runtime/payload/home/.profile ]
@@ -34,12 +38,14 @@ grep -q 'zsh dotfile mode is user but file is missing' "$tmp/missing.out"
 BB_RUNTIME_MODE=core-only \
 BB_DOTFILES_ENABLE=yes \
 BB_DOTFILE_ZSH_MODE=default \
+BB_DOTFILE_BASH_MODE=default \
 BB_DOTFILE_TMUX_MODE=default \
 BB_DOTFILE_GDB_MODE=default \
 BB_DOTFILE_PROFILE_MODE=default \
 scripts/build-payload >/dev/null
 
 [ ! -e runtime/payload/home/.zshrc ]
+[ ! -e runtime/payload/home/.bashrc ]
 [ ! -e runtime/payload/home/.tmux.conf ]
 [ ! -e runtime/payload/home/.gdbinit ]
 [ ! -e runtime/payload/home/.profile ]

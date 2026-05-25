@@ -1,6 +1,23 @@
 {
   "schema": 1,
   "tools": {
+    "bash": {
+      "requires_devpts": false,
+      "requires_pty": false,
+      "requires_ptrace": false,
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": [],
+      "notes": "Buildroot package provider; stages .bashrc when bash dotfiles are enabled."
+    },
     "zsh": {
       "requires_devpts": false,
       "requires_pty": false,

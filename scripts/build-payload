@@ -8,6 +8,8 @@ _runtime_from_env=${BB_RUNTIME_MODE:-}
 _dotfiles_enable_from_env=${BB_DOTFILES_ENABLE:-}
 _dot_zsh_mode_from_env=${BB_DOTFILE_ZSH_MODE:-}
 _dot_zsh_file_from_env=${BB_DOTFILE_ZSH_USER_FILE:-}
+_dot_bash_mode_from_env=${BB_DOTFILE_BASH_MODE:-}
+_dot_bash_file_from_env=${BB_DOTFILE_BASH_USER_FILE:-}
 _dot_tmux_mode_from_env=${BB_DOTFILE_TMUX_MODE:-}
 _dot_tmux_file_from_env=${BB_DOTFILE_TMUX_USER_FILE:-}
 _dot_gdb_mode_from_env=${BB_DOTFILE_GDB_MODE:-}
@@ -66,6 +68,8 @@ BB_GDBSERVER_USER_PATH="${BB_GDBSERVER_USER_PATH:-}"
 BB_DOTFILES_ENABLE="${_dotfiles_enable_from_env:-${BB_DOTFILES_ENABLE:-yes}}"
 BB_DOTFILE_ZSH_MODE="${_dot_zsh_mode_from_env:-${BB_DOTFILE_ZSH_MODE:-default}}"
 BB_DOTFILE_ZSH_USER_FILE="${_dot_zsh_file_from_env:-${BB_DOTFILE_ZSH_USER_FILE:-}}"
+BB_DOTFILE_BASH_MODE="${_dot_bash_mode_from_env:-${BB_DOTFILE_BASH_MODE:-default}}"
+BB_DOTFILE_BASH_USER_FILE="${_dot_bash_file_from_env:-${BB_DOTFILE_BASH_USER_FILE:-}}"
 BB_DOTFILE_TMUX_MODE="${_dot_tmux_mode_from_env:-${BB_DOTFILE_TMUX_MODE:-default}}"
 BB_DOTFILE_TMUX_USER_FILE="${_dot_tmux_file_from_env:-${BB_DOTFILE_TMUX_USER_FILE:-}}"
 BB_DOTFILE_GDB_MODE="${_dot_gdb_mode_from_env:-${BB_DOTFILE_GDB_MODE:-default}}"
@@ -80,6 +84,7 @@ stage_dotfiles() {
     mkdir -p runtime/payload/home
     stage_dotfile_one profile "$BB_DOTFILE_PROFILE_MODE" "$BB_DOTFILE_PROFILE_USER_FILE" ".profile"
     stage_dotfile_one zsh "$BB_DOTFILE_ZSH_MODE" "$BB_DOTFILE_ZSH_USER_FILE" ".zshrc"
+    stage_dotfile_one bash "$BB_DOTFILE_BASH_MODE" "$BB_DOTFILE_BASH_USER_FILE" ".bashrc"
     stage_dotfile_one tmux "$BB_DOTFILE_TMUX_MODE" "$BB_DOTFILE_TMUX_USER_FILE" ".tmux.conf"
     stage_dotfile_one gdb "$BB_DOTFILE_GDB_MODE" "$BB_DOTFILE_GDB_USER_FILE" ".gdbinit"
 }
@@ -116,7 +121,7 @@ stage_dotfile_one() {
 stage_dotfiles
 
 # Clean out unconfigured/stale files from previous builds or default template
-for tool in zsh tmux strace gdbserver dropbear dbclient dropbearkey curl dropbear-bin \
+for tool in bash zsh tmux strace gdbserver dropbear dbclient dropbearkey curl dropbear-bin \
     socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client rg ripgrep jq file htop screen \
     ltrace readelf objdump lsusb lspci gdb radare2 rizin gcore tshark nmap ncat pstree openssl fd zoxide flash_erase nanddump nandwrite \
     mtd_debug ubinfo ubiattach ubidetach ubimkvol ubirmvol ubirsvol ubiupdatevol i2cdetect i2cget i2cset \
@@ -220,7 +225,7 @@ stage_host_terminfo() {
 }
 
 # Set up only selected heavy tools
-for tool in zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils nmap nmap-ncat psmisc openssl fd zoxide mtd-utils ubi-utils i2c-tools spi-tools mmc-utils e2fsprogs parted doom; do
+for tool in bash zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils nmap nmap-ncat psmisc openssl fd zoxide mtd-utils ubi-utils i2c-tools spi-tools mmc-utils e2fsprogs parted doom; do
     if tool_selected "$tool"; then
         if [ "$tool" = gdbserver ]; then
             case "$BB_GDBSERVER_PROVIDER" in

@@ -96,6 +96,8 @@ BB_BUSYBOX_APPLET_OVERRIDES=""
 BB_DOTFILES_ENABLE="yes"
 BB_DOTFILE_ZSH_MODE="default"
 BB_DOTFILE_ZSH_USER_FILE=""
+BB_DOTFILE_BASH_MODE="default"
+BB_DOTFILE_BASH_USER_FILE=""
 BB_DOTFILE_TMUX_MODE="default"
 BB_DOTFILE_TMUX_USER_FILE=""
 BB_DOTFILE_GDB_MODE="default"
@@ -170,6 +172,8 @@ BB_TARGETS="${BB_TARGETS:-${BB_TARGET_PRESET:-native}}"
 BB_DOTFILES_ENABLE="${BB_DOTFILES_ENABLE:-yes}"
 BB_DOTFILE_ZSH_MODE="${BB_DOTFILE_ZSH_MODE:-default}"
 BB_DOTFILE_ZSH_USER_FILE="${BB_DOTFILE_ZSH_USER_FILE:-}"
+BB_DOTFILE_BASH_MODE="${BB_DOTFILE_BASH_MODE:-default}"
+BB_DOTFILE_BASH_USER_FILE="${BB_DOTFILE_BASH_USER_FILE:-}"
 BB_DOTFILE_TMUX_MODE="${BB_DOTFILE_TMUX_MODE:-default}"
 BB_DOTFILE_TMUX_USER_FILE="${BB_DOTFILE_TMUX_USER_FILE:-}"
 BB_DOTFILE_GDB_MODE="${BB_DOTFILE_GDB_MODE:-default}"
@@ -245,6 +249,8 @@ BB_HEAVY_TOOLS
 BB_DOTFILES_ENABLE
 BB_DOTFILE_ZSH_MODE
 BB_DOTFILE_ZSH_USER_FILE
+BB_DOTFILE_BASH_MODE
+BB_DOTFILE_BASH_USER_FILE
 BB_DOTFILE_TMUX_MODE
 BB_DOTFILE_TMUX_USER_FILE
 BB_DOTFILE_GDB_MODE
@@ -496,6 +502,8 @@ BB_BUSYBOX_APPLET_OVERRIDES="$BB_BUSYBOX_APPLET_OVERRIDES"
 BB_DOTFILES_ENABLE="$BB_DOTFILES_ENABLE"
 BB_DOTFILE_ZSH_MODE="$BB_DOTFILE_ZSH_MODE"
 BB_DOTFILE_ZSH_USER_FILE="$BB_DOTFILE_ZSH_USER_FILE"
+BB_DOTFILE_BASH_MODE="$BB_DOTFILE_BASH_MODE"
+BB_DOTFILE_BASH_USER_FILE="$BB_DOTFILE_BASH_USER_FILE"
 BB_DOTFILE_TMUX_MODE="$BB_DOTFILE_TMUX_MODE"
 BB_DOTFILE_TMUX_USER_FILE="$BB_DOTFILE_TMUX_USER_FILE"
 BB_DOTFILE_GDB_MODE="$BB_DOTFILE_GDB_MODE"
@@ -1039,7 +1047,7 @@ show_page_help() {
             ;;
         heavy)
             _title="Heavy tools help"
-            _text="Heavy tools are optional payload tools staged in addition to BusyBox. They require extract or no-residue runtime mode.\n\nReverse SSH requires dropbear. socat transport requires socat. gdbserver availability depends on the configured provider and target compatibility."
+            _text="Heavy tools are optional payload tools staged in addition to BusyBox. They require extract or no-residue runtime mode.\n\nTools marked with * require you to provide a target-compatible binary through a local drop-in, user path, or overlay; BusierBox will include them in the artifact when a matching binary is available.\n\nReverse SSH requires dropbear. socat transport requires socat. gdbserver availability depends on the configured provider and target compatibility."
             ;;
         dotfiles)
             _title="Dotfiles by app help"
@@ -1781,36 +1789,24 @@ configure_heavy_tool_category() {
         debug)
             _category_tools="gdb gdbserver ltrace objdump radare2 readelf rizin strace tshark"
             dialog --title "Payload / Heavy tools / Debugging / RE tools" \
-                --checklist "Select tools to stage into the payload. Availability is verified during packaging. Full gdb/RE suites are provider-only unless validated." 22 90 11 \
-                "gdb" "full target gdb (provider-only; prefer gdbserver)" "$(heavy_tool_status gdb)" \
+                --checklist "Select tools to stage into the payload. * means you must provide a target-compatible binary through drop-in/user/overlay." 22 90 11 \
+                "gdb" "full target gdb *; prefer gdbserver" "$(heavy_tool_status gdb)" \
                 "gdbserver" "gdb remote debugging stub [config]" "$(heavy_tool_status gdbserver)" \
                 "ltrace" "library call tracer" "$(heavy_tool_status ltrace)" \
                 "objdump" "object file disassembler" "$(heavy_tool_status objdump)" \
-                "radare2" "RE suite (provider-only)" "$(heavy_tool_status radare2)" \
+                "radare2" "RE suite *" "$(heavy_tool_status radare2)" \
                 "readelf" "ELF inspector" "$(heavy_tool_status readelf)" \
-                "rizin" "RE suite (provider-only)" "$(heavy_tool_status rizin)" \
+                "rizin" "RE suite *" "$(heavy_tool_status rizin)" \
                 "strace" "syscall tracer" "$(heavy_tool_status strace)" \
-                "tshark" "packet analyzer (provider-only; prefer tcpdump)" "$(heavy_tool_status tshark)" \
+                "tshark" "packet analyzer *; prefer tcpdump" "$(heavy_tool_status tshark)" \
                 2>"$temp_out" || return 0
             ;;
         misc)
             _category_tools="doom"
-            if dialog --title "Payload / Heavy tools / Misc" \
-                --checklist "Select tools to stage into the payload. Availability is verified during packaging. Use Help for provider notes." 12 86 4 \
-                --help-button --item-help \
-                "doom" "Classic Doom-compatible game runtime" "$(heavy_tool_status doom)" "Must be provided by overlay/local provider; BusierBox does not fetch or bundle game data." \
-                2>"$temp_out"; then
-                _dialog_rc=0
-            else
-                _dialog_rc=$?
-            fi
-            if [ "$_dialog_rc" -eq 2 ]; then
-                dialog --title "doom provider note" \
-                    --msgbox "doom is a classic Doom-compatible game runtime entry.\n\nBusierBox does not download Doom or bundle WAD/game data. Provide a target-compatible binary through your overlay/local provider, for example:\n\n  local/overlay/bin/doom\n\nor your configured overlay root." \
-                    14 78
-                return 0
-            fi
-            [ "$_dialog_rc" -eq 0 ] || return 0
+            dialog --title "Payload / Heavy tools / Misc" \
+                --checklist "Select tools to stage into the payload. * means you must provide a target-compatible binary; BusierBox does not fetch game data." 12 86 4 \
+                "doom" "Classic Doom-compatible game runtime *" "$(heavy_tool_status doom)" \
+                2>"$temp_out" || return 0
             ;;
         network)
             _category_tools="curl dropbear ethtool iperf3 iw minicom mosh-client mtr nmap nmap-ncat openssl rsync socat tcpdump"
@@ -1833,9 +1829,10 @@ configure_heavy_tool_category() {
                 2>"$temp_out" || return 0
             ;;
         shell)
-            _category_tools="fd htop psmisc screen tmux zoxide zsh"
+            _category_tools="bash fd htop psmisc screen tmux zoxide zsh"
             dialog --title "Payload / Heavy tools / Shell / terminal" \
-                --checklist "Select tools to stage into the payload. Availability is verified during packaging." 18 88 9 \
+                --checklist "Select tools to stage into the payload. Availability is verified during packaging." 19 88 10 \
+                "bash" "bash shell [dotfiles]" "$(heavy_tool_status bash)" \
                 "fd" "fast find helper" "$(heavy_tool_status fd)" \
                 "htop" "interactive process viewer" "$(heavy_tool_status htop)" \
                 "psmisc" "pstree/fuser process utilities" "$(heavy_tool_status psmisc)" \
@@ -1930,7 +1927,8 @@ openssl|openssl CLI
 rsync|file transfer/sync
 socat|bidirectional relay tool
 tcpdump|packet capture'
-        _shell='fd|fast find helper
+        _shell='bash|bash shell [dotfiles]
+fd|fast find helper
 htop|interactive process viewer
 psmisc|pstree/fuser process utilities
 screen|terminal multiplexer
@@ -1941,15 +1939,15 @@ zsh|zsh shell [dotfiles]'
 jq|JSON processor
 ripgrep|rg recursive search
 xxd|hex dump applet/provider'
-        _debug='gdb|full target gdb (provider-only)
+        _debug='gdb|full target gdb *
 gdbserver|gdb remote debugging stub [config]
 ltrace|library call tracer
 objdump|object file disassembler
-radare2|RE suite (provider-only)
+radare2|RE suite *
 readelf|ELF inspector
 strace|syscall tracer
-rizin|RE suite (provider-only)
-tshark|packet analyzer (provider-only)'
+rizin|RE suite *
+tshark|packet analyzer *'
         _system='pciutils|lspci provider
 usbutils|lsusb provider'
         _storage='e2fsprogs|debugfs/tune2fs/e2fsck
@@ -1961,7 +1959,7 @@ spi-tools|spidev utilities
 ubi-utils|UBI volume tools'
         _misc='doom|Classic Doom-compatible game runtime'
         dialog --title "Payload / Heavy tools" \
-            --menu "Select optional payload tools by category. Tools are alphabetized within each submenu." 20 86 9 \
+            --menu "Select optional payload tools by category. * means target binary required from drop-in/user/overlay." 20 86 9 \
             "1" "Networking / operator ($(heavy_category_summary "$_network"))" \
             "2" "Shell / terminal ($(heavy_category_summary "$_shell"))" \
             "3" "Text / data ($(heavy_category_summary "$_text"))" \
@@ -2771,12 +2769,13 @@ configure_dotfiles() {
             return 0
         fi
         dialog --title "Payload / Dotfiles by app" \
-            --menu "Choose each app's config independently. 'default' means the BusierBox default initial config; 'user' stages the exact file you choose." 21 86 8 \
+            --menu "Choose each app's config independently. 'default' means the BusierBox default initial config; 'user' stages the exact file you choose." 22 86 9 \
             "1" "Enable dotfiles: $BB_DOTFILES_ENABLE" \
             "2" "zsh config: $BB_DOTFILE_ZSH_MODE ${BB_DOTFILE_ZSH_USER_FILE:+($BB_DOTFILE_ZSH_USER_FILE)}" \
-            "3" "tmux config: $BB_DOTFILE_TMUX_MODE ${BB_DOTFILE_TMUX_USER_FILE:+($BB_DOTFILE_TMUX_USER_FILE)}" \
-            "4" "gdb config: $BB_DOTFILE_GDB_MODE ${BB_DOTFILE_GDB_USER_FILE:+($BB_DOTFILE_GDB_USER_FILE)}" \
-            "5" "profile / POSIX shell config: $BB_DOTFILE_PROFILE_MODE ${BB_DOTFILE_PROFILE_USER_FILE:+($BB_DOTFILE_PROFILE_USER_FILE)}" \
+            "3" "bash config: $BB_DOTFILE_BASH_MODE ${BB_DOTFILE_BASH_USER_FILE:+($BB_DOTFILE_BASH_USER_FILE)}" \
+            "4" "tmux config: $BB_DOTFILE_TMUX_MODE ${BB_DOTFILE_TMUX_USER_FILE:+($BB_DOTFILE_TMUX_USER_FILE)}" \
+            "5" "gdb config: $BB_DOTFILE_GDB_MODE ${BB_DOTFILE_GDB_USER_FILE:+($BB_DOTFILE_GDB_USER_FILE)}" \
+            "6" "profile / POSIX shell config: $BB_DOTFILE_PROFILE_MODE ${BB_DOTFILE_PROFILE_USER_FILE:+($BB_DOTFILE_PROFILE_USER_FILE)}" \
             "H" "Help" \
             "0" "Back" \
             2>"$temp_out" || return 0
@@ -2784,9 +2783,10 @@ configure_dotfiles() {
         case "$_choice" in
             1) [ "$BB_DOTFILES_ENABLE" = yes ] && BB_DOTFILES_ENABLE=no || BB_DOTFILES_ENABLE=yes ;;
             2) configure_dotfile_app "zsh" BB_DOTFILE_ZSH_MODE BB_DOTFILE_ZSH_USER_FILE ".zshrc" ;;
-            3) configure_dotfile_app "tmux" BB_DOTFILE_TMUX_MODE BB_DOTFILE_TMUX_USER_FILE ".tmux.conf" ;;
-            4) configure_dotfile_app "gdb" BB_DOTFILE_GDB_MODE BB_DOTFILE_GDB_USER_FILE ".gdbinit" ;;
-            5) configure_dotfile_app "profile / POSIX shell" BB_DOTFILE_PROFILE_MODE BB_DOTFILE_PROFILE_USER_FILE ".profile" ;;
+            3) configure_dotfile_app "bash" BB_DOTFILE_BASH_MODE BB_DOTFILE_BASH_USER_FILE ".bashrc" ;;
+            4) configure_dotfile_app "tmux" BB_DOTFILE_TMUX_MODE BB_DOTFILE_TMUX_USER_FILE ".tmux.conf" ;;
+            5) configure_dotfile_app "gdb" BB_DOTFILE_GDB_MODE BB_DOTFILE_GDB_USER_FILE ".gdbinit" ;;
+            6) configure_dotfile_app "profile / POSIX shell" BB_DOTFILE_PROFILE_MODE BB_DOTFILE_PROFILE_USER_FILE ".profile" ;;
             H) show_page_help dotfiles ;;
             0) return 0 ;;
         esac
@@ -2930,7 +2930,7 @@ Payload:
   dropbear server=$BB_DROPBEAR_SERVER_MODE$_db_detail
     keytypes=$BB_DROPBEAR_KEYTYPES
     auth_keys=${BB_DROPBEAR_AUTHORIZED_KEYS_FILE:-none}
-  dotfiles=${BB_DOTFILES_ENABLE} zsh=$BB_DOTFILE_ZSH_MODE tmux=$BB_DOTFILE_TMUX_MODE gdb=$BB_DOTFILE_GDB_MODE profile=$BB_DOTFILE_PROFILE_MODE" 31 82
+  dotfiles=${BB_DOTFILES_ENABLE} zsh=$BB_DOTFILE_ZSH_MODE bash=$BB_DOTFILE_BASH_MODE tmux=$BB_DOTFILE_TMUX_MODE gdb=$BB_DOTFILE_GDB_MODE profile=$BB_DOTFILE_PROFILE_MODE" 31 82
 }
 
 while :; do

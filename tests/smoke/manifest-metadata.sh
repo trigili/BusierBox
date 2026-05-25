@@ -55,6 +55,7 @@ required = [
     ("rshell", "authkeys_mode"),
     ("rshell", "retry"),
     ("dotfiles", "enabled"),
+    ("dotfiles", "bash"),
     ("overlay", "enabled"),
 ]
 for section, field in required:

@@ -13,7 +13,7 @@ preset_dir=${2:-presets/payload}
     exit 1
 }
 
-for name in default survey-core builtin-core-shell socat-rescue ssh-operator full-debug; do
+for name in default survey-core builtin-core-shell payload-bash socat-rescue ssh-operator full-debug; do
     file="$preset_dir/$name.conf"
     [ -f "$file" ] || {
         printf '%s\n' "payload-presets: missing $file" >&2
@@ -91,6 +91,7 @@ grep -q 'menu_label' "$menu"
 grep -q 'Extract payload; help on zero-arg; no reverse access' presets/payload/default.meta.json
 grep -q 'Core-only local survey; no extraction; no reverse access' presets/payload/survey-core.meta.json
 grep -q 'Core-only builtin TLS shell; zero-arg reverse access' presets/payload/builtin-core-shell.meta.json
+grep -q 'Extract BusyBox plus bash; help on zero-arg; no reverse access' presets/payload/payload-bash.meta.json
 grep -q 'No-residue socat TLS shell; stages socat' presets/payload/socat-rescue.meta.json
 grep -q 'Extract Dropbear/dbclient; explicit reverse SSH; no autorun' presets/payload/ssh-operator.meta.json
 grep -q 'Large debug/operator payload; no network autorun' presets/payload/full-debug.meta.json

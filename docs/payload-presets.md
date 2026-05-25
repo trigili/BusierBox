@@ -10,6 +10,7 @@ Built-in payload presets live under `presets/payload/`:
 | `survey-core` | Core-only local survey; no extraction; no reverse access |
 | `default` | Extract payload; help on zero-arg; no reverse access |
 | `builtin-core-shell` | Core-only builtin TLS shell; zero-arg reverse access |
+| `payload-bash` | Extract BusyBox plus bash; help on zero-arg; no reverse access |
 | `socat-rescue` | No-residue socat TLS shell; stages socat |
 | `ssh-operator` | Extract Dropbear/dbclient; explicit reverse SSH; no autorun |
 | `full-debug` | Large debug/operator payload; no network autorun |

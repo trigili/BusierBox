@@ -54,6 +54,8 @@ BB_BUSYBOX_APPLET_OVERRIDES=${BB_BUSYBOX_APPLET_OVERRIDES:-}
 BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-yes}
 BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-default}
 BB_DOTFILE_ZSH_USER_FILE=${BB_DOTFILE_ZSH_USER_FILE:-}
+BB_DOTFILE_BASH_MODE=${BB_DOTFILE_BASH_MODE:-default}
+BB_DOTFILE_BASH_USER_FILE=${BB_DOTFILE_BASH_USER_FILE:-}
 BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-default}
 BB_DOTFILE_TMUX_USER_FILE=${BB_DOTFILE_TMUX_USER_FILE:-}
 BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-default}
@@ -73,6 +75,8 @@ if [ -f "$config" ]; then
     BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-yes}
     BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-default}
     BB_DOTFILE_ZSH_USER_FILE=${BB_DOTFILE_ZSH_USER_FILE:-}
+    BB_DOTFILE_BASH_MODE=${BB_DOTFILE_BASH_MODE:-default}
+    BB_DOTFILE_BASH_USER_FILE=${BB_DOTFILE_BASH_USER_FILE:-}
     BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-default}
     BB_DOTFILE_TMUX_USER_FILE=${BB_DOTFILE_TMUX_USER_FILE:-}
     BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-default}
@@ -278,6 +282,7 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
                 printf '%s\n' "BR2_PACKAGE_DROPBEAR=y"
                 printf '%s\n' "BR2_PACKAGE_DROPBEAR_CLIENT=y"
                 ;;
+            bash) printf '%s\n' "BR2_PACKAGE_BASH=y" ;;
             zsh) printf '%s\n' "BR2_PACKAGE_ZSH=y" ;;
             tmux) printf '%s\n' "BR2_PACKAGE_TMUX=y" ;;
             gdbserver)
@@ -397,6 +402,8 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     printf '%s\n' "DOTFILES_ENABLE := ${BB_DOTFILES_ENABLE:-yes}"
     printf '%s\n' "DOTFILE_ZSH_MODE := ${BB_DOTFILE_ZSH_MODE:-default}"
     printf '%s\n' "DOTFILE_ZSH_USER_FILE := ${BB_DOTFILE_ZSH_USER_FILE:-}"
+    printf '%s\n' "DOTFILE_BASH_MODE := ${BB_DOTFILE_BASH_MODE:-default}"
+    printf '%s\n' "DOTFILE_BASH_USER_FILE := ${BB_DOTFILE_BASH_USER_FILE:-}"
     printf '%s\n' "DOTFILE_TMUX_MODE := ${BB_DOTFILE_TMUX_MODE:-default}"
     printf '%s\n' "DOTFILE_TMUX_USER_FILE := ${BB_DOTFILE_TMUX_USER_FILE:-}"
     printf '%s\n' "DOTFILE_GDB_MODE := ${BB_DOTFILE_GDB_MODE:-default}"
