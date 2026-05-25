@@ -110,6 +110,7 @@ smoke-test:
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full survey --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 json validation unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full survey --json --shell-probe | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 shell survey json validation unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full manifest --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 manifest json validation unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/manifest-metadata.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 manifest metadata smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full cleanup-ledger --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 cleanup ledger json validation unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full rshell status --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 rshell status json validation unavailable"; fi
 	@./dist/busierbox-native-full survey >/dev/null
