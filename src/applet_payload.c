@@ -1735,6 +1735,138 @@ static int print_clean_dry_run(int include_external)
     return 0;
 }
 
+static int json_get_string_field(const char *line, const char *key, char *out, size_t outsz)
+{
+    char needle[64];
+    const char *p;
+    size_t used = 0;
+
+    if (!line || !key || !out || outsz == 0)
+        return -1;
+    out[0] = '\0';
+    snprintf(needle, sizeof(needle), "\"%s\":\"", key);
+    p = strstr(line, needle);
+    if (!p)
+        return -1;
+    p += strlen(needle);
+    while (*p && *p != '"') {
+        char c = *p++;
+        if (c == '\\' && *p) {
+            c = *p++;
+            if (c == 'n')
+                c = '\n';
+            else if (c == 'r')
+                c = '\r';
+            else if (c == 't')
+                c = '\t';
+        }
+        if (used + 1 < outsz)
+            out[used++] = c;
+    }
+    out[used] = '\0';
+    return *p == '"' ? 0 : -1;
+}
+
+static int remove_rshell_marked_block(const char *path)
+{
+    char tmp[PATH_MAX], line[8192];
+    FILE *in, *out;
+    int skipping = 0, removed = 0;
+
+    in = fopen(path, "r");
+    if (!in)
+        return errno == ENOENT ? 0 : -1;
+    snprintf(tmp, sizeof(tmp), "%s.busierbox.clean.%ld", path, (long)getpid());
+    out = fopen(tmp, "w");
+    if (!out) {
+        fclose(in);
+        return -1;
+    }
+    while (fgets(line, sizeof(line), in)) {
+        if (!strcmp(line, "# BEGIN BUSIERBOX RSHELL\n") ||
+            !strcmp(line, "# BEGIN BUSIERBOX RSHELL\r\n")) {
+            skipping = 1;
+            removed = 1;
+            continue;
+        }
+        if (skipping) {
+            if (!strcmp(line, "# END BUSIERBOX RSHELL\n") ||
+                !strcmp(line, "# END BUSIERBOX RSHELL\r\n"))
+                skipping = 0;
+            continue;
+        }
+        fputs(line, out);
+    }
+    if (fclose(in) != 0)
+        removed = -1;
+    if (fclose(out) != 0)
+        removed = -1;
+    if (removed < 0) {
+        unlink(tmp);
+        return -1;
+    }
+    if (!removed) {
+        unlink(tmp);
+        return 0;
+    }
+    if (rename(tmp, path) != 0) {
+        unlink(tmp);
+        return -1;
+    }
+    chmod(path, 0600);
+    return 0;
+}
+
+static int clean_external_from_ledger(void)
+{
+    char ledger[PATH_MAX], line[2048];
+    FILE *fp = fopen(ledger_path(ledger, sizeof(ledger)), "r");
+    int failures = 0;
+
+    if (!fp)
+        return 0;
+    while (fgets(line, sizeof(line), fp)) {
+        char op[32], path[PATH_MAX], scope[32], mode[64];
+
+        if (json_get_string_field(line, "scope", scope, sizeof(scope)) != 0 ||
+            strcmp(scope, "external") != 0)
+            continue;
+        if (json_get_string_field(line, "op", op, sizeof(op)) != 0 ||
+            json_get_string_field(line, "path", path, sizeof(path)) != 0)
+            continue;
+        mode[0] = '\0';
+        json_get_string_field(line, "mode", mode, sizeof(mode));
+
+        if (!strcmp(path, "/root/.ssh/authorized_keys") &&
+            !strcmp(op, "modify") && !strcmp(mode, "root-merge")) {
+            if (remove_rshell_marked_block(path) != 0) {
+                fprintf(stderr, "clean: failed to remove BusierBox rshell block from %s: %s\n", path, strerror(errno));
+                failures = 1;
+            } else {
+                printf("clean: removed BusierBox rshell block from %s\n", path);
+            }
+        } else if (!strcmp(path, "/root/.ssh/authorized_keys") &&
+                   !strcmp(op, "write") && !strcmp(mode, "root-copy")) {
+            if (unlink(path) != 0 && errno != ENOENT) {
+                fprintf(stderr, "clean: failed to remove %s: %s\n", path, strerror(errno));
+                failures = 1;
+            } else {
+                printf("clean: removed external %s\n", path);
+            }
+        } else if (!strcmp(op, "backup") &&
+                   !strncmp(path, "/root/.ssh/authorized_keys.busierbox.bak.", 41)) {
+            if (unlink(path) != 0 && errno != ENOENT) {
+                fprintf(stderr, "clean: failed to remove backup %s: %s\n", path, strerror(errno));
+                failures = 1;
+            } else {
+                printf("clean: removed external backup %s\n", path);
+            }
+        }
+    }
+    fclose(fp);
+    return failures ? -1 : 0;
+}
+
 int applet_cleanup_ledger_main(int argc, char **argv)
 {
     int json = 0;
@@ -1805,6 +1937,8 @@ int applet_clean_main(int argc, char **argv)
         fputs("clean: external cleanup requires --external --apply\n", stderr);
         return 2;
     }
+    if (external && apply && clean_external_from_ledger() != 0)
+        return 1;
     if (ledger)
         ledger_record("remove", BB_RUNTIME_ROOT, "runtime", "clean --ledger");
     if (rm_rf(BB_RUNTIME_ROOT) != 0) {

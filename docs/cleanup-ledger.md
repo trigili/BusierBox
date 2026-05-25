@@ -45,5 +45,8 @@ When rshell is configured for `root-copy`, a successful creation of
 `/root/.ssh/authorized_keys` is recorded as an external `write`. When configured
 for `root-merge`, BusierBox first records a backup when an existing
 `authorized_keys` file is present, then records the marked-block modification.
+With `busierbox clean --external --apply`, `root-merge` cleanup removes only the
+BusierBox marked block, while `root-copy` cleanup removes the file only when the
+ledger says BusierBox created it.
 
 No-residue mode is best-effort ephemeral runtime. It removes the selected extraction root after foreground payload commands and records top-level paths in the cleanup ledger, but it is not forensic no-trace execution.
