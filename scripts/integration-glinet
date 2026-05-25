@@ -211,6 +211,20 @@ def run_remote_case(host, remote_dir, case_dir, command, timeout=120, check=True
     return proc
 
 
+def capture_busierbox_outputs(host, remote_dir, case_dir):
+    commands = [
+        ("manifest-json.log", "./busierbox manifest --json"),
+        ("doctor-json.log", "./busierbox doctor --json || ./busierbox doctor"),
+        ("cleanup-ledger-json.log", "./busierbox cleanup-ledger --json"),
+        ("clean-dry-run.log", "./busierbox clean --dry-run"),
+        ("rshell-status-json.log", "./busierbox rshell status --json"),
+    ]
+    for log_name, command in commands:
+        quoted = shlex.quote(remote_dir)
+        ssh_cmd(host, f"cd {quoted}; {command}",
+                timeout=60, log_path=case_dir / log_name, check=False)
+
+
 def validate_root_ssh_unchanged(host, remote_dir, case_dir, action):
     snapshot = r'''
 snapshot_root_ssh() {
@@ -429,6 +443,7 @@ def run_case(case, args, run_dir, operator_host):
             "args": args,
             "operator_host": operator_host,
         })
+        capture_busierbox_outputs(args.host, remote_dir, case_dir)
         result["status"] = "pass"
     except SkipCase as exc:
         result["status"] = "skip"

@@ -81,7 +81,8 @@ detect-host:
 
 smoke: smoke-test
 
-smoke-test: package-native
+smoke-test:
+	@BUSIERBOX_CONFIG=presets/payload/default.conf BB_BUSYBOX_GROUPS="shell fileops disk process network text system" $(MAKE) package-native
 	@scripts/inspect-artifact dist/busierbox-native-full >/dev/null
 	@scripts/verify-artifact dist/busierbox-native-full
 	@tests/smoke/artifact-tiers.sh
@@ -92,6 +93,7 @@ smoke-test: package-native
 	@tests/smoke/menuconfig-validation.sh
 	@tests/smoke/validation-matrix.sh
 	@tests/smoke/rehosted-router-presets.sh
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/config-from-survey.sh; else printf '%s\n' "skip: python3 config-from-survey smoke unavailable"; fi
 	@tests/smoke/payload-presets.sh
 	@tests/smoke/rshell-transport-names.sh
 	@tests/smoke/rshell-external-writes.sh
@@ -104,6 +106,10 @@ smoke-test: package-native
 	@tests/smoke/zero-arg-autorun.sh dist/busierbox-native-full
 	@./dist/busierbox-native-full list >/dev/null
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full survey --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 json validation unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full survey --json --shell-probe | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 shell survey json validation unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full manifest --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 manifest json validation unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full cleanup-ledger --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 cleanup ledger json validation unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full rshell status --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 rshell status json validation unavailable"; fi
 	@./dist/busierbox-native-full survey >/dev/null
 	@./dist/busierbox-native-full envfix >/dev/null
 	@./dist/busierbox-native-full extract >/dev/null

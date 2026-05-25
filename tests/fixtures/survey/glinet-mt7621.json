@@ -1,0 +1,21 @@
+{
+  "schema": 2,
+  "uname": {
+    "sysname": "Linux",
+    "nodename": "GL-MT1300",
+    "release": "4.14.241",
+    "version": "#0 SMP",
+    "machine": "mipsel"
+  },
+  "arch": "mipsel",
+  "kernel": "4.14.241",
+  "endianness": "little",
+  "os_markers": {
+    "openwrt_release": "DISTRIB_ID='OpenWrt'\nDISTRIB_TARGET='ramips/mt7621'\nDISTRIB_DESCRIPTION='GL.iNet OpenWrt'"
+  },
+  "recommendations": {
+    "payload_mode_possible": true,
+    "recommended_extract_dir": ".",
+    "libc_guess": "musl"
+  }
+}

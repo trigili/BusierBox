@@ -4,6 +4,15 @@ BusierBox is a reproducible embedded Linux debug-toolkit builder and runtime lau
 
 BusierBox is not a BusyBox replacement and is not a BusyBox fork. BusierBox manages survey, environment repair, payload extraction, and dispatch. BusyBox provides standard Unix utilities such as `sh`, `cp`, `dd`, `mount`, `ps`, `nc`, and `tar`.
 
+## Why It Is Handy
+
+- 🧭 Survey first: `busierbox survey --json` and the portable shell probe collect target facts without assuming Python or a full userspace.
+- 🧰 One artifact, many tools: the supervisor dispatches BusyBox applets and staged heavy tools from a reproducible payload.
+- 🧪 Bring-up loop: `scripts/busierbox-bringup` can survey a target, generate a conservative config, rebuild, and optionally run integration checks.
+- 🧾 Explainable artifacts: `busierbox manifest --json` and `payload/manifest.json` show what was built, staged, missing, and validated.
+- 🧹 Cleanup visibility: `busierbox cleanup-ledger --json` and `busierbox clean --dry-run` show BusierBox-controlled runtime paths before removal.
+- 🔒 Safe defaults: no external writes and no network autorun unless explicitly configured.
+
 ## Architecture
 
 The core binary stays small and static-first:

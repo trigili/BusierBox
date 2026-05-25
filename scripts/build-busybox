@@ -15,8 +15,9 @@ fi
 
 mkdir -p runtime/payload/bin
 
-if [ -f configs/busierbox.conf ]; then
-    . configs/busierbox.conf
+config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
+if [ -f "$config" ]; then
+    . "$config"
 fi
 
 if [ -n "${BB_BUSYBOX_GROUPS:-}" ]; then

@@ -306,6 +306,111 @@ static void json_mounts(void)
     putchar(']');
 }
 
+static int command_in_path(const char *name)
+{
+    const char *path = getenv("PATH");
+    char *dup, *save = NULL, *p;
+    int found = 0;
+    if (!path || !name || !*name)
+        return 0;
+    dup = strdup(path);
+    if (!dup)
+        return 0;
+    for (p = strtok_r(dup, ":", &save); p; p = strtok_r(NULL, ":", &save)) {
+        char candidate[PATH_MAX];
+        snprintf(candidate, sizeof(candidate), "%s/%s", *p ? p : ".", name);
+        if (access(candidate, X_OK) == 0) {
+            found = 1;
+            break;
+        }
+    }
+    free(dup);
+    return found;
+}
+
+static void json_tools(void)
+{
+    static const char *tools[] = {
+        "busybox", "tar", "gzip", "sh", "ash", "zsh", "tmux", "socat",
+        "dropbear", "dbclient", "nc", "netcat", "wget", "curl", "ip",
+        "ifconfig", "ps", "kill", "uname", "mount", "df", "chmod",
+        "mkdir", "rm", "opkg", NULL
+    };
+    int i;
+    putchar('{');
+    for (i = 0; tools[i]; i++) {
+        if (i)
+            putchar(',');
+        json_string(tools[i]);
+        printf(":%s", command_in_path(tools[i]) ? "true" : "false");
+    }
+    putchar('}');
+}
+
+static void json_file_excerpt(const char *path)
+{
+    FILE *fp = fopen(path, "r");
+    char buf[512];
+    size_t n;
+    if (!fp) {
+        printf("null");
+        return;
+    }
+    n = fread(buf, 1, sizeof(buf) - 1, fp);
+    fclose(fp);
+    buf[n] = '\0';
+    json_string(buf);
+}
+
+static void json_os_markers(void)
+{
+    printf("{\"os_release\":");
+    json_file_excerpt("/etc/os-release");
+    printf(",\"openwrt_release\":");
+    json_file_excerpt("/etc/openwrt_release");
+    printf(",\"banner\":");
+    json_file_excerpt("/etc/banner");
+    printf(",\"issue\":");
+    json_file_excerpt("/etc/issue");
+    printf(",\"proc_version\":");
+    json_file_excerpt("/proc/version");
+    printf("}");
+}
+
+static const char *shell_survey_script =
+"#!/bin/sh\n"
+"# BusierBox portable shell survey. POSIX-ish and safe for OpenWrt-like targets.\n"
+"p=${BUSIERBOX_SURVEY_PROBE_DIR:-${TMPDIR:-/tmp}/busierbox-survey-$$}\n"
+"mkdir \"$p\" 2>/dev/null || p=.\n"
+"jesc(){ s=$1; s=${s#}; printf '%s' \"$s\" | sed 's/\\\\/\\\\\\\\/g; s/\"/\\\\\"/g' 2>/dev/null || printf '%s' \"$s\"; }\n"
+"have(){ command -v \"$1\" >/dev/null 2>&1 && printf true || printf false; }\n"
+"wr=false; ex=false\n"
+"if : >\"$p/write.probe\" 2>/dev/null; then wr=true; rm -f \"$p/write.probe\" 2>/dev/null || true; fi\n"
+"cat >\"$p/exec.probe\" 2>/dev/null <<'EOS'\n"
+"#!/bin/sh\n"
+"exit 0\n"
+"EOS\n"
+"chmod +x \"$p/exec.probe\" 2>/dev/null || true\n"
+"if \"$p/exec.probe\" >/dev/null 2>&1; then ex=true; fi\n"
+"rm -f \"$p/exec.probe\" 2>/dev/null || true\n"
+"u=`uname -s 2>/dev/null || echo unknown`; r=`uname -r 2>/dev/null || echo unknown`; m=`uname -m 2>/dev/null || echo unknown`\n"
+"printf '{\"schema\":1,\"engine\":\"shell\",\"uname\":{\"sysname\":\"'; jesc \"$u\"; printf '\",\"release\":\"'; jesc \"$r\"; printf '\",\"machine\":\"'; jesc \"$m\"; printf '\"}'\n"
+"printf ',\"shell\":{\"path\":\"/bin/sh\",\"busybox_ash\":'; /bin/sh --help 2>&1 | grep -qi busybox && printf true || printf false; printf '}'\n"
+"printf ',\"filesystem\":{\"probe_dir\":\"'; jesc \"$p\"; printf '\",\"writable\":%s,\"shell_exec\":%s}' \"$wr\" \"$ex\"\n"
+"printf ',\"tools\":{'; first=1; for t in busybox tar gzip sh ash zsh tmux socat dropbear dbclient nc netcat wget curl ip ifconfig ps kill uname mount df chmod mkdir rm opkg; do [ $first = 1 ] || printf ','; first=0; printf '\"%s\":' \"$t\"; have \"$t\"; done; printf '}}\\n'\n"
+"[ \"$p\" != . ] && rmdir \"$p\" 2>/dev/null || true\n";
+
+static int write_shell_script(const char *path)
+{
+    FILE *fp = fopen(path, "w");
+    if (!fp)
+        return -1;
+    fputs(shell_survey_script, fp);
+    fclose(fp);
+    chmod(path, 0700);
+    return 0;
+}
+
 static const char *ptrace_status(void)
 {
     pid_t child, r;
@@ -343,12 +448,40 @@ int applet_survey_main(int argc, char **argv)
     struct utsname uts;
     char cwd[PATH_MAX];
     const char *path = getenv("PATH"), *home = getenv("HOME"), *term = getenv("TERM");
-    int json = argc > 1 && !strcmp(argv[1], "--json");
+    int json = 0, shell_probe = 0;
+    const char *write_script_path = NULL;
     int pc;
+    int i;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox survey [--json]");
+        puts("usage: busierbox survey [--json] [--shell-probe] [--shell-script] [--write-shell-script PATH]");
         puts("Print embedded Linux target triage.");
+        return 0;
+    }
+    for (i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--json")) {
+            json = 1;
+        } else if (!strcmp(argv[i], "--shell-probe")) {
+            shell_probe = 1;
+        } else if (!strcmp(argv[i], "--shell-script")) {
+            fputs(shell_survey_script, stdout);
+            return 0;
+        } else if (!strcmp(argv[i], "--write-shell-script")) {
+            if (i + 1 >= argc) {
+                fputs("survey: --write-shell-script requires a path\n", stderr);
+                return 2;
+            }
+            write_script_path = argv[++i];
+        } else {
+            fprintf(stderr, "survey: unknown option %s\n", argv[i]);
+            return 2;
+        }
+    }
+    if (write_script_path) {
+        if (write_shell_script(write_script_path) != 0) {
+            fprintf(stderr, "survey: cannot write %s: %s\n", write_script_path, strerror(errno));
+            return 1;
+        }
         return 0;
     }
     if (uname(&uts) != 0)
@@ -359,7 +492,7 @@ int applet_survey_main(int argc, char **argv)
     const char *ptrace_st = ptrace_status();
 
     if (json) {
-        printf("{\"busierbox\":{\"version\":"); json_string(BUSIERBOX_VERSION);
+        printf("{\"schema\":2,\"survey_engine\":{\"native\":true,\"shell\":%s,\"shell_path\":\"/bin/sh\"},\"busierbox\":{\"version\":", shell_probe ? "true" : "false"); json_string(BUSIERBOX_VERSION);
         printf(",\"build_date\":"); json_string(__DATE__ " " __TIME__);
         printf("},\"uname\":{\"sysname\":"); json_string(uts.sysname);
         printf(",\"nodename\":"); json_string(uts.nodename);
@@ -383,6 +516,16 @@ int applet_survey_main(int argc, char **argv)
         printf(",\"writable_dirs\":"); json_dirs();
         printf(",\"executable_extract_dirs\":"); json_executable_extract_dirs();
         printf(",\"mounts\":"); json_mounts();
+        printf(",\"tools\":"); json_tools();
+        printf(",\"os_markers\":"); json_os_markers();
+        printf(",\"shell\":{\"path\":\"/bin/sh\",\"path_exists\":%s,\"busybox_ash\":\"unknown\",\"basic_tests\":{\"can_run_native_survey\":true}}",
+               access("/bin/sh", X_OK) == 0 ? "true" : "false");
+        if (shell_probe) {
+            printf(",\"shell_probe\":{\"embedded_script_available\":true,\"probe_dir_recommendation\":");
+            json_string(recommended_extract_dir());
+            printf(",\"tools\":"); json_tools();
+            printf("}");
+        }
         printf(",\"process_count\":"); pc >= 0 ? printf("%d", pc) : printf("null");
         printf(",\"meminfo\":"); json_meminfo();
         printf(",\"interfaces\":"); json_netdev();
@@ -416,7 +559,7 @@ int applet_survey_main(int argc, char **argv)
     print_meminfo_human();
     print_netdev_human();
     printf("ptrace: %s\n", ptrace_st);
-    printf("recommendations:\n");
+        printf("recommendations:\n");
     printf("  zero_write_supported: yes\n");
     printf("  payload_mode_possible: %s\n", strcmp(recommended_extract_dir(), "none") ? "yes" : "no");
     printf("  likely_zsh_supported: %s\n", strcmp(recommended_extract_dir(), "none") ? "yes" : "unknown");

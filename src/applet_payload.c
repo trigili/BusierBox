@@ -306,6 +306,64 @@ static int mkdir_p(const char *path, mode_t mode)
     return 0;
 }
 
+static void json_string_payload(FILE *out, const char *s)
+{
+    fputc('"', out);
+    if (s) {
+        while (*s) {
+            unsigned char c = (unsigned char)*s++;
+            if (c == '"' || c == '\\') {
+                fputc('\\', out);
+                fputc(c, out);
+            } else if (c == '\n') {
+                fputs("\\n", out);
+            } else if (c == '\r') {
+                fputs("\\r", out);
+            } else if (c == '\t') {
+                fputs("\\t", out);
+            } else if (c < 32) {
+                fprintf(out, "\\u%04x", c);
+            } else {
+                fputc(c, out);
+            }
+        }
+    }
+    fputc('"', out);
+}
+
+static const char *ledger_path(char *out, size_t outsz)
+{
+    snprintf(out, outsz, "%s/run/cleanup-ledger.jsonl", BB_RUNTIME_ROOT);
+    return out;
+}
+
+static void ledger_record(const char *op, const char *path, const char *scope, const char *detail)
+{
+    char run_dir[PATH_MAX], ledger[PATH_MAX];
+    FILE *fp;
+    time_t now = time(NULL);
+
+    snprintf(run_dir, sizeof(run_dir), "%s/run", BB_RUNTIME_ROOT);
+    if (mkdir_p(run_dir, 0700) != 0)
+        return;
+    fp = fopen(ledger_path(ledger, sizeof(ledger)), "a");
+    if (!fp)
+        return;
+    fputs("{\"op\":", fp);
+    json_string_payload(fp, op);
+    fputs(",\"path\":", fp);
+    json_string_payload(fp, path);
+    fputs(",\"scope\":", fp);
+    json_string_payload(fp, scope ? scope : "runtime");
+    fprintf(fp, ",\"ts\":%ld", (long)now);
+    if (detail && *detail) {
+        fputs(",\"detail\":", fp);
+        json_string_payload(fp, detail);
+    }
+    fputs("}\n", fp);
+    fclose(fp);
+}
+
 static int path_exists(const char *path)
 {
     return access(path, F_OK) == 0;
@@ -605,6 +663,7 @@ static int choose_extract_root(char *out, size_t outsz)
         snprintf(path, sizeof(path), "%s", roots[i]);
         if (mkdir_p(path, 0700) != 0)
             continue;
+        ledger_record("mkdir", path, "runtime", "runtime root");
         if (access(path, W_OK | X_OK) != 0)
             continue;
         if (dir_is_noexec(path))
@@ -1039,6 +1098,8 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
     rm_rf(tmp);
     rmdir(lock);
     write_payload_id(ep, final);
+    ledger_record("extract", root, "payload", "embedded payload extracted");
+    ledger_record("write", final, "payload", "payload root");
     return 0;
 }
 
@@ -1078,6 +1139,10 @@ static int extract_archive_file_to_root(const char *archive, const char *root)
         if (rc == 0 && payload_valid(extracted)) {
             rm_rf(final);
             rc = rename(extracted, final);
+            if (rc == 0) {
+                ledger_record("extract", root, "payload", "archive payload extracted");
+                ledger_record("write", final, "payload", "payload root");
+            }
         } else {
             rc = -1;
         }
@@ -1237,8 +1302,10 @@ static int exec_payload_command(const char *path, char **argv, const char *paylo
     if (waitpid(pid, &status, 0) < 0)
         return 1;
     payload_root_from_payload(payload, root, sizeof(root));
-    if (root[0] && !strcmp(root, BB_RUNTIME_ROOT))
+    if (root[0] && (!strcmp(root, BB_RUNTIME_ROOT) || !strcmp(root, BB_RUNTIME_FALLBACK_ROOT))) {
+        ledger_record("remove", root, "runtime", "no-residue foreground payload command");
         rm_rf(root);
+    }
     if (WIFEXITED(status))
         return WEXITSTATUS(status);
     if (WIFSIGNALED(status))
@@ -1451,6 +1518,99 @@ int applet_list_main(int argc, char **argv)
     bb_print_applet_list(stdout);
     return 0;
 }
+
+int applet_manifest_main(int argc, char **argv)
+{
+    int json = argc > 1 && !strcmp(argv[1], "--json");
+    int i;
+
+    if (is_help(argc, argv)) {
+        puts("usage: busierbox manifest [--json]");
+        puts("Print artifact and preset metadata embedded in this BusierBox binary.");
+        return 0;
+    }
+
+    if (json) {
+        printf("{\"schema\":1,\"busierbox\":{\"payload_version\":");
+        json_string_payload(stdout, BUSIERBOX_PAYLOAD_VERSION);
+        printf(",\"artifact_tier\":");
+        json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
+        printf("},\"runtime\":{\"mode\":");
+        json_string_payload(stdout, BB_RUNTIME_MODE);
+        printf(",\"root\":");
+        json_string_payload(stdout, BB_RUNTIME_ROOT);
+        printf(",\"allow_fallback_root\":");
+        json_string_payload(stdout, BB_RUNTIME_ALLOW_FALLBACK_ROOT);
+        printf(",\"fallback_root\":");
+        json_string_payload(stdout, BB_RUNTIME_FALLBACK_ROOT);
+        printf("},\"zero_arg\":{\"mode\":");
+        json_string_payload(stdout, BB_ZERO_ARG_MODE);
+        printf(",\"log_mode\":");
+        json_string_payload(stdout, BB_ZERO_ARG_LOG_MODE);
+        printf("},\"rshell\":{\"transport\":");
+        json_string_payload(stdout, BB_RSHELL_TRANSPORT);
+        printf(",\"encryption\":");
+        json_string_payload(stdout, BB_RSHELL_ENCRYPTION);
+        printf(",\"run_mode\":");
+        json_string_payload(stdout, BB_RSHELL_RUN_MODE);
+        printf(",\"shell_provider\":");
+        json_string_payload(stdout, BB_RSHELL_SHELL_PROVIDER);
+        printf("},\"native_features\":{\"survey\":%s,\"doctor\":%s,\"extract\":%s,\"config_info\":%s",
+#if BB_ENABLE_SURVEY
+               "true",
+#else
+               "false",
+#endif
+#if BB_ENABLE_DOCTOR
+               "true",
+#else
+               "false",
+#endif
+#if BB_ENABLE_EXTRACT
+               "true",
+#else
+               "false",
+#endif
+#if BB_ENABLE_CONFIG_INFO
+               "true"
+#else
+               "false"
+#endif
+        );
+#ifdef HAVE_WOLFSSL
+        printf(",\"wolfssl\":true");
+#else
+        printf(",\"wolfssl\":false");
+#endif
+        printf("},\"payload_tools\":{\"busybox_applets\":[");
+        for (i = 0; busybox_tools[i]; i++) {
+            if (i)
+                putchar(',');
+            json_string_payload(stdout, busybox_tools[i]);
+        }
+        printf("],\"heavy_tools\":[");
+        for (i = 0; heavy_tools[i]; i++) {
+            if (i)
+                putchar(',');
+            json_string_payload(stdout, heavy_tools[i]);
+        }
+        printf("]}}\n");
+        return 0;
+    }
+
+    printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
+    printf("payload_version=%s\n", BUSIERBOX_PAYLOAD_VERSION);
+    printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
+    printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
+    printf("zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
+    printf("rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
+    printf("rshell_encryption=%s\n", BB_RSHELL_ENCRYPTION);
+    printf("heavy_tools=");
+    for (i = 0; heavy_tools[i]; i++)
+        printf("%s%s", i ? " " : "", heavy_tools[i]);
+    printf("\n");
+    return 0;
+}
 int applet_extract_main(int argc, char **argv)
 {
     char payload[PATH_MAX], archive[PATH_MAX], root[PATH_MAX];
@@ -1534,13 +1694,114 @@ static int rm_rf(const char *path)
     return unlink(path);
 }
 
-int applet_clean_main(int argc, char **argv)
+static void print_ledger_human(void)
 {
-    if (is_help(argc, argv)) {
-        puts("usage: busierbox clean");
-        printf("Removes the configured BusierBox runtime directory (%s).\n", BB_RUNTIME_ROOT);
+    char path[PATH_MAX], line[1024];
+    FILE *fp = fopen(ledger_path(path, sizeof(path)), "r");
+    if (!fp) {
+        printf("cleanup-ledger: no ledger at %s\n", path);
+        return;
+    }
+    while (fgets(line, sizeof(line), fp))
+        fputs(line, stdout);
+    fclose(fp);
+}
+
+static int print_clean_dry_run(int include_external)
+{
+    char path[PATH_MAX], line[1024];
+    FILE *fp = fopen(ledger_path(path, sizeof(path)), "r");
+
+    printf("Would remove:\n");
+    printf("  %s\n", BB_RUNTIME_ROOT);
+    if (!fp) {
+        printf("Ledger: no ledger at %s\n", path);
         return 0;
     }
+    while (fgets(line, sizeof(line), fp)) {
+        if (strstr(line, "\"scope\":\"external\"")) {
+            if (include_external)
+                printf("  external recorded: %s", line);
+            else
+                printf("External changes recorded but not removed without --external --apply:\n  %s", line);
+        }
+    }
+    fclose(fp);
+    return 0;
+}
+
+int applet_cleanup_ledger_main(int argc, char **argv)
+{
+    int json = 0;
+    char path[PATH_MAX], line[1024];
+    FILE *fp;
+    int first = 1;
+    int i;
+
+    if (is_help(argc, argv)) {
+        puts("usage: busierbox cleanup-ledger [--json]");
+        puts("Print the BusierBox-created cleanup ledger.");
+        return 0;
+    }
+    for (i = 1; i < argc; i++)
+        if (!strcmp(argv[i], "--json"))
+            json = 1;
+
+    fp = fopen(ledger_path(path, sizeof(path)), "r");
+    if (!json) {
+        print_ledger_human();
+        return 0;
+    }
+    printf("{\"schema\":1,\"path\":");
+    json_string_payload(stdout, path);
+    printf(",\"entries\":[");
+    if (fp) {
+        while (fgets(line, sizeof(line), fp)) {
+            line[strcspn(line, "\r\n")] = '\0';
+            if (!line[0])
+                continue;
+            printf("%s%s", first ? "" : ",", line);
+            first = 0;
+        }
+        fclose(fp);
+    }
+    printf("]}\n");
+    return 0;
+}
+
+int applet_clean_main(int argc, char **argv)
+{
+    int dry_run = 0, ledger = 0, external = 0, apply = 0;
+    int i;
+
+    if (is_help(argc, argv)) {
+        puts("usage: busierbox clean [--dry-run] [--ledger] [--external --apply]");
+        printf("Removes the configured BusierBox runtime directory (%s).\n", BB_RUNTIME_ROOT);
+        puts("External cleanup is never applied unless both --external and --apply are present.");
+        return 0;
+    }
+    for (i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--dry-run"))
+            dry_run = 1;
+        else if (!strcmp(argv[i], "--ledger"))
+            ledger = 1;
+        else if (!strcmp(argv[i], "--external"))
+            external = 1;
+        else if (!strcmp(argv[i], "--apply"))
+            apply = 1;
+        else {
+            fprintf(stderr, "clean: unknown option %s\n", argv[i]);
+            return 2;
+        }
+    }
+    if (dry_run)
+        return print_clean_dry_run(external);
+    if (external && !apply) {
+        fputs("clean: external cleanup requires --external --apply\n", stderr);
+        return 2;
+    }
+    if (ledger)
+        ledger_record("remove", BB_RUNTIME_ROOT, "runtime", "clean --ledger");
     if (rm_rf(BB_RUNTIME_ROOT) != 0) {
         fprintf(stderr, "clean: %s\n", strerror(errno));
         return 1;
