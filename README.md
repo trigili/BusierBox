@@ -472,6 +472,10 @@ make test-glinet
 
 The GL.iNet harness lives in `tests/integration/glinet/`. It starts a temporary local Python HTTP server, picks a local bind address when possible, downloads the artifact on the router with `wget` or `curl`, extracts under `/tmp/busierbox-itest` by default, runs `doctor`, verifies stale extraction reuse, checks PATH duplication, verifies BusyBox symlinks and advertised staged tools, launches zsh when staged, checks tmux/curl/strace when staged, validates overlay tools when present, and cleans up after success or failure. Use `KEEP_ARTIFACTS=1` to leave remote files for debugging, or override `ROUTER`, `REMOTE_DIR`, `BIND_ADDR`, `PORT`, and `ARTIFACT`.
 
+Use `scripts/integration-report latest` for a compact table after a harness run,
+and `scripts/integration-compare old-summary.json new-summary.json` to spot
+status or artifact changes between runs.
+
 ## QEMU User Validation
 
 `make test-qemu-user` copies only the selected `dist/busierbox-<target>-full` self-extracting binary into per-target artifact directories, runs `extract`, dispatches common applets, captures `survey.json`, captures `config-info`, and validates survey JSON. Missing qemu interpreters or missing target artifacts are reported as skips. `scripts/verify-artifact` is the stricter packaging-time check for advertised command reality; it catches commands that are listed but not dispatchable.

@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""Compare two BusierBox integration summary files."""
+
+import argparse
+import json
+import pathlib
+
+
+def load(path):
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def by_case(summary):
+    return {case.get("case", ""): case for case in summary.get("cases") or [] if case.get("case")}
+
+
+def size_delta(old, new):
+    old_size = old.get("artifact_size") or old.get("size")
+    new_size = new.get("artifact_size") or new.get("size")
+    if isinstance(old_size, int) and isinstance(new_size, int):
+        return new_size - old_size
+    return ""
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("old_summary")
+    parser.add_argument("new_summary")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+
+    old = load(args.old_summary)
+    new = load(args.new_summary)
+    old_cases = by_case(old)
+    new_cases = by_case(new)
+    changes = []
+    for name in sorted(set(old_cases) | set(new_cases)):
+        before = old_cases.get(name, {})
+        after = new_cases.get(name, {})
+        status_before = before.get("status", "missing")
+        status_after = after.get("status", "missing")
+        sha_before = before.get("artifact_sha256", "")
+        sha_after = after.get("artifact_sha256", "")
+        delta = size_delta(before, after)
+        changed = status_before != status_after or sha_before != sha_after or delta not in ("", 0)
+        changes.append({
+            "case": name,
+            "old_status": status_before,
+            "new_status": status_after,
+            "old_sha256": sha_before,
+            "new_sha256": sha_after,
+            "artifact_size_delta": delta,
+            "changed": changed,
+            "new_reason": after.get("reason") or after.get("error") or "",
+        })
+
+    result = {
+        "schema": 1,
+        "old_status": old.get("status"),
+        "new_status": new.get("status"),
+        "changes": changes,
+    }
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(f"old_status={result['old_status']}")
+        print(f"new_status={result['new_status']}")
+        print(f"{'Case':<24} {'Old':<8} {'New':<8} {'Size Delta':>10} Notes")
+        for change in changes:
+            note = ""
+            if change["old_status"] != change["new_status"]:
+                note = "status changed"
+            elif change["old_sha256"] != change["new_sha256"]:
+                note = "artifact changed"
+            elif change["artifact_size_delta"]:
+                note = "size changed"
+            if change["new_reason"]:
+                note = f"{note}; {change['new_reason']}" if note else change["new_reason"]
+            print(
+                f"{change['case']:<24} {change['old_status']:<8} {change['new_status']:<8} "
+                f"{str(change['artifact_size_delta']):>10} {note}"
+            )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
