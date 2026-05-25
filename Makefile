@@ -104,6 +104,7 @@ smoke-test:
 	@tests/smoke/stale-ux-text.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/integration-glinet-harness.sh; else printf '%s\n' "skip: python3 integration harness smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/build-matrix.sh; else printf '%s\n' "skip: python3 build matrix smoke unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/offline-tools.sh; else printf '%s\n' "skip: python3 offline tools smoke unavailable"; fi
 	@tests/smoke/dotfiles-by-app.sh
 	@tests/smoke/zsh-dotfiles.sh
 	@tests/smoke/runtime-modes.sh

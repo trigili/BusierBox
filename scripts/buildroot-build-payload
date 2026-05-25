@@ -16,6 +16,17 @@ STRICT_HEAVY_TOOLS=${STRICT_HEAVY_TOOLS:-0}
 PATH="$(pwd)/scripts/shims:$PATH"
 export PATH
 
+if [ "${BUSIERBOX_OFFLINE:-0}" = 1 ] && [ -n "${BUSIERBOX_MIRROR_DIR:-}" ]; then
+    _mirror_tar="$BUSIERBOX_MIRROR_DIR/sources/buildroot-$BUILDROOT_VERSION.tar.xz"
+    [ -f "$_mirror_tar" ] || _mirror_tar="$BUSIERBOX_MIRROR_DIR/buildroot-dl/buildroot-$BUILDROOT_VERSION.tar.xz"
+    if [ -f "$_mirror_tar" ]; then
+        BUILDROOT_TARBALL=$_mirror_tar
+    else
+        printf '%s\n' "buildroot-build-payload: offline mode: missing Buildroot tarball in BUSIERBOX_MIRROR_DIR=$BUSIERBOX_MIRROR_DIR" >&2
+        exit 1
+    fi
+fi
+
 profile=${TARGET_PROFILE_FILE:-payloads/profiles/$TARGET.mk}
 defconfig=${TARGET_BUILDROOT_DEFCONFIG:-buildroot/configs/${TARGET}_defconfig}
 out_dir="$OUT_BASE/$TARGET"
@@ -402,7 +413,9 @@ mkdir -p "$out_dir" runtime/payload/bin runtime/payload/lib runtime/payload/shar
 
 printf '%s\n' "configuring Buildroot payload for $TARGET..."
 cp "$defconfig" "$out_dir/.config"
-make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" olddefconfig
+_br_dl_args=
+[ -n "${BUILDROOT_DL_DIR:-}" ] && _br_dl_args="BR2_DL_DIR=$BUILDROOT_DL_DIR"
+make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" $_br_dl_args olddefconfig
 if [ "${BUSIERBOX_BUILDROOT_CONFIG_ONLY:-0}" = "1" ]; then
     printf '%s\n' "Buildroot configuration validated for $TARGET"
     exit 0
@@ -410,13 +423,13 @@ fi
 
 if tool_requested socat && [ "${TARGET_STATIC_POLICY:-}" = dynamic ]; then
     printf '%s\n' "buildroot-build-payload: rebuilding socat for TLS/OpenSSL dynamic payload support"
-    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" socat-dirclean >/dev/null 2>&1 || true
+    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" $_br_dl_args socat-dirclean >/dev/null 2>&1 || true
 fi
 
 printf '%s\n' "building Buildroot BusyBox payload for $TARGET..."
 build_failed_tools=
 _build_ok=0
-if make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" -j"$JOBS"; then
+if make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" $_br_dl_args -j"$JOBS"; then
     _build_ok=1
 fi
 
@@ -475,8 +488,8 @@ if [ "$_build_ok" = "0" ]; then
     printf '%s\n' "BR2_TOOLCHAIN_BUILDROOT_CXX=n" >>"$_retry_cfg"
     cp "$_retry_cfg" "$out_dir/.config"
     rm -f "$_retry_cfg"
-    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" olddefconfig
-    if ! make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" -j"$JOBS"; then
+    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" $_br_dl_args olddefconfig
+    if ! make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" $_br_dl_args -j"$JOBS"; then
         die "Buildroot build failed even without optional heavy tools for $TARGET; inspect $out_dir/build"
     fi
 fi

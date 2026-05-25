@@ -82,4 +82,5 @@ scripts/build-matrix --offline --mirror-dir local/source-mirror --dry-run
 
 That exports `BUSIERBOX_OFFLINE=1`, `BUSIERBOX_MIRROR_DIR`, and
 `BUILDROOT_DL_DIR=<mirror>/buildroot-dl` to each build command. Full mirror
-population and readiness checks are handled by the offline/enclave tooling.
+population and readiness checks are described in
+[offline-enclave.md](offline-enclave.md).

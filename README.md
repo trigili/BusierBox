@@ -326,6 +326,7 @@ Workflow documentation:
 - [Payload presets](docs/payload-presets.md)
 - [GL.iNet integration](docs/integration-glinet.md)
 - [Build matrix](docs/build-matrix.md)
+- [Offline / enclave builds](docs/offline-enclave.md)
 - [Persistence](docs/persistence.md)
 - [Manifest and support token](docs/manifest.md)
 
