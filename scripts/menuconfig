@@ -2592,7 +2592,7 @@ configure_applet_configuration() {
             "2" "gdbserver provider ($_gdb_status)" \
             "3" "Reverse shell" \
             "4" "Dotfiles by app" \
-            "5" "Recovery binary name: $BB_RECOVERY_BINARY_NAME" \
+            "5" "Persistence binary name: $BB_RECOVERY_BINARY_NAME" \
             "H" "Help" \
             "0" "Back" \
             2>"$temp_out" || return 0
@@ -2603,8 +2603,8 @@ configure_applet_configuration() {
             3) configure_reverse_shell ;;
             4) configure_dotfiles ;;
             5)
-                dialog --title "Recovery binary name" \
-                    --inputbox "Default filename used by recovery install plans.\nInstallation still requires an explicit recovery install command." \
+                dialog --title "Persistence binary name" \
+                    --inputbox "Default filename used by persistence install plans.\nInstallation still requires an explicit persistence install command." \
                     10 78 "$BB_RECOVERY_BINARY_NAME" 2>"$temp_out" || true
                 _v=$(cat "$temp_out")
                 [ -n "$_v" ] && BB_RECOVERY_BINARY_NAME="$_v"
