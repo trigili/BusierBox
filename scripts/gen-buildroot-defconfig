@@ -62,6 +62,7 @@ BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-default}
 BB_DOTFILE_PROFILE_USER_FILE=${BB_DOTFILE_PROFILE_USER_FILE:-}
 if [ -f "$config" ]; then
     . "$config"
+    [ -n "${BB_STATIC_POLICY:-}" ] && TARGET_STATIC_POLICY=$BB_STATIC_POLICY
     BB_RSHELL_TRANSPORT=${BB_RSHELL_TRANSPORT:-${BB_RSHELL_MODE:-ssh}}
     # Derive BB_BUILTIN_TLS_ENABLE from transport, consistent with menuconfig
     [ "$BB_RSHELL_TRANSPORT" = builtin ] && BB_BUILTIN_TLS_ENABLE=yes || BB_BUILTIN_TLS_ENABLE=no
@@ -229,7 +230,11 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
             ;;
     esac
     printf '%s=y\n' "$libc_symbol"
-    [ -n "$static_symbol" ] && printf '%s=y\n' "$static_symbol"
+    if [ -n "$static_symbol" ]; then
+        printf '%s=y\n' "$static_symbol"
+    else
+        printf '%s\n' "BR2_SHARED_LIBS=y"
+    fi
     if [ "$needs_cxx" -eq 1 ]; then
         printf '%s\n' "BR2_TOOLCHAIN_BUILDROOT_CXX=y"
     else
@@ -279,7 +284,13 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
                 printf '%s\n' "BR2_PACKAGE_GDB=y"
                 printf '%s\n' "BR2_PACKAGE_GDB_SERVER=y"
                 ;;
-            socat) printf '%s\n' "BR2_PACKAGE_SOCAT=y" ;;
+            socat)
+                printf '%s\n' "BR2_PACKAGE_SOCAT=y"
+                if [ "$BB_RSHELL_ENCRYPTION" = tls ] && [ "$TARGET_STATIC_POLICY" = dynamic ]; then
+                    printf '%s\n' "BR2_PACKAGE_OPENSSL=y"
+                    printf '%s\n' "BR2_PACKAGE_LIBOPENSSL=y"
+                fi
+                ;;
             tcpdump) printf '%s\n' "BR2_PACKAGE_TCPDUMP=y" ;;
             rsync) printf '%s\n' "BR2_PACKAGE_RSYNC=y" ;;
             mtr) printf '%s\n' "BR2_PACKAGE_MTR=y" ;;

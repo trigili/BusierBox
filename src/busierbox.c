@@ -524,7 +524,7 @@ static const char *select_rshell_shell(char *buf, size_t bufsz, const char *payl
 
 int applet_rshell_main(int argc, char **argv)
 {
-    char payload[PATH_MAX], busybox[PATH_MAX + 16], dropbear[PATH_MAX + 16], dbclient[PATH_MAX + 16], dropbearkey[PATH_MAX + 16], socat[PATH_MAX + 16];
+    char payload[PATH_MAX], payload_lib[PATH_MAX + 16], busybox[PATH_MAX + 16], dropbear[PATH_MAX + 16], dbclient[PATH_MAX + 16], dropbearkey[PATH_MAX + 16], socat[PATH_MAX + 16];
     char hostkey[PATH_MAX + 64], identity[PATH_MAX + 32], authkeys[PATH_MAX + 32], rootssh[PATH_MAX];
     char cmd[8192] = "";
     char shell_cmd[PATH_MAX + 16];
@@ -675,6 +675,7 @@ int applet_rshell_main(int argc, char **argv)
         return 127;
     }
     snprintf(dropbear, sizeof(dropbear), "%s/bin/dropbear", payload);
+    snprintf(payload_lib, sizeof(payload_lib), "%s/lib", payload);
     snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
     snprintf(dbclient, sizeof(dbclient), "%s/bin/dbclient", payload);
     snprintf(dropbearkey, sizeof(dropbearkey), "%s/bin/dropbearkey", payload);
@@ -707,6 +708,9 @@ int applet_rshell_main(int argc, char **argv)
             fputs("rshell: shell provider custom requires BB_RSHELL_CUSTOM_SHELL\n", stderr);
             return 2;
         }
+        strcat(cmd, "LD_LIBRARY_PATH=");
+        shquote_append(cmd, sizeof(cmd), payload_lib);
+        strcat(cmd, "${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}; export LD_LIBRARY_PATH; ");
         if (!strcmp(BB_RSHELL_ENCRYPTION, "tls")) {
             strcat(cmd, "exec ");
             shquote_append(cmd, sizeof(cmd), socat);

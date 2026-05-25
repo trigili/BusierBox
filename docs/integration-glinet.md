@@ -60,8 +60,8 @@ scripts/integration-glinet --artifact dist/busierbox-mipsel-linux-4.x-musl-full 
   stop, and a scripted TLS shell marker.
 - `socat-rescue`: builds the socat preset, verifies staged socat, and proves a
   scripted TLS shell marker when the staged socat supports `OPENSSL:` addresses.
-  Static Buildroot socat may omit OpenSSL support; in that case this case is
-  reported as `skip` with `socat-help.out` captured in the case logs.
+  The harness builds this case in an isolated dynamic Buildroot output tree so
+  socat can link with OpenSSL without mutating the static-first default cache.
 - `ssh-operator`: starts the SSH reverse-forward listener and validates that
   disabled authkeys mode does not change `/root/.ssh`.
 

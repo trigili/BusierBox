@@ -133,6 +133,8 @@ def write_case_config(case_dir, case, operator_host, args):
     if case == "zero-arg-builtin":
         lines.append('BB_ZERO_ARG_MODE="rshell"')
         lines.append('BB_RSHELL_RUN_MODE="auto"')
+    if case == "socat-rescue":
+        lines.append('BB_STATIC_POLICY="dynamic"')
     config = case_dir / "busierbox.conf"
     config.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return config
@@ -154,6 +156,8 @@ def build_artifact(case_dir, target, config, args):
     env["BUSIERBOX_CONFIG"] = str(config)
     env["TARGET"] = target
     env["PAYLOAD_FORMAT"] = args.payload_format
+    if 'BB_STATIC_POLICY="dynamic"' in config.read_text(encoding="utf-8"):
+        env["BUILDROOT_OUTPUT_BASE"] = str(ROOT / "local" / "integration-buildroot-output" / "dynamic")
     log_path = case_dir / "build.log"
     run_cmd(["make", "package"], env=env, timeout=args.build_timeout,
             log_path=log_path, check=True)
@@ -320,8 +324,8 @@ def case_socat_rescue(ctx):
     probe = run_remote_case(ctx["host"], ctx["remote_dir"], ctx["case_dir"],
                             "./busierbox extract >/dev/null 2>&1 || true; "
                             "test -x .busierbox/payload/bin/socat; "
-                            ".busierbox/payload/bin/socat -hh > socat-help.out 2>&1 || true; "
-                            "grep -q 'OPENSSL:' socat-help.out",
+                            "./busierbox socat -hh > socat-help.out 2>&1 || true; "
+                            "grep -Eq 'OPENSSL|SSL-L' socat-help.out",
                             timeout=60, check=False)
     if probe.returncode != 0:
         raise SkipCase("staged socat lacks OPENSSL address support on this static target")

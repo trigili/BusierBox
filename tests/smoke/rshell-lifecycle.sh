@@ -21,6 +21,8 @@ grep -q 'rshell\.pid' "$src"
 grep -q 'BB_RSHELL_RUN_MODE' "$src"
 grep -q 'BUSIERBOX_ZERO_ARG_CONTEXT' "$src"
 grep -q 'BUSIERBOX_RSHELL_BACKGROUND_CHILD' "$src"
+grep -q 'LD_LIBRARY_PATH' "$src"
+grep -q 'payload_lib' "$src"
 
 # start must check existing PID before launching (not pkill)
 # The start path should reference the pid file check
