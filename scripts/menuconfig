@@ -2247,6 +2247,8 @@ EOF
         printf '%s\n' "Zero-arg behavior: will not start reverse access automatically."
         printf '%s\n' "Explicit target start: ./busierbox rshell start"
     fi
+    printf '%s\n' "Zero-arg mode: ${BB_ZERO_ARG_MODE}"
+    printf '%s\n' "Explicit reverse access: $([ "$BB_RSHELL_TRANSPORT" = none ] && printf disabled || printf enabled)"
     if [ "$BB_RSHELL_ENCRYPTION" = none ] && [ "$BB_RSHELL_TRANSPORT" != ssh ]; then
         printf '%s\n' "WARNING: plaintext shell transport is insecure/debug-only."
     fi
@@ -2267,6 +2269,14 @@ _rshell_operator_connect_command() {
     esac
 }
 
+_rshell_scripted_test_command() {
+    case "$BB_RSHELL_TRANSPORT:$BB_RSHELL_ENCRYPTION" in
+        ssh:*) printf '# after the reverse forward is established: ssh -p %s root@127.0.0.1 "uname -a"\n' "$BB_OPERATOR_REMOTE_FORWARD_PORT" ;;
+        *:none) printf 'printf "echo busierbox-rshell-ok; exit\\n" | scripts/busierbox-server --transport plain-shell --shell-port %s --script - --session-timeout 20\n' "$BB_RSHELL_SOCAT_PORT" ;;
+        *) printf 'printf "echo busierbox-rshell-ok; exit\\n" | scripts/busierbox-server --transport tls-shell --shell-port %s --script - --session-timeout 20\n' "$BB_RSHELL_SOCAT_PORT" ;;
+    esac
+}
+
 _rshell_save_info() {
     _out="${1:-local/reverse-shell.md}"
     mkdir -p "$(dirname "$_out")"
@@ -2280,6 +2290,7 @@ _rshell_save_info() {
     _ak=${BB_OPERATOR_AUTHORIZED_KEY_FILE:-<not set>}
     _server_cmd=$(_rshell_server_command)
     _connect_cmd=$(_rshell_operator_connect_command)
+    _scripted_test_cmd=$(_rshell_scripted_test_command)
     cat >"$_out" <<MDEOF
 # BusierBox Reverse Access Connection Info
 
@@ -2305,6 +2316,8 @@ $(_rshell_summary_text)
 | Target→operator identity | ${_id} |
 | Operator→target public key | ${_ak} |
 | Zero-arg starts reverse access | $([ "$BB_ZERO_ARG_MODE" = rshell ] && printf yes || printf no) |
+| Zero-arg mode | ${BB_ZERO_ARG_MODE} |
+| Explicit reverse access | $([ "$BB_RSHELL_TRANSPORT" = none ] && printf disabled || printf enabled) |
 
 ## Zero-Arg Behavior
 
@@ -2327,6 +2340,11 @@ ${_server_cmd}
 **Connect once the tunnel is up:**
 \`\`\`sh
 ${_connect_cmd}
+\`\`\`
+
+**Scripted smoke test:**
+\`\`\`sh
+${_scripted_test_cmd}
 \`\`\`
 
 $([ "$BB_RSHELL_ENCRYPTION" = none ] && [ "$BB_RSHELL_TRANSPORT" != ssh ] && printf '## Plaintext Warning\n\nThis configuration uses plaintext shell transport. It is insecure and intended only for controlled debug sessions.\n')
