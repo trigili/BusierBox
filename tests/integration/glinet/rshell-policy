@@ -1,0 +1,79 @@
+#!/bin/sh
+# Validate reverse-access filesystem policy on the GL.iNet exemplar.
+#
+# This test assumes tests/integration/glinet/push-and-test has already copied
+# an artifact to REMOTE_DIR/busierbox. It is intentionally conservative: it
+# only enforces /root/.ssh immutability for authkeys modes that must not write
+# there, and it captures before/after evidence under the remote test directory.
+set -eu
+
+router=${ROUTER:-root@192.168.8.1}
+remote_dir=${REMOTE_DIR:-/tmp/busierbox-itest}
+remote_bin="$remote_dir/busierbox"
+
+ssh "$router" "set -eu
+    test -x '$remote_bin'
+    cd '$remote_dir'
+
+    ./busierbox config-info > config-info.out 2>&1 || { cat config-info.out; exit 1; }
+    mode=\$(sed -n 's/^rshell_authkeys_mode=//p' config-info.out)
+    transport=\$(sed -n 's/^rshell_transport=//p' config-info.out)
+
+    case \"\$mode\" in
+        disabled|payload-home) ;;
+        *)
+            echo \"rshell-policy: skip authkeys mode \$mode; this check covers disabled and payload-home\" | tee rshell-policy.out
+            exit 0
+            ;;
+    esac
+    case \"\$transport\" in
+        ssh) ;;
+        *)
+            echo \"rshell-policy: skip transport \$transport; this check covers ssh\" | tee rshell-policy.out
+            exit 0
+            ;;
+    esac
+
+    snapshot_root_ssh() {
+        if [ ! -e /root/.ssh ]; then
+            echo __MISSING__
+            return 0
+        fi
+        if [ ! -d /root/.ssh ]; then
+            ls -ld /root/.ssh
+            return 0
+        fi
+        find /root/.ssh -maxdepth 1 -mindepth 1 -type f -print 2>/dev/null | sort | while IFS= read -r f; do
+            if command -v sha256sum >/dev/null 2>&1; then
+                sha256sum \"\$f\"
+            else
+                ls -l \"\$f\"
+            fi
+        done
+    }
+
+    snapshot_root_ssh > root-ssh.before
+    ./busierbox rshell stop >/dev/null 2>&1 || true
+    ./busierbox rshell start > rshell-start.out 2>&1 || true
+    sleep 1
+    ./busierbox rshell stop > rshell-stop.out 2>&1 || true
+    snapshot_root_ssh > root-ssh.after
+
+    if ! cmp -s root-ssh.before root-ssh.after; then
+        echo 'rshell-policy: /root/.ssh changed for authkeys mode' \"\$mode\" >&2
+        echo '--- before ---' >&2
+        cat root-ssh.before >&2
+        echo '--- after ---' >&2
+        cat root-ssh.after >&2
+        exit 1
+    fi
+
+    {
+        echo rshell_policy=ok
+        echo rshell_transport=\"\$transport\"
+        echo rshell_authkeys_mode=\"\$mode\"
+        echo evidence_dir='$remote_dir'
+    } | tee rshell-policy.out
+"
+
+printf '%s\n' "glinet rshell-policy ok"

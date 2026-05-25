@@ -47,4 +47,8 @@ ssh "$router" "set -eu
     fi
 "
 
+if [ "${GLINET_RSHELL_POLICY:-0}" = "1" ]; then
+    tests/integration/glinet/rshell-policy
+fi
+
 printf '%s\n' "glinet smoke ok"
