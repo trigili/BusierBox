@@ -1348,18 +1348,43 @@ static void payload_root_from_payload(const char *payload, char *root, size_t ro
         root[len - 8] = '\0';
 }
 
+static volatile sig_atomic_t no_residue_signal = 0;
+static volatile sig_atomic_t no_residue_child = -1;
+
+static void no_residue_signal_handler(int sig)
+{
+    no_residue_signal = sig;
+    if (no_residue_child > 1)
+        kill((pid_t)no_residue_child, sig);
+}
+
+static void cleanup_no_residue_root(const char *root, const char *detail)
+{
+    if (!root || !root[0])
+        return;
+    if (strcmp(root, BB_RUNTIME_ROOT) && strcmp(root, BB_RUNTIME_FALLBACK_ROOT))
+        return;
+    ledger_record("remove", root, "runtime", detail);
+    rm_rf(root);
+}
+
 static int exec_payload_command(const char *path, char **argv, const char *payload)
 {
     pid_t pid;
     int status;
     char root[PATH_MAX];
+    struct sigaction sa, old_int, old_term, old_hup, old_quit;
 
     if (strcmp(BB_RUNTIME_MODE, "no-residue") != 0)
         return execv_alloc(path, argv);
 
+    payload_root_from_payload(payload, root, sizeof(root));
+    no_residue_signal = 0;
+
     pid = fork();
     if (pid < 0) {
         fprintf(stderr, "busierbox: fork %s failed: %s\n", path, strerror(errno));
+        cleanup_no_residue_root(root, "no-residue fork failure");
         return 1;
     }
     if (pid == 0) {
@@ -1367,13 +1392,31 @@ static int exec_payload_command(const char *path, char **argv, const char *paylo
         fprintf(stderr, "busierbox: exec %s failed: %s\n", path, strerror(errno));
         _exit(errno == ENOENT ? 127 : 126);
     }
-    if (waitpid(pid, &status, 0) < 0)
-        return 1;
-    payload_root_from_payload(payload, root, sizeof(root));
-    if (root[0] && (!strcmp(root, BB_RUNTIME_ROOT) || !strcmp(root, BB_RUNTIME_FALLBACK_ROOT))) {
-        ledger_record("remove", root, "runtime", "no-residue foreground payload command");
-        rm_rf(root);
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = no_residue_signal_handler;
+    sigemptyset(&sa.sa_mask);
+    no_residue_child = pid;
+    sigaction(SIGINT, &sa, &old_int);
+    sigaction(SIGTERM, &sa, &old_term);
+    sigaction(SIGHUP, &sa, &old_hup);
+    sigaction(SIGQUIT, &sa, &old_quit);
+
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno == EINTR)
+            continue;
+        status = 1 << 8;
+        break;
     }
+    no_residue_child = -1;
+    sigaction(SIGINT, &old_int, NULL);
+    sigaction(SIGTERM, &old_term, NULL);
+    sigaction(SIGHUP, &old_hup, NULL);
+    sigaction(SIGQUIT, &old_quit, NULL);
+
+    cleanup_no_residue_root(root, no_residue_signal ? "no-residue interrupted foreground payload command" : "no-residue foreground payload command");
+    if (no_residue_signal)
+        return 128 + no_residue_signal;
     if (WIFEXITED(status))
         return WEXITSTATUS(status);
     if (WIFSIGNALED(status))
@@ -1867,6 +1910,10 @@ static int print_clean_dry_run(int include_external)
 
     printf("Would remove:\n");
     printf("  %s\n", BB_RUNTIME_ROOT);
+    if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+        BB_RUNTIME_FALLBACK_ROOT[0] &&
+        strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT))
+        printf("  %s (fallback root, if BusierBox used it)\n", BB_RUNTIME_FALLBACK_ROOT);
     if (!fp) {
         printf("Ledger: no ledger at %s\n", path);
         return 0;
@@ -1881,6 +1928,21 @@ static int print_clean_dry_run(int include_external)
     }
     fclose(fp);
     return 0;
+}
+
+static int remove_runtime_root_checked(const char *path)
+{
+    struct stat st;
+
+    if (!path || !path[0])
+        return 0;
+    if (lstat(path, &st) != 0)
+        return errno == ENOENT ? 0 : -1;
+    if (!S_ISDIR(st.st_mode)) {
+        fprintf(stderr, "clean: skipping non-directory runtime root candidate %s\n", path);
+        return 0;
+    }
+    return rm_rf(path);
 }
 
 static int json_get_string_field(const char *line, const char *key, char *out, size_t outsz)
@@ -2087,10 +2149,23 @@ int applet_clean_main(int argc, char **argv)
     }
     if (external && apply && clean_external_from_ledger() != 0)
         return 1;
-    if (ledger)
+    if (ledger) {
         ledger_record("remove", BB_RUNTIME_ROOT, "runtime", "clean --ledger");
-    if (rm_rf(BB_RUNTIME_ROOT) != 0) {
+        if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+            BB_RUNTIME_FALLBACK_ROOT[0] &&
+            strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT))
+            ledger_record("remove", BB_RUNTIME_FALLBACK_ROOT, "runtime", "clean --ledger fallback root");
+    }
+    if (remove_runtime_root_checked(BB_RUNTIME_ROOT) != 0) {
         fprintf(stderr, "clean: %s\n", strerror(errno));
+        return 1;
+    }
+    if (ledger &&
+        !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+        BB_RUNTIME_FALLBACK_ROOT[0] &&
+        strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT) &&
+        remove_runtime_root_checked(BB_RUNTIME_FALLBACK_ROOT) != 0) {
+        fprintf(stderr, "clean: fallback root %s: %s\n", BB_RUNTIME_FALLBACK_ROOT, strerror(errno));
         return 1;
     }
     printf("clean: removed %s\n", BB_RUNTIME_ROOT);

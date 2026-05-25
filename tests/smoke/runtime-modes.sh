@@ -69,8 +69,23 @@ mkdir "$run"
 (
     cd "$run"
     printf '%s\n' "not a directory" >.bbx-runtime-blocked
+    ../busierbox-no-residue-fallback clean --dry-run >dry-run.out
+    grep -q '.bbx-fallback (fallback root' dry-run.out
     ../busierbox-no-residue-fallback sh -c 'echo fallback-ok' >out
     grep -q '^fallback-ok$' out
+    [ -f .bbx-runtime-blocked ]
+    [ ! -e .bbx-fallback ]
+)
+
+build_mode_artifact extract "$tmp/busierbox-extract-fallback-clean" ".bbx-runtime-blocked" yes ".bbx-fallback"
+run="$tmp/run-clean-fallback"
+mkdir "$run"
+(
+    cd "$run"
+    printf '%s\n' "not a directory" >.bbx-runtime-blocked
+    ../busierbox-extract-fallback-clean extract >/dev/null
+    [ -d .bbx-fallback/payload ]
+    ../busierbox-extract-fallback-clean clean --ledger >/dev/null
     [ -f .bbx-runtime-blocked ]
     [ ! -e .bbx-fallback ]
 )
