@@ -325,6 +325,7 @@ Workflow documentation:
 - [Bringup script](docs/bringup.md)
 - [Payload presets](docs/payload-presets.md)
 - [GL.iNet integration](docs/integration-glinet.md)
+- [Build matrix](docs/build-matrix.md)
 - [Persistence](docs/persistence.md)
 - [Manifest and support token](docs/manifest.md)
 
