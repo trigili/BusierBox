@@ -1745,6 +1745,133 @@ static void write_manifest_json(FILE *out)
     fprintf(out, "]}}\n");
 }
 
+static int base64_write_bytes(const unsigned char *data, size_t len)
+{
+    static const char tab[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    size_t i;
+    for (i = 0; i < len; i += 3) {
+        size_t n = len - i;
+        unsigned int v;
+        if (n > 3)
+            n = 3;
+        v = ((unsigned int)data[i] << 16) |
+            ((unsigned int)(n > 1 ? data[i + 1] : 0) << 8) |
+            (unsigned int)(n > 2 ? data[i + 2] : 0);
+        putchar(tab[(v >> 18) & 63]);
+        putchar(tab[(v >> 12) & 63]);
+        putchar(n > 1 ? tab[(v >> 6) & 63] : '=');
+        putchar(n > 2 ? tab[v & 63] : '=');
+    }
+    putchar('\n');
+    return ferror(stdout) ? 1 : 0;
+}
+
+static char *manifest_json_alloc(size_t *len_out)
+{
+    char *buf = NULL;
+    size_t len = 0;
+    FILE *fp = open_memstream(&buf, &len);
+    if (!fp)
+        return NULL;
+    write_manifest_json(fp);
+    if (fclose(fp) != 0) {
+        free(buf);
+        return NULL;
+    }
+    if (len && buf[len - 1] == '\n')
+        buf[--len] = '\0';
+    if (len_out)
+        *len_out = len;
+    return buf;
+}
+
+static int print_manifest_base64(void)
+{
+    size_t len = 0;
+    char *json = manifest_json_alloc(&len);
+    int rc;
+    if (!json) {
+        fputs("manifest: cannot allocate manifest buffer\n", stderr);
+        return 1;
+    }
+    rc = base64_write_bytes((const unsigned char *)json, len);
+    free(json);
+    return rc;
+}
+
+static int write_config_export_json(FILE *out)
+{
+    char *manifest = manifest_json_alloc(NULL);
+    if (!manifest)
+        return -1;
+    fprintf(out, "{\"schema\":1,\"kind\":\"busierbox-config-export\",\"manifest\":%s}\n", manifest);
+    free(manifest);
+    return ferror(out) ? -1 : 0;
+}
+
+static char *config_export_json_alloc(size_t *len_out)
+{
+    char *buf = NULL;
+    size_t len = 0;
+    FILE *fp = open_memstream(&buf, &len);
+    if (!fp)
+        return NULL;
+    if (write_config_export_json(fp) != 0 || fclose(fp) != 0) {
+        free(buf);
+        return NULL;
+    }
+    if (len && buf[len - 1] == '\n')
+        buf[--len] = '\0';
+    if (len_out)
+        *len_out = len;
+    return buf;
+}
+
+static int print_config_export_base64(void)
+{
+    size_t len = 0;
+    char *json = config_export_json_alloc(&len);
+    int rc;
+    if (!json) {
+        fputs("config-export: cannot allocate export buffer\n", stderr);
+        return 1;
+    }
+    rc = base64_write_bytes((const unsigned char *)json, len);
+    free(json);
+    return rc;
+}
+
+static int print_support_token(void)
+{
+    char *manifest = manifest_json_alloc(NULL);
+    char *token = NULL;
+    size_t token_len = 0;
+    FILE *fp;
+    int rc;
+    if (!manifest) {
+        fputs("doctor: cannot allocate manifest buffer\n", stderr);
+        return 1;
+    }
+    fp = open_memstream(&token, &token_len);
+    if (!fp) {
+        free(manifest);
+        fputs("doctor: cannot allocate support token buffer\n", stderr);
+        return 1;
+    }
+    fprintf(fp, "{\"schema\":1,\"kind\":\"busierbox-support-token\",");
+    fprintf(fp, "\"warning\":\"operator host and ports may be embedded; private key material is not included\",");
+    fprintf(fp, "\"manifest\":%s}", manifest);
+    free(manifest);
+    if (fclose(fp) != 0) {
+        free(token);
+        fputs("doctor: cannot finalize support token\n", stderr);
+        return 1;
+    }
+    rc = base64_write_bytes((const unsigned char *)token, token_len);
+    free(token);
+    return rc;
+}
+
 static void write_artifact_manifest_file(const char *root)
 {
     char dir[PATH_MAX], path[PATH_MAX], tmp[PATH_MAX];
@@ -1772,19 +1899,35 @@ static void write_artifact_manifest_file(const char *root)
 
 int applet_manifest_main(int argc, char **argv)
 {
-    int json = argc > 1 && !strcmp(argv[1], "--json");
+    int json = 0, base64 = 0;
     int i;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox manifest [--json]");
+        puts("usage: busierbox manifest [--json|--base64]");
         puts("Print artifact and preset metadata embedded in this BusierBox binary.");
         return 0;
+    }
+    for (i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--json"))
+            json = 1;
+        else if (!strcmp(argv[i], "--base64"))
+            base64 = 1;
+        else {
+            fprintf(stderr, "manifest: unknown option %s\n", argv[i]);
+            return 2;
+        }
+    }
+    if (json && base64) {
+        fputs("manifest: choose one of --json or --base64\n", stderr);
+        return 2;
     }
 
     if (json) {
         write_manifest_json(stdout);
         return 0;
     }
+    if (base64)
+        return print_manifest_base64();
 
     printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
     printf("payload_version=%s\n", BUSIERBOX_PAYLOAD_VERSION);
@@ -1811,6 +1954,41 @@ int applet_manifest_main(int argc, char **argv)
     printf("\n");
     return 0;
 }
+
+int applet_config_export_main(int argc, char **argv)
+{
+    int json = 0, base64 = 0;
+    int i;
+
+    if (is_help(argc, argv)) {
+        puts("usage: busierbox config-export [--json|--base64]");
+        puts("Export rebuild-oriented artifact config metadata. No private key material is included.");
+        return 0;
+    }
+    for (i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--json"))
+            json = 1;
+        else if (!strcmp(argv[i], "--base64"))
+            base64 = 1;
+        else {
+            fprintf(stderr, "config-export: unknown option %s\n", argv[i]);
+            return 2;
+        }
+    }
+    if (json && base64) {
+        fputs("config-export: choose one of --json or --base64\n", stderr);
+        return 2;
+    }
+    if (base64)
+        return print_config_export_base64();
+    (void)json;
+    if (write_config_export_json(stdout) != 0) {
+        fputs("config-export: cannot write export JSON\n", stderr);
+        return 1;
+    }
+    return 0;
+}
+
 int applet_extract_main(int argc, char **argv)
 {
     char payload[PATH_MAX], archive[PATH_MAX], root[PATH_MAX];
@@ -2919,23 +3097,32 @@ int applet_doctor_main(int argc, char **argv)
     int have_payload = 0;
     int applet_count = 0;
     int json = 0;
+    int support_token = 0;
     int i;
 
     memset(&ep, 0, sizeof(ep));
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox doctor [--json]");
+        puts("usage: busierbox doctor [--json|--support-token]");
         puts("Reports embedded payload, extraction, BusyBox, and staged tool health.");
         return 0;
     }
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--json"))
             json = 1;
+        else if (!strcmp(argv[i], "--support-token"))
+            support_token = 1;
         else {
             fprintf(stderr, "doctor: unknown option %s\n", argv[i]);
             return 2;
         }
     }
+    if (json && support_token) {
+        fputs("doctor: choose one of --json or --support-token\n", stderr);
+        return 2;
+    }
+    if (support_token)
+        return print_support_token();
 
     if (get_embedded_payload(&ep) == 0) {
         if (json) {

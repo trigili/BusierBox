@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Emit a rebuild-oriented BusierBox .conf from manifest/config-export JSON."""
+
+import argparse
+import json
+import shlex
+import sys
+
+
+def load_json(path):
+    if path == "-":
+        return json.load(sys.stdin)
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def manifest_from_doc(doc):
+    if isinstance(doc, dict) and doc.get("kind") in {"busierbox-config-export", "busierbox-support-token"}:
+        return doc.get("manifest") or {}
+    return doc
+
+
+def emit_var(name, value):
+    if value is None:
+        return
+    print(f"{name}={shlex.quote(str(value))}")
+
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("manifest", nargs="?", default="-", help="manifest/config-export JSON path, or '-' for stdin")
+args = parser.parse_args()
+
+manifest = manifest_from_doc(load_json(args.manifest))
+target = manifest.get("target", {})
+payload = manifest.get("payload", {})
+runtime = manifest.get("runtime", {})
+zero_arg = manifest.get("zero_arg", {})
+rshell = manifest.get("rshell", {})
+dotfiles = manifest.get("dotfiles", {})
+overlay = manifest.get("overlay", {})
+
+print("# Generated from BusierBox manifest metadata.")
+emit_var("BB_TARGET_PRESET", target.get("preset"))
+emit_var("BB_TARGET_NAME", target.get("name"))
+emit_var("BB_TARGET_ARCH", target.get("arch"))
+emit_var("BB_TARGET_ENDIAN", target.get("endian"))
+emit_var("BB_TARGET_CPU", target.get("cpu"))
+emit_var("BB_TARGET_ABI", target.get("abi"))
+emit_var("BB_TARGET_LIBC", target.get("libc"))
+emit_var("BB_KERNEL_FLOOR", target.get("kernel_floor"))
+emit_var("BB_STATIC_POLICY", target.get("static_policy"))
+emit_var("BB_PAYLOAD_PRESET", payload.get("preset"))
+emit_var("BB_RUNTIME_MODE", runtime.get("mode"))
+emit_var("BB_RUNTIME_ROOT", runtime.get("root"))
+emit_var("BB_RUNTIME_ALLOW_FALLBACK_ROOT", runtime.get("allow_fallback_root"))
+emit_var("BB_RUNTIME_FALLBACK_ROOT", runtime.get("fallback_root"))
+emit_var("BB_ZERO_ARG_MODE", zero_arg.get("mode"))
+emit_var("BB_ZERO_ARG_LOG_MODE", zero_arg.get("log_mode"))
+emit_var("BB_RSHELL_TRANSPORT", rshell.get("transport"))
+emit_var("BB_RSHELL_ENCRYPTION", rshell.get("encryption"))
+emit_var("BB_RSHELL_RUN_MODE", rshell.get("run_mode"))
+emit_var("BB_RSHELL_SHELL_PROVIDER", rshell.get("shell_provider"))
+emit_var("BB_DOTFILES_ENABLE", dotfiles.get("enabled"))
+emit_var("BB_DOTFILE_ZSH_MODE", dotfiles.get("zsh"))
+emit_var("BB_DOTFILE_TMUX_MODE", dotfiles.get("tmux"))
+emit_var("BB_DOTFILE_GDB_MODE", dotfiles.get("gdb"))
+emit_var("BB_DOTFILE_PROFILE_MODE", dotfiles.get("profile"))
+emit_var("BB_USER_OVERLAY_ENABLE", overlay.get("enabled"))
+emit_var("BB_USER_OVERLAY_ROOT", overlay.get("root"))
+emit_var("BB_USER_OVERLAY_ALLOW_OVERRIDE", overlay.get("allow_override"))

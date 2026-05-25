@@ -331,7 +331,7 @@ When launching payload tools BusierBox sets:
 
 Doctor also reports payload identity/staleness, applet symlink count, overlay status and warnings, missing-tool reasons, terminfo availability, zsh presence, PATH duplicate hints, extraction free space, available memory, default-route presence, and recommendations for common tmux/dropbear/terminfo failures.
 
-`./busierbox config-info` reports the BusierBox build, extraction status, payload directory, payload hash, BusyBox dispatch status, and the payload manifest summary when available.
+`./busierbox config-info` reports the BusierBox build, extraction status, payload directory, payload hash, BusyBox dispatch status, and the payload manifest summary when available. `./busierbox config-export --json` and `./busierbox doctor --support-token` provide rebuild-oriented metadata that can be converted back into a starter config with `scripts/config-from-manifest` or `scripts/config-from-support-token`.
 
 `./busierbox persistence --survey` and `./busierbox persistence --plan` enumerate authorized lab persistence/recovery options without changing the target. Installation requires an explicit method plus `--dry-run` or `--external --apply`, and writes are recorded in the cleanup ledger. `./busierbox recovery` remains as a deprecated compatibility alias.
 
