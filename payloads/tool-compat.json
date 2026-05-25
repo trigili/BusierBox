@@ -633,10 +633,10 @@
       "notes": "Partition editors are explicitly dangerous and should never be default-selected."
     },
     "doom": {
-      "providers": ["local-dropin", "overlay", "host-native"],
-      "classification": "target-binary-required optional runtime",
-      "expected_payload_size": "provider-defined",
-      "static_constraints": "User/provider binary must match the target architecture and libc.",
+      "providers": ["buildroot", "local-dropin", "overlay", "host-native"],
+      "classification": "optional runtime with user-provided WAD data",
+      "expected_payload_size": "large plus WAD size",
+      "static_constraints": "Buildroot target builds use prboom because chocolate-doom excludes BR2_STATIC_LIBS. User/provider binaries must match the target architecture and libc.",
       "requires_devpts": false,
       "requires_pty": false,
       "requires_ptrace": false,
@@ -651,14 +651,8 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "known_provider_issues": [
-        {
-          "severity": "warning",
-          "message": "doom is a fun optional runtime entry, but BusierBox does not fetch or bundle a Doom engine or game data.",
-          "suggested_action": "Provide a target-compatible doom/chocolate-doom binary through your overlay/local provider and stage any legally usable WAD data yourself."
-        }
-      ],
-      "notes": "Classic Doom-compatible game runtime. Must be supplied by overlay/local provider; BusierBox does not download game data."
+      "known_provider_issues": [],
+      "notes": "Classic Doom-compatible runtime. Target builds compile the prboom engine through Buildroot and stage only the user-provided WAD from BB_DOOM_WAD_PATH; BusierBox does not download game data."
     }
   }
 }

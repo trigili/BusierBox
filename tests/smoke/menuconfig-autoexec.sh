@@ -30,7 +30,7 @@ if grep -q 'default-comfort\\|default-operator\\|default-minimal' "$menu"; then
     printf '%s\n' "menuconfig-autoexec: old global dotfile profiles are still in menuconfig" >&2
     exit 1
 fi
-grep -q 'Classic Doom-compatible game runtime' "$menu"
+grep -q 'Classic Doom runtime' "$menu"
 grep -q 'bash shell \[dotfiles\]' "$menu"
 grep -q 'target binary required from drop-in/user/overlay' "$menu"
 if grep -q -- '--item-help' "$menu"; then

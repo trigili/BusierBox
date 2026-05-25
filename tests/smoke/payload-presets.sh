@@ -106,7 +106,9 @@ done
 grep -q 'BB_PAYLOAD_PRESET=' "$menu"
 grep -q 'BB_RSHELL_RUN_MODE' "$menu"
 grep -q 'BB_DOOM_USER_PATH' "$menu"
+grep -q 'BB_DOOM_WAD_PATH' "$menu"
 grep -q 'BB_PAYLOAD_PRESET=' configs/busierbox.conf.example
 grep -q 'BB_DOOM_USER_PATH=' configs/busierbox.conf.example
+grep -q 'BB_DOOM_WAD_PATH=' configs/busierbox.conf.example
 
 printf '%s\n' "payload-presets ok"

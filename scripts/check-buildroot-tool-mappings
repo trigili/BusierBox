@@ -46,11 +46,11 @@ TOOL_SYMBOLS = {
     "mmc-utils": ["BR2_PACKAGE_MMC_UTILS"],
     "e2fsprogs": ["BR2_PACKAGE_E2FSPROGS"],
     "parted": ["BR2_PACKAGE_PARTED"],
+    "doom": ["BR2_PACKAGE_PRBOOM"],
 }
 
 PROVIDER_ONLY = {
     "xxd": "provided by selected BusyBox applet; no Buildroot package symbol emitted",
-    "doom": "provider/overlay-only unless the active Buildroot tree supplies a compatible Doom package",
     "gdb": "prefer target gdbserver plus operator-side gdb; target full gdb is local-dropin/overlay only",
     "gef-pwndbg": "operator-side GDB plugin workspace only",
     "radare2": "no Buildroot package mapping in the checked tree; local-dropin/overlay only",

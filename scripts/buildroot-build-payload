@@ -167,6 +167,51 @@ stage_first_found() {
     return "$staged"
 }
 
+stage_first_found_as() {
+    requested=$1
+    dst=$2
+    shift 2
+    for rel in "$@"; do
+        if [ -x "$out_dir/target/$rel" ]; then
+            stage_tool_path "$requested" "$out_dir/target/$rel" "$dst"
+            return 0
+        fi
+    done
+    return 1
+}
+
+stage_doom_wad() {
+    _wad_path=${BB_DOOM_WAD_PATH:-}
+    [ -n "$_wad_path" ] || die "doom selected but BB_DOOM_WAD_PATH is empty"
+    [ -f "$_wad_path" ] || die "BB_DOOM_WAD_PATH not found: $_wad_path"
+    _wad_name=${_wad_path##*/}
+    case "$_wad_name" in
+        *.wad|*.WAD) ;;
+        *) printf '%s\n' "buildroot-build-payload: WARNING: Doom WAD path does not end in .wad/.WAD: $_wad_path" >&2 ;;
+    esac
+    mkdir -p runtime/payload/share/games/doom
+    cp "$_wad_path" "runtime/payload/share/games/doom/$_wad_name"
+    printf '%s\n' "buildroot-build-payload: staged Doom WAD $_wad_name"
+}
+
+write_doom_launcher() {
+    [ -x runtime/payload/bin/prboom ] || return 1
+    cat >runtime/payload/bin/doom <<'EOF'
+#!/bin/sh
+PAYLOAD_DIR=${BUSIERBOX_PAYLOAD_DIR:-}
+if [ -z "$PAYLOAD_DIR" ]; then
+    PAYLOAD_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 1
+fi
+for wad in "$PAYLOAD_DIR/share/games/doom"/*.wad "$PAYLOAD_DIR/share/games/doom"/*.WAD; do
+    [ -f "$wad" ] && exec "$PAYLOAD_DIR/bin/prboom" -iwad "$wad" "$@"
+done
+exec "$PAYLOAD_DIR/bin/prboom" "$@"
+EOF
+    chmod 0755 runtime/payload/bin/doom
+    printf '%s\n' doom >>runtime/payload/staged-tools.txt
+    printf '%s\n' doom >>runtime/payload/built-tools.txt
+}
+
 payload_sha_file() {
     if command -v sha256sum >/dev/null 2>&1; then
         sha256sum "$1" | awk '{print $1}'
@@ -701,7 +746,12 @@ if tool_requested parted; then
     stage_first_found parted usr/sbin/parted sbin/parted usr/bin/parted bin/parted || printf '%s\n' "buildroot-build-payload: requested parted but no built binary was found" >&2
 fi
 if tool_requested doom; then
-    stage_first_found doom usr/bin/doom bin/doom usr/games/doom usr/bin/chocolate-doom bin/chocolate-doom usr/games/chocolate-doom || printf '%s\n' "buildroot-build-payload: requested doom but no built binary was found" >&2
+    stage_doom_wad
+    if stage_first_found_as doom prboom usr/games/prboom usr/bin/prboom bin/prboom; then
+        write_doom_launcher || printf '%s\n' "buildroot-build-payload: requested doom but launcher could not be written" >&2
+    else
+        stage_first_found doom usr/bin/doom bin/doom usr/games/doom usr/bin/chocolate-doom bin/chocolate-doom usr/games/chocolate-doom || printf '%s\n' "buildroot-build-payload: requested doom but no built binary was found" >&2
+    fi
 fi
 
 # Stage terminfo database if built

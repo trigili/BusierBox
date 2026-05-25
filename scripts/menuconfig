@@ -107,6 +107,7 @@ BB_DOTFILE_PROFILE_USER_FILE=""
 BB_GDBSERVER_PROVIDER="auto"
 BB_GDBSERVER_USER_PATH=""
 BB_DOOM_USER_PATH=""
+BB_DOOM_WAD_PATH=""
 BB_RECOVERY_BINARY_NAME="busierbox_recovery"
 BB_USER_OVERLAY_ENABLE="no"
 BB_USER_OVERLAY_ROOT="./overlay"
@@ -271,6 +272,7 @@ BB_DROPBEAR_PREGENERATE_HOSTKEY
 BB_GDBSERVER_PROVIDER
 BB_GDBSERVER_USER_PATH
 BB_DOOM_USER_PATH
+BB_DOOM_WAD_PATH
 BB_RECOVERY_BINARY_NAME
 EOF
 }
@@ -513,6 +515,7 @@ BB_DOTFILE_PROFILE_USER_FILE="$BB_DOTFILE_PROFILE_USER_FILE"
 BB_GDBSERVER_PROVIDER="$BB_GDBSERVER_PROVIDER"
 BB_GDBSERVER_USER_PATH="$BB_GDBSERVER_USER_PATH"
 BB_DOOM_USER_PATH="$BB_DOOM_USER_PATH"
+BB_DOOM_WAD_PATH="$BB_DOOM_WAD_PATH"
 BB_RECOVERY_BINARY_NAME="$BB_RECOVERY_BINARY_NAME"
 BB_USER_OVERLAY_ENABLE="$BB_USER_OVERLAY_ENABLE"
 BB_USER_OVERLAY_ROOT="$BB_USER_OVERLAY_ROOT"
@@ -1804,8 +1807,8 @@ configure_heavy_tool_category() {
         misc)
             _category_tools="doom"
             dialog --title "Payload / Heavy tools / Misc" \
-                --checklist "Select tools to stage into the payload. * means you must provide a target-compatible binary; BusierBox does not fetch game data." 12 86 4 \
-                "doom" "Classic Doom-compatible game runtime *" "$(heavy_tool_status doom)" \
+                --checklist "Select optional runtimes. Doom builds a static-friendly prboom engine; you provide legal WAD data." 12 86 4 \
+                "doom" "Classic Doom runtime [WAD path]" "$(heavy_tool_status doom)" \
                 2>"$temp_out" || return 0
             ;;
         network)
@@ -1878,8 +1881,11 @@ configure_heavy_tool_category() {
 
     _selected=$(cat "$temp_out" | tr -d '"')
     if has_item "$_selected" doom && ! has_item "$BB_HEAVY_TOOLS" doom; then
-        dialog --title "doom provider note" \
-            --msgbox "doom selected.\n\nBusierBox will only stage doom if a target-compatible binary is present through overlay/local provider paths. It will not pretend doom is available when no binary is staged." \
+        dialog --title "Doom WAD path" \
+            --inputbox "doom selected.\n\nBuildroot targets use prboom for the engine. Enter the local path to a legally usable .wad file; BusierBox will stage it into the payload but will not fetch game data." \
+            13 82 "$BB_DOOM_WAD_PATH" 2>"$temp_out" && BB_DOOM_WAD_PATH=$(cat "$temp_out")
+        dialog --title "doom note" \
+            --msgbox "doom selected.\n\nBusierBox can build the engine through Buildroot's prboom package. Game data is never downloaded; set BB_DOOM_WAD_PATH to the local .wad file to stage." \
             11 76
     fi
     _new=
@@ -1957,7 +1963,7 @@ mtd-utils|flash/NAND tools
 parted|partition editor
 spi-tools|spidev utilities
 ubi-utils|UBI volume tools'
-        _misc='doom|Classic Doom-compatible game runtime'
+        _misc='doom|Classic Doom runtime'
         dialog --title "Payload / Heavy tools" \
             --menu "Select optional payload tools by category. * means target binary required from drop-in/user/overlay." 20 86 9 \
             "1" "Networking / operator ($(heavy_category_summary "$_network"))" \

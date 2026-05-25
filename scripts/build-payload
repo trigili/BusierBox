@@ -77,6 +77,7 @@ BB_DOTFILE_GDB_USER_FILE="${_dot_gdb_file_from_env:-${BB_DOTFILE_GDB_USER_FILE:-
 BB_DOTFILE_PROFILE_MODE="${_dot_profile_mode_from_env:-${BB_DOTFILE_PROFILE_MODE:-default}}"
 BB_DOTFILE_PROFILE_USER_FILE="${_dot_profile_file_from_env:-${BB_DOTFILE_PROFILE_USER_FILE:-}}"
 BB_DOOM_USER_PATH="${BB_DOOM_USER_PATH:-}"
+BB_DOOM_WAD_PATH="${BB_DOOM_WAD_PATH:-}"
 
 stage_dotfiles() {
     [ "$BB_DOTFILES_ENABLE" = yes ] || return 0
@@ -125,7 +126,7 @@ for tool in bash zsh tmux strace gdbserver dropbear dbclient dropbearkey curl dr
     socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client rg ripgrep jq file htop screen \
     ltrace readelf objdump lsusb lspci gdb radare2 rizin gcore tshark nmap ncat pstree openssl fd zoxide flash_erase nanddump nandwrite \
     mtd_debug ubinfo ubiattach ubidetach ubimkvol ubirmvol ubirsvol ubiupdatevol i2cdetect i2cget i2cset \
-    i2cdump spidev_test spidev_fdx mmc debugfs tune2fs e2fsck lsattr chattr parted doom chocolate-doom; do
+    i2cdump spidev_test spidev_fdx mmc debugfs tune2fs e2fsck lsattr chattr parted doom prboom chocolate-doom; do
     rm -f "runtime/payload/bin/$tool"
 done
 rm -f runtime/payload/busybox-applets.txt runtime/payload/staged-tools.txt runtime/payload/built-tools.txt \
@@ -224,6 +225,43 @@ stage_host_terminfo() {
     fi
 }
 
+stage_doom_wad() {
+    [ -n "$BB_DOOM_WAD_PATH" ] || {
+        printf '%s\n' "build-payload: WARNING: doom selected but BB_DOOM_WAD_PATH is empty; no game data staged" >&2
+        return 0
+    }
+    if [ ! -f "$BB_DOOM_WAD_PATH" ]; then
+        printf '%s\n' "build-payload: WARNING: BB_DOOM_WAD_PATH not found: $BB_DOOM_WAD_PATH" >&2
+        return 0
+    fi
+    _wad_name=${BB_DOOM_WAD_PATH##*/}
+    case "$_wad_name" in
+        *.wad|*.WAD) ;;
+        *) printf '%s\n' "build-payload: WARNING: doom WAD path does not end in .wad/.WAD: $BB_DOOM_WAD_PATH" >&2 ;;
+    esac
+    mkdir -p runtime/payload/share/games/doom
+    cp "$BB_DOOM_WAD_PATH" "runtime/payload/share/games/doom/$_wad_name"
+    printf '%s\n' "build-payload: staged Doom WAD $_wad_name"
+}
+
+write_doom_launcher() {
+    [ -x runtime/payload/bin/prboom ] || return 1
+    cat >runtime/payload/bin/doom <<'EOF'
+#!/bin/sh
+PAYLOAD_DIR=${BUSIERBOX_PAYLOAD_DIR:-}
+if [ -z "$PAYLOAD_DIR" ]; then
+    PAYLOAD_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 1
+fi
+for wad in "$PAYLOAD_DIR/share/games/doom"/*.wad "$PAYLOAD_DIR/share/games/doom"/*.WAD; do
+    [ -f "$wad" ] && exec "$PAYLOAD_DIR/bin/prboom" -iwad "$wad" "$@"
+done
+exec "$PAYLOAD_DIR/bin/prboom" "$@"
+EOF
+    chmod 0755 runtime/payload/bin/doom
+    printf '%s\n' doom >>runtime/payload/staged-tools.txt
+    printf '%s\n' doom >>runtime/payload/built-tools.txt
+}
+
 # Set up only selected heavy tools
 for tool in bash zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils nmap nmap-ncat psmisc openssl fd zoxide mtd-utils ubi-utils i2c-tools spi-tools mmc-utils e2fsprogs parted doom; do
     if tool_selected "$tool"; then
@@ -293,6 +331,8 @@ for tool in bash zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync
             stage_user_binary "$tool" "$BB_DOOM_USER_PATH" doom || {
                 printf '%s\n' "build-payload: WARNING: BB_DOOM_USER_PATH is not executable: $BB_DOOM_USER_PATH" >&2
             }
+        elif [ "$tool" = doom ] && command -v prboom >/dev/null 2>&1; then
+            stage_real_tool "$tool" "$(command -v prboom)" prboom && write_doom_launcher || true
         elif [ "$tool" = doom ] && command -v doom >/dev/null 2>&1; then
             stage_real_tool "$tool" "$(command -v doom)" doom || true
         elif [ "$tool" = doom ] && command -v chocolate-doom >/dev/null 2>&1; then
@@ -440,6 +480,7 @@ apply_overlay() {
 apply_overlay
 scripts/install-busybox-symlinks runtime/payload
 stage_host_terminfo
+tool_selected doom && stage_doom_wad
 
 if tool_selected doom && [ -e runtime/payload/bin/chocolate-doom ] && [ ! -e runtime/payload/bin/doom ]; then
     cp runtime/payload/bin/chocolate-doom runtime/payload/bin/doom
