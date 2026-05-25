@@ -9,6 +9,7 @@ Options:
   --operator-host HOST|auto
   --survey-only
   --recommend-only
+  --survey-json PATH
   --payload-preset NAME
   --target-preset NAME
   --run-integration CASE
@@ -26,6 +27,8 @@ target_preset=native
 run_integration=
 dry_run=no
 keep_remote=no
+survey_input=
+remote_touched=no
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -35,6 +38,8 @@ while [ "$#" -gt 0 ]; do
         --operator-host=*) operator_host=${1#--operator-host=}; shift ;;
         --survey-only) survey_only=yes; shift ;;
         --recommend-only) recommend_only=yes; shift ;;
+        --survey-json) survey_input=$2; shift 2 ;;
+        --survey-json=*) survey_input=${1#--survey-json=}; shift ;;
         --payload-preset) payload_preset=$2; shift 2 ;;
         --payload-preset=*) payload_preset=${1#--payload-preset=}; shift ;;
         --target-preset) target_preset=$2; shift 2 ;;
@@ -76,6 +81,9 @@ write_summary() {
         printf '  "remote_dir": "%s",\n' "$(json_string "$remote_dir")"
         printf '  "payload_preset": "%s",\n' "$(json_string "$payload_preset")"
         printf '  "target_preset": "%s",\n' "$(json_string "$target_preset")"
+        printf '  "operator_host": "%s",\n' "$(json_string "$operator_host")"
+        printf '  "survey_json": "%s",\n' "$(json_string "$survey")"
+        printf '  "recommendation_json": "%s",\n' "$(json_string "$run_dir/recommendation.json")"
         printf '  "recommended_config": "%s"' "$(json_string "$recommended")"
         [ -z "$reason" ] || printf ',\n  "reason": "%s"' "$(json_string "$reason")"
         printf '\n}\n'
@@ -97,7 +105,11 @@ if [ "$dry_run" = yes ]; then
     exit 0
 fi
 
-if [ "$recommend_only" = no ]; then
+if [ -n "$survey_input" ]; then
+    cp "$survey_input" "$survey"
+fi
+
+if [ ! -f "$survey" ]; then
     env BUSIERBOX_CONFIG="$config" TARGET="$target_preset" make package >"$run_dir/build.log" 2>&1 || {
         write_summary fail "survey artifact build failed"
         printf '%s\n' "bringup: survey artifact build failed; see $run_dir/build.log" >&2
@@ -110,6 +122,7 @@ if [ "$recommend_only" = no ]; then
         printf '%s\n' "bringup: target unreachable or remote dir unavailable" >&2
         exit 1
     }
+    remote_touched=yes
     scp -O -q "$artifact" "$host:$remote_dir/busierbox" >>"$run_dir/ssh.log" 2>&1
     ssh "$host" "cd $(printf '%s' "$remote_dir" | sed \"s/'/'\\\\''/g\") && chmod +x ./busierbox && ./busierbox survey --json > survey.json && ./busierbox config-info > config-info.out" >>"$run_dir/ssh.log" 2>&1 || {
         write_summary fail "survey artifact could not run"
@@ -130,9 +143,13 @@ else
 fi
 
 if [ "$survey_only" = yes ] || [ "$recommend_only" = yes ]; then
-    [ "$keep_remote" = yes ] || ssh "$host" "rm -rf $(printf '%s' "$remote_dir" | sed \"s/'/'\\\\''/g\")" >>"$run_dir/ssh.log" 2>&1 || true
+    if [ "$remote_touched" = yes ] && [ "$keep_remote" != yes ]; then
+        ssh "$host" "rm -rf $(printf '%s' "$remote_dir" | sed \"s/'/'\\\\''/g\")" >>"$run_dir/ssh.log" 2>&1 || true
+    fi
     write_summary pass
     printf '%s\n' "bringup: survey and recommendation written under $run_dir"
+    printf '%s\n' "bringup: recommended config: $recommended"
+    printf '%s\n' "bringup: recommendation JSON: $run_dir/recommendation.json"
     exit 0
 fi
 
@@ -149,6 +166,8 @@ if [ -n "$run_integration" ]; then
     }
 fi
 
-[ "$keep_remote" = yes ] || ssh "$host" "rm -rf $(printf '%s' "$remote_dir" | sed \"s/'/'\\\\''/g\")" >>"$run_dir/ssh.log" 2>&1 || true
+if [ "$remote_touched" = yes ] && [ "$keep_remote" != yes ]; then
+    ssh "$host" "rm -rf $(printf '%s' "$remote_dir" | sed \"s/'/'\\\\''/g\")" >>"$run_dir/ssh.log" 2>&1 || true
+fi
 write_summary pass
 printf '%s\n' "bringup: complete; summary at $summary"
