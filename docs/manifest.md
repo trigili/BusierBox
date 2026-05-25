@@ -10,10 +10,13 @@ busierbox manifest --json
 The JSON manifest includes:
 
 - schema version
-- payload version and artifact tier
+- payload version, artifact tier, build timestamp, and git commit when available
+- target preset/name and target arch/endian/cpu/abi/libc/kernel/static policy
+- payload preset
 - runtime mode/root/fallback settings
 - zero-arg mode and log mode
 - rshell transport, encryption, run mode, and shell provider
+- dotfile modes and user overlay policy
 - native feature flags
 - BusyBox applets and staged heavy tools compiled into the dispatch table
 

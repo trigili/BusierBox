@@ -31,6 +31,66 @@
 #ifndef BUSIERBOX_ARTIFACT_TIER
 #define BUSIERBOX_ARTIFACT_TIER "core"
 #endif
+#ifndef BUSIERBOX_BUILD_TIMESTAMP
+#define BUSIERBOX_BUILD_TIMESTAMP "unknown"
+#endif
+#ifndef BUSIERBOX_GIT_COMMIT
+#define BUSIERBOX_GIT_COMMIT "unknown"
+#endif
+#ifndef BB_TARGET_PRESET
+#define BB_TARGET_PRESET "native"
+#endif
+#ifndef BB_TARGET_NAME
+#define BB_TARGET_NAME "native"
+#endif
+#ifndef BB_TARGET_ARCH
+#define BB_TARGET_ARCH "native"
+#endif
+#ifndef BB_TARGET_ENDIAN
+#define BB_TARGET_ENDIAN "auto"
+#endif
+#ifndef BB_TARGET_CPU
+#define BB_TARGET_CPU "host"
+#endif
+#ifndef BB_TARGET_ABI
+#define BB_TARGET_ABI "default"
+#endif
+#ifndef BB_TARGET_LIBC
+#define BB_TARGET_LIBC "host"
+#endif
+#ifndef BB_KERNEL_FLOOR
+#define BB_KERNEL_FLOOR "host"
+#endif
+#ifndef BB_STATIC_POLICY
+#define BB_STATIC_POLICY "static-preferred"
+#endif
+#ifndef BB_PAYLOAD_PRESET
+#define BB_PAYLOAD_PRESET "default"
+#endif
+#ifndef BB_DOTFILES_ENABLE
+#define BB_DOTFILES_ENABLE "yes"
+#endif
+#ifndef BB_DOTFILE_ZSH_MODE
+#define BB_DOTFILE_ZSH_MODE "default"
+#endif
+#ifndef BB_DOTFILE_TMUX_MODE
+#define BB_DOTFILE_TMUX_MODE "default"
+#endif
+#ifndef BB_DOTFILE_GDB_MODE
+#define BB_DOTFILE_GDB_MODE "default"
+#endif
+#ifndef BB_DOTFILE_PROFILE_MODE
+#define BB_DOTFILE_PROFILE_MODE "default"
+#endif
+#ifndef BB_USER_OVERLAY_ENABLE
+#define BB_USER_OVERLAY_ENABLE "no"
+#endif
+#ifndef BB_USER_OVERLAY_ROOT
+#define BB_USER_OVERLAY_ROOT "./overlay"
+#endif
+#ifndef BB_USER_OVERLAY_ALLOW_OVERRIDE
+#define BB_USER_OVERLAY_ALLOW_OVERRIDE "no"
+#endif
 
 #ifndef BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS
 #define BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS 0
@@ -1540,6 +1600,30 @@ int applet_manifest_main(int argc, char **argv)
         json_string_payload(stdout, BUSIERBOX_PAYLOAD_VERSION);
         printf(",\"artifact_tier\":");
         json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
+        printf(",\"build_timestamp\":");
+        json_string_payload(stdout, BUSIERBOX_BUILD_TIMESTAMP);
+        printf(",\"git_commit\":");
+        json_string_payload(stdout, BUSIERBOX_GIT_COMMIT);
+        printf("},\"target\":{\"preset\":");
+        json_string_payload(stdout, BB_TARGET_PRESET);
+        printf(",\"name\":");
+        json_string_payload(stdout, BB_TARGET_NAME);
+        printf(",\"arch\":");
+        json_string_payload(stdout, BB_TARGET_ARCH);
+        printf(",\"endian\":");
+        json_string_payload(stdout, BB_TARGET_ENDIAN);
+        printf(",\"cpu\":");
+        json_string_payload(stdout, BB_TARGET_CPU);
+        printf(",\"abi\":");
+        json_string_payload(stdout, BB_TARGET_ABI);
+        printf(",\"libc\":");
+        json_string_payload(stdout, BB_TARGET_LIBC);
+        printf(",\"kernel_floor\":");
+        json_string_payload(stdout, BB_KERNEL_FLOOR);
+        printf(",\"static_policy\":");
+        json_string_payload(stdout, BB_STATIC_POLICY);
+        printf("},\"payload\":{\"preset\":");
+        json_string_payload(stdout, BB_PAYLOAD_PRESET);
         printf("},\"runtime\":{\"mode\":");
         json_string_payload(stdout, BB_RUNTIME_MODE);
         printf(",\"root\":");
@@ -1560,6 +1644,22 @@ int applet_manifest_main(int argc, char **argv)
         json_string_payload(stdout, BB_RSHELL_RUN_MODE);
         printf(",\"shell_provider\":");
         json_string_payload(stdout, BB_RSHELL_SHELL_PROVIDER);
+        printf("},\"dotfiles\":{\"enabled\":");
+        json_string_payload(stdout, BB_DOTFILES_ENABLE);
+        printf(",\"zsh\":");
+        json_string_payload(stdout, BB_DOTFILE_ZSH_MODE);
+        printf(",\"tmux\":");
+        json_string_payload(stdout, BB_DOTFILE_TMUX_MODE);
+        printf(",\"gdb\":");
+        json_string_payload(stdout, BB_DOTFILE_GDB_MODE);
+        printf(",\"profile\":");
+        json_string_payload(stdout, BB_DOTFILE_PROFILE_MODE);
+        printf("},\"overlay\":{\"enabled\":");
+        json_string_payload(stdout, BB_USER_OVERLAY_ENABLE);
+        printf(",\"root\":");
+        json_string_payload(stdout, BB_USER_OVERLAY_ROOT);
+        printf(",\"allow_override\":");
+        json_string_payload(stdout, BB_USER_OVERLAY_ALLOW_OVERRIDE);
         printf("},\"native_features\":{\"survey\":%s,\"doctor\":%s,\"extract\":%s,\"config_info\":%s",
 #if BB_ENABLE_SURVEY
                "true",
@@ -1605,6 +1705,18 @@ int applet_manifest_main(int argc, char **argv)
 
     printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
     printf("payload_version=%s\n", BUSIERBOX_PAYLOAD_VERSION);
+    printf("build_timestamp=%s\n", BUSIERBOX_BUILD_TIMESTAMP);
+    printf("git_commit=%s\n", BUSIERBOX_GIT_COMMIT);
+    printf("target_preset=%s\n", BB_TARGET_PRESET);
+    printf("target_name=%s\n", BB_TARGET_NAME);
+    printf("target_arch=%s\n", BB_TARGET_ARCH);
+    printf("target_endian=%s\n", BB_TARGET_ENDIAN);
+    printf("target_cpu=%s\n", BB_TARGET_CPU);
+    printf("target_abi=%s\n", BB_TARGET_ABI);
+    printf("target_libc=%s\n", BB_TARGET_LIBC);
+    printf("kernel_floor=%s\n", BB_KERNEL_FLOOR);
+    printf("static_policy=%s\n", BB_STATIC_POLICY);
+    printf("payload_preset=%s\n", BB_PAYLOAD_PRESET);
     printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
     printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
     printf("zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
