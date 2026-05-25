@@ -67,6 +67,7 @@ BB_DOTFILE_GDB_MODE="${_dot_gdb_mode_from_env:-${BB_DOTFILE_GDB_MODE:-default}}"
 BB_DOTFILE_GDB_USER_FILE="${_dot_gdb_file_from_env:-${BB_DOTFILE_GDB_USER_FILE:-}}"
 BB_DOTFILE_PROFILE_MODE="${_dot_profile_mode_from_env:-${BB_DOTFILE_PROFILE_MODE:-default}}"
 BB_DOTFILE_PROFILE_USER_FILE="${_dot_profile_file_from_env:-${BB_DOTFILE_PROFILE_USER_FILE:-}}"
+BB_DOOM_USER_PATH="${BB_DOOM_USER_PATH:-}"
 
 stage_dotfiles() {
     [ "$BB_DOTFILES_ENABLE" = yes ] || return 0
@@ -112,13 +113,21 @@ stage_dotfiles
 # Clean out unconfigured/stale files from previous builds or default template
 for tool in zsh tmux strace gdbserver dropbear dbclient dropbearkey curl dropbear-bin \
     socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client rg ripgrep jq file htop screen \
-    ltrace readelf objdump lsusb lspci doom chocolate-doom; do
+    ltrace readelf objdump lsusb lspci gdb radare2 rizin gcore tshark nmap ncat pstree openssl fd zoxide flash_erase nanddump nandwrite \
+    mtd_debug ubinfo ubiattach ubidetach ubimkvol ubirmvol ubirsvol ubiupdatevol i2cdetect i2cget i2cset \
+    i2cdump spidev_test spidev_fdx mmc debugfs tune2fs e2fsck lsattr chattr parted doom chocolate-doom; do
     rm -f "runtime/payload/bin/$tool"
 done
-rm -f runtime/payload/busybox-applets.txt runtime/payload/staged-tools.txt runtime/payload/built-tools.txt
+rm -f runtime/payload/busybox-applets.txt runtime/payload/staged-tools.txt runtime/payload/built-tools.txt \
+    runtime/payload/overlay-tools.txt runtime/payload/overlay-files.txt runtime/payload/overlay-paths.txt \
+    runtime/payload/user-provided-tools.txt
 mkdir -p runtime/payload/share/busierbox
 : >runtime/payload/staged-tools.txt
 : >runtime/payload/built-tools.txt
+: >runtime/payload/overlay-tools.txt
+: >runtime/payload/overlay-files.txt
+: >runtime/payload/overlay-paths.txt
+: >runtime/payload/user-provided-tools.txt
 
 if ! runtime/payload/bin/busybox --list >runtime/payload/busybox-applets.txt 2>/dev/null || [ ! -s runtime/payload/busybox-applets.txt ]; then
     printf '%s\n' "build-payload: unable to discover native BusyBox applets from runtime/payload/bin/busybox --list" >&2
@@ -134,6 +143,15 @@ stage_real_tool() {
     chmod 0755 "runtime/payload/bin/$dst"
     printf '%s\n' "$dst" >>runtime/payload/staged-tools.txt
     printf '%s\n' "$tool" >>runtime/payload/built-tools.txt
+    return 0
+}
+
+stage_user_binary() {
+    tool=$1
+    src=$2
+    dst=${3:-$tool}
+    stage_real_tool "$tool" "$src" "$dst" || return 1
+    printf '%s\n' "$tool" >>runtime/payload/user-provided-tools.txt
     return 0
 }
 
@@ -168,7 +186,7 @@ stage_host_terminfo() {
 }
 
 # Set up only selected heavy tools
-for tool in zsh tmux strace gdbserver dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils doom; do
+for tool in zsh tmux strace gdbserver dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils nmap nmap-ncat psmisc openssl fd zoxide mtd-utils ubi-utils i2c-tools spi-tools mmc-utils e2fsprogs parted doom; do
     if tool_selected "$tool"; then
         if [ "$tool" = ripgrep ] && command -v rg >/dev/null 2>&1; then
             stage_real_tool "$tool" "$(command -v rg)" rg || true
@@ -176,6 +194,36 @@ for tool in zsh tmux strace gdbserver dropbear curl socat tcpdump rsync mtr iper
             stage_real_tool "$tool" "$(command -v lsusb)" lsusb || true
         elif [ "$tool" = pciutils ] && command -v lspci >/dev/null 2>&1; then
             stage_real_tool "$tool" "$(command -v lspci)" lspci || true
+        elif [ "$tool" = nmap-ncat ] && command -v ncat >/dev/null 2>&1; then
+            stage_real_tool "$tool" "$(command -v ncat)" ncat || true
+        elif [ "$tool" = psmisc ] && command -v pstree >/dev/null 2>&1; then
+            stage_real_tool "$tool" "$(command -v pstree)" pstree || true
+        elif [ "$tool" = mtd-utils ]; then
+            for mtd_tool in flash_erase nanddump nandwrite mtd_debug; do
+                command -v "$mtd_tool" >/dev/null 2>&1 && stage_real_tool "$tool" "$(command -v "$mtd_tool")" "$mtd_tool" || true
+            done
+        elif [ "$tool" = ubi-utils ]; then
+            for ubi_tool in ubinfo ubiattach ubidetach ubimkvol ubirmvol ubirsvol ubiupdatevol; do
+                command -v "$ubi_tool" >/dev/null 2>&1 && stage_real_tool "$tool" "$(command -v "$ubi_tool")" "$ubi_tool" || true
+            done
+        elif [ "$tool" = i2c-tools ]; then
+            for i2c_tool in i2cdetect i2cget i2cset i2cdump; do
+                command -v "$i2c_tool" >/dev/null 2>&1 && stage_real_tool "$tool" "$(command -v "$i2c_tool")" "$i2c_tool" || true
+            done
+        elif [ "$tool" = spi-tools ]; then
+            for spi_tool in spidev_test spidev_fdx; do
+                command -v "$spi_tool" >/dev/null 2>&1 && stage_real_tool "$tool" "$(command -v "$spi_tool")" "$spi_tool" || true
+            done
+        elif [ "$tool" = mmc-utils ] && command -v mmc >/dev/null 2>&1; then
+            stage_real_tool "$tool" "$(command -v mmc)" mmc || true
+        elif [ "$tool" = e2fsprogs ]; then
+            for e2_tool in debugfs tune2fs e2fsck lsattr chattr; do
+                command -v "$e2_tool" >/dev/null 2>&1 && stage_real_tool "$tool" "$(command -v "$e2_tool")" "$e2_tool" || true
+            done
+        elif [ "$tool" = doom ] && [ -n "$BB_DOOM_USER_PATH" ]; then
+            stage_user_binary "$tool" "$BB_DOOM_USER_PATH" doom || {
+                printf '%s\n' "build-payload: WARNING: BB_DOOM_USER_PATH is not executable: $BB_DOOM_USER_PATH" >&2
+            }
         elif [ "$tool" = doom ] && command -v doom >/dev/null 2>&1; then
             stage_real_tool "$tool" "$(command -v doom)" doom || true
         elif [ "$tool" = doom ] && command -v chocolate-doom >/dev/null 2>&1; then
@@ -282,11 +330,15 @@ apply_overlay() {
             fi
             cp "$_f" "$_target" || continue
             [ "$_subdir" = "bin" ] && chmod 0755 "$_target"
+            printf '%s\n' "$_subdir/$_fname" >>runtime/payload/overlay-files.txt
+            [ "$_subdir" = "bin" ] && printf '%s\n' "$_fname" >>runtime/payload/overlay-tools.txt
             _applied=$((_applied + 1))
         done
     done
+    [ "$_applied" -gt 0 ] && printf '%s\n' "$BB_USER_OVERLAY_ROOT" >>runtime/payload/overlay-paths.txt
     _toverlay="$BB_USER_OVERLAY_ROOT/native"
     if [ -d "$_toverlay" ]; then
+        _target_applied=0
         for _subdir in bin lib share home etc; do
             _src="$_toverlay/$_subdir"
             [ -d "$_src" ] || continue
@@ -304,9 +356,13 @@ apply_overlay() {
                 fi
                 cp "$_f" "$_target" || continue
                 [ "$_subdir" = "bin" ] && chmod 0755 "$_target"
+                printf '%s\n' "native/$_subdir/$_fname" >>runtime/payload/overlay-files.txt
+                [ "$_subdir" = "bin" ] && printf '%s\n' "$_fname" >>runtime/payload/overlay-tools.txt
+                _target_applied=$((_target_applied + 1))
                 _applied=$((_applied + 1))
             done
         done
+        [ "$_target_applied" -gt 0 ] && printf '%s\n' "$_toverlay" >>runtime/payload/overlay-paths.txt
     fi
     [ "$_applied" -gt 0 ] && printf '%s\n' "build-payload: overlay applied from $BB_USER_OVERLAY_ROOT ($_applied files)"
     return 0
@@ -316,7 +372,13 @@ apply_overlay
 scripts/install-busybox-symlinks runtime/payload
 stage_host_terminfo
 
-for tool in xxd; do
+if tool_selected doom && [ -e runtime/payload/bin/chocolate-doom ] && [ ! -e runtime/payload/bin/doom ]; then
+    cp runtime/payload/bin/chocolate-doom runtime/payload/bin/doom
+    chmod 0755 runtime/payload/bin/doom
+    printf '%s\n' "doom" >>runtime/payload/overlay-tools.txt
+fi
+
+for tool in xxd doom gdb radare2 rizin gcore tshark; do
     if tool_selected "$tool" && [ -e "runtime/payload/bin/$tool" ]; then
         printf '%s\n' "$tool" >>runtime/payload/staged-tools.txt
         printf '%s\n' "$tool" >>runtime/payload/built-tools.txt
@@ -324,6 +386,10 @@ for tool in xxd; do
 done
 sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
 sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
+sort -u runtime/payload/overlay-tools.txt -o runtime/payload/overlay-tools.txt
+sort -u runtime/payload/overlay-files.txt -o runtime/payload/overlay-files.txt
+sort -u runtime/payload/overlay-paths.txt -o runtime/payload/overlay-paths.txt
+sort -u runtime/payload/user-provided-tools.txt -o runtime/payload/user-provided-tools.txt
 
 payload_sha() {
     if command -v sha256sum >/dev/null 2>&1; then

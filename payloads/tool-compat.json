@@ -481,7 +481,144 @@
       "unsupported_libcs": [],
       "notes": "Stages lspci; many embedded targets do not expose PCI hardware."
     },
+    "gdb": {
+      "providers": ["host-only", "local-dropin", "overlay"],
+      "classification": "host/operator-side by default",
+      "expected_payload_size": "very-large",
+      "static_constraints": "Target-side full gdb is heavy and may require Python/termcap support; prefer target gdbserver with operator-side gdb.",
+      "notes": "Do not include in default presets. Use local drop-in or overlay only when target-side gdb is explicitly validated."
+    },
+    "gef-pwndbg": {
+      "providers": ["host-only"],
+      "classification": "operator-side companion",
+      "expected_payload_size": "very-large",
+      "static_constraints": "Requires operator-side gdb with Python plugin support.",
+      "notes": "Keep GEF/pwndbg-style helpers on the operator workstation unless a target-side Python gdb stack is explicitly selected."
+    },
+    "nmap": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "add as target payload",
+      "expected_payload_size": "large",
+      "static_constraints": "Buildroot package needs C++/threads/MMU.",
+      "notes": "Useful for local network diagnostics; not included in default presets."
+    },
+    "nmap-ncat": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "add as target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Uses the Buildroot nmap package ncat suboption.",
+      "notes": "Complements BusyBox nc/netcat when richer relay features are needed."
+    },
+    "psmisc": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "add as target payload",
+      "expected_payload_size": "small",
+      "static_constraints": "Buildroot package provides pstree/fuser/killall variants depending on configuration.",
+      "notes": "Partly overlaps BusyBox process applets; select only when pstree/fuser behavior is needed."
+    },
+    "openssl": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "add as target payload",
+      "expected_payload_size": "large",
+      "static_constraints": "Static builds may be large; dynamic builds may need bundled shared libraries.",
+      "notes": "Useful as an operator diagnostic and TLS helper, but not required for builtin TLS."
+    },
+    "fd": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "add as target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Rust package; static availability depends on active Buildroot/toolchain support.",
+      "notes": "Nice-to-have search helper; BusyBox find remains the default baseline."
+    },
+    "zoxide": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "add as target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Rust package; needs shell integration files to be useful interactively.",
+      "notes": "Shell convenience tool, not selected by default."
+    },
+    "radare2": {
+      "providers": ["local-dropin", "overlay"],
+      "classification": "local-dropin/overlay provider only",
+      "expected_payload_size": "very-large",
+      "static_constraints": "No Buildroot mapping in the checked tree.",
+      "notes": "Reverse-engineering suites are too large and variable for default payload generation."
+    },
+    "rizin": {
+      "providers": ["local-dropin", "overlay"],
+      "classification": "local-dropin/overlay provider only",
+      "expected_payload_size": "very-large",
+      "static_constraints": "No Buildroot mapping in the checked tree.",
+      "notes": "Keep as provider-only until a target tuple has a validated package path."
+    },
+    "gcore": {
+      "providers": ["host-only", "local-dropin", "overlay"],
+      "classification": "dangerous/special handling",
+      "expected_payload_size": "large",
+      "static_constraints": "Usually part of a full gdb stack and requires ptrace/core dump policy support.",
+      "notes": "Prefer gdbserver and operator-side gdb for capture workflows."
+    },
+    "tshark": {
+      "providers": ["local-dropin", "overlay"],
+      "classification": "local-dropin/overlay provider only",
+      "expected_payload_size": "very-large",
+      "static_constraints": "Wireshark/tshark is too heavy for default static payloads in this tree.",
+      "notes": "Use tcpdump by default; stage tshark only as a validated provider binary."
+    },
+    "mtd-utils": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "dangerous/special handling",
+      "expected_payload_size": "medium",
+      "static_constraints": "Requires Linux MTD device support and root permissions for most operations.",
+      "notes": "Flash tools can irreversibly alter devices; keep behind explicit dangerous storage/flash selection."
+    },
+    "ubi-utils": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "dangerous/special handling",
+      "expected_payload_size": "medium",
+      "static_constraints": "Requires UBI kernel support and root permissions for most operations.",
+      "notes": "Do not include in default/full-debug presets."
+    },
+    "i2c-tools": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "dangerous/special handling",
+      "expected_payload_size": "small",
+      "static_constraints": "Requires i2c-dev and device-node access.",
+      "notes": "Bus probing may affect hardware; select explicitly."
+    },
+    "spi-tools": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "dangerous/special handling",
+      "expected_payload_size": "small",
+      "static_constraints": "Requires spidev and device-node access.",
+      "notes": "Select only for hardware diagnostics."
+    },
+    "mmc-utils": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "dangerous/special handling",
+      "expected_payload_size": "small",
+      "static_constraints": "Requires MMC block device access; dangerous commands are not enabled by default.",
+      "notes": "Keep destructive MMC commands out unless explicitly needed."
+    },
+    "e2fsprogs": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "dangerous/special handling",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static builds may be larger; some tools need block device write access.",
+      "notes": "Includes filesystem inspection and repair tools such as debugfs/tune2fs/e2fsck depending on package options."
+    },
+    "parted": {
+      "providers": ["buildroot", "local-dropin", "overlay"],
+      "classification": "dangerous/special handling",
+      "expected_payload_size": "medium",
+      "static_constraints": "Requires block device access and libparted dependencies.",
+      "notes": "Partition editors are explicitly dangerous and should never be default-selected."
+    },
     "doom": {
+      "providers": ["local-dropin", "overlay", "host-native"],
+      "classification": "provider-only optional runtime",
+      "expected_payload_size": "provider-defined",
+      "static_constraints": "User/provider binary must match the target architecture and libc.",
       "requires_devpts": false,
       "requires_pty": false,
       "requires_ptrace": false,

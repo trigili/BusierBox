@@ -37,6 +37,8 @@ grep -q 'payload_preset_snapshot()' "$menu"
 grep -q 'payload_preset_is_dirty()' "$menu"
 grep -q 'save_payload_preset()' "$menu"
 grep -q 'Payload preset: $(payload_preset_label)' "$menu"
+grep -q 'configure_busybox_applet_search()' "$menu"
+grep -q 'Search applets by name/group/description' "$menu"
 grep -q 'Save current payload settings as a new preset' "$menu"
 grep -q 'Reapply original preset' "$menu"
 grep -q 'local/presets/payload' "$menu"
@@ -52,6 +54,8 @@ done
 
 grep -q 'BB_PAYLOAD_PRESET=' "$menu"
 grep -q 'BB_RSHELL_RUN_MODE' "$menu"
+grep -q 'BB_DOOM_USER_PATH' "$menu"
 grep -q 'BB_PAYLOAD_PRESET=' configs/busierbox.conf.example
+grep -q 'BB_DOOM_USER_PATH=' configs/busierbox.conf.example
 
 printf '%s\n' "payload-presets ok"
