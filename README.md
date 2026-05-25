@@ -270,7 +270,7 @@ chmod +x /tmp/busierbox
 /tmp/busierbox sh
 ```
 
-Tool compatibility metadata lives in `payloads/tool-compat.json`. Menuconfig shows warnings for selected heavy tools such as `tmux`, `strace`, `gdbserver`, `dropbear`, `curl`, `zsh`, and the expanded operator tool set; it does not hard-block uncertain cases.
+Tool compatibility metadata lives in `payloads/tool-compat.json`. Menuconfig shows warnings for selected heavy tools such as `bash`, `tmux`, `strace`, `gdbserver`, `dropbear`, `curl`, `zsh`, and the expanded operator tool set; it does not hard-block uncertain cases.
 
 Generated Buildroot defconfigs enable supported package symbols for selected heavy tools:
 
@@ -279,7 +279,7 @@ Networking/operator: socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-clie
 Text/utility:        ripgrep jq file htop screen
 Debug/RE:            strace gdbserver ltrace readelf objdump xxd
 System inspection:   usbutils pciutils
-Shell/transport:     zsh tmux curl dropbear
+Shell/transport:     bash zsh tmux curl dropbear
 ```
 
 Some provider names differ from staged command names. For example, selecting `ripgrep` stages `rg`, `usbutils` stages `lsusb`, and `pciutils` stages `lspci`. This is intentional: requested provider intent and staged dispatch commands are tracked separately. If Buildroot drops a package due to dependencies or the binary cannot be found after the build, the tool is listed as missing with a reason and is not dispatchable.
@@ -449,6 +449,8 @@ Dotfiles are configured per app. Each app can use the BusierBox default initial 
 BB_DOTFILES_ENABLE="yes"
 BB_DOTFILE_ZSH_MODE="default"
 BB_DOTFILE_ZSH_USER_FILE=""
+BB_DOTFILE_BASH_MODE="default"
+BB_DOTFILE_BASH_USER_FILE=""
 BB_DOTFILE_TMUX_MODE="default"
 BB_DOTFILE_TMUX_USER_FILE=""
 BB_DOTFILE_GDB_MODE="default"
@@ -457,7 +459,7 @@ BB_DOTFILE_PROFILE_MODE="default"
 BB_DOTFILE_PROFILE_USER_FILE=""
 ```
 
-Set a mode to `user` and point the matching `*_USER_FILE` at the exact file to stage, for example `.zshrc` or `.tmux.conf`. Missing user files fail the payload build clearly. In `core-only` runtime mode, dotfiles are not staged because no payload HOME is extracted.
+Set a mode to `user` and point the matching `*_USER_FILE` at the exact file to stage, for example `.zshrc`, `.bashrc`, or `.tmux.conf`. Missing user files fail the payload build clearly. In `core-only` runtime mode, dotfiles are not staged because no payload HOME is extracted.
 
 The payload sets `BUSIERBOX_PAYLOAD_DIR`, `PATH`, `HOME`, `SHELL`, `ZDOTDIR`, `TERM`, `TERMINFO_DIRS`, and `LD_LIBRARY_PATH` as needed when dispatching tools. To use a personal Oh My Zsh setup, do not make BusierBox fetch it. Place `.oh-my-zsh` and `.zshrc` under `overlay-root/common/home/` or `overlay-root/<target>/home/`, or set `BB_DOTFILE_ZSH_MODE=user` and point `BB_DOTFILE_ZSH_USER_FILE` at your local `.zshrc` before packaging.
 

@@ -67,6 +67,7 @@ stage_dotfiles() {
     [ "${BB_RUNTIME_MODE:-extract}" != core-only ] || return 0
     stage_dotfile_one profile "${BB_DOTFILE_PROFILE_MODE:-default}" "${BB_DOTFILE_PROFILE_USER_FILE:-}" ".profile"
     stage_dotfile_one zsh "${BB_DOTFILE_ZSH_MODE:-default}" "${BB_DOTFILE_ZSH_USER_FILE:-}" ".zshrc"
+    stage_dotfile_one bash "${BB_DOTFILE_BASH_MODE:-default}" "${BB_DOTFILE_BASH_USER_FILE:-}" ".bashrc"
     stage_dotfile_one tmux "${BB_DOTFILE_TMUX_MODE:-default}" "${BB_DOTFILE_TMUX_USER_FILE:-}" ".tmux.conf"
     stage_dotfile_one gdb "${BB_DOTFILE_GDB_MODE:-default}" "${BB_DOTFILE_GDB_USER_FILE:-}" ".gdbinit"
 }
@@ -382,6 +383,8 @@ BB_OPERATOR_AUTHORIZED_KEY_FILE=${BB_OPERATOR_AUTHORIZED_KEY_FILE:-$_profile_ope
 BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-$(profile_value DOTFILES_ENABLE 2>/dev/null || true)}
 BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-$(profile_value DOTFILE_ZSH_MODE 2>/dev/null || true)}
 BB_DOTFILE_ZSH_USER_FILE=${BB_DOTFILE_ZSH_USER_FILE:-$(profile_value DOTFILE_ZSH_USER_FILE 2>/dev/null || true)}
+BB_DOTFILE_BASH_MODE=${BB_DOTFILE_BASH_MODE:-$(profile_value DOTFILE_BASH_MODE 2>/dev/null || true)}
+BB_DOTFILE_BASH_USER_FILE=${BB_DOTFILE_BASH_USER_FILE:-$(profile_value DOTFILE_BASH_USER_FILE 2>/dev/null || true)}
 BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-$(profile_value DOTFILE_TMUX_MODE 2>/dev/null || true)}
 BB_DOTFILE_TMUX_USER_FILE=${BB_DOTFILE_TMUX_USER_FILE:-$(profile_value DOTFILE_TMUX_USER_FILE 2>/dev/null || true)}
 BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-$(profile_value DOTFILE_GDB_MODE 2>/dev/null || true)}
@@ -390,6 +393,7 @@ BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-$(profile_value DOTFILE_PROFI
 BB_DOTFILE_PROFILE_USER_FILE=${BB_DOTFILE_PROFILE_USER_FILE:-$(profile_value DOTFILE_PROFILE_USER_FILE 2>/dev/null || true)}
 BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-yes}
 BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-default}
+BB_DOTFILE_BASH_MODE=${BB_DOTFILE_BASH_MODE:-default}
 BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-default}
 BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-default}
 BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-default}
@@ -442,7 +446,7 @@ if [ "$_build_ok" = "0" ]; then
     for _t in $requested_tools; do
         if in_list "$_t" ${pre_excluded:-}; then continue; fi
         case "$_t" in
-            strace|gdbserver|gdb|curl|dropbear|zsh|tmux|socat|tcpdump|rsync|mtr|iperf3|ethtool|iw|minicom|mosh-client|ripgrep|jq|file|htop|screen|ltrace|readelf|objdump|usbutils|pciutils|nmap|nmap-ncat|psmisc|openssl|fd|zoxide|mtd-utils|ubi-utils|i2c-tools|spi-tools|mmc-utils|e2fsprogs|parted|doom)
+            strace|gdbserver|gdb|curl|dropbear|bash|zsh|tmux|socat|tcpdump|rsync|mtr|iperf3|ethtool|iw|minicom|mosh-client|ripgrep|jq|file|htop|screen|ltrace|readelf|objdump|usbutils|pciutils|nmap|nmap-ncat|psmisc|openssl|fd|zoxide|mtd-utils|ubi-utils|i2c-tools|spi-tools|mmc-utils|e2fsprogs|parted|doom)
                 build_failed_tools="${build_failed_tools:+$build_failed_tools }$_t"
                 ;;
         esac
@@ -453,6 +457,7 @@ if [ "$_build_ok" = "0" ]; then
         -e '^BR2_PACKAGE_STRACE' \
         -e '^BR2_PACKAGE_LIBCURL' \
         -e '^BR2_PACKAGE_DROPBEAR' \
+        -e '^BR2_PACKAGE_BASH' \
         -e '^BR2_PACKAGE_ZSH' \
         -e '^BR2_PACKAGE_TMUX' \
         -e '^BR2_PACKAGE_SOCAT' \
@@ -589,6 +594,9 @@ if tool_requested dropbear && [ -n "${BB_OPERATOR_AUTHORIZED_KEY_FILE:-}" ]; the
     else
         printf '%s\n' "buildroot-build-payload: WARNING: BB_OPERATOR_AUTHORIZED_KEY_FILE not found: $BB_OPERATOR_AUTHORIZED_KEY_FILE" >&2
     fi
+fi
+if tool_requested bash; then
+    stage_first_found bash bin/bash usr/bin/bash || printf '%s\n' "buildroot-build-payload: requested bash but no built binary was found" >&2
 fi
 if tool_requested zsh; then
     stage_first_found zsh bin/zsh usr/bin/zsh || printf '%s\n' "buildroot-build-payload: requested zsh but no built binary was found" >&2

@@ -13,6 +13,7 @@ grep -q 'BB_ZERO_ARG_CUSTOM_COMMAND=' "$menu"
 grep -q 'BB_RSHELL_TRANSPORT=' "$menu"
 grep -q 'BB_RSHELL_AUTHKEYS_MODE=' "$menu"
 grep -q 'BB_DOTFILE_ZSH_MODE=' "$menu"
+grep -q 'BB_DOTFILE_BASH_MODE=' "$menu"
 grep -q 'BB_DOTFILE_TMUX_MODE=' "$menu"
 grep -q 'BB_DOTFILE_GDB_MODE=' "$menu"
 grep -q 'BB_DOTFILE_PROFILE_MODE=' "$menu"
@@ -30,6 +31,16 @@ if grep -q 'default-comfort\\|default-operator\\|default-minimal' "$menu"; then
     exit 1
 fi
 grep -q 'Classic Doom-compatible game runtime' "$menu"
+grep -q 'bash shell \[dotfiles\]' "$menu"
+grep -q 'target binary required from drop-in/user/overlay' "$menu"
+if grep -q -- '--item-help' "$menu"; then
+    printf '%s\n' "menuconfig-autoexec: Misc heavy tools should not use item-help flash behavior" >&2
+    exit 1
+fi
+if grep -q 'provider-only' "$menu"; then
+    printf '%s\n' "menuconfig-autoexec: provider-only wording is still visible" >&2
+    exit 1
+fi
 grep -q 'local/operator-session' "$menu"
 
 if grep -q '"Callbacks:' "$menu" || grep -q 'Post-receive behavior is configured under' "$menu"; then

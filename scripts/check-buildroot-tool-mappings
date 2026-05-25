@@ -10,6 +10,7 @@ TOOL_SYMBOLS = {
     "strace": ["BR2_PACKAGE_STRACE"],
     "curl": ["BR2_PACKAGE_LIBCURL", "BR2_PACKAGE_LIBCURL_CURL"],
     "dropbear": ["BR2_PACKAGE_DROPBEAR", "BR2_PACKAGE_DROPBEAR_CLIENT"],
+    "bash": ["BR2_PACKAGE_BASH"],
     "zsh": ["BR2_PACKAGE_ZSH"],
     "tmux": ["BR2_PACKAGE_TMUX"],
     "gdbserver": ["BR2_PACKAGE_GDB", "BR2_PACKAGE_GDB_SERVER"],

@@ -73,6 +73,9 @@
 #ifndef BB_DOTFILE_ZSH_MODE
 #define BB_DOTFILE_ZSH_MODE "default"
 #endif
+#ifndef BB_DOTFILE_BASH_MODE
+#define BB_DOTFILE_BASH_MODE "default"
+#endif
 #ifndef BB_DOTFILE_TMUX_MODE
 #define BB_DOTFILE_TMUX_MODE "default"
 #endif
@@ -1576,7 +1579,7 @@ int bb_exec_payload_applet(const char *name, int argc, char **argv)
         for (i = 1; i < argc; i++)
             child[i] = argv[i];
         child[argc] = NULL;
-        if (!strcmp(name, "zsh"))
+        if (!strcmp(name, "zsh") || !strcmp(name, "bash"))
             setenv("SHELL", exe, 1);
         ret = exec_payload_command(exe, child, payload);
         free(child);
@@ -1723,6 +1726,8 @@ static void write_manifest_json(FILE *out)
     json_string_payload(out, BB_DOTFILES_ENABLE);
     fprintf(out, ",\"zsh\":");
     json_string_payload(out, BB_DOTFILE_ZSH_MODE);
+    fprintf(out, ",\"bash\":");
+    json_string_payload(out, BB_DOTFILE_BASH_MODE);
     fprintf(out, ",\"tmux\":");
     json_string_payload(out, BB_DOTFILE_TMUX_MODE);
     fprintf(out, ",\"gdb\":");
