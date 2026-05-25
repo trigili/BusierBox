@@ -25,6 +25,7 @@ int applet_extract_main(int argc, char **argv);
 int applet_clean_main(int argc, char **argv);
 int applet_cleanup_ledger_main(int argc, char **argv);
 int applet_config_info_main(int argc, char **argv);
+int applet_config_export_main(int argc, char **argv);
 int applet_doctor_main(int argc, char **argv);
 int applet_fetch_full_main(int argc, char **argv);
 int applet_manifest_main(int argc, char **argv);

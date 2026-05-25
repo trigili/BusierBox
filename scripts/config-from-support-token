@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""Decode a BusierBox support token and emit a rebuild-oriented .conf."""
+
+import argparse
+import base64
+import json
+import subprocess
+import sys
+
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("token", nargs="?", default="-", help="support token text, or '-' for stdin")
+args = parser.parse_args()
+
+if args.token == "-":
+    token = sys.stdin.read()
+else:
+    token = args.token
+token = "".join(token.split())
+
+try:
+    doc = json.loads(base64.b64decode(token, validate=True).decode("utf-8"))
+except Exception as exc:
+    raise SystemExit(f"config-from-support-token: invalid support token: {exc}")
+
+if doc.get("kind") != "busierbox-support-token":
+    raise SystemExit("config-from-support-token: token kind is not busierbox-support-token")
+
+proc = subprocess.run(
+    [sys.executable, "scripts/config-from-manifest", "-"],
+    input=json.dumps(doc),
+    text=True,
+    check=False,
+)
+raise SystemExit(proc.returncode)

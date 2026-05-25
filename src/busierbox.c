@@ -147,6 +147,7 @@ const struct bb_applet bb_applets[] = {
 #if BB_ENABLE_CONFIG_INFO
     {"config-info", applet_config_info_main, "print build and payload information"},
 #endif
+    {"config-export", applet_config_export_main, "export rebuild-oriented artifact config"},
 #if BB_ENABLE_DOCTOR
     {"doctor", applet_doctor_main, "inspect embedded and extracted payload health"},
 #endif
