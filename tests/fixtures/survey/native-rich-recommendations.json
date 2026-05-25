@@ -1,0 +1,42 @@
+{
+  "schema": 2,
+  "uname": {
+    "sysname": "Linux",
+    "nodename": "lab-host",
+    "release": "6.8.0",
+    "version": "#1 SMP",
+    "machine": "x86_64"
+  },
+  "arch": "x86_64",
+  "kernel": "6.8.0",
+  "endianness": "little",
+  "dirs": [
+    {
+      "path": ".",
+      "writable": true,
+      "noexec": false
+    },
+    {
+      "path": "/tmp",
+      "writable": true,
+      "noexec": false
+    }
+  ],
+  "recommendations": {
+    "target_arch_guess": "x86_64",
+    "endian_guess": "little",
+    "kernel_floor_guess": "6.x",
+    "libc_guess": "glibc",
+    "target_preset_guess": "auto",
+    "payload_preset_recommendation": "builtin-core-shell",
+    "runtime_mode_recommendation": "extract",
+    "runtime_root_recommendation": "./.busierbox",
+    "external_writes_recommendation": "no",
+    "rshell_transport_recommendation": "none",
+    "warnings": [
+      "sample warning from native survey"
+    ],
+    "payload_mode_possible": true,
+    "recommended_extract_dir": "."
+  }
+}
