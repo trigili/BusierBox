@@ -100,6 +100,7 @@ smoke-test:
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/gdbserver-workflow.sh; else printf '%s\n' "skip: python3 gdbserver workflow smoke unavailable"; fi
 	@tests/smoke/rshell-transport-names.sh
 	@tests/smoke/rshell-external-writes.sh
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/rshell-status-json.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 rshell status json smoke unavailable"; fi
 	@tests/smoke/stale-ux-text.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/integration-glinet-harness.sh; else printf '%s\n' "skip: python3 integration harness smoke unavailable"; fi
 	@tests/smoke/dotfiles-by-app.sh
