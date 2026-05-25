@@ -358,6 +358,54 @@ static void append_rshell_ledger_setup(char *cmd, size_t cmdsz)
     strcat(cmd, "[ -n \"${5:-}\" ] && printf ',\"backup\":\"%s\"' \"$5\"; printf '}\\n'; } >>\"$bbx_l\" 2>/dev/null || true; }; ");
 }
 
+static void rshell_server_listener(char *out, size_t outsz, const char *transport)
+{
+    if (!strcmp(transport, "ssh")) {
+        snprintf(out, outsz, "scripts/busierbox-server --transport ssh --ssh-port %s", BB_OPERATOR_SERVER_SSH_PORT);
+    } else {
+        const char *server_transport = !strcmp(BB_RSHELL_ENCRYPTION, "none") ? "plain-shell" : "tls-shell";
+        snprintf(out, outsz, "scripts/busierbox-server --transport %s --shell-port %s", server_transport, BB_RSHELL_SOCAT_PORT);
+    }
+}
+
+static void rshell_connect_hint(char *out, size_t outsz, const char *transport)
+{
+    if (!strcmp(transport, "ssh")) {
+        snprintf(out, outsz, "ssh -p %s root@127.0.0.1", BB_OPERATOR_REMOTE_FORWARD_PORT);
+    } else if (!strcmp(BB_RSHELL_ENCRYPTION, "none")) {
+        snprintf(out, outsz, "target opens plaintext shell stream to %s:%s", BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
+    } else {
+        snprintf(out, outsz, "target opens encrypted shell stream to %s:%s", BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
+    }
+}
+
+static void print_rshell_config_status(FILE *out, const char *transport)
+{
+    char target[128], server[256], hint[256];
+
+    snprintf(target, sizeof(target), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
+    rshell_server_listener(server, sizeof(server), transport);
+    rshell_connect_hint(hint, sizeof(hint), transport);
+
+    fprintf(out, "transport=%s\n", transport);
+    fprintf(out, "encryption=%s\n", BB_RSHELL_ENCRYPTION);
+    fprintf(out, "run_mode=%s\n", BB_RSHELL_RUN_MODE);
+    fprintf(out, "operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
+    fprintf(out, "operator_shell_port=%s\n", BB_RSHELL_SOCAT_PORT);
+    fprintf(out, "operator_ssh_port=%s\n", BB_OPERATOR_SERVER_SSH_PORT);
+    fprintf(out, "remote_forward_port=%s\n", BB_OPERATOR_REMOTE_FORWARD_PORT);
+    fprintf(out, "target_dropbear=%s\n", target);
+    fprintf(out, "authkeys_mode=%s\n", BB_RSHELL_AUTHKEYS_MODE);
+    fprintf(out, "shell_provider=%s\n", BB_RSHELL_SHELL_PROVIDER);
+    fprintf(out, "server_listener=%s\n", server);
+    fprintf(out, "connect_hint=%s\n", hint);
+    fprintf(out, "zero_arg_autorun=%s\n", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "yes" : "no");
+    if (strcmp(BB_ZERO_ARG_MODE, "rshell"))
+        fputs("zero_arg_note=This artifact will not initiate reverse access when run with no arguments; start explicitly with './busierbox rshell start'.\n", out);
+    if (strcmp(transport, "ssh") && !strcmp(BB_RSHELL_ENCRYPTION, "none"))
+        fputs("plaintext_warning=INSECURE debug-only plaintext shell transport is configured.\n", out);
+}
+
 static int parse_int_default(const char *s, int def)
 {
     char *end = NULL;
@@ -623,7 +671,12 @@ int applet_rshell_main(int argc, char **argv)
             char line[512], key[128], val[384];
             char rshell_pid[64] = "", dropbear_pid[64] = "", dbclient_pid[64] = "", socat_pid[64] = "";
             char started_at[64] = "", last_exit_reason[256] = "";
+            char target_dropbear[128], server_listener[256], connect_hint[256];
             int first = 1;
+
+            snprintf(target_dropbear, sizeof(target_dropbear), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
+            rshell_server_listener(server_listener, sizeof(server_listener), transport);
+            rshell_connect_hint(connect_hint, sizeof(connect_hint), transport);
 
             while (fp && fgets(line, sizeof(line), fp)) {
                 char *eq = strchr(line, '=');
@@ -657,6 +710,21 @@ int applet_rshell_main(int argc, char **argv)
             json_string_main(stdout, BB_RSHELL_ENCRYPTION);
             printf(",\"run_mode\":");
             json_string_main(stdout, BB_RSHELL_RUN_MODE);
+            printf(",\"operator_host\":");
+            json_string_main(stdout, BB_OPERATOR_SERVER_HOST);
+            printf(",\"operator_shell_port\":");
+            json_string_main(stdout, BB_RSHELL_SOCAT_PORT);
+            printf(",\"operator_ssh_port\":");
+            json_string_main(stdout, BB_OPERATOR_SERVER_SSH_PORT);
+            printf(",\"remote_forward_port\":");
+            json_string_main(stdout, BB_OPERATOR_REMOTE_FORWARD_PORT);
+            printf(",\"target_dropbear\":");
+            json_string_main(stdout, target_dropbear);
+            printf(",\"authkeys_mode\":");
+            json_string_main(stdout, BB_RSHELL_AUTHKEYS_MODE);
+            printf(",\"shell_provider\":");
+            json_string_main(stdout, BB_RSHELL_SHELL_PROVIDER);
+            printf(",\"zero_arg_autorun\":%s", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "true" : "false");
             printf(",\"guard_path\":");
             json_string_main(stdout, guard);
             printf(",\"pids\":{\"rshell\":");
@@ -720,13 +788,23 @@ int applet_rshell_main(int argc, char **argv)
             if (fp)
                 fclose(fp);
             printf("},\"connect_hint\":");
-            json_string_main(stdout, !strcmp(transport, "ssh") ?
-                             "ssh -p 2200 root@127.0.0.1" :
-                             "connect operator listener to configured shell port");
+            json_string_main(stdout, connect_hint);
             printf(",\"server_hint\":");
-            json_string_main(stdout, !strcmp(transport, "ssh") ?
-                             "scripts/busierbox-server --transport ssh --ssh-port 22" :
-                             "scripts/busierbox-server --transport tls-shell --shell-port 22203");
+            json_string_main(stdout, server_listener);
+            printf(",\"server_listener\":");
+            json_string_main(stdout, server_listener);
+            printf(",\"connect_model\":");
+            json_string_main(stdout, !strcmp(transport, "ssh") ? "operator connects through reverse SSH forward" :
+                             (!strcmp(BB_RSHELL_ENCRYPTION, "none") ? "target opens plaintext shell stream to server" :
+                              "target opens encrypted shell stream to server"));
+            if (strcmp(BB_ZERO_ARG_MODE, "rshell")) {
+                printf(",\"zero_arg_note\":");
+                json_string_main(stdout, "This artifact will not initiate reverse access when run with no arguments; start explicitly with './busierbox rshell start'.");
+            }
+            if (strcmp(transport, "ssh") && !strcmp(BB_RSHELL_ENCRYPTION, "none")) {
+                printf(",\"plaintext_warning\":");
+                json_string_main(stdout, "INSECURE debug-only plaintext shell transport is configured.");
+            }
             printf("}\n");
             return 0;
         }
@@ -737,15 +815,18 @@ int applet_rshell_main(int argc, char **argv)
                 fputs(buf, stdout);
             if (fp)
                 fclose(fp);
+            print_rshell_config_status(stdout, transport);
             return 0;
         }
         if (access(lock_path, R_OK) == 0) {
             puts("rshell_status=possibly-active");
             printf("rshell_guard=%s\n", guard);
+            print_rshell_config_status(stdout, transport);
             return 0;
         }
         puts("rshell_status=inactive");
         printf("rshell_guard=%s\n", guard);
+        print_rshell_config_status(stdout, transport);
         return 0;
     }
     if (!strcmp(subcmd, "logs")) {

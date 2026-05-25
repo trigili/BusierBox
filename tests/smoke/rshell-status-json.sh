@@ -26,7 +26,29 @@ import sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-for key in ["state", "transport", "encryption", "run_mode", "guard_path", "pids", "log_paths", "started_at", "last_exit_reason", "connect_hint", "server_hint"]:
+for key in [
+    "state",
+    "transport",
+    "encryption",
+    "run_mode",
+    "operator_host",
+    "operator_shell_port",
+    "operator_ssh_port",
+    "remote_forward_port",
+    "target_dropbear",
+    "authkeys_mode",
+    "shell_provider",
+    "zero_arg_autorun",
+    "guard_path",
+    "pids",
+    "log_paths",
+    "started_at",
+    "last_exit_reason",
+    "connect_hint",
+    "server_hint",
+    "server_listener",
+    "connect_model",
+]:
     if key not in data:
         raise SystemExit(f"missing rshell status key: {key}")
 
@@ -44,7 +66,26 @@ if data["last_exit_reason"] != "none":
     raise SystemExit("last_exit_reason missing")
 if "ssh -p" not in data["connect_hint"]:
     raise SystemExit("connect hint missing")
+if not data["operator_ssh_port"]:
+    raise SystemExit("operator ssh port missing")
+if not data["operator_shell_port"]:
+    raise SystemExit("operator shell port missing")
+if not data["remote_forward_port"]:
+    raise SystemExit("remote forward port missing")
+if ":" not in data["target_dropbear"]:
+    raise SystemExit("target dropbear endpoint missing")
+if f"--ssh-port {data['operator_ssh_port']}" not in data["server_listener"]:
+    raise SystemExit("ssh server listener missing")
+if not data["zero_arg_autorun"] and "zero_arg_note" not in data:
+    raise SystemExit("zero arg note missing for non-autorun artifact")
 PY
+
+BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --transport ssh >"$tmp/status-human.out"
+grep -q '^operator_ssh_port=' "$tmp/status-human.out"
+grep -q '^remote_forward_port=' "$tmp/status-human.out"
+grep -q '^target_dropbear=' "$tmp/status-human.out"
+grep -q '^server_listener=scripts/busierbox-server --transport ssh --ssh-port ' "$tmp/status-human.out"
+grep -q '^zero_arg_autorun=' "$tmp/status-human.out"
 
 rm -f "$tmp/guard/rshell.status"
 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/inactive.json"
