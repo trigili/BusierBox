@@ -6,7 +6,11 @@ BusierBox records BusierBox-controlled runtime changes in:
 ./.busierbox/run/cleanup-ledger.jsonl
 ```
 
-Each line is JSON. The initial ledger tracks top-level runtime roots, payload extraction roots, and clean operations. That is intentionally coarse-grained: it gives operators a safe cleanup view without pretending every extracted payload file has a separate audit entry yet.
+Each line is JSON. The initial ledger tracks top-level runtime roots, payload
+extraction roots, clean operations, explicit recovery hook writes, and explicit
+rshell root authorized-key writes. Extraction tracking is intentionally
+coarse-grained: it gives operators a safe cleanup view without pretending every
+extracted payload file has a separate audit entry yet.
 
 Inspect the ledger:
 
@@ -36,5 +40,10 @@ busierbox rshell cleanup --external --apply
 ```
 
 Default cleanup removes only the BusierBox runtime root. It does not remove `/root/.ssh` entries or other external state unless the operator explicitly requests external cleanup.
+
+When rshell is configured for `root-copy`, a successful creation of
+`/root/.ssh/authorized_keys` is recorded as an external `write`. When configured
+for `root-merge`, BusierBox first records a backup when an existing
+`authorized_keys` file is present, then records the marked-block modification.
 
 No-residue mode is best-effort ephemeral runtime. It removes the selected extraction root after foreground payload commands and records top-level paths in the cleanup ledger, but it is not forensic no-trace execution.

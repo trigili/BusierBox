@@ -342,6 +342,19 @@ static int path_exec(const char *path)
     return path && *path && access(path, X_OK) == 0;
 }
 
+static void append_rshell_ledger_setup(char *cmd, size_t cmdsz)
+{
+    char ledger[PATH_MAX];
+
+    snprintf(ledger, sizeof(ledger), "%s/run/cleanup-ledger.jsonl", BB_RUNTIME_ROOT);
+    strcat(cmd, "bbx_l=");
+    shquote_append(cmd, cmdsz, ledger);
+    strcat(cmd, "; bbx_ld=${bbx_l%/*}; mkdir -p \"$bbx_ld\" 2>/dev/null || true; ");
+    strcat(cmd, "bbx_ledger(){ bbx_ts=$(date +%s 2>/dev/null || printf 0); ");
+    strcat(cmd, "{ printf '{\"op\":\"%s\",\"path\":\"%s\",\"scope\":\"%s\",\"mode\":\"%s\",\"ts\":%s' \"$1\" \"$2\" \"$3\" \"$4\" \"$bbx_ts\"; ");
+    strcat(cmd, "[ -n \"${5:-}\" ] && printf ',\"backup\":\"%s\"' \"$5\"; printf '}\\n'; } >>\"$bbx_l\" 2>/dev/null || true; }; ");
+}
+
 static int parse_int_default(const char *s, int def)
 {
     char *end = NULL;
@@ -554,7 +567,7 @@ int applet_rshell_main(int argc, char **argv)
 {
     char payload[PATH_MAX], payload_lib[PATH_MAX + 16], busybox[PATH_MAX + 16], dropbear[PATH_MAX + 16], dbclient[PATH_MAX + 16], dropbearkey[PATH_MAX + 16], socat[PATH_MAX + 16];
     char hostkey[PATH_MAX + 64], identity[PATH_MAX + 32], authkeys[PATH_MAX + 32], rootssh[PATH_MAX];
-    char cmd[8192] = "";
+    char cmd[16384] = "";
     char shell_cmd[PATH_MAX + 16];
     const char *subcmd = "start";
     const char *transport = BB_RSHELL_TRANSPORT;
@@ -913,23 +926,25 @@ int applet_rshell_main(int argc, char **argv)
     shquote_append(cmd, sizeof(cmd), hostkey);
     strcat(cmd, "); ");
     if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-copy")) {
+        append_rshell_ledger_setup(cmd, sizeof(cmd));
         strcat(cmd, "mkdir -p ");
         shquote_append(cmd, sizeof(cmd), rootssh);
         strcat(cmd, "; ");
         strcat(cmd, "if [ -f ");
         shquote_append(cmd, sizeof(cmd), authkeys);
-        strcat(cmd, " ] && [ ! -f /root/.ssh/authorized_keys ]; then cp ");
+        strcat(cmd, " ] && [ ! -f /root/.ssh/authorized_keys ]; then if cp ");
         shquote_append(cmd, sizeof(cmd), authkeys);
-        strcat(cmd, " /root/.ssh/authorized_keys 2>/dev/null || true; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; fi; ");
+        strcat(cmd, " /root/.ssh/authorized_keys 2>/dev/null; then chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; bbx_ledger write /root/.ssh/authorized_keys external root-copy ''; fi; fi; ");
     } else if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-merge")) {
+        append_rshell_ledger_setup(cmd, sizeof(cmd));
         strcat(cmd, "mkdir -p ");
         shquote_append(cmd, sizeof(cmd), rootssh);
         strcat(cmd, "; ");
         strcat(cmd, "if [ -f ");
         shquote_append(cmd, sizeof(cmd), authkeys);
-        strcat(cmd, " ]; then tmp=/root/.ssh/authorized_keys.busierbox.$$; { sed '/^# BEGIN BUSIERBOX RSHELL$/,/^# END BUSIERBOX RSHELL$/d' /root/.ssh/authorized_keys 2>/dev/null || true; echo '# BEGIN BUSIERBOX RSHELL'; cat ");
+        strcat(cmd, " ]; then tmp=/root/.ssh/authorized_keys.busierbox.$$; bak=''; if [ -f /root/.ssh/authorized_keys ]; then bak=/root/.ssh/authorized_keys.busierbox.bak.$$; cp /root/.ssh/authorized_keys \"$bak\" 2>/dev/null && bbx_ledger backup \"$bak\" external root-merge /root/.ssh/authorized_keys || bak=''; fi; { sed '/^# BEGIN BUSIERBOX RSHELL$/,/^# END BUSIERBOX RSHELL$/d' /root/.ssh/authorized_keys 2>/dev/null || true; echo '# BEGIN BUSIERBOX RSHELL'; cat ");
         shquote_append(cmd, sizeof(cmd), authkeys);
-        strcat(cmd, "; echo '# END BUSIERBOX RSHELL'; } >$tmp && mv $tmp /root/.ssh/authorized_keys 2>/dev/null || rm -f $tmp; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; fi; ");
+        strcat(cmd, "; echo '# END BUSIERBOX RSHELL'; } >$tmp && mv $tmp /root/.ssh/authorized_keys 2>/dev/null && { chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; bbx_ledger modify /root/.ssh/authorized_keys external root-merge \"$bak\"; } || rm -f $tmp; fi; ");
     }
     if (!strcmp(BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING, "yes")) {
         strcat(cmd, "if [ ! -f ");

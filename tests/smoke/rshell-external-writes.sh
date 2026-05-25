@@ -33,6 +33,34 @@ if max(prev_root_copy, prev_root_merge) < 0:
     raise SystemExit("rshell-external-writes: /root/.ssh creation is not gated by root authkeys modes")
 if max(prev_disabled, prev_payload_home) > max(prev_root_copy, prev_root_merge):
     raise SystemExit("rshell-external-writes: disabled/payload-home appear to gate /root/.ssh creation")
+
+root_copy_start = text.find('BB_RSHELL_AUTHKEYS_MODE, "root-copy"')
+root_merge_start = text.find('BB_RSHELL_AUTHKEYS_MODE, "root-merge"')
+hostkey_start = text.find('BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING', root_merge_start)
+if root_copy_start < 0 or root_merge_start < 0 or hostkey_start < 0:
+    raise SystemExit("rshell-external-writes: authkeys mode blocks not found")
+
+root_copy = text[root_copy_start:root_merge_start]
+root_merge = text[root_merge_start:hostkey_start]
+
+for needle in [
+    'append_rshell_ledger_setup(cmd, sizeof(cmd));',
+    'bbx_ledger write /root/.ssh/authorized_keys external root-copy',
+]:
+    if needle not in root_copy:
+        raise SystemExit(f"rshell-external-writes: root-copy missing {needle}")
+
+for needle in [
+    'append_rshell_ledger_setup(cmd, sizeof(cmd));',
+    'bak=/root/.ssh/authorized_keys.busierbox.bak.$$',
+    'bbx_ledger backup',
+    'bbx_ledger modify /root/.ssh/authorized_keys external root-merge',
+]:
+    if needle not in root_merge:
+        raise SystemExit(f"rshell-external-writes: root-merge missing {needle}")
+
+if 'cleanup-ledger.jsonl' not in text:
+    raise SystemExit("rshell-external-writes: rshell ledger path not generated")
 PY
 
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RUNTIME_ALLOW_EXTERNAL_WRITES'
