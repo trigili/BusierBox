@@ -434,6 +434,8 @@ static int path_exists(const char *path)
     return access(path, F_OK) == 0;
 }
 
+static void write_artifact_manifest_file(const char *root);
+
 static int executable_file(const char *path)
 {
     return access(path, X_OK) == 0;
@@ -1248,6 +1250,7 @@ static int ensure_payload(char *payload, size_t payloadsz)
         if (extract_archive_file_to_root(archive, root) != 0)
             return -1;
     }
+    write_artifact_manifest_file(root);
     snprintf(payload, payloadsz, "%s/payload", root);
     return payload_valid(payload) ? 0 : -1;
 }
@@ -1584,6 +1587,141 @@ int applet_list_main(int argc, char **argv)
     return 0;
 }
 
+static void write_manifest_json(FILE *out)
+{
+    int i;
+
+    fprintf(out, "{\"schema\":1,\"busierbox\":{\"payload_version\":");
+    json_string_payload(out, BUSIERBOX_PAYLOAD_VERSION);
+    fprintf(out, ",\"artifact_tier\":");
+    json_string_payload(out, BUSIERBOX_ARTIFACT_TIER);
+    fprintf(out, ",\"build_timestamp\":");
+    json_string_payload(out, BUSIERBOX_BUILD_TIMESTAMP);
+    fprintf(out, ",\"git_commit\":");
+    json_string_payload(out, BUSIERBOX_GIT_COMMIT);
+    fprintf(out, "},\"target\":{\"preset\":");
+    json_string_payload(out, BB_TARGET_PRESET);
+    fprintf(out, ",\"name\":");
+    json_string_payload(out, BB_TARGET_NAME);
+    fprintf(out, ",\"arch\":");
+    json_string_payload(out, BB_TARGET_ARCH);
+    fprintf(out, ",\"endian\":");
+    json_string_payload(out, BB_TARGET_ENDIAN);
+    fprintf(out, ",\"cpu\":");
+    json_string_payload(out, BB_TARGET_CPU);
+    fprintf(out, ",\"abi\":");
+    json_string_payload(out, BB_TARGET_ABI);
+    fprintf(out, ",\"libc\":");
+    json_string_payload(out, BB_TARGET_LIBC);
+    fprintf(out, ",\"kernel_floor\":");
+    json_string_payload(out, BB_KERNEL_FLOOR);
+    fprintf(out, ",\"static_policy\":");
+    json_string_payload(out, BB_STATIC_POLICY);
+    fprintf(out, "},\"payload\":{\"preset\":");
+    json_string_payload(out, BB_PAYLOAD_PRESET);
+    fprintf(out, "},\"runtime\":{\"mode\":");
+    json_string_payload(out, BB_RUNTIME_MODE);
+    fprintf(out, ",\"root\":");
+    json_string_payload(out, BB_RUNTIME_ROOT);
+    fprintf(out, ",\"allow_fallback_root\":");
+    json_string_payload(out, BB_RUNTIME_ALLOW_FALLBACK_ROOT);
+    fprintf(out, ",\"fallback_root\":");
+    json_string_payload(out, BB_RUNTIME_FALLBACK_ROOT);
+    fprintf(out, "},\"zero_arg\":{\"mode\":");
+    json_string_payload(out, BB_ZERO_ARG_MODE);
+    fprintf(out, ",\"log_mode\":");
+    json_string_payload(out, BB_ZERO_ARG_LOG_MODE);
+    fprintf(out, "},\"rshell\":{\"transport\":");
+    json_string_payload(out, BB_RSHELL_TRANSPORT);
+    fprintf(out, ",\"encryption\":");
+    json_string_payload(out, BB_RSHELL_ENCRYPTION);
+    fprintf(out, ",\"run_mode\":");
+    json_string_payload(out, BB_RSHELL_RUN_MODE);
+    fprintf(out, ",\"shell_provider\":");
+    json_string_payload(out, BB_RSHELL_SHELL_PROVIDER);
+    fprintf(out, "},\"dotfiles\":{\"enabled\":");
+    json_string_payload(out, BB_DOTFILES_ENABLE);
+    fprintf(out, ",\"zsh\":");
+    json_string_payload(out, BB_DOTFILE_ZSH_MODE);
+    fprintf(out, ",\"tmux\":");
+    json_string_payload(out, BB_DOTFILE_TMUX_MODE);
+    fprintf(out, ",\"gdb\":");
+    json_string_payload(out, BB_DOTFILE_GDB_MODE);
+    fprintf(out, ",\"profile\":");
+    json_string_payload(out, BB_DOTFILE_PROFILE_MODE);
+    fprintf(out, "},\"overlay\":{\"enabled\":");
+    json_string_payload(out, BB_USER_OVERLAY_ENABLE);
+    fprintf(out, ",\"root\":");
+    json_string_payload(out, BB_USER_OVERLAY_ROOT);
+    fprintf(out, ",\"allow_override\":");
+    json_string_payload(out, BB_USER_OVERLAY_ALLOW_OVERRIDE);
+    fprintf(out, "},\"native_features\":{\"survey\":%s,\"doctor\":%s,\"extract\":%s,\"config_info\":%s",
+#if BB_ENABLE_SURVEY
+           "true",
+#else
+           "false",
+#endif
+#if BB_ENABLE_DOCTOR
+           "true",
+#else
+           "false",
+#endif
+#if BB_ENABLE_EXTRACT
+           "true",
+#else
+           "false",
+#endif
+#if BB_ENABLE_CONFIG_INFO
+           "true"
+#else
+           "false"
+#endif
+    );
+#ifdef HAVE_WOLFSSL
+    fprintf(out, ",\"wolfssl\":true");
+#else
+    fprintf(out, ",\"wolfssl\":false");
+#endif
+    fprintf(out, "},\"payload_tools\":{\"busybox_applets\":[");
+    for (i = 0; busybox_tools[i]; i++) {
+        if (i)
+            fputc(',', out);
+        json_string_payload(out, busybox_tools[i]);
+    }
+    fprintf(out, "],\"heavy_tools\":[");
+    for (i = 0; heavy_tools[i]; i++) {
+        if (i)
+            fputc(',', out);
+        json_string_payload(out, heavy_tools[i]);
+    }
+    fprintf(out, "]}}\n");
+}
+
+static void write_artifact_manifest_file(const char *root)
+{
+    char dir[PATH_MAX], path[PATH_MAX], tmp[PATH_MAX];
+    FILE *fp;
+
+    snprintf(dir, sizeof(dir), "%s/manifest", root);
+    if (mkdir_p(dir, 0700) != 0)
+        return;
+    snprintf(path, sizeof(path), "%s/artifact.json", dir);
+    snprintf(tmp, sizeof(tmp), "%s/artifact.json.tmp.%ld", dir, (long)getpid());
+    fp = fopen(tmp, "w");
+    if (!fp)
+        return;
+    write_manifest_json(fp);
+    if (fclose(fp) != 0) {
+        unlink(tmp);
+        return;
+    }
+    if (rename(tmp, path) != 0) {
+        unlink(tmp);
+        return;
+    }
+    ledger_record("write", path, "runtime", "artifact manifest");
+}
+
 int applet_manifest_main(int argc, char **argv)
 {
     int json = argc > 1 && !strcmp(argv[1], "--json");
@@ -1596,110 +1734,7 @@ int applet_manifest_main(int argc, char **argv)
     }
 
     if (json) {
-        printf("{\"schema\":1,\"busierbox\":{\"payload_version\":");
-        json_string_payload(stdout, BUSIERBOX_PAYLOAD_VERSION);
-        printf(",\"artifact_tier\":");
-        json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
-        printf(",\"build_timestamp\":");
-        json_string_payload(stdout, BUSIERBOX_BUILD_TIMESTAMP);
-        printf(",\"git_commit\":");
-        json_string_payload(stdout, BUSIERBOX_GIT_COMMIT);
-        printf("},\"target\":{\"preset\":");
-        json_string_payload(stdout, BB_TARGET_PRESET);
-        printf(",\"name\":");
-        json_string_payload(stdout, BB_TARGET_NAME);
-        printf(",\"arch\":");
-        json_string_payload(stdout, BB_TARGET_ARCH);
-        printf(",\"endian\":");
-        json_string_payload(stdout, BB_TARGET_ENDIAN);
-        printf(",\"cpu\":");
-        json_string_payload(stdout, BB_TARGET_CPU);
-        printf(",\"abi\":");
-        json_string_payload(stdout, BB_TARGET_ABI);
-        printf(",\"libc\":");
-        json_string_payload(stdout, BB_TARGET_LIBC);
-        printf(",\"kernel_floor\":");
-        json_string_payload(stdout, BB_KERNEL_FLOOR);
-        printf(",\"static_policy\":");
-        json_string_payload(stdout, BB_STATIC_POLICY);
-        printf("},\"payload\":{\"preset\":");
-        json_string_payload(stdout, BB_PAYLOAD_PRESET);
-        printf("},\"runtime\":{\"mode\":");
-        json_string_payload(stdout, BB_RUNTIME_MODE);
-        printf(",\"root\":");
-        json_string_payload(stdout, BB_RUNTIME_ROOT);
-        printf(",\"allow_fallback_root\":");
-        json_string_payload(stdout, BB_RUNTIME_ALLOW_FALLBACK_ROOT);
-        printf(",\"fallback_root\":");
-        json_string_payload(stdout, BB_RUNTIME_FALLBACK_ROOT);
-        printf("},\"zero_arg\":{\"mode\":");
-        json_string_payload(stdout, BB_ZERO_ARG_MODE);
-        printf(",\"log_mode\":");
-        json_string_payload(stdout, BB_ZERO_ARG_LOG_MODE);
-        printf("},\"rshell\":{\"transport\":");
-        json_string_payload(stdout, BB_RSHELL_TRANSPORT);
-        printf(",\"encryption\":");
-        json_string_payload(stdout, BB_RSHELL_ENCRYPTION);
-        printf(",\"run_mode\":");
-        json_string_payload(stdout, BB_RSHELL_RUN_MODE);
-        printf(",\"shell_provider\":");
-        json_string_payload(stdout, BB_RSHELL_SHELL_PROVIDER);
-        printf("},\"dotfiles\":{\"enabled\":");
-        json_string_payload(stdout, BB_DOTFILES_ENABLE);
-        printf(",\"zsh\":");
-        json_string_payload(stdout, BB_DOTFILE_ZSH_MODE);
-        printf(",\"tmux\":");
-        json_string_payload(stdout, BB_DOTFILE_TMUX_MODE);
-        printf(",\"gdb\":");
-        json_string_payload(stdout, BB_DOTFILE_GDB_MODE);
-        printf(",\"profile\":");
-        json_string_payload(stdout, BB_DOTFILE_PROFILE_MODE);
-        printf("},\"overlay\":{\"enabled\":");
-        json_string_payload(stdout, BB_USER_OVERLAY_ENABLE);
-        printf(",\"root\":");
-        json_string_payload(stdout, BB_USER_OVERLAY_ROOT);
-        printf(",\"allow_override\":");
-        json_string_payload(stdout, BB_USER_OVERLAY_ALLOW_OVERRIDE);
-        printf("},\"native_features\":{\"survey\":%s,\"doctor\":%s,\"extract\":%s,\"config_info\":%s",
-#if BB_ENABLE_SURVEY
-               "true",
-#else
-               "false",
-#endif
-#if BB_ENABLE_DOCTOR
-               "true",
-#else
-               "false",
-#endif
-#if BB_ENABLE_EXTRACT
-               "true",
-#else
-               "false",
-#endif
-#if BB_ENABLE_CONFIG_INFO
-               "true"
-#else
-               "false"
-#endif
-        );
-#ifdef HAVE_WOLFSSL
-        printf(",\"wolfssl\":true");
-#else
-        printf(",\"wolfssl\":false");
-#endif
-        printf("},\"payload_tools\":{\"busybox_applets\":[");
-        for (i = 0; busybox_tools[i]; i++) {
-            if (i)
-                putchar(',');
-            json_string_payload(stdout, busybox_tools[i]);
-        }
-        printf("],\"heavy_tools\":[");
-        for (i = 0; heavy_tools[i]; i++) {
-            if (i)
-                putchar(',');
-            json_string_payload(stdout, heavy_tools[i]);
-        }
-        printf("]}}\n");
+        write_manifest_json(stdout);
         return 0;
     }
 
@@ -1780,6 +1815,7 @@ int applet_extract_main(int argc, char **argv)
         fprintf(stderr, "extract: extracted payload failed validation\n");
         return 1;
     }
+    write_artifact_manifest_file(root);
     printf("payload: extracted %s\n", payload);
     return 0;
 }

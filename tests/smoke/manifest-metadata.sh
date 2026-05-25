@@ -2,11 +2,17 @@
 set -eu
 
 bb=${1:-dist/busierbox-native-full}
+tmp=${TMPDIR:-local/tmp}/manifest-metadata
 
 [ -x "$bb" ] || {
     printf '%s\n' "manifest-metadata: missing executable $bb" >&2
     exit 1
 }
+
+case "$bb" in
+    /*) bb_abs=$bb ;;
+    *) bb_abs=$(pwd)/$bb ;;
+esac
 
 python3 - "$bb" <<'PY'
 import json
@@ -61,3 +67,15 @@ for got, want, name in checks:
 
 print("manifest-metadata ok")
 PY
+
+rm -rf "$tmp"
+mkdir -p "$tmp"
+(
+    cd "$tmp"
+    "$bb_abs" extract --force >/dev/null
+    test -f ./.busierbox/manifest/artifact.json
+    python3 -m json.tool ./.busierbox/manifest/artifact.json >/dev/null
+)
+rm -rf "$tmp"
+
+printf '%s\n' "manifest artifact file ok"

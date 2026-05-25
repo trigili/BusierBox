@@ -20,7 +20,11 @@ The JSON manifest includes:
 - native feature flags
 - BusyBox applets and staged heavy tools compiled into the dispatch table
 
-The extracted payload also carries `payload/manifest.json`, produced during packaging. That payload manifest records requested tools, staged tools, missing tools, overlay metadata, gdbserver provider state, BusyBox applets, and payload hashes.
+Extraction writes the artifact manifest to
+`./.busierbox/manifest/artifact.json` next to the runtime payload. The extracted
+payload also carries `payload/manifest.json`, produced during packaging. That
+payload manifest records requested tools, staged tools, missing tools, overlay
+metadata, gdbserver provider state, BusyBox applets, and payload hashes.
 
 Integration runs capture manifest output next to the case logs so each validation run can be tied back to the artifact and preset that produced it.
 
