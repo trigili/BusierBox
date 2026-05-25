@@ -104,6 +104,7 @@ smoke-test:
 	@tests/smoke/stale-ux-text.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/integration-glinet-harness.sh; else printf '%s\n' "skip: python3 integration harness smoke unavailable"; fi
 	@tests/smoke/dotfiles-by-app.sh
+	@tests/smoke/zsh-dotfiles.sh
 	@tests/smoke/runtime-modes.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/recovery.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 recovery smoke unavailable"; fi
 	@tests/smoke/rshell-lifecycle.sh

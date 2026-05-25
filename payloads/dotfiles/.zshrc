@@ -14,4 +14,16 @@ if [ -n "${BUSIERBOX_PAYLOAD_DIR:-}" ] && [ -d "$BUSIERBOX_PAYLOAD_DIR/share/ter
     export TERMINFO_DIRS="$BUSIERBOX_PAYLOAD_DIR/share/terminfo:/usr/share/terminfo:/lib/terminfo"
 fi
 
-autoload -Uz compinit 2>/dev/null && compinit 2>/dev/null
+_bbx_has_zsh_function() {
+    local _bbx_dir
+    for _bbx_dir in $fpath; do
+        [ -r "$_bbx_dir/$1" ] && return 0
+    done
+    return 1
+}
+
+if _bbx_has_zsh_function compinit; then
+    autoload -Uz compinit 2>/dev/null && compinit 2>/dev/null
+fi
+
+unfunction _bbx_has_zsh_function 2>/dev/null || true
