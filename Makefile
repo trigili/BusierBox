@@ -92,6 +92,7 @@ smoke-test: package-native
 	@tests/smoke/menuconfig-validation.sh
 	@tests/smoke/payload-presets.sh
 	@tests/smoke/rshell-transport-names.sh
+	@tests/smoke/rshell-external-writes.sh
 	@tests/smoke/dotfiles-by-app.sh
 	@tests/smoke/runtime-modes.sh
 	@tests/smoke/rshell-lifecycle.sh

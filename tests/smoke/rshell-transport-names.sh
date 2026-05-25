@@ -25,6 +25,7 @@ fi
 grep -q 'BB_RSHELL_ENCRYPTION=' "$menu"
 grep -q 'BB_RSHELL_ALLOW_PLAINTEXT=' "$menu"
 grep -q 'BB_RSHELL_SHELL_PROVIDER=' "$menu"
+grep -q 'BB_RSHELL_RUN_MODE=' "$menu"
 grep -q 'BB_RSHELL_RETRY_COUNT=' "$menu"
 grep -q 'payload-zsh' "$menu"
 
@@ -44,6 +45,7 @@ grep -q 'socat-tls.*socat\|socat.*socat-tls' "$build"
 grep -q 'DBB_RSHELL_ENCRYPTION' "$build"
 grep -q 'DBB_RSHELL_ALLOW_PLAINTEXT' "$build"
 grep -q 'DBB_RSHELL_SHELL_PROVIDER' "$build"
+grep -q 'DBB_RSHELL_RUN_MODE' "$build"
 grep -q 'DBB_RSHELL_RETRY_COUNT' "$build"
 
 stale_server_pattern='--r''shell\|wait-operator''-tunnel\|shell-''again'

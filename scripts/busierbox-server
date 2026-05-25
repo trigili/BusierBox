@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """BusierBox reverse access convenience server.
 
-This helper catches target-initiated reverse-access transports. It does not
-implement the retired BusierBox framed artifact-upload protocol.
+This helper catches target-initiated reverse-access transports. It is not an
+artifact sender or target-side command executor.
 
 Transport model:
   ssh        — Dropbear/dbclient reverse SSH (BB_RSHELL_TRANSPORT=ssh)

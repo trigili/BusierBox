@@ -52,4 +52,12 @@ if grep 'BB_AUTORUN_GUARD_PATH' "$src" | grep -q '"/tmp/busierbox-autorun"'; the
 fi
 grep -q 'BB_RUNTIME_ROOT.*run\|BB_AUTORUN_GUARD_PATH.*run' "$src"
 
+if [ -f src/rshell_tls.c ]; then
+    if grep -q 'wolfSSL_get_error(ssl, 0)' src/rshell_tls.c; then
+        printf '%s\n' "rshell-lifecycle: wolfSSL_connect error path ignores actual return code" >&2
+        exit 1
+    fi
+    grep -q 'SIGPIPE, SIG_IGN' src/rshell_tls.c
+fi
+
 printf '%s\n' "rshell-lifecycle ok"
