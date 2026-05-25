@@ -3,7 +3,7 @@
   "presets": [
     {
       "preset_name": "default",
-      "description": "Blank target configuration — no architecture or libc assumed",
+      "description": "Blank target configuration \u2014 no architecture or libc assumed",
       "arch": "",
       "endian": "auto",
       "cpu": "generic",
@@ -14,7 +14,9 @@
       "payload_tier": "core",
       "qemu_user": "",
       "support_status": "blank",
-      "notes": "Empty starting point. Select a real preset or set fields manually before building."
+      "notes": "Empty starting point. Select a real preset or set fields manually before building.",
+      "category": "default",
+      "display_path": "default"
     },
     {
       "preset_name": "native",
@@ -29,7 +31,9 @@
       "payload_tier": "core",
       "qemu_user": "native",
       "support_status": "supported",
-      "notes": "Uses the host compiler and BusyBox submodule."
+      "notes": "Uses the host compiler and BusyBox submodule.",
+      "category": "native",
+      "display_path": "native"
     },
     {
       "preset_name": "glinet-mt7621-openwrt-musl",
@@ -44,7 +48,9 @@
       "payload_tier": "debug",
       "qemu_user": "qemu-mipsel-static",
       "support_status": "supported",
-      "notes": "Tuple-generated Buildroot backend for modern OpenWrt/ramips MT7621-class devices."
+      "notes": "Tuple-generated Buildroot backend for modern OpenWrt/ramips MT7621-class devices.",
+      "category": "specific-targets/openwrt-routers",
+      "display_path": "specific-targets/openwrt-routers/glinet-mt7621-openwrt-musl"
     },
     {
       "preset_name": "tplink-archer-a7-v5-openwrt-uclibc",
@@ -59,7 +65,9 @@
       "payload_tier": "debug",
       "qemu_user": "qemu-mips-static",
       "support_status": "supported",
-      "notes": "Derived from local fw2tar/Penguin inspection of Archer A7(US) V5 211022: BusyBox is ELF 32-bit MSB MIPS32r2 with /lib/ld-uClibc.so.0; module dir 3.3.8."
+      "notes": "Derived from local fw2tar/Penguin inspection of Archer A7(US) V5 211022: BusyBox is ELF 32-bit MSB MIPS32r2 with /lib/ld-uClibc.so.0; module dir 3.3.8.",
+      "category": "specific-targets/openwrt-routers",
+      "display_path": "specific-targets/openwrt-routers/tplink-archer-a7-v5-openwrt-uclibc"
     },
     {
       "preset_name": "tplink-archer-ax1800-v56-openwrt-musl",
@@ -74,7 +82,9 @@
       "payload_tier": "debug",
       "qemu_user": "qemu-arm-static",
       "support_status": "supported",
-      "notes": "Derived from local fw2tar/Penguin inspection of Archer AX1800(USW) V5.6 250814 ax1800.ubi: BusyBox is ELF 32-bit LSB ARM EABI5 with /lib/ld-musl-arm.so.1; OpenWrt target board_ipq50xx/generic; module dir 4.4.60."
+      "notes": "Derived from local fw2tar/Penguin inspection of Archer AX1800(USW) V5.6 250814 ax1800.ubi: BusyBox is ELF 32-bit LSB ARM EABI5 with /lib/ld-musl-arm.so.1; OpenWrt target board_ipq50xx/generic; module dir 4.4.60.",
+      "category": "specific-targets/openwrt-routers",
+      "display_path": "specific-targets/openwrt-routers/tplink-archer-ax1800-v56-openwrt-musl"
     },
     {
       "preset_name": "asus-rt-n16-uclibc",
@@ -89,22 +99,9 @@
       "payload_tier": "debug",
       "qemu_user": "qemu-mipsel-static",
       "support_status": "supported",
-      "notes": "Derived from local fw2tar/Penguin inspection of FW_RT_N16_30043807378: BusyBox is ELF 32-bit LSB MIPS with /lib/ld-uClibc.so.0; module dir 2.6.22.19."
-    },
-    {
-      "preset_name": "dlink-dir-615-revc-uclibc",
-      "description": "D-Link DIR-615 RevC MIPS big-endian uClibc",
-      "arch": "mips",
-      "endian": "big",
-      "cpu": "mips32-24kc",
-      "abi": "default",
-      "libc": "uclibc",
-      "kernel_floor": "2.6",
-      "static_policy": "static-preferred",
-      "payload_tier": "core",
-      "qemu_user": "qemu-mips-static",
-      "support_status": "supported",
-      "notes": "Derived from local fw2tar/Penguin inspection of DIR-615_REVC_FIRMWARE_3.00: BusyBox is ELF 32-bit MSB MIPS with /lib/ld-uClibc.so.0; rootfs has 2.4/2.6 module dirs, so this preset uses the conservative 2.6 generated toolchain tuple."
+      "notes": "Derived from local fw2tar/Penguin inspection of FW_RT_N16_30043807378: BusyBox is ELF 32-bit LSB MIPS with /lib/ld-uClibc.so.0; module dir 2.6.22.19.",
+      "category": "specific-targets/legacy-routers",
+      "display_path": "specific-targets/legacy-routers/asus-rt-n16-uclibc"
     },
     {
       "preset_name": "dlink-dir-300-a1-uclibc",
@@ -119,7 +116,26 @@
       "payload_tier": "core",
       "qemu_user": "qemu-mips-static",
       "support_status": "supported",
-      "notes": "Derived from local fw2tar/Penguin inspection of DIR-300A1_FW105b09.bin: BusyBox/rootfs are ELF 32-bit MSB MIPS/uClibc and binwalk reported Linux kernel version 2.4.25 in the firmware image."
+      "notes": "Derived from local fw2tar/Penguin inspection of DIR-300A1_FW105b09.bin: BusyBox/rootfs are ELF 32-bit MSB MIPS/uClibc and binwalk reported Linux kernel version 2.4.25 in the firmware image.",
+      "category": "specific-targets/legacy-routers",
+      "display_path": "specific-targets/legacy-routers/dlink-dir-300-a1-uclibc"
+    },
+    {
+      "preset_name": "dlink-dir-615-revc-uclibc",
+      "description": "D-Link DIR-615 RevC MIPS big-endian uClibc",
+      "arch": "mips",
+      "endian": "big",
+      "cpu": "mips32-24kc",
+      "abi": "default",
+      "libc": "uclibc",
+      "kernel_floor": "2.6",
+      "static_policy": "static-preferred",
+      "payload_tier": "core",
+      "qemu_user": "qemu-mips-static",
+      "support_status": "supported",
+      "notes": "Derived from local fw2tar/Penguin inspection of DIR-615_REVC_FIRMWARE_3.00: BusyBox is ELF 32-bit MSB MIPS with /lib/ld-uClibc.so.0; rootfs has 2.4/2.6 module dirs, so this preset uses the conservative 2.6 generated toolchain tuple.",
+      "category": "specific-targets/legacy-routers",
+      "display_path": "specific-targets/legacy-routers/dlink-dir-615-revc-uclibc"
     },
     {
       "preset_name": "linksys-wrt54g-v5-ddwrt-uclibc",
@@ -134,7 +150,9 @@
       "payload_tier": "core",
       "qemu_user": "qemu-mipsel-static",
       "support_status": "supported",
-      "notes": "Derived from local fw2tar/Penguin inspection of Gv5Flash.zip/dd-wrt.v24-12548_NEWD_micro.bin: BusyBox is ELF 32-bit LSB MIPS with /lib/ld-uClibc.so.0 and module dir 2.4.37."
+      "notes": "Derived from local fw2tar/Penguin inspection of Gv5Flash.zip/dd-wrt.v24-12548_NEWD_micro.bin: BusyBox is ELF 32-bit LSB MIPS with /lib/ld-uClibc.so.0 and module dir 2.4.37.",
+      "category": "specific-targets/legacy-routers",
+      "display_path": "specific-targets/legacy-routers/linksys-wrt54g-v5-ddwrt-uclibc"
     },
     {
       "preset_name": "netgear-wndr3700-v1-uclibc",
@@ -149,7 +167,9 @@
       "payload_tier": "debug",
       "qemu_user": "qemu-mips-static",
       "support_status": "supported",
-      "notes": "Derived from local fw2tar/Penguin inspection of WNDR3700 Initial Release Firmware v1.0.4.31 NA: BusyBox is ELF 32-bit MSB MIPS/uClibc and module dir 2.6.15."
+      "notes": "Derived from local fw2tar/Penguin inspection of WNDR3700 Initial Release Firmware v1.0.4.31 NA: BusyBox is ELF 32-bit MSB MIPS/uClibc and module dir 2.6.15.",
+      "category": "specific-targets/legacy-routers",
+      "display_path": "specific-targets/legacy-routers/netgear-wndr3700-v1-uclibc"
     },
     {
       "preset_name": "mipsel-linux-2.6-uclibc-legacy",
@@ -164,7 +184,9 @@
       "payload_tier": "core",
       "qemu_user": "qemu-mipsel-static",
       "support_status": "supported",
-      "notes": "Matches the existing hand-written legacy Buildroot profile."
+      "notes": "Matches the existing hand-written legacy Buildroot profile.",
+      "category": "generic-archs/mips",
+      "display_path": "generic-archs/mips/mipsel-linux-2.6-uclibc-legacy"
     },
     {
       "preset_name": "armv7-linux-3.x-musl",
@@ -179,7 +201,9 @@
       "payload_tier": "core",
       "qemu_user": "qemu-arm-static",
       "support_status": "supported",
-      "notes": "Buildroot-generated ARMv7 musl tuple."
+      "notes": "Buildroot-generated ARMv7 musl tuple.",
+      "category": "generic-archs/arm",
+      "display_path": "generic-archs/arm/armv7-linux-3.x-musl"
     },
     {
       "preset_name": "aarch64-linux-4.x-musl",
@@ -194,7 +218,9 @@
       "payload_tier": "core",
       "qemu_user": "qemu-aarch64-static",
       "support_status": "supported",
-      "notes": "Buildroot-generated AArch64 musl tuple."
+      "notes": "Buildroot-generated AArch64 musl tuple.",
+      "category": "generic-archs/aarch64",
+      "display_path": "generic-archs/aarch64/aarch64-linux-4.x-musl"
     },
     {
       "preset_name": "x86_64-linux-current-musl",
@@ -209,7 +235,9 @@
       "payload_tier": "core",
       "qemu_user": "qemu-x86_64-static",
       "support_status": "supported",
-      "notes": "Buildroot-generated x86_64 musl tuple."
+      "notes": "Buildroot-generated x86_64 musl tuple.",
+      "category": "generic-archs/x86",
+      "display_path": "generic-archs/x86/x86_64-linux-current-musl"
     }
   ]
 }

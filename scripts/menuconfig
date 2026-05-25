@@ -1043,7 +1043,8 @@ with open("targets/presets.json", "r", encoding="utf-8") as fh:
 args = []
 for p in data.get("presets", []):
     name = p.get("preset_name", "")
-    desc = f"{p.get('support_status', '')}: {p.get('description', '')}"
+    display = p.get("display_path") or name
+    desc = f"{p.get('support_status', '')}: {display} - {p.get('description', '')}"
     args.extend([name, desc, "on" if name == selected else "off"])
 print(" ".join(shlex.quote(arg) for arg in args))
 PY
@@ -1077,8 +1078,9 @@ for p in data.get("presets", []):
     status = p.get("support_status", "")
     if status == "blank":
         continue
+    display = p.get("display_path") or name
     desc = p.get("description", "")
-    args.extend([name, f"{status}: {desc}", "on" if name in selected else "off"])
+    args.extend([name, f"{status}: {display} - {desc}", "on" if name in selected else "off"])
 if not args:
     args = ["native", "native host build", "on" if "native" in selected else "off"]
 print(" ".join(shlex.quote(arg) for arg in args))

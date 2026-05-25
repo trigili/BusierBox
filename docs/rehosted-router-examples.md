@@ -35,6 +35,14 @@ The following presets are in `targets/presets.json`:
 - `tplink-archer-a7-v5-openwrt-uclibc`: big-endian MIPS32r2 uClibc, module dir `3.3.8`
 - `tplink-archer-ax1800-v56-openwrt-musl`: ARM EABI musl, OpenWrt target `board_ipq50xx/generic`, module dir `4.4.60`
 - `asus-rt-n16-uclibc`: little-endian MIPS uClibc, module dir `2.6.22.19`
+
+Preset list layout:
+
+- `default` and `native` stay at the top because they are the safest starting points.
+- Specific router targets live under `specific-targets/...` display paths, for example `specific-targets/legacy-routers/asus-rt-n16-uclibc`.
+- Generic architecture tuples live under `generic-archs/...`, for example `generic-archs/arm/armv7-linux-3.x-musl`.
+
+Use `scripts/resolve-target --list-tree` for a grouped view without changing the stable tabular `--list` output used by scripts.
 - `dlink-dir-615-revc-uclibc`: big-endian MIPS uClibc, conservative `2.6` tuple because the rootfs contains multiple legacy module dirs
 - `dlink-dir-300-a1-uclibc`: big-endian MIPS uClibc, binwalk reported Linux `2.4.25`
 - `linksys-wrt54g-v5-ddwrt-uclibc`: little-endian MIPS uClibc, DD-WRT micro module dir `2.4.37`
