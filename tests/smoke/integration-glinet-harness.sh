@@ -20,6 +20,7 @@ done
 
 "$script" --dry-run --all-safe --operator-host 127.0.0.1 >/dev/null
 scripts/busierbox-bringup --host root@192.0.2.1 --dry-run >/dev/null
+scripts/busierbox-bringup --host root@192.0.2.1 --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json >/dev/null
 
 grep -q 'capture_busierbox_outputs' "$script"
 grep -q 'manifest --json' "$script"
