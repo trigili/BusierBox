@@ -26,6 +26,7 @@ int applet_config_info_main(int argc, char **argv);
 int applet_doctor_main(int argc, char **argv);
 int applet_fetch_full_main(int argc, char **argv);
 int applet_manifest_main(int argc, char **argv);
+int applet_recovery_main(int argc, char **argv);
 int applet_rshell_main(int argc, char **argv);
 
 #include "rshell_tls.h"

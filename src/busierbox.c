@@ -154,6 +154,7 @@ const struct bb_applet bb_applets[] = {
     {"fetch-full", applet_fetch_full_main, "download a full BusierBox artifact"},
 #endif
     {"manifest", applet_manifest_main, "print artifact manifest metadata"},
+    {"recovery", applet_recovery_main, "survey and manage explicit reboot recovery hooks"},
     {"rshell", applet_rshell_main, "start configured reverse shell transport"},
 };
 

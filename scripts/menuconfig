@@ -105,6 +105,7 @@ BB_DOTFILE_PROFILE_USER_FILE=""
 BB_GDBSERVER_PROVIDER="auto"
 BB_GDBSERVER_USER_PATH=""
 BB_DOOM_USER_PATH=""
+BB_RECOVERY_BINARY_NAME="busierbox_recovery"
 BB_USER_OVERLAY_ENABLE="no"
 BB_USER_OVERLAY_ROOT="./overlay"
 BB_USER_OVERLAY_ALLOW_OVERRIDE="no"
@@ -264,6 +265,7 @@ BB_DROPBEAR_PREGENERATE_HOSTKEY
 BB_GDBSERVER_PROVIDER
 BB_GDBSERVER_USER_PATH
 BB_DOOM_USER_PATH
+BB_RECOVERY_BINARY_NAME
 EOF
 }
 
@@ -466,6 +468,7 @@ BB_DOTFILE_PROFILE_USER_FILE="$BB_DOTFILE_PROFILE_USER_FILE"
 BB_GDBSERVER_PROVIDER="$BB_GDBSERVER_PROVIDER"
 BB_GDBSERVER_USER_PATH="$BB_GDBSERVER_USER_PATH"
 BB_DOOM_USER_PATH="$BB_DOOM_USER_PATH"
+BB_RECOVERY_BINARY_NAME="$BB_RECOVERY_BINARY_NAME"
 BB_USER_OVERLAY_ENABLE="$BB_USER_OVERLAY_ENABLE"
 BB_USER_OVERLAY_ROOT="$BB_USER_OVERLAY_ROOT"
 BB_USER_OVERLAY_ALLOW_OVERRIDE="$BB_USER_OVERLAY_ALLOW_OVERRIDE"
@@ -2499,11 +2502,12 @@ configure_applet_configuration() {
             has_item "$BB_HEAVY_TOOLS" "gdbserver" || _gdb_status="not selected"
         fi
         dialog --title "Payload / Applet configuration" \
-            --menu "Configure options for selected payload applets and operator comfort. Main tool selection remains under BusyBox applet groups and Heavy tools." 20 86 6 \
+            --menu "Configure options for selected payload applets and operator comfort. Main tool selection remains under BusyBox applet groups and Heavy tools." 21 86 7 \
             "1" "Dropbear SSH options (server=$_db_status)" \
             "2" "gdbserver provider ($_gdb_status)" \
             "3" "Reverse shell" \
             "4" "Dotfiles by app" \
+            "5" "Recovery binary name: $BB_RECOVERY_BINARY_NAME" \
             "H" "Help" \
             "0" "Back" \
             2>"$temp_out" || return 0
@@ -2513,6 +2517,13 @@ configure_applet_configuration() {
             2) configure_gdbserver_provider ;;
             3) configure_reverse_shell ;;
             4) configure_dotfiles ;;
+            5)
+                dialog --title "Recovery binary name" \
+                    --inputbox "Default filename used by recovery install plans.\nInstallation still requires an explicit recovery install command." \
+                    10 78 "$BB_RECOVERY_BINARY_NAME" 2>"$temp_out" || true
+                _v=$(cat "$temp_out")
+                [ -n "$_v" ] && BB_RECOVERY_BINARY_NAME="$_v"
+                ;;
             H) show_page_help rshell ;;
             0) return 0 ;;
         esac

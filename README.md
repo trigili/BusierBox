@@ -333,6 +333,8 @@ Doctor also reports payload identity/staleness, applet symlink count, overlay st
 
 `./busierbox config-info` reports the BusierBox build, extraction status, payload directory, payload hash, BusyBox dispatch status, and the payload manifest summary when available.
 
+`./busierbox recovery --survey` and `./busierbox recovery --plan` enumerate authorized lab reboot-recovery options without changing the target. Installation requires an explicit method plus `--dry-run` or `--external --apply`, and writes are recorded in the cleanup ledger.
+
 ## Tiers
 
 Tier 0: BusierBox supervisor.
