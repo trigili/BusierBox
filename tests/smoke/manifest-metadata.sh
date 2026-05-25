@@ -46,6 +46,13 @@ required = [
     ("runtime", "root"),
     ("zero_arg", "mode"),
     ("rshell", "transport"),
+    ("rshell", "operator_host"),
+    ("rshell", "operator_shell_port"),
+    ("rshell", "operator_ssh_port"),
+    ("rshell", "remote_forward_port"),
+    ("rshell", "target_dropbear"),
+    ("rshell", "authkeys_mode"),
+    ("rshell", "retry"),
     ("dotfiles", "enabled"),
     ("overlay", "enabled"),
 ]
@@ -60,10 +67,17 @@ checks = [
     (manifest["runtime"]["root"], config.get("runtime_root"), "runtime_root"),
     (manifest["zero_arg"]["mode"], config.get("zero_arg_mode"), "zero_arg_mode"),
     (manifest["rshell"]["transport"], config.get("rshell_transport"), "rshell_transport"),
+    (manifest["rshell"]["operator_shell_port"], config.get("rshell_socat_port"), "rshell_socat_port"),
+    (manifest["rshell"]["remote_forward_port"], config.get("operator_reverse_ssh_catch_hint", "").split()[2] if config.get("operator_reverse_ssh_catch_hint") else None, "remote_forward_port"),
 ]
 for got, want, name in checks:
     if got != want:
         raise SystemExit(f"manifest-metadata: {name} mismatch: manifest={got!r} config-info={want!r}")
+
+retry = manifest["rshell"]["retry"]
+for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec"]:
+    if key not in retry:
+        raise SystemExit(f"manifest-metadata: missing rshell.retry.{key}")
 
 print("manifest-metadata ok")
 PY
