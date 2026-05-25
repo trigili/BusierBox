@@ -45,22 +45,39 @@ esac
 
 eval "$resolved"
 
+BB_RSHELL_TRANSPORT=${BB_RSHELL_TRANSPORT:-${BB_RSHELL_MODE:-ssh}}
+BB_BUILTIN_TLS_ENABLE=${BB_BUILTIN_TLS_ENABLE:-no}
 BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
 BB_BUSYBOX_GROUPS=${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}
 BB_BUSYBOX_APPLETS=${BB_BUSYBOX_APPLETS:-}
 BB_BUSYBOX_APPLET_OVERRIDES=${BB_BUSYBOX_APPLET_OVERRIDES:-}
-BB_DOTFILE_PROFILE=${BB_DOTFILE_PROFILE:-default-comfort}
-BB_DOTFILE_APPS=${BB_DOTFILE_APPS:-profile zsh tmux gdb}
-BB_DOTFILE_USER_PATH=${BB_DOTFILE_USER_PATH:-}
+BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-yes}
+BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-default}
+BB_DOTFILE_ZSH_USER_FILE=${BB_DOTFILE_ZSH_USER_FILE:-}
+BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-default}
+BB_DOTFILE_TMUX_USER_FILE=${BB_DOTFILE_TMUX_USER_FILE:-}
+BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-default}
+BB_DOTFILE_GDB_USER_FILE=${BB_DOTFILE_GDB_USER_FILE:-}
+BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-default}
+BB_DOTFILE_PROFILE_USER_FILE=${BB_DOTFILE_PROFILE_USER_FILE:-}
 if [ -f "$config" ]; then
     . "$config"
+    BB_RSHELL_TRANSPORT=${BB_RSHELL_TRANSPORT:-${BB_RSHELL_MODE:-ssh}}
+    # Derive BB_BUILTIN_TLS_ENABLE from transport, consistent with menuconfig
+    [ "$BB_RSHELL_TRANSPORT" = builtin ] && BB_BUILTIN_TLS_ENABLE=yes || BB_BUILTIN_TLS_ENABLE=no
     BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
     BB_BUSYBOX_GROUPS=${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}
     BB_BUSYBOX_APPLETS=${BB_BUSYBOX_APPLETS:-}
     BB_BUSYBOX_APPLET_OVERRIDES=${BB_BUSYBOX_APPLET_OVERRIDES:-}
-    BB_DOTFILE_PROFILE=${BB_DOTFILE_PROFILE:-default-comfort}
-    BB_DOTFILE_APPS=${BB_DOTFILE_APPS:-profile zsh tmux gdb}
-    BB_DOTFILE_USER_PATH=${BB_DOTFILE_USER_PATH:-}
+    BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-yes}
+    BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-default}
+    BB_DOTFILE_ZSH_USER_FILE=${BB_DOTFILE_ZSH_USER_FILE:-}
+    BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-default}
+    BB_DOTFILE_TMUX_USER_FILE=${BB_DOTFILE_TMUX_USER_FILE:-}
+    BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-default}
+    BB_DOTFILE_GDB_USER_FILE=${BB_DOTFILE_GDB_USER_FILE:-}
+    BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-default}
+    BB_DOTFILE_PROFILE_USER_FILE=${BB_DOTFILE_PROFILE_USER_FILE:-}
     BB_GDBSERVER_PROVIDER=${BB_GDBSERVER_PROVIDER:-auto}
     BB_GDBSERVER_USER_PATH=${BB_GDBSERVER_USER_PATH:-}
     BB_USER_OVERLAY_ENABLE=${BB_USER_OVERLAY_ENABLE:-no}
@@ -302,6 +319,12 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
         printf '%s\n' "BR2_PACKAGE_NCURSES_WCHAR=y"
         printf '%s\n' "BR2_PACKAGE_NCURSES_ADDITIONAL_TERMINFO=\"t/tmux t/tmux-256color\""
     fi
+    # wolfSSL: required by builtin transport; built in the cross sysroot so
+    # package-target can auto-detect staging/usr/include and staging/usr/lib.
+    if [ "$BB_BUILTIN_TLS_ENABLE" = yes ]; then
+        printf '%s\n' "BR2_PACKAGE_WOLFSSL=y"
+        printf '%s\n' "BR2_PACKAGE_WOLFSSL_OPENSSLEXTRA=y"
+    fi
     printf '%s\n' "BR2_TARGET_ROOTFS_TAR=y"
 } >"$defconfig"
 
@@ -323,9 +346,15 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
         check_tool_build_compat "$tool" || true
         printf '%s\n' "EXCLUDED_REASON_${tool} := ${EXCLUSION_REASON:-known build failure for this tuple}"
     done
-    printf '%s\n' "DOTFILE_PROFILE := ${BB_DOTFILE_PROFILE:-default-comfort}"
-    printf '%s\n' "DOTFILE_APPS := ${BB_DOTFILE_APPS:-profile zsh tmux gdb}"
-    printf '%s\n' "DOTFILE_USER_PATH := ${BB_DOTFILE_USER_PATH:-}"
+    printf '%s\n' "DOTFILES_ENABLE := ${BB_DOTFILES_ENABLE:-yes}"
+    printf '%s\n' "DOTFILE_ZSH_MODE := ${BB_DOTFILE_ZSH_MODE:-default}"
+    printf '%s\n' "DOTFILE_ZSH_USER_FILE := ${BB_DOTFILE_ZSH_USER_FILE:-}"
+    printf '%s\n' "DOTFILE_TMUX_MODE := ${BB_DOTFILE_TMUX_MODE:-default}"
+    printf '%s\n' "DOTFILE_TMUX_USER_FILE := ${BB_DOTFILE_TMUX_USER_FILE:-}"
+    printf '%s\n' "DOTFILE_GDB_MODE := ${BB_DOTFILE_GDB_MODE:-default}"
+    printf '%s\n' "DOTFILE_GDB_USER_FILE := ${BB_DOTFILE_GDB_USER_FILE:-}"
+    printf '%s\n' "DOTFILE_PROFILE_MODE := ${BB_DOTFILE_PROFILE_MODE:-default}"
+    printf '%s\n' "DOTFILE_PROFILE_USER_FILE := ${BB_DOTFILE_PROFILE_USER_FILE:-}"
     printf '%s\n' "OPERATOR_DBCLIENT_IDENTITY_FILE := ${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-}"
     printf '%s\n' "OPERATOR_AUTHORIZED_KEY_FILE := ${BB_OPERATOR_AUTHORIZED_KEY_FILE:-}"
     printf '%s\n' "BUSYBOX_GROUPS := $BB_BUSYBOX_GROUPS"

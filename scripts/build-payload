@@ -4,6 +4,16 @@ set -eu
 TARGET=${TARGET:-native}
 _pf_from_env=${PAYLOAD_FORMAT:-}
 _ver_from_env=${BUSIERBOX_PAYLOAD_VERSION:-}
+_runtime_from_env=${BB_RUNTIME_MODE:-}
+_dotfiles_enable_from_env=${BB_DOTFILES_ENABLE:-}
+_dot_zsh_mode_from_env=${BB_DOTFILE_ZSH_MODE:-}
+_dot_zsh_file_from_env=${BB_DOTFILE_ZSH_USER_FILE:-}
+_dot_tmux_mode_from_env=${BB_DOTFILE_TMUX_MODE:-}
+_dot_tmux_file_from_env=${BB_DOTFILE_TMUX_USER_FILE:-}
+_dot_gdb_mode_from_env=${BB_DOTFILE_GDB_MODE:-}
+_dot_gdb_file_from_env=${BB_DOTFILE_GDB_USER_FILE:-}
+_dot_profile_mode_from_env=${BB_DOTFILE_PROFILE_MODE:-}
+_dot_profile_file_from_env=${BB_DOTFILE_PROFILE_USER_FILE:-}
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 
 if [ "$TARGET" != "native" ]; then
@@ -47,40 +57,54 @@ BB_OPERATOR_DBCLIENT_IDENTITY_FILE="${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-}"
 BB_USER_OVERLAY_ENABLE="${BB_USER_OVERLAY_ENABLE:-no}"
 BB_USER_OVERLAY_ROOT="${BB_USER_OVERLAY_ROOT:-}"
 BB_USER_OVERLAY_ALLOW_OVERRIDE="${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}"
-BB_DOTFILE_PROFILE="${BB_DOTFILE_PROFILE:-default-comfort}"
-BB_DOTFILE_APPS="${BB_DOTFILE_APPS:-profile zsh tmux gdb}"
-BB_DOTFILE_USER_PATH="${BB_DOTFILE_USER_PATH:-}"
-
-dotfile_selected() {
-    _needle=$1
-    for _x in $BB_DOTFILE_APPS; do
-        [ "$_x" = "$_needle" ] && return 0
-    done
-    return 1
-}
+BB_RUNTIME_MODE="${_runtime_from_env:-${BB_RUNTIME_MODE:-extract}}"
+BB_DOTFILES_ENABLE="${_dotfiles_enable_from_env:-${BB_DOTFILES_ENABLE:-yes}}"
+BB_DOTFILE_ZSH_MODE="${_dot_zsh_mode_from_env:-${BB_DOTFILE_ZSH_MODE:-default}}"
+BB_DOTFILE_ZSH_USER_FILE="${_dot_zsh_file_from_env:-${BB_DOTFILE_ZSH_USER_FILE:-}}"
+BB_DOTFILE_TMUX_MODE="${_dot_tmux_mode_from_env:-${BB_DOTFILE_TMUX_MODE:-default}}"
+BB_DOTFILE_TMUX_USER_FILE="${_dot_tmux_file_from_env:-${BB_DOTFILE_TMUX_USER_FILE:-}}"
+BB_DOTFILE_GDB_MODE="${_dot_gdb_mode_from_env:-${BB_DOTFILE_GDB_MODE:-default}}"
+BB_DOTFILE_GDB_USER_FILE="${_dot_gdb_file_from_env:-${BB_DOTFILE_GDB_USER_FILE:-}}"
+BB_DOTFILE_PROFILE_MODE="${_dot_profile_mode_from_env:-${BB_DOTFILE_PROFILE_MODE:-default}}"
+BB_DOTFILE_PROFILE_USER_FILE="${_dot_profile_file_from_env:-${BB_DOTFILE_PROFILE_USER_FILE:-}}"
 
 stage_dotfiles() {
-    _profile=$BB_DOTFILE_PROFILE
-    _src=payloads/dotfiles
-    case "$_profile" in
-        none) return 0 ;;
-        user-supplied)
-            if [ -n "$BB_DOTFILE_USER_PATH" ] && [ -d "$BB_DOTFILE_USER_PATH" ]; then
-                _src="$BB_DOTFILE_USER_PATH"
-            fi
-            if [ "$_src" != "$BB_DOTFILE_USER_PATH" ]; then
-                printf '%s\n' "build-payload: user-supplied dotfiles path not found: $BB_DOTFILE_USER_PATH; using default-comfort" >&2
-                _profile=default-comfort
-            fi
+    [ "$BB_DOTFILES_ENABLE" = yes ] || return 0
+    [ "$BB_RUNTIME_MODE" != core-only ] || return 0
+    mkdir -p runtime/payload/home
+    stage_dotfile_one profile "$BB_DOTFILE_PROFILE_MODE" "$BB_DOTFILE_PROFILE_USER_FILE" ".profile"
+    stage_dotfile_one zsh "$BB_DOTFILE_ZSH_MODE" "$BB_DOTFILE_ZSH_USER_FILE" ".zshrc"
+    stage_dotfile_one tmux "$BB_DOTFILE_TMUX_MODE" "$BB_DOTFILE_TMUX_USER_FILE" ".tmux.conf"
+    stage_dotfile_one gdb "$BB_DOTFILE_GDB_MODE" "$BB_DOTFILE_GDB_USER_FILE" ".gdbinit"
+}
+
+stage_dotfile_one() {
+    _app=$1
+    _mode=$2
+    _user_file=$3
+    _name=$4
+    case "$_mode" in
+        none|"") return 0 ;;
+        default)
+            _src="payloads/dotfiles/$_name"
+            [ -f "$_src" ] || {
+                printf '%s\n' "build-payload: missing BusierBox default dotfile for $_app: $_src" >&2
+                exit 1
+            }
+            ;;
+        user)
+            [ -n "$_user_file" ] && [ -f "$_user_file" ] || {
+                printf '%s\n' "build-payload: $_app dotfile mode is user but file is missing: ${_user_file:-not set}" >&2
+                exit 1
+            }
+            _src=$_user_file
+            ;;
+        *)
+            printf '%s\n' "build-payload: invalid $_app dotfile mode: $_mode" >&2
+            exit 1
             ;;
     esac
-    if [ -d "payloads/dotfiles/$_profile" ]; then
-        _src="payloads/dotfiles/$_profile"
-    fi
-    dotfile_selected profile && [ -f "$_src/.profile" ] && cp "$_src/.profile" "runtime/payload/home/.profile"
-    dotfile_selected zsh && [ -f "$_src/.zshrc" ] && cp "$_src/.zshrc" "runtime/payload/home/.zshrc"
-    dotfile_selected tmux && [ -f "$_src/.tmux.conf" ] && cp "$_src/.tmux.conf" "runtime/payload/home/.tmux.conf"
-    dotfile_selected gdb && [ -f "$_src/.gdbinit" ] && cp "$_src/.gdbinit" "runtime/payload/home/.gdbinit"
+    cp "$_src" "runtime/payload/home/$_name"
 }
 
 stage_dotfiles

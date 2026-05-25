@@ -24,8 +24,9 @@ int applet_clean_main(int argc, char **argv);
 int applet_config_info_main(int argc, char **argv);
 int applet_doctor_main(int argc, char **argv);
 int applet_fetch_full_main(int argc, char **argv);
-int applet_callback_main(int argc, char **argv);
 int applet_rshell_main(int argc, char **argv);
+
+#include "rshell_tls.h"
 
 extern const struct bb_applet bb_applets[];
 extern const unsigned int bb_applet_count;

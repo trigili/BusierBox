@@ -62,7 +62,6 @@ runtime/payload/bin/     BusyBox and future tool binaries
 runtime/payload/lib/     bundled shared libraries when static builds are unavailable
 runtime/payload/home/    payload HOME
 dist/busierbox-<target>-full    self-extracting target-specific artifact
-dist/busierbox-<target>-stager  small callback/upload bootstrap artifact
 dist/internal/                  internal payload-less cores when enabled
 dist/busierbox                  native convenience alias, when native is packaged
 dist/payload-<target>.*  optional payload archives/debug artifacts
@@ -111,54 +110,41 @@ BB_STATIC_POLICY="static-preferred"
 BB_PAYLOAD_TIER="debug"
 ```
 
-produces deployable tiered artifacts:
+produces a deployable full artifact:
 
 ```text
 dist/busierbox-mipsel-linux-4.x-musl-full
-dist/busierbox-mipsel-linux-4.x-musl-stager
 ```
 
-`-full` is the feature-complete self-extracting artifact. It contains a BusierBox core built for that target plus a payload archive built for that same target. `-stager` is a separate small target-specific binary with no embedded payload; it surveys the target, connects back to an operator server, receives a full artifact over the same TCP connection, verifies SHA-256, chmods it, and can run `doctor` or `survey`. A compatibility copy without the `-full` suffix is still written for existing scripts. Internal payload-less cores are written only under `dist/internal/` when enabled and should not be deployed as normal artifacts.
+`-full` is the feature-complete self-extracting artifact. It contains a BusierBox core built for that target plus a payload archive built for that same target. A compatibility copy without the `-full` suffix is still written for existing scripts. Internal payload-less cores are written only under `dist/internal/` when enabled and should not be deployed as normal artifacts.
 
 Artifact output knobs:
 
 ```sh
 BB_BUILD_FULL="yes"
-BB_BUILD_STAGER="yes"
 BB_BUILD_INTERNAL_CORE="no"
 ```
 
-Three-layer stager/server/full flow:
+Reverse access flow:
 
 ```sh
-scripts/busierbox-server --listen 0.0.0.0:4444 \
-  --token testtoken \
-  --artifact dist/busierbox-mipsel-linux-4.x-musl-full \
-  --send --exec-doctor --once
-
-./busierbox-mipsel-linux-4.x-musl-stager \
-  --callback-host 192.168.8.241 \
-  --callback-port 4444 \
-  --token testtoken
+scripts/busierbox-server --transport ssh
+./busierbox-mipsel-linux-4.x-musl-full rshell start
 ```
 
-The server prints candidate callback addresses using `scripts/list-local-ips`, validates the shared token, displays the stager survey, sends the configured full artifact, and logs sessions under `.busierbox-server/sessions/`.
-
-Callback defaults can also be compiled directly into the stager. With these values set, running the stager with no arguments attempts the callback once per configured retry policy:
+`scripts/busierbox-server` reads `local/server-config.json` by default. In SSH mode it acts as a small operator-side Paramiko SSH server that accepts the target dbclient identity and catches the reverse forward. The target starts `dropbear` locally, runs `dbclient -R`, and the operator connects through the forwarded port:
 
 ```sh
-BB_STAGER_CALLBACK_ENABLE="yes"
-BB_STAGER_CALLBACK_HOST="192.168.8.241"
-BB_STAGER_CALLBACK_PORT="4444"
-BB_STAGER_TOKEN="testtoken"
-BB_STAGER_CONNECT_TIMEOUT="10"
-BB_STAGER_RETRY_COUNT="3"
-BB_STAGER_RETRY_DELAY="2"
-BB_STAGER_OUTPUT_PATH="/tmp/busierbox-full"
-BB_STAGER_AUTO_EXEC="doctor"
+ssh -p 2200 root@127.0.0.1
 ```
 
-The stager is not universal: it must be built for the target architecture. Callback behavior is explicit and operator-controlled; BusierBox does not install persistence, daemonize, hide processes, delete logs, or beacon in the background.
+Reverse access is explicit and operator-controlled. BusierBox does not install persistence, daemonize by default, hide process names, delete logs, or repeatedly beacon in the background. The `rshell` applet is also available as an explicit command:
+
+```sh
+./busierbox rshell
+./busierbox rshell status
+./busierbox rshell stop
+```
 
 Convenience commands:
 
@@ -167,7 +153,6 @@ make package-native
 make package TARGET=native
 make package TARGET=glinet-mt7621-openwrt-musl
 make package-full TARGET=mipsel-linux-4.x-musl
-make package-stager TARGET=mipsel-linux-4.x-musl
 make package-all-presets
 ```
 
@@ -399,15 +384,23 @@ overlay-root/<target>/home/
 
 `common/` applies to every target, and `<target>/` applies only to that target name such as `mipsel-linux-4.x-musl`. Overlay binaries are marked as staged tools, recorded in the manifest, and checked for likely architecture mismatches when the host `file` command is available. Conflicts are not overwritten unless `BB_USER_OVERLAY_ALLOW_OVERRIDE=yes`; conflicts and warnings are reported in the payload diagnostics and `doctor`.
 
-Default dotfile profiles live under `payloads/dotfiles/`:
+Dotfiles are configured per app. Each app can use the BusierBox default initial config, a user-supplied file, or no staged config:
 
-- `default-minimal`
-- `default-comfort`
-- `default-operator`
-- `user-supplied`
-- `none`
+```text
+BB_DOTFILES_ENABLE="yes"
+BB_DOTFILE_ZSH_MODE="default"
+BB_DOTFILE_ZSH_USER_FILE=""
+BB_DOTFILE_TMUX_MODE="default"
+BB_DOTFILE_TMUX_USER_FILE=""
+BB_DOTFILE_GDB_MODE="default"
+BB_DOTFILE_GDB_USER_FILE=""
+BB_DOTFILE_PROFILE_MODE="default"
+BB_DOTFILE_PROFILE_USER_FILE=""
+```
 
-The payload sets `BUSIERBOX_PAYLOAD_DIR`, `PATH`, `HOME`, `SHELL`, `ZDOTDIR`, `TERM`, `TERMINFO_DIRS`, and `LD_LIBRARY_PATH` as needed when dispatching tools. To use a personal Oh My Zsh setup, do not make BusierBox fetch it. Place `.oh-my-zsh` and `.zshrc` under `overlay-root/common/home/` or `overlay-root/<target>/home/`, or select the `user-supplied` dotfile profile and point it at a local dotfile directory before packaging.
+Set a mode to `user` and point the matching `*_USER_FILE` at the exact file to stage, for example `.zshrc` or `.tmux.conf`. Missing user files fail the payload build clearly. In `core-only` runtime mode, dotfiles are not staged because no payload HOME is extracted.
+
+The payload sets `BUSIERBOX_PAYLOAD_DIR`, `PATH`, `HOME`, `SHELL`, `ZDOTDIR`, `TERM`, `TERMINFO_DIRS`, and `LD_LIBRARY_PATH` as needed when dispatching tools. To use a personal Oh My Zsh setup, do not make BusierBox fetch it. Place `.oh-my-zsh` and `.zshrc` under `overlay-root/common/home/` or `overlay-root/<target>/home/`, or set `BB_DOTFILE_ZSH_MODE=user` and point `BB_DOTFILE_ZSH_USER_FILE` at your local `.zshrc` before packaging.
 
 ## GL.iNet Integration Testing
 

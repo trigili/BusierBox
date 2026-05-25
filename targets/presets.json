@@ -2,6 +2,21 @@
   "schema": 1,
   "presets": [
     {
+      "preset_name": "default",
+      "description": "Blank target configuration — no architecture or libc assumed",
+      "arch": "",
+      "endian": "auto",
+      "cpu": "generic",
+      "abi": "default",
+      "libc": "",
+      "kernel_floor": "",
+      "static_policy": "static-preferred",
+      "payload_tier": "core",
+      "qemu_user": "",
+      "support_status": "blank",
+      "notes": "Empty starting point. Select a real preset or set fields manually before building."
+    },
+    {
       "preset_name": "native",
       "description": "Native host build",
       "arch": "native",

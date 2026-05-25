@@ -47,37 +47,32 @@ ensure_buildroot() {
 
 stage_dotfiles() {
     mkdir -p runtime/payload/home
-    _profile="${BB_DOTFILE_PROFILE:-default-comfort}"
-    _apps="${BB_DOTFILE_APPS:-profile zsh tmux gdb}"
-    _user_path="${BB_DOTFILE_USER_PATH:-}"
-    _src=
-    case "$_profile" in
-        none) return 0 ;;
-        user-supplied)
-            if [ -n "$_user_path" ] && [ -d "$_user_path" ]; then
-                _src="$_user_path"
-            else
-                printf '%s\n' "buildroot-build-payload: user-supplied dotfiles path not found: $_user_path; using default-comfort" >&2
-                _profile=default-comfort
-            fi
+    [ "${BB_DOTFILES_ENABLE:-yes}" = yes ] || return 0
+    [ "${BB_RUNTIME_MODE:-extract}" != core-only ] || return 0
+    stage_dotfile_one profile "${BB_DOTFILE_PROFILE_MODE:-default}" "${BB_DOTFILE_PROFILE_USER_FILE:-}" ".profile"
+    stage_dotfile_one zsh "${BB_DOTFILE_ZSH_MODE:-default}" "${BB_DOTFILE_ZSH_USER_FILE:-}" ".zshrc"
+    stage_dotfile_one tmux "${BB_DOTFILE_TMUX_MODE:-default}" "${BB_DOTFILE_TMUX_USER_FILE:-}" ".tmux.conf"
+    stage_dotfile_one gdb "${BB_DOTFILE_GDB_MODE:-default}" "${BB_DOTFILE_GDB_USER_FILE:-}" ".gdbinit"
+}
+
+stage_dotfile_one() {
+    _app=$1
+    _mode=$2
+    _user_file=$3
+    _name=$4
+    case "$_mode" in
+        none|"") return 0 ;;
+        default)
+            _src="payloads/dotfiles/$_name"
+            [ -f "$_src" ] || die "missing BusierBox default dotfile for $_app: $_src"
             ;;
+        user)
+            [ -n "$_user_file" ] && [ -f "$_user_file" ] || die "$_app dotfile mode is user but file is missing: ${_user_file:-not set}"
+            _src=$_user_file
+            ;;
+        *) die "invalid $_app dotfile mode: $_mode" ;;
     esac
-    _src=${_src:-payloads/dotfiles}
-    if [ "$_profile" = "default-minimal" ] || [ "$_profile" = "default-comfort" ] || [ "$_profile" = "default-operator" ]; then
-        if [ -d "payloads/dotfiles/$_profile" ]; then
-            _src="payloads/dotfiles/$_profile"
-        fi
-    fi
-    for _app in $_apps; do
-        case "$_app" in
-            profile) _f=.profile ;;
-            zsh) _f=.zshrc ;;
-            tmux) _f=.tmux.conf ;;
-            gdb) _f=.gdbinit ;;
-            *) continue ;;
-        esac
-        [ -f "$_src/$_f" ] && cp "$_src/$_f" "runtime/payload/home/$_f"
-    done
+    cp "$_src" "runtime/payload/home/$_name"
 }
 
 copy_shared_libs_if_dynamic() {
@@ -305,15 +300,24 @@ write_manifest() {
 [ -f "$profile" ] || die "unknown TARGET=$TARGET; missing $profile"
 [ -f "$defconfig" ] || die "missing Buildroot defconfig $defconfig"
 requested_tools=$(profile_value REQUESTED_TOOLS)
-BB_DOTFILE_PROFILE=$(profile_value DOTFILE_PROFILE 2>/dev/null || true)
-BB_DOTFILE_APPS=$(profile_value DOTFILE_APPS 2>/dev/null || true)
-BB_DOTFILE_USER_PATH=$(profile_value DOTFILE_USER_PATH 2>/dev/null || true)
 _profile_operator_identity=$(profile_value OPERATOR_DBCLIENT_IDENTITY_FILE 2>/dev/null || true)
 BB_OPERATOR_DBCLIENT_IDENTITY_FILE=${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-$_profile_operator_identity}
 _profile_operator_authkey=$(profile_value OPERATOR_AUTHORIZED_KEY_FILE 2>/dev/null || true)
 BB_OPERATOR_AUTHORIZED_KEY_FILE=${BB_OPERATOR_AUTHORIZED_KEY_FILE:-$_profile_operator_authkey}
-BB_DOTFILE_PROFILE=${BB_DOTFILE_PROFILE:-default-comfort}
-BB_DOTFILE_APPS=${BB_DOTFILE_APPS:-profile zsh tmux gdb}
+BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-$(profile_value DOTFILES_ENABLE 2>/dev/null || true)}
+BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-$(profile_value DOTFILE_ZSH_MODE 2>/dev/null || true)}
+BB_DOTFILE_ZSH_USER_FILE=${BB_DOTFILE_ZSH_USER_FILE:-$(profile_value DOTFILE_ZSH_USER_FILE 2>/dev/null || true)}
+BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-$(profile_value DOTFILE_TMUX_MODE 2>/dev/null || true)}
+BB_DOTFILE_TMUX_USER_FILE=${BB_DOTFILE_TMUX_USER_FILE:-$(profile_value DOTFILE_TMUX_USER_FILE 2>/dev/null || true)}
+BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-$(profile_value DOTFILE_GDB_MODE 2>/dev/null || true)}
+BB_DOTFILE_GDB_USER_FILE=${BB_DOTFILE_GDB_USER_FILE:-$(profile_value DOTFILE_GDB_USER_FILE 2>/dev/null || true)}
+BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-$(profile_value DOTFILE_PROFILE_MODE 2>/dev/null || true)}
+BB_DOTFILE_PROFILE_USER_FILE=${BB_DOTFILE_PROFILE_USER_FILE:-$(profile_value DOTFILE_PROFILE_USER_FILE 2>/dev/null || true)}
+BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-yes}
+BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-default}
+BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-default}
+BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-default}
+BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-default}
 BB_BUSYBOX_GROUPS=$(profile_value BUSYBOX_GROUPS 2>/dev/null || true)
 pre_excluded=$(profile_value EXCLUDED_TOOLS 2>/dev/null || true)
 GDBSERVER_PROVIDER=$(profile_value GDBSERVER_PROVIDER 2>/dev/null || true)
