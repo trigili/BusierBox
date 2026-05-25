@@ -76,6 +76,7 @@ fi
 : "${BB_USER_OVERLAY_ENABLE:=no}"
 : "${BB_USER_OVERLAY_ROOT:=./overlay}"
 : "${BB_USER_OVERLAY_ALLOW_OVERRIDE:=no}"
+: "${BB_GDBSERVER_PROVIDER:=auto}"
 
 src="src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c src/sha256.c"
 miniz_src="third_party/miniz/miniz.c"
@@ -225,6 +226,15 @@ CPPFLAGS="$CPPFLAGS -DBB_DOTFILE_PROFILE_MODE=\"$(quote_c "$BB_DOTFILE_PROFILE_M
 CPPFLAGS="$CPPFLAGS -DBB_USER_OVERLAY_ENABLE=\"$(quote_c "$BB_USER_OVERLAY_ENABLE")\""
 CPPFLAGS="$CPPFLAGS -DBB_USER_OVERLAY_ROOT=\"$(quote_c "$BB_USER_OVERLAY_ROOT")\""
 CPPFLAGS="$CPPFLAGS -DBB_USER_OVERLAY_ALLOW_OVERRIDE=\"$(quote_c "$BB_USER_OVERLAY_ALLOW_OVERRIDE")\""
+CPPFLAGS="$CPPFLAGS -DBB_GDBSERVER_PROVIDER=\"$(quote_c "$BB_GDBSERVER_PROVIDER")\""
+
+if ! printf '%s\n' '#define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
+#include <stdlib.h>
+int main(void) { char *p = NULL; size_t n = 0; FILE *f = open_memstream(&p, &n); if (!f) return 1; fputs("x", f); fclose(f); free(p); return 0; }' |
+    "$CC" $CPPFLAGS $CFLAGS -x c -o /dev/null - >/dev/null 2>&1; then
+    CPPFLAGS="$CPPFLAGS -DBUSIERBOX_NO_OPEN_MEMSTREAM=1"
+fi
 
 printf '%s\n' "building BusierBox core..."
 
