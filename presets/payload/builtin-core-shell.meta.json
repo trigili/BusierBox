@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "name": "builtin-core-shell",
+  "description": "Core-only artifact using the built-in reverse shell transport.",
+  "risk_level": "medium",
+  "network_behavior": "reverse shell only when explicitly launched or selected as zero-arg behavior",
+  "external_write_behavior": "disabled",
+  "validated_cases": [
+    "make smoke-test",
+    "integration-glinet: builtin-core-shell"
+  ],
+  "notes": "Avoids payload extraction. Uses target /bin/sh and keeps authorized_keys writes disabled."
+}

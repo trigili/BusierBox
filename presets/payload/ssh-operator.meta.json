@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "name": "ssh-operator",
+  "description": "Dropbear/dbclient operator access preset with external writes disabled.",
+  "risk_level": "medium",
+  "network_behavior": "SSH transport available when explicitly launched",
+  "external_write_behavior": "disabled",
+  "validated_cases": [
+    "make smoke-test",
+    "integration-glinet: ssh-operator"
+  ],
+  "notes": "Stages Dropbear tools but does not modify root authorized_keys unless external-write options are explicitly changed."
+}

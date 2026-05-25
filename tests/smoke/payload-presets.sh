@@ -28,6 +28,40 @@ for name in default survey-core builtin-core-shell socat-rescue ssh-operator ful
     grep -q '^BB_RSHELL_TRANSPORT=' "$file"
     grep -q '^BB_RSHELL_RUN_MODE=' "$file"
     grep -q '^BB_HEAVY_TOOLS=' "$file"
+    meta="$preset_dir/$name.meta.json"
+    [ -f "$meta" ] || {
+        printf '%s\n' "payload-presets: missing $meta" >&2
+        exit 1
+    }
+    python3 - "$name" "$meta" <<'PY'
+import json
+import sys
+
+name, path = sys.argv[1:]
+with open(path, "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+required = [
+    "schema",
+    "name",
+    "description",
+    "risk_level",
+    "network_behavior",
+    "external_write_behavior",
+    "validated_cases",
+    "notes",
+]
+missing = [key for key in required if key not in data]
+if missing:
+    raise SystemExit(f"{path}: missing {', '.join(missing)}")
+if data["name"] != name:
+    raise SystemExit(f"{path}: name mismatch {data['name']!r} != {name!r}")
+if data["risk_level"] not in {"low", "medium", "high"}:
+    raise SystemExit(f"{path}: invalid risk_level")
+if data["external_write_behavior"] != "disabled":
+    raise SystemExit(f"{path}: presets must keep external writes disabled by default")
+if not isinstance(data["validated_cases"], list):
+    raise SystemExit(f"{path}: validated_cases must be a list")
+PY
 done
 
 grep -q 'load_payload_preset()' "$menu"
