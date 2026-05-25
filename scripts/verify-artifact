@@ -13,6 +13,8 @@ import tempfile
 
 TRAILER_SIZE = 512
 MAGIC = "BBXPAYLOADv1"
+CONFIG_TRAILER_SIZE = 4096
+CONFIG_MAGIC = b"BBXCONFIGv1"
 NATIVE_ARCHES = {"native", "x86_64"}
 
 
@@ -23,6 +25,8 @@ def die(msg):
 
 def read_payload(path):
     data = pathlib.Path(path).read_bytes()
+    if len(data) >= CONFIG_TRAILER_SIZE and data[-CONFIG_TRAILER_SIZE:].startswith(CONFIG_MAGIC):
+        data = data[:-CONFIG_TRAILER_SIZE]
     if len(data) < TRAILER_SIZE:
         die("artifact too small")
     trailer = data[-TRAILER_SIZE:].split(b"\0", 1)[0].decode("ascii", "replace")

@@ -20,6 +20,7 @@ The JSON manifest includes:
 - dotfile modes and user overlay policy
 - native feature flags
 - BusyBox applets and staged heavy tools compiled into the dispatch table
+- compiled config, effective config, and post-build override trailer status
 
 Extraction writes the artifact manifest to
 `./.busierbox/manifest/artifact.json` next to the runtime payload. The extracted
@@ -28,6 +29,12 @@ payload manifest records requested tools, staged tools, missing tools, overlay
 metadata, gdbserver provider state, BusyBox applets, and payload hashes.
 
 Integration runs capture manifest output next to the case logs so each validation run can be tied back to the artifact and preset that produced it.
+
+Post-build runtime override trailers are edited with
+`scripts/artifact-config`. They can change selected runtime/operator settings
+without rebuilding and appear under `trailer_override`, `compiled_config`, and
+`effective_config` in `manifest --json`. See
+[Artifact runtime overrides](artifact-runtime-overrides.md).
 
 Payload preset metadata lives next to each built-in preset as
 `presets/payload/<name>.meta.json`. These sidecars describe the preset's

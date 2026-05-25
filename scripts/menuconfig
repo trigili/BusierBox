@@ -128,6 +128,10 @@ case "$BB_ZERO_ARG_MODE" in
 esac
 BB_ZERO_ARG_LOG_MODE="${BB_ZERO_ARG_LOG_MODE:-quiet}"
 BB_ZERO_ARG_CUSTOM_COMMAND="${BB_ZERO_ARG_CUSTOM_COMMAND:-}"
+BB_TRAILER_OVERRIDES_ENABLE="${BB_TRAILER_OVERRIDES_ENABLE:-yes}"
+BB_TRAILER_OVERRIDE_CATEGORIES="${BB_TRAILER_OVERRIDE_CATEGORIES:-runtime operator launch retry}"
+BB_TRAILER_OBFUSCATION="${BB_TRAILER_OBFUSCATION:-none}"
+BB_TRAILER_XOR_KEY="${BB_TRAILER_XOR_KEY:-}"
 BB_RSHELL_TRANSPORT="${BB_RSHELL_TRANSPORT:-${BB_RSHELL_MODE:-ssh}}"
 # Normalise old transport names
 case "$BB_RSHELL_TRANSPORT" in
@@ -230,6 +234,10 @@ BB_BUILD_INTERNAL_CORE
 BB_ZERO_ARG_MODE
 BB_ZERO_ARG_LOG_MODE
 BB_ZERO_ARG_CUSTOM_COMMAND
+BB_TRAILER_OVERRIDES_ENABLE
+BB_TRAILER_OVERRIDE_CATEGORIES
+BB_TRAILER_OBFUSCATION
+BB_TRAILER_XOR_KEY
 BB_RSHELL_TRANSPORT
 BB_RSHELL_ENCRYPTION
 BB_RSHELL_ALLOW_PLAINTEXT
@@ -350,6 +358,10 @@ normalize_payload_config() {
     BB_RUNTIME_ALLOW_EXTERNAL_WRITES="${BB_RUNTIME_ALLOW_EXTERNAL_WRITES:-no}"
     BB_ZERO_ARG_MODE="${BB_ZERO_ARG_MODE:-help}"
     BB_ZERO_ARG_LOG_MODE="${BB_ZERO_ARG_LOG_MODE:-quiet}"
+    BB_TRAILER_OVERRIDES_ENABLE="${BB_TRAILER_OVERRIDES_ENABLE:-yes}"
+    BB_TRAILER_OVERRIDE_CATEGORIES="${BB_TRAILER_OVERRIDE_CATEGORIES:-runtime operator launch retry}"
+    BB_TRAILER_OBFUSCATION="${BB_TRAILER_OBFUSCATION:-none}"
+    BB_TRAILER_XOR_KEY="${BB_TRAILER_XOR_KEY:-}"
     BB_RSHELL_TRANSPORT="${BB_RSHELL_TRANSPORT:-none}"
     BB_RSHELL_ENCRYPTION="${BB_RSHELL_ENCRYPTION:-tls}"
     BB_RSHELL_ALLOW_PLAINTEXT="${BB_RSHELL_ALLOW_PLAINTEXT:-no}"
@@ -460,6 +472,10 @@ BB_BUILD_INTERNAL_CORE="$BB_BUILD_INTERNAL_CORE"
 BB_ZERO_ARG_MODE="$BB_ZERO_ARG_MODE"
 BB_ZERO_ARG_LOG_MODE="$BB_ZERO_ARG_LOG_MODE"
 BB_ZERO_ARG_CUSTOM_COMMAND="$BB_ZERO_ARG_CUSTOM_COMMAND"
+BB_TRAILER_OVERRIDES_ENABLE="$BB_TRAILER_OVERRIDES_ENABLE"
+BB_TRAILER_OVERRIDE_CATEGORIES="$BB_TRAILER_OVERRIDE_CATEGORIES"
+BB_TRAILER_OBFUSCATION="$BB_TRAILER_OBFUSCATION"
+BB_TRAILER_XOR_KEY="$BB_TRAILER_XOR_KEY"
 BB_RSHELL_TRANSPORT="$BB_RSHELL_TRANSPORT"
 BB_RSHELL_ENCRYPTION="$BB_RSHELL_ENCRYPTION"
 BB_RSHELL_ALLOW_PLAINTEXT="$BB_RSHELL_ALLOW_PLAINTEXT"
@@ -1040,6 +1056,10 @@ show_page_help() {
             _title="Launch behavior help"
             _text="Zero-arg behavior controls what the artifact does with no arguments: help, survey, configured reverse access, or a custom command.\n\nReverse access only runs when explicitly selected. The autorun guard prevents repeated zero-arg launches and writes status under the configured guard path."
             ;;
+        artifact-overrides)
+            _title="Artifact runtime overrides help"
+            _text="Post-build runtime override trailers let selected runtime/operator settings be changed on an existing artifact with scripts/artifact-config, without rebuilding the payload or changing target tuple, compiled features, heavy tools, dotfiles, or overlay contents.\n\nXOR mode is only casual string hiding. It is not encryption and must not be used for private keys or credentials."
+            ;;
         rshell)
             _title="Reverse access help"
             _text="builtin: BusierBox-native shell transport, TLS via wolfSSL.\n\nsocat: staged socat shell transport; TLS recommended.\n\nssh: Dropbear/dbclient reverse SSH. SSH-only fields are hidden unless transport=ssh.\n\nnone: no reverse shell.\n\nRun mode foreground keeps the transport in the current session. background is transport-specific; SSH already launches Dropbear/dbclient in the background. auto uses the transport default and does not imply persistent shell-session resume.\n\ncore-only supports builtin only because staged Dropbear/socat tools are unavailable."
@@ -1075,6 +1095,53 @@ show_page_help() {
         *) _title="Help"; _text="No help is available for this page." ;;
     esac
     dialog --title "$_title" --msgbox "$(printf '%b' "$_text")" 20 84
+}
+
+configure_artifact_runtime_overrides() {
+    while :; do
+        dialog --title "Artifact runtime overrides" \
+            --menu "Post-build override trailers are edited with scripts/artifact-config after packaging." 21 86 7 \
+            "1" "Enable post-build trailer workflow: $BB_TRAILER_OVERRIDES_ENABLE" \
+            "2" "Allowed categories: $BB_TRAILER_OVERRIDE_CATEGORIES" \
+            "3" "Obfuscation mode: $BB_TRAILER_OBFUSCATION" \
+            "4" "XOR key: $([ -n "$BB_TRAILER_XOR_KEY" ] && printf set || printf random/manual at edit time)" \
+            "5" "Command hints" \
+            "H" "Help" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1) [ "$BB_TRAILER_OVERRIDES_ENABLE" = yes ] && BB_TRAILER_OVERRIDES_ENABLE=no || BB_TRAILER_OVERRIDES_ENABLE=yes ;;
+            2)
+                dialog --title "Allowed override categories" \
+                    --inputbox "Informational category list for post-build runtime overrides. The runtime still enforces the built-in allowed key list." \
+                    10 82 "$BB_TRAILER_OVERRIDE_CATEGORIES" 2>"$temp_out" || true
+                BB_TRAILER_OVERRIDE_CATEGORIES=$(cat "$temp_out")
+                ;;
+            3)
+                dialog --title "Override trailer obfuscation" \
+                    --radiolist "XOR is not encryption; it only hides casual strings in the artifact." 13 76 2 \
+                    "none" "Plain KEY=VALUE trailer payload" "$(mode_onoff "$BB_TRAILER_OBFUSCATION" none)" \
+                    "xor" "XOR obfuscation, not secret protection" "$(mode_onoff "$BB_TRAILER_OBFUSCATION" xor)" \
+                    2>"$temp_out" || true
+                _v=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_v" ] && BB_TRAILER_OBFUSCATION="$_v"
+                ;;
+            4)
+                dialog --title "XOR key" \
+                    --inputbox "Optional hex XOR key for scripts/artifact-config --key. Leave blank to let artifact-config generate a random key. This is not encryption." \
+                    10 84 "$BB_TRAILER_XOR_KEY" 2>"$temp_out" || true
+                BB_TRAILER_XOR_KEY=$(cat "$temp_out")
+                ;;
+            5)
+                dialog --title "Post-build command hints" \
+                    --msgbox "Show overrides:\n  scripts/artifact-config show dist/busierbox-<target>-full\n\nSet values:\n  scripts/artifact-config set dist/busierbox-<target>-full BB_OPERATOR_SERVER_HOST=host BB_ZERO_ARG_MODE=rshell\n\nClear overrides:\n  scripts/artifact-config clear dist/busierbox-<target>-full\n\nXOR is not encryption and should not be used for credentials or private keys." \
+                    18 86
+                ;;
+            H) show_page_help artifact-overrides ;;
+            0) return 0 ;;
+        esac
+    done
 }
 
 configure_presets() {
@@ -2879,17 +2946,18 @@ configure_payload() {
         _ht_label="Heavy tools"
         [ "$BB_RUNTIME_MODE" = "core-only" ] && _ht_label="Heavy tools  [clear only in core-only mode]"
         dialog --title "BusierBox menuconfig / Payload Options" \
-            --menu "Choose a submenu:" 23 82 11 \
+            --menu "Choose a submenu:" 24 86 12 \
             "1" "Payload preset: $(payload_preset_label)" \
             "2" "Runtime mode: $BB_RUNTIME_MODE root=$BB_RUNTIME_ROOT" \
             "3" "Launch behavior: zero-arg=$BB_ZERO_ARG_MODE log=$BB_ZERO_ARG_LOG_MODE" \
-            "4" "Archive format: $BB_PAYLOAD_FORMAT" \
-            "5" "BusyBox applet groups" \
-            "6" "$_ht_label" \
-            "7" "Tool compatibility / warnings" \
-            "8" "Reverse access / applet configuration" \
-            "9" "User overlay: $BB_USER_OVERLAY_ENABLE (${BB_USER_OVERLAY_ROOT:-not set})" \
-            "10" "Payload version: $BB_PAYLOAD_VERSION" \
+            "4" "Artifact runtime overrides: $BB_TRAILER_OVERRIDES_ENABLE obfuscation=$BB_TRAILER_OBFUSCATION" \
+            "5" "Archive format: $BB_PAYLOAD_FORMAT" \
+            "6" "BusyBox applet groups" \
+            "7" "$_ht_label" \
+            "8" "Tool compatibility / warnings" \
+            "9" "Reverse access / applet configuration" \
+            "10" "User overlay: $BB_USER_OVERLAY_ENABLE (${BB_USER_OVERLAY_ROOT:-not set})" \
+            "11" "Payload version: $BB_PAYLOAD_VERSION" \
             "H" "Help" \
             "0" "Back" \
             2>"$temp_out" || return 0
@@ -2898,13 +2966,14 @@ configure_payload() {
             1) configure_payload_preset ;;
             2) configure_runtime_mode ;;
             3) configure_autoexec ;;
-            4) configure_payload_format ;;
-            5) configure_busybox_groups ;;
-            6) configure_heavy_tools ;;
-            7) show_page_help tool-compat; show_tool_warnings ;;
-            8) configure_applet_configuration ;;
-            9) configure_overlay ;;
-            10)
+            4) configure_artifact_runtime_overrides ;;
+            5) configure_payload_format ;;
+            6) configure_busybox_groups ;;
+            7) configure_heavy_tools ;;
+            8) show_page_help tool-compat; show_tool_warnings ;;
+            9) configure_applet_configuration ;;
+            10) configure_overlay ;;
+            11)
                 dialog --title "Payload version" --inputbox "Payload version string:" 9 60 "$BB_PAYLOAD_VERSION" 2>"$temp_out" || true
                 BB_PAYLOAD_VERSION=$(cat "$temp_out")
                 ;;

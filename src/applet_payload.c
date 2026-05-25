@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "runtime_config.h"
 #include "sha256.h"
 #include "../third_party/miniz/miniz.h"
 
@@ -199,9 +200,86 @@
 #ifndef BB_OPERATOR_SERVER_HOST
 #define BB_OPERATOR_SERVER_HOST ""
 #endif
+#ifndef BB_OPERATOR_SERVER_USER
+#define BB_OPERATOR_SERVER_USER "operator"
+#endif
+#ifndef BB_OPERATOR_SERVER_SSH_PORT
+#define BB_OPERATOR_SERVER_SSH_PORT "22"
+#endif
+#ifndef BB_OPERATOR_TARGET_BIND_HOST
+#define BB_OPERATOR_TARGET_BIND_HOST "127.0.0.1"
+#endif
 #ifndef BB_OPERATOR_TARGET_DROPBEAR_PORT
 #define BB_OPERATOR_TARGET_DROPBEAR_PORT "2222"
 #endif
+#ifndef BB_OPERATOR_KNOWN_HOSTS_POLICY
+#define BB_OPERATOR_KNOWN_HOSTS_POLICY "off"
+#endif
+
+#undef BB_RUNTIME_MODE
+#undef BB_RUNTIME_ROOT
+#undef BB_RUNTIME_ALLOW_FALLBACK_ROOT
+#undef BB_RUNTIME_FALLBACK_ROOT
+#undef BB_ZERO_ARG_MODE
+#undef BB_ZERO_ARG_LOG_MODE
+#undef BB_ZERO_ARG_CUSTOM_COMMAND
+#undef BB_RSHELL_TRANSPORT
+#undef BB_RSHELL_ENCRYPTION
+#undef BB_RSHELL_ALLOW_PLAINTEXT
+#undef BB_RSHELL_AUTHKEYS_MODE
+#undef BB_RSHELL_RUN_MODE
+#undef BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
+#undef BB_RSHELL_SOCAT_PORT
+#undef BB_RSHELL_SHELL_PROVIDER
+#undef BB_RSHELL_CUSTOM_SHELL
+#undef BB_RSHELL_RETRY_COUNT
+#undef BB_RSHELL_RETRY_INTERVAL_SEC
+#undef BB_RSHELL_RETRY_JITTER_PCT
+#undef BB_RSHELL_RETRY_BACKOFF
+#undef BB_RSHELL_RETRY_MAX_INTERVAL_SEC
+#undef BB_AUTORUN_GUARD_ENABLE
+#undef BB_AUTORUN_GUARD_PATH
+#undef BB_AUTORUN_REENTRY_ACTION
+#undef BB_AUTORUN_STALE_LOCK_POLICY
+#undef BB_OPERATOR_REMOTE_FORWARD_PORT
+#undef BB_OPERATOR_SERVER_HOST
+#undef BB_OPERATOR_SERVER_USER
+#undef BB_OPERATOR_SERVER_SSH_PORT
+#undef BB_OPERATOR_TARGET_BIND_HOST
+#undef BB_OPERATOR_TARGET_DROPBEAR_PORT
+#undef BB_OPERATOR_KNOWN_HOSTS_POLICY
+#define BB_RUNTIME_MODE bb_config_get("BB_RUNTIME_MODE")
+#define BB_RUNTIME_ROOT bb_config_get("BB_RUNTIME_ROOT")
+#define BB_RUNTIME_ALLOW_FALLBACK_ROOT bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT")
+#define BB_RUNTIME_FALLBACK_ROOT bb_config_get("BB_RUNTIME_FALLBACK_ROOT")
+#define BB_ZERO_ARG_MODE bb_config_get("BB_ZERO_ARG_MODE")
+#define BB_ZERO_ARG_LOG_MODE bb_config_get("BB_ZERO_ARG_LOG_MODE")
+#define BB_ZERO_ARG_CUSTOM_COMMAND bb_config_get("BB_ZERO_ARG_CUSTOM_COMMAND")
+#define BB_RSHELL_TRANSPORT bb_config_get("BB_RSHELL_TRANSPORT")
+#define BB_RSHELL_ENCRYPTION bb_config_get("BB_RSHELL_ENCRYPTION")
+#define BB_RSHELL_ALLOW_PLAINTEXT bb_config_get("BB_RSHELL_ALLOW_PLAINTEXT")
+#define BB_RSHELL_AUTHKEYS_MODE bb_config_get("BB_RSHELL_AUTHKEYS_MODE")
+#define BB_RSHELL_RUN_MODE bb_config_get("BB_RSHELL_RUN_MODE")
+#define BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING bb_config_get("BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING")
+#define BB_RSHELL_SOCAT_PORT bb_config_get("BB_RSHELL_SOCAT_PORT")
+#define BB_RSHELL_SHELL_PROVIDER bb_config_get("BB_RSHELL_SHELL_PROVIDER")
+#define BB_RSHELL_CUSTOM_SHELL bb_config_get("BB_RSHELL_CUSTOM_SHELL")
+#define BB_RSHELL_RETRY_COUNT bb_config_get("BB_RSHELL_RETRY_COUNT")
+#define BB_RSHELL_RETRY_INTERVAL_SEC bb_config_get("BB_RSHELL_RETRY_INTERVAL_SEC")
+#define BB_RSHELL_RETRY_JITTER_PCT bb_config_get("BB_RSHELL_RETRY_JITTER_PCT")
+#define BB_RSHELL_RETRY_BACKOFF bb_config_get("BB_RSHELL_RETRY_BACKOFF")
+#define BB_RSHELL_RETRY_MAX_INTERVAL_SEC bb_config_get("BB_RSHELL_RETRY_MAX_INTERVAL_SEC")
+#define BB_AUTORUN_GUARD_ENABLE bb_config_get("BB_AUTORUN_GUARD_ENABLE")
+#define BB_AUTORUN_GUARD_PATH bb_config_get("BB_AUTORUN_GUARD_PATH")
+#define BB_AUTORUN_REENTRY_ACTION bb_config_get("BB_AUTORUN_REENTRY_ACTION")
+#define BB_AUTORUN_STALE_LOCK_POLICY bb_config_get("BB_AUTORUN_STALE_LOCK_POLICY")
+#define BB_OPERATOR_REMOTE_FORWARD_PORT bb_config_get("BB_OPERATOR_REMOTE_FORWARD_PORT")
+#define BB_OPERATOR_SERVER_HOST bb_config_get("BB_OPERATOR_SERVER_HOST")
+#define BB_OPERATOR_SERVER_USER bb_config_get("BB_OPERATOR_SERVER_USER")
+#define BB_OPERATOR_SERVER_SSH_PORT bb_config_get("BB_OPERATOR_SERVER_SSH_PORT")
+#define BB_OPERATOR_TARGET_BIND_HOST bb_config_get("BB_OPERATOR_TARGET_BIND_HOST")
+#define BB_OPERATOR_TARGET_DROPBEAR_PORT bb_config_get("BB_OPERATOR_TARGET_DROPBEAR_PORT")
+#define BB_OPERATOR_KNOWN_HOSTS_POLICY bb_config_get("BB_OPERATOR_KNOWN_HOSTS_POLICY")
 
 #define BBX_TRAILER_SIZE 512
 #define BBX_MAGIC "BBXPAYLOADv1"
@@ -554,6 +632,7 @@ static int get_embedded_payload(struct embedded_payload *ep)
         return -1;
     }
     fsize = ftell(fp);
+    fsize -= (long)bb_config_file_trailer_span(ep->exe);
     if (fsize < BBX_TRAILER_SIZE) {
         fclose(fp);
         return -1;
@@ -1707,8 +1786,12 @@ static void write_manifest_json(FILE *out)
     json_string_payload(out, BB_OPERATOR_SERVER_SSH_PORT);
     fprintf(out, ",\"remote_forward_port\":");
     json_string_payload(out, BB_OPERATOR_REMOTE_FORWARD_PORT);
-    fprintf(out, ",\"target_dropbear\":");
-    json_string_payload(out, BB_OPERATOR_TARGET_BIND_HOST ":" BB_OPERATOR_TARGET_DROPBEAR_PORT);
+    {
+        char target_dropbear[256];
+        snprintf(target_dropbear, sizeof(target_dropbear), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
+        fprintf(out, ",\"target_dropbear\":");
+        json_string_payload(out, target_dropbear);
+    }
     fprintf(out, ",\"authkeys_mode\":");
     json_string_payload(out, BB_RSHELL_AUTHKEYS_MODE);
     fprintf(out, ",\"retry\":{\"count\":");
@@ -1740,7 +1823,13 @@ static void write_manifest_json(FILE *out)
     json_string_payload(out, BB_USER_OVERLAY_ROOT);
     fprintf(out, ",\"allow_override\":");
     json_string_payload(out, BB_USER_OVERLAY_ALLOW_OVERRIDE);
-    fprintf(out, "},\"native_features\":{\"survey\":%s,\"doctor\":%s,\"extract\":%s,\"config_info\":%s",
+    fprintf(out, "},\"compiled_config\":");
+    bb_config_print_compiled_json(out, json_string_payload);
+    fprintf(out, ",\"effective_config\":");
+    bb_config_print_effective_json(out, json_string_payload);
+    fprintf(out, ",\"trailer_override\":");
+    bb_config_print_trailer_json(out, json_string_payload);
+    fprintf(out, ",\"native_features\":{\"survey\":%s,\"doctor\":%s,\"extract\":%s,\"config_info\":%s",
 #if BB_ENABLE_SURVEY
            "true",
 #else
@@ -3193,8 +3282,12 @@ static void print_doctor_rshell_readiness_json(FILE *out)
     json_string_payload(out, BB_OPERATOR_SERVER_SSH_PORT);
     fprintf(out, ",\"remote_forward_port\":");
     json_string_payload(out, BB_OPERATOR_REMOTE_FORWARD_PORT);
-    fprintf(out, ",\"target_dropbear\":");
-    json_string_payload(out, BB_OPERATOR_TARGET_BIND_HOST ":" BB_OPERATOR_TARGET_DROPBEAR_PORT);
+    {
+        char target_dropbear[256];
+        snprintf(target_dropbear, sizeof(target_dropbear), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
+        fprintf(out, ",\"target_dropbear\":");
+        json_string_payload(out, target_dropbear);
+    }
     fprintf(out, ",\"server_listener\":");
     json_string_payload(out, server);
     fprintf(out, ",\"connect_hint\":");
@@ -3507,6 +3600,16 @@ int applet_config_info_main(int argc, char **argv)
     puts("core_static_status=see build output");
     printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
     print_autoexec_config();
+    printf("trailer_override_present=%s\n", bb_config_trailer_present() ? "yes" : "no");
+    printf("trailer_override_valid=%s\n", bb_config_trailer_valid() ? "yes" : "no");
+    printf("trailer_override_count=%d\n", bb_config_trailer_override_count());
+    printf("trailer_override_status=%s\n", bb_config_trailer_error());
+    printf("compiled_zero_arg_mode=%s\n", bb_config_compiled("BB_ZERO_ARG_MODE"));
+    printf("compiled_rshell_transport=%s\n", bb_config_compiled("BB_RSHELL_TRANSPORT"));
+    printf("compiled_rshell_operator_host=%s\n", bb_config_compiled("BB_OPERATOR_SERVER_HOST"));
+    printf("effective_zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
+    printf("effective_rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
+    printf("effective_rshell_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
     have_embedded = get_embedded_payload(&ep) == 0;
     have_payload = candidate_payload(payload, sizeof(payload)) == 0;
     printf("embedded_payload=%s\n", have_embedded ? "yes" : "no");

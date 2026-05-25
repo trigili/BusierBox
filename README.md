@@ -329,6 +329,7 @@ Workflow documentation:
 - [Offline / enclave builds](docs/offline-enclave.md)
 - [Persistence](docs/persistence.md)
 - [Manifest and support token](docs/manifest.md)
+- [Artifact runtime overrides](docs/artifact-runtime-overrides.md)
 
 The build attempts static linking for BusierBox and BusyBox. If a payload tool cannot be built fully static, the intended fallback is to bundle its required shared libraries in `runtime/payload/lib` and set `LD_LIBRARY_PATH` when dispatching payload tools. The build should print warnings rather than silently producing a broken payload.
 
@@ -379,7 +380,9 @@ When launching payload tools BusierBox sets:
 
 Doctor also reports payload identity/staleness, applet symlink count, overlay status and warnings, missing-tool reasons, terminfo availability, zsh presence, PATH duplicate hints, extraction free space, available memory, default-route presence, and recommendations for common tmux/dropbear/terminfo failures.
 
-`./busierbox config-info` reports the BusierBox build, extraction status, payload directory, payload hash, BusyBox dispatch status, and the payload manifest summary when available. `./busierbox config-export --json` and `./busierbox doctor --support-token` provide rebuild-oriented metadata that can be converted back into a starter config with `scripts/config-from-manifest` or `scripts/config-from-support-token`.
+`./busierbox config-info` reports the BusierBox build, extraction status, payload directory, payload hash, BusyBox dispatch status, post-build runtime override trailer status, and the payload manifest summary when available. `./busierbox manifest --json` includes compiled config, effective config, and trailer override metadata. `./busierbox config-export --json` and `./busierbox doctor --support-token` provide rebuild-oriented metadata that can be converted back into a starter config with `scripts/config-from-manifest` or `scripts/config-from-support-token`.
+
+`scripts/artifact-config` can inspect, set, import, export, and clear optional runtime override trailers on existing artifacts. Overrides are limited to selected runtime/operator keys such as reverse-access host/ports, transport, run mode, retry settings, zero-arg mode, and log verbosity. They do not change target tuple, compiled features, payload tools, dotfiles, or overlay contents. Optional XOR obfuscation is not encryption and must not be used for credentials or private keys.
 
 `./busierbox persistence --survey` and `./busierbox persistence --plan` enumerate authorized lab persistence/recovery options without changing the target. Installation requires an explicit method plus `--dry-run` or `--external --apply`, and writes are recorded in the cleanup ledger. `./busierbox recovery` remains as a deprecated compatibility alias.
 

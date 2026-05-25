@@ -9,6 +9,8 @@ import tarfile
 
 MAGIC = b"BBXPAYLOADv1"
 TRAILER_SIZE = 512
+CONFIG_MAGIC = b"BBXCONFIGv1"
+CONFIG_TRAILER_SIZE = 4096
 
 
 def die(msg):
@@ -117,9 +119,11 @@ if len(sys.argv) != 2:
 
 path = pathlib.Path(sys.argv[1])
 data = path.read_bytes()
-if len(data) < TRAILER_SIZE:
+config_trailer = len(data) >= CONFIG_TRAILER_SIZE and data[-CONFIG_TRAILER_SIZE:].startswith(CONFIG_MAGIC)
+payload_data = data[:-CONFIG_TRAILER_SIZE] if config_trailer else data
+if len(payload_data) < TRAILER_SIZE:
     die("artifact too small")
-trailer = data[-TRAILER_SIZE:].split(b"\0", 1)[0].decode("ascii", "replace")
+trailer = payload_data[-TRAILER_SIZE:].split(b"\0", 1)[0].decode("ascii", "replace")
 lines = trailer.splitlines()
 if not lines or lines[0].encode() != MAGIC:
     die("embedded payload trailer missing")
@@ -133,7 +137,9 @@ for line in lines[1:]:
 
 offset = int(meta.get("offset", "0"))
 size = int(meta.get("size", "0"))
-payload = data[offset : offset + size]
+if offset <= 0 or size <= 0 or offset + size > len(payload_data) - TRAILER_SIZE:
+    die("payload trailer offset/size outside artifact bounds")
+payload = payload_data[offset : offset + size]
 sha = hashlib.sha256(payload).hexdigest()
 hash_ok = sha == meta.get("sha256")
 
@@ -141,6 +147,7 @@ print(f"payload_present=yes")
 for key in ("offset", "size", "sha256", "version", "format", "compressed_size"):
     print(f"{key}={meta.get(key, '')}")
 print(f"hash_ok={'yes' if hash_ok else 'no'}")
+print(f"config_trailer_present={'yes' if config_trailer else 'no'}")
 
 manifest = None
 members = {}

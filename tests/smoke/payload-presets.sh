@@ -25,6 +25,7 @@ for name in default survey-core builtin-core-shell payload-bash socat-rescue ssh
     fi
     grep -q '^BB_RUNTIME_MODE=' "$file"
     grep -q '^BB_ZERO_ARG_MODE=' "$file"
+    grep -q '^BB_TRAILER_OVERRIDES_ENABLE=' "$file"
     grep -q '^BB_RSHELL_TRANSPORT=' "$file"
     grep -q '^BB_RSHELL_RUN_MODE=' "$file"
     grep -q '^BB_HEAVY_TOOLS=' "$file"
@@ -96,7 +97,7 @@ grep -q 'No-residue socat TLS shell; stages socat' presets/payload/socat-rescue.
 grep -q 'Extract Dropbear/dbclient; explicit reverse SSH; no autorun' presets/payload/ssh-operator.meta.json
 grep -q 'Large debug/operator payload; no network autorun' presets/payload/full-debug.meta.json
 
-for topic in top target payload payload-preset runtime launch rshell busybox heavy dotfiles overlay tool-compat dropbear gdbserver; do
+for topic in top target payload payload-preset runtime launch artifact-overrides rshell busybox heavy dotfiles overlay tool-compat dropbear gdbserver; do
     grep -q "$topic)" "$menu" || {
         printf '%s\n' "payload-presets: missing help topic $topic" >&2
         exit 1
@@ -105,6 +106,7 @@ done
 
 grep -q 'BB_PAYLOAD_PRESET=' "$menu"
 grep -q 'BB_RSHELL_RUN_MODE' "$menu"
+grep -q 'BB_TRAILER_OBFUSCATION' "$menu"
 grep -q 'BB_DOOM_USER_PATH' "$menu"
 grep -q 'BB_DOOM_WAD_PATH' "$menu"
 grep -q 'BB_PAYLOAD_PRESET=' configs/busierbox.conf.example
