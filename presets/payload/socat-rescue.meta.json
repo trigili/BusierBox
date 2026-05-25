@@ -1,8 +1,11 @@
 {
   "schema": 1,
   "name": "socat-rescue",
-  "description": "No-residue socat reverse shell rescue preset.",
+  "description": "No-residue socat TLS shell; stages socat.",
+  "menu_label": "No-residue socat TLS shell; stages socat",
   "risk_level": "high",
+  "size_hint": "medium",
+  "autorun": "reverse access",
   "network_behavior": "reverse shell when explicitly launched or selected as zero-arg behavior",
   "external_write_behavior": "disabled",
   "validated_cases": [

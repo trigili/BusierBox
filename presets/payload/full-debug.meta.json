@@ -1,8 +1,11 @@
 {
   "schema": 1,
   "name": "full-debug",
-  "description": "Debug-heavy payload with shell, tracing, transfer, and inspection tools.",
+  "description": "Large debug/operator payload; no network autorun.",
+  "menu_label": "Large debug/operator payload; no network autorun",
   "risk_level": "high",
+  "size_hint": "large",
+  "autorun": "none",
   "network_behavior": "tools available but no network autorun by default",
   "external_write_behavior": "disabled",
   "validated_cases": [
