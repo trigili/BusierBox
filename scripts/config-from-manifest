@@ -26,6 +26,13 @@ def emit_var(name, value):
     print(f"{name}={shlex.quote(str(value))}")
 
 
+def emit_list_var(name, values):
+    if not isinstance(values, list):
+        return
+    items = [str(value) for value in values if value]
+    emit_var(name, " ".join(items))
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("manifest", nargs="?", default="-", help="manifest/config-export JSON path, or '-' for stdin")
 args = parser.parse_args()
@@ -38,8 +45,10 @@ zero_arg = manifest.get("zero_arg", {})
 rshell = manifest.get("rshell", {})
 dotfiles = manifest.get("dotfiles", {})
 overlay = manifest.get("overlay", {})
+payload_tools = manifest.get("payload_tools", {})
 
 print("# Generated from BusierBox manifest metadata.")
+print("# Review target/operator-specific network fields before rebuilding.")
 emit_var("BB_TARGET_PRESET", target.get("preset"))
 emit_var("BB_TARGET_NAME", target.get("name"))
 emit_var("BB_TARGET_ARCH", target.get("arch"))
@@ -50,6 +59,8 @@ emit_var("BB_TARGET_LIBC", target.get("libc"))
 emit_var("BB_KERNEL_FLOOR", target.get("kernel_floor"))
 emit_var("BB_STATIC_POLICY", target.get("static_policy"))
 emit_var("BB_PAYLOAD_PRESET", payload.get("preset"))
+emit_var("BB_GDBSERVER_PROVIDER", payload.get("gdbserver_provider"))
+emit_list_var("BB_HEAVY_TOOLS", payload_tools.get("heavy_tools"))
 emit_var("BB_RUNTIME_MODE", runtime.get("mode"))
 emit_var("BB_RUNTIME_ROOT", runtime.get("root"))
 emit_var("BB_RUNTIME_ALLOW_FALLBACK_ROOT", runtime.get("allow_fallback_root"))

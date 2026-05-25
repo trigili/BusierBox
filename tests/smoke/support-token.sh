@@ -27,8 +27,20 @@ PY
 
 "$bb" config-export --json >"$tmp/config-export.json"
 python3 -m json.tool "$tmp/config-export.json" >/dev/null
+python3 - "$tmp/config-export.json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+manifest = doc.get("manifest", {})
+payload = manifest.get("payload", {})
+if "gdbserver_provider" not in payload:
+    raise SystemExit("config-export manifest missing payload.gdbserver_provider")
+PY
 scripts/config-from-manifest "$tmp/config-export.json" >"$tmp/from-export.conf"
 grep -q '^BB_PAYLOAD_PRESET=' "$tmp/from-export.conf"
+grep -q '^BB_GDBSERVER_PROVIDER=' "$tmp/from-export.conf"
+grep -q '^BB_HEAVY_TOOLS=' "$tmp/from-export.conf"
 grep -q '^BB_RUNTIME_MODE=' "$tmp/from-export.conf"
 grep -q '^BB_OPERATOR_SERVER_SSH_PORT=' "$tmp/from-export.conf"
 grep -q '^BB_RSHELL_RETRY_BACKOFF=' "$tmp/from-export.conf"
@@ -60,6 +72,8 @@ if "manifest" not in doc:
 PY
 scripts/config-from-support-token "$(cat "$tmp/support-token.b64")" >"$tmp/from-token.conf"
 grep -q '^BB_PAYLOAD_PRESET=' "$tmp/from-token.conf"
+grep -q '^BB_GDBSERVER_PROVIDER=' "$tmp/from-token.conf"
+grep -q '^BB_HEAVY_TOOLS=' "$tmp/from-token.conf"
 grep -q '^BB_RSHELL_TRANSPORT=' "$tmp/from-token.conf"
 grep -q '^BB_OPERATOR_REMOTE_FORWARD_PORT=' "$tmp/from-token.conf"
 grep -q '^BB_RSHELL_AUTHKEYS_MODE=' "$tmp/from-token.conf"

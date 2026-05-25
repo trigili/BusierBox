@@ -42,6 +42,7 @@ required = [
     ("target", "kernel_floor"),
     ("target", "static_policy"),
     ("payload", "preset"),
+    ("payload", "gdbserver_provider"),
     ("runtime", "mode"),
     ("runtime", "root"),
     ("zero_arg", "mode"),
@@ -63,6 +64,7 @@ for section, field in required:
 checks = [
     (manifest["busierbox"]["artifact_tier"], config.get("artifact_tier"), "artifact_tier"),
     (manifest["busierbox"]["payload_version"], config.get("payload_version"), "payload_version"),
+    (manifest["payload"]["gdbserver_provider"], config.get("gdbserver_provider"), "gdbserver_provider"),
     (manifest["runtime"]["mode"], config.get("runtime_mode"), "runtime_mode"),
     (manifest["runtime"]["root"], config.get("runtime_root"), "runtime_root"),
     (manifest["zero_arg"]["mode"], config.get("zero_arg_mode"), "zero_arg_mode"),

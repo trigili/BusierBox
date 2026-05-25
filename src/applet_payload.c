@@ -91,6 +91,13 @@
 #ifndef BB_USER_OVERLAY_ALLOW_OVERRIDE
 #define BB_USER_OVERLAY_ALLOW_OVERRIDE "no"
 #endif
+#ifndef BB_GDBSERVER_PROVIDER
+#define BB_GDBSERVER_PROVIDER "auto"
+#endif
+
+#ifdef BUSIERBOX_NO_OPEN_MEMSTREAM
+#error "BusierBox manifest/config export requires open_memstream on this build; add a growable-buffer fallback before using this libc."
+#endif
 
 #ifndef BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS
 #define BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS 0
@@ -1667,6 +1674,8 @@ static void write_manifest_json(FILE *out)
     json_string_payload(out, BB_STATIC_POLICY);
     fprintf(out, "},\"payload\":{\"preset\":");
     json_string_payload(out, BB_PAYLOAD_PRESET);
+    fprintf(out, ",\"gdbserver_provider\":");
+    json_string_payload(out, BB_GDBSERVER_PROVIDER);
     fprintf(out, "},\"runtime\":{\"mode\":");
     json_string_payload(out, BB_RUNTIME_MODE);
     fprintf(out, ",\"root\":");
@@ -1966,6 +1975,7 @@ int applet_manifest_main(int argc, char **argv)
     printf("kernel_floor=%s\n", BB_KERNEL_FLOOR);
     printf("static_policy=%s\n", BB_STATIC_POLICY);
     printf("payload_preset=%s\n", BB_PAYLOAD_PRESET);
+    printf("gdbserver_provider=%s\n", BB_GDBSERVER_PROVIDER);
     printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
     printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
     printf("zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
@@ -3496,6 +3506,7 @@ int applet_config_info_main(int argc, char **argv)
     have_payload = candidate_payload(payload, sizeof(payload)) == 0;
     printf("embedded_payload=%s\n", have_embedded ? "yes" : "no");
     printf("payload_version=%s\n", BUSIERBOX_PAYLOAD_VERSION);
+    printf("gdbserver_provider=%s\n", BB_GDBSERVER_PROVIDER);
     if (read_exe_dir(exe_dir, sizeof(exe_dir)) == 0) {
         snprintf(hash_path, sizeof(hash_path), "%s/payload.tar.gz.sha256", exe_dir);
         read_first_line(hash_path, hash, sizeof(hash));

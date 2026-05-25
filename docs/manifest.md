@@ -13,7 +13,7 @@ The JSON manifest includes:
 - schema version
 - payload version, artifact tier, build timestamp, and git commit when available
 - target preset/name and target arch/endian/cpu/abi/libc/kernel/static policy
-- payload preset
+- payload preset and gdbserver provider
 - runtime mode/root/fallback settings
 - zero-arg mode and log mode
 - rshell transport, encryption, run mode, and shell provider
@@ -53,9 +53,9 @@ busierbox config-export --json > artifact-config.json
 scripts/config-from-manifest artifact-config.json > recovered.conf
 ```
 
-The recovered config includes target, payload preset, runtime, zero-arg,
-rshell, dotfile, and overlay metadata. It intentionally does not include private
-keys or local operator secret material.
+The recovered config includes target, payload preset, selected heavy tools,
+gdbserver provider, runtime, zero-arg, rshell, dotfile, and overlay metadata. It
+intentionally does not include private keys or local operator secret material.
 
 ## Support Token
 
