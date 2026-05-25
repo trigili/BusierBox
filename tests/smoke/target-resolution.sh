@@ -2,7 +2,7 @@
 set -eu
 
 tmp=${TMPDIR:-/tmp}/busierbox-target-test.$$
-trap 'rm -f "$tmp"' EXIT HUP INT TERM
+trap 'rm -f "$tmp" "$tmp.err"' EXIT HUP INT TERM
 
 cat >"$tmp" <<'EOF'
 BB_TARGET_ARCH="mipsel"
@@ -45,5 +45,31 @@ if BUSIERBOX_CONFIG="$tmp" scripts/resolve-target --config | grep "TARGET_STATUS
     printf '%s\n' "expected unsupported tuple to be rejected" >&2
     exit 1
 fi
+
+cat >"$tmp" <<'EOF'
+BB_TARGET_PRESET="default"
+BB_TARGET_ARCH=""
+BB_TARGET_ENDIAN="auto"
+BB_TARGET_CPU="generic"
+BB_TARGET_ABI="default"
+BB_TARGET_LIBC=""
+BB_KERNEL_FLOOR=""
+BB_STATIC_POLICY="static-preferred"
+BB_PAYLOAD_TIER="core"
+EOF
+
+blank=$(BUSIERBOX_CONFIG="$tmp" scripts/resolve-target --config)
+printf '%s\n' "$blank" | grep "TARGET_STATUS=blank" >/dev/null
+printf '%s\n' "$blank" | grep "default is a blank target configuration" >/dev/null
+if BUSIERBOX_CONFIG="$tmp" scripts/resolve-target --config | grep "TARGET_NAME=native" >/dev/null; then
+    printf '%s\n' "default/blank config unexpectedly resolved to native" >&2
+    exit 1
+fi
+
+if scripts/package-target default 2>"$tmp.err"; then
+    printf '%s\n' "package-target default unexpectedly succeeded" >&2
+    exit 1
+fi
+grep "default is a blank target configuration" "$tmp.err" >/dev/null
 
 printf '%s\n' "target-resolution ok"

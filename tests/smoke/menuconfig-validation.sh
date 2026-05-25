@@ -23,12 +23,32 @@ fi
 # core-only + ssh/socat → error
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'core-only'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'ssh\|socat'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'Invalid Configuration'
+if awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'Continue saving anyway'; then
+    printf '%s\n' "menuconfig-validation: hard validation still offers continue-anyway" >&2
+    exit 1
+fi
 
 # zero-arg rshell without host → error
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_OPERATOR_SERVER_HOST'
 
-# ssh without dropbear → auto-fix
+# ssh without dropbear → hard error
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'dropbear'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RUNTIME_ALLOW_EXTERNAL_WRITES'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_SHELL_PROVIDER'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_RETRY_BACKOFF'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'payload-zsh'
+
+if grep -q 'BB_ARTIFACT_PROFILE\|Artifact profile\|configure_artifact_outputs' "$menu"; then
+    printf '%s\n' "menuconfig-validation: artifact profile UI/config still present" >&2
+    exit 1
+fi
+
+grep -q 'Clear BB_HEAVY_TOOLS now' "$menu"
+grep -q 'Set BB_DOTFILES_ENABLE=no now' "$menu"
+grep -q 'Set BB_USER_OVERLAY_ENABLE=no now' "$menu"
+grep -q 'Reverse shell: Enabled' "$menu"
+grep -q 'Reverse shell: Disabled' "$menu"
 
 # none log mode exists in menu
 grep -q '"none"' "$menu"
@@ -59,5 +79,12 @@ if grep 'BB_AUTORUN_GUARD_PATH=' "$menu" | grep -v '#' | grep -q '"/tmp/busierbo
     exit 1
 fi
 grep -q 'BB_RUNTIME_ROOT.*run\|BB_AUTORUN_GUARD_PATH.*run' "$menu"
+
+# Stale reverse-access server command names must not reappear.
+stale_server_pattern='--r''shell\|wait-operator''-tunnel\|shell-''again'
+if grep -q -- "$stale_server_pattern" "$menu"; then
+    printf '%s\n' "menuconfig-validation: stale reverse-access command text found" >&2
+    exit 1
+fi
 
 printf '%s\n' "menuconfig-validation ok"

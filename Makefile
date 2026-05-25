@@ -89,8 +89,11 @@ smoke-test: package-native
 	@tests/smoke/busybox-selection.sh
 	@tests/smoke/payload-reality.sh
 	@tests/smoke/menuconfig-autoexec.sh
+	@tests/smoke/menuconfig-validation.sh
+	@tests/smoke/rshell-transport-names.sh
 	@tests/smoke/dotfiles-by-app.sh
 	@tests/smoke/runtime-modes.sh
+	@tests/smoke/rshell-lifecycle.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/busierbox-server.py; else printf '%s\n' "skip: python3 server smoke unavailable"; fi
 	@tests/smoke/zero-arg-autorun.sh dist/busierbox-native-full
 	@./dist/busierbox-native-full list >/dev/null

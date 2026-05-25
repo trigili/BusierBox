@@ -25,7 +25,7 @@ grep -q '# user zsh' runtime/payload/home/.zshrc
 [ -e runtime/payload/home/.gdbinit ]
 [ ! -e runtime/payload/home/.profile ]
 
-if BB_DOTFILE_ZSH_MODE=user BB_DOTFILE_ZSH_USER_FILE="$tmp/missing" scripts/build-payload >"$tmp/missing.out" 2>&1; then
+if BB_RUNTIME_MODE=extract BB_DOTFILES_ENABLE=yes BB_DOTFILE_ZSH_MODE=user BB_DOTFILE_ZSH_USER_FILE="$tmp/missing" scripts/build-payload >"$tmp/missing.out" 2>&1; then
     printf '%s\n' "dotfiles-by-app: missing user dotfile did not fail" >&2
     exit 1
 fi

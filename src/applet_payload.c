@@ -74,6 +74,27 @@
 #ifndef BB_RSHELL_SOCAT_PORT
 #define BB_RSHELL_SOCAT_PORT "22203"
 #endif
+#ifndef BB_RSHELL_SHELL_PROVIDER
+#define BB_RSHELL_SHELL_PROVIDER "auto"
+#endif
+#ifndef BB_RSHELL_CUSTOM_SHELL
+#define BB_RSHELL_CUSTOM_SHELL ""
+#endif
+#ifndef BB_RSHELL_RETRY_COUNT
+#define BB_RSHELL_RETRY_COUNT "1"
+#endif
+#ifndef BB_RSHELL_RETRY_INTERVAL_SEC
+#define BB_RSHELL_RETRY_INTERVAL_SEC "5"
+#endif
+#ifndef BB_RSHELL_RETRY_JITTER_PCT
+#define BB_RSHELL_RETRY_JITTER_PCT "20"
+#endif
+#ifndef BB_RSHELL_RETRY_BACKOFF
+#define BB_RSHELL_RETRY_BACKOFF "none"
+#endif
+#ifndef BB_RSHELL_RETRY_MAX_INTERVAL_SEC
+#define BB_RSHELL_RETRY_MAX_INTERVAL_SEC "300"
+#endif
 #ifndef BB_RSHELL_ENCRYPTION
 #define BB_RSHELL_ENCRYPTION "tls"
 #endif
@@ -221,6 +242,12 @@ static void print_autoexec_config(void)
     printf("rshell_authkeys_mode=%s\n", BB_RSHELL_AUTHKEYS_MODE);
     printf("rshell_generate_hostkey_if_missing=%s\n", BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING);
     printf("rshell_socat_port=%s\n", BB_RSHELL_SOCAT_PORT);
+    printf("rshell_shell_provider=%s\n", BB_RSHELL_SHELL_PROVIDER);
+    printf("rshell_retry_count=%s\n", BB_RSHELL_RETRY_COUNT);
+    printf("rshell_retry_interval_sec=%s\n", BB_RSHELL_RETRY_INTERVAL_SEC);
+    printf("rshell_retry_jitter_pct=%s\n", BB_RSHELL_RETRY_JITTER_PCT);
+    printf("rshell_retry_backoff=%s\n", BB_RSHELL_RETRY_BACKOFF);
+    printf("rshell_retry_max_interval_sec=%s\n", BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
     printf("builtin_tls_enabled=%s\n", BB_BUILTIN_TLS_ENABLE);
     printf("rshell_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
     printf("rshell_target_dropbear_port=%s\n", BB_OPERATOR_TARGET_DROPBEAR_PORT);

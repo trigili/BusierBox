@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import socket
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,12 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def run(*args):
     return subprocess.run(args, cwd=ROOT, text=True, capture_output=True)
+
+
+def free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
 
 
 def main():
@@ -47,10 +54,25 @@ def main():
     if "shell_listen_port" not in src:
         print("busierbox-server: shell_listen_port not found (expected rename from socat_listen_port)", file=sys.stderr)
         return 1
+    if "sys.stdin.isatty()" not in src or "--no-stdin" not in src or "--log-only" not in src:
+        print("busierbox-server: stdin EOF/log-only handling not found", file=sys.stderr)
+        return 1
+    for word in ("tty.setraw", "tcsetattr", "SSLWantReadError", "SSLWantWriteError",
+                 "bytearray", "--one-shot", "listener remains open", 'reason = "active"',
+                 "TLSVersion.TLSv1_2"):
+        if word not in src:
+            print(f"busierbox-server: robust interactive relay feature missing: {word}", file=sys.stderr)
+            return 1
+    for reason in ("stdin_eof", "remote_eof", "socket_error", "tls_error", "keyboard_interrupt", "timeout"):
+        if reason not in src:
+            print(f"busierbox-server: relay exit reason missing: {reason}", file=sys.stderr)
+            return 1
 
     with tempfile.TemporaryDirectory() as tmp:
         cert_path = Path(tmp) / "shell-server.crt"
         key_path = Path(tmp) / "shell-server.key"
+        port1 = free_port()
+        port2 = free_port()
 
         # Test: missing cert/key → server auto-generates them, then runs.
         # Use a high ephemeral port with a short timeout so the server exits
@@ -59,7 +81,7 @@ def main():
         cfg.write_text(json.dumps({
             "transport": "tls-shell",
             "listen_host": "127.0.0.1",
-            "shell_listen_port": 19876,
+            "shell_listen_port": port1,
             "session_root": str(Path(tmp) / "sessions"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
@@ -90,7 +112,7 @@ def main():
         cfg2.write_text(json.dumps({
             "transport": "tls-shell",
             "listen_host": "127.0.0.1",
-            "socat_listen_port": 19877,
+            "socat_listen_port": port2,
             "session_root": str(Path(tmp) / "sessions"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),

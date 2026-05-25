@@ -24,6 +24,9 @@ fi
 # menuconfig must define BB_RSHELL_ENCRYPTION and BB_RSHELL_ALLOW_PLAINTEXT
 grep -q 'BB_RSHELL_ENCRYPTION=' "$menu"
 grep -q 'BB_RSHELL_ALLOW_PLAINTEXT=' "$menu"
+grep -q 'BB_RSHELL_SHELL_PROVIDER=' "$menu"
+grep -q 'BB_RSHELL_RETRY_COUNT=' "$menu"
+grep -q 'payload-zsh' "$menu"
 
 # menuconfig transport choices are builtin, socat, ssh
 grep -q '"ssh"' "$menu"
@@ -40,6 +43,14 @@ grep -q 'socat-tls.*socat\|socat.*socat-tls' "$build"
 # build-native must emit BB_RSHELL_ENCRYPTION and BB_RSHELL_ALLOW_PLAINTEXT as -D flags
 grep -q 'DBB_RSHELL_ENCRYPTION' "$build"
 grep -q 'DBB_RSHELL_ALLOW_PLAINTEXT' "$build"
+grep -q 'DBB_RSHELL_SHELL_PROVIDER' "$build"
+grep -q 'DBB_RSHELL_RETRY_COUNT' "$build"
+
+stale_server_pattern='--r''shell\|wait-operator''-tunnel\|shell-''again'
+if grep -q -- "$stale_server_pattern" "$menu"; then
+    printf '%s\n' "rshell-transport-names: stale reverse-access command text found" >&2
+    exit 1
+fi
 
 # _rshell_save_info must use BB_RSHELL_TRANSPORT not BB_RSHELL_MODE
 if grep -q 'BB_RSHELL_MODE}' "$menu"; then

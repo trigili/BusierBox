@@ -19,6 +19,10 @@ else
         scripts/package-target --config
     else
         for t in $targets; do
+            [ "$t" != default ] || {
+                printf '%s\n' "package-selected: default is a blank target configuration; choose native or a concrete target before building." >&2
+                exit 1
+            }
             scripts/package-target "$t"
         done
     fi

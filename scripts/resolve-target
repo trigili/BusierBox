@@ -48,6 +48,31 @@ if [ "$mode" = config ]; then
     if [ -f "$config" ]; then
         . "$config"
     fi
+    if [ "${BB_TARGET_PRESET:-}" = default ] || [ -z "${BB_TARGET_ARCH:-}" ]; then
+        python3 - <<'PY'
+import shlex
+
+def emit(key, value):
+    print(f"{key}={shlex.quote(str(value or ''))}")
+
+emit("TARGET_NAME", "")
+emit("TARGET_STATUS", "blank")
+emit("TARGET_SOURCE", "config")
+emit("TARGET_ARCH", "")
+emit("TARGET_ENDIAN", "auto")
+emit("TARGET_CPU", "generic")
+emit("TARGET_ABI", "default")
+emit("TARGET_LIBC", "")
+emit("TARGET_KERNEL_FLOOR", "")
+emit("TARGET_STATIC_POLICY", "static-preferred")
+emit("TARGET_PAYLOAD_TIER", "core")
+emit("TARGET_QEMU_USER", "")
+emit("TARGET_PROFILE_FILE", "")
+emit("TARGET_BUILDROOT_DEFCONFIG", "")
+emit("TARGET_NOTES", "default is a blank target configuration; choose native or a concrete target before building.")
+PY
+        exit 0
+    fi
     if [ -z "${BB_TARGET_ARCH:-}" ] && [ "${BB_ENABLE_CUSTOM_TARGET:-no}" = yes ]; then
         BB_TARGET_ARCH=${BB_CUSTOM_ARCH:-native}
         BB_TARGET_ENDIAN=${BB_CUSTOM_ENDIAN:-auto}
@@ -199,6 +224,8 @@ abi = preset.get("abi", "default")
 libc = preset.get("libc", "")
 kernel = preset.get("kernel_floor", "")
 name = preset.get("target_name") or ("native" if arch == "native" else f"{arch}-linux-{kernel}-{libc}")
+if preset.get("support_status") == "blank" or not arch:
+    name = preset.get("target_name", "")
 if arch != "native" and abi not in ("", "default", "hardfloat") and not name.endswith(f"-{abi}"):
     name = f"{name}-{abi}"
 
@@ -214,7 +241,12 @@ emit("TARGET_KERNEL_FLOOR", kernel)
 emit("TARGET_STATIC_POLICY", preset.get("static_policy", "static-preferred"))
 emit("TARGET_PAYLOAD_TIER", preset.get("payload_tier", "core"))
 emit("TARGET_QEMU_USER", preset.get("qemu_user", ""))
-emit("TARGET_PROFILE_FILE", "" if arch == "native" else f"payloads/generated-profiles/{name}.mk")
-emit("TARGET_BUILDROOT_DEFCONFIG", "" if arch == "native" else f"buildroot/generated-configs/{name}_defconfig")
-emit("TARGET_NOTES", preset.get("notes", ""))
+if preset.get("support_status") == "blank" or not arch:
+    emit("TARGET_PROFILE_FILE", "")
+    emit("TARGET_BUILDROOT_DEFCONFIG", "")
+    emit("TARGET_NOTES", "default is a blank target configuration; choose native or a concrete target before building.")
+else:
+    emit("TARGET_PROFILE_FILE", "" if arch == "native" else f"payloads/generated-profiles/{name}.mk")
+    emit("TARGET_BUILDROOT_DEFCONFIG", "" if arch == "native" else f"buildroot/generated-configs/{name}_defconfig")
+    emit("TARGET_NOTES", preset.get("notes", ""))
 PY
