@@ -21,6 +21,20 @@
 #ifdef HAVE_WOLFSSL
 #include <wolfssl/ssl.h>
 
+static int wait_fd_event(int fd, short events)
+{
+    struct pollfd p;
+    p.fd = fd;
+    p.events = events;
+    p.revents = 0;
+    for (;;) {
+        if (poll(&p, 1, -1) >= 0)
+            return 0;
+        if (errno != EINTR)
+            return -1;
+    }
+}
+
 static int tls_tcp_connect(const char *host, const char *port)
 {
     struct addrinfo hints, *res, *rp;
@@ -55,16 +69,12 @@ static int tls_read_some(WOLFSSL *ssl, char *buf, int len)
             return n;
         switch (wolfSSL_get_error(ssl, n)) {
         case WOLFSSL_ERROR_WANT_READ:
-            {
-                struct pollfd p = { fd, POLLIN, 0 };
-                poll(&p, 1, -1);
-            }
+            if (wait_fd_event(fd, POLLIN) != 0)
+                return -1;
             continue;
         case WOLFSSL_ERROR_WANT_WRITE:
-            {
-                struct pollfd p = { fd, POLLOUT, 0 };
-                poll(&p, 1, -1);
-            }
+            if (wait_fd_event(fd, POLLOUT) != 0)
+                return -1;
             continue;
         case WOLFSSL_ERROR_ZERO_RETURN:
             return 0;
@@ -92,16 +102,12 @@ static int tls_write_full(WOLFSSL *ssl, const char *buf, int len)
         }
         switch (wolfSSL_get_error(ssl, n)) {
         case WOLFSSL_ERROR_WANT_READ:
-            {
-                struct pollfd p = { fd, POLLIN, 0 };
-                poll(&p, 1, -1);
-            }
+            if (wait_fd_event(fd, POLLIN) != 0)
+                return -1;
             continue;
         case WOLFSSL_ERROR_WANT_WRITE:
-            {
-                struct pollfd p = { fd, POLLOUT, 0 };
-                poll(&p, 1, -1);
-            }
+            if (wait_fd_event(fd, POLLOUT) != 0)
+                return -1;
             continue;
         default:
             {
@@ -252,6 +258,7 @@ int rshell_builtin_tls(const char *host, const char *port, const char *shell_cmd
         return 2;
     }
 
+    signal(SIGPIPE, SIG_IGN);
     wolfSSL_Init();
     ctx = wolfSSL_CTX_new(wolfSSLv23_client_method());
     if (!ctx) {
@@ -280,9 +287,10 @@ int rshell_builtin_tls(const char *host, const char *port, const char *shell_cmd
     }
     wolfSSL_set_fd(ssl, sock);
 
-    if (wolfSSL_connect(ssl) != WOLFSSL_SUCCESS) {
+    rc = wolfSSL_connect(ssl);
+    if (rc != WOLFSSL_SUCCESS) {
         char errbuf[80];
-        int err = wolfSSL_get_error(ssl, 0);
+        int err = wolfSSL_get_error(ssl, rc);
         wolfSSL_ERR_error_string(err, errbuf);
         fprintf(stderr, "rshell: builtin-tls: TLS handshake failed: %s\n", errbuf);
         wolfSSL_free(ssl);

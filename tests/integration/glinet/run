@@ -1,11 +1,16 @@
 #!/bin/sh
 set -eu
 
-target=${TARGET:-mipsel-linux-4.x-musl}
-artifact=${ARTIFACT:-dist/busierbox-$target-full}
+target=${TARGET:-glinet-mt7621-openwrt-musl}
+artifact=${ARTIFACT:-}
 
 if [ "${SKIP_BUILD:-0}" != "1" ]; then
     TARGET="$target" make package
+fi
+
+if [ -z "$artifact" ]; then
+    resolved=$(scripts/resolve-target "$target" | sed -n 's/^TARGET_NAME=//p')
+    artifact="dist/busierbox-${resolved:-$target}-full"
 fi
 
 tests/integration/glinet/push-and-test "$artifact"

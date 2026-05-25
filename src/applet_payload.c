@@ -68,6 +68,9 @@
 #ifndef BB_RSHELL_AUTHKEYS_MODE
 #define BB_RSHELL_AUTHKEYS_MODE "disabled"
 #endif
+#ifndef BB_RSHELL_RUN_MODE
+#define BB_RSHELL_RUN_MODE "auto"
+#endif
 #ifndef BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
 #define BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING "no"
 #endif
@@ -240,6 +243,7 @@ static void print_autoexec_config(void)
     printf("rshell_encryption=%s\n", BB_RSHELL_ENCRYPTION);
     printf("rshell_allow_plaintext=%s\n", BB_RSHELL_ALLOW_PLAINTEXT);
     printf("rshell_authkeys_mode=%s\n", BB_RSHELL_AUTHKEYS_MODE);
+    printf("rshell_run_mode=%s\n", BB_RSHELL_RUN_MODE);
     printf("rshell_generate_hostkey_if_missing=%s\n", BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING);
     printf("rshell_socat_port=%s\n", BB_RSHELL_SOCAT_PORT);
     printf("rshell_shell_provider=%s\n", BB_RSHELL_SHELL_PROVIDER);

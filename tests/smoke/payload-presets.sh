@@ -26,6 +26,7 @@ for name in default survey-core builtin-core-shell socat-rescue ssh-operator ful
     grep -q '^BB_RUNTIME_MODE=' "$file"
     grep -q '^BB_ZERO_ARG_MODE=' "$file"
     grep -q '^BB_RSHELL_TRANSPORT=' "$file"
+    grep -q '^BB_RSHELL_RUN_MODE=' "$file"
     grep -q '^BB_HEAVY_TOOLS=' "$file"
 done
 
@@ -50,6 +51,7 @@ for topic in top target payload payload-preset runtime launch rshell busybox hea
 done
 
 grep -q 'BB_PAYLOAD_PRESET=' "$menu"
+grep -q 'BB_RSHELL_RUN_MODE' "$menu"
 grep -q 'BB_PAYLOAD_PRESET=' configs/busierbox.conf.example
 
 printf '%s\n' "payload-presets ok"

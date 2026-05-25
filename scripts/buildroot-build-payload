@@ -19,6 +19,10 @@ export PATH
 profile=${TARGET_PROFILE_FILE:-payloads/profiles/$TARGET.mk}
 defconfig=${TARGET_BUILDROOT_DEFCONFIG:-buildroot/configs/${TARGET}_defconfig}
 out_dir="$OUT_BASE/$TARGET"
+case "$out_dir" in
+    /*) out_abs=$out_dir ;;
+    *) out_abs="$(pwd)/$out_dir" ;;
+esac
 
 profile_value() {
     key=$1
@@ -89,6 +93,33 @@ copy_shared_libs_if_dynamic() {
         find "$out_dir/target/usr/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' \) -exec cp -P {} runtime/payload/lib/ \;
     fi
     printf '%s\n' dynamic
+}
+
+copy_shared_libs_for_dynamic_payload_tools() {
+    status=${1:-static}
+    if ! command -v file >/dev/null 2>&1; then
+        printf '%s\n' "$status"
+        return 0
+    fi
+    find runtime/payload/bin -maxdepth 1 -type f -perm /111 -print 2>/dev/null | while IFS= read -r exe; do
+        if file "$exe" | grep -qi 'dynamically linked'; then
+            printf '%s\n' "$exe"
+        fi
+    done >runtime/payload/dynamic-tools.txt
+    if [ -s runtime/payload/dynamic-tools.txt ]; then
+        mkdir -p runtime/payload/lib
+        if [ -d "$out_dir/target/lib" ]; then
+            find "$out_dir/target/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' -o -name 'ld-*.so*' \) -exec cp -P {} runtime/payload/lib/ \;
+        fi
+        if [ -d "$out_dir/target/usr/lib" ]; then
+            find "$out_dir/target/usr/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' \) -exec cp -P {} runtime/payload/lib/ \;
+        fi
+        printf '%s\n' "buildroot-build-payload: WARNING: staged dynamic payload tools require bundled shared libraries in runtime/payload/lib" >&2
+        printf '%s\n' dynamic
+    else
+        rm -f runtime/payload/dynamic-tools.txt
+        printf '%s\n' "$status"
+    fi
 }
 
 tool_requested() {
@@ -322,6 +353,7 @@ BB_BUSYBOX_GROUPS=$(profile_value BUSYBOX_GROUPS 2>/dev/null || true)
 pre_excluded=$(profile_value EXCLUDED_TOOLS 2>/dev/null || true)
 GDBSERVER_PROVIDER=$(profile_value GDBSERVER_PROVIDER 2>/dev/null || true)
 GDBSERVER_USER_PATH=$(profile_value GDBSERVER_USER_PATH 2>/dev/null || true)
+TARGET_STATIC_POLICY=$(profile_value STATIC_POLICY 2>/dev/null || true)
 BB_USER_OVERLAY_ENABLE=$(profile_value USER_OVERLAY_ENABLE 2>/dev/null || true)
 BB_USER_OVERLAY_ROOT=$(profile_value USER_OVERLAY_ROOT 2>/dev/null || true)
 BB_USER_OVERLAY_ALLOW_OVERRIDE=$(profile_value USER_OVERLAY_ALLOW_OVERRIDE 2>/dev/null || true)
@@ -338,16 +370,21 @@ mkdir -p "$out_dir" runtime/payload/bin runtime/payload/lib runtime/payload/shar
 
 printf '%s\n' "configuring Buildroot payload for $TARGET..."
 cp "$defconfig" "$out_dir/.config"
-make -C "$BUILDROOT_DIR" O="$(pwd)/$out_dir" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" olddefconfig
+make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" olddefconfig
 if [ "${BUSIERBOX_BUILDROOT_CONFIG_ONLY:-0}" = "1" ]; then
     printf '%s\n' "Buildroot configuration validated for $TARGET"
     exit 0
 fi
 
+if tool_requested socat && [ "${TARGET_STATIC_POLICY:-}" = dynamic ]; then
+    printf '%s\n' "buildroot-build-payload: rebuilding socat for TLS/OpenSSL dynamic payload support"
+    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" socat-dirclean >/dev/null 2>&1 || true
+fi
+
 printf '%s\n' "building Buildroot BusyBox payload for $TARGET..."
 build_failed_tools=
 _build_ok=0
-if make -C "$BUILDROOT_DIR" O="$(pwd)/$out_dir" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" -j"$JOBS"; then
+if make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" -j"$JOBS"; then
     _build_ok=1
 fi
 
@@ -395,8 +432,8 @@ if [ "$_build_ok" = "0" ]; then
     printf '%s\n' "BR2_TOOLCHAIN_BUILDROOT_CXX=n" >>"$_retry_cfg"
     cp "$_retry_cfg" "$out_dir/.config"
     rm -f "$_retry_cfg"
-    make -C "$BUILDROOT_DIR" O="$(pwd)/$out_dir" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" olddefconfig
-    if ! make -C "$BUILDROOT_DIR" O="$(pwd)/$out_dir" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" -j"$JOBS"; then
+    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" olddefconfig
+    if ! make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" -j"$JOBS"; then
         die "Buildroot build failed even without optional heavy tools for $TARGET; inspect $out_dir/build"
     fi
 fi
@@ -591,6 +628,7 @@ stage_dotfiles
 printf '%s\n' "${BUSIERBOX_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION
 
 write_exclusion_reasons "${pre_excluded:-}" "${build_failed_tools:-}"
+static_status=$(copy_shared_libs_for_dynamic_payload_tools "$static_status")
 write_manifest "$static_status" pending
 make_payload_archives
 if [ "$PAYLOAD_FORMAT" = "tar" ]; then selected=dist/payload.tar; else selected=dist/payload.tar.gz; fi

@@ -17,6 +17,12 @@ if grep -q 'pkill.*-f.*dropbear\|pkill.*-f.*dbclient' "$src"; then
 fi
 grep -q 'SIGTERM' "$src"
 grep -q 'dbclient\.pid\|dropbear\.pid' "$src"
+grep -q 'rshell\.pid' "$src"
+grep -q 'BB_RSHELL_RUN_MODE' "$src"
+grep -q 'BUSIERBOX_ZERO_ARG_CONTEXT' "$src"
+grep -q 'BUSIERBOX_RSHELL_BACKGROUND_CHILD' "$src"
+grep -q 'LD_LIBRARY_PATH' "$src"
+grep -q 'payload_lib' "$src"
 
 # start must check existing PID before launching (not pkill)
 # The start path should reference the pid file check
@@ -51,5 +57,13 @@ if grep 'BB_AUTORUN_GUARD_PATH' "$src" | grep -q '"/tmp/busierbox-autorun"'; the
     exit 1
 fi
 grep -q 'BB_RUNTIME_ROOT.*run\|BB_AUTORUN_GUARD_PATH.*run' "$src"
+
+if [ -f src/rshell_tls.c ]; then
+    if grep -q 'wolfSSL_get_error(ssl, 0)' src/rshell_tls.c; then
+        printf '%s\n' "rshell-lifecycle: wolfSSL_connect error path ignores actual return code" >&2
+        exit 1
+    fi
+    grep -q 'SIGPIPE, SIG_IGN' src/rshell_tls.c
+fi
 
 printf '%s\n' "rshell-lifecycle ok"

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """BusierBox reverse access convenience server.
 
-This helper catches target-initiated reverse-access transports. It does not
-implement the retired BusierBox framed artifact-upload protocol.
+This helper catches target-initiated reverse-access transports. It is not an
+artifact sender or target-side command executor.
 
 Transport model:
   ssh        — Dropbear/dbclient reverse SSH (BB_RSHELL_TRANSPORT=ssh)
@@ -397,29 +397,41 @@ def _send_ssl_nonblocking(conn, data):
         return 0, exc
 
 
-def relay_stdio(conn, log_dir=None, use_stdin=True):
+def relay_stdio(conn, log_dir=None, use_stdin=True, script_bytes=None, expect=None,
+                session_timeout=None):
     """Relay from conn to stdout/log and optionally from stdin to conn."""
-    stdin_interactive = bool(use_stdin and sys.stdin.isatty())
+    scripted = script_bytes is not None
+    stdin_interactive = bool(use_stdin and not scripted and sys.stdin.isatty())
     reason = "active"
     log_fp = None
     tty_state = None
-    outbound = bytearray()
+    outbound = bytearray(script_bytes or b"")
+    captured = bytearray()
+    deadline = time.monotonic() + session_timeout if session_timeout else None
     if log_dir is not None:
         log_fp = (Path(log_dir) / "session.log").open("ab", buffering=0)
     if stdin_interactive:
         print("Shell connected. Ctrl-C to close.")
         tty_state = _set_interactive_tty_raw()
+    elif scripted:
+        print("Shell connected. running scripted shell input.")
     else:
         print("Shell connected. stdin is non-interactive; receiving remote output only.")
     conn.setblocking(False)
     try:
         while True:
+            if deadline is not None and time.monotonic() >= deadline:
+                reason = "session_timeout"
+                break
             readers = [conn]
             if stdin_interactive:
                 readers.append(sys.stdin)
             writers = [conn] if outbound else []
             try:
-                readable, writable, _ = select.select(readers, writers, [], 1.0)
+                timeout = 1.0
+                if deadline is not None:
+                    timeout = max(0.0, min(timeout, deadline - time.monotonic()))
+                readable, writable, _ = select.select(readers, writers, [], timeout)
             except KeyboardInterrupt:
                 reason = "keyboard_interrupt"
                 break
@@ -441,6 +453,7 @@ def relay_stdio(conn, log_dir=None, use_stdin=True):
                     break
                 if log_fp:
                     log_fp.write(data)
+                captured.extend(data)
                 os.write(sys.stdout.fileno(), data)
                 if getattr(conn, "pending", lambda: 0)() <= 0:
                     break
@@ -474,6 +487,15 @@ def relay_stdio(conn, log_dir=None, use_stdin=True):
         _restore_interactive_tty(tty_state)
         if log_fp:
             log_fp.close()
+        if log_dir is not None and expect is not None:
+            expect_path = Path(log_dir) / "expectation"
+            text = captured.decode("utf-8", errors="replace")
+            if expect in text:
+                expect_path.write_text("matched\n", encoding="utf-8")
+            else:
+                expect_path.write_text(f"missing: {expect}\n", encoding="utf-8")
+                if reason in ("remote_eof", "stdin_eof", "active"):
+                    reason = "expectation_missing"
         print(f"relay exit reason: {reason}", file=sys.stderr)
         if log_dir is not None:
             (Path(log_dir) / "exit-reason").write_text(reason + "\n", encoding="utf-8")
@@ -505,7 +527,8 @@ def generate_tls_cert(cert: Path, key: Path) -> bool:
     return False
 
 
-def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0):
+def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=None,
+                    expect=None, session_timeout=None):
     """TLS shell listener — accepts both builtin+tls and socat+tls targets."""
     cert = Path(str(cfg["tls_cert"]))
     key = Path(str(cfg["tls_key"]))
@@ -543,7 +566,11 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0):
             print(f"TLS connection from {addr[0]}:{addr[1]}")
             try:
                 with context.wrap_socket(raw, server_side=True) as conn:
-                    relay_stdio(conn, log_dir, use_stdin=use_stdin)
+                    reason = relay_stdio(conn, log_dir, use_stdin=use_stdin,
+                                          script_bytes=script_bytes, expect=expect,
+                                          session_timeout=session_timeout)
+                    if expect is not None and reason == "expectation_missing":
+                        return 1
             except ssl.SSLError as exc:
                 print(f"TLS session failed: {exc}", file=sys.stderr)
                 (Path(log_dir) / "exit-reason").write_text("tls_error\n", encoding="utf-8")
@@ -555,7 +582,8 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0):
     return 0
 
 
-def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0):
+def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=None,
+                      expect=None, session_timeout=None):
     """Plaintext shell listener — debug/insecure; socat+none or builtin+none."""
     port = int(cfg["shell_listen_port"])
     print("WARNING: plain-shell is INSECURE and for debug use only!", file=sys.stderr)
@@ -579,7 +607,11 @@ def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0):
                 return 1 if sessions == 0 else 0
             print(f"Plain connection from {addr[0]}:{addr[1]}")
             with conn:
-                relay_stdio(conn, log_dir, use_stdin=use_stdin)
+                reason = relay_stdio(conn, log_dir, use_stdin=use_stdin,
+                                      script_bytes=script_bytes, expect=expect,
+                                      session_timeout=session_timeout)
+                if expect is not None and reason == "expectation_missing":
+                    return 1
             sessions += 1
             if max_sessions > 0 and sessions >= max_sessions:
                 break
@@ -645,6 +677,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="alias for --no-stdin; receive stdout/session log only")
     parser.add_argument("--one-shot", action="store_true",
                         help="exit after one shell session instead of waiting for reconnects")
+    parser.add_argument("--script",
+                        help="file containing shell input to send after tls/plain shell connect")
+    parser.add_argument("--expect",
+                        help="literal text that must appear in captured shell output")
+    parser.add_argument("--session-timeout", type=float, default=30,
+                        help="seconds to allow a scripted shell session; 0 disables the limit")
     args = parser.parse_args(argv)
 
     cfg = load_config(args.config)
@@ -660,15 +698,25 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
 
     timeout = None if args.timeout == 0 else args.timeout
     action = _resolve_transport(cfg, args.transport)
+    script_bytes = None
+    if args.script:
+        script_bytes = Path(args.script).read_bytes()
+        if script_bytes and not script_bytes.endswith(b"\n"):
+            script_bytes += b"\n"
+    session_timeout = None if args.session_timeout == 0 else args.session_timeout
 
     if action == "ssh":
         return serve_ssh(cfg, timeout)
     if action == "tls-shell":
         return serve_tls_shell(cfg, timeout, use_stdin=not (args.no_stdin or args.log_only),
-                               max_sessions=1 if args.one_shot else 0)
+                               max_sessions=1 if args.one_shot or args.script else 0,
+                               script_bytes=script_bytes, expect=args.expect,
+                               session_timeout=session_timeout)
     if action == "plain-shell":
         return serve_plain_shell(cfg, timeout, use_stdin=not (args.no_stdin or args.log_only),
-                                 max_sessions=1 if args.one_shot else 0)
+                                 max_sessions=1 if args.one_shot or args.script else 0,
+                                 script_bytes=script_bytes, expect=args.expect,
+                                 session_timeout=session_timeout)
     print(f"unsupported transport: {action}", file=sys.stderr)
     return 2
 

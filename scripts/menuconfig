@@ -57,6 +57,7 @@ BB_RSHELL_ENCRYPTION="tls"
 BB_RSHELL_ALLOW_PLAINTEXT="no"
 BB_RSHELL_MODE="ssh"
 BB_RSHELL_AUTHKEYS_MODE="disabled"
+BB_RSHELL_RUN_MODE="auto"
 BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING="no"
 BB_RSHELL_SOCAT_PORT="22203"
 BB_RSHELL_SHELL_PROVIDER="auto"
@@ -132,6 +133,7 @@ BB_RSHELL_ENCRYPTION="${BB_RSHELL_ENCRYPTION:-tls}"
 BB_RSHELL_ALLOW_PLAINTEXT="${BB_RSHELL_ALLOW_PLAINTEXT:-no}"
 BB_RSHELL_MODE="$BB_RSHELL_TRANSPORT"
 BB_RSHELL_AUTHKEYS_MODE="${BB_RSHELL_AUTHKEYS_MODE:-disabled}"
+BB_RSHELL_RUN_MODE="${BB_RSHELL_RUN_MODE:-auto}"
 BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING="${BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING:-no}"
 BB_RSHELL_SOCAT_PORT="${BB_RSHELL_SOCAT_PORT:-22203}"
 BB_RSHELL_SHELL_PROVIDER="${BB_RSHELL_SHELL_PROVIDER:-auto}"
@@ -192,6 +194,25 @@ onoff() {
     if [ "$1" = yes ]; then printf on; else printf off; fi
 }
 
+is_int_value() {
+    case "$1" in
+        ""|-) return 1 ;;
+        -*) _n=${1#-} ;;
+        *) _n=$1 ;;
+    esac
+    case "$_n" in
+        ""|*[!0-9]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+is_uint_value() {
+    case "$1" in
+        ""|*[!0-9]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
 payload_preset_vars() {
     cat <<'EOF'
 BB_RUNTIME_MODE
@@ -206,6 +227,7 @@ BB_RSHELL_TRANSPORT
 BB_RSHELL_ENCRYPTION
 BB_RSHELL_ALLOW_PLAINTEXT
 BB_RSHELL_AUTHKEYS_MODE
+BB_RSHELL_RUN_MODE
 BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
 BB_RSHELL_SOCAT_PORT
 BB_RSHELL_SHELL_PROVIDER
@@ -282,6 +304,7 @@ normalize_payload_config() {
     BB_RSHELL_TRANSPORT="${BB_RSHELL_TRANSPORT:-none}"
     BB_RSHELL_ENCRYPTION="${BB_RSHELL_ENCRYPTION:-tls}"
     BB_RSHELL_ALLOW_PLAINTEXT="${BB_RSHELL_ALLOW_PLAINTEXT:-no}"
+    BB_RSHELL_RUN_MODE="${BB_RSHELL_RUN_MODE:-auto}"
     BB_RSHELL_MODE="$BB_RSHELL_TRANSPORT"
     [ "$BB_RSHELL_TRANSPORT" = builtin ] && BB_BUILTIN_TLS_ENABLE=yes || BB_BUILTIN_TLS_ENABLE=no
     BB_AUTORUN_GUARD_PATH="${BB_AUTORUN_GUARD_PATH:-${BB_RUNTIME_ROOT}/run}"
@@ -392,6 +415,7 @@ BB_RSHELL_TRANSPORT="$BB_RSHELL_TRANSPORT"
 BB_RSHELL_ENCRYPTION="$BB_RSHELL_ENCRYPTION"
 BB_RSHELL_ALLOW_PLAINTEXT="$BB_RSHELL_ALLOW_PLAINTEXT"
 BB_RSHELL_AUTHKEYS_MODE="$BB_RSHELL_AUTHKEYS_MODE"
+BB_RSHELL_RUN_MODE="$BB_RSHELL_RUN_MODE"
 BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING="$BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING"
 BB_RSHELL_SOCAT_PORT="$BB_RSHELL_SOCAT_PORT"
 BB_RSHELL_SHELL_PROVIDER="$BB_RSHELL_SHELL_PROVIDER"
@@ -726,6 +750,13 @@ validate_config() {
         root-copy|root-merge)
             [ "$BB_RUNTIME_ALLOW_EXTERNAL_WRITES" = yes ] || _errors="$_errors\n- authkeys mode $BB_RSHELL_AUTHKEYS_MODE writes outside the runtime root. Set BB_RUNTIME_ALLOW_EXTERNAL_WRITES=yes or choose another authkeys mode."
             ;;
+        disabled|payload-home) ;;
+        *) _errors="$_errors\n- invalid rshell authkeys mode: $BB_RSHELL_AUTHKEYS_MODE." ;;
+    esac
+
+    case "$BB_RSHELL_RUN_MODE" in
+        foreground|background|auto) ;;
+        *) _errors="$_errors\n- invalid rshell run mode: $BB_RSHELL_RUN_MODE." ;;
     esac
 
     if [ "$BB_RSHELL_TRANSPORT" = builtin ] && [ "$BB_RSHELL_ENCRYPTION" = tls ] && ! can_build_builtin_tls; then
@@ -751,6 +782,10 @@ validate_config() {
         none|linear|exponential) ;;
         *) _errors="$_errors\n- invalid rshell retry backoff: $BB_RSHELL_RETRY_BACKOFF." ;;
     esac
+    is_int_value "$BB_RSHELL_RETRY_COUNT" || _errors="$_errors\n- BB_RSHELL_RETRY_COUNT must be an integer (-1 means retry indefinitely)."
+    is_uint_value "$BB_RSHELL_RETRY_INTERVAL_SEC" || _errors="$_errors\n- BB_RSHELL_RETRY_INTERVAL_SEC must be a non-negative integer."
+    is_uint_value "$BB_RSHELL_RETRY_JITTER_PCT" || _errors="$_errors\n- BB_RSHELL_RETRY_JITTER_PCT must be a non-negative integer."
+    is_uint_value "$BB_RSHELL_RETRY_MAX_INTERVAL_SEC" || _errors="$_errors\n- BB_RSHELL_RETRY_MAX_INTERVAL_SEC must be a non-negative integer."
 
     if [ "$BB_ZERO_ARG_LOG_MODE" = none ] && [ "$BB_AUTORUN_GUARD_ENABLE" = yes ]; then
         _warnings="$_warnings\n- zero-arg log mode none suppresses output, but minimal autorun guard files may still be written."
@@ -953,7 +988,7 @@ show_page_help() {
             ;;
         rshell)
             _title="Reverse access help"
-            _text="builtin: BusierBox-native shell transport, TLS via wolfSSL.\n\nsocat: staged socat shell transport; TLS recommended.\n\nssh: Dropbear/dbclient reverse SSH. SSH-only fields are hidden unless transport=ssh.\n\nnone: no reverse shell.\n\ncore-only supports builtin only because staged Dropbear/socat tools are unavailable."
+            _text="builtin: BusierBox-native shell transport, TLS via wolfSSL.\n\nsocat: staged socat shell transport; TLS recommended.\n\nssh: Dropbear/dbclient reverse SSH. SSH-only fields are hidden unless transport=ssh.\n\nnone: no reverse shell.\n\nRun mode foreground keeps the transport in the current session. background is transport-specific; SSH already launches Dropbear/dbclient in the background. auto uses the transport default and does not imply persistent shell-session resume.\n\ncore-only supports builtin only because staged Dropbear/socat tools are unavailable."
             ;;
         busybox)
             _title="BusyBox applets help"
@@ -2126,7 +2161,8 @@ configure_reverse_shell() {
         esac
         set -- "$@" \
             "11" "Shell provider: $BB_RSHELL_SHELL_PROVIDER" \
-            "12" "Retry: count=$BB_RSHELL_RETRY_COUNT interval=${BB_RSHELL_RETRY_INTERVAL_SEC}s backoff=$BB_RSHELL_RETRY_BACKOFF"
+            "12" "Run mode: $BB_RSHELL_RUN_MODE" \
+            "13" "Retry: count=$BB_RSHELL_RETRY_COUNT interval=${BB_RSHELL_RETRY_INTERVAL_SEC}s backoff=$BB_RSHELL_RETRY_BACKOFF"
         set -- "$@" "H" "Help" "0" "Back"
 
         dialog --title "Payload / Reverse access / rshell" \
@@ -2263,6 +2299,16 @@ configure_reverse_shell() {
                 fi
                 ;;
             12)
+                dialog --title "Reverse access run mode" \
+                    --radiolist "Select how rshell starts. auto uses the transport default; SSH already starts Dropbear/dbclient in the background. builtin/socat foreground mode creates a new shell session on each reconnect." 14 88 3 \
+                    "auto" "Use transport default" "$(mode_onoff "$BB_RSHELL_RUN_MODE" auto)" \
+                    "foreground" "Run in current process/session" "$(mode_onoff "$BB_RSHELL_RUN_MODE" foreground)" \
+                    "background" "Detach where the transport supports it" "$(mode_onoff "$BB_RSHELL_RUN_MODE" background)" \
+                    2>"$temp_out" || true
+                _v=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_v" ] && BB_RSHELL_RUN_MODE="$_v"
+                ;;
+            13)
                 dialog --title "Retry count" --inputbox "Connection setup retries. -1 retries indefinitely, 0 means one attempt only." 9 78 "$BB_RSHELL_RETRY_COUNT" 2>"$temp_out" || true
                 _v=$(cat "$temp_out"); [ -n "$_v" ] && BB_RSHELL_RETRY_COUNT="$_v"
                 dialog --title "Retry interval" --inputbox "Initial retry interval in seconds." 9 78 "$BB_RSHELL_RETRY_INTERVAL_SEC" 2>"$temp_out" || true
