@@ -48,8 +48,8 @@ fi
 grep -q 'Clear BB_HEAVY_TOOLS now' "$menu"
 grep -q 'Set BB_DOTFILES_ENABLE=no now' "$menu"
 grep -q 'Set BB_USER_OVERLAY_ENABLE=no now' "$menu"
-grep -q 'Reverse shell: Enabled' "$menu"
-grep -q 'Reverse shell: Disabled' "$menu"
+grep -q 'Reverse access enabled: $_enabled' "$menu"
+grep -q 'Enable / transport: enabled=$_enabled transport=$BB_RSHELL_TRANSPORT' "$menu"
 
 # none log mode exists in menu
 grep -q '"none"' "$menu"
