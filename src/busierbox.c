@@ -613,7 +613,34 @@ int applet_rshell_main(int argc, char **argv)
         if (json) {
             FILE *fp = fopen(status_path, "r");
             char line[512], key[128], val[384];
+            char rshell_pid[64] = "", dropbear_pid[64] = "", dbclient_pid[64] = "", socat_pid[64] = "";
+            char started_at[64] = "", last_exit_reason[256] = "";
             int first = 1;
+
+            while (fp && fgets(line, sizeof(line), fp)) {
+                char *eq = strchr(line, '=');
+                if (!eq)
+                    continue;
+                *eq++ = '\0';
+                line[strcspn(line, "\r\n")] = '\0';
+                eq[strcspn(eq, "\r\n")] = '\0';
+                if (!strcmp(line, "rshell_pid") || !strcmp(line, "pid"))
+                    snprintf(rshell_pid, sizeof(rshell_pid), "%s", eq);
+                else if (!strcmp(line, "dropbear_pid"))
+                    snprintf(dropbear_pid, sizeof(dropbear_pid), "%s", eq);
+                else if (!strcmp(line, "dbclient_pid"))
+                    snprintf(dbclient_pid, sizeof(dbclient_pid), "%s", eq);
+                else if (!strcmp(line, "socat_pid"))
+                    snprintf(socat_pid, sizeof(socat_pid), "%s", eq);
+                else if (!strcmp(line, "started_at"))
+                    snprintf(started_at, sizeof(started_at), "%s", eq);
+                else if (!strcmp(line, "last_exit_reason"))
+                    snprintf(last_exit_reason, sizeof(last_exit_reason), "%s", eq);
+            }
+            if (fp) {
+                fclose(fp);
+                fp = fopen(status_path, "r");
+            }
             printf("{\"schema\":1,\"state\":");
             json_string_main(stdout, fp ? "active" : "inactive");
             printf(",\"transport\":");
@@ -624,6 +651,36 @@ int applet_rshell_main(int argc, char **argv)
             json_string_main(stdout, BB_RSHELL_RUN_MODE);
             printf(",\"guard_path\":");
             json_string_main(stdout, guard);
+            printf(",\"pids\":{\"rshell\":");
+            if (rshell_pid[0])
+                json_string_main(stdout, rshell_pid);
+            else
+                printf("null");
+            printf(",\"dropbear\":");
+            if (dropbear_pid[0])
+                json_string_main(stdout, dropbear_pid);
+            else
+                printf("null");
+            printf(",\"dbclient\":");
+            if (dbclient_pid[0])
+                json_string_main(stdout, dbclient_pid);
+            else
+                printf("null");
+            printf(",\"socat\":");
+            if (socat_pid[0])
+                json_string_main(stdout, socat_pid);
+            else
+                printf("null");
+            printf("},\"started_at\":");
+            if (started_at[0])
+                json_string_main(stdout, started_at);
+            else
+                printf("null");
+            printf(",\"last_exit_reason\":");
+            if (last_exit_reason[0])
+                json_string_main(stdout, last_exit_reason);
+            else
+                printf("null");
             printf(",\"log_paths\":[");
             {
                 char lp[PATH_MAX];
@@ -654,7 +711,11 @@ int applet_rshell_main(int argc, char **argv)
             }
             if (fp)
                 fclose(fp);
-            printf("},\"server_hint\":");
+            printf("},\"connect_hint\":");
+            json_string_main(stdout, !strcmp(transport, "ssh") ?
+                             "ssh -p 2200 root@127.0.0.1" :
+                             "connect operator listener to configured shell port");
+            printf(",\"server_hint\":");
             json_string_main(stdout, !strcmp(transport, "ssh") ?
                              "scripts/busierbox-server --transport ssh --ssh-port 22" :
                              "scripts/busierbox-server --transport tls-shell --shell-port 22203");
