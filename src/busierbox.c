@@ -143,6 +143,7 @@ const struct bb_applet bb_applets[] = {
     {"extract", applet_extract_main, "extract or reuse the payload runtime"},
 #endif
     {"clean", applet_clean_main, "remove local extracted payload runtime"},
+    {"cleanup-ledger", applet_cleanup_ledger_main, "inspect BusierBox cleanup ledger"},
 #if BB_ENABLE_CONFIG_INFO
     {"config-info", applet_config_info_main, "print build and payload information"},
 #endif
@@ -152,6 +153,7 @@ const struct bb_applet bb_applets[] = {
 #if BB_ENABLE_FETCH_FULL
     {"fetch-full", applet_fetch_full_main, "download a full BusierBox artifact"},
 #endif
+    {"manifest", applet_manifest_main, "print artifact manifest metadata"},
     {"rshell", applet_rshell_main, "start configured reverse shell transport"},
 };
 
@@ -410,6 +412,31 @@ static int should_background_rshell(const char *transport)
     return 0;
 }
 
+static void json_string_main(FILE *out, const char *s)
+{
+    fputc('"', out);
+    if (s) {
+        while (*s) {
+            unsigned char c = (unsigned char)*s++;
+            if (c == '"' || c == '\\') {
+                fputc('\\', out);
+                fputc(c, out);
+            } else if (c == '\n') {
+                fputs("\\n", out);
+            } else if (c == '\r') {
+                fputs("\\r", out);
+            } else if (c == '\t') {
+                fputs("\\t", out);
+            } else if (c < 32) {
+                fprintf(out, "\\u%04x", c);
+            } else {
+                fputc(c, out);
+            }
+        }
+    }
+    fputc('"', out);
+}
+
 static void write_rshell_background_status(const char *transport, pid_t pid)
 {
     const char *guard = autorun_guard_path();
@@ -534,7 +561,7 @@ int applet_rshell_main(int argc, char **argv)
     int rc;
 
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
-        puts("usage: busierbox rshell [start|status|stop|restart] [--transport ssh|socat|builtin]");
+        puts("usage: busierbox rshell [start|status|logs|cleanup|stop|restart] [--json] [--dry-run] [--transport ssh|socat|builtin]");
         puts("Starts or manages the configured reverse access transport.");
         printf("Configured transport: %s  encryption: %s  run_mode: %s\n",
                BB_RSHELL_TRANSPORT, BB_RSHELL_ENCRYPTION, BB_RSHELL_RUN_MODE);
@@ -563,8 +590,63 @@ int applet_rshell_main(int argc, char **argv)
     if (!strcmp(subcmd, "status")) {
         const char *guard = autorun_guard_path();
         char status_path[PATH_MAX], lock_path[PATH_MAX];
+        int json = 0;
+        for (i = 1; i < argc; i++)
+            if (!strcmp(argv[i], "--json"))
+                json = 1;
         snprintf(status_path, sizeof(status_path), "%s/rshell.status", guard);
         snprintf(lock_path, sizeof(lock_path), "%s/rshell.lock", guard);
+        if (json) {
+            FILE *fp = fopen(status_path, "r");
+            char line[512], key[128], val[384];
+            int first = 1;
+            printf("{\"schema\":1,\"state\":");
+            json_string_main(stdout, fp ? "active" : "inactive");
+            printf(",\"transport\":");
+            json_string_main(stdout, transport);
+            printf(",\"encryption\":");
+            json_string_main(stdout, BB_RSHELL_ENCRYPTION);
+            printf(",\"run_mode\":");
+            json_string_main(stdout, BB_RSHELL_RUN_MODE);
+            printf(",\"guard_path\":");
+            json_string_main(stdout, guard);
+            printf(",\"log_paths\":[");
+            {
+                char lp[PATH_MAX];
+                snprintf(lp, sizeof(lp), "%s/rshell.log", guard);
+                json_string_main(stdout, lp);
+                snprintf(lp, sizeof(lp), "%s/dropbear.log", guard);
+                printf(",");
+                json_string_main(stdout, lp);
+                snprintf(lp, sizeof(lp), "%s/dbclient.log", guard);
+                printf(",");
+                json_string_main(stdout, lp);
+            }
+            printf("],\"fields\":{");
+            while (fp && fgets(line, sizeof(line), fp)) {
+                char *eq = strchr(line, '=');
+                if (!eq)
+                    continue;
+                *eq++ = '\0';
+                line[strcspn(line, "\r\n")] = '\0';
+                eq[strcspn(eq, "\r\n")] = '\0';
+                snprintf(key, sizeof(key), "%s", line);
+                snprintf(val, sizeof(val), "%s", eq);
+                printf("%s", first ? "" : ",");
+                json_string_main(stdout, key);
+                printf(":");
+                json_string_main(stdout, val);
+                first = 0;
+            }
+            if (fp)
+                fclose(fp);
+            printf("},\"server_hint\":");
+            json_string_main(stdout, !strcmp(transport, "ssh") ?
+                             "scripts/busierbox-server --transport ssh --ssh-port 22" :
+                             "scripts/busierbox-server --transport tls-shell --shell-port 22203");
+            printf("}\n");
+            return 0;
+        }
         if (access(status_path, R_OK) == 0) {
             char buf[512];
             FILE *fp = fopen(status_path, "r");
@@ -582,6 +664,50 @@ int applet_rshell_main(int argc, char **argv)
         puts("rshell_status=inactive");
         printf("rshell_guard=%s\n", guard);
         return 0;
+    }
+    if (!strcmp(subcmd, "logs")) {
+        const char *guard = autorun_guard_path();
+        static const char *names[] = {"rshell.log", "dropbear.log", "dbclient.log", NULL};
+        int k;
+        for (k = 0; names[k]; k++) {
+            char path[PATH_MAX], buf[512];
+            FILE *fp;
+            snprintf(path, sizeof(path), "%s/%s", guard, names[k]);
+            printf("==> %s <==\n", path);
+            fp = fopen(path, "r");
+            if (!fp) {
+                printf("(missing; zero_arg_log_mode=%s may suppress logs)\n", BB_ZERO_ARG_LOG_MODE);
+                continue;
+            }
+            while (fgets(buf, sizeof(buf), fp))
+                fputs(buf, stdout);
+            fclose(fp);
+        }
+        return 0;
+    }
+    if (!strcmp(subcmd, "cleanup")) {
+        int dry_run = 0, external = 0, apply = 0;
+        const char *guard = autorun_guard_path();
+        char *stop_argv[] = {"rshell", "stop", NULL};
+        for (i = 1; i < argc; i++) {
+            if (!strcmp(argv[i], "--dry-run"))
+                dry_run = 1;
+            else if (!strcmp(argv[i], "--external"))
+                external = 1;
+            else if (!strcmp(argv[i], "--apply"))
+                apply = 1;
+        }
+        if (dry_run) {
+            printf("Would stop rshell processes and remove:\n  %s/rshell.pid\n  %s/rshell.status\n  %s/rshell.log\n", guard, guard, guard);
+            if (!external)
+                puts("External rshell changes are not removed without --external --apply.");
+            return 0;
+        }
+        if (external && !apply) {
+            fputs("rshell cleanup: external cleanup requires --external --apply\n", stderr);
+            return 2;
+        }
+        return applet_rshell_main(2, stop_argv);
     }
     if (!strcmp(subcmd, "stop") || !strcmp(subcmd, "restart")) {
         const char *guard = autorun_guard_path();

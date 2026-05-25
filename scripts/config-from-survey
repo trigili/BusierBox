@@ -1,34 +1,142 @@
 #!/bin/sh
 set -eu
 
-if [ "$#" -ne 1 ]; then
-    printf '%s\n' "usage: scripts/config-from-survey survey.json" >&2
-    exit 2
-fi
+usage() {
+    cat >&2 <<'EOF'
+usage: scripts/config-from-survey [options] survey.json
 
-python3 - "$1" <<'PY'
+Options:
+  --format shell|json
+  --write-config PATH
+  --prefer-rshell builtin|socat|ssh|none|auto
+  --prefer-runtime core-only|extract|no-residue|auto
+  --allow-network-autorun
+  --allow-external-writes
+  --target-preset auto|NAME
+  --payload-preset auto|NAME
+EOF
+}
+
+format=shell
+write_config=
+prefer_rshell=auto
+prefer_runtime=auto
+allow_network_autorun=no
+allow_external_writes=no
+target_preset=auto
+payload_preset=auto
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --format)
+            [ "$#" -gt 1 ] || { usage; exit 2; }
+            format=$2
+            shift 2
+            ;;
+        --format=*)
+            format=${1#--format=}
+            shift
+            ;;
+        --write-config)
+            [ "$#" -gt 1 ] || { usage; exit 2; }
+            write_config=$2
+            shift 2
+            ;;
+        --write-config=*)
+            write_config=${1#--write-config=}
+            shift
+            ;;
+        --prefer-rshell)
+            [ "$#" -gt 1 ] || { usage; exit 2; }
+            prefer_rshell=$2
+            shift 2
+            ;;
+        --prefer-rshell=*)
+            prefer_rshell=${1#--prefer-rshell=}
+            shift
+            ;;
+        --prefer-runtime)
+            [ "$#" -gt 1 ] || { usage; exit 2; }
+            prefer_runtime=$2
+            shift 2
+            ;;
+        --prefer-runtime=*)
+            prefer_runtime=${1#--prefer-runtime=}
+            shift
+            ;;
+        --allow-network-autorun)
+            allow_network_autorun=yes
+            shift
+            ;;
+        --allow-external-writes)
+            allow_external_writes=yes
+            shift
+            ;;
+        --target-preset)
+            [ "$#" -gt 1 ] || { usage; exit 2; }
+            target_preset=$2
+            shift 2
+            ;;
+        --target-preset=*)
+            target_preset=${1#--target-preset=}
+            shift
+            ;;
+        --payload-preset)
+            [ "$#" -gt 1 ] || { usage; exit 2; }
+            payload_preset=$2
+            shift 2
+            ;;
+        --payload-preset=*)
+            payload_preset=${1#--payload-preset=}
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        -*)
+            usage
+            exit 2
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+[ "$#" -eq 1 ] || { usage; exit 2; }
+survey=$1
+
+python3 - "$survey" "$format" "$write_config" "$prefer_rshell" "$prefer_runtime" \
+    "$allow_network_autorun" "$allow_external_writes" "$target_preset" "$payload_preset" <<'PY'
 import json
-import platform
+import pathlib
+import shlex
 import sys
 
-with open(sys.argv[1], "r", encoding="utf-8") as fh:
+survey_path, fmt, write_config, prefer_rshell, prefer_runtime, allow_network_autorun, allow_external_writes, target_preset_opt, payload_preset_opt = sys.argv[1:]
+
+with open(survey_path, "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-arch = data.get("arch") or data.get("uname", {}).get("machine") or "unknown"
-kernel = str(data.get("kernel") or data.get("uname", {}).get("release") or "unknown")
-endian = data.get("endianness") or sys.byteorder
-recs = data.get("recommendations", {})
+def first(*values, default="unknown"):
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return default
+
+def boolish(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in {"yes", "true", "1", "ok", "basic-ok", "present"}
+    return bool(value)
 
 def yesno(value):
-    if isinstance(value, bool):
-        return "yes" if value else "no"
-    if isinstance(value, str):
-        return "yes" if value.lower() in ("yes", "true", "1", "ok", "basic-ok") else "no"
-    return "no"
+    return "yes" if boolish(value) else "no"
 
 def kernel_floor(release):
-    if release == "unknown":
-        return "unknown"
+    release = str(release or "unknown")
     parts = release.split(".", 2)
     if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
         major = int(parts[0])
@@ -42,21 +150,194 @@ def kernel_floor(release):
         return "current"
     return "unknown"
 
-payload = recs.get("payload_mode_possible", False)
-tmux = recs.get("likely_tmux_supported", False)
-zsh = recs.get("likely_zsh_supported", payload)
-strace = recs.get("likely_strace_supported", False)
-gdbserver = recs.get("likely_gdbserver_supported", strace)
-extract_dir = recs.get("recommended_extract_dir") or "none"
+def arch_norm(machine):
+    machine = str(machine or "unknown").lower()
+    table = {
+        "mips": "mips",
+        "mips64": "mips",
+        "mipsel": "mipsel",
+        "mips64el": "mipsel",
+        "armv7l": "armv7",
+        "armv6l": "armv7",
+        "aarch64": "aarch64",
+        "x86_64": "x86_64",
+        "amd64": "x86_64",
+        "i386": "i386",
+        "i486": "i386",
+        "i586": "i386",
+        "i686": "i386",
+    }
+    return table.get(machine, machine or "unknown")
 
-print(f"target_arch={arch}")
-print(f"endian={endian}")
-print(f"kernel_floor={kernel_floor(kernel)}")
-print(f"zero_write_possible={yesno(recs.get('zero_write_supported', False))}")
-print(f"payload_mode_possible={yesno(payload)}")
-print(f"recommended_extract_dir={extract_dir}")
-print(f"include_zsh={yesno(payload and zsh)}")
-print(f"include_tmux={yesno(payload and tmux)}")
-print(f"include_strace={yesno(strace)}")
-print(f"include_gdbserver={yesno(gdbserver)}")
+def guess_libc():
+    recs = data.get("recommendations", {})
+    for key in ("libc_guess", "libc"):
+        if recs.get(key):
+            return recs[key]
+    shell = data.get("shell_probe", {})
+    hints = " ".join(str(x) for x in [
+        shell.get("libc_hints", ""),
+        data.get("libc", ""),
+        data.get("os", ""),
+        data.get("os_markers", {}),
+    ]).lower()
+    if "musl" in hints:
+        return "musl"
+    if "uclibc" in hints or "u-clibc" in hints:
+        return "uclibc"
+    if "glibc" in hints or "gnu libc" in hints:
+        return "glibc"
+    if any("openwrt" in str(x).lower() for x in [data.get("os_markers", {}), data.get("shell_probe", {}), data.get("uname", {})]):
+        return "musl"
+    return "unknown"
+
+def guess_preset(arch, libc, kernel, machine):
+    if target_preset_opt != "auto":
+        return target_preset_opt
+    text = json.dumps(data, sort_keys=True).lower()
+    if "gl.inet" in text or "glinet" in text or "mt7621" in text:
+        return "glinet-mt7621-openwrt-musl"
+    if arch == "mipsel" and libc == "musl" and "openwrt" in text:
+        return "mipsel-linux-4.x-musl"
+    if arch == "mipsel" and libc == "uclibc":
+        return "mipsel-linux-2.6-uclibc-legacy"
+    if arch in {"mips", "mipsel"} and kernel.startswith("2.4"):
+        return ""
+    return ""
+
+recs = data.get("recommendations", {})
+uname = data.get("uname", {})
+machine = first(data.get("arch"), uname.get("machine"))
+arch = first(recs.get("target_arch_guess"), arch_norm(machine))
+kernel = first(data.get("kernel"), uname.get("release"))
+kfloor = first(recs.get("kernel_floor_guess"), kernel_floor(kernel))
+endian = first(recs.get("endian_guess"), data.get("endianness"), sys.byteorder)
+libc = first(recs.get("libc_guess"), guess_libc())
+preset = first(recs.get("target_preset_guess"), guess_preset(arch, libc, kfloor, machine), default="")
+extract_dir = first(recs.get("recommended_extract_dir"), recs.get("runtime_root_recommendation"), default="none")
+payload_possible = boolish(recs.get("payload_mode_possible", extract_dir != "none"))
+tmp_write = boolish(recs.get("tmp_writable", True))
+cwd_write = boolish(recs.get("cwd_writable", True))
+low_disk = boolish(recs.get("low_disk", False))
+noexec_tmp = boolish(recs.get("noexec_tmp", False))
+
+warnings = []
+if libc == "unknown":
+    warnings.append("unknown libc; keep the recommendation conservative")
+if arch in {"unknown", ""}:
+    warnings.append("unknown architecture; no hard target preset selected")
+if low_disk or not cwd_write:
+    warnings.append("low disk or non-writable cwd; prefer core-only or no-residue")
+if noexec_tmp:
+    warnings.append("/tmp appears noexec; avoid extracting there")
+
+if prefer_runtime != "auto":
+    runtime_mode = prefer_runtime
+elif not payload_possible or low_disk:
+    runtime_mode = "core-only"
+elif not cwd_write and tmp_write:
+    runtime_mode = "no-residue"
+else:
+    runtime_mode = "extract"
+
+if runtime_mode == "core-only":
+    runtime_root = "./.busierbox" if cwd_write else "/tmp/.busierbox"
+else:
+    runtime_root = "./.busierbox" if cwd_write else "/tmp/.busierbox"
+
+if prefer_rshell != "auto":
+    rshell_transport = prefer_rshell
+elif runtime_mode == "core-only" and boolish(recs.get("builtin_tls_available", False)):
+    rshell_transport = "builtin"
+else:
+    rshell_transport = "none"
+
+if payload_preset_opt != "auto":
+    payload_preset = payload_preset_opt
+elif runtime_mode == "core-only":
+    payload_preset = "survey-core"
+elif rshell_transport == "builtin":
+    payload_preset = "builtin-core-shell"
+elif rshell_transport == "socat":
+    payload_preset = "socat-rescue"
+elif rshell_transport == "ssh":
+    payload_preset = "ssh-operator"
+else:
+    payload_preset = "default"
+
+cfg = {
+    "BB_TARGET_PRESET": preset,
+    "BB_TARGET_ARCH": arch,
+    "BB_TARGET_ENDIAN": endian,
+    "BB_TARGET_CPU": first(recs.get("target_cpu_guess"), "auto"),
+    "BB_TARGET_LIBC": libc,
+    "BB_KERNEL_FLOOR": kfloor,
+    "BB_STATIC_POLICY": first(recs.get("static_policy"), "static-preferred"),
+    "BB_PAYLOAD_PRESET": payload_preset,
+    "BB_RUNTIME_MODE": runtime_mode,
+    "BB_RUNTIME_ROOT": runtime_root,
+    "BB_RUNTIME_ALLOW_EXTERNAL_WRITES": "yes" if allow_external_writes == "yes" else "no",
+    "BB_ZERO_ARG_MODE": "rshell" if allow_network_autorun == "yes" and rshell_transport != "none" else "help",
+    "BB_RSHELL_TRANSPORT": rshell_transport,
+    "BB_RSHELL_ENCRYPTION": "tls",
+}
+
+result = {
+    "schema": 1,
+    "source": str(survey_path),
+    "recommendations": cfg,
+    "warnings": warnings,
+    "facts": {
+        "arch": arch,
+        "machine": machine,
+        "kernel": kernel,
+        "kernel_floor": kfloor,
+        "libc": libc,
+        "endianness": endian,
+        "payload_possible": payload_possible,
+        "recommended_extract_dir": extract_dir,
+    },
+}
+
+def shell_quote(value):
+    return shlex.quote(str(value))
+
+def render_shell():
+    lines = [
+        "# BusierBox recommended config generated from survey JSON.",
+        "# Defaults are conservative: no external writes and no network autorun.",
+    ]
+    for warning in warnings:
+        lines.append(f"# WARNING: {warning}")
+    for key in [
+        "BB_TARGET_PRESET",
+        "BB_TARGET_ARCH",
+        "BB_TARGET_ENDIAN",
+        "BB_TARGET_CPU",
+        "BB_TARGET_LIBC",
+        "BB_KERNEL_FLOOR",
+        "BB_STATIC_POLICY",
+        "BB_PAYLOAD_PRESET",
+        "BB_RUNTIME_MODE",
+        "BB_RUNTIME_ROOT",
+        "BB_RUNTIME_ALLOW_EXTERNAL_WRITES",
+        "BB_ZERO_ARG_MODE",
+        "BB_RSHELL_TRANSPORT",
+        "BB_RSHELL_ENCRYPTION",
+    ]:
+        lines.append(f'{key}={shell_quote(cfg[key])}')
+    return "\n".join(lines) + "\n"
+
+if fmt == "json":
+    output = json.dumps(result, indent=2, sort_keys=True) + "\n"
+elif fmt == "shell":
+    output = render_shell()
+else:
+    raise SystemExit(f"unsupported --format: {fmt}")
+
+if write_config:
+    pathlib.Path(write_config).parent.mkdir(parents=True, exist_ok=True)
+    pathlib.Path(write_config).write_text(output, encoding="utf-8")
+else:
+    sys.stdout.write(output)
 PY

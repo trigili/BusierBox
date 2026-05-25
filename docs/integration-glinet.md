@@ -79,7 +79,16 @@ local/integration-runs/<timestamp>/
 ```
 
 Each case directory contains build logs, generated config, SSH/SCP transcripts,
-target facts, target command output, server logs, and cleanup logs. The final
+target facts, target command output, server logs, cleanup logs, and post-case
+captures for:
+
+- `busierbox manifest --json`
+- `busierbox doctor --json` when available, falling back to `doctor`
+- `busierbox cleanup-ledger --json`
+- `busierbox clean --dry-run`
+- `busierbox rshell status --json`
+
+The final
 machine-readable result is:
 
 ```text

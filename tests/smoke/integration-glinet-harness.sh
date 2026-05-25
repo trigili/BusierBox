@@ -19,6 +19,13 @@ for case_name in survey-core default-extract-help builtin-core-shell zero-arg-bu
 done
 
 "$script" --dry-run --all-safe --operator-host 127.0.0.1 >/dev/null
+scripts/busierbox-bringup --host root@192.0.2.1 --dry-run >/dev/null
+
+grep -q 'capture_busierbox_outputs' "$script"
+grep -q 'manifest --json' "$script"
+grep -q 'cleanup-ledger --json' "$script"
+grep -q 'clean --dry-run' "$script"
+grep -q 'rshell status --json' "$script"
 
 python3 -m py_compile "$script" "$server"
 "$server" --help | grep -q -- '--script'

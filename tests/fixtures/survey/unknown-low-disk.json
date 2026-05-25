@@ -1,0 +1,20 @@
+{
+  "schema": 2,
+  "uname": {
+    "sysname": "Linux",
+    "nodename": "target",
+    "release": "2.6.32",
+    "version": "#1",
+    "machine": "weirdarch"
+  },
+  "arch": "weirdarch",
+  "kernel": "2.6.32",
+  "endianness": "unknown",
+  "recommendations": {
+    "payload_mode_possible": false,
+    "recommended_extract_dir": "none",
+    "low_disk": true,
+    "cwd_writable": false,
+    "tmp_writable": true
+  }
+}

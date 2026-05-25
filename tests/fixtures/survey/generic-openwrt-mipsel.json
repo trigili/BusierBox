@@ -1,0 +1,20 @@
+{
+  "schema": 2,
+  "uname": {
+    "sysname": "Linux",
+    "nodename": "OpenWrt",
+    "release": "5.10.176",
+    "version": "#0 SMP",
+    "machine": "mipsel"
+  },
+  "arch": "mipsel",
+  "kernel": "5.10.176",
+  "endianness": "little",
+  "os_markers": {
+    "openwrt_release": "DISTRIB_ID='OpenWrt'\nDISTRIB_TARGET='ramips/generic'"
+  },
+  "recommendations": {
+    "payload_mode_possible": true,
+    "recommended_extract_dir": "."
+  }
+}
