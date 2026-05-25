@@ -63,4 +63,13 @@ if grep -q 'BB_RSHELL_MODE}' "$menu"; then
     fi
 fi
 
+grep -q '_rshell_server_command()' "$menu"
+grep -q '_rshell_operator_connect_command()' "$menu"
+grep -q 'plain-shell --shell-port' "$menu"
+grep -q 'tls-shell --shell-port' "$menu"
+grep -q 'ssh --ssh-port' "$menu"
+grep -q 'This artifact will not initiate reverse access when run with no arguments' "$menu"
+grep -q './busierbox rshell start' "$menu"
+grep -q 'plaintext shell transport is insecure/debug-only' "$menu"
+
 printf '%s\n' "rshell-transport-names ok"

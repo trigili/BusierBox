@@ -2241,6 +2241,30 @@ Connect model: ${_connect_model}
 EOF
             ;;
     esac
+    if [ "$BB_ZERO_ARG_MODE" = rshell ]; then
+        printf '%s\n' "Zero-arg behavior: will start reverse access automatically."
+    else
+        printf '%s\n' "Zero-arg behavior: will not start reverse access automatically."
+        printf '%s\n' "Explicit target start: ./busierbox rshell start"
+    fi
+    if [ "$BB_RSHELL_ENCRYPTION" = none ] && [ "$BB_RSHELL_TRANSPORT" != ssh ]; then
+        printf '%s\n' "WARNING: plaintext shell transport is insecure/debug-only."
+    fi
+}
+
+_rshell_server_command() {
+    case "$BB_RSHELL_TRANSPORT:$BB_RSHELL_ENCRYPTION" in
+        ssh:*) printf 'scripts/busierbox-server --transport ssh --ssh-port %s\n' "$BB_OPERATOR_SERVER_SSH_PORT" ;;
+        *:none) printf 'scripts/busierbox-server --transport plain-shell --shell-port %s\n' "$BB_RSHELL_SOCAT_PORT" ;;
+        *) printf 'scripts/busierbox-server --transport tls-shell --shell-port %s\n' "$BB_RSHELL_SOCAT_PORT" ;;
+    esac
+}
+
+_rshell_operator_connect_command() {
+    case "$BB_RSHELL_TRANSPORT" in
+        ssh) printf 'ssh -p %s root@127.0.0.1\n' "$BB_OPERATOR_REMOTE_FORWARD_PORT" ;;
+        *) printf '# shell stream is attached by scripts/busierbox-server\n' ;;
+    esac
 }
 
 _rshell_save_info() {
@@ -2254,6 +2278,8 @@ _rshell_save_info() {
     _bh=$BB_OPERATOR_TARGET_BIND_HOST
     _id=${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-local/operator-session/id_dbclient}
     _ak=${BB_OPERATOR_AUTHORIZED_KEY_FILE:-<not set>}
+    _server_cmd=$(_rshell_server_command)
+    _connect_cmd=$(_rshell_operator_connect_command)
     cat >"$_out" <<MDEOF
 # BusierBox Reverse Access Connection Info
 
@@ -2278,23 +2304,32 @@ $(_rshell_summary_text)
 | Target Dropbear bind | ${_bh}:${_tp} |
 | Target→operator identity | ${_id} |
 | Operator→target public key | ${_ak} |
+| Zero-arg starts reverse access | $([ "$BB_ZERO_ARG_MODE" = rshell ] && printf yes || printf no) |
+
+## Zero-Arg Behavior
+
+$([ "$BB_ZERO_ARG_MODE" = rshell ] && printf 'This artifact will initiate reverse access when run with no arguments.' || printf 'This artifact will not initiate reverse access when run with no arguments.')
+
+$([ "$BB_ZERO_ARG_MODE" = rshell ] || printf 'Start explicitly on the target with:\n\n```sh\n./busierbox rshell start\n```\n')
 
 ## Usage
 
 **On the target device:**
-\`\`\`
-busierbox rshell
+\`\`\`sh
+./busierbox rshell start
 \`\`\`
 
 **On the operator workstation:**
-\`\`\`
-scripts/busierbox-server --transport ssh --ssh-port ${_sp}
+\`\`\`sh
+${_server_cmd}
 \`\`\`
 
 **Connect once the tunnel is up:**
+\`\`\`sh
+${_connect_cmd}
 \`\`\`
-ssh -p ${_fp} root@127.0.0.1
-\`\`\`
+
+$([ "$BB_RSHELL_ENCRYPTION" = none ] && [ "$BB_RSHELL_TRANSPORT" != ssh ] && printf '## Plaintext Warning\n\nThis configuration uses plaintext shell transport. It is insecure and intended only for controlled debug sessions.\n')
 MDEOF
     printf '%s\n' "$_out"
 }
