@@ -1,8 +1,11 @@
 {
   "schema": 1,
   "name": "survey-core",
-  "description": "Small survey-focused artifact for passive target discovery.",
+  "description": "Core-only local survey; no extraction; no reverse access.",
+  "menu_label": "Core-only local survey; no extraction; no reverse access",
   "risk_level": "low",
+  "size_hint": "smallest",
+  "autorun": "survey",
   "network_behavior": "none by default",
   "external_write_behavior": "disabled",
   "validated_cases": [

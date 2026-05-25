@@ -44,7 +44,10 @@ required = [
     "schema",
     "name",
     "description",
+    "menu_label",
     "risk_level",
+    "size_hint",
+    "autorun",
     "network_behavior",
     "external_write_behavior",
     "validated_cases",
@@ -61,6 +64,8 @@ if data["external_write_behavior"] != "disabled":
     raise SystemExit(f"{path}: presets must keep external writes disabled by default")
 if not isinstance(data["validated_cases"], list):
     raise SystemExit(f"{path}: validated_cases must be a list")
+if len(data["menu_label"]) < 20:
+    raise SystemExit(f"{path}: menu_label is too terse")
 PY
 done
 
@@ -70,14 +75,25 @@ grep -q 'current_payload_config_snapshot()' "$menu"
 grep -q 'payload_preset_snapshot()' "$menu"
 grep -q 'payload_preset_is_dirty()' "$menu"
 grep -q 'save_payload_preset()' "$menu"
+grep -q 'payload_preset_description()' "$menu"
 grep -q 'Payload preset: $(payload_preset_label)' "$menu"
 grep -q 'configure_busybox_applet_search()' "$menu"
 grep -q 'Search applets by name/group/description' "$menu"
-grep -q 'Save current payload settings as a new preset' "$menu"
-grep -q 'Reapply original preset' "$menu"
+grep -q 'Built-in presets will not be modified' "$menu"
+grep -q 'Save this config as-is' "$menu"
+grep -q 'Save these payload settings as a new user preset' "$menu"
+grep -q 'Discard edits and restore preset defaults' "$menu"
 grep -q 'local/presets/payload' "$menu"
 grep -q 'presets/payload' "$menu"
 grep -q '\* means current payload settings differ from the selected preset' "$menu"
+grep -q 'menu_label' "$menu"
+
+grep -q 'Extract payload; help on zero-arg; no reverse access' presets/payload/default.meta.json
+grep -q 'Core-only local survey; no extraction; no reverse access' presets/payload/survey-core.meta.json
+grep -q 'Core-only builtin TLS shell; zero-arg reverse access' presets/payload/builtin-core-shell.meta.json
+grep -q 'No-residue socat TLS shell; stages socat' presets/payload/socat-rescue.meta.json
+grep -q 'Extract Dropbear/dbclient; explicit reverse SSH; no autorun' presets/payload/ssh-operator.meta.json
+grep -q 'Large debug/operator payload; no network autorun' presets/payload/full-debug.meta.json
 
 for topic in top target payload payload-preset runtime launch rshell busybox heavy dotfiles overlay tool-compat dropbear gdbserver; do
     grep -q "$topic)" "$menu" || {

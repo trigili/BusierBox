@@ -1,8 +1,11 @@
 {
   "schema": 1,
   "name": "builtin-core-shell",
-  "description": "Core-only artifact using the built-in reverse shell transport.",
+  "description": "Core-only builtin TLS shell; zero-arg reverse access.",
+  "menu_label": "Core-only builtin TLS shell; zero-arg reverse access",
   "risk_level": "medium",
+  "size_hint": "small",
+  "autorun": "reverse access",
   "network_behavior": "reverse shell only when explicitly launched or selected as zero-arg behavior",
   "external_write_behavior": "disabled",
   "validated_cases": [

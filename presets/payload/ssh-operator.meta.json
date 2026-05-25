@@ -1,8 +1,11 @@
 {
   "schema": 1,
   "name": "ssh-operator",
-  "description": "Dropbear/dbclient operator access preset with external writes disabled.",
+  "description": "Extract Dropbear/dbclient; explicit reverse SSH; no autorun.",
+  "menu_label": "Extract Dropbear/dbclient; explicit reverse SSH; no autorun",
   "risk_level": "medium",
+  "size_hint": "medium",
+  "autorun": "none",
   "network_behavior": "SSH transport available when explicitly launched",
   "external_write_behavior": "disabled",
   "validated_cases": [

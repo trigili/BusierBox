@@ -292,6 +292,43 @@ payload_preset_path() {
     fi
 }
 
+payload_preset_meta_path() {
+    _name=$1
+    payload_preset_valid_name "$_name" || return 1
+    if [ -f "local/presets/payload/$_name.meta.json" ]; then
+        printf '%s\n' "local/presets/payload/$_name.meta.json"
+    elif [ -f "presets/payload/$_name.meta.json" ]; then
+        printf '%s\n' "presets/payload/$_name.meta.json"
+    else
+        return 1
+    fi
+}
+
+payload_preset_description() {
+    _name=$1
+    _meta=$(payload_preset_meta_path "$_name" 2>/dev/null || true)
+    if [ -n "$_meta" ] && command -v python3 >/dev/null 2>&1; then
+        python3 - "$_meta" <<'PY' 2>/dev/null && return 0
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+desc = data.get("menu_label") or data.get("description") or "payload preset"
+risk = data.get("risk_level")
+size = data.get("size_hint")
+parts = [desc]
+if risk:
+    parts.append(f"risk={risk}")
+if size:
+    parts.append(f"size={size}")
+print("; ".join(parts))
+PY
+    fi
+    printf '%s\n' "payload preset"
+}
+
 load_payload_preset() {
     _name=$1
     _path=$(payload_preset_path "$_name") || return 1
@@ -818,11 +855,11 @@ handle_dirty_payload_preset_on_save() {
     payload_preset_is_dirty "$_preset" || return 0
 
     dialog --title "Payload preset modified" \
-        --menu "Payload preset: ${_preset}*\n\n* means current payload settings differ from the selected preset.\n\nChoose how to save." \
-        16 78 4 \
-        "1" "Save config only" \
-        "2" "Save current payload settings as a new preset" \
-        "3" "Reapply original preset" \
+        --menu "Current settings differ from payload preset: ${_preset}\n\nBuilt-in presets will not be modified.\nChoose what to do:" \
+        17 82 4 \
+        "1" "Save this config as-is" \
+        "2" "Save these payload settings as a new user preset" \
+        "3" "Discard edits and restore preset defaults" \
         "0" "Cancel" \
         2>"$temp_out" || return 1
     _choice=$(cat "$temp_out")
@@ -830,7 +867,7 @@ handle_dirty_payload_preset_on_save() {
         1) return 0 ;;
         2)
             dialog --title "New payload preset name" \
-                --inputbox "Use letters, numbers, dot, dash, or underscore. This writes local/presets/payload/<name>.conf." \
+                --inputbox "Use letters, numbers, dot, dash, or underscore.\n\nThis writes a new user preset under:\n  local/presets/payload/<name>.conf\n\nBuilt-in presets are not modified." \
                 9 82 "${_preset}-custom" 2>"$temp_out" || return 1
             _name=$(cat "$temp_out" | tr -d '"')
             if ! payload_preset_valid_name "$_name"; then
@@ -848,7 +885,7 @@ handle_dirty_payload_preset_on_save() {
         3)
             apply_payload_preset "$_preset" || return 1
             dialog --title "Payload preset reapplied" \
-                --msgbox "Reapplied payload preset: $_preset\n\nReview the settings, then save again." 9 64
+                --msgbox "Discarded current payload edits and restored preset defaults from: $_preset\n\nReview the settings, then save again." 10 72
             return 1
             ;;
         0) return 1 ;;
@@ -2632,7 +2669,8 @@ configure_payload_preset() {
                 local/*) _scope="user" ;;
                 *) _scope="built-in" ;;
             esac
-            set -- "$@" "$_name" "$_scope payload preset" "$(mode_onoff "${BB_PAYLOAD_PRESET:-default}" "$_name")"
+            _desc=$(payload_preset_description "$_name")
+            set -- "$@" "$_name" "$_scope: $_desc" "$(mode_onoff "${BB_PAYLOAD_PRESET:-default}" "$_name")"
         done
         [ "$#" -gt 0 ] || {
             dialog --title "Payload presets" --msgbox "No payload presets found under presets/payload or local/presets/payload." 8 78

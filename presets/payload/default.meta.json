@@ -1,8 +1,11 @@
 {
   "schema": 1,
   "name": "default",
-  "description": "General-purpose extract-mode payload with safe zero-arg help behavior.",
+  "description": "Extract payload; help on zero-arg; no reverse access.",
+  "menu_label": "Extract payload; help on zero-arg; no reverse access",
   "risk_level": "low",
+  "size_hint": "small",
+  "autorun": "none",
   "network_behavior": "none by default",
   "external_write_behavior": "disabled",
   "validated_cases": [
