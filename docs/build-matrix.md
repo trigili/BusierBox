@@ -40,10 +40,12 @@ Built artifacts are copied to:
 local/matrix-runs/<timestamp>/artifacts/
 ```
 
-Each summary job records target, payload preset, format, generated config,
-command, log path, status, artifact path, size, and sha256 when a build passes.
-Failures are recorded and the matrix continues by default. Use `--fail-fast` to
-stop after the first failure.
+Each summary job records requested target, resolved target, payload preset,
+format, generated config, command, log path, status, artifact path, size, and
+sha256 when a build passes. The resolved target is used for artifact lookup, so
+aliases and generated target presets still copy the correct output. Failures are
+recorded and the matrix continues by default. Use `--fail-fast` to stop after
+the first failure.
 
 ## Matrix JSON
 
@@ -81,6 +83,9 @@ scripts/build-matrix --offline --mirror-dir local/source-mirror --dry-run
 ```
 
 That exports `BUSIERBOX_OFFLINE=1`, `BUSIERBOX_MIRROR_DIR`, and
-`BUILDROOT_DL_DIR=<mirror>/buildroot-dl` to each build command. Full mirror
-population and readiness checks are described in
+`BUILDROOT_DL_DIR=<mirror>/buildroot-dl` to each build command. Non-dry-run
+offline builds run `scripts/check-offline-readiness` before starting jobs. Use
+`--strict-offline` to require a complete mirror manifest for the selected matrix,
+or `--skip-offline-preflight` when intentionally debugging an incomplete mirror.
+Full mirror population and readiness checks are described in
 [offline-enclave.md](offline-enclave.md).

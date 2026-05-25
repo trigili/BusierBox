@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""Summarize a BusierBox source mirror manifest."""
+
+import argparse
+import json
+import pathlib
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("mirror", help="mirror directory or mirror-manifest.json")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+
+    path = pathlib.Path(args.mirror)
+    manifest_path = path if path.name == "mirror-manifest.json" else path / "mirror-manifest.json"
+    with open(manifest_path, "r", encoding="utf-8") as fh:
+        manifest = json.load(fh)
+    files = manifest.get("files") or []
+    failures = manifest.get("failures") or []
+    jobs = manifest.get("jobs") or []
+    lock_rows = manifest.get("lockfile_sources") or []
+    br_files = [row for row in files if row.get("source_category") == "buildroot-dl"]
+    total_bytes = sum(int(row.get("size") or 0) for row in files)
+    report = {
+        "schema": 1,
+        "mirror": str(manifest_path.parent),
+        "strict_ready": bool(manifest.get("strict_ready")),
+        "total_sources": len(files),
+        "total_bytes": total_bytes,
+        "busierbox_pinned_sources": len(lock_rows),
+        "buildroot_dl_sources": len(br_files),
+        "missing_or_failed": len(failures),
+        "matrix_jobs": len(jobs),
+        "failures": failures,
+    }
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0 if not failures else 1
+    print(f"mirror={report['mirror']}")
+    print(f"strict_ready={'yes' if report['strict_ready'] else 'no'}")
+    print(f"matrix_jobs={report['matrix_jobs']}")
+    print(f"total_sources={report['total_sources']}")
+    print(f"total_bytes={report['total_bytes']}")
+    print(f"busierbox_pinned_sources={report['busierbox_pinned_sources']}")
+    print(f"buildroot_dl_sources={report['buildroot_dl_sources']}")
+    print(f"missing_or_failed={report['missing_or_failed']}")
+    for failure in failures:
+        print(f"failure={failure}")
+    return 0 if not failures else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

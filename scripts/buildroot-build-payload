@@ -17,7 +17,8 @@ PATH="$(pwd)/scripts/shims:$PATH"
 export PATH
 
 if [ "${BUSIERBOX_OFFLINE:-0}" = 1 ] && [ -n "${BUSIERBOX_MIRROR_DIR:-}" ]; then
-    _mirror_tar="$BUSIERBOX_MIRROR_DIR/sources/buildroot-$BUILDROOT_VERSION.tar.xz"
+    _mirror_tar="$BUSIERBOX_MIRROR_DIR/busierbox-sources/buildroot-$BUILDROOT_VERSION.tar.xz"
+    [ -f "$_mirror_tar" ] || _mirror_tar="$BUSIERBOX_MIRROR_DIR/sources/buildroot-$BUILDROOT_VERSION.tar.xz"
     [ -f "$_mirror_tar" ] || _mirror_tar="$BUSIERBOX_MIRROR_DIR/buildroot-dl/buildroot-$BUILDROOT_VERSION.tar.xz"
     if [ -f "$_mirror_tar" ]; then
         BUILDROOT_TARBALL=$_mirror_tar

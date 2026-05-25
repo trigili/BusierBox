@@ -2,56 +2,65 @@
 
 BusierBox keeps source fetching explicit. Anything required by BusierBox itself
 must be pinned in `manifests/sources.lock.json` with version, URL, filename, and
-SHA-256. Buildroot package downloads for selected payload tools still need to be
-available in the Buildroot download cache for a fully offline target build.
+SHA-256. Buildroot package downloads for selected target and payload jobs are
+mirrored by generating the matching Buildroot defconfigs and running Buildroot's
+`source` target on the online preparation machine.
 
 ## Online Preparation Machine
 
-Install normal build prerequisites, then populate the pinned BusierBox mirror:
+Install normal build prerequisites, then inspect the selected matrix:
 
 ```sh
 git submodule update --init third_party/busybox
-scripts/mirror-sources --out local/source-mirror
-scripts/check-offline-readiness --mirror local/source-mirror
+scripts/build-matrix --matrix configs/matrix/all-supported.json --dry-run
 ```
 
-For a selected matrix, preview the build commands and record why the mirror is
-being prepared:
+Populate a source mirror for the same matrix:
 
 ```sh
 scripts/mirror-sources \
   --matrix configs/matrix/all-supported.json \
-  --out local/source-mirror \
-  --dry-run
+  --out local/source-mirror/all-supported \
+  --include-buildroot-packages \
+  --verify
 ```
 
-To prepare Buildroot package tarballs for the exact selected defconfigs, run the
-matrix once online with `BUILDROOT_DL_DIR` pointed at the mirror cache, or run
-the corresponding Buildroot fetch steps for those defconfigs:
+`--verify` runs strict offline readiness checks after the mirror is written. To
+run that check separately:
 
 ```sh
-BUILDROOT_DL_DIR=local/source-mirror/buildroot-dl \
-  scripts/build-matrix --matrix configs/matrix/all-supported.json
+scripts/check-offline-readiness \
+  --mirror local/source-mirror/all-supported \
+  --matrix configs/matrix/all-supported.json \
+  --strict
 ```
 
-Use `--dry-run` before that command when you only want to inspect the planned
-build commands. A dry run does not download Buildroot package tarballs.
+Use `--dry-run` with `mirror-sources` when you only want to inspect the planned
+mirror layout and Buildroot fetch commands. A dry run does not download files.
 
-Then package the local cache for transfer:
+Then package the local mirror for transfer:
 
 ```sh
-tar -C local -czf source-mirror.tar.gz source-mirror
+tar -C local/source-mirror -czf all-supported-source-mirror.tar.gz all-supported
 ```
 
 The generated mirror contains:
 
 ```text
-local/source-mirror/
+all-supported/
+  busierbox-sources/
   sources/
   buildroot-dl/
+  buildroot-defconfigs/
+  plans/
+  logs/
   sources.lock.json
   mirror-manifest.json
 ```
+
+`busierbox-sources/` is the canonical cache for pinned BusierBox source files.
+`sources/` is retained for compatibility with older offline tooling.
+`buildroot-dl/` is passed to Buildroot as `BR2_DL_DIR`.
 
 ## Transfer To Enclave
 
@@ -59,49 +68,68 @@ Copy the repository and mirror archive into the enclave. Unpack the mirror and
 verify it before building:
 
 ```sh
-tar -xzf source-mirror.tar.gz -C local
+mkdir -p /mnt/source-mirror
+tar -xzf all-supported-source-mirror.tar.gz -C /mnt/source-mirror
 scripts/check-offline-readiness \
-  --mirror local/source-mirror \
-  --matrix configs/matrix/all-supported.json
+  --mirror /mnt/source-mirror/all-supported \
+  --matrix configs/matrix/all-supported.json \
+  --strict
 ```
 
 Build with offline flags:
 
 ```sh
-scripts/build-matrix \
+BUSIERBOX_OFFLINE=1 scripts/build-matrix \
   --matrix configs/matrix/all-supported.json \
   --offline \
-  --mirror-dir local/source-mirror
+  --mirror-dir /mnt/source-mirror/all-supported
 ```
 
-The matrix script exports:
+The matrix script exports these values for each job:
 
 ```text
 BUSIERBOX_OFFLINE=1
-BUSIERBOX_MIRROR_DIR=local/source-mirror
-BUILDROOT_DL_DIR=local/source-mirror/buildroot-dl
+BUSIERBOX_MIRROR_DIR=/mnt/source-mirror/all-supported
+BUILDROOT_DL_DIR=/mnt/source-mirror/all-supported/buildroot-dl
 ```
 
-`scripts/buildroot-build-payload` uses the mirror-provided Buildroot tarball in
-offline mode and passes `BR2_DL_DIR` to Buildroot when `BUILDROOT_DL_DIR` is
-set.
+For non-dry-run offline builds, `scripts/build-matrix` runs
+`scripts/check-offline-readiness` before starting jobs. Add `--strict-offline`
+to require a complete mirror manifest with matching matrix coverage. Use
+`--skip-offline-preflight` only when deliberately debugging a partially prepared
+mirror.
+
+## Reporting
+
+Summarize a prepared mirror with:
+
+```sh
+scripts/mirror-report local/source-mirror/all-supported
+```
+
+The report includes strict readiness, selected job count, mirrored file count,
+total bytes, and any missing or failed fetches. Use `--json` for machine-readable
+output.
 
 ## Troubleshooting
 
-- Missing source: run `scripts/check-offline-readiness --mirror <dir>` and copy
-  the missing filename into `sources/` or `buildroot-dl/`.
+- Missing lockfile source: run `scripts/check-offline-readiness --mirror <dir>`
+  and copy the reported filename into `busierbox-sources/`, `sources/`, or
+  `buildroot-dl/`.
 - Hash mismatch: replace the file with the exact locked version; do not update
   the lockfile inside the enclave.
-- Buildroot tries the network: the selected Buildroot package source is absent
-  from `buildroot-dl/`. Populate it on the online preparation machine.
+- Missing Buildroot package source: rerun `scripts/mirror-sources` online with
+  `--include-buildroot-packages --verify` for the same matrix.
+- Buildroot output needs inspection: rerun `scripts/mirror-sources` with
+  `--keep-build-dirs`. By default successful temporary Buildroot output
+  directories are removed after the package sources are fetched.
 - Host dependency absent: install host compilers and build prerequisites inside
   the enclave before running the matrix.
-- Cross-toolchain cache mismatch: remove the affected `buildroot/output/<target>`
-  directory and rebuild with the same mirror.
 
-## Current Limitations
+## Limitations
 
-`scripts/mirror-sources` covers BusierBox-pinned sources in
-`manifests/sources.lock.json`. It does not yet statically enumerate every
-Buildroot package tarball implied by every payload/tool selection; those are
-validated by Buildroot using `BR2_DL_DIR` for the matrix you actually build.
+Buildroot package files are mirrored by executing Buildroot's `source` target for
+the generated defconfigs. Packages with dynamic source lists are caught by strict
+readiness when the recorded manifest is incomplete or the mirrored files are
+missing. User-provided overlay binaries are external inputs and are not
+downloaded by `scripts/mirror-sources`.
