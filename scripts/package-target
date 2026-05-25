@@ -50,14 +50,15 @@ BUILDROOT_OUTPUT_BASE=${BUILDROOT_OUTPUT_BASE:-buildroot/output}
 VERIFY=${VERIFY:-0}
 BB_BUILD_FULL=${BB_BUILD_FULL:-yes}
 BB_BUILD_INTERNAL_CORE=${BB_BUILD_INTERNAL_CORE:-no}
+config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
 
 case "$BB_BUILD_FULL:$BB_BUILD_INTERNAL_CORE" in
     yes:*|*:yes) ;;
     *) die "no artifact outputs enabled" ;;
 esac
 
-if [ -f configs/busierbox.conf ]; then
-    . ./configs/busierbox.conf
+if [ -f "$config" ]; then
+    . "$config"
 fi
 
 for _name in PAYLOAD_FORMAT BB_BUILD_FULL BB_BUILD_INTERNAL_CORE \
@@ -111,7 +112,9 @@ BB_RSHELL_RETRY_INTERVAL_SEC=${BB_RSHELL_RETRY_INTERVAL_SEC:-5}
 BB_RSHELL_RETRY_JITTER_PCT=${BB_RSHELL_RETRY_JITTER_PCT:-20}
 BB_RSHELL_RETRY_BACKOFF=${BB_RSHELL_RETRY_BACKOFF:-none}
 BB_RSHELL_RETRY_MAX_INTERVAL_SEC=${BB_RSHELL_RETRY_MAX_INTERVAL_SEC:-300}
-BB_BUILTIN_TLS_ENABLE=${BB_BUILTIN_TLS_ENABLE:-no}
+if [ -z "${BB_BUILTIN_TLS_ENABLE:-}" ]; then
+    [ "$BB_RSHELL_TRANSPORT" = builtin ] && BB_BUILTIN_TLS_ENABLE=yes || BB_BUILTIN_TLS_ENABLE=no
+fi
 BB_AUTORUN_GUARD_ENABLE=${BB_AUTORUN_GUARD_ENABLE:-yes}
 if [ "${BB_AUTORUN_GUARD_PATH:-/tmp/busierbox-autorun}" = "/tmp/busierbox-autorun" ]; then
     BB_AUTORUN_GUARD_PATH="${BB_RUNTIME_ROOT}/run"
@@ -269,7 +272,7 @@ if [ "$target" = native ]; then
         scripts/build-native
 else
     if [ "$TARGET_SOURCE" = config ]; then
-        gen_output=$(scripts/gen-buildroot-defconfig --from-config)
+        gen_output=$(scripts/gen-buildroot-defconfig --from-config "$config")
     else
         gen_output=$(scripts/gen-buildroot-defconfig "$requested_target")
     fi

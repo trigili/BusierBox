@@ -90,9 +90,12 @@ smoke-test: package-native
 	@tests/smoke/payload-reality.sh
 	@tests/smoke/menuconfig-autoexec.sh
 	@tests/smoke/menuconfig-validation.sh
+	@tests/smoke/validation-matrix.sh
 	@tests/smoke/payload-presets.sh
 	@tests/smoke/rshell-transport-names.sh
 	@tests/smoke/rshell-external-writes.sh
+	@tests/smoke/stale-ux-text.sh
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/integration-glinet-harness.sh; else printf '%s\n' "skip: python3 integration harness smoke unavailable"; fi
 	@tests/smoke/dotfiles-by-app.sh
 	@tests/smoke/runtime-modes.sh
 	@tests/smoke/rshell-lifecycle.sh

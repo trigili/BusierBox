@@ -2,14 +2,15 @@
 set -eu
 
 target=${TARGET:-}
+config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
 
 if [ -n "$target" ]; then
     scripts/package-target "$target"
 else
     targets=
-    if [ -f configs/busierbox.conf ]; then
+    if [ -f "$config" ]; then
         # shellcheck disable=SC1091
-        . ./configs/busierbox.conf
+        . "$config"
         targets=${BB_TARGETS:-}
         if [ "$targets" = "native" ] && [ "${BB_TARGET_PRESET:-native}" != "native" ]; then
             targets=$BB_TARGET_PRESET
