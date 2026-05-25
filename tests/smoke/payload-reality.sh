@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+[ -x runtime/payload/bin/busybox ] || {
+    printf '%s\n' "payload-reality: missing runtime/payload/bin/busybox; run package-native first" >&2
+    exit 1
+}
+
 tmp=${TMPDIR:-/tmp}/busierbox-payload-reality.$$
 trap 'rm -f "$tmp"' EXIT HUP INT TERM
 

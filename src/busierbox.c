@@ -434,8 +434,8 @@ static const char *select_rshell_shell(char *buf, size_t bufsz, const char *payl
 
 int applet_rshell_main(int argc, char **argv)
 {
-    char payload[PATH_MAX], busybox[PATH_MAX], dropbear[PATH_MAX], dbclient[PATH_MAX], dropbearkey[PATH_MAX], socat[PATH_MAX];
-    char hostkey[PATH_MAX], identity[PATH_MAX], authkeys[PATH_MAX], rootssh[PATH_MAX];
+    char payload[PATH_MAX], busybox[PATH_MAX + 16], dropbear[PATH_MAX + 16], dbclient[PATH_MAX + 16], dropbearkey[PATH_MAX + 16], socat[PATH_MAX + 16];
+    char hostkey[PATH_MAX + 64], identity[PATH_MAX + 32], authkeys[PATH_MAX + 32], rootssh[PATH_MAX];
     char cmd[8192] = "";
     char shell_cmd[PATH_MAX + 16];
     const char *subcmd = "start";
@@ -597,7 +597,7 @@ int applet_rshell_main(int argc, char **argv)
             return 127;
         }
         if (!strcmp(BB_RSHELL_SHELL_PROVIDER, "payload-zsh")) {
-            char zsh_path[PATH_MAX];
+            char zsh_path[PATH_MAX + 16];
             snprintf(zsh_path, sizeof(zsh_path), "%s/bin/zsh", payload);
             if (!path_exec(zsh_path)) {
                 fputs("rshell: shell provider payload-zsh requires staged zsh; enable zsh in Heavy tools and rebuild\n", stderr);

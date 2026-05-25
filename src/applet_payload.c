@@ -1149,7 +1149,20 @@ static int path_has_component(const char *pathvar, const char *dir)
 static void set_payload_env(const char *payload)
 {
     char path[PATH_MAX * 2], home[PATH_MAX], lib[PATH_MAX], bin_dir[PATH_MAX];
+    char abs_payload[PATH_MAX];
     const char *old_path = getenv("PATH");
+
+    /* Resolve to absolute path so PATH stays valid after directory changes */
+    if (payload[0] != '/') {
+        char cwd[PATH_MAX];
+        if (getcwd(cwd, sizeof(cwd)) != NULL)
+            snprintf(abs_payload, sizeof(abs_payload), "%s/%s", cwd, payload);
+        else
+            snprintf(abs_payload, sizeof(abs_payload), "%s", payload);
+    } else {
+        snprintf(abs_payload, sizeof(abs_payload), "%s", payload);
+    }
+    payload = abs_payload;
 
     snprintf(bin_dir, sizeof(bin_dir), "%s/bin", payload);
     if (!old_path || !path_has_component(old_path, bin_dir))

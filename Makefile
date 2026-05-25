@@ -107,7 +107,7 @@ smoke-test: package-native
 	@./dist/busierbox-native-full dd --help >/dev/null 2>&1
 	@./dist/busierbox-native-full nc --help >/dev/null 2>&1
 	@./dist/busierbox-native-full config-info >/dev/null
-	@if command -v python3 >/dev/null 2>&1; then tmp=$$(mktemp -d); ./dist/busierbox-native-full survey --json > $$tmp/survey.json; tests/smoke/validate-survey-json.py $$tmp/survey.json >/dev/null; scripts/config-from-survey $$tmp/survey.json >/dev/null; rm -rf $$tmp; else printf '%s\n' "skip: python3 survey config validation unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then tmp=$$(mktemp -d); ./dist/busierbox-native-full survey --json > $$tmp/survey.json; python3 tests/smoke/validate-survey-json.py $$tmp/survey.json >/dev/null; scripts/config-from-survey $$tmp/survey.json >/dev/null; rm -rf $$tmp; else printf '%s\n' "skip: python3 survey config validation unavailable"; fi
 	@printf '%s\n' "smoke: testing out-of-cwd embedded extraction (catches exe-wipe bugs)..."
 	@_bbx_tmp=$$(mktemp -d) && \
 	  cp dist/busierbox-native-full "$$_bbx_tmp/busierbox" && \
