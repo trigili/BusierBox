@@ -6,6 +6,7 @@ bb=${1:-dist/busierbox-native-full}
     printf '%s\n' "zero-arg-autorun: missing artifact: $bb" >&2
     exit 1
 }
+bb_abs=$(cd "$(dirname "$bb")" && pwd)/$(basename "$bb")
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
@@ -37,6 +38,19 @@ artifact_tier=test
 EOF
 BUSIERBOX_AUTORUN_GUARD_PATH="$guard" BUSIERBOX_ZERO_ARG_MODE=rshell "$bb" >"$tmp/reentry.out" 2>&1
 grep -q 'BusierBox autorun already active' "$tmp/reentry.out"
+
+ledger_run="$tmp/ledger-run"
+mkdir -p "$ledger_run"
+(
+    cd "$ledger_run"
+    BUSIERBOX_AUTORUN_GUARD_PATH="$ledger_run/guard" BUSIERBOX_ZERO_ARG_MODE=rshell "$bb_abs" >"$tmp/ledger-rshell.out" 2>&1 || true
+    test -f ./.busierbox/run/cleanup-ledger.jsonl
+    grep -q '"detail":"autorun lock"' ./.busierbox/run/cleanup-ledger.jsonl
+    grep -q '"detail":"autorun status"' ./.busierbox/run/cleanup-ledger.jsonl
+    if command -v python3 >/dev/null 2>&1; then
+        "$bb_abs" cleanup-ledger --json | python3 -m json.tool >/dev/null
+    fi
+)
 
 "$bb" doctor >"$tmp/explicit-doctor.out" 2>&1
 grep -q '^artifact_tier=' "$tmp/explicit-doctor.out"
