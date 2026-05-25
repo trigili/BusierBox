@@ -91,6 +91,7 @@ smoke-test: package-native
 	@tests/smoke/menuconfig-autoexec.sh
 	@tests/smoke/menuconfig-validation.sh
 	@tests/smoke/validation-matrix.sh
+	@tests/smoke/rehosted-router-presets.sh
 	@tests/smoke/payload-presets.sh
 	@tests/smoke/rshell-transport-names.sh
 	@tests/smoke/rshell-external-writes.sh

@@ -1,0 +1,96 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROUTERS_DIR=${BUSIERBOX_ROUTER_FIRMWARE_DIR:-$ROOT/local/testing/Routers}
+OUT_DIR=${BUSIERBOX_REHOST_DIR:-$ROOT/local/testing/rehost}
+TIMEOUT=${BUSIERBOX_REHOST_TIMEOUT:-30}
+FORCE=0
+DO_EXTRACT=0
+DO_INIT=0
+DO_RUN=0
+DO_LIST=0
+
+usage() {
+    cat <<'EOF'
+usage: scripts/rehost-router-examples [--list] [--extract] [--init] [--run] [--all] [--force] [--timeout SEC]
+
+Build local fw2tar/Penguin artifacts for known router firmware examples.
+Firmware inputs and generated rootfs/projects/results stay under local/.
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --list) DO_LIST=1 ;;
+        --extract) DO_EXTRACT=1 ;;
+        --init) DO_INIT=1 ;;
+        --run) DO_RUN=1 ;;
+        --all) DO_EXTRACT=1; DO_INIT=1; DO_RUN=1 ;;
+        --force) FORCE=1 ;;
+        --timeout)
+            shift
+            [ $# -gt 0 ] || { printf '%s\n' "rehost-router-examples: --timeout requires SEC" >&2; exit 2; }
+            TIMEOUT=$1
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            printf '%s\n' "rehost-router-examples: unknown option $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+[ "$DO_LIST$DO_EXTRACT$DO_INIT$DO_RUN" != "0000" ] || DO_LIST=1
+
+examples() {
+    cat <<EOF
+archer-a7-us-v5-211022	Archer A7(US)_V5_211022.zip
+archer-ax1800-usw-v56-250814	Archer AX1800(USW)_V5.6_250814/ax1800.ubi
+asus-rt-n16-30043807378	FW_RT_N16_30043807378.ZIP
+dir-615-revc-300	DIR-615_REVC_FIRMWARE_3.00.ZIP
+EOF
+}
+
+fw2tar_force=
+penguin_force=
+if [ "$FORCE" = 1 ]; then
+    fw2tar_force=--force
+    penguin_force=--force
+fi
+
+mkdir -p "$OUT_DIR/rootfs" "$OUT_DIR/scratch" "$OUT_DIR/projects" "$OUT_DIR/runs"
+
+examples | while IFS='	' read -r slug relpath; do
+    [ -n "$slug" ] || continue
+    firmware=$ROUTERS_DIR/$relpath
+    root_base=$OUT_DIR/rootfs/$slug
+    rootfs=$root_base/$slug.rootfs.tar.gz
+    project=$OUT_DIR/projects/$slug
+    run_dir=$OUT_DIR/runs/$slug/auto-${TIMEOUT}s
+
+    if [ "$DO_LIST" = 1 ]; then
+        if [ -f "$firmware" ]; then status=present; else status=missing; fi
+        printf '%s\t%s\t%s\n' "$slug" "$status" "$firmware"
+    fi
+
+    if [ "$DO_EXTRACT" = 1 ]; then
+        [ -f "$firmware" ] || { printf '%s\n' "missing firmware: $firmware" >&2; exit 1; }
+        fw2tar "$firmware" --scratch-dir "$OUT_DIR/scratch" --output "$root_base/$slug" --report-extractor --log-devices --timeout 180 $fw2tar_force
+    fi
+
+    if [ "$DO_INIT" = 1 ]; then
+        [ -f "$rootfs" ] || { printf '%s\n' "missing rootfs: $rootfs; run --extract first" >&2; exit 1; }
+        penguin init "$rootfs" --output "$project" $penguin_force
+    fi
+
+    if [ "$DO_RUN" = 1 ]; then
+        [ -f "$project/config.yaml" ] || { printf '%s\n' "missing Penguin project: $project; run --init first" >&2; exit 1; }
+        penguin run "$project" --output "$run_dir" --force --timeout "$TIMEOUT" -a
+    fi
+done
