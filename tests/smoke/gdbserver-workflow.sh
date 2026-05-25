@@ -18,6 +18,15 @@ scripts/tools/install-dropin-gdbserver --source "$fake" --target native --dest-r
 test -x "$work/tools/native/bin/gdbserver"
 test -f "$work/tools/native/bin/metadata.json"
 python3 -m json.tool "$work/tools/native/bin/metadata.json" >/dev/null
+scripts/tools/dropin-tool-status --tool gdbserver --target native --arch native --libc host --dest-root "$work/tools" >"$work/status.out"
+grep -q 'Overall: found' "$work/status.out"
+grep -q 'metadata_sha256=' "$work/status.out"
+grep -q 'detected_arch=' "$work/status.out"
+
+scripts/tools/install-dropin-tool --tool gdb --source "$fake" --arch mipsel --libc musl --dest-root "$work/tools" >"$work/install-gdb.out"
+test -x "$work/tools/mipsel-musl/bin/gdb"
+scripts/tools/dropin-tool-status --tool gdb --target glinet-mt7621-openwrt-musl --arch mipsel --libc musl --dest-root "$work/tools" >"$work/gdb-status.out"
+grep -q "$work/tools/mipsel-musl/bin/gdb \\[found\\]" "$work/gdb-status.out"
 
 cat >"$work/survey.json" <<'EOF'
 {
