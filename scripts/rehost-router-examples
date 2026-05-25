@@ -50,10 +50,15 @@ done
 
 examples() {
     cat <<EOF
-archer-a7-us-v5-211022	Archer A7(US)_V5_211022.zip
-archer-ax1800-usw-v56-250814	Archer AX1800(USW)_V5.6_250814/ax1800.ubi
-asus-rt-n16-30043807378	FW_RT_N16_30043807378.ZIP
-dir-615-revc-300	DIR-615_REVC_FIRMWARE_3.00.ZIP
+archer-a7-us-v5-211022	Archer A7(US)_V5_211022.zip	rehost
+archer-ax1800-usw-v56-250814	Archer AX1800(USW)_V5.6_250814/ax1800.ubi	rehost
+asus-rt-n16-30043807378	FW_RT_N16_30043807378.ZIP	rehost
+dir-615-revc-300	DIR-615_REVC_FIRMWARE_3.00.ZIP	rehost
+dir-300-a1-fw105b09	DIR-300A1_FW105b09.bin	rehost
+linksys-gv5flash	Gv5Flash.zip	rehost
+netgear-wndr3700-v1-10431-na	WNDR3700 Initial Release Firmware - Version 1.0.4.31 (North America).zip	rehost
+linksys-wrt54g-v5v6-1028	FW_WRT54Gv5v6_1.02.8.001_US_20091005.bin	no-linux-rootfs
+openwrt-18061-ixp4xx-zimage	openwrt-18.06.1-ixp4xx-generic-zImage	kernel-only
 EOF
 }
 
@@ -66,8 +71,9 @@ fi
 
 mkdir -p "$OUT_DIR/rootfs" "$OUT_DIR/scratch" "$OUT_DIR/projects" "$OUT_DIR/runs"
 
-examples | while IFS='	' read -r slug relpath; do
+examples | while IFS='	' read -r slug relpath kind; do
     [ -n "$slug" ] || continue
+    kind=${kind:-rehost}
     firmware=$ROUTERS_DIR/$relpath
     root_base=$OUT_DIR/rootfs/$slug
     rootfs=$root_base/$slug.rootfs.tar.gz
@@ -76,12 +82,19 @@ examples | while IFS='	' read -r slug relpath; do
 
     if [ "$DO_LIST" = 1 ]; then
         if [ -f "$firmware" ]; then status=present; else status=missing; fi
-        printf '%s\t%s\t%s\n' "$slug" "$status" "$firmware"
+        printf '%s\t%s\t%s\t%s\n' "$slug" "$status" "$kind" "$firmware"
+    fi
+
+    if [ "$kind" != rehost ]; then
+        if [ "$DO_EXTRACT$DO_INIT$DO_RUN" != "000" ]; then
+            printf '%s\n' "skip $slug: $kind input has no root filesystem for fw2tar/Penguin rehosting"
+        fi
+        continue
     fi
 
     if [ "$DO_EXTRACT" = 1 ]; then
         [ -f "$firmware" ] || { printf '%s\n' "missing firmware: $firmware" >&2; exit 1; }
-        fw2tar "$firmware" --scratch-dir "$OUT_DIR/scratch" --output "$root_base/$slug" --report-extractor --log-devices --timeout 180 $fw2tar_force
+        fw2tar "$firmware" --scratch-dir "$OUT_DIR/scratch" --output "$root_base" --report-extractor --log-devices --timeout 180 $fw2tar_force
     fi
 
     if [ "$DO_INIT" = 1 ]; then
