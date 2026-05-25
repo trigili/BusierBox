@@ -567,7 +567,7 @@ if tool_requested gdbserver; then
     fi
 fi
 if tool_requested gdb; then
-    stage_dropin_tool gdb || printf '%s\n' "buildroot-build-payload: full target gdb is provider-only; place it in local/tools/<target-or-arch>/bin/gdb or overlay" >&2
+    stage_dropin_tool gdb || printf '%s\n' "buildroot-build-payload: full target gdb requires a target-compatible binary; place it in local/tools/<target-or-arch>/bin/gdb or overlay" >&2
 fi
 if tool_requested curl; then
     stage_first_found curl usr/bin/curl bin/curl || printf '%s\n' "buildroot-build-payload: requested curl but no built binary was found" >&2
