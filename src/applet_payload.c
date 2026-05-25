@@ -429,6 +429,11 @@ static void ledger_record(const char *op, const char *path, const char *scope, c
     fclose(fp);
 }
 
+void bb_ledger_record(const char *op, const char *path, const char *scope, const char *detail)
+{
+    ledger_record(op, path, scope, detail);
+}
+
 static int path_exists(const char *path)
 {
     return access(path, F_OK) == 0;
