@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "name": "default",
+  "description": "General-purpose extract-mode payload with safe zero-arg help behavior.",
+  "risk_level": "low",
+  "network_behavior": "none by default",
+  "external_write_behavior": "disabled",
+  "validated_cases": [
+    "make smoke-test",
+    "integration-glinet: default-extract-help"
+  ],
+  "notes": "Good starting point for interactive local testing. Does not start network listeners or reverse access by default."
+}

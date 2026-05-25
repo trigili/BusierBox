@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "name": "survey-core",
+  "description": "Small survey-focused artifact for passive target discovery.",
+  "risk_level": "low",
+  "network_behavior": "none by default",
+  "external_write_behavior": "disabled",
+  "validated_cases": [
+    "make smoke-test",
+    "integration-glinet: survey-core"
+  ],
+  "notes": "Zero-arg mode runs survey. Intended for bring-up and recommendation generation."
+}

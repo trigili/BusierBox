@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "name": "socat-rescue",
+  "description": "No-residue socat reverse shell rescue preset.",
+  "risk_level": "high",
+  "network_behavior": "reverse shell when explicitly launched or selected as zero-arg behavior",
+  "external_write_behavior": "disabled",
+  "validated_cases": [
+    "make smoke-test",
+    "integration-glinet: socat-rescue"
+  ],
+  "notes": "Uses best-effort ephemeral runtime cleanup. Requires staged socat and a reachable operator endpoint."
+}
