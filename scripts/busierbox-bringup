@@ -5,16 +5,44 @@ usage() {
     cat >&2 <<'EOF'
 usage: scripts/busierbox-bringup --host USER@HOST [options]
 
+Guided target bring-up flow. It builds or reuses a conservative survey
+artifact, copies it to the target, captures survey/config-info output, converts
+the survey into a recommended BusierBox config, and can then build that
+recommended artifact.
+
+What it does:
+  - writes local run files under local/bringup-runs/<timestamp>/
+  - builds a survey artifact unless --survey-json is supplied
+  - transfers only to /tmp/busierbox-bringup-<timestamp>/ on the target
+  - runs ./busierbox survey --json and ./busierbox config-info
+  - writes recommended.conf, recommendation.json, and summary.json
+  - optionally runs one integration case when --run-integration is set
+
+What it does not do:
+  - does not start scripts/busierbox-server
+  - does not enable reverse access or network autorun
+  - does not install persistence or write outside the remote temp directory
+  - does not replace the repeatable integration harness
+
 Options:
-  --operator-host HOST|auto
-  --survey-only
-  --recommend-only
-  --survey-json PATH
-  --payload-preset NAME
-  --target-preset NAME
-  --run-integration CASE
-  --dry-run
-  --keep-remote
+  --operator-host HOST|auto   operator address for generated reverse-access config
+  --survey-only               stop after survey and recommendation
+  --recommend-only            use --survey-json or captured survey; do not build final artifact
+  --survey-json PATH          use an existing survey JSON instead of touching target
+  --payload-preset NAME       preset for initial survey artifact; default survey-core
+  --target-preset NAME        target preset to build; default native
+  --run-integration CASE      run one scripts/integration-glinet case after build
+  --dry-run                   create local plan/summary only; no build, SSH, or SCP
+  --keep-remote               leave remote temp directory for debugging
+  --help, -h                  show this help
+
+Examples:
+  scripts/busierbox-bringup --host root@192.168.8.1 --operator-host auto
+  scripts/busierbox-bringup --host root@192.168.8.1 --survey-only
+  scripts/busierbox-bringup --host root@192.0.2.1 --recommend-only --survey-json survey.json
+
+Use scripts/integration-glinet for repeatable validation runs. Bringup is a
+guided onboarding flow; integration-glinet is the regression harness.
 EOF
 }
 

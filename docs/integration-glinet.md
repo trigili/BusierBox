@@ -2,6 +2,8 @@
 
 `scripts/integration-glinet` builds BusierBox artifacts, copies them to a
 GL.iNet exemplar, runs selected cases, captures logs, and writes a JSON summary.
+Use `scripts/busierbox-bringup` first when onboarding an unknown target; use
+this integration harness when validating known cases repeatedly.
 
 The default target is `root@192.168.8.1` and the default target preset is
 `glinet-mt7621-openwrt-musl`. If the target is unreachable, the harness skips
