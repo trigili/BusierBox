@@ -173,7 +173,7 @@ if [ "$STRICT_HEAVY_TOOLS" != "1" ]; then
     for tool in $BB_HEAVY_TOOLS; do
         if [ "$tool" = "gdbserver" ]; then
             case "$BB_GDBSERVER_PROVIDER" in
-                user|overlay|none) continue ;;
+                user|local-dropin|overlay|none) continue ;;
             esac
         fi
         EXCLUSION_REASON=
@@ -255,7 +255,7 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     for tool in $BB_HEAVY_TOOLS; do
         if [ "$tool" = "gdbserver" ]; then
             case "$BB_GDBSERVER_PROVIDER" in
-                user|overlay|none)
+                user|local-dropin|overlay|none)
                     printf '%s\n' "# gdbserver: provider=$BB_GDBSERVER_PROVIDER (not Buildroot), no BR2 symbol emitted"
                     continue
                     ;;

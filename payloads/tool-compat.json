@@ -56,6 +56,7 @@
       "providers": [
         "auto",
         "buildroot",
+        "local-dropin",
         "user",
         "overlay",
         "none"
@@ -102,10 +103,10 @@
           "provider": "buildroot",
           "severity": "warning",
           "message": "Buildroot GDB/BFD is known to fail for mipsel/mips+musl/static builds. The gdbserver Buildroot package will be pre-excluded in best-effort mode.",
-          "suggested_action": "Use provider=user with a pre-built static gdbserver binary, or provider=overlay with the binary under your overlay root/target/bin/."
+          "suggested_action": "Use provider=local-dropin with local/tools/<target>/bin/gdbserver, provider=user with a pre-built static binary, or provider=overlay with the binary under your overlay root/target/bin/."
         }
       ],
-      "notes": "Requires ptrace and enough target memory for debug sessions. On mipsel/mips+musl the full GDB BFD library fails to build; use STRICT_HEAVY_TOOLS=1 to treat this as a fatal error. Use BB_GDBSERVER_PROVIDER=user or overlay to supply a pre-built binary."
+      "notes": "Requires ptrace and enough target memory for debug sessions. On mipsel/mips+musl the full GDB BFD library fails to build; use STRICT_HEAVY_TOOLS=1 to treat this as a fatal error. Use BB_GDBSERVER_PROVIDER=local-dropin, user, or overlay to supply a pre-built binary."
     },
     "dropbear": {
       "requires_devpts": false,

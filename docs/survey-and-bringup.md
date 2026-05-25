@@ -36,3 +36,8 @@ scripts/config-from-survey --write-config local/recommended.conf survey.json
 ```
 
 `scripts/config-from-survey` is conservative. It emits comments for uncertainty, avoids external writes unless `--allow-external-writes` is set, and keeps `BB_ZERO_ARG_MODE="help"` unless `--allow-network-autorun` is explicitly requested.
+
+For target-side debugging, prefer the provider-based gdbserver workflow in
+[gdbserver-workflow.md](gdbserver-workflow.md). Buildroot gdbserver is kept where
+it works, but local drop-ins are the preferred low-friction path for tuples such
+as mipsel/musl where static Buildroot GDB is known to fail.

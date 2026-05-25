@@ -58,6 +58,11 @@ BB_USER_OVERLAY_ENABLE="${BB_USER_OVERLAY_ENABLE:-no}"
 BB_USER_OVERLAY_ROOT="${BB_USER_OVERLAY_ROOT:-}"
 BB_USER_OVERLAY_ALLOW_OVERRIDE="${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}"
 BB_RUNTIME_MODE="${_runtime_from_env:-${BB_RUNTIME_MODE:-extract}}"
+BB_TARGET_NAME="${BB_TARGET_NAME:-$TARGET}"
+BB_TARGET_ARCH="${BB_TARGET_ARCH:-native}"
+BB_TARGET_LIBC="${BB_TARGET_LIBC:-host}"
+BB_GDBSERVER_PROVIDER="${BB_GDBSERVER_PROVIDER:-auto}"
+BB_GDBSERVER_USER_PATH="${BB_GDBSERVER_USER_PATH:-}"
 BB_DOTFILES_ENABLE="${_dotfiles_enable_from_env:-${BB_DOTFILES_ENABLE:-yes}}"
 BB_DOTFILE_ZSH_MODE="${_dot_zsh_mode_from_env:-${BB_DOTFILE_ZSH_MODE:-default}}"
 BB_DOTFILE_ZSH_USER_FILE="${_dot_zsh_file_from_env:-${BB_DOTFILE_ZSH_USER_FILE:-}}"
@@ -155,6 +160,35 @@ stage_user_binary() {
     return 0
 }
 
+dropin_tool_path() {
+    _tool=$1
+    for _path in \
+        "local/tools/${BB_TARGET_NAME}/bin/$_tool" \
+        "local/tools/${BB_TARGET_ARCH}-${BB_TARGET_LIBC}/bin/$_tool" \
+        "local/tools/generic/${BB_TARGET_ARCH}/bin/$_tool"
+    do
+        if [ -x "$_path" ]; then
+            printf '%s\n' "$_path"
+            return 0
+        fi
+    done
+    return 1
+}
+
+stage_dropin_tool() {
+    _tool=$1
+    _path=$(dropin_tool_path "$_tool" 2>/dev/null || true)
+    [ -n "$_path" ] || return 1
+    if scripts/tools/check-dropin-tool --tool "$_tool" --path "$_path" \
+            --target "$BB_TARGET_NAME" --arch "$BB_TARGET_ARCH" --libc "$BB_TARGET_LIBC" >/dev/null; then
+        stage_real_tool "$_tool" "$_path" "$_tool" || return 1
+        printf '%s\n' "$_tool" >>runtime/payload/user-provided-tools.txt
+        printf '%s\n' "build-payload: staged $_tool from local drop-in $_path"
+        return 0
+    fi
+    return 1
+}
+
 tool_selected() {
     needle=$1
     for t in $BB_HEAVY_TOOLS; do
@@ -186,9 +220,39 @@ stage_host_terminfo() {
 }
 
 # Set up only selected heavy tools
-for tool in zsh tmux strace gdbserver dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils nmap nmap-ncat psmisc openssl fd zoxide mtd-utils ubi-utils i2c-tools spi-tools mmc-utils e2fsprogs parted doom; do
+for tool in zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils nmap nmap-ncat psmisc openssl fd zoxide mtd-utils ubi-utils i2c-tools spi-tools mmc-utils e2fsprogs parted doom; do
     if tool_selected "$tool"; then
-        if [ "$tool" = ripgrep ] && command -v rg >/dev/null 2>&1; then
+        if [ "$tool" = gdbserver ]; then
+            case "$BB_GDBSERVER_PROVIDER" in
+                none)
+                    ;;
+                user)
+                    if [ -n "$BB_GDBSERVER_USER_PATH" ]; then
+                        stage_user_binary gdbserver "$BB_GDBSERVER_USER_PATH" gdbserver || {
+                            printf '%s\n' "build-payload: WARNING: BB_GDBSERVER_USER_PATH is not executable: $BB_GDBSERVER_USER_PATH" >&2
+                        }
+                    else
+                        printf '%s\n' "build-payload: WARNING: BB_GDBSERVER_PROVIDER=user but BB_GDBSERVER_USER_PATH is empty" >&2
+                    fi
+                    ;;
+                local-dropin)
+                    stage_dropin_tool gdbserver || printf '%s\n' "build-payload: WARNING: no compatible local drop-in gdbserver found" >&2
+                    ;;
+                auto)
+                    stage_dropin_tool gdbserver || {
+                        command -v gdbserver >/dev/null 2>&1 && stage_real_tool gdbserver "$(command -v gdbserver)" gdbserver || true
+                    }
+                    ;;
+                buildroot|overlay)
+                    printf '%s\n' "build-payload: gdbserver provider $BB_GDBSERVER_PROVIDER is not used by native build-payload; use local-dropin or user for native payloads" >&2
+                    ;;
+                *)
+                    printf '%s\n' "build-payload: WARNING: unknown gdbserver provider: $BB_GDBSERVER_PROVIDER" >&2
+                    ;;
+            esac
+        elif [ "$tool" = gdb ]; then
+            stage_dropin_tool gdb || true
+        elif [ "$tool" = ripgrep ] && command -v rg >/dev/null 2>&1; then
             stage_real_tool "$tool" "$(command -v rg)" rg || true
         elif [ "$tool" = usbutils ] && command -v lsusb >/dev/null 2>&1; then
             stage_real_tool "$tool" "$(command -v lsusb)" lsusb || true
@@ -426,7 +490,7 @@ if command -v file >/dev/null 2>&1 && file runtime/payload/bin/busybox | grep -q
 fi
 busybox_version=$(runtime/payload/bin/busybox 2>&1 | sed -n 's/^BusyBox v\([^ ]*\).*/\1/p' | sed -n '1p')
 [ -n "$busybox_version" ] || busybox_version=unknown
-scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 pending --requested-tools "$BB_HEAVY_TOOLS"
+scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 pending --requested-tools "$BB_HEAVY_TOOLS" --gdbserver-provider "$BB_GDBSERVER_PROVIDER"
 make_payload_archives
 if [ "$PAYLOAD_FORMAT" = "tar" ]; then
     selected=dist/payload.tar
@@ -434,7 +498,7 @@ else
     selected=dist/payload.tar.gz
 fi
 sha=$(payload_sha "$selected")
-scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$sha" --requested-tools "$BB_HEAVY_TOOLS"
+scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$sha" --requested-tools "$BB_HEAVY_TOOLS" --gdbserver-provider "$BB_GDBSERVER_PROVIDER"
 make_payload_archives
 if command -v sha256sum >/dev/null 2>&1; then
     sha256sum dist/payload.tar >dist/payload.tar.sha256
