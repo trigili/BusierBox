@@ -75,6 +75,7 @@ import sys
 text = Path(sys.argv[1]).read_text(encoding="utf-8")
 for needle in [
     'clean_external_from_ledger',
+    'bb_clean_external_from_ledger',
     'remove_rshell_marked_block',
     '"/root/.ssh/authorized_keys"',
     '"root-merge"',
@@ -84,6 +85,10 @@ for needle in [
     if needle not in text:
         raise SystemExit(f"rshell-external-writes: clean external path missing {needle}")
 PY
+
+grep -q 'bb_clean_external_from_ledger()' "$src"
+awk '/subcmd, "cleanup"/,/subcmd, "stop"/' "$src" | grep -q 'bb_clean_external_from_ledger'
+awk '/subcmd, "cleanup"/,/subcmd, "stop"/' "$src" | grep -q 'external && apply'
 
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RUNTIME_ALLOW_EXTERNAL_WRITES'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'root-copy|root-merge'

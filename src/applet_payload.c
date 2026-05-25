@@ -2077,6 +2077,11 @@ static int clean_external_from_ledger(void)
     return failures ? -1 : 0;
 }
 
+int bb_clean_external_from_ledger(void)
+{
+    return clean_external_from_ledger();
+}
+
 int applet_cleanup_ledger_main(int argc, char **argv)
 {
     int json = 0;
