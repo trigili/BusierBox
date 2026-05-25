@@ -134,8 +134,13 @@ if [ ! -f "$survey" ]; then
 fi
 
 if [ -f "$survey" ]; then
-    scripts/config-from-survey --format shell --write-config "$recommended" "$survey"
-    scripts/config-from-survey --format json "$survey" >"$run_dir/recommendation.json"
+    if [ "$target_preset" = native ]; then
+        scripts/config-from-survey --format shell --write-config "$recommended" "$survey"
+        scripts/config-from-survey --format json "$survey" >"$run_dir/recommendation.json"
+    else
+        scripts/config-from-survey --target-preset "$target_preset" --format shell --write-config "$recommended" "$survey"
+        scripts/config-from-survey --target-preset "$target_preset" --format json "$survey" >"$run_dir/recommendation.json"
+    fi
 else
     write_summary fail "survey json missing"
     printf '%s\n' "bringup: missing $survey" >&2
@@ -153,7 +158,7 @@ if [ "$survey_only" = yes ] || [ "$recommend_only" = yes ]; then
     exit 0
 fi
 
-env BUSIERBOX_CONFIG="$recommended" TARGET="$target_preset" make package >"$run_dir/recommended-build.log" 2>&1 || {
+env BUSIERBOX_CONFIG="$recommended" make package >"$run_dir/recommended-build.log" 2>&1 || {
     write_summary fail "recommended artifact build failed"
     printf '%s\n' "bringup: recommended artifact build failed; see $run_dir/recommended-build.log" >&2
     exit 1
