@@ -30,6 +30,8 @@ python3 -m json.tool "$tmp/config-export.json" >/dev/null
 scripts/config-from-manifest "$tmp/config-export.json" >"$tmp/from-export.conf"
 grep -q '^BB_PAYLOAD_PRESET=' "$tmp/from-export.conf"
 grep -q '^BB_RUNTIME_MODE=' "$tmp/from-export.conf"
+grep -q '^BB_OPERATOR_SERVER_SSH_PORT=' "$tmp/from-export.conf"
+grep -q '^BB_RSHELL_RETRY_BACKOFF=' "$tmp/from-export.conf"
 
 "$bb" config-export --base64 >"$tmp/config-export.b64"
 python3 - "$tmp/config-export.b64" <<'PY'
@@ -59,5 +61,7 @@ PY
 scripts/config-from-support-token "$(cat "$tmp/support-token.b64")" >"$tmp/from-token.conf"
 grep -q '^BB_PAYLOAD_PRESET=' "$tmp/from-token.conf"
 grep -q '^BB_RSHELL_TRANSPORT=' "$tmp/from-token.conf"
+grep -q '^BB_OPERATOR_REMOTE_FORWARD_PORT=' "$tmp/from-token.conf"
+grep -q '^BB_RSHELL_AUTHKEYS_MODE=' "$tmp/from-token.conf"
 
 printf '%s\n' "support-token ok"
