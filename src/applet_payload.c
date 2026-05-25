@@ -1836,9 +1836,38 @@ static const struct recovery_method recovery_methods[] = {
     {"profile", "etc/profile.d/busierbox-recovery.sh", "shell profile hook", "login-only", "low", "remove script", "yes"},
 };
 
+struct recovery_storage {
+    const char *path;
+    const char *class_name;
+    const char *survives_reboot;
+    const char *notes;
+};
+
+static const struct recovery_storage recovery_storage_paths[] = {
+    {"/overlay", "persistent", "yes", "OpenWrt writable overlay when present"},
+    {"/root", "persistent", "yes", "root home on most installed systems"},
+    {"/etc", "persistent", "yes", "configuration partition/rootfs overlay"},
+    {"/usr/bin", "persistent", "yes", "binary location when rootfs is writable"},
+    {"/tmp", "volatile", "no", "tmpfs on OpenWrt and most embedded Linux targets"},
+    {"/var/tmp", "usually-volatile", "maybe", "may be tmpfs or persistent depending on target"},
+    {"/dev/shm", "volatile", "no", "tmpfs shared memory"},
+};
+
 static const struct recovery_method *find_recovery_method(const char *name)
 {
     size_t i;
+    if (!strcmp(name, "procd"))
+        name = "openwrt-procd";
+    else if (!strcmp(name, "rcS"))
+        name = "sysv-init";
+    else if (!strcmp(name, "systemd"))
+        name = "systemd-unit";
+    else if (!strcmp(name, "cron"))
+        name = "cron-reboot";
+    else if (!strcmp(name, "rc.local"))
+        name = "rc-local";
+    else if (!strcmp(name, "hotplug"))
+        name = "hotplug-iface";
     for (i = 0; i < sizeof(recovery_methods) / sizeof(recovery_methods[0]); i++)
         if (!strcmp(recovery_methods[i].name, name))
             return &recovery_methods[i];
@@ -1894,6 +1923,42 @@ static int copy_self_to(const char *dst)
         return -1;
     chmod(dst, 0755);
     return 0;
+}
+
+static int copy_file_path(const char *src, const char *dst)
+{
+    FILE *in, *out;
+    char buf[8192];
+    size_t n;
+    in = fopen(src, "rb");
+    if (!in)
+        return -1;
+    out = fopen(dst, "wb");
+    if (!out) {
+        fclose(in);
+        return -1;
+    }
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
+        if (fwrite(buf, 1, n, out) != n) {
+            fclose(in);
+            fclose(out);
+            return -1;
+        }
+    }
+    fclose(in);
+    return fclose(out);
+}
+
+static int backup_existing_file(const char *path, char *backup, size_t backupsz)
+{
+    struct stat st;
+    if (stat(path, &st) != 0)
+        return 0;
+    snprintf(backup, backupsz, "%s.busierbox.bak.%ld", path, (long)time(NULL));
+    if (copy_file_path(path, backup) != 0)
+        return -1;
+    chmod(backup, st.st_mode & 0777);
+    return 1;
 }
 
 static int append_recovery_block(const char *path, const char *method, const char *name)
@@ -1983,7 +2048,19 @@ static void recovery_print_survey(int json, const char *root)
     if (json) {
         fputs("{\"schema\":1,\"mode\":\"survey\",\"root\":", stdout);
         json_string_payload(stdout, root);
-        fputs(",\"methods\":[", stdout);
+        fputs(",\"storage\":[", stdout);
+        for (i = 0; i < sizeof(recovery_storage_paths) / sizeof(recovery_storage_paths[0]); i++) {
+            char path[PATH_MAX];
+            recovery_join(path, sizeof(path), root, recovery_storage_paths[i].path + 1);
+            printf("%s{\"path\":", i ? "," : "");
+            json_string_payload(stdout, path);
+            fputs(",\"class\":", stdout); json_string_payload(stdout, recovery_storage_paths[i].class_name);
+            fputs(",\"survives_reboot\":", stdout); json_string_payload(stdout, recovery_storage_paths[i].survives_reboot);
+            printf(",\"present\":%s,\"writable\":%s", path_exists(path) ? "true" : "false", access(path, W_OK) == 0 ? "true" : "false");
+            fputs(",\"notes\":", stdout); json_string_payload(stdout, recovery_storage_paths[i].notes);
+            fputc('}', stdout);
+        }
+        fputs("],\"methods\":[", stdout);
         for (i = 0; i < sizeof(recovery_methods) / sizeof(recovery_methods[0]); i++) {
             char path[PATH_MAX];
             recovery_join(path, sizeof(path), root, recovery_methods[i].path);
@@ -2003,6 +2080,16 @@ static void recovery_print_survey(int json, const char *root)
     }
     printf("recovery_root=%s\n", root);
     puts("recovery_policy=survey and plan never modify the target; install requires --method and --apply");
+    puts("recovery_storage:");
+    for (i = 0; i < sizeof(recovery_storage_paths) / sizeof(recovery_storage_paths[0]); i++) {
+        char path[PATH_MAX];
+        recovery_join(path, sizeof(path), root, recovery_storage_paths[i].path + 1);
+        printf("%s\tclass=%s\tpresent=%s\twritable=%s\tsurvives=%s\t%s\n",
+               path, recovery_storage_paths[i].class_name, path_exists(path) ? "yes" : "no",
+               access(path, W_OK) == 0 ? "yes" : "no", recovery_storage_paths[i].survives_reboot,
+               recovery_storage_paths[i].notes);
+    }
+    puts("recovery_methods:");
     for (i = 0; i < sizeof(recovery_methods) / sizeof(recovery_methods[0]); i++) {
         char path[PATH_MAX];
         recovery_join(path, sizeof(path), root, recovery_methods[i].path);
@@ -2020,7 +2107,8 @@ static int applet_recovery_install(int argc, char **argv, int uninstall)
     const char *name = BB_RECOVERY_BINARY_NAME;
     int dry_run = 0, apply = 0, external = 0;
     const struct recovery_method *m;
-    char hook[PATH_MAX], bin[PATH_MAX], bindir[PATH_MAX];
+    char hook[PATH_MAX], bin[PATH_MAX], bindir[PATH_MAX], backup[PATH_MAX];
+    int backup_status;
     int i;
 
     for (i = 2; i < argc; i++) {
@@ -2070,6 +2158,8 @@ static int applet_recovery_install(int argc, char **argv, int uninstall)
         printf("Would %s recovery method=%s name=%s root=%s\n", uninstall ? "uninstall" : "install", method, name, root);
         printf("Would %s binary: %s\n", uninstall ? "remove" : "copy self to", bin);
         printf("Would %s hook: %s\n", uninstall ? "remove marked block/file" : "write marked hook", hook);
+        if (!uninstall && path_exists(hook))
+            printf("Would backup existing hook before modification: %s.busierbox.bak.<timestamp>\n", hook);
         return 0;
     }
     if (uninstall) {
@@ -2098,13 +2188,21 @@ static int applet_recovery_install(int argc, char **argv, int uninstall)
             mkdir_p(hookdir, 0755);
         }
     }
+    backup[0] = '\0';
+    backup_status = backup_existing_file(hook, backup, sizeof(backup));
+    if (backup_status < 0) {
+        fprintf(stderr, "recovery: cannot backup hook %s: %s\n", hook, strerror(errno));
+        return 1;
+    }
+    if (backup_status > 0)
+        ledger_record("backup", backup, !strcmp(root, "/") ? "external" : "recovery-fakeroot", hook);
     if (append_recovery_block(hook, method, name) != 0) {
         fprintf(stderr, "recovery: cannot write hook %s: %s\n", hook, strerror(errno));
         return 1;
     }
     chmod(hook, 0755);
     ledger_record("write", bin, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery binary");
-    ledger_record("modify", hook, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery marked hook");
+    ledger_record("modify", hook, !strcmp(root, "/") ? "external" : "recovery-fakeroot", backup_status > 0 ? backup : "recovery marked hook");
     printf("recovery: installed method=%s name=%s\n", method, name);
     return 0;
 }

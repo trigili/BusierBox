@@ -24,10 +24,16 @@ esac
 "$bb" recovery --plan --root "$tmp/root" >"$tmp/plan"
 grep -q 'openwrt-procd' "$tmp/plan"
 grep -q 'cron-reboot' "$tmp/plan"
+grep -q 'recovery_storage:' "$tmp/plan"
+grep -q 'class=persistent' "$tmp/plan"
+grep -q 'class=volatile' "$tmp/plan"
 grep -q 'recovery_plan=choose one explicit method' "$tmp/plan"
 
+mkdir -p "$tmp/root/etc"
+printf '%s\n' '# existing rc.local' >"$tmp/root/etc/rc.local"
 "$bb" recovery install --method rc-local --dry-run --root "$tmp/root" --name bbx_recovery >"$tmp/dry-run"
 grep -q 'Would install recovery method=rc-local' "$tmp/dry-run"
+grep -q 'Would backup existing hook' "$tmp/dry-run"
 
 if "$bb" recovery install --method rc-local --root "$tmp/root" --name bbx_recovery 2>"$tmp/err"; then
     printf '%s\n' "recovery: install without --apply unexpectedly succeeded" >&2
@@ -38,8 +44,12 @@ grep -q 'require --apply' "$tmp/err"
 "$bb" recovery install --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 test -x "$tmp/root/usr/bin/bbx_recovery"
 grep -q 'BEGIN BUSIERBOX RECOVERY bbx_recovery' "$tmp/root/etc/rc.local"
+ls "$tmp/root/etc"/rc.local.busierbox.bak.* >/dev/null
 "$bb" recovery status --root "$tmp/root" --name bbx_recovery >"$tmp/status"
 grep -q 'installed_method=rc-local' "$tmp/status"
+
+"$bb" recovery install --method rcS --dry-run --root "$tmp/root" --name bbx_recovery >"$tmp/rcs-dry-run"
+grep -q 'Would install recovery method=rcS' "$tmp/rcs-dry-run"
 
 "$bb" recovery uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 test ! -e "$tmp/root/usr/bin/bbx_recovery"
@@ -47,5 +57,6 @@ if grep -q 'BEGIN BUSIERBOX RECOVERY bbx_recovery' "$tmp/root/etc/rc.local"; the
     printf '%s\n' "recovery: uninstall left marked block in rc.local" >&2
     exit 1
 fi
+grep -q '# existing rc.local' "$tmp/root/etc/rc.local"
 
 printf '%s\n' "recovery ok"
