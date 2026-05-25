@@ -98,6 +98,7 @@ smoke-test:
 	@tests/smoke/payload-presets.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/heavy-tool-triage.sh; else printf '%s\n' "skip: python3 heavy-tool-triage smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/gdbserver-workflow.sh; else printf '%s\n' "skip: python3 gdbserver workflow smoke unavailable"; fi
+	@tests/smoke/rshell-menu-structure.sh
 	@tests/smoke/rshell-transport-names.sh
 	@tests/smoke/rshell-external-writes.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/rshell-status-json.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 rshell status json smoke unavailable"; fi

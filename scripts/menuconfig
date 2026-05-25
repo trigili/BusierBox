@@ -2334,58 +2334,21 @@ MDEOF
     printf '%s\n' "$_out"
 }
 
-configure_reverse_shell() {
-    ensure_operator_session_defaults
+configure_rshell_enable_transport() {
     while :; do
-        if [ "$BB_RSHELL_TRANSPORT" = none ]; then
-            _enabled_label="Reverse shell: Disabled"
-        else
-            _enabled_label="Reverse shell: Enabled"
-        fi
-        if [ "$BB_RSHELL_TRANSPORT" != none ] && [ "$BB_RUNTIME_MODE" = "core-only" ] && [ "$BB_RSHELL_TRANSPORT" != "builtin" ]; then
-            dialog --title "core-only: transport conflict" \
-                --yesno "core-only runtime cannot use staged '${BB_RSHELL_TRANSPORT}' tools.\n\nSwitch rshell transport to 'builtin' (wolfSSL TLS shell)?" \
-                9 70 && {
-                BB_RSHELL_TRANSPORT=builtin
-                BB_RSHELL_MODE=builtin
-                BB_RSHELL_ENCRYPTION=tls
-            } || true
-        fi
-        _host=${BB_OPERATOR_SERVER_HOST:-not set}
-        _target_port=${BB_OPERATOR_TARGET_DROPBEAR_PORT:-${BB_DROPBEAR_LISTEN_PORT:-2222}}
+        [ "$BB_RSHELL_TRANSPORT" = none ] && _enabled=no || _enabled=yes
         _enc_label="Encryption: $BB_RSHELL_ENCRYPTION"
         [ "$BB_RSHELL_ENCRYPTION" = none ] && _enc_label="Encryption: NONE (INSECURE/DEBUG)"
-
-        # Build menu items; hide SSH-only options when transport != ssh
         set -- \
-            "1" "$_enabled_label" \
-            "2" "Transport: $BB_RSHELL_TRANSPORT" \
-            "3" "$_enc_label" \
-            "4" "Operator workstation host/IP: $_host" \
-            "5" "Prepare local ephemeral keys/defaults" \
-            "6" "Summary: remote=127.0.0.1:$BB_OPERATOR_REMOTE_FORWARD_PORT target-port=$_target_port" \
-            "7" "Save connection info to file"
-
+            "1" "Reverse access enabled: $_enabled" \
+            "2" "Transport: $BB_RSHELL_TRANSPORT"
         case "$BB_RSHELL_TRANSPORT" in
-            ssh)
-                set -- "$@" \
-                    "8" "Authkeys mode: $BB_RSHELL_AUTHKEYS_MODE" \
-                    "9" "Generate host key if missing: $BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING" \
-                    "10" "Advanced SSH settings"
-                ;;
-            socat|builtin)
-                set -- "$@" \
-                    "10" "Shell listener port: $BB_RSHELL_SOCAT_PORT"
-                ;;
+            ssh|none) : ;;
+            *) set -- "$@" "3" "$_enc_label" ;;
         esac
-        set -- "$@" \
-            "11" "Shell provider: $BB_RSHELL_SHELL_PROVIDER" \
-            "12" "Run mode: $BB_RSHELL_RUN_MODE" \
-            "13" "Retry: count=$BB_RSHELL_RETRY_COUNT interval=${BB_RSHELL_RETRY_INTERVAL_SEC}s backoff=$BB_RSHELL_RETRY_BACKOFF"
         set -- "$@" "H" "Help" "0" "Back"
-
-        dialog --title "Payload / Reverse access / rshell" \
-            --menu "Configure reverse access used by zero-arg rshell and explicit 'busierbox rshell'.\nSSH-specific fields are hidden for non-SSH transports." 25 94 14 \
+        dialog --title "Payload / Reverse access / Enable / transport" \
+            --menu "Enable reverse access and choose the transport. Encryption is only shown for builtin/socat shell transports." 17 90 6 \
             "$@" \
             2>"$temp_out" || return 0
         _choice=$(cat "$temp_out")
@@ -2395,7 +2358,7 @@ configure_reverse_shell() {
                     BB_RSHELL_TRANSPORT="${_prev_rshell_transport:-ssh}"
                     BB_RSHELL_MODE="$BB_RSHELL_TRANSPORT"
                 elif [ "$BB_ZERO_ARG_MODE" = rshell ]; then
-                    if dialog --title "Disable reverse shell" \
+                    if dialog --title "Disable reverse access" \
                         --yesno "Zero-arg mode is rshell. Disable zero-arg rshell first or switch zero-arg mode to help/survey/custom.\n\nAuto-fix now: switch BB_ZERO_ARG_MODE=help and set BB_RSHELL_TRANSPORT=none?" \
                         11 82
                     then
@@ -2414,12 +2377,12 @@ configure_reverse_shell() {
                 _core_only_note=""
                 [ "$BB_RUNTIME_MODE" = core-only ] && _core_only_note="\n\ncore-only mode: only 'builtin' is available (no staged tools)."
                 if [ "$BB_RUNTIME_MODE" = "core-only" ]; then
-                    dialog --title "Reverse shell transport" \
+                    dialog --title "Reverse access transport" \
                         --radiolist "core-only mode: only builtin transport available (no staged Dropbear/socat).${_core_only_note}" 10 88 1 \
                         "builtin" "BusierBox-native /bin/sh transport; requires wolfSSL (TLS always)" "on" \
                         2>"$temp_out" || true
                 else
-                    dialog --title "Reverse shell transport" \
+                    dialog --title "Reverse access transport" \
                         --radiolist "Select reverse access transport.\n  builtin — BusierBox-native /bin/sh transport; requires wolfSSL (TLS always)\n  socat   — staged socat /bin/sh transport; TLS recommended\n  ssh     — Dropbear/dbclient reverse SSH (full featured)" 16 92 3 \
                         "ssh"     "Dropbear/dbclient reverse SSH tunnel" "$(mode_onoff "$BB_RSHELL_TRANSPORT" ssh)" \
                         "socat"   "Staged socat /bin/sh transport; TLS recommended" "$(mode_onoff "$BB_RSHELL_TRANSPORT" socat)" \
@@ -2441,83 +2404,87 @@ configure_reverse_shell() {
                 fi
                 ;;
             3)
-                if [ "$BB_RSHELL_TRANSPORT" = ssh ]; then
-                    dialog --title "SSH encryption" --msgbox "SSH is intrinsically encrypted. The encryption option does not apply to the SSH transport." 8 66
-                else
-                    dialog --title "Encryption" \
-                        --radiolist "Select encryption for $BB_RSHELL_TRANSPORT transport.\nNone is INSECURE — debug/development use only." 12 78 2 \
-                        "tls"  "TLS encryption (recommended)" "$(mode_onoff "$BB_RSHELL_ENCRYPTION" tls)" \
-                        "none" "[INSECURE/DEBUG] Plaintext — no encryption" "$(mode_onoff "$BB_RSHELL_ENCRYPTION" none)" \
-                        2>"$temp_out" || true
-                    _v=$(cat "$temp_out" | tr -d '"')
-                    if [ -n "$_v" ]; then
-                        BB_RSHELL_ENCRYPTION="$_v"
-                        if [ "$_v" = none ]; then
-                            dialog --title "WARNING: Plaintext transport selected" \
-                                --msgbox "You have selected plaintext (no encryption) for the $BB_RSHELL_TRANSPORT transport.\n\nThis is INSECURE and intended for debug/development only. Credentials and shell traffic will be exposed.\n\nYou must also set BB_RSHELL_ALLOW_PLAINTEXT=yes in your config." \
-                                12 80
-                            BB_RSHELL_ALLOW_PLAINTEXT=yes
-                        fi
+                dialog --title "Encryption" \
+                    --radiolist "Select encryption for $BB_RSHELL_TRANSPORT transport.\nNone is INSECURE — debug/development use only." 12 78 2 \
+                    "tls"  "TLS encryption (recommended)" "$(mode_onoff "$BB_RSHELL_ENCRYPTION" tls)" \
+                    "none" "[INSECURE/DEBUG] Plaintext — no encryption" "$(mode_onoff "$BB_RSHELL_ENCRYPTION" none)" \
+                    2>"$temp_out" || true
+                _v=$(cat "$temp_out" | tr -d '"')
+                if [ -n "$_v" ]; then
+                    BB_RSHELL_ENCRYPTION="$_v"
+                    if [ "$_v" = none ]; then
+                        dialog --title "WARNING: Plaintext transport selected" \
+                            --msgbox "You have selected plaintext (no encryption) for the $BB_RSHELL_TRANSPORT transport.\n\nThis is INSECURE and intended for debug/development only. Credentials and shell traffic will be exposed.\n\nYou must also set BB_RSHELL_ALLOW_PLAINTEXT=yes in your config." \
+                            12 80
+                        BB_RSHELL_ALLOW_PLAINTEXT=yes
                     fi
                 fi
                 ;;
-            4) dialog --title "Operator workstation host/IP" --inputbox "Host/IP of your workstation reachable from the target. Normally the only required field." 10 82 "$BB_OPERATOR_SERVER_HOST" 2>"$temp_out" || true; BB_OPERATOR_SERVER_HOST=$(cat "$temp_out") ;;
-            5)
+            H) show_page_help rshell ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+configure_rshell_endpoint() {
+    while :; do
+        set -- \
+            "1" "Operator workstation host/IP: ${BB_OPERATOR_SERVER_HOST:-not set}" \
+            "2" "Prepare local ephemeral keys/defaults"
+        case "$BB_RSHELL_TRANSPORT" in
+            ssh)
+                set -- "$@" \
+                    "3" "Operator SSH listener port: $BB_OPERATOR_SERVER_SSH_PORT" \
+                    "4" "Remote forward port: $BB_OPERATOR_REMOTE_FORWARD_PORT" \
+                    "5" "Target Dropbear bind/port: ${BB_OPERATOR_TARGET_BIND_HOST}:${BB_OPERATOR_TARGET_DROPBEAR_PORT:-${BB_DROPBEAR_LISTEN_PORT:-2222}}"
+                ;;
+            socat|builtin)
+                set -- "$@" "6" "Shell listener port: $BB_RSHELL_SOCAT_PORT" ;;
+        esac
+        set -- "$@" "H" "Help" "0" "Back"
+        dialog --title "Payload / Reverse access / Operator endpoint" \
+            --menu "Configure where the target connects and which operator-side port receives the session." 18 92 8 \
+            "$@" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1) dialog --title "Operator workstation host/IP" --inputbox "Host/IP of your workstation reachable from the target. Normally the only required field." 10 82 "$BB_OPERATOR_SERVER_HOST" 2>"$temp_out" || true; BB_OPERATOR_SERVER_HOST=$(cat "$temp_out") ;;
+            2)
                 ensure_operator_session_defaults
                 _tls_cert_status="local/operator-session/shell-server.crt"
-                [ -f "$_tls_cert_status" ] || _tls_cert_status="(generation failed — check openssl-generate.log)"
-                dialog --title "Reverse shell defaults prepared" \
+                [ -f "$_tls_cert_status" ] || _tls_cert_status="(generation failed; check openssl-generate.log)"
+                dialog --title "Reverse access defaults prepared" \
                     --msgbox "Prepared defaults under local/operator-session where needed.\n\nTarget -> operator identity:\n  ${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-auto}\n\nOperator -> target public key:\n  ${BB_OPERATOR_AUTHORIZED_KEY_FILE:-auto}\n\nTLS server cert (builtin/socat+tls):\n  $_tls_cert_status\n\nTarget Dropbear port:\n  ${BB_OPERATOR_TARGET_DROPBEAR_PORT:-${BB_DROPBEAR_LISTEN_PORT:-2222}}" \
                     19 82
                 ;;
-            6) dialog --title "Reverse shell summary" --msgbox "$(_rshell_summary_text)" 18 72 ;;
-            7)
-                dialog --title "Save connection info" --inputbox "Save reverse shell connection info to this file." 8 72 "local/reverse-shell.md" 2>"$temp_out" || true
-                _savepath=$(cat "$temp_out")
-                if [ -n "$_savepath" ]; then
-                    _written=$(_rshell_save_info "$_savepath")
-                    dialog --title "Saved" --msgbox "Connection info written to:\n  $_written" 8 60
-                fi
+            3) dialog --title "Operator SSH listener port" --inputbox "Port scripts/busierbox-server listens on for reverse SSH." 9 74 "$BB_OPERATOR_SERVER_SSH_PORT" 2>"$temp_out" || true; BB_OPERATOR_SERVER_SSH_PORT=$(cat "$temp_out") ;;
+            4) dialog --title "Remote forward port" --inputbox "Operator-side localhost port forwarded to target Dropbear." 9 74 "$BB_OPERATOR_REMOTE_FORWARD_PORT" 2>"$temp_out" || true; BB_OPERATOR_REMOTE_FORWARD_PORT=$(cat "$temp_out") ;;
+            5)
+                dialog --title "Target Dropbear bind host" --inputbox "Host/interface Dropbear binds on the target." 9 74 "$BB_OPERATOR_TARGET_BIND_HOST" 2>"$temp_out" || true
+                BB_OPERATOR_TARGET_BIND_HOST=$(cat "$temp_out")
+                dialog --title "Target Dropbear port" --inputbox "Dropbear port on the target." 9 74 "${BB_OPERATOR_TARGET_DROPBEAR_PORT:-${BB_DROPBEAR_LISTEN_PORT:-2222}}" 2>"$temp_out" || true
+                BB_OPERATOR_TARGET_DROPBEAR_PORT=$(cat "$temp_out")
                 ;;
-            8)
-                dialog --title "SSH authorized_keys behavior" \
-                    --radiolist "BusierBox never blindly appends to /root/.ssh/authorized_keys. Choose how SSH auth material is handled." 14 86 4 \
-                    "disabled"     "Do not write authorized_keys" "$(mode_onoff "$BB_RSHELL_AUTHKEYS_MODE" disabled)" \
-                    "payload-home" "Use payload home only where supported" "$(mode_onoff "$BB_RSHELL_AUTHKEYS_MODE" payload-home)" \
-                    "root-copy"    "Copy only when /root/.ssh/authorized_keys is absent" "$(mode_onoff "$BB_RSHELL_AUTHKEYS_MODE" root-copy)" \
-                    "root-merge"   "Idempotent marked BusierBox block" "$(mode_onoff "$BB_RSHELL_AUTHKEYS_MODE" root-merge)" \
-                    2>"$temp_out" || true
-                _v=$(cat "$temp_out" | tr -d '"')
-                [ -n "$_v" ] && BB_RSHELL_AUTHKEYS_MODE="$_v"
-                ;;
-            9) [ "$BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING" = yes ] && BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING=no || BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING=yes ;;
-            10)
-                case "$BB_RSHELL_TRANSPORT" in
-                    ssh) configure_operator_reverse_ssh_advanced ;;
-                    socat|builtin)
-                        dialog --title "Shell listener port" --inputbox "Port scripts/busierbox-server listens on for the shell connection." 9 72 "$BB_RSHELL_SOCAT_PORT" 2>"$temp_out" || true
-                        BB_RSHELL_SOCAT_PORT=$(cat "$temp_out")
-                        ;;
-                esac
-                ;;
-            11)
-                dialog --title "Shell provider" \
-                    --radiolist "Select the shell used by socat/builtin shell transports." 16 84 6 \
-                    "auto" "Prefer staged BusyBox shell when available, else /bin/sh" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" auto)" \
-                    "target-sh" "Use target /bin/sh" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" target-sh)" \
-                    "payload-busybox-sh" "Use staged BusyBox sh (not valid in core-only)" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" payload-busybox-sh)" \
-                    "payload-busybox-ash" "Use staged BusyBox ash (not valid in core-only)" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" payload-busybox-ash)" \
-                    "payload-zsh" "Use staged zsh (requires zsh heavy tool)" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" payload-zsh)" \
-                    "custom" "Use BB_RSHELL_CUSTOM_SHELL" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" custom)" \
-                    2>"$temp_out" || true
-                _v=$(cat "$temp_out" | tr -d '"')
-                [ -n "$_v" ] && BB_RSHELL_SHELL_PROVIDER="$_v"
-                if [ "$BB_RSHELL_SHELL_PROVIDER" = custom ]; then
-                    dialog --title "Custom shell" --inputbox "Path or command for custom shell provider." 9 78 "$BB_RSHELL_CUSTOM_SHELL" 2>"$temp_out" || true
-                    BB_RSHELL_CUSTOM_SHELL=$(cat "$temp_out")
-                fi
-                ;;
-            12)
+            6) dialog --title "Shell listener port" --inputbox "Port scripts/busierbox-server listens on for the shell connection." 9 72 "$BB_RSHELL_SOCAT_PORT" 2>"$temp_out" || true; BB_RSHELL_SOCAT_PORT=$(cat "$temp_out") ;;
+            H) show_page_help rshell ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+configure_rshell_launch_behavior() {
+    while :; do
+        dialog --title "Payload / Reverse access / Launch behavior" \
+            --menu "Configure when reverse access runs. Zero-arg autorun remains separate from explicit 'busierbox rshell start'." 17 90 5 \
+            "1" "Run mode: $BB_RSHELL_RUN_MODE" \
+            "2" "Zero-arg behavior: $BB_ZERO_ARG_MODE" \
+            "3" "Autorun guard: $BB_AUTORUN_GUARD_ENABLE path=$BB_AUTORUN_GUARD_PATH" \
+            "H" "Help" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1)
                 dialog --title "Reverse access run mode" \
                     --radiolist "Select how rshell starts. auto uses the transport default; SSH already starts Dropbear/dbclient in the background. builtin/socat foreground mode creates a new shell session on each reconnect." 14 88 3 \
                     "auto" "Use transport default" "$(mode_onoff "$BB_RSHELL_RUN_MODE" auto)" \
@@ -2527,23 +2494,179 @@ configure_reverse_shell() {
                 _v=$(cat "$temp_out" | tr -d '"')
                 [ -n "$_v" ] && BB_RSHELL_RUN_MODE="$_v"
                 ;;
-            13)
-                dialog --title "Retry count" --inputbox "Connection setup retries. -1 retries indefinitely, 0 means one attempt only." 9 78 "$BB_RSHELL_RETRY_COUNT" 2>"$temp_out" || true
-                _v=$(cat "$temp_out"); [ -n "$_v" ] && BB_RSHELL_RETRY_COUNT="$_v"
-                dialog --title "Retry interval" --inputbox "Initial retry interval in seconds." 9 78 "$BB_RSHELL_RETRY_INTERVAL_SEC" 2>"$temp_out" || true
-                _v=$(cat "$temp_out"); [ -n "$_v" ] && BB_RSHELL_RETRY_INTERVAL_SEC="$_v"
-                dialog --title "Retry jitter" --inputbox "Retry jitter percentage." 9 78 "$BB_RSHELL_RETRY_JITTER_PCT" 2>"$temp_out" || true
-                _v=$(cat "$temp_out"); [ -n "$_v" ] && BB_RSHELL_RETRY_JITTER_PCT="$_v"
-                dialog --title "Retry backoff" \
-                    --radiolist "Select retry backoff model." 12 70 3 \
-                    "none" "Fixed interval" "$(mode_onoff "$BB_RSHELL_RETRY_BACKOFF" none)" \
-                    "linear" "Linear interval growth" "$(mode_onoff "$BB_RSHELL_RETRY_BACKOFF" linear)" \
-                    "exponential" "Exponential interval growth" "$(mode_onoff "$BB_RSHELL_RETRY_BACKOFF" exponential)" \
-                    2>"$temp_out" || true
-                _v=$(cat "$temp_out" | tr -d '"'); [ -n "$_v" ] && BB_RSHELL_RETRY_BACKOFF="$_v"
-                dialog --title "Retry max interval" --inputbox "Maximum retry interval in seconds." 9 78 "$BB_RSHELL_RETRY_MAX_INTERVAL_SEC" 2>"$temp_out" || true
-                _v=$(cat "$temp_out"); [ -n "$_v" ] && BB_RSHELL_RETRY_MAX_INTERVAL_SEC="$_v"
+            2) configure_zero_arg ;;
+            3) configure_autorun_guard ;;
+            H) show_page_help rshell ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+configure_rshell_shell_provider() {
+    dialog --title "Shell provider" \
+        --radiolist "Select the shell used by socat/builtin shell transports." 16 84 6 \
+        "auto" "Prefer staged BusyBox shell when available, else /bin/sh" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" auto)" \
+        "target-sh" "Use target /bin/sh" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" target-sh)" \
+        "payload-busybox-sh" "Use staged BusyBox sh (not valid in core-only)" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" payload-busybox-sh)" \
+        "payload-busybox-ash" "Use staged BusyBox ash (not valid in core-only)" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" payload-busybox-ash)" \
+        "payload-zsh" "Use staged zsh (requires zsh heavy tool)" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" payload-zsh)" \
+        "custom" "Use BB_RSHELL_CUSTOM_SHELL" "$(mode_onoff "$BB_RSHELL_SHELL_PROVIDER" custom)" \
+        2>"$temp_out" || true
+    _v=$(cat "$temp_out" | tr -d '"')
+    [ -n "$_v" ] && BB_RSHELL_SHELL_PROVIDER="$_v"
+    if [ "$BB_RSHELL_SHELL_PROVIDER" = custom ]; then
+        dialog --title "Custom shell" --inputbox "Path or command for custom shell provider." 9 78 "$BB_RSHELL_CUSTOM_SHELL" 2>"$temp_out" || true
+        BB_RSHELL_CUSTOM_SHELL=$(cat "$temp_out")
+    fi
+}
+
+configure_rshell_ssh_settings() {
+    if [ "$BB_RSHELL_TRANSPORT" != ssh ]; then
+        dialog --title "SSH tunnel settings" \
+            --msgbox "SSH tunnel settings apply only when transport=ssh.\n\nCurrent transport: $BB_RSHELL_TRANSPORT" \
+            8 66
+        return 0
+    fi
+    while :; do
+        dialog --title "Payload / Reverse access / SSH tunnel settings" \
+            --menu "Configure Dropbear/dbclient reverse SSH tunnel details." 17 88 5 \
+            "1" "Advanced SSH settings" \
+            "2" "Generate host key if missing: $BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING" \
+            "3" "Target Dropbear bind/port: ${BB_OPERATOR_TARGET_BIND_HOST}:${BB_OPERATOR_TARGET_DROPBEAR_PORT:-${BB_DROPBEAR_LISTEN_PORT:-2222}}" \
+            "H" "Help" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1) configure_operator_reverse_ssh_advanced ;;
+            2) [ "$BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING" = yes ] && BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING=no || BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING=yes ;;
+            3)
+                dialog --title "Target Dropbear bind host" --inputbox "Host/interface Dropbear binds on the target." 9 74 "$BB_OPERATOR_TARGET_BIND_HOST" 2>"$temp_out" || true
+                BB_OPERATOR_TARGET_BIND_HOST=$(cat "$temp_out")
+                dialog --title "Target Dropbear port" --inputbox "Dropbear port on the target." 9 74 "${BB_OPERATOR_TARGET_DROPBEAR_PORT:-${BB_DROPBEAR_LISTEN_PORT:-2222}}" 2>"$temp_out" || true
+                BB_OPERATOR_TARGET_DROPBEAR_PORT=$(cat "$temp_out")
                 ;;
+            H) show_page_help rshell ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+configure_rshell_credentials_policy() {
+    if [ "$BB_RSHELL_TRANSPORT" != ssh ]; then
+        dialog --title "Credentials / authkeys policy" \
+            --msgbox "authorized_keys policy only applies to SSH reverse access.\n\nCurrent transport: $BB_RSHELL_TRANSPORT" \
+            8 68
+        return 0
+    fi
+    dialog --title "SSH authorized_keys behavior" \
+        --radiolist "BusierBox never blindly appends to /root/.ssh/authorized_keys. Choose how SSH auth material is handled." 14 86 4 \
+        "disabled"     "Do not write authorized_keys" "$(mode_onoff "$BB_RSHELL_AUTHKEYS_MODE" disabled)" \
+        "payload-home" "Use payload home only where supported" "$(mode_onoff "$BB_RSHELL_AUTHKEYS_MODE" payload-home)" \
+        "root-copy"    "Copy only when /root/.ssh/authorized_keys is absent" "$(mode_onoff "$BB_RSHELL_AUTHKEYS_MODE" root-copy)" \
+        "root-merge"   "Idempotent marked BusierBox block" "$(mode_onoff "$BB_RSHELL_AUTHKEYS_MODE" root-merge)" \
+        2>"$temp_out" || true
+    _v=$(cat "$temp_out" | tr -d '"')
+    [ -n "$_v" ] && BB_RSHELL_AUTHKEYS_MODE="$_v"
+}
+
+configure_rshell_retry_lifecycle() {
+    dialog --title "Retry count" --inputbox "Connection setup retries. -1 retries indefinitely, 0 means one attempt only." 9 78 "$BB_RSHELL_RETRY_COUNT" 2>"$temp_out" || true
+    _v=$(cat "$temp_out"); [ -n "$_v" ] && BB_RSHELL_RETRY_COUNT="$_v"
+    dialog --title "Retry interval" --inputbox "Initial retry interval in seconds." 9 78 "$BB_RSHELL_RETRY_INTERVAL_SEC" 2>"$temp_out" || true
+    _v=$(cat "$temp_out"); [ -n "$_v" ] && BB_RSHELL_RETRY_INTERVAL_SEC="$_v"
+    dialog --title "Retry jitter" --inputbox "Retry jitter percentage." 9 78 "$BB_RSHELL_RETRY_JITTER_PCT" 2>"$temp_out" || true
+    _v=$(cat "$temp_out"); [ -n "$_v" ] && BB_RSHELL_RETRY_JITTER_PCT="$_v"
+    dialog --title "Retry backoff" \
+        --radiolist "Select retry backoff model." 12 70 3 \
+        "none" "Fixed interval" "$(mode_onoff "$BB_RSHELL_RETRY_BACKOFF" none)" \
+        "linear" "Linear interval growth" "$(mode_onoff "$BB_RSHELL_RETRY_BACKOFF" linear)" \
+        "exponential" "Exponential interval growth" "$(mode_onoff "$BB_RSHELL_RETRY_BACKOFF" exponential)" \
+        2>"$temp_out" || true
+    _v=$(cat "$temp_out" | tr -d '"'); [ -n "$_v" ] && BB_RSHELL_RETRY_BACKOFF="$_v"
+    dialog --title "Retry max interval" --inputbox "Maximum retry interval in seconds." 9 78 "$BB_RSHELL_RETRY_MAX_INTERVAL_SEC" 2>"$temp_out" || true
+    _v=$(cat "$temp_out"); [ -n "$_v" ] && BB_RSHELL_RETRY_MAX_INTERVAL_SEC="$_v"
+}
+
+configure_rshell_summary_export() {
+    while :; do
+        dialog --title "Payload / Reverse access / Summary / export" \
+            --menu "Review operator instructions or save them to a file." 14 78 4 \
+            "1" "Show summary" \
+            "2" "Save connection info to file" \
+            "H" "Help" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1) dialog --title "Reverse access summary" --msgbox "$(_rshell_summary_text)" 18 72 ;;
+            2)
+                dialog --title "Save connection info" --inputbox "Save reverse access connection info to this file." 8 72 "local/reverse-shell.md" 2>"$temp_out" || true
+                _savepath=$(cat "$temp_out")
+                if [ -n "$_savepath" ]; then
+                    _written=$(_rshell_save_info "$_savepath")
+                    dialog --title "Saved" --msgbox "Connection info written to:\n  $_written" 8 60
+                fi
+                ;;
+            H) show_page_help rshell ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+configure_reverse_shell() {
+    ensure_operator_session_defaults
+    while :; do
+        if [ "$BB_RSHELL_TRANSPORT" != none ] && [ "$BB_RUNTIME_MODE" = "core-only" ] && [ "$BB_RSHELL_TRANSPORT" != "builtin" ]; then
+            dialog --title "core-only: transport conflict" \
+                --yesno "core-only runtime cannot use staged '${BB_RSHELL_TRANSPORT}' tools.\n\nSwitch rshell transport to 'builtin' (wolfSSL TLS shell)?" \
+                9 70 && {
+                BB_RSHELL_TRANSPORT=builtin
+                BB_RSHELL_MODE=builtin
+                BB_RSHELL_ENCRYPTION=tls
+            } || true
+        fi
+        [ "$BB_RSHELL_TRANSPORT" = none ] && _enabled=no || _enabled=yes
+        _host=${BB_OPERATOR_SERVER_HOST:-not set}
+        _target_port=${BB_OPERATOR_TARGET_DROPBEAR_PORT:-${BB_DROPBEAR_LISTEN_PORT:-2222}}
+        set -- \
+            "1" "Enable / transport: enabled=$_enabled transport=$BB_RSHELL_TRANSPORT" \
+            "2" "Operator endpoint: host=$_host" \
+            "3" "Launch behavior: run=$BB_RSHELL_RUN_MODE zero-arg=$BB_ZERO_ARG_MODE" \
+            "4" "Shell provider: $BB_RSHELL_SHELL_PROVIDER"
+        case "$BB_RSHELL_TRANSPORT" in
+            ssh)
+                set -- "$@" \
+                    "5" "SSH tunnel settings" \
+                    "6" "Credentials / authkeys policy: $BB_RSHELL_AUTHKEYS_MODE"
+                ;;
+            socat|builtin)
+                set -- "$@" "5" "Shell listener: $BB_RSHELL_SOCAT_PORT" ;;
+        esac
+        set -- "$@" \
+            "7" "Retry / lifecycle: count=$BB_RSHELL_RETRY_COUNT interval=${BB_RSHELL_RETRY_INTERVAL_SEC}s backoff=$BB_RSHELL_RETRY_BACKOFF" \
+            "8" "Summary / export: remote=127.0.0.1:$BB_OPERATOR_REMOTE_FORWARD_PORT target-port=$_target_port"
+        set -- "$@" "H" "Help" "0" "Back"
+
+        dialog --title "Payload / Reverse access / rshell" \
+            --menu "Configure reverse access by task. Transport-specific pages are hidden unless they apply." 22 94 10 \
+            "$@" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1) configure_rshell_enable_transport ;;
+            2) configure_rshell_endpoint ;;
+            3) configure_rshell_launch_behavior ;;
+            4) configure_rshell_shell_provider ;;
+            5)
+                case "$BB_RSHELL_TRANSPORT" in
+                    ssh) configure_rshell_ssh_settings ;;
+                    socat|builtin) configure_rshell_endpoint ;;
+                esac
+                ;;
+            6) configure_rshell_credentials_policy ;;
+            7) configure_rshell_retry_lifecycle ;;
+            8) configure_rshell_summary_export ;;
             H) show_page_help rshell ;;
             0) return 0 ;;
         esac
