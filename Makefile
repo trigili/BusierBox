@@ -94,6 +94,7 @@ smoke-test:
 	@tests/smoke/validation-matrix.sh
 	@tests/smoke/rehosted-router-presets.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/config-from-survey.sh; else printf '%s\n' "skip: python3 config-from-survey smoke unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/survey-shell.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 shell survey smoke unavailable"; fi
 	@tests/smoke/payload-presets.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/heavy-tool-triage.sh; else printf '%s\n' "skip: python3 heavy-tool-triage smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/gdbserver-workflow.sh; else printf '%s\n' "skip: python3 gdbserver workflow smoke unavailable"; fi

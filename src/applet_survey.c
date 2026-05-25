@@ -26,7 +26,7 @@
 #define BUSIERBOX_VERSION "0.1.0-tier0"
 #endif
 
-static const char *dirs[] = {".", "/tmp", "/var/tmp", "/dev/shm", "/var"};
+static const char *dirs[] = {".", "/tmp", "/var/tmp", "/dev/shm", "/overlay", "/rom", "/var"};
 
 static int is_help(int argc, char **argv)
 {
@@ -61,6 +61,9 @@ static int proc_count(void)
     closedir(d);
     return n;
 }
+
+static int command_in_path(const char *name);
+static void json_string(const char *s);
 
 static void print_meminfo_human(void)
 {
@@ -175,6 +178,78 @@ static const char *recommended_extract_dir(void)
         if (access(dirs[i], W_OK | X_OK) == 0)
             return dirs[i];
     return "none";
+}
+
+static const char *recommended_runtime_root(void)
+{
+    if (access(".", W_OK | X_OK) == 0)
+        return "./.busierbox";
+    if (access("/tmp", W_OK | X_OK) == 0)
+        return "/tmp/.busierbox";
+    return "none";
+}
+
+static const char *kernel_floor_guess(const char *release)
+{
+    int major = 0, minor = 0;
+    if (!release || sscanf(release, "%d.%d", &major, &minor) != 2)
+        return "unknown";
+    if (major <= 2)
+        return "2.x";
+    if (major == 3)
+        return "3.x";
+    if (major == 4)
+        return "4.x";
+    if (major == 5)
+        return "5.x";
+    if (major == 6)
+        return "6.x";
+    return "current";
+}
+
+static const char *libc_guess(void)
+{
+    if (access("/lib/ld-musl-mipsel.so.1", F_OK) == 0 ||
+        access("/lib/ld-musl-mips.so.1", F_OK) == 0 ||
+        access("/lib/ld-musl-armhf.so.1", F_OK) == 0 ||
+        access("/lib/ld-musl-aarch64.so.1", F_OK) == 0 ||
+        access("/lib/ld-musl-x86_64.so.1", F_OK) == 0)
+        return "musl";
+    if (access("/lib/libuClibc.so.0", F_OK) == 0 ||
+        access("/lib/ld-uClibc.so.0", F_OK) == 0)
+        return "uclibc";
+    if (access("/lib64/ld-linux-x86-64.so.2", F_OK) == 0 ||
+        access("/lib/ld-linux.so.2", F_OK) == 0 ||
+        access("/lib/ld-linux-aarch64.so.1", F_OK) == 0 ||
+        access("/lib/ld-linux-armhf.so.3", F_OK) == 0)
+        return "glibc";
+    return "unknown";
+}
+
+static int openwrt_marker_exists(void)
+{
+    return access("/etc/openwrt_release", R_OK) == 0 || access("/rom", F_OK) == 0 || access("/overlay", F_OK) == 0;
+}
+
+static void json_recommendation_warnings(const char *extract_dir)
+{
+    int first = 1;
+    putchar('[');
+#define WARN(s) do { if (!first) putchar(','); json_string(s); first = 0; } while (0)
+    if (access("/proc", R_OK) != 0)
+        WARN("no /proc access");
+    if (access("/tmp", W_OK) != 0)
+        WARN("missing /tmp write");
+    if (access("/tmp", X_OK) != 0)
+        WARN("noexec tmp");
+    if (!strcmp(extract_dir, "none"))
+        WARN("no writable executable runtime directory found");
+    if (!strcmp(libc_guess(), "unknown"))
+        WARN("unknown libc");
+    if (command_in_path("busybox") && !command_in_path("tar"))
+        WARN("busybox-only userspace likely");
+#undef WARN
+    putchar(']');
 }
 
 static void json_string(const char *s)
@@ -333,8 +408,8 @@ static void json_tools(void)
     static const char *tools[] = {
         "busybox", "tar", "gzip", "sh", "ash", "zsh", "tmux", "socat",
         "dropbear", "dbclient", "nc", "netcat", "wget", "curl", "ip",
-        "ifconfig", "ps", "kill", "uname", "mount", "df", "chmod",
-        "mkdir", "rm", "opkg", NULL
+        "ifconfig", "ps", "kill", "uname", "mount", "df", "free", "cat",
+        "ls", "readlink", "getconf", "chmod", "mkdir", "rm", "opkg", NULL
     };
     int i;
     putchar('{');
@@ -381,24 +456,37 @@ static const char *shell_survey_script =
 "#!/bin/sh\n"
 "# BusierBox portable shell survey. POSIX-ish and safe for OpenWrt-like targets.\n"
 "p=${BUSIERBOX_SURVEY_PROBE_DIR:-${TMPDIR:-/tmp}/busierbox-survey-$$}\n"
-"mkdir \"$p\" 2>/dev/null || p=.\n"
-"jesc(){ s=$1; s=${s#}; printf '%s' \"$s\" | sed 's/\\\\/\\\\\\\\/g; s/\"/\\\\\"/g' 2>/dev/null || printf '%s' \"$s\"; }\n"
+"created=false; probe_ready=false\n"
+"if [ -d \"$p\" ]; then probe_ready=true; elif mkdir \"$p\" 2>/dev/null; then created=true; probe_ready=true; else p=; fi\n"
+"safe(){ case \"$1\" in *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/:,+@=%-]* ) printf unknown ;; *) printf '%s' \"$1\" ;; esac; }\n"
+"jv(){ printf '\"'; safe \"$1\"; printf '\"'; }\n"
 "have(){ command -v \"$1\" >/dev/null 2>&1 && printf true || printf false; }\n"
-"wr=false; ex=false\n"
+"readable(){ [ -r \"$1\" ] && printf true || printf false; }\n"
+"exists(){ [ -e \"$1\" ] && printf true || printf false; }\n"
+"dirprobe(){ d=$1; wr=false; ex=false; cr=false; free=unknown; [ -d \"$d\" ] || { printf '{\"path\":\"'; safe \"$d\"; printf '\",\"exists\":false,\"writable\":false,\"shell_exec\":false,\"can_create_dirs\":false,\"df_available\":'; have df; printf '}'; return; }; if : >\"$d/busierbox.write.$$\" 2>/dev/null; then wr=true; rm -f \"$d/busierbox.write.$$\" 2>/dev/null || true; fi; if mkdir \"$d/busierbox.dir.$$\" 2>/dev/null; then cr=true; rmdir \"$d/busierbox.dir.$$\" 2>/dev/null || true; fi; if [ \"$wr\" = true ]; then printf '#!/bin/sh\\nexit 0\\n' >\"$d/busierbox.exec.$$\" 2>/dev/null && chmod +x \"$d/busierbox.exec.$$\" 2>/dev/null && \"$d/busierbox.exec.$$\" >/dev/null 2>&1 && ex=true; rm -f \"$d/busierbox.exec.$$\" 2>/dev/null || true; fi; if command -v df >/dev/null 2>&1; then set -- `df -k \"$d\" 2>/dev/null`; shift 6 2>/dev/null || true; free=${4:-unknown}; fi; printf '{\"path\":\"'; safe \"$d\"; printf '\",\"exists\":true,\"writable\":%s,\"shell_exec\":%s,\"can_create_dirs\":%s,\"df_available\":' \"$wr\" \"$ex\" \"$cr\"; have df; printf '}'; }\n"
+"wr=false; ex=false; cr=false\n"
+"if [ \"$probe_ready\" = true ]; then\n"
 "if : >\"$p/write.probe\" 2>/dev/null; then wr=true; rm -f \"$p/write.probe\" 2>/dev/null || true; fi\n"
-"cat >\"$p/exec.probe\" 2>/dev/null <<'EOS'\n"
-"#!/bin/sh\n"
-"exit 0\n"
-"EOS\n"
+"if mkdir \"$p/dir.probe\" 2>/dev/null; then cr=true; rmdir \"$p/dir.probe\" 2>/dev/null || true; fi\n"
+"printf '%s\\n' '#!/bin/sh' 'exit 0' >\"$p/exec.probe\" 2>/dev/null\n"
 "chmod +x \"$p/exec.probe\" 2>/dev/null || true\n"
 "if \"$p/exec.probe\" >/dev/null 2>&1; then ex=true; fi\n"
 "rm -f \"$p/exec.probe\" 2>/dev/null || true\n"
-"u=`uname -s 2>/dev/null || echo unknown`; r=`uname -r 2>/dev/null || echo unknown`; m=`uname -m 2>/dev/null || echo unknown`\n"
-"printf '{\"schema\":1,\"engine\":\"shell\",\"uname\":{\"sysname\":\"'; jesc \"$u\"; printf '\",\"release\":\"'; jesc \"$r\"; printf '\",\"machine\":\"'; jesc \"$m\"; printf '\"}'\n"
-"printf ',\"shell\":{\"path\":\"/bin/sh\",\"busybox_ash\":'; /bin/sh --help 2>&1 | grep -qi busybox && printf true || printf false; printf '}'\n"
-"printf ',\"filesystem\":{\"probe_dir\":\"'; jesc \"$p\"; printf '\",\"writable\":%s,\"shell_exec\":%s}' \"$wr\" \"$ex\"\n"
-"printf ',\"tools\":{'; first=1; for t in busybox tar gzip sh ash zsh tmux socat dropbear dbclient nc netcat wget curl ip ifconfig ps kill uname mount df chmod mkdir rm opkg; do [ $first = 1 ] || printf ','; first=0; printf '\"%s\":' \"$t\"; have \"$t\"; done; printf '}}\\n'\n"
-"[ \"$p\" != . ] && rmdir \"$p\" 2>/dev/null || true\n";
+"fi\n"
+"u=`uname -s 2>/dev/null || echo unknown`; n=`uname -n 2>/dev/null || echo unknown`; r=`uname -r 2>/dev/null || echo unknown`; v=`uname -v 2>/dev/null || echo unknown`; m=`uname -m 2>/dev/null || echo unknown`\n"
+"shlink=unknown; command -v readlink >/dev/null 2>&1 && shlink=`readlink /bin/sh 2>/dev/null || echo unknown`\n"
+"busy=false; h=`/bin/sh --help 2>&1`; case \"$h\" in *BusyBox*|*busybox*) busy=true ;; esac\n"
+"uid=unknown; gid=unknown; idout=unknown; command -v id >/dev/null 2>&1 && idout=`id 2>/dev/null || echo unknown`; command -v id >/dev/null 2>&1 && uid=`id -u 2>/dev/null || echo unknown`; command -v id >/dev/null 2>&1 && gid=`id -g 2>/dev/null || echo unknown`\n"
+"printf '{\"schema\":1,\"engine\":\"shell\",\"uname\":{\"sysname\":'; jv \"$u\"; printf ',\"nodename\":'; jv \"$n\"; printf ',\"release\":'; jv \"$r\"; printf ',\"version\":'; jv \"$v\"; printf ',\"machine\":'; jv \"$m\"; printf '}'\n"
+"printf ',\"shell\":{\"path\":\"/bin/sh\",\"symlink_target\":'; jv \"$shlink\"; printf ',\"busybox_ash\":%s,\"basic_tests\":{\"printf\":true,\"case\":true,\"command_v\":' \"$busy\"; have command; printf '}}'\n"
+"printf ',\"os_markers\":{\"os_release_readable\":'; readable /etc/os-release; printf ',\"openwrt_release_readable\":'; readable /etc/openwrt_release; printf ',\"banner_readable\":'; readable /etc/banner; printf ',\"issue_readable\":'; readable /etc/issue; printf ',\"proc_version_readable\":'; readable /proc/version; printf '}'\n"
+"printf ',\"libc_hints\":{\"ldd_available\":'; have ldd; printf ',\"strings_available\":'; have strings; printf ',\"libc_so_visible\":'; exists /lib/libc.so; printf ',\"musl_loader_visible\":'; exists /lib/ld-musl-mipsel.so.1; printf ',\"uclibc_loader_visible\":'; exists /lib/ld-uClibc.so.0; printf ',\"glibc_loader_visible\":'; exists /lib64/ld-linux-x86-64.so.2; printf '}'\n"
+"printf ',\"filesystem\":{\"probe_dir\":'; jv \"$p\"; printf ',\"probe_ready\":%s,\"writable\":%s,\"shell_exec\":%s,\"can_create_dirs\":%s,\"dirs\":[' \"$probe_ready\" \"$wr\" \"$ex\" \"$cr\"; first=1; for d in . /tmp /var/tmp /dev/shm /overlay /rom; do [ $first = 1 ] || printf ','; first=0; dirprobe \"$d\"; done; printf ']}'\n"
+"printf ',\"permissions\":{\"id\":'; jv \"$idout\"; printf ',\"uid\":'; jv \"$uid\"; printf ',\"gid\":'; jv \"$gid\"; printf ',\"proc_readable\":'; readable /proc; printf ',\"cwd_writable\":'; [ -w . ] && printf true || printf false; printf ',\"can_create_dirs\":%s}' \"$cr\"\n"
+"printf ',\"network_hints\":{\"ip_available\":'; have ip; printf ',\"route_available\":'; have route; printf ',\"ifconfig_available\":'; have ifconfig; printf ',\"resolv_conf_readable\":'; readable /etc/resolv.conf; printf ',\"external_calls_performed\":false}'\n"
+"printf ',\"openwrt\":{\"opkg_available\":'; have opkg; printf ',\"overlay_exists\":'; exists /overlay; printf ',\"rom_exists\":'; exists /rom; printf '}'\n"
+"printf ',\"tools\":{'; first=1; for t in busybox tar gzip sh ash zsh tmux socat dropbear dbclient nc netcat wget curl ip ifconfig ps kill uname mount df free cat ls readlink getconf chmod mkdir rm opkg; do [ $first = 1 ] || printf ','; first=0; printf '\"%s\":' \"$t\"; have \"$t\"; done; printf '}}\\n'\n"
+"[ \"$created\" = true ] && rmdir \"$p\" 2>/dev/null || true\n";
 
 static int write_shell_script(const char *path)
 {
@@ -490,6 +578,7 @@ int applet_survey_main(int argc, char **argv)
         snprintf(cwd, sizeof(cwd), "unknown");
     pc = proc_count();
     const char *ptrace_st = ptrace_status();
+    const char *extract_dir = recommended_extract_dir();
 
     if (json) {
         printf("{\"schema\":2,\"survey_engine\":{\"native\":true,\"shell\":%s,\"shell_path\":\"/bin/sh\"},\"busierbox\":{\"version\":", shell_probe ? "true" : "false"); json_string(BUSIERBOX_VERSION);
@@ -521,25 +610,39 @@ int applet_survey_main(int argc, char **argv)
         printf(",\"shell\":{\"path\":\"/bin/sh\",\"path_exists\":%s,\"busybox_ash\":\"unknown\",\"basic_tests\":{\"can_run_native_survey\":true}}",
                access("/bin/sh", X_OK) == 0 ? "true" : "false");
         if (shell_probe) {
-            printf(",\"shell_probe\":{\"embedded_script_available\":true,\"probe_dir_recommendation\":");
-            json_string(recommended_extract_dir());
-            printf(",\"tools\":"); json_tools();
+            printf(",\"shell_probe\":{\"embedded_script_available\":true,\"script_schema\":1,\"safe_for_openwrt\":true,\"writes_only_probe_dir\":true,\"probe_dir_recommendation\":");
+            json_string(extract_dir);
+            printf(",\"collected_fields\":[\"uname\",\"shell\",\"os_markers\",\"libc_hints\",\"filesystem\",\"permissions\",\"tools\",\"openwrt\",\"network_hints\"],\"tools\":"); json_tools();
             printf("}");
         }
         printf(",\"process_count\":"); pc >= 0 ? printf("%d", pc) : printf("null");
         printf(",\"meminfo\":"); json_meminfo();
         printf(",\"interfaces\":"); json_netdev();
         printf(",\"ptrace\":"); json_string(ptrace_st);
-        printf(",\"recommendations\":{\"zero_write_supported\":true,\"payload_mode_possible\":%s,\"likely_zsh_supported\":%s,\"likely_tmux_supported\":%s,\"likely_strace_supported\":%s,\"likely_gdbserver_supported\":%s,\"likely_payload_reuse_supported\":%s,\"recommended_extract_dir\":",
-               strcmp(recommended_extract_dir(), "none") ? "true" : "false",
-               strcmp(recommended_extract_dir(), "none") ? "true" : "false",
+        printf(",\"recommendations\":{\"target_arch_guess\":"); json_string(uts.machine);
+        printf(",\"endian_guess\":"); json_string(endianness());
+        printf(",\"kernel_floor_guess\":"); json_string(kernel_floor_guess(uts.release));
+        printf(",\"libc_guess\":"); json_string(libc_guess());
+        printf(",\"target_preset_guess\":");
+        if (openwrt_marker_exists() && strstr(uts.machine, "mips"))
+            json_string(strstr(uts.machine, "el") ? "mipsel-linux-4.x-musl" : "mips-linux-4.x-musl");
+        else
+            json_string("auto");
+        printf(",\"payload_preset_recommendation\":"); json_string(strcmp(extract_dir, "none") ? "builtin-core-shell" : "survey-core");
+        printf(",\"runtime_mode_recommendation\":"); json_string(strcmp(extract_dir, "none") ? "extract" : "core-only");
+        printf(",\"runtime_root_recommendation\":"); json_string(recommended_runtime_root());
+        printf(",\"external_writes_recommendation\":\"no\",\"rshell_transport_recommendation\":\"none\"");
+        printf(",\"zero_write_supported\":true,\"payload_mode_possible\":%s,\"likely_zsh_supported\":%s,\"likely_tmux_supported\":%s,\"likely_strace_supported\":%s,\"likely_gdbserver_supported\":%s,\"likely_payload_reuse_supported\":%s,\"recommended_extract_dir\":",
+               strcmp(extract_dir, "none") ? "true" : "false",
+               strcmp(extract_dir, "none") ? "true" : "false",
                access("/dev/pts", F_OK) == 0 ? "true" : "false",
                !strcmp(ptrace_st, "basic-ok") ? "true" : "false",
                !strcmp(ptrace_st, "basic-ok") ? "true" : "false",
                access(".", W_OK | X_OK) == 0 ? "true" : "false");
-        json_string(recommended_extract_dir());
+        json_string(extract_dir);
         printf(",\"payload_recommendation_reason\":");
-        json_string(strcmp(recommended_extract_dir(), "none") ? "found writable executable extraction directory" : "no writable executable extraction directory found");
+        json_string(strcmp(extract_dir, "none") ? "found writable executable extraction directory" : "no writable executable extraction directory found");
+        printf(",\"warnings\":"); json_recommendation_warnings(extract_dir);
         printf("}}\n");
         return 0;
     }
@@ -561,13 +664,22 @@ int applet_survey_main(int argc, char **argv)
     printf("ptrace: %s\n", ptrace_st);
         printf("recommendations:\n");
     printf("  zero_write_supported: yes\n");
-    printf("  payload_mode_possible: %s\n", strcmp(recommended_extract_dir(), "none") ? "yes" : "no");
-    printf("  likely_zsh_supported: %s\n", strcmp(recommended_extract_dir(), "none") ? "yes" : "unknown");
+    printf("  target_arch_guess: %s\n", uts.machine);
+    printf("  endian_guess: %s\n", endianness());
+    printf("  kernel_floor_guess: %s\n", kernel_floor_guess(uts.release));
+    printf("  libc_guess: %s\n", libc_guess());
+    printf("  payload_preset_recommendation: %s\n", strcmp(extract_dir, "none") ? "builtin-core-shell" : "survey-core");
+    printf("  runtime_mode_recommendation: %s\n", strcmp(extract_dir, "none") ? "extract" : "core-only");
+    printf("  runtime_root_recommendation: %s\n", recommended_runtime_root());
+    printf("  external_writes_recommendation: no\n");
+    printf("  rshell_transport_recommendation: none\n");
+    printf("  payload_mode_possible: %s\n", strcmp(extract_dir, "none") ? "yes" : "no");
+    printf("  likely_zsh_supported: %s\n", strcmp(extract_dir, "none") ? "yes" : "unknown");
     printf("  likely_tmux_supported: %s\n", access("/dev/pts", F_OK) == 0 ? "yes" : "unknown");
     printf("  likely_strace_supported: %s\n", !strcmp(ptrace_st, "basic-ok") ? "yes" : "unknown");
     printf("  likely_gdbserver_supported: %s\n", !strcmp(ptrace_st, "basic-ok") ? "yes" : "unknown");
     printf("  likely_payload_reuse_supported: %s\n", access(".", W_OK | X_OK) == 0 ? "yes" : "unknown");
-    printf("  recommended_extract_dir: %s\n", recommended_extract_dir());
-    printf("  payload_recommendation_reason: %s\n", strcmp(recommended_extract_dir(), "none") ? "found writable executable extraction directory" : "no writable executable extraction directory found");
+    printf("  recommended_extract_dir: %s\n", extract_dir);
+    printf("  payload_recommendation_reason: %s\n", strcmp(extract_dir, "none") ? "found writable executable extraction directory" : "no writable executable extraction directory found");
     return 0;
 }
