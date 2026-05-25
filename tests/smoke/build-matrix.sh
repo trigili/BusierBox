@@ -69,4 +69,30 @@ if payloads != ["ssh-operator", "survey-core"]:
 PY
 grep -q '^BB_ZERO_ARG_MODE=help$' "$tmp/matrix-run/configs/native-ssh-operator-tgz.conf"
 
+scripts/build-matrix \
+    --matrix "$tmp/matrix.json" \
+    --offline \
+    --mirror-dir "$tmp/source-mirror" \
+    --dry-run \
+    --run-dir "$tmp/offline-run" >"$tmp/offline-run.out"
+python3 - "$tmp/offline-run/summary.json" "$tmp/source-mirror" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+mirror = sys.argv[2]
+if not data.get("offline"):
+    raise SystemExit("offline matrix summary missing offline=true")
+if data.get("mirror_dir") != mirror:
+    raise SystemExit("offline matrix summary did not record mirror_dir")
+if data.get("buildroot_dl_dir") != f"{mirror}/buildroot-dl":
+    raise SystemExit("offline matrix summary did not record buildroot_dl_dir")
+for job in data.get("jobs") or []:
+    cmd = job.get("command", "")
+    for token in ["BUSIERBOX_OFFLINE=1", "BUSIERBOX_MIRROR_DIR=", "BUILDROOT_DL_DIR="]:
+        if token not in cmd:
+            raise SystemExit(f"offline dry-run command missing {token}: {cmd}")
+PY
+
 printf '%s\n' "build-matrix ok"

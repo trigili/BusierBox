@@ -215,6 +215,9 @@ def write_summary(path, run_dir, args, records):
         "schema": 1,
         "run_dir": str(run_dir),
         "dry_run": bool(args.dry_run),
+        "offline": bool(args.offline),
+        "mirror_dir": args.mirror_dir,
+        "buildroot_dl_dir": str(pathlib.Path(args.mirror_dir) / "buildroot-dl") if args.mirror_dir else None,
         "jobs_requested": len(records),
         "jobs": records,
     }

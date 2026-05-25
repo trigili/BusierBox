@@ -12,6 +12,24 @@ scripts/mirror-sources --out "$tmp/mirror" --dry-run >"$tmp/mirror-plan.json"
 python3 -m json.tool "$tmp/mirror-plan.json" >/dev/null
 grep -q '"limitations"' "$tmp/mirror-plan.json"
 
+cat >"$tmp/matrix.json" <<'EOF'
+{
+  "targets": ["native"],
+  "payloads": ["survey-core"],
+  "formats": ["tgz"]
+}
+EOF
+scripts/mirror-sources \
+    --matrix "$tmp/matrix.json" \
+    --targets all \
+    --payloads all \
+    --out "$tmp/matrix-mirror" \
+    --dry-run >"$tmp/matrix-mirror-plan.json"
+python3 -m json.tool "$tmp/matrix-mirror-plan.json" >/dev/null
+grep -q "matrix:$tmp/matrix.json" "$tmp/matrix-mirror-plan.json"
+grep -q 'targets:all' "$tmp/matrix-mirror-plan.json"
+grep -q 'payloads:all' "$tmp/matrix-mirror-plan.json"
+
 printf '%s' sample >"$tmp/sample.tar"
 sha=$(sha256sum "$tmp/sample.tar" | awk '{print $1}')
 cat >"$tmp/sources.lock.json" <<EOF
@@ -35,6 +53,12 @@ cp "$tmp/sample.tar" "$tmp/ready/sources/sample.tar"
 cp "$tmp/sample.tar" "$tmp/ready/buildroot-dl/sample.tar"
 scripts/check-offline-readiness --mirror "$tmp/ready" --manifest "$tmp/sources.lock.json" >"$tmp/readiness.out"
 grep -q 'offline-readiness ok' "$tmp/readiness.out"
+
+scripts/check-offline-readiness \
+    --mirror "$tmp/ready" \
+    --manifest "$tmp/sources.lock.json" \
+    --matrix "$tmp/matrix.json" >"$tmp/readiness-matrix.out"
+grep -q 'offline-readiness ok' "$tmp/readiness-matrix.out"
 
 if scripts/check-offline-readiness --mirror "$tmp/missing" --manifest "$tmp/sources.lock.json" >"$tmp/missing.out" 2>"$tmp/missing.err"; then
     printf '%s\n' "offline-tools: missing mirror unexpectedly passed" >&2
