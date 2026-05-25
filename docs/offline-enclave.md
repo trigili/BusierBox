@@ -26,13 +26,16 @@ scripts/mirror-sources \
 ```
 
 To prepare Buildroot package tarballs for the exact selected defconfigs, run the
-matrix once online or use Buildroot with `BR2_DL_DIR` pointed at the mirror
-cache:
+matrix once online with `BUILDROOT_DL_DIR` pointed at the mirror cache, or run
+the corresponding Buildroot fetch steps for those defconfigs:
 
 ```sh
 BUILDROOT_DL_DIR=local/source-mirror/buildroot-dl \
-  scripts/build-matrix --matrix configs/matrix/all-supported.json --dry-run
+  scripts/build-matrix --matrix configs/matrix/all-supported.json
 ```
+
+Use `--dry-run` before that command when you only want to inspect the planned
+build commands. A dry run does not download Buildroot package tarballs.
 
 Then package the local cache for transfer:
 
