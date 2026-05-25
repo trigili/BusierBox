@@ -1,0 +1,102 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    cat >&2 <<'EOF'
+usage: scripts/tools/install-dropin-tool --tool TOOL --source FILE [options]
+
+Options:
+  --target NAME
+  --arch ARCH
+  --libc LIBC
+  --dest-root DIR      default: local/tools
+EOF
+}
+
+tool=
+source=
+target=
+arch=
+libc=
+dest_root=local/tools
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --tool) tool=$2; shift 2 ;;
+        --tool=*) tool=${1#--tool=}; shift ;;
+        --source) source=$2; shift 2 ;;
+        --source=*) source=${1#--source=}; shift ;;
+        --target) target=$2; shift 2 ;;
+        --target=*) target=${1#--target=}; shift ;;
+        --arch) arch=$2; shift 2 ;;
+        --arch=*) arch=${1#--arch=}; shift ;;
+        --libc) libc=$2; shift 2 ;;
+        --libc=*) libc=${1#--libc=}; shift ;;
+        --dest-root) dest_root=$2; shift 2 ;;
+        --dest-root=*) dest_root=${1#--dest-root=}; shift ;;
+        --help|-h) usage; exit 0 ;;
+        *) usage; exit 2 ;;
+    esac
+done
+
+[ -n "$tool" ] || { usage; exit 2; }
+[ -n "$source" ] || { usage; exit 2; }
+[ -f "$source" ] || { printf '%s\n' "install-dropin-tool: missing source $source" >&2; exit 1; }
+
+if [ -n "$target" ]; then
+    dest_dir="$dest_root/$target/bin"
+elif [ -n "$arch" ] && [ -n "$libc" ]; then
+    dest_dir="$dest_root/$arch-$libc/bin"
+elif [ -n "$arch" ]; then
+    dest_dir="$dest_root/generic/$arch/bin"
+else
+    printf '%s\n' "install-dropin-tool: provide --target, --arch+--libc, or --arch" >&2
+    exit 2
+fi
+
+mkdir -p "$dest_dir"
+dest="$dest_dir/$tool"
+cp "$source" "$dest"
+chmod 0755 "$dest"
+
+sha=unknown
+if command -v sha256sum >/dev/null 2>&1; then
+    sha=$(sha256sum "$dest" | awk '{print $1}')
+elif command -v shasum >/dev/null 2>&1; then
+    sha=$(shasum -a 256 "$dest" | awk '{print $1}')
+fi
+file_out=
+if command -v file >/dev/null 2>&1; then
+    file_out=$(file "$dest" 2>/dev/null || true)
+fi
+readelf_out=
+if command -v readelf >/dev/null 2>&1; then
+    readelf_out=$(readelf -h "$dest" 2>/dev/null | sed -n '1,20p' || true)
+fi
+
+python3 - "$dest_dir/metadata.json" "$tool" "$dest" "$sha" "$target" "$arch" "$libc" "$file_out" "$readelf_out" <<'PY'
+import json
+import pathlib
+import sys
+
+out, tool, dest, sha, target, arch, libc, file_out, readelf_out = sys.argv[1:]
+data = {
+    "tool": tool,
+    "path": dest,
+    "sha256": sha,
+    "target": target,
+    "arch": arch,
+    "libc": libc,
+    "file": file_out,
+    "readelf_header": readelf_out,
+}
+pathlib.Path(out).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+
+set -- --tool "$tool" --path "$dest"
+[ -z "$target" ] || set -- "$@" --target "$target"
+[ -z "$arch" ] || set -- "$@" --arch "$arch"
+[ -z "$libc" ] || set -- "$@" --libc "$libc"
+scripts/tools/check-dropin-tool "$@" >/dev/null || true
+printf 'installed=%s\n' "$dest"
+printf 'metadata=%s\n' "$dest_dir/metadata.json"

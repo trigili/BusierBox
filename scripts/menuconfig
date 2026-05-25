@@ -1022,7 +1022,7 @@ show_page_help() {
             ;;
         gdbserver)
             _title="gdbserver provider help"
-            _text="gdbserver can be provided automatically, by Buildroot, by a user-supplied binary, by overlay, or disabled.\n\nProvider choices are ignored unless gdbserver is selected in Heavy tools. Some target/libc tuples cannot build gdbserver statically."
+            _text="gdbserver can be provided automatically, by Buildroot, by local drop-in, by user path, by overlay, or disabled.\n\nLocal drop-ins are searched under local/tools/<target>/bin, local/tools/<arch>-<libc>/bin, and local/tools/generic/<arch>/bin.\n\nProvider choices are ignored unless gdbserver is selected in Heavy tools. Some target/libc tuples cannot build gdbserver statically."
             ;;
         *) _title="Help"; _text="No help is available for this page." ;;
     esac
@@ -1536,6 +1536,7 @@ configure_gdbserver_provider() {
             --menu "Configure how gdbserver is obtained for the active target:" 18 78 7 \
             "1" "Provider: $BB_GDBSERVER_PROVIDER" \
             "2" "User binary path: ${BB_GDBSERVER_USER_PATH:-not set}" \
+            "3" "Local drop-in status" \
             "H" "Help" \
             "0" "Back" \
             2>"$temp_out" || return 0
@@ -1543,11 +1544,13 @@ configure_gdbserver_provider() {
         case "$_ch" in
             1)
                 dialog --title "gdbserver provider" \
-                    --radiolist "Select how gdbserver is provided:" 17 78 5 \
-                    "auto"      "Auto: try Buildroot, then user path, then overlay" \
+                    --radiolist "Select how gdbserver is provided:" 18 82 6 \
+                    "auto"      "Auto: try Buildroot, local drop-in, user path, then overlay" \
                         "$([ "$BB_GDBSERVER_PROVIDER" = "auto"      ] && printf on || printf off)" \
                     "buildroot" "Buildroot only (may fail for some tuples)" \
                         "$([ "$BB_GDBSERVER_PROVIDER" = "buildroot"  ] && printf on || printf off)" \
+                    "local-dropin" "Local drop-in under local/tools/<target-or-arch>/bin" \
+                        "$([ "$BB_GDBSERVER_PROVIDER" = "local-dropin" ] && printf on || printf off)" \
                     "user"      "User-supplied binary (set path below)" \
                         "$([ "$BB_GDBSERVER_PROVIDER" = "user"       ] && printf on || printf off)" \
                     "overlay"   "Overlay: overlay-root/target/bin/gdbserver" \
@@ -1564,6 +1567,22 @@ configure_gdbserver_provider() {
                     9 78 "${BB_GDBSERVER_USER_PATH:-}" \
                     2>"$temp_out" || true
                 BB_GDBSERVER_USER_PATH=$(cat "$temp_out")
+                ;;
+            3)
+                _paths="local/tools/${BB_TARGET_NAME:-${BB_TARGET_PRESET:-native}}/bin/gdbserver\nlocal/tools/${BB_TARGET_ARCH:-native}-${BB_TARGET_LIBC:-host}/bin/gdbserver\nlocal/tools/generic/${BB_TARGET_ARCH:-native}/bin/gdbserver"
+                _found="missing"
+                for _p in local/tools/${BB_TARGET_NAME:-${BB_TARGET_PRESET:-native}}/bin/gdbserver local/tools/${BB_TARGET_ARCH:-native}-${BB_TARGET_LIBC:-host}/bin/gdbserver local/tools/generic/${BB_TARGET_ARCH:-native}/bin/gdbserver; do
+                    if [ -x "$_p" ]; then
+                        _found="found: $_p"
+                        if [ -f "${_p%/*}/metadata.json" ]; then
+                            _found="$_found\nmetadata: ${_p%/*}/metadata.json"
+                        fi
+                        break
+                    fi
+                done
+                dialog --title "gdbserver local drop-in status" \
+                    --msgbox "Status: $_found\n\nSearch paths:\n$_paths\n\nInstall helper:\n  scripts/tools/install-dropin-gdbserver --source ./gdbserver --target ${BB_TARGET_NAME:-${BB_TARGET_PRESET:-native}}\n\nCheck helper:\n  scripts/tools/check-dropin-tool --tool gdbserver --path <path> --arch ${BB_TARGET_ARCH:-native} --libc ${BB_TARGET_LIBC:-host}" \
+                    18 90
                 ;;
             H) show_page_help gdbserver ;;
             0) return 0 ;;
@@ -1599,7 +1618,8 @@ check_gdbserver_compat_interactive() {
 
     dialog --title "gdbserver: Choose Provider" \
         --menu "How should gdbserver be provided for ${_arch}/${_libc}?" 16 78 5 \
-        "auto"      "Auto: try Buildroot, fallback to user path / overlay" \
+        "auto"      "Auto: try Buildroot, fallback to local drop-in / user path / overlay" \
+        "local-dropin" "Local drop-in under local/tools/<target-or-arch>/bin" \
         "user"      "User-supplied: specify path to a pre-built static binary" \
         "overlay"   "Overlay: place binary at overlay-root/target/bin/gdbserver" \
         "buildroot" "Buildroot anyway (will likely be pre-excluded at build time)" \

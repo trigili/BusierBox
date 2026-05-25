@@ -158,7 +158,7 @@ def main():
             print(f"{tool}\tuntested\tprovider=unknown\treason=no Buildroot mapping metadata")
             soft += 1
             continue
-        if tool == "gdbserver" and provider in {"user", "overlay", "none"}:
+        if tool == "gdbserver" and provider in {"user", "local-dropin", "overlay", "none"}:
             print(f"{tool}\tprovider-required\tprovider={provider}\treason=no Buildroot symbols emitted for selected provider")
             soft += 1
             continue

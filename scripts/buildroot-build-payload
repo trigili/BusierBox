@@ -214,6 +214,38 @@ stage_user_binary() {
     return 0
 }
 
+dropin_tool_path() {
+    _tool=$1
+    _arch=$(profile_value ARCH)
+    _libc=$(profile_value LIBC)
+    for _path in \
+        "local/tools/${TARGET}/bin/$_tool" \
+        "local/tools/${_arch}-${_libc}/bin/$_tool" \
+        "local/tools/generic/${_arch}/bin/$_tool"
+    do
+        if [ -x "$_path" ]; then
+            printf '%s\n' "$_path"
+            return 0
+        fi
+    done
+    return 1
+}
+
+stage_dropin_tool() {
+    _tool=$1
+    _path=$(dropin_tool_path "$_tool" 2>/dev/null || true)
+    [ -n "$_path" ] || return 1
+    _arch=$(profile_value ARCH)
+    _libc=$(profile_value LIBC)
+    if scripts/tools/check-dropin-tool --tool "$_tool" --path "$_path" \
+            --target "$TARGET" --arch "$_arch" --libc "$_libc" >/dev/null; then
+        stage_user_binary "$_tool" "$_path"
+        printf '%s\n' "buildroot-build-payload: local drop-in provider path $_path"
+        return 0
+    fi
+    return 1
+}
+
 apply_overlay_dir() {
     _src=$1
     _label=$2
@@ -396,7 +428,7 @@ if [ "$_build_ok" = "0" ]; then
     for _t in $requested_tools; do
         if in_list "$_t" ${pre_excluded:-}; then continue; fi
         case "$_t" in
-            strace|gdbserver|curl|dropbear|zsh|tmux|socat|tcpdump|rsync|mtr|iperf3|ethtool|iw|minicom|mosh-client|ripgrep|jq|file|htop|screen|ltrace|readelf|objdump|usbutils|pciutils|nmap|nmap-ncat|psmisc|openssl|fd|zoxide|mtd-utils|ubi-utils|i2c-tools|spi-tools|mmc-utils|e2fsprogs|parted|doom)
+            strace|gdbserver|gdb|curl|dropbear|zsh|tmux|socat|tcpdump|rsync|mtr|iperf3|ethtool|iw|minicom|mosh-client|ripgrep|jq|file|htop|screen|ltrace|readelf|objdump|usbutils|pciutils|nmap|nmap-ncat|psmisc|openssl|fd|zoxide|mtd-utils|ubi-utils|i2c-tools|spi-tools|mmc-utils|e2fsprogs|parted|doom)
                 build_failed_tools="${build_failed_tools:+$build_failed_tools }$_t"
                 ;;
         esac
@@ -483,6 +515,11 @@ if tool_requested gdbserver; then
                 _gdb_staged=1
             fi
             ;;
+        local-dropin)
+            if stage_dropin_tool gdbserver; then
+                _gdb_staged=1
+            fi
+            ;;
     esac
     if [ "$_gdb_staged" = "0" ]; then
         case "$GDBSERVER_PROVIDER" in
@@ -496,7 +533,9 @@ if tool_requested gdbserver; then
                 fi
                 ;;
             auto)
-                if [ -n "${GDBSERVER_USER_PATH:-}" ]; then
+                if stage_dropin_tool gdbserver; then
+                    _gdb_staged=1
+                elif [ -n "${GDBSERVER_USER_PATH:-}" ]; then
                     if stage_user_binary gdbserver "$GDBSERVER_USER_PATH"; then
                         _gdb_staged=1
                     fi
@@ -507,6 +546,9 @@ if tool_requested gdbserver; then
     if [ "$_gdb_staged" = "0" ] && [ "$GDBSERVER_PROVIDER" != "none" ]; then
         printf '%s\n' "buildroot-build-payload: gdbserver not yet staged (provider=$GDBSERVER_PROVIDER); will check overlay if enabled" >&2
     fi
+fi
+if tool_requested gdb; then
+    stage_dropin_tool gdb || printf '%s\n' "buildroot-build-payload: full target gdb is provider-only; place it in local/tools/<target-or-arch>/bin/gdb or overlay" >&2
 fi
 if tool_requested curl; then
     stage_first_found curl usr/bin/curl bin/curl || printf '%s\n' "buildroot-build-payload: requested curl but no built binary was found" >&2
