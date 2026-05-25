@@ -7,7 +7,7 @@ BusierBox records BusierBox-controlled runtime changes in:
 ```
 
 Each line is JSON. The initial ledger tracks top-level runtime roots, payload
-extraction roots, clean operations, explicit recovery hook writes, and explicit
+extraction roots, clean operations, explicit persistence hook writes, and explicit
 rshell root authorized-key writes. Extraction tracking is intentionally
 coarse-grained: it gives operators a safe cleanup view without pretending every
 extracted payload file has a separate audit entry yet.

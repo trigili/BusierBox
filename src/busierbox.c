@@ -154,7 +154,8 @@ const struct bb_applet bb_applets[] = {
     {"fetch-full", applet_fetch_full_main, "download a full BusierBox artifact"},
 #endif
     {"manifest", applet_manifest_main, "print artifact manifest metadata"},
-    {"recovery", applet_recovery_main, "survey and manage explicit reboot recovery hooks"},
+    {"persistence", applet_recovery_main, "survey and manage explicit persistence hooks"},
+    {"recovery", applet_recovery_main, "deprecated alias for persistence"},
     {"rshell", applet_rshell_main, "start configured reverse shell transport"},
 };
 
@@ -1330,6 +1331,12 @@ int main(int argc, char **argv)
         rc = bb_dispatch(invoked, argc, argv);
         if (rc >= 0)
             return rc;
+        if (argc >= 2 &&
+            (strcmp(argv[1], "persistence") == 0 || strcmp(argv[1], "recovery") == 0)) {
+            rc = bb_dispatch(argv[1], argc - 1, argv + 1);
+            if (rc >= 0)
+                return rc;
+        }
         return bb_exec_payload_applet(invoked, argc, argv);
     }
 
