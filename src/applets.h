@@ -13,6 +13,7 @@ int bb_dispatch(const char *name, int argc, char **argv);
 void bb_list_applets(int verbose);
 int bb_exec_payload_applet(const char *name, int argc, char **argv);
 int bb_ensure_payload_dir(char *payload, size_t payloadsz);
+void bb_ledger_record(const char *op, const char *path, const char *scope, const char *detail);
 int bb_clean_external_from_ledger(void);
 void bb_set_argv0(const char *argv0);
 void bb_print_applet_list(FILE *out);

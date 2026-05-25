@@ -46,6 +46,11 @@ fi
 
 # rshell.status is written
 grep -q 'rshell\.status' "$src"
+grep -q 'bb_ledger_record("write".*rshell status' "$src"
+grep -q 'bb_ledger_record("write".*rshell pid' "$src"
+grep -q 'bb_ledger_record("write".*rshell log' "$src"
+grep -q 'bb_ledger_record("write".*autorun lock' "$src"
+grep -q 'bb_ledger_record("write".*autorun status' "$src"
 
 # BB_ZERO_ARG_LOG_MODE=none redirects to /dev/null
 grep -q 'BB_ZERO_ARG_LOG_MODE.*none\|none.*BB_ZERO_ARG_LOG_MODE' "$src"

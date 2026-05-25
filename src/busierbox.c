@@ -281,6 +281,7 @@ static int acquire_autorun_guard(const char *mode)
         fprintf(stderr, "autorun: unable to create guard path %s: %s\n", guard_path, strerror(errno));
         return 0;
     }
+    bb_ledger_record("mkdir", guard_path, "runtime", "autorun guard path");
     snprintf(lock_path, sizeof(lock_path), "%s/autorun.lock", guard_path);
 retry:
     fd = open(lock_path, O_CREAT | O_EXCL | O_WRONLY, 0600);
@@ -301,11 +302,13 @@ retry:
     now = time(NULL);
     dprintf(fd, "mode=%s\npid=%ld\nstarted_at=%ld\nartifact_tier=%s\n", mode, (long)getpid(), (long)now, BUSIERBOX_ARTIFACT_TIER);
     close(fd);
+    bb_ledger_record("write", lock_path, "runtime", "autorun lock");
     snprintf(status_path, sizeof(status_path), "%s/status", guard_path);
     fd = open(status_path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
     if (fd >= 0) {
         dprintf(fd, "mode=%s\npid=%ld\nstarted_at=%ld\nartifact_tier=%s\n", mode, (long)getpid(), (long)now, BUSIERBOX_ARTIFACT_TIER);
         close(fd);
+        bb_ledger_record("write", status_path, "runtime", "autorun status");
     }
     return 1;
 }
@@ -461,12 +464,14 @@ static void write_rshell_background_status(const char *transport, pid_t pid)
     if (!yes_value(BB_AUTORUN_GUARD_ENABLE))
         return;
     mkdir_p(guard);
+    bb_ledger_record("mkdir", guard, "runtime", "rshell guard path");
 
     snprintf(path, sizeof(path), "%s/rshell.pid", guard);
     fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
     if (fd >= 0) {
         dprintf(fd, "pid=%ld\n", (long)pid);
         close(fd);
+        bb_ledger_record("write", path, "runtime", "rshell pid");
     }
 
     snprintf(path, sizeof(path), "%s/rshell.status", guard);
@@ -477,6 +482,7 @@ static void write_rshell_background_status(const char *transport, pid_t pid)
                 "rshell_pid=%ld\nstarted_at=%ld\n",
                 transport, BB_RSHELL_ENCRYPTION, (long)pid, (long)now);
         close(fd);
+        bb_ledger_record("write", path, "runtime", "rshell status");
     }
 }
 
@@ -514,9 +520,11 @@ static int maybe_background_rshell(const char *transport)
         char log_path[PATH_MAX];
         int logfd;
         mkdir_p(guard);
+        bb_ledger_record("mkdir", guard, "runtime", "rshell guard path");
         snprintf(log_path, sizeof(log_path), "%s/rshell.log", guard);
         logfd = open(log_path, O_CREAT | O_APPEND | O_WRONLY, 0600);
         if (logfd >= 0) {
+            bb_ledger_record("write", log_path, "runtime", "rshell log");
             dup2(logfd, STDOUT_FILENO);
             dup2(logfd, STDERR_FILENO);
             close(logfd);
