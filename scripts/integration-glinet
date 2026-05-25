@@ -214,7 +214,7 @@ def run_remote_case(host, remote_dir, case_dir, command, timeout=120, check=True
 def capture_busierbox_outputs(host, remote_dir, case_dir):
     commands = [
         ("manifest-json.log", "./busierbox manifest --json"),
-        ("doctor-json.log", "./busierbox doctor --json || ./busierbox doctor"),
+        ("doctor-json.log", "./busierbox doctor --json"),
         ("cleanup-ledger-json.log", "./busierbox cleanup-ledger --json"),
         ("clean-dry-run.log", "./busierbox clean --dry-run"),
         ("rshell-status-json.log", "./busierbox rshell status --json"),

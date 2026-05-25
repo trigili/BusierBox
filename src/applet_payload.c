@@ -2752,6 +2752,17 @@ static int json_object_summary(const char *json, const char *key, FILE *out)
     return count;
 }
 
+static int json_array_count_field(const char *json, const char *key)
+{
+    FILE *out = fopen("/dev/null", "w");
+    int count;
+    if (!out)
+        return 0;
+    count = json_array_summary(json, key, out);
+    fclose(out);
+    return count;
+}
+
 static int path_entry_count(const char *path, const char *entry)
 {
     char *dup, *save = NULL, *p;
@@ -2873,16 +2884,94 @@ int applet_doctor_main(int argc, char **argv)
     char *manifest = NULL;
     int have_payload = 0;
     int applet_count = 0;
+    int json = 0;
+    int i;
 
     memset(&ep, 0, sizeof(ep));
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox doctor");
+        puts("usage: busierbox doctor [--json]");
         puts("Reports embedded payload, extraction, BusyBox, and staged tool health.");
         return 0;
     }
+    for (i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--json"))
+            json = 1;
+        else {
+            fprintf(stderr, "doctor: unknown option %s\n", argv[i]);
+            return 2;
+        }
+    }
 
     if (get_embedded_payload(&ep) == 0) {
+        if (json) {
+            int hash_ok = verify_embedded_hash(&ep) == 0;
+            have_payload = candidate_payload(payload, sizeof(payload)) == 0;
+            if (have_payload) {
+                snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
+                snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", payload);
+                if (path_exists(manifest_path))
+                    manifest = read_text_file(manifest_path, 1024 * 1024);
+            } else {
+                root[0] = '\0';
+                if (BB_RUNTIME_ROOT[0] && access(BB_RUNTIME_ROOT, W_OK | X_OK) == 0 && !dir_is_noexec(BB_RUNTIME_ROOT))
+                    snprintf(root, sizeof(root), "%s", BB_RUNTIME_ROOT);
+                else if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && BB_RUNTIME_FALLBACK_ROOT[0] &&
+                         access(BB_RUNTIME_FALLBACK_ROOT, W_OK | X_OK) == 0 && !dir_is_noexec(BB_RUNTIME_FALLBACK_ROOT))
+                    snprintf(root, sizeof(root), "%s", BB_RUNTIME_FALLBACK_ROOT);
+            }
+            if (manifest)
+                applet_count = json_array_count_field(manifest, "busybox_applets");
+            else {
+                for (i = 0; busybox_tools[i]; i++)
+                    applet_count++;
+            }
+            printf("{\"schema\":1,\"embedded_payload\":{\"present\":true,\"format\":");
+            json_string_payload(stdout, ep.format);
+            printf(",\"size\":%llu,\"sha256\":", ep.size);
+            json_string_payload(stdout, ep.sha256);
+            printf(",\"version\":");
+            json_string_payload(stdout, ep.version);
+            printf(",\"hash_ok\":%s}", hash_ok ? "true" : "false");
+            printf(",\"extracted_payload\":{\"present\":%s", have_payload ? "true" : "false");
+            if (have_payload) {
+                printf(",\"dir\":");
+                json_string_payload(stdout, payload);
+                printf(",\"busybox_present\":%s", executable_file(busybox) ? "true" : "false");
+                printf(",\"manifest_found\":%s", path_exists(manifest_path) ? "true" : "false");
+                printf(",\"identity_match\":%s", payload_id_matches(&ep, payload) ? "true" : "false");
+            } else if (root[0]) {
+                printf(",\"candidate_extract_root\":");
+                json_string_payload(stdout, root);
+            }
+            printf("},\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d",
+                   manifest ? "true" : "false", applet_count);
+            if (manifest) {
+                printf(",\"overlay_enabled\":%s", !strcmp(json_bool_value(manifest, "overlay_enabled"), "yes") ? "true" : "false");
+            }
+            printf("},\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s",
+                   path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
+                   getenv("HOME") && *getenv("HOME") ? "true" : "false",
+                   getenv("SHELL") && *getenv("SHELL") ? "true" : "false");
+            if (have_payload) {
+                char bin_dir[PATH_MAX];
+                snprintf(bin_dir, sizeof(bin_dir), "%s/bin", payload);
+                printf(",\"payload_bin_path_count\":%d", path_entry_count(getenv("PATH"), bin_dir));
+            }
+            printf("},\"host\":{\"mem_available_kb\":%llu,\"devpts_available\":%s,\"ptrace_probe\":",
+                   mem_available_kb(), path_exists("/dev/pts") ? "true" : "false");
+            json_string_payload(stdout, ptrace_probe_status());
+            printf(",\"default_route_present\":%s}", has_default_route() ? "true" : "false");
+            printf(",\"artifact\":{\"tier\":");
+            json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
+            printf(",\"runtime_mode\":");
+            json_string_payload(stdout, BB_RUNTIME_MODE);
+            printf(",\"runtime_root\":");
+            json_string_payload(stdout, BB_RUNTIME_ROOT);
+            printf("}}\n");
+            free(manifest);
+            return 0;
+        }
         printf("embedded_payload=yes\n");
         printf("embedded_format=%s\n", ep.format);
         printf("embedded_size=%llu\n", ep.size);
@@ -2890,6 +2979,48 @@ int applet_doctor_main(int argc, char **argv)
         printf("embedded_version=%s\n", ep.version);
         printf("embedded_hash_ok=%s\n", verify_embedded_hash(&ep) == 0 ? "yes" : "no");
     } else {
+        if (json) {
+            have_payload = candidate_payload(payload, sizeof(payload)) == 0;
+            if (have_payload) {
+                snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
+                snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", payload);
+                if (path_exists(manifest_path))
+                    manifest = read_text_file(manifest_path, 1024 * 1024);
+            }
+            if (manifest)
+                applet_count = json_array_count_field(manifest, "busybox_applets");
+            else {
+                for (i = 0; busybox_tools[i]; i++)
+                    applet_count++;
+            }
+            printf("{\"schema\":1,\"embedded_payload\":{\"present\":false},\"extracted_payload\":{\"present\":%s",
+                   have_payload ? "true" : "false");
+            if (have_payload) {
+                printf(",\"dir\":");
+                json_string_payload(stdout, payload);
+                printf(",\"busybox_present\":%s", executable_file(busybox) ? "true" : "false");
+                printf(",\"manifest_found\":%s", path_exists(manifest_path) ? "true" : "false");
+            }
+            printf("},\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d}",
+                   manifest ? "true" : "false", applet_count);
+            printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s}",
+                   path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
+                   getenv("HOME") && *getenv("HOME") ? "true" : "false",
+                   getenv("SHELL") && *getenv("SHELL") ? "true" : "false");
+            printf(",\"host\":{\"mem_available_kb\":%llu,\"devpts_available\":%s,\"ptrace_probe\":",
+                   mem_available_kb(), path_exists("/dev/pts") ? "true" : "false");
+            json_string_payload(stdout, ptrace_probe_status());
+            printf(",\"default_route_present\":%s}", has_default_route() ? "true" : "false");
+            printf(",\"artifact\":{\"tier\":");
+            json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
+            printf(",\"runtime_mode\":");
+            json_string_payload(stdout, BB_RUNTIME_MODE);
+            printf(",\"runtime_root\":");
+            json_string_payload(stdout, BB_RUNTIME_ROOT);
+            printf("}}\n");
+            free(manifest);
+            return 0;
+        }
         puts("embedded_payload=no");
     }
 
