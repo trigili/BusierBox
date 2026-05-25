@@ -53,6 +53,7 @@ fi
 : "${BB_OPERATOR_SERVER_SSH_PORT:=22}"
 : "${BB_OPERATOR_TARGET_BIND_HOST:=127.0.0.1}"
 : "${BB_OPERATOR_KNOWN_HOSTS_POLICY:=off}"
+: "${BB_RECOVERY_BINARY_NAME:=busierbox_recovery}"
 
 src="src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c src/sha256.c"
 miniz_src="third_party/miniz/miniz.c"
@@ -181,6 +182,7 @@ CPPFLAGS="$CPPFLAGS -DBB_OPERATOR_SERVER_USER=\"$(quote_c "$BB_OPERATOR_SERVER_U
 CPPFLAGS="$CPPFLAGS -DBB_OPERATOR_SERVER_SSH_PORT=\"$(quote_c "$BB_OPERATOR_SERVER_SSH_PORT")\""
 CPPFLAGS="$CPPFLAGS -DBB_OPERATOR_TARGET_BIND_HOST=\"$(quote_c "$BB_OPERATOR_TARGET_BIND_HOST")\""
 CPPFLAGS="$CPPFLAGS -DBB_OPERATOR_KNOWN_HOSTS_POLICY=\"$(quote_c "$BB_OPERATOR_KNOWN_HOSTS_POLICY")\""
+CPPFLAGS="$CPPFLAGS -DBB_RECOVERY_BINARY_NAME=\"$(quote_c "$BB_RECOVERY_BINARY_NAME")\""
 
 printf '%s\n' "building BusierBox core..."
 
