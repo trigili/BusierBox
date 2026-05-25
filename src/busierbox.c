@@ -782,7 +782,12 @@ int applet_rshell_main(int argc, char **argv)
             fputs("rshell cleanup: external cleanup requires --external --apply\n", stderr);
             return 2;
         }
-        return applet_rshell_main(2, stop_argv);
+        rc = applet_rshell_main(2, stop_argv);
+        if (rc != 0)
+            return rc;
+        if (external && apply && bb_clean_external_from_ledger() != 0)
+            return 1;
+        return 0;
     }
     if (!strcmp(subcmd, "stop") || !strcmp(subcmd, "restart")) {
         const char *guard = autorun_guard_path();
