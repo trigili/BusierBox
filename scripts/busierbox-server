@@ -3,6 +3,11 @@
 
 This helper catches target-initiated reverse-access transports. It does not
 implement the retired BusierBox framed artifact-upload protocol.
+
+Transport model:
+  ssh        — Dropbear/dbclient reverse SSH (BB_RSHELL_TRANSPORT=ssh)
+  tls-shell  — wolfSSL or socat TLS shell (builtin+tls or socat+tls)
+  plain-shell — plaintext shell (debug/insecure; socat+none or builtin+none)
 """
 
 import argparse
@@ -27,15 +32,16 @@ except ImportError:
 DEFAULT_CONFIG = Path("local/server-config.json")
 DEFAULTS = {
     "transport": "ssh",
+    "encryption": "tls",
     "listen_host": "0.0.0.0",
     "ssh_listen_port": 22202,
-    "socat_listen_port": 22203,
+    "shell_listen_port": 22203,
     "forward_host": "127.0.0.1",
     "forward_port": 2200,
     "authorized_dbclient_pubkey": "local/operator-session/id_dbclient.pub",
     "operator_host_key": "local/operator-session/operator_ssh_host_key",
-    "tls_cert": "local/operator-session/socat-server.crt",
-    "tls_key": "local/operator-session/socat-server.key",
+    "tls_cert": "local/operator-session/shell-server.crt",
+    "tls_key": "local/operator-session/shell-server.key",
     "tls_verify": "no",
     "session_root": "local/sessions",
 }
@@ -52,7 +58,20 @@ def load_config(path):
                     cfg[key] = value
         except (OSError, json.JSONDecodeError) as exc:
             print(f"warning: unable to read {p}: {exc}", file=sys.stderr)
-    for key in ("ssh_listen_port", "socat_listen_port", "forward_port"):
+    # Accept legacy field names
+    if "socat_listen_port" in cfg and "shell_listen_port" not in cfg:
+        cfg["shell_listen_port"] = cfg["socat_listen_port"]
+    if "tls_shell_listen_port" in cfg and "shell_listen_port" not in cfg:
+        cfg["shell_listen_port"] = cfg["tls_shell_listen_port"]
+    # Normalise legacy transport names
+    t = cfg.get("transport", "ssh")
+    if t == "socat-tls":
+        cfg["transport"] = "socat"
+        cfg.setdefault("encryption", "tls")
+    elif t == "builtin-tls":
+        cfg["transport"] = "builtin"
+        cfg.setdefault("encryption", "tls")
+    for key in ("ssh_listen_port", "shell_listen_port", "forward_port"):
         cfg[key] = int(cfg[key])
     return cfg
 
@@ -79,9 +98,9 @@ def local_ips():
     return out
 
 
-def session_log_dir(cfg, transport):
+def session_log_dir(cfg, label):
     root = Path(str(cfg["session_root"]))
-    path = root / (time.strftime("%Y%m%d-%H%M%S") + "-" + transport)
+    path = root / (time.strftime("%Y%m%d-%H%M%S") + "-" + label)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -104,14 +123,24 @@ def load_public_key(path):
     if not key_path.is_file():
         raise RuntimeError(f"authorized dbclient public key not found: {key_path}")
     text = key_path.read_text(encoding="utf-8").strip()
-    key_type, key_data = text.split()[:2]
+    parts = text.split()
+    if len(parts) < 2:
+        raise RuntimeError(f"malformed public key file: {key_path}")
+    key_type, key_data = parts[0], parts[1]
     blob = base64.b64decode(key_data.encode("ascii"))
     for cls in (paramiko.RSAKey, paramiko.ECDSAKey, paramiko.Ed25519Key):
         try:
             return cls(data=blob)
         except Exception:
             continue
-    raise RuntimeError(f"unsupported public key: {key_path}")
+    raise RuntimeError(f"unsupported public key type '{key_type}': {key_path}")
+
+
+def keys_equal(a, b):
+    """Compare two Paramiko PKey objects by type and base64 content."""
+    if a is None or b is None:
+        return False
+    return a.get_name() == b.get_name() and a.get_base64() == b.get_base64()
 
 
 def ensure_host_key(path):
@@ -134,15 +163,16 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
         self.forward_requests = []
         self.transport = None
         self.listener = None
+        self._listener_sock = None
 
     def set_transport(self, transport):
         self.transport = transport
 
     def check_auth_publickey(self, username, key):
-        if self.authorized_key and key == self.authorized_key:
+        if keys_equal(self.authorized_key, key):
             print(f"SSH auth OK for {username}")
             return paramiko.AUTH_SUCCESSFUL
-        print(f"SSH auth rejected for {username}")
+        print(f"SSH auth rejected for {username} (key mismatch)")
         return paramiko.AUTH_FAILED
 
     def get_allowed_auths(self, username):
@@ -167,51 +197,76 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
             return
 
         def run():
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                sock.bind((str(self.forward_host), int(self.forward_port)))
-                sock.listen(20)
-                self.listener = sock
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((str(self.forward_host), int(self.forward_port)))
+            sock.listen(20)
+            self._listener_sock = sock
+            self.listener = sock
+            try:
                 while self.transport and self.transport.is_active():
                     try:
-                        local, origin = sock.accept()
+                        sock.settimeout(2.0)
+                        try:
+                            local, origin = sock.accept()
+                        except socket.timeout:
+                            continue
                     except OSError:
                         break
                     try:
                         chan = self.transport.open_forwarded_tcpip_channel(
                             (str(self.forward_host), int(self.forward_port)),
-                            origin,
+                            (origin[0], origin[1]),
                         )
                     except Exception as exc:
                         print(f"forward channel failed: {exc}", file=sys.stderr)
                         local.close()
                         continue
-                    threading.Thread(target=pipe, args=(local, chan), daemon=True).start()
-                    threading.Thread(target=pipe, args=(chan, local), daemon=True).start()
+                    threading.Thread(
+                        target=pipe, args=(local, chan), daemon=True
+                    ).start()
+                    threading.Thread(
+                        target=pipe, args=(chan, local), daemon=True
+                    ).start()
+            finally:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
 
         threading.Thread(target=run, daemon=True).start()
 
 
 def pipe(src, dst):
+    """Relay data bidirectionally between two socket-like objects."""
     try:
         while True:
-            data = src.recv(65536)
+            try:
+                data = src.recv(65536)
+            except Exception:
+                break
             if not data:
                 break
-            dst.sendall(data)
-    except OSError:
-        pass
+            try:
+                dst.sendall(data)
+            except Exception:
+                break
     finally:
-        try:
-            dst.shutdown(socket.SHUT_WR)
-        except OSError:
-            pass
+        for obj in (src, dst):
+            try:
+                obj.shutdown(socket.SHUT_WR)
+            except Exception:
+                pass
+            try:
+                obj.close()
+            except Exception:
+                pass
 
 
 def serve_ssh(cfg, timeout):
     if not HAVE_PARAMIKO:
         print("Paramiko is required for SSH reverse-forward mode.", file=sys.stderr)
-        print("Install python3-paramiko or use --transport socat-tls.", file=sys.stderr)
+        print("Install python3-paramiko or use --transport tls-shell.", file=sys.stderr)
         return 2
     host_key = ensure_host_key(cfg["operator_host_key"])
     authorized = load_public_key(cfg["authorized_dbclient_pubkey"])
@@ -225,6 +280,7 @@ def serve_ssh(cfg, timeout):
         sock.settimeout(timeout)
         print_candidates(cfg, cfg["ssh_listen_port"])
         print(f"Authorized target key: {cfg['authorized_dbclient_pubkey']}")
+        print("Waiting for dbclient reverse-forward connection...")
         try:
             client, addr = sock.accept()
         except socket.timeout:
@@ -251,10 +307,11 @@ def serve_ssh(cfg, timeout):
 
 
 def relay_stdio(conn):
-    print("TLS shell connected. Ctrl-C to close.")
+    """Relay between conn and stdin/stdout interactively."""
+    print("Shell connected. Ctrl-C to close.")
     conn.setblocking(False)
     while True:
-        readable, _, _ = select.select([conn, sys.stdin], [], [])
+        readable, _, _ = select.select([conn, sys.stdin], [], [], 1.0)
         if conn in readable:
             try:
                 data = conn.recv(65536)
@@ -264,32 +321,71 @@ def relay_stdio(conn):
                 break
             os.write(sys.stdout.fileno(), data)
         if sys.stdin in readable:
-            data = os.read(sys.stdin.fileno(), 65536)
+            try:
+                data = os.read(sys.stdin.fileno(), 65536)
+            except OSError:
+                break
             if not data:
                 break
-            conn.sendall(data)
+            try:
+                conn.sendall(data)
+            except OSError:
+                break
 
 
-def serve_socat_tls(cfg, timeout):
+def generate_tls_cert(cert: Path, key: Path) -> bool:
+    """Generate a self-signed TLS cert/key pair. Returns True on success."""
+    import subprocess
+    cert.parent.mkdir(parents=True, exist_ok=True)
+    log = cert.parent / "openssl-generate.log"
+    cmd = [
+        "openssl", "req", "-x509", "-newkey", "rsa:2048",
+        "-keyout", str(key), "-out", str(cert),
+        "-days", "3650", "-nodes", "-subj", "/CN=busierbox",
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        log.write_text(
+            f"command: {' '.join(cmd)}\nreturncode: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+            encoding="utf-8",
+        )
+        if result.returncode == 0 and cert.is_file() and key.is_file():
+            key.chmod(0o600)
+            return True
+    except FileNotFoundError:
+        log.write_text("openssl not found in PATH\n", encoding="utf-8")
+    return False
+
+
+def serve_tls_shell(cfg, timeout):
+    """TLS shell listener — accepts both builtin+tls and socat+tls targets."""
     cert = Path(str(cfg["tls_cert"]))
     key = Path(str(cfg["tls_key"]))
     if not cert.is_file() or not key.is_file():
-        print(f"TLS cert/key missing: {cert} / {key}", file=sys.stderr)
-        return 2
-    log_dir = session_log_dir(cfg, "socat-tls")
+        print(f"TLS cert/key not found, generating: {cert}", file=sys.stderr)
+        if not generate_tls_cert(cert, key):
+            print(f"TLS cert/key generation failed — see {cert.parent}/openssl-generate.log", file=sys.stderr)
+            print(f"Manual: openssl req -x509 -newkey rsa:2048 -keyout {key} -out {cert} -days 3650 -nodes -subj /CN=busierbox", file=sys.stderr)
+            return 2
+        print(f"Generated TLS cert/key: {cert}", file=sys.stderr)
+    port = int(cfg["shell_listen_port"])
+    log_dir = session_log_dir(cfg, "tls-shell")
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(str(cert), str(key))
+    print(f"TLS shell listener — accepts builtin+tls and socat+tls transports")
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((str(cfg["listen_host"]), int(cfg["socat_listen_port"])))
+        sock.bind((str(cfg["listen_host"]), port))
         sock.listen(1)
         sock.settimeout(timeout)
-        print_candidates(cfg, cfg["socat_listen_port"])
+        print_candidates(cfg, port)
+        print("Waiting for TLS shell connection...")
         try:
             raw, addr = sock.accept()
         except socket.timeout:
-            print("timeout waiting for socat TLS shell", file=sys.stderr)
+            print("timeout waiting for TLS shell connection", file=sys.stderr)
             return 1
     print(f"TLS connection from {addr[0]}:{addr[1]}")
     with context.wrap_socket(raw, server_side=True) as conn:
@@ -297,17 +393,78 @@ def serve_socat_tls(cfg, timeout):
     return 0
 
 
+def serve_plain_shell(cfg, timeout):
+    """Plaintext shell listener — debug/insecure; socat+none or builtin+none."""
+    port = int(cfg["shell_listen_port"])
+    print("WARNING: plain-shell is INSECURE and for debug use only!", file=sys.stderr)
+    log_dir = session_log_dir(cfg, "plain-shell")
+    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((str(cfg["listen_host"]), port))
+        sock.listen(1)
+        sock.settimeout(timeout)
+        print_candidates(cfg, port)
+        print("Waiting for plaintext shell connection (INSECURE)...")
+        try:
+            conn, addr = sock.accept()
+        except socket.timeout:
+            print("timeout waiting for plain shell connection", file=sys.stderr)
+            return 1
+    print(f"Plain connection from {addr[0]}:{addr[1]}")
+    with conn:
+        relay_stdio(conn)
+    return 0
+
+
+def _resolve_transport(cfg, args_transport):
+    """Map --transport flag and config fields to a canonical action."""
+    if args_transport:
+        t = args_transport
+        # Aliases
+        if t == "ssh-reverse":
+            t = "ssh"
+        elif t == "socat-tls":
+            t = "tls-shell"
+        elif t == "builtin-tls":
+            t = "tls-shell"
+        return t
+
+    # Derive from config transport + encryption
+    t = cfg.get("transport", "ssh")
+    enc = cfg.get("encryption", "tls")
+    if t == "ssh":
+        return "ssh"
+    if enc == "tls":
+        return "tls-shell"
+    return "plain-shell"
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Catch BusierBox reverse-access transports from a target."
+        description="Catch BusierBox reverse-access transports from a target.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+Transport modes:
+  ssh         — Paramiko reverse-forward listener for Dropbear/dbclient (BB_RSHELL_TRANSPORT=ssh)
+  tls-shell   — TLS shell listener accepting builtin+tls AND socat+tls transports
+  plain-shell — Plaintext shell listener (debug/insecure; socat+none or builtin+none)
+
+Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
+""",
     )
     parser.add_argument("--config", default=str(DEFAULT_CONFIG),
                         help="JSON config written by menuconfig")
-    parser.add_argument("--transport", choices=("ssh", "ssh-reverse", "socat-tls", "tls-shell"),
-                        help="transport to listen for")
+    parser.add_argument("--transport",
+                        choices=("ssh", "ssh-reverse", "tls-shell", "socat-tls",
+                                 "builtin-tls", "plain-shell"),
+                        help="transport to listen for (overrides config)")
     parser.add_argument("--listen-host", help="listener bind address")
     parser.add_argument("--ssh-port", type=int, help="SSH reverse-forward listener port")
-    parser.add_argument("--socat-port", type=int, help="socat TLS shell listener port")
+    parser.add_argument("--shell-port", type=int,
+                        help="TLS/plain shell listener port (socat-port alias also accepted)")
+    parser.add_argument("--socat-port", type=int,
+                        help=argparse.SUPPRESS)  # compat alias for --shell-port
     parser.add_argument("--forward-port", type=int,
                         help="remote forward port exposed on the operator workstation")
     parser.add_argument("--timeout", type=float, default=0,
@@ -315,26 +472,26 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     cfg = load_config(args.config)
-    if args.transport:
-        cfg["transport"] = "ssh" if args.transport == "ssh-reverse" else (
-            "socat-tls" if args.transport == "tls-shell" else args.transport
-        )
     if args.listen_host:
         cfg["listen_host"] = args.listen_host
     if args.ssh_port:
         cfg["ssh_listen_port"] = args.ssh_port
-    if args.socat_port:
-        cfg["socat_listen_port"] = args.socat_port
+    shell_port = args.shell_port or args.socat_port
+    if shell_port:
+        cfg["shell_listen_port"] = shell_port
     if args.forward_port:
         cfg["forward_port"] = args.forward_port
 
     timeout = None if args.timeout == 0 else args.timeout
-    transport = cfg["transport"]
-    if transport == "ssh":
+    action = _resolve_transport(cfg, args.transport)
+
+    if action == "ssh":
         return serve_ssh(cfg, timeout)
-    if transport == "socat-tls":
-        return serve_socat_tls(cfg, timeout)
-    print(f"unsupported transport: {transport}", file=sys.stderr)
+    if action == "tls-shell":
+        return serve_tls_shell(cfg, timeout)
+    if action == "plain-shell":
+        return serve_plain_shell(cfg, timeout)
+    print(f"unsupported transport: {action}", file=sys.stderr)
     return 2
 
 

@@ -74,6 +74,12 @@
 #ifndef BB_RSHELL_SOCAT_PORT
 #define BB_RSHELL_SOCAT_PORT "22203"
 #endif
+#ifndef BB_RSHELL_ENCRYPTION
+#define BB_RSHELL_ENCRYPTION "tls"
+#endif
+#ifndef BB_RSHELL_ALLOW_PLAINTEXT
+#define BB_RSHELL_ALLOW_PLAINTEXT "no"
+#endif
 #ifndef BB_BUILTIN_TLS_ENABLE
 #define BB_BUILTIN_TLS_ENABLE "no"
 #endif
@@ -210,6 +216,8 @@ static void print_autoexec_config(void)
     printf("zero_arg_log_mode=%s\n", BB_ZERO_ARG_LOG_MODE);
     printf("zero_arg_custom_command_set=%s\n", BB_ZERO_ARG_CUSTOM_COMMAND[0] ? "yes" : "no");
     printf("rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
+    printf("rshell_encryption=%s\n", BB_RSHELL_ENCRYPTION);
+    printf("rshell_allow_plaintext=%s\n", BB_RSHELL_ALLOW_PLAINTEXT);
     printf("rshell_authkeys_mode=%s\n", BB_RSHELL_AUTHKEYS_MODE);
     printf("rshell_generate_hostkey_if_missing=%s\n", BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING);
     printf("rshell_socat_port=%s\n", BB_RSHELL_SOCAT_PORT);
@@ -426,12 +434,19 @@ static int payload_valid(const char *payload)
     return strcmp(found, BUSIERBOX_PAYLOAD_VERSION) == 0;
 }
 
+static int yes_str(const char *s)
+{
+    return s && (!strcmp(s, "yes") || !strcmp(s, "1") || !strcmp(s, "true"));
+}
+
 static int candidate_payload(char *out, size_t outsz)
 {
     const char *env = getenv("BUSIERBOX_PAYLOAD_DIR");
     char exe_dir[PATH_MAX];
     char path[PATH_MAX];
     uid_t uid = getuid();
+    int fallback_ok = yes_str(BB_RUNTIME_ALLOW_FALLBACK_ROOT) ||
+                      yes_str(getenv("BUSIERBOX_ALLOW_FALLBACK_ROOT"));
 
     if (env && payload_valid(env)) {
         snprintf(out, outsz, "%s", env);
@@ -446,29 +461,36 @@ static int candidate_payload(char *out, size_t outsz)
         }
     }
 
-    snprintf(path, sizeof(path), "%s/payload", BB_RUNTIME_ROOT);
-    if (payload_valid(path)) {
-        snprintf(out, outsz, "%s", path);
-        return 0;
+    if (BB_RUNTIME_ROOT[0]) {
+        snprintf(path, sizeof(path), "%s/payload", BB_RUNTIME_ROOT);
+        if (payload_valid(path)) {
+            snprintf(out, outsz, "%s", path);
+            return 0;
+        }
     }
-    snprintf(path, sizeof(path), "/tmp/busierbox-%ld/payload", (long)uid);
-    if (payload_valid(path)) {
-        snprintf(out, outsz, "%s", path);
-        return 0;
-    }
-    snprintf(path, sizeof(path), "/var/tmp/busierbox-%ld/payload", (long)uid);
-    if (payload_valid(path)) {
-        snprintf(out, outsz, "%s", path);
-        return 0;
-    }
-    snprintf(path, sizeof(path), "/dev/shm/busierbox-%ld/payload", (long)uid);
-    if (payload_valid(path)) {
-        snprintf(out, outsz, "%s", path);
-        return 0;
-    }
-    if (payload_valid("runtime/payload")) {
-        snprintf(out, outsz, "%s", "runtime/payload");
-        return 0;
+
+    /* Legacy /tmp, /var/tmp, /dev/shm locations — only checked when fallback
+     * root is explicitly permitted.  In strict mode these are not considered. */
+    if (fallback_ok) {
+        snprintf(path, sizeof(path), "/tmp/busierbox-%ld/payload", (long)uid);
+        if (payload_valid(path)) {
+            snprintf(out, outsz, "%s", path);
+            return 0;
+        }
+        snprintf(path, sizeof(path), "/var/tmp/busierbox-%ld/payload", (long)uid);
+        if (payload_valid(path)) {
+            snprintf(out, outsz, "%s", path);
+            return 0;
+        }
+        snprintf(path, sizeof(path), "/dev/shm/busierbox-%ld/payload", (long)uid);
+        if (payload_valid(path)) {
+            snprintf(out, outsz, "%s", path);
+            return 0;
+        }
+        if (payload_valid("runtime/payload")) {
+            snprintf(out, outsz, "%s", "runtime/payload");
+            return 0;
+        }
     }
     return -1;
 }
@@ -538,13 +560,17 @@ static int dir_is_noexec(const char *path)
 static int choose_extract_root(char *out, size_t outsz)
 {
     char path[PATH_MAX];
-    const char *roots[] = {BB_RUNTIME_ROOT, NULL, NULL, NULL};
-    int i;
+    const char *roots[4];
+    int i, nroots = 0;
 
-    if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes"))
-        roots[1] = BB_RUNTIME_FALLBACK_ROOT;
+    if (BB_RUNTIME_ROOT[0])
+        roots[nroots++] = BB_RUNTIME_ROOT;
+    if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && BB_RUNTIME_FALLBACK_ROOT[0])
+        roots[nroots++] = BB_RUNTIME_FALLBACK_ROOT;
 
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < nroots; i++) {
+        if (!roots[i] || !roots[i][0])
+            continue;
         snprintf(path, sizeof(path), "%s", roots[i]);
         if (mkdir_p(path, 0700) != 0)
             continue;

@@ -39,10 +39,17 @@ grep -q 'usage: busierbox rshell' "$tmp/rshell-help.out"
 "$bb" rshell status >"$tmp/rshell-status.out" 2>&1
 grep -q 'rshell_status=' "$tmp/rshell-status.out"
 
-BUSIERBOX_AUTORUN_GUARD_PATH="$guard" "$bb" rshell start --transport socat-tls >"$tmp/socat.out" 2>&1 && {
-    cat "$tmp/socat.out" >&2
+# Old -tls transport names must be rejected with a helpful error
+BUSIERBOX_AUTORUN_GUARD_PATH="$guard" "$bb" rshell start --transport socat-tls >"$tmp/socat-tls.out" 2>&1 && {
+    cat "$tmp/socat-tls.out" >&2
     exit 1
 }
-grep -q 'socat-tls' "$tmp/socat.out"
+grep -q 'socat-tls\|unknown transport\|invalid' "$tmp/socat-tls.out"
+
+BUSIERBOX_AUTORUN_GUARD_PATH="$guard" "$bb" rshell start --transport builtin-tls >"$tmp/builtin-tls.out" 2>&1 && {
+    cat "$tmp/builtin-tls.out" >&2
+    exit 1
+}
+grep -q 'builtin-tls\|unknown transport\|invalid' "$tmp/builtin-tls.out"
 
 printf '%s\n' "zero-arg-autorun ok"

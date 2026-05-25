@@ -26,9 +26,7 @@ int applet_doctor_main(int argc, char **argv);
 int applet_fetch_full_main(int argc, char **argv);
 int applet_rshell_main(int argc, char **argv);
 
-#ifdef HAVE_WOLFSSL
-int rshell_builtin_tls(const char *host, const char *port);
-#endif
+#include "rshell_tls.h"
 
 extern const struct bb_applet bb_applets[];
 extern const unsigned int bb_applet_count;

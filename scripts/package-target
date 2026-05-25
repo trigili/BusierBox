@@ -27,8 +27,10 @@ die() {
 for _name in PAYLOAD_FORMAT BB_BUILD_FULL BB_BUILD_INTERNAL_CORE \
     BB_RUNTIME_MODE BB_RUNTIME_ROOT BB_RUNTIME_ALLOW_FALLBACK_ROOT BB_RUNTIME_FALLBACK_ROOT \
     BB_ZERO_ARG_MODE BB_ZERO_ARG_LOG_MODE BB_ZERO_ARG_CUSTOM_COMMAND \
-    BB_RSHELL_TRANSPORT BB_RSHELL_MODE BB_RSHELL_AUTHKEYS_MODE \
-    BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING BB_RSHELL_SOCAT_PORT BB_BUILTIN_TLS_ENABLE \
+    BB_RSHELL_TRANSPORT BB_RSHELL_MODE BB_RSHELL_ENCRYPTION BB_RSHELL_ALLOW_PLAINTEXT \
+    BB_RSHELL_AUTHKEYS_MODE BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING \
+    BB_RSHELL_SOCAT_PORT BB_BUILTIN_TLS_ENABLE \
+    WOLFSSL_CFLAGS WOLFSSL_LIBS \
     BB_AUTORUN_GUARD_ENABLE BB_AUTORUN_GUARD_PATH BB_AUTORUN_REENTRY_ACTION \
     BB_AUTORUN_STALE_LOCK_POLICY BB_OPERATOR_REMOTE_FORWARD_PORT \
     BB_OPERATOR_TARGET_DROPBEAR_PORT BB_OPERATOR_SERVER_HOST \
@@ -59,8 +61,10 @@ fi
 for _name in PAYLOAD_FORMAT BB_BUILD_FULL BB_BUILD_INTERNAL_CORE \
     BB_RUNTIME_MODE BB_RUNTIME_ROOT BB_RUNTIME_ALLOW_FALLBACK_ROOT BB_RUNTIME_FALLBACK_ROOT \
     BB_ZERO_ARG_MODE BB_ZERO_ARG_LOG_MODE BB_ZERO_ARG_CUSTOM_COMMAND \
-    BB_RSHELL_TRANSPORT BB_RSHELL_MODE BB_RSHELL_AUTHKEYS_MODE \
-    BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING BB_RSHELL_SOCAT_PORT BB_BUILTIN_TLS_ENABLE \
+    BB_RSHELL_TRANSPORT BB_RSHELL_MODE BB_RSHELL_ENCRYPTION BB_RSHELL_ALLOW_PLAINTEXT \
+    BB_RSHELL_AUTHKEYS_MODE BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING \
+    BB_RSHELL_SOCAT_PORT BB_BUILTIN_TLS_ENABLE \
+    WOLFSSL_CFLAGS WOLFSSL_LIBS \
     BB_AUTORUN_GUARD_ENABLE BB_AUTORUN_GUARD_PATH BB_AUTORUN_REENTRY_ACTION \
     BB_AUTORUN_STALE_LOCK_POLICY BB_OPERATOR_REMOTE_FORWARD_PORT \
     BB_OPERATOR_TARGET_DROPBEAR_PORT BB_OPERATOR_SERVER_HOST \
@@ -90,12 +94,17 @@ BB_ZERO_ARG_LOG_MODE=${BB_ZERO_ARG_LOG_MODE:-quiet}
 BB_ZERO_ARG_CUSTOM_COMMAND=${BB_ZERO_ARG_CUSTOM_COMMAND:-}
 BB_RSHELL_TRANSPORT=${BB_RSHELL_TRANSPORT:-${BB_RSHELL_MODE:-ssh}}
 BB_RSHELL_MODE=$BB_RSHELL_TRANSPORT
+BB_RSHELL_ENCRYPTION=${BB_RSHELL_ENCRYPTION:-tls}
+BB_RSHELL_ALLOW_PLAINTEXT=${BB_RSHELL_ALLOW_PLAINTEXT:-no}
 BB_RSHELL_AUTHKEYS_MODE=${BB_RSHELL_AUTHKEYS_MODE:-disabled}
 BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING=${BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING:-no}
 BB_RSHELL_SOCAT_PORT=${BB_RSHELL_SOCAT_PORT:-22203}
 BB_BUILTIN_TLS_ENABLE=${BB_BUILTIN_TLS_ENABLE:-no}
 BB_AUTORUN_GUARD_ENABLE=${BB_AUTORUN_GUARD_ENABLE:-yes}
-BB_AUTORUN_GUARD_PATH=${BB_AUTORUN_GUARD_PATH:-/tmp/busierbox-autorun}
+if [ "${BB_AUTORUN_GUARD_PATH:-/tmp/busierbox-autorun}" = "/tmp/busierbox-autorun" ]; then
+    BB_AUTORUN_GUARD_PATH="${BB_RUNTIME_ROOT}/run"
+fi
+: "${BB_AUTORUN_GUARD_PATH:=${BB_RUNTIME_ROOT}/run}"
 BB_AUTORUN_REENTRY_ACTION=${BB_AUTORUN_REENTRY_ACTION:-status}
 BB_AUTORUN_STALE_LOCK_POLICY=${BB_AUTORUN_STALE_LOCK_POLICY:-recover}
 BB_OPERATOR_REMOTE_FORWARD_PORT=${BB_OPERATOR_REMOTE_FORWARD_PORT:-2200}
@@ -217,10 +226,14 @@ if [ "$target" = native ]; then
         BB_ZERO_ARG_LOG_MODE="$BB_ZERO_ARG_LOG_MODE" \
         BB_ZERO_ARG_CUSTOM_COMMAND="$BB_ZERO_ARG_CUSTOM_COMMAND" \
         BB_RSHELL_TRANSPORT="$BB_RSHELL_TRANSPORT" \
+        BB_RSHELL_ENCRYPTION="$BB_RSHELL_ENCRYPTION" \
+        BB_RSHELL_ALLOW_PLAINTEXT="$BB_RSHELL_ALLOW_PLAINTEXT" \
         BB_RSHELL_AUTHKEYS_MODE="$BB_RSHELL_AUTHKEYS_MODE" \
         BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING="$BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING" \
         BB_RSHELL_SOCAT_PORT="$BB_RSHELL_SOCAT_PORT" \
         BB_BUILTIN_TLS_ENABLE="$BB_BUILTIN_TLS_ENABLE" \
+        WOLFSSL_CFLAGS="${WOLFSSL_CFLAGS:-}" \
+        WOLFSSL_LIBS="${WOLFSSL_LIBS:-}" \
         BB_AUTORUN_GUARD_ENABLE="$BB_AUTORUN_GUARD_ENABLE" \
         BB_AUTORUN_GUARD_PATH="$BB_AUTORUN_GUARD_PATH" \
         BB_AUTORUN_REENTRY_ACTION="$BB_AUTORUN_REENTRY_ACTION" \
@@ -263,6 +276,46 @@ else
     if [ -z "$cross_cc" ]; then
         die "target $target payload support exists, but BusierBox core cross-compile is not wired yet"
     fi
+    # Auto-detect wolfSSL from the buildroot staging sysroot when transport=builtin
+    # and the user has not supplied an explicit override.  gen-buildroot-defconfig
+    # emits BR2_PACKAGE_WOLFSSL=y so buildroot cross-compiles it for us; after
+    # the payload build the headers and library live under staging/.
+    if [ "$BB_BUILTIN_TLS_ENABLE" = yes ] && [ -z "${WOLFSSL_CFLAGS:-}" ]; then
+        _staging="$BUILDROOT_OUTPUT_BASE/$target/staging"
+        if [ -f "$_staging/usr/include/wolfssl/ssl.h" ]; then
+            WOLFSSL_CFLAGS="-I$_staging/usr/include"
+            WOLFSSL_LIBS="-L$_staging/usr/lib -lwolfssl"
+            printf '%s\n' "package-target: wolfSSL auto-detected in buildroot staging ($target)"
+        fi
+    fi
+    # Preflight: probe wolfSSL with the cross compiler before the core build.
+    # pkg-config may return empty cflags that work for host gcc but not for a
+    # cross compiler whose sysroot does not include /usr/include.
+    if [ "$BB_BUILTIN_TLS_ENABLE" = yes ]; then
+        _wssl_cflags="${WOLFSSL_CFLAGS:-}"
+        _wssl_libs="${WOLFSSL_LIBS:--lwolfssl}"
+        _wssl_probe_dir=$(mktemp -d)
+        printf '#include <wolfssl/ssl.h>\nint main(void){wolfSSL_Init();wolfSSL_Cleanup();return 0;}\n' \
+            >"$_wssl_probe_dir/probe.c"
+        if ! "$cross_cc" ${_wssl_cflags:+$_wssl_cflags} \
+                "$_wssl_probe_dir/probe.c" -o "$_wssl_probe_dir/probe" \
+                ${_wssl_libs:+$_wssl_libs} 2>/dev/null; then
+            rm -rf "$_wssl_probe_dir"
+            printf '%s\n' "package-target: transport=builtin requires wolfSSL, but the cross-compiler cannot find it." >&2
+            printf '%s\n' "  Cross compiler: $cross_cc" >&2
+            _staging="$BUILDROOT_OUTPUT_BASE/$target/staging"
+            if [ -f "$_staging/usr/include/wolfssl/ssl.h" ]; then
+                printf '%s\n' "  wolfSSL staging header found at $_staging/usr/include/wolfssl/ssl.h" >&2
+                printf '%s\n' "  but the compile probe still failed — check library linkage." >&2
+            else
+                printf '%s\n' "  wolfSSL not found in buildroot staging ($target)." >&2
+                printf '%s\n' "  Ensure BR2_PACKAGE_WOLFSSL=y is in the generated defconfig and rebuild." >&2
+            fi
+            printf '%s\n' "  To override: WOLFSSL_CFLAGS=-I... WOLFSSL_LIBS='-L... -lwolfssl' make package" >&2
+            exit 1
+        fi
+        rm -rf "$_wssl_probe_dir"
+    fi
     CC="$cross_cc" OUT="$full_core" ARTIFACT_TIER=full ADVERTISE_PAYLOAD_TOOLS=1 \
         BB_RUNTIME_MODE="$BB_RUNTIME_MODE" \
         BB_RUNTIME_ROOT="$BB_RUNTIME_ROOT" \
@@ -272,10 +325,14 @@ else
         BB_ZERO_ARG_LOG_MODE="$BB_ZERO_ARG_LOG_MODE" \
         BB_ZERO_ARG_CUSTOM_COMMAND="$BB_ZERO_ARG_CUSTOM_COMMAND" \
         BB_RSHELL_TRANSPORT="$BB_RSHELL_TRANSPORT" \
+        BB_RSHELL_ENCRYPTION="$BB_RSHELL_ENCRYPTION" \
+        BB_RSHELL_ALLOW_PLAINTEXT="$BB_RSHELL_ALLOW_PLAINTEXT" \
         BB_RSHELL_AUTHKEYS_MODE="$BB_RSHELL_AUTHKEYS_MODE" \
         BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING="$BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING" \
         BB_RSHELL_SOCAT_PORT="$BB_RSHELL_SOCAT_PORT" \
         BB_BUILTIN_TLS_ENABLE="$BB_BUILTIN_TLS_ENABLE" \
+        WOLFSSL_CFLAGS="${WOLFSSL_CFLAGS:-}" \
+        WOLFSSL_LIBS="${WOLFSSL_LIBS:-}" \
         BB_AUTORUN_GUARD_ENABLE="$BB_AUTORUN_GUARD_ENABLE" \
         BB_AUTORUN_GUARD_PATH="$BB_AUTORUN_GUARD_PATH" \
         BB_AUTORUN_REENTRY_ACTION="$BB_AUTORUN_REENTRY_ACTION" \

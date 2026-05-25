@@ -45,6 +45,8 @@ esac
 
 eval "$resolved"
 
+BB_RSHELL_TRANSPORT=${BB_RSHELL_TRANSPORT:-${BB_RSHELL_MODE:-ssh}}
+BB_BUILTIN_TLS_ENABLE=${BB_BUILTIN_TLS_ENABLE:-no}
 BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
 BB_BUSYBOX_GROUPS=${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}
 BB_BUSYBOX_APPLETS=${BB_BUSYBOX_APPLETS:-}
@@ -60,6 +62,9 @@ BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-default}
 BB_DOTFILE_PROFILE_USER_FILE=${BB_DOTFILE_PROFILE_USER_FILE:-}
 if [ -f "$config" ]; then
     . "$config"
+    BB_RSHELL_TRANSPORT=${BB_RSHELL_TRANSPORT:-${BB_RSHELL_MODE:-ssh}}
+    # Derive BB_BUILTIN_TLS_ENABLE from transport, consistent with menuconfig
+    [ "$BB_RSHELL_TRANSPORT" = builtin ] && BB_BUILTIN_TLS_ENABLE=yes || BB_BUILTIN_TLS_ENABLE=no
     BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
     BB_BUSYBOX_GROUPS=${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}
     BB_BUSYBOX_APPLETS=${BB_BUSYBOX_APPLETS:-}
@@ -313,6 +318,12 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
         printf '%s\n' "BR2_PACKAGE_NCURSES=y"
         printf '%s\n' "BR2_PACKAGE_NCURSES_WCHAR=y"
         printf '%s\n' "BR2_PACKAGE_NCURSES_ADDITIONAL_TERMINFO=\"t/tmux t/tmux-256color\""
+    fi
+    # wolfSSL: required by builtin transport; built in the cross sysroot so
+    # package-target can auto-detect staging/usr/include and staging/usr/lib.
+    if [ "$BB_BUILTIN_TLS_ENABLE" = yes ]; then
+        printf '%s\n' "BR2_PACKAGE_WOLFSSL=y"
+        printf '%s\n' "BR2_PACKAGE_WOLFSSL_OPENSSLEXTRA=y"
     fi
     printf '%s\n' "BR2_TARGET_ROOTFS_TAR=y"
 } >"$defconfig"
