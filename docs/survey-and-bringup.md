@@ -7,6 +7,13 @@ BusierBox has two survey paths:
 
 The shell survey exists because a working native BusierBox binary only proves the artifact is close enough to execute. The next question is operational: where can BusierBox safely write, whether `/tmp` is executable, which tools already exist, what libc/kernel hints are visible, and whether a no-extraction workflow is safer.
 
+The generated shell probe is POSIX-ish and avoids required Python, Perl, awk,
+sed, grep, or coreutils dependencies. It uses common target commands only when
+they are present and writes probe files only under
+`BUSIERBOX_SURVEY_PROBE_DIR` or its chosen temporary probe directory. Output is
+conservative JSON: strings that cannot be safely escaped by plain shell are
+reported as `unknown` rather than risking invalid JSON.
+
 Safe defaults:
 
 - no external writes by default
@@ -29,6 +36,7 @@ Useful commands:
 ```sh
 busierbox survey --json --shell-probe
 busierbox survey --shell-script
+BUSIERBOX_SURVEY_PROBE_DIR=/tmp/bbx-probe /bin/sh ./busierbox-survey.sh
 busierbox survey --write-shell-script /tmp/busierbox-survey.sh
 scripts/config-from-survey --format shell survey.json
 scripts/config-from-survey --format json survey.json

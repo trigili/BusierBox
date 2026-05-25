@@ -23,5 +23,21 @@ if not isinstance(data["recommendations"], dict):
     print("recommendations must be an object", file=sys.stderr)
     raise SystemExit(1)
 
-print("survey json ok")
+recommendation_keys = [
+    "target_arch_guess",
+    "endian_guess",
+    "kernel_floor_guess",
+    "libc_guess",
+    "payload_preset_recommendation",
+    "runtime_mode_recommendation",
+    "runtime_root_recommendation",
+    "external_writes_recommendation",
+    "rshell_transport_recommendation",
+    "warnings",
+]
+missing_recs = [key for key in recommendation_keys if key not in data["recommendations"]]
+if missing_recs:
+    print("missing recommendation keys: " + ", ".join(missing_recs), file=sys.stderr)
+    raise SystemExit(1)
 
+print("survey json ok")
