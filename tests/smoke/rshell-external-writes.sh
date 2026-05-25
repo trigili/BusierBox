@@ -4,6 +4,7 @@ set -eu
 
 src=${1:-src/busierbox.c}
 menu=${2:-scripts/menuconfig}
+payload=${3:-src/applet_payload.c}
 
 [ -f "$src" ] || {
     printf '%s\n' "rshell-external-writes: missing $src" >&2
@@ -11,6 +12,10 @@ menu=${2:-scripts/menuconfig}
 }
 [ -f "$menu" ] || {
     printf '%s\n' "rshell-external-writes: missing $menu" >&2
+    exit 1
+}
+[ -f "$payload" ] || {
+    printf '%s\n' "rshell-external-writes: missing $payload" >&2
     exit 1
 }
 
@@ -61,6 +66,23 @@ for needle in [
 
 if 'cleanup-ledger.jsonl' not in text:
     raise SystemExit("rshell-external-writes: rshell ledger path not generated")
+PY
+
+python3 - "$payload" <<'PY'
+from pathlib import Path
+import sys
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+for needle in [
+    'clean_external_from_ledger',
+    'remove_rshell_marked_block',
+    '"/root/.ssh/authorized_keys"',
+    '"root-merge"',
+    '"root-copy"',
+    'external && apply && clean_external_from_ledger()',
+]:
+    if needle not in text:
+        raise SystemExit(f"rshell-external-writes: clean external path missing {needle}")
 PY
 
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RUNTIME_ALLOW_EXTERNAL_WRITES'
