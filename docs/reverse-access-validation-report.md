@@ -100,6 +100,9 @@ Tracked BusierBox target presets derived from those images:
 - `tplink-archer-ax1800-v56-openwrt-musl`
 - `asus-rt-n16-uclibc`
 - `dlink-dir-615-revc-uclibc`
+- `dlink-dir-300-a1-uclibc`
+- `linksys-wrt54g-v5-ddwrt-uclibc`
+- `netgear-wndr3700-v1-uclibc`
 
 ## Remaining Limitations
 
