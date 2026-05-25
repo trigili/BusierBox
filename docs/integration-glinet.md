@@ -100,5 +100,24 @@ local/integration-runs/<timestamp>/summary.json
 The summary records `pass`, `fail`, or `skip` per case, artifact path and hash,
 remote workdir, and the local log directory.
 
+Render the latest run:
+
+```sh
+scripts/integration-report latest
+scripts/integration-report local/integration-runs/<timestamp>/summary.json --json
+```
+
+Compare two runs:
+
+```sh
+scripts/integration-compare \
+  local/integration-runs/<old>/summary.json \
+  local/integration-runs/<new>/summary.json
+```
+
+The report tool prints a compact case table with status, artifact size/hash, log
+path, and failure reason. The compare tool highlights status changes, artifact
+hash changes, and artifact size deltas.
+
 Remote workdirs default to `/tmp/busierbox-itest-<timestamp>-<case>` and are
 removed after each case unless `--keep-remote` is passed.

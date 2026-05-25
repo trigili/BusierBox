@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Render a BusierBox integration summary as a compact report."""
+
+import argparse
+import json
+import pathlib
+import sys
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+RUN_ROOT = ROOT / "local" / "integration-runs"
+
+
+def latest_summary():
+    summaries = sorted(RUN_ROOT.glob("*/summary.json"))
+    if not summaries:
+        raise SystemExit("integration-report: no local integration summaries found")
+    return summaries[-1]
+
+
+def load_summary(ref):
+    path = latest_summary() if ref == "latest" else pathlib.Path(ref)
+    with open(path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    return path, data
+
+
+def case_reason(case):
+    return case.get("reason") or case.get("error") or ""
+
+
+def print_table(path, data):
+    cases = data.get("cases") or []
+    print(f"summary={path}")
+    print(f"status={data.get('status', '')}")
+    print(f"host={data.get('host', '')}")
+    print(f"log_dir={data.get('log_dir', '')}")
+    print("")
+    print(f"{'Case':<24} {'Status':<8} {'Artifact Size':>13} {'SHA256':<12} Log")
+    for case in cases:
+        sha = case.get("artifact_sha256") or ""
+        size = case.get("artifact_size") or case.get("size") or ""
+        log_dir = case.get("case_dir") or case.get("log_dir") or data.get("log_dir", "")
+        print(f"{case.get('case',''):<24} {case.get('status',''):<8} {str(size):>13} {sha[:12]:<12} {log_dir}")
+        reason = case_reason(case)
+        if reason:
+            print(f"  reason: {reason}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("summary", nargs="?", default="latest", help="summary.json path or 'latest'")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+
+    path, data = load_summary(args.summary)
+    if args.json:
+        print(json.dumps(data, indent=2, sort_keys=True))
+    else:
+        print_table(path, data)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

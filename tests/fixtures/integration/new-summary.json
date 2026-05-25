@@ -1,0 +1,26 @@
+{
+  "status": "partial",
+  "host": "root@192.168.8.1",
+  "operator_host": "127.0.0.1",
+  "target_preset": "glinet-mt7621-openwrt-musl",
+  "log_dir": "local/integration-runs/new",
+  "cases": [
+    {
+      "case": "survey-core",
+      "status": "pass",
+      "artifact": "dist/busierbox-mipsel-linux-4.x-musl-full",
+      "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "artifact_size": 120
+    },
+    {
+      "case": "builtin-core-shell",
+      "status": "fail",
+      "error": "listener timeout"
+    },
+    {
+      "case": "ssh-operator",
+      "status": "pass",
+      "artifact_size": 130
+    }
+  ]
+}

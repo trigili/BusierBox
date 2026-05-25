@@ -1,0 +1,21 @@
+{
+  "status": "pass",
+  "host": "root@192.168.8.1",
+  "operator_host": "127.0.0.1",
+  "target_preset": "glinet-mt7621-openwrt-musl",
+  "log_dir": "local/integration-runs/old",
+  "cases": [
+    {
+      "case": "survey-core",
+      "status": "pass",
+      "artifact": "dist/busierbox-mipsel-linux-4.x-musl-full",
+      "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "artifact_size": 100
+    },
+    {
+      "case": "builtin-core-shell",
+      "status": "skip",
+      "reason": "target unavailable"
+    }
+  ]
+}
