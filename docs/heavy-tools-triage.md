@@ -21,3 +21,13 @@ Current classifications:
 | mtd-utils/ubi-utils/i2c-tools/spi-tools/mmc-utils/e2fsprogs/parted | dangerous storage/flash diagnostics | Hide behind explicit dangerous category; never default/full-debug by default. |
 
 Provider metadata should record buildroot, local-dropin, overlay, host-only, disabled, known failures, approximate payload size, static/dynamic constraints, and required kernel capabilities.
+
+Implemented provider hooks:
+
+- `payloads/tool-compat.json` carries provider/classification metadata for the wishlist tools.
+- `scripts/check-buildroot-tool-mappings` validates Buildroot symbols for supported target-payload tools and reports provider-only tools without failing non-strict checks.
+- `scripts/gen-buildroot-defconfig` emits Buildroot package symbols for supported wishlist payloads.
+- `scripts/menuconfig` exposes a clearly labeled dangerous storage/flash diagnostics category; none of those tools are selected by default presets.
+- `doom` is provider-backed: set `BB_DOOM_USER_PATH` or provide `bin/doom`/`bin/chocolate-doom` through the overlay. BusierBox does not fetch game data or create a fake placeholder.
+
+Provider-only tools such as full `gdb`, GEF/pwndbg, radare2/rizin, `gcore`, and `tshark` remain explicit local-dropin/overlay choices until a target tuple has validated package support.

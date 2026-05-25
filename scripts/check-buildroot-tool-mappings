@@ -32,15 +32,35 @@ TOOL_SYMBOLS = {
     "objdump": ["BR2_PACKAGE_BINUTILS", "BR2_PACKAGE_BINUTILS_TARGET"],
     "usbutils": ["BR2_PACKAGE_USBUTILS"],
     "pciutils": ["BR2_PACKAGE_PCIUTILS"],
+    "nmap": ["BR2_PACKAGE_NMAP", "BR2_PACKAGE_NMAP_NMAP"],
+    "nmap-ncat": ["BR2_PACKAGE_NMAP", "BR2_PACKAGE_NMAP_NCAT"],
+    "psmisc": ["BR2_PACKAGE_PSMISC"],
+    "openssl": ["BR2_PACKAGE_OPENSSL"],
+    "fd": ["BR2_PACKAGE_FD"],
+    "zoxide": ["BR2_PACKAGE_ZOXIDE"],
+    "mtd-utils": ["BR2_PACKAGE_MTD"],
+    "ubi-utils": ["BR2_PACKAGE_MTD"],
+    "i2c-tools": ["BR2_PACKAGE_I2C_TOOLS"],
+    "spi-tools": ["BR2_PACKAGE_SPI_TOOLS"],
+    "mmc-utils": ["BR2_PACKAGE_MMC_UTILS"],
+    "e2fsprogs": ["BR2_PACKAGE_E2FSPROGS"],
+    "parted": ["BR2_PACKAGE_PARTED"],
 }
 
 PROVIDER_ONLY = {
     "xxd": "provided by selected BusyBox applet; no Buildroot package symbol emitted",
     "doom": "provider/overlay-only unless the active Buildroot tree supplies a compatible Doom package",
+    "gdb": "prefer target gdbserver plus operator-side gdb; target full gdb is local-dropin/overlay only",
+    "gef-pwndbg": "operator-side GDB plugin workspace only",
+    "radare2": "no Buildroot package mapping in the checked tree; local-dropin/overlay only",
+    "rizin": "no Buildroot package mapping in the checked tree; local-dropin/overlay only",
+    "gcore": "usually part of full gdb; local-dropin/overlay only with ptrace/core-policy validation",
+    "tshark": "too heavy for default payload generation; use tcpdump or provide a validated drop-in",
 }
 
 CXX_TOOLS = {"gdbserver", "mosh-client", "ripgrep"}
 TERMINFO_TOOLS = {"tmux", "screen", "htop", "mosh-client", "minicom"}
+DANGEROUS_TOOLS = {"mtd-utils", "ubi-utils", "i2c-tools", "spi-tools", "mmc-utils", "e2fsprogs", "parted", "gcore"}
 
 
 def load_config(path):
@@ -59,7 +79,7 @@ def load_config(path):
 
 def buildroot_symbols(root):
     symbols = {}
-    config_re = re.compile(r"^\s*config\s+(BR2_[A-Za-z0-9_]+)\s*$")
+    config_re = re.compile(r"^\s*(?:config|menuconfig)\s+(BR2_[A-Za-z0-9_]+)\s*$")
     dep_re = re.compile(r"^\s*(depends on|select)\s+(.+?)\s*$")
     for path in pathlib.Path(root).rglob("Config.in*"):
         try:
@@ -164,6 +184,8 @@ def main():
             notes.append("requires-cxx")
         if tool in TERMINFO_TOOLS:
             notes.append("may-need-ncurses-terminfo")
+        if tool in DANGEROUS_TOOLS:
+            notes.append("dangerous-explicit-selection")
         if static_policy != "dynamic" and any("!BR2_STATIC_LIBS" in d or "BR2_SHARED_LIBS" in d for d in deps):
             print(f"{tool}\tincompatible-for-tuple\tprovider={provider}\tsymbols={','.join(mapped)}\treason=Buildroot dependency excludes static builds")
             soft += 1

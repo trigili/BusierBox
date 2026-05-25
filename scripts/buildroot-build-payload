@@ -396,7 +396,7 @@ if [ "$_build_ok" = "0" ]; then
     for _t in $requested_tools; do
         if in_list "$_t" ${pre_excluded:-}; then continue; fi
         case "$_t" in
-            strace|gdbserver|curl|dropbear|zsh|tmux|socat|tcpdump|rsync|mtr|iperf3|ethtool|iw|minicom|mosh-client|ripgrep|jq|file|htop|screen|ltrace|readelf|objdump|usbutils|pciutils|doom)
+            strace|gdbserver|curl|dropbear|zsh|tmux|socat|tcpdump|rsync|mtr|iperf3|ethtool|iw|minicom|mosh-client|ripgrep|jq|file|htop|screen|ltrace|readelf|objdump|usbutils|pciutils|nmap|nmap-ncat|psmisc|openssl|fd|zoxide|mtd-utils|ubi-utils|i2c-tools|spi-tools|mmc-utils|e2fsprogs|parted|doom)
                 build_failed_tools="${build_failed_tools:+$build_failed_tools }$_t"
                 ;;
         esac
@@ -427,6 +427,17 @@ if [ "$_build_ok" = "0" ]; then
         -e '^BR2_PACKAGE_BINUTILS' \
         -e '^BR2_PACKAGE_USBUTILS' \
         -e '^BR2_PACKAGE_PCIUTILS' \
+        -e '^BR2_PACKAGE_NMAP' \
+        -e '^BR2_PACKAGE_PSMISC' \
+        -e '^BR2_PACKAGE_OPENSSL' \
+        -e '^BR2_PACKAGE_FD' \
+        -e '^BR2_PACKAGE_ZOXIDE' \
+        -e '^BR2_PACKAGE_MTD' \
+        -e '^BR2_PACKAGE_I2C_TOOLS' \
+        -e '^BR2_PACKAGE_SPI_TOOLS' \
+        -e '^BR2_PACKAGE_MMC_UTILS' \
+        -e '^BR2_PACKAGE_E2FSPROGS' \
+        -e '^BR2_PACKAGE_PARTED' \
         -e 'BR2_TOOLCHAIN_BUILDROOT_CXX=y' \
         "$out_dir/.config" >"$_retry_cfg" 2>/dev/null || true
     printf '%s\n' "BR2_TOOLCHAIN_BUILDROOT_CXX=n" >>"$_retry_cfg"
@@ -586,6 +597,45 @@ fi
 if tool_requested pciutils; then
     stage_first_found pciutils usr/bin/lspci bin/lspci || printf '%s\n' "buildroot-build-payload: requested pciutils but no built binary was found" >&2
 fi
+if tool_requested nmap; then
+    stage_first_found nmap usr/bin/nmap bin/nmap || printf '%s\n' "buildroot-build-payload: requested nmap but no built binary was found" >&2
+fi
+if tool_requested nmap-ncat; then
+    stage_first_found nmap-ncat usr/bin/ncat bin/ncat || printf '%s\n' "buildroot-build-payload: requested nmap-ncat but no built binary was found" >&2
+fi
+if tool_requested psmisc; then
+    stage_first_found psmisc usr/bin/pstree bin/pstree usr/bin/fuser bin/fuser usr/bin/killall bin/killall || printf '%s\n' "buildroot-build-payload: requested psmisc but no built binary was found" >&2
+fi
+if tool_requested openssl; then
+    stage_first_found openssl usr/bin/openssl bin/openssl || printf '%s\n' "buildroot-build-payload: requested openssl but no built binary was found" >&2
+fi
+if tool_requested fd; then
+    stage_first_found fd usr/bin/fd bin/fd || printf '%s\n' "buildroot-build-payload: requested fd but no built binary was found" >&2
+fi
+if tool_requested zoxide; then
+    stage_first_found zoxide usr/bin/zoxide bin/zoxide || printf '%s\n' "buildroot-build-payload: requested zoxide but no built binary was found" >&2
+fi
+if tool_requested mtd-utils; then
+    stage_first_found mtd-utils usr/sbin/flash_erase sbin/flash_erase usr/sbin/nanddump sbin/nanddump usr/sbin/nandwrite sbin/nandwrite usr/sbin/mtd_debug sbin/mtd_debug || printf '%s\n' "buildroot-build-payload: requested mtd-utils but no built binary was found" >&2
+fi
+if tool_requested ubi-utils; then
+    stage_first_found ubi-utils usr/sbin/ubinfo sbin/ubinfo usr/sbin/ubiattach sbin/ubiattach usr/sbin/ubidetach sbin/ubidetach usr/sbin/ubimkvol sbin/ubimkvol usr/sbin/ubirmvol sbin/ubirmvol usr/sbin/ubirsvol sbin/ubirsvol usr/sbin/ubiupdatevol sbin/ubiupdatevol || printf '%s\n' "buildroot-build-payload: requested ubi-utils but no built binary was found" >&2
+fi
+if tool_requested i2c-tools; then
+    stage_first_found i2c-tools usr/sbin/i2cdetect sbin/i2cdetect usr/bin/i2cdetect bin/i2cdetect usr/sbin/i2cget sbin/i2cget usr/sbin/i2cset sbin/i2cset usr/sbin/i2cdump sbin/i2cdump || printf '%s\n' "buildroot-build-payload: requested i2c-tools but no built binary was found" >&2
+fi
+if tool_requested spi-tools; then
+    stage_first_found spi-tools usr/bin/spidev_test bin/spidev_test usr/bin/spidev_fdx bin/spidev_fdx || printf '%s\n' "buildroot-build-payload: requested spi-tools but no built binary was found" >&2
+fi
+if tool_requested mmc-utils; then
+    stage_first_found mmc-utils usr/bin/mmc bin/mmc usr/sbin/mmc sbin/mmc || printf '%s\n' "buildroot-build-payload: requested mmc-utils but no built binary was found" >&2
+fi
+if tool_requested e2fsprogs; then
+    stage_first_found e2fsprogs usr/sbin/debugfs sbin/debugfs usr/sbin/tune2fs sbin/tune2fs usr/sbin/e2fsck sbin/e2fsck usr/bin/lsattr bin/lsattr usr/bin/chattr bin/chattr || printf '%s\n' "buildroot-build-payload: requested e2fsprogs but no built binary was found" >&2
+fi
+if tool_requested parted; then
+    stage_first_found parted usr/sbin/parted sbin/parted usr/bin/parted bin/parted || printf '%s\n' "buildroot-build-payload: requested parted but no built binary was found" >&2
+fi
 if tool_requested doom; then
     stage_first_found doom usr/bin/doom bin/doom usr/games/doom usr/bin/chocolate-doom bin/chocolate-doom usr/games/chocolate-doom || printf '%s\n' "buildroot-build-payload: requested doom but no built binary was found" >&2
 fi
@@ -611,11 +661,13 @@ apply_overlays
 sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
 sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
 sort -u runtime/payload/overlay-tools.txt -o runtime/payload/overlay-tools.txt
+sort -u runtime/payload/overlay-files.txt -o runtime/payload/overlay-files.txt
+sort -u runtime/payload/overlay-paths.txt -o runtime/payload/overlay-paths.txt
 sort -u runtime/payload/user-provided-tools.txt -o runtime/payload/user-provided-tools.txt
 
 scripts/install-busybox-symlinks runtime/payload
 
-for _bb_tool in xxd; do
+for _bb_tool in xxd gdb radare2 rizin gcore tshark doom; do
     if tool_requested "$_bb_tool" && [ -e "runtime/payload/bin/$_bb_tool" ]; then
         printf '%s\n' "$_bb_tool" >>runtime/payload/staged-tools.txt
         printf '%s\n' "$_bb_tool" >>runtime/payload/built-tools.txt

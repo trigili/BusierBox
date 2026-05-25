@@ -104,6 +104,7 @@ BB_DOTFILE_PROFILE_MODE="default"
 BB_DOTFILE_PROFILE_USER_FILE=""
 BB_GDBSERVER_PROVIDER="auto"
 BB_GDBSERVER_USER_PATH=""
+BB_DOOM_USER_PATH=""
 BB_USER_OVERLAY_ENABLE="no"
 BB_USER_OVERLAY_ROOT="./overlay"
 BB_USER_OVERLAY_ALLOW_OVERRIDE="no"
@@ -262,6 +263,7 @@ BB_DROPBEAR_NO_ROOT_PASSWORD
 BB_DROPBEAR_PREGENERATE_HOSTKEY
 BB_GDBSERVER_PROVIDER
 BB_GDBSERVER_USER_PATH
+BB_DOOM_USER_PATH
 EOF
 }
 
@@ -463,6 +465,7 @@ BB_DOTFILE_PROFILE_MODE="$BB_DOTFILE_PROFILE_MODE"
 BB_DOTFILE_PROFILE_USER_FILE="$BB_DOTFILE_PROFILE_USER_FILE"
 BB_GDBSERVER_PROVIDER="$BB_GDBSERVER_PROVIDER"
 BB_GDBSERVER_USER_PATH="$BB_GDBSERVER_USER_PATH"
+BB_DOOM_USER_PATH="$BB_DOOM_USER_PATH"
 BB_USER_OVERLAY_ENABLE="$BB_USER_OVERLAY_ENABLE"
 BB_USER_OVERLAY_ROOT="$BB_USER_OVERLAY_ROOT"
 BB_USER_OVERLAY_ALLOW_OVERRIDE="$BB_USER_OVERLAY_ALLOW_OVERRIDE"
@@ -1349,11 +1352,94 @@ EOF
     return 0
 }
 
+configure_busybox_applet_search() {
+    dialog --title "BusyBox Applet Search" \
+        --inputbox "Search applet names, groups, and descriptions:" 9 72 "" \
+        2>"$temp_out" || return 0
+    _query=$(cat "$temp_out")
+    [ -n "$_query" ] || return 0
+
+    scripts/busybox-applet-map | awk -v query="$_query" -v groups="$BB_BUSYBOX_GROUPS" -v overrides="$BB_BUSYBOX_APPLET_OVERRIDES" '
+        function quote(s,    q) {
+            q = sprintf("%c", 39)
+            gsub(q, q "\\" q q, s)
+            return q s q
+        }
+        BEGIN {
+            q = tolower(query)
+            split(groups, g)
+            for (i in g) enabled[g[i]] = 1
+            split(overrides, o)
+            for (i in o) {
+                if (o[i] ~ /^\+/) forced[substr(o[i], 2)] = 1
+                else if (o[i] ~ /^-/) disabled[substr(o[i], 2)] = 1
+            }
+        }
+        {
+            desc = ""
+            for (i = 4; i <= NF; i++) desc = desc (i == 4 ? "" : " ") $i
+            hay = tolower($1 " " $2 " " desc)
+            if (index(hay, q) == 0) next
+            state = enabled[$1] ? "on" : "off"
+            if ($2 in forced) state = "on"
+            if ($2 in disabled) state = "off"
+            label = $2 " [" $1 "]"
+            printf "%s %s %s ", quote($2), quote(label ": " desc), quote(state)
+            print $2 > "'$temp_cfg'.matches"
+            count++
+        }
+        END {
+            if (count == 0) exit 2
+        }
+    ' >"$temp_cfg" || {
+        dialog --title "BusyBox Applet Search" \
+            --msgbox "No BusyBox applets matched: $_query" 8 64
+        rm -f "$temp_cfg.matches"
+        return 0
+    }
+
+    if ! eval "dialog --title 'BusyBox Applet Search: $_query' \
+        --checklist 'Toggle matching applets. Search writes explicit per-applet overrides.' 22 92 14 \
+        $(cat "$temp_cfg") \
+        2>'$temp_out'"
+    then
+        rm -f "$temp_cfg.matches"
+        return 0
+    fi
+
+    _selected=$(cat "$temp_out" | tr -d '"')
+    _new_overrides=
+    for _old in $BB_BUSYBOX_APPLET_OVERRIDES; do
+        _name=${_old#?}
+        if grep -qx "$_name" "$temp_cfg.matches"; then
+            continue
+        fi
+        _new_overrides="${_new_overrides:+$_new_overrides }$_old"
+    done
+    while IFS= read -r _applet; do
+        [ -n "$_applet" ] || continue
+        _group=$(scripts/busybox-applet-map | awk -v applet="$_applet" '$2 == applet { print $1; exit }')
+        _default=no
+        has_item "$BB_BUSYBOX_GROUPS" "$_group" && _default=yes
+        _chosen=no
+        has_item "$_selected" "$_applet" && _chosen=yes
+        if [ "$_default" = yes ] && [ "$_chosen" = no ]; then
+            _new_overrides="${_new_overrides:+$_new_overrides }-$_applet"
+        elif [ "$_default" = no ] && [ "$_chosen" = yes ]; then
+            _new_overrides="${_new_overrides:+$_new_overrides }+$_applet"
+        fi
+    done <"$temp_cfg.matches"
+    rm -f "$temp_cfg.matches"
+    BB_BUSYBOX_APPLET_OVERRIDES="$_new_overrides"
+    return 0
+}
+
 configure_busybox_groups() {
     while :; do
         dialog --title "BusyBox Applets" \
         --menu "Toggle sensible default groups or browse every BusyBox applet by source category for individual overrides." 25 92 20 \
         "1" "Group defaults" \
+        "S" "Search applets by name/group/description" \
         "2" "Shell tools ($(busybox_group_status shell), config available)" \
         "3" "File tools ($(busybox_group_status fileops))" \
         "4" "Disk/archive tools ($(busybox_group_status disk))" \
@@ -1403,6 +1489,7 @@ configure_busybox_groups() {
                 BB_BUSYBOX_GROUPS=$(cat "$temp_out" | tr -d '"')
                 BB_BUSYBOX_APPLETS=""
                 ;;
+            S) configure_busybox_applet_search ;;
             2) configure_busybox_group_applets shell "Shell tools" ;;
             3) configure_busybox_group_applets fileops "File tools" ;;
             4) configure_busybox_group_applets disk "Disk/archive tools" ;;
@@ -1637,14 +1724,18 @@ configure_heavy_tool_category() {
     _category=$1
     case "$_category" in
         debug)
-            _category_tools="gdbserver ltrace objdump readelf strace"
+            _category_tools="gdb gdbserver ltrace objdump radare2 readelf rizin strace tshark"
             dialog --title "Payload / Heavy tools / Debugging / RE tools" \
-                --checklist "Select tools to stage into the payload. Availability is verified during packaging." 18 86 8 \
+                --checklist "Select tools to stage into the payload. Availability is verified during packaging. Full gdb/RE suites are provider-only unless validated." 22 90 11 \
+                "gdb" "full target gdb (provider-only; prefer gdbserver)" "$(heavy_tool_status gdb)" \
                 "gdbserver" "gdb remote debugging stub [config]" "$(heavy_tool_status gdbserver)" \
                 "ltrace" "library call tracer" "$(heavy_tool_status ltrace)" \
                 "objdump" "object file disassembler" "$(heavy_tool_status objdump)" \
+                "radare2" "RE suite (provider-only)" "$(heavy_tool_status radare2)" \
                 "readelf" "ELF inspector" "$(heavy_tool_status readelf)" \
+                "rizin" "RE suite (provider-only)" "$(heavy_tool_status rizin)" \
                 "strace" "syscall tracer" "$(heavy_tool_status strace)" \
+                "tshark" "packet analyzer (provider-only; prefer tcpdump)" "$(heavy_tool_status tshark)" \
                 2>"$temp_out" || return 0
             ;;
         misc)
@@ -1667,9 +1758,9 @@ configure_heavy_tool_category() {
             [ "$_dialog_rc" -eq 0 ] || return 0
             ;;
         network)
-            _category_tools="curl dropbear ethtool iperf3 iw minicom mosh-client mtr rsync socat tcpdump"
+            _category_tools="curl dropbear ethtool iperf3 iw minicom mosh-client mtr nmap nmap-ncat openssl rsync socat tcpdump"
             dialog --title "Payload / Heavy tools / Networking / operator" \
-                --checklist "Select tools to stage into the payload. Availability is verified during packaging." 24 90 14 \
+                --checklist "Select tools to stage into the payload. Availability is verified during packaging." 25 92 16 \
                 "curl" "HTTP client" "$(heavy_tool_status curl)" \
                 "dropbear" "SSH client/server [config]" "$(heavy_tool_status dropbear)" \
                 "ethtool" "Ethernet device inspection" "$(heavy_tool_status ethtool)" \
@@ -1678,19 +1769,38 @@ configure_heavy_tool_category() {
                 "minicom" "serial console client" "$(heavy_tool_status minicom)" \
                 "mosh-client" "Mosh client" "$(heavy_tool_status mosh-client)" \
                 "mtr" "network path diagnostics" "$(heavy_tool_status mtr)" \
+                "nmap" "network mapper" "$(heavy_tool_status nmap)" \
+                "nmap-ncat" "ncat from nmap suite" "$(heavy_tool_status nmap-ncat)" \
+                "openssl" "openssl CLI" "$(heavy_tool_status openssl)" \
                 "rsync" "file transfer/sync" "$(heavy_tool_status rsync)" \
                 "socat" "bidirectional relay tool" "$(heavy_tool_status socat)" \
                 "tcpdump" "packet capture" "$(heavy_tool_status tcpdump)" \
                 2>"$temp_out" || return 0
             ;;
         shell)
-            _category_tools="htop screen tmux zsh"
+            _category_tools="fd htop psmisc screen tmux zoxide zsh"
             dialog --title "Payload / Heavy tools / Shell / terminal" \
-                --checklist "Select tools to stage into the payload. Availability is verified during packaging." 16 86 7 \
+                --checklist "Select tools to stage into the payload. Availability is verified during packaging." 18 88 9 \
+                "fd" "fast find helper" "$(heavy_tool_status fd)" \
                 "htop" "interactive process viewer" "$(heavy_tool_status htop)" \
+                "psmisc" "pstree/fuser process utilities" "$(heavy_tool_status psmisc)" \
                 "screen" "terminal multiplexer" "$(heavy_tool_status screen)" \
                 "tmux" "terminal multiplexer" "$(heavy_tool_status tmux)" \
+                "zoxide" "smart cd helper" "$(heavy_tool_status zoxide)" \
                 "zsh" "zsh shell [dotfiles]" "$(heavy_tool_status zsh)" \
+                2>"$temp_out" || return 0
+            ;;
+        storage)
+            _category_tools="e2fsprogs i2c-tools mmc-utils mtd-utils parted spi-tools ubi-utils"
+            dialog --title "Payload / Heavy tools / Dangerous storage / flash diagnostics" \
+                --checklist "These tools can alter flash, partitions, buses, or filesystems. They are never default-selected; enable only for a specific target workflow." 18 94 9 \
+                "e2fsprogs" "debugfs/tune2fs/e2fsck/lsattr/chattr" "$(heavy_tool_status e2fsprogs)" \
+                "i2c-tools" "i2c bus probe/read/write tools" "$(heavy_tool_status i2c-tools)" \
+                "mmc-utils" "MMC/eMMC diagnostics" "$(heavy_tool_status mmc-utils)" \
+                "mtd-utils" "flash_erase/nanddump/nandwrite/mtd_debug" "$(heavy_tool_status mtd-utils)" \
+                "parted" "partition editor" "$(heavy_tool_status parted)" \
+                "spi-tools" "spidev test utilities" "$(heavy_tool_status spi-tools)" \
+                "ubi-utils" "UBI attach/volume tools" "$(heavy_tool_status ubi-utils)" \
                 2>"$temp_out" || return 0
             ;;
         system)
@@ -1759,33 +1869,51 @@ iw|wireless device inspection
 minicom|serial console client
 mosh-client|Mosh client
 mtr|network path diagnostics
+nmap|network mapper
+nmap-ncat|ncat from nmap suite
+openssl|openssl CLI
 rsync|file transfer/sync
 socat|bidirectional relay tool
 tcpdump|packet capture'
-        _shell='htop|interactive process viewer
+        _shell='fd|fast find helper
+htop|interactive process viewer
+psmisc|pstree/fuser process utilities
 screen|terminal multiplexer
 tmux|terminal multiplexer
+zoxide|smart cd helper
 zsh|zsh shell [dotfiles]'
         _text='file|file type detection
 jq|JSON processor
 ripgrep|rg recursive search
 xxd|hex dump applet/provider'
-        _debug='gdbserver|gdb remote debugging stub [config]
+        _debug='gdb|full target gdb (provider-only)
+gdbserver|gdb remote debugging stub [config]
 ltrace|library call tracer
 objdump|object file disassembler
+radare2|RE suite (provider-only)
 readelf|ELF inspector
-strace|syscall tracer'
+strace|syscall tracer
+rizin|RE suite (provider-only)
+tshark|packet analyzer (provider-only)'
         _system='pciutils|lspci provider
 usbutils|lsusb provider'
+        _storage='e2fsprogs|debugfs/tune2fs/e2fsck
+i2c-tools|i2c bus tools
+mmc-utils|MMC/eMMC diagnostics
+mtd-utils|flash/NAND tools
+parted|partition editor
+spi-tools|spidev utilities
+ubi-utils|UBI volume tools'
         _misc='doom|Classic Doom-compatible game runtime'
         dialog --title "Payload / Heavy tools" \
-            --menu "Select optional payload tools by category. Tools are alphabetized within each submenu." 18 82 8 \
+            --menu "Select optional payload tools by category. Tools are alphabetized within each submenu." 20 86 9 \
             "1" "Networking / operator ($(heavy_category_summary "$_network"))" \
             "2" "Shell / terminal ($(heavy_category_summary "$_shell"))" \
             "3" "Text / data ($(heavy_category_summary "$_text"))" \
             "4" "Debugging / RE ($(heavy_category_summary "$_debug"))" \
             "5" "System inspection ($(heavy_category_summary "$_system"))" \
-            "6" "Misc ($(heavy_category_summary "$_misc"))" \
+            "6" "Dangerous storage / flash diagnostics ($(heavy_category_summary "$_storage"))" \
+            "7" "Misc ($(heavy_category_summary "$_misc"))" \
             "H" "Help" \
             "0" "Back" \
             2>"$temp_out" || return 0
@@ -1796,7 +1924,8 @@ usbutils|lsusb provider'
             3) configure_heavy_tool_category text ;;
             4) configure_heavy_tool_category debug ;;
             5) configure_heavy_tool_category system ;;
-            6) configure_heavy_tool_category misc ;;
+            6) configure_heavy_tool_category storage ;;
+            7) configure_heavy_tool_category misc ;;
             H) show_page_help heavy ;;
             0) return 0 ;;
         esac

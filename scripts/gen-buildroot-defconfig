@@ -314,6 +314,43 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
                 ;;
             usbutils) printf '%s\n' "BR2_PACKAGE_USBUTILS=y" ;;
             pciutils) printf '%s\n' "BR2_PACKAGE_PCIUTILS=y" ;;
+            nmap)
+                printf '%s\n' "BR2_PACKAGE_NMAP=y"
+                printf '%s\n' "BR2_PACKAGE_NMAP_NMAP=y"
+                ;;
+            nmap-ncat)
+                printf '%s\n' "BR2_PACKAGE_NMAP=y"
+                printf '%s\n' "BR2_PACKAGE_NMAP_NCAT=y"
+                ;;
+            psmisc) printf '%s\n' "BR2_PACKAGE_PSMISC=y" ;;
+            openssl) printf '%s\n' "BR2_PACKAGE_OPENSSL=y" ;;
+            fd) printf '%s\n' "BR2_PACKAGE_FD=y" ;;
+            zoxide) printf '%s\n' "BR2_PACKAGE_ZOXIDE=y" ;;
+            mtd-utils)
+                printf '%s\n' "BR2_PACKAGE_MTD=y"
+                printf '%s\n' "BR2_PACKAGE_MTD_FLASH_ERASE=y"
+                printf '%s\n' "BR2_PACKAGE_MTD_MTD_DEBUG=y"
+                printf '%s\n' "BR2_PACKAGE_MTD_NANDDUMP=y"
+                printf '%s\n' "BR2_PACKAGE_MTD_NANDWRITE=y"
+                ;;
+            ubi-utils)
+                printf '%s\n' "BR2_PACKAGE_MTD=y"
+                printf '%s\n' "BR2_PACKAGE_MTD_UBIATTACH=y"
+                printf '%s\n' "BR2_PACKAGE_MTD_UBIDETACH=y"
+                printf '%s\n' "BR2_PACKAGE_MTD_UBINFO=y"
+                printf '%s\n' "BR2_PACKAGE_MTD_UBIMKVOL=y"
+                printf '%s\n' "BR2_PACKAGE_MTD_UBIRMVOL=y"
+                printf '%s\n' "BR2_PACKAGE_MTD_UBIRSVOL=y"
+                printf '%s\n' "BR2_PACKAGE_MTD_UBIUPDATEVOL=y"
+                ;;
+            i2c-tools) printf '%s\n' "BR2_PACKAGE_I2C_TOOLS=y" ;;
+            spi-tools) printf '%s\n' "BR2_PACKAGE_SPI_TOOLS=y" ;;
+            mmc-utils) printf '%s\n' "BR2_PACKAGE_MMC_UTILS=y" ;;
+            e2fsprogs)
+                printf '%s\n' "BR2_PACKAGE_E2FSPROGS=y"
+                printf '%s\n' "BR2_PACKAGE_E2FSPROGS_DEBUGFS=y"
+                ;;
+            parted) printf '%s\n' "BR2_PACKAGE_PARTED=y" ;;
             doom) printf '%s\n' "# doom is provider/overlay-only unless the target Buildroot tree supplies a compatible package" ;;
             *) printf '%s\n' "# Unknown heavy tool requested: $tool" ;;
         esac
