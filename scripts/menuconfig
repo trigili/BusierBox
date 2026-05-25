@@ -1569,20 +1569,13 @@ configure_gdbserver_provider() {
                 BB_GDBSERVER_USER_PATH=$(cat "$temp_out")
                 ;;
             3)
-                _paths="local/tools/${BB_TARGET_NAME:-${BB_TARGET_PRESET:-native}}/bin/gdbserver\nlocal/tools/${BB_TARGET_ARCH:-native}-${BB_TARGET_LIBC:-host}/bin/gdbserver\nlocal/tools/generic/${BB_TARGET_ARCH:-native}/bin/gdbserver"
-                _found="missing"
-                for _p in local/tools/${BB_TARGET_NAME:-${BB_TARGET_PRESET:-native}}/bin/gdbserver local/tools/${BB_TARGET_ARCH:-native}-${BB_TARGET_LIBC:-host}/bin/gdbserver local/tools/generic/${BB_TARGET_ARCH:-native}/bin/gdbserver; do
-                    if [ -x "$_p" ]; then
-                        _found="found: $_p"
-                        if [ -f "${_p%/*}/metadata.json" ]; then
-                            _found="$_found\nmetadata: ${_p%/*}/metadata.json"
-                        fi
-                        break
-                    fi
-                done
+                _status=$(scripts/tools/dropin-tool-status --tool gdbserver \
+                    --target "${BB_TARGET_NAME:-${BB_TARGET_PRESET:-native}}" \
+                    --arch "${BB_TARGET_ARCH:-native}" \
+                    --libc "${BB_TARGET_LIBC:-host}" 2>/dev/null || true)
                 dialog --title "gdbserver local drop-in status" \
-                    --msgbox "Status: $_found\n\nSearch paths:\n$_paths\n\nInstall helper:\n  scripts/tools/install-dropin-gdbserver --source ./gdbserver --target ${BB_TARGET_NAME:-${BB_TARGET_PRESET:-native}}\n\nCheck helper:\n  scripts/tools/check-dropin-tool --tool gdbserver --path <path> --arch ${BB_TARGET_ARCH:-native} --libc ${BB_TARGET_LIBC:-host}" \
-                    18 90
+                    --msgbox "$_status\n\nInstall helper:\n  scripts/tools/install-dropin-gdbserver --source ./gdbserver --target ${BB_TARGET_NAME:-${BB_TARGET_PRESET:-native}}\n\nCheck helper:\n  scripts/tools/check-dropin-tool --tool gdbserver --path <path> --arch ${BB_TARGET_ARCH:-native} --libc ${BB_TARGET_LIBC:-host}" \
+                    24 100
                 ;;
             H) show_page_help gdbserver ;;
             0) return 0 ;;

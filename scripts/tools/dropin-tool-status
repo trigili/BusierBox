@@ -1,0 +1,91 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    cat >&2 <<'EOF'
+usage: scripts/tools/dropin-tool-status --tool TOOL [options]
+
+Options:
+  --target NAME
+  --arch ARCH
+  --libc LIBC
+  --dest-root DIR      default: local/tools
+EOF
+}
+
+tool=
+target=
+arch=
+libc=
+dest_root=local/tools
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --tool) tool=$2; shift 2 ;;
+        --tool=*) tool=${1#--tool=}; shift ;;
+        --target) target=$2; shift 2 ;;
+        --target=*) target=${1#--target=}; shift ;;
+        --arch) arch=$2; shift 2 ;;
+        --arch=*) arch=${1#--arch=}; shift ;;
+        --libc) libc=$2; shift 2 ;;
+        --libc=*) libc=${1#--libc=}; shift ;;
+        --dest-root) dest_root=$2; shift 2 ;;
+        --dest-root=*) dest_root=${1#--dest-root=}; shift ;;
+        --help|-h) usage; exit 0 ;;
+        *) usage; exit 2 ;;
+    esac
+done
+
+[ -n "$tool" ] || { usage; exit 2; }
+
+target=${target:-native}
+arch=${arch:-native}
+libc=${libc:-host}
+
+paths="
+$dest_root/$target/bin/$tool
+$dest_root/$arch-$libc/bin/$tool
+$dest_root/generic/$arch/bin/$tool
+"
+
+found=0
+printf 'Search paths:\n'
+for path in $paths; do
+    printf '  %s' "$path"
+    if [ -x "$path" ]; then
+        found=1
+        printf ' [found]\n'
+        scripts/tools/check-dropin-tool --tool "$tool" --path "$path" \
+            --target "$target" --arch "$arch" --libc "$libc" | sed 's/^/    /'
+        meta=${path%/*}/metadata.json
+        if [ -f "$meta" ]; then
+            printf '    metadata=%s\n' "$meta"
+            if command -v python3 >/dev/null 2>&1; then
+                python3 - "$meta" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+for key in ("sha256", "file"):
+    value = data.get(key)
+    if value:
+        print(f"    metadata_{key}={value}")
+PY
+            else
+                printf '    metadata_detail=python3 unavailable\n'
+            fi || printf '    metadata_warning=unreadable metadata\n'
+        fi
+    elif [ -e "$path" ]; then
+        printf ' [not executable]\n'
+    else
+        printf ' [missing]\n'
+    fi
+done
+
+if [ "$found" -eq 1 ]; then
+    printf 'Overall: found\n'
+else
+    printf 'Overall: missing\n'
+fi
