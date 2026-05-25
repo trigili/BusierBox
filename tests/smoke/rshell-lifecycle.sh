@@ -17,6 +17,10 @@ if grep -q 'pkill.*-f.*dropbear\|pkill.*-f.*dbclient' "$src"; then
 fi
 grep -q 'SIGTERM' "$src"
 grep -q 'dbclient\.pid\|dropbear\.pid' "$src"
+grep -q 'rshell\.pid' "$src"
+grep -q 'BB_RSHELL_RUN_MODE' "$src"
+grep -q 'BUSIERBOX_ZERO_ARG_CONTEXT' "$src"
+grep -q 'BUSIERBOX_RSHELL_BACKGROUND_CHILD' "$src"
 
 # start must check existing PID before launching (not pkill)
 # The start path should reference the pid file check
