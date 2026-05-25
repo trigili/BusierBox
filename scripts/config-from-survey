@@ -125,6 +125,16 @@ def first(*values, default="unknown"):
             return value
     return default
 
+def useful(value, allow_auto=False):
+    if value in (None, ""):
+        return ""
+    value = str(value)
+    if value == "unknown":
+        return ""
+    if value == "auto" and not allow_auto:
+        return ""
+    return value
+
 def boolish(value):
     if isinstance(value, bool):
         return value
@@ -191,6 +201,20 @@ def guess_libc():
         return "musl"
     return "unknown"
 
+def dir_fact(path, key, default=None):
+    for name in ("dirs", "writable_dirs"):
+        entries = data.get(name, [])
+        if isinstance(entries, list):
+            for entry in entries:
+                if isinstance(entry, dict) and entry.get("path") == path and key in entry:
+                    return entry[key]
+    shell_fs = data.get("shell_probe", {}).get("filesystem", {})
+    if isinstance(shell_fs, dict):
+        for entry in shell_fs.get("dirs", []):
+            if isinstance(entry, dict) and entry.get("path") == path and key in entry:
+                return entry[key]
+    return default
+
 def guess_preset(arch, libc, kernel, machine):
     if target_preset_opt != "auto":
         return target_preset_opt
@@ -208,20 +232,22 @@ def guess_preset(arch, libc, kernel, machine):
 recs = data.get("recommendations", {})
 uname = data.get("uname", {})
 machine = first(data.get("arch"), uname.get("machine"))
-arch = first(recs.get("target_arch_guess"), arch_norm(machine))
+arch = useful(recs.get("target_arch_guess")) or arch_norm(machine)
 kernel = first(data.get("kernel"), uname.get("release"))
-kfloor = first(recs.get("kernel_floor_guess"), kernel_floor(kernel))
-endian = first(recs.get("endian_guess"), data.get("endianness"), sys.byteorder)
-libc = first(recs.get("libc_guess"), guess_libc())
-preset = first(recs.get("target_preset_guess"), guess_preset(arch, libc, kfloor, machine), default="")
+kfloor = useful(recs.get("kernel_floor_guess")) or kernel_floor(kernel)
+endian = useful(recs.get("endian_guess")) or useful(data.get("endianness")) or sys.byteorder
+libc = useful(recs.get("libc_guess")) or guess_libc()
+preset = target_preset_opt if target_preset_opt != "auto" else (useful(recs.get("target_preset_guess")) or guess_preset(arch, libc, kfloor, machine))
 extract_dir = first(recs.get("recommended_extract_dir"), recs.get("runtime_root_recommendation"), default="none")
 payload_possible = boolish(recs.get("payload_mode_possible", extract_dir != "none"))
-tmp_write = boolish(recs.get("tmp_writable", True))
-cwd_write = boolish(recs.get("cwd_writable", True))
+tmp_write = boolish(recs.get("tmp_writable", dir_fact("/tmp", "writable", True)))
+cwd_write = boolish(recs.get("cwd_writable", dir_fact(".", "writable", True)))
 low_disk = boolish(recs.get("low_disk", False))
-noexec_tmp = boolish(recs.get("noexec_tmp", False))
+noexec_tmp = boolish(recs.get("noexec_tmp", dir_fact("/tmp", "noexec", False)))
 
 warnings = []
+if isinstance(recs.get("warnings"), list):
+    warnings.extend(str(warning) for warning in recs["warnings"] if warning)
 if libc == "unknown":
     warnings.append("unknown libc; keep the recommendation conservative")
 if arch in {"unknown", ""}:
@@ -233,6 +259,8 @@ if noexec_tmp:
 
 if prefer_runtime != "auto":
     runtime_mode = prefer_runtime
+elif useful(recs.get("runtime_mode_recommendation")):
+    runtime_mode = useful(recs.get("runtime_mode_recommendation"))
 elif not payload_possible or low_disk:
     runtime_mode = "core-only"
 elif not cwd_write and tmp_write:
@@ -240,13 +268,12 @@ elif not cwd_write and tmp_write:
 else:
     runtime_mode = "extract"
 
-if runtime_mode == "core-only":
-    runtime_root = "./.busierbox" if cwd_write else "/tmp/.busierbox"
-else:
-    runtime_root = "./.busierbox" if cwd_write else "/tmp/.busierbox"
+runtime_root = useful(recs.get("runtime_root_recommendation")) or ("./.busierbox" if cwd_write else "/tmp/.busierbox")
 
 if prefer_rshell != "auto":
     rshell_transport = prefer_rshell
+elif useful(recs.get("rshell_transport_recommendation"), allow_auto=False):
+    rshell_transport = useful(recs.get("rshell_transport_recommendation"))
 elif runtime_mode == "core-only" and boolish(recs.get("builtin_tls_available", False)):
     rshell_transport = "builtin"
 else:
@@ -254,6 +281,14 @@ else:
 
 if payload_preset_opt != "auto":
     payload_preset = payload_preset_opt
+elif prefer_rshell != "auto" and rshell_transport == "builtin":
+    payload_preset = "builtin-core-shell"
+elif prefer_rshell != "auto" and rshell_transport == "socat":
+    payload_preset = "socat-rescue"
+elif prefer_rshell != "auto" and rshell_transport == "ssh":
+    payload_preset = "ssh-operator"
+elif useful(recs.get("payload_preset_recommendation")):
+    payload_preset = useful(recs.get("payload_preset_recommendation"))
 elif runtime_mode == "core-only":
     payload_preset = "survey-core"
 elif rshell_transport == "builtin":

@@ -21,4 +21,17 @@ grep -q '^BB_RUNTIME_MODE=core-only$' "$tmp/low.conf"
 grep -q '^BB_RUNTIME_ROOT=/tmp/.busierbox$' "$tmp/low.conf"
 grep -q '^# WARNING:' "$tmp/low.conf"
 
+scripts/config-from-survey --format shell tests/fixtures/survey/native-rich-recommendations.json >"$tmp/native.conf"
+grep -q '^BB_TARGET_PRESET='"'"''"'"'$' "$tmp/native.conf"
+grep -q '^BB_PAYLOAD_PRESET=builtin-core-shell$' "$tmp/native.conf"
+grep -q '^BB_RUNTIME_MODE=extract$' "$tmp/native.conf"
+grep -q '^BB_RSHELL_TRANSPORT=none$' "$tmp/native.conf"
+grep -q '^# WARNING: sample warning from native survey$' "$tmp/native.conf"
+! grep -q '^BB_TARGET_PRESET=auto$' "$tmp/native.conf"
+
+scripts/config-from-survey --format shell --prefer-rshell ssh --allow-network-autorun tests/fixtures/survey/glinet-mt7621.json >"$tmp/ssh.conf"
+grep -q '^BB_PAYLOAD_PRESET=ssh-operator$' "$tmp/ssh.conf"
+grep -q '^BB_ZERO_ARG_MODE=rshell$' "$tmp/ssh.conf"
+grep -q '^BB_RSHELL_TRANSPORT=ssh$' "$tmp/ssh.conf"
+
 printf '%s\n' "config-from-survey ok"
