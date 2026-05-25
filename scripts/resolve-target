@@ -10,6 +10,9 @@ case "${1:-}" in
     --list)
         mode=list
         ;;
+    --list-tree)
+        mode=list_tree
+        ;;
     --config|--custom)
         mode=config
         ;;
@@ -18,11 +21,15 @@ case "${1:-}" in
 usage:
   scripts/resolve-target --config
   scripts/resolve-target --list
+  scripts/resolve-target --list-tree
   scripts/resolve-target PRESET_OR_TARGET
 
 Prints shell assignments describing the active tuple target. Presets are
 templates; the emitted TARGET_NAME is generated from tuple fields unless an
 explicit target name override is configured.
+
+The flat --list output is kept stable for scripts. --list-tree prints the
+same presets grouped by display_path-style categories for humans.
 EOF
         exit 0
         ;;
@@ -190,6 +197,28 @@ for p in data.get("presets", []):
         p.get("support_status", ""),
         p.get("description", ""),
     ]))
+PY
+    exit 0
+fi
+
+if [ "$mode" = list_tree ]; then
+    python3 - "$presets" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+current = None
+for p in data.get("presets", []):
+    category = p.get("category") or "uncategorized"
+    if category != current:
+        current = category
+        print(f"[{category}]")
+    name = p.get("preset_name", "")
+    status = p.get("support_status", "")
+    desc = p.get("description", "")
+    print(f"  {name}\t{status}\t{desc}")
 PY
     exit 0
 fi

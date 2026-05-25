@@ -72,4 +72,16 @@ if scripts/package-target default 2>"$tmp.err"; then
 fi
 grep "default is a blank target configuration" "$tmp.err" >/dev/null
 
+list=$(scripts/resolve-target --list)
+first=$(printf '%s\n' "$list" | sed -n '1p' | cut -f1)
+second=$(printf '%s\n' "$list" | sed -n '2p' | cut -f1)
+[ "$first" = default ] || { printf '%s\n' "default preset is not first in --list" >&2; exit 1; }
+[ "$second" = native ] || { printf '%s\n' "native preset is not second in --list" >&2; exit 1; }
+
+tree=$(scripts/resolve-target --list-tree)
+printf '%s\n' "$tree" | grep '^\[specific-targets/legacy-routers\]$' >/dev/null
+printf '%s\n' "$tree" | grep '  asus-rt-n16-uclibc' >/dev/null
+printf '%s\n' "$tree" | grep '^\[generic-archs/arm\]$' >/dev/null
+printf '%s\n' "$tree" | grep '  armv7-linux-3.x-musl' >/dev/null
+
 printf '%s\n' "target-resolution ok"
