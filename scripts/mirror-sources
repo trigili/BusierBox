@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""Populate or plan a BusierBox source mirror from manifests/sources.lock.json."""
+"""Populate or plan a BusierBox source mirror for selected build matrices."""
 
 import argparse
+import datetime as dt
 import hashlib
 import json
+import os
 import pathlib
 import shutil
 import subprocess
 import sys
+import tarfile
 import urllib.request
+
+import busierbox_matrix as matrix
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+BUILDROOT_VERSION_DEFAULT = "2026.02.2"
 
 
 def load_lock(path):
@@ -30,6 +36,20 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def file_row(path, root, category, jobs=None, package=None, urls=None, known_sha256=None):
+    rel = path.relative_to(root).as_posix()
+    return {
+        "filename": path.name,
+        "path": rel,
+        "sha256": sha256_file(path) if path.exists() else known_sha256,
+        "size": path.stat().st_size if path.exists() else None,
+        "source_category": category,
+        "package": package,
+        "jobs": sorted(jobs or []),
+        "urls": urls or [],
+    }
+
+
 def fetch(urls, dest):
     tmp = dest.with_suffix(dest.suffix + ".tmp")
     tmp.unlink(missing_ok=True)
@@ -41,18 +61,280 @@ def fetch(urls, dest):
             return
         except Exception:
             tmp.unlink(missing_ok=True)
-    raise SystemExit(f"mirror-sources: all URLs failed for {dest.name}")
+    raise RuntimeError(f"all URLs failed for {dest.name}")
 
 
-def matrix_reasons(args):
-    reasons = []
-    if args.matrix:
-        reasons.append(f"matrix:{args.matrix}")
-    if args.targets:
-        reasons.append(f"targets:{args.targets}")
-    if args.payloads:
-        reasons.append(f"payloads:{args.payloads}")
-    return reasons or ["lockfile"]
+def git_commit():
+    proc = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return proc.stdout.strip() if proc.returncode == 0 else None
+
+
+def buildroot_source_from_lock(lock):
+    for src in lock.get("sources", []):
+        if src.get("name") == "buildroot":
+            return src
+    return None
+
+
+def ensure_buildroot_tree(lock, mirror_root):
+    br_dir = ROOT / "buildroot" / f"buildroot-{BUILDROOT_VERSION_DEFAULT}"
+    if (br_dir / "Makefile").exists():
+        return br_dir
+    src = buildroot_source_from_lock(lock)
+    if not src:
+        raise RuntimeError("sources.lock.json does not contain Buildroot")
+    filename = pathlib.Path(src["filename"]).name
+    candidates = [
+        mirror_root / "busierbox-sources" / filename,
+        mirror_root / "sources" / filename,
+        mirror_root / "buildroot-dl" / filename,
+        ROOT / "dl" / filename,
+    ]
+    tarball = next((p for p in candidates if p.exists()), None)
+    if not tarball:
+        raise RuntimeError(f"Buildroot tree missing and {filename} is not mirrored")
+    (ROOT / "buildroot").mkdir(exist_ok=True)
+    with tarfile.open(tarball) as tf:
+        tf.extractall(ROOT / "buildroot")
+    if not (br_dir / "Makefile").exists():
+        raise RuntimeError(f"extracted Buildroot tarball did not create {br_dir}")
+    return br_dir
+
+
+def run(cmd, log_path=None, env=None):
+    if log_path:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "w", encoding="utf-8") as log:
+            proc = subprocess.run(
+                cmd,
+                cwd=ROOT,
+                env=env,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,
+            )
+    else:
+        proc = subprocess.run(
+            cmd,
+            cwd=ROOT,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+    return proc
+
+
+def mirror_lock_sources(lock, out, dry_run):
+    rows = []
+    failures = []
+    source_dir = out / "busierbox-sources"
+    compat_dir = out / "sources"
+    buildroot_dl = out / "buildroot-dl"
+    if not dry_run:
+        source_dir.mkdir(parents=True, exist_ok=True)
+        compat_dir.mkdir(parents=True, exist_ok=True)
+        buildroot_dl.mkdir(parents=True, exist_ok=True)
+
+    for src in lock.get("sources", []):
+        filename = pathlib.Path(src["filename"]).name
+        urls = src.get("urls") or [src.get("url")]
+        dest = source_dir / filename
+        status = "planned"
+        if not dry_run:
+            try:
+                if not dest.exists():
+                    fetch(urls, dest)
+                actual = sha256_file(dest)
+                if actual != src["sha256"].lower():
+                    raise RuntimeError(f"sha256 mismatch for {filename}")
+                shutil.copy2(dest, compat_dir / filename)
+                shutil.copy2(dest, buildroot_dl / filename)
+                status = "present"
+            except Exception as exc:
+                failures.append({"source": src.get("name"), "filename": filename, "error": str(exc)})
+                status = "failed"
+        rows.append({
+            "name": src.get("name"),
+            "version": src.get("version"),
+            "filename": filename,
+            "path": f"busierbox-sources/{filename}",
+            "sha256": src.get("sha256"),
+            "urls": urls,
+            "source_category": "busierbox-lockfile",
+            "package": src.get("name"),
+            "jobs": [],
+            "status": status,
+        })
+    return rows, failures
+
+
+def job_slug(job):
+    raw = f"{job['target']}-{job['payload']}-{job['format']}"
+    return "".join(c if c.isalnum() or c in "._-" else "-" for c in raw)
+
+
+def prepare_job_config(job, plans_dir):
+    cfg_dir = plans_dir / "configs"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg = cfg_dir / f"{job_slug(job)}.conf"
+    matrix.write_config(cfg, job["target"], job["payload"], job["format"], job["variant"])
+    return cfg
+
+
+def generate_buildroot_plan(job, cfg, out, buildroot_dir, args, dry_run):
+    slug = job_slug(job)
+    logs = out / "logs"
+    plans = out / "plans"
+    defconfigs = out / "buildroot-defconfigs"
+    output_base = pathlib.Path(args.buildroot_output_base) if args.buildroot_output_base else out / "buildroot-output"
+    buildroot_dl = out / "buildroot-dl"
+    job_name = job["name"]
+    record = {
+        "job": job,
+        "config": str(cfg),
+        "status": "planned" if dry_run else "pending",
+        "log": str(logs / f"{slug}.source.log"),
+    }
+    try:
+        resolved = matrix.resolve_target(job["target"], config=cfg)
+        record["resolved_target"] = resolved.get("TARGET_NAME", job["target"])
+        record["target_arch"] = resolved.get("TARGET_ARCH")
+        if resolved.get("TARGET_ARCH") == "native" or record["resolved_target"] == "native":
+            record["status"] = "skipped-native"
+            record["reason"] = "native target does not use Buildroot"
+            return record
+    except Exception as exc:
+        record["status"] = "failed"
+        record["error"] = str(exc)
+        return record
+
+    gen_cmd = [str(ROOT / "scripts" / "gen-buildroot-defconfig"), job["target"]]
+    if dry_run:
+        record["commands"] = [
+            f"BUSIERBOX_CONFIG={cfg} {' '.join(gen_cmd)}",
+            f"make -C {buildroot_dir} O={output_base / record['resolved_target']} BR2_EXTERNAL={ROOT / 'buildroot/external/busierbox'} BR2_DL_DIR={buildroot_dl} olddefconfig source",
+        ]
+        return record
+
+    gen_env = os.environ.copy()
+    gen_env["BUSIERBOX_CONFIG"] = str(cfg)
+    proc = run(gen_cmd, log_path=logs / f"{slug}.gen-defconfig.log", env=gen_env)
+    if proc.returncode != 0:
+        record["status"] = "failed"
+        record["error"] = f"gen-buildroot-defconfig failed; see {logs / f'{slug}.gen-defconfig.log'}"
+        return record
+    vals = matrix.parse_shell_assignments((logs / f"{slug}.gen-defconfig.log").read_text(encoding="utf-8", errors="replace"))
+    defconfig = pathlib.Path(vals.get("BUILDROOT_DEFCONFIG", ""))
+    profile = pathlib.Path(vals.get("PAYLOAD_PROFILE", ""))
+    if not defconfig.exists():
+        record["status"] = "failed"
+        record["error"] = "generated Buildroot defconfig missing"
+        return record
+    defconfigs.mkdir(parents=True, exist_ok=True)
+    plans.mkdir(parents=True, exist_ok=True)
+    copied_defconfig = defconfigs / f"{slug}_defconfig"
+    shutil.copy2(defconfig, copied_defconfig)
+    if profile.exists():
+        shutil.copy2(profile, plans / f"{slug}.profile.mk")
+    out_dir = output_base / record["resolved_target"]
+    if args.clean_build_dirs:
+        shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(defconfig, out_dir / ".config")
+    env = os.environ.copy()
+    env["BR2_DL_DIR"] = str(buildroot_dl)
+    cmd_base = [
+        "make", "-C", str(buildroot_dir),
+        f"O={out_dir.resolve()}",
+        f"BR2_EXTERNAL={ROOT / 'buildroot/external/busierbox'}",
+        f"BR2_DL_DIR={buildroot_dl.resolve()}",
+    ]
+    proc = run(cmd_base + ["olddefconfig"], log_path=logs / f"{slug}.source.log", env=env)
+    if proc.returncode != 0:
+        record["status"] = "failed"
+        record["error"] = f"Buildroot olddefconfig failed; see {logs / f'{slug}.source.log'}"
+        return record
+    proc = run(cmd_base + ["source"], log_path=logs / f"{slug}.source.log", env=env)
+    if proc.returncode != 0:
+        record["status"] = "failed"
+        record["error"] = f"Buildroot source fetch failed; see {logs / f'{slug}.source.log'}"
+        return record
+    kept_output = args.keep_build_dirs or args.buildroot_output_base
+    if not kept_output:
+        shutil.rmtree(out_dir, ignore_errors=True)
+    record.update({
+        "status": "fetched",
+        "defconfig": str(copied_defconfig),
+        "buildroot_output": str(out_dir) if kept_output else None,
+        "buildroot_output_cleaned": not kept_output,
+    })
+    return record
+
+
+def scan_buildroot_dl(out, jobs):
+    dl = out / "buildroot-dl"
+    rows = []
+    if not dl.exists():
+        return rows
+    job_names = [job["name"] for job in jobs if job.get("target") != "native"]
+    for path in sorted(p for p in dl.rglob("*") if p.is_file()):
+        rows.append(file_row(path, out, "buildroot-dl", jobs=job_names, package=None))
+    return rows
+
+
+def write_manifest(out, lock_path, args, lock_rows, source_plans, failures, dry_run, strict_ready):
+    jobs = matrix.expand_jobs(args)
+    files = []
+    if not dry_run:
+        files.extend(scan_buildroot_dl(out, jobs))
+        for row in lock_rows:
+            p = out / row["path"]
+            if p.exists():
+                files.append(file_row(p, out, "busierbox-lockfile", package=row.get("package"), urls=row.get("urls")))
+    manifest = {
+        "schema": 2,
+        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "git_commit": git_commit(),
+        "matrix": matrix.matrix_identity(args),
+        "jobs": jobs,
+        "source_lock": str(lock_path),
+        "mirror_layout": {
+            "busierbox_sources": "busierbox-sources",
+            "compat_sources": "sources",
+            "buildroot_dl": "buildroot-dl",
+            "buildroot_defconfigs": "buildroot-defconfigs",
+            "plans": "plans",
+            "logs": "logs",
+        },
+        "lockfile_sources": lock_rows,
+        "source_plans": source_plans,
+        "files": files,
+        "failures": failures,
+        "strict_ready": bool(strict_ready),
+        "limitations": [
+            "Buildroot package files are mirrored by running Buildroot's source target for selected generated defconfigs.",
+            "Packages with dynamic source lists are caught by strict readiness if their files are absent from the recorded mirror manifest.",
+            "User/overlay-provided binaries are recorded as external inputs and are not downloaded by mirror-sources.",
+        ],
+    }
+    if dry_run:
+        print(json.dumps(manifest, indent=2, sort_keys=True))
+    else:
+        (out / "mirror-manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        shutil.copy2(lock_path, out / "sources.lock.json")
+        print(f"mirror={out}")
+        print(f"manifest={out / 'mirror-manifest.json'}")
+    return manifest
 
 
 def main():
@@ -62,62 +344,71 @@ def main():
     parser.add_argument("--matrix")
     parser.add_argument("--targets")
     parser.add_argument("--payloads")
+    parser.add_argument("--formats", default="tgz")
+    parser.add_argument("--include-buildroot-packages", action="store_true")
+    parser.add_argument("--buildroot-output-base")
+    parser.add_argument("--jobs", type=int, default=1)
+    parser.add_argument("--verify", action="store_true")
+    parser.add_argument("--strict", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--keep-build-dirs", action="store_true")
+    parser.add_argument("--clean-build-dirs", action="store_true")
+    parser.add_argument("--source-only", action="store_true")
+    parser.add_argument("--continue-on-error", action="store_true")
+    parser.add_argument("--fail-fast", action="store_true")
     args = parser.parse_args()
 
+    if args.jobs != 1:
+        print("mirror-sources: --jobs is accepted, but Buildroot source fetches are serialized", file=sys.stderr)
+    if args.source_only:
+        args.include_buildroot_packages = True
+
     lock_path = ROOT / args.manifest
-    data = load_lock(lock_path)
+    lock = load_lock(lock_path)
     out = pathlib.Path(args.out)
-    source_dir = out / "sources"
-    buildroot_dl = out / "buildroot-dl"
-    manifest_rows = []
-    reasons = matrix_reasons(args)
-
     if not args.dry_run:
-        source_dir.mkdir(parents=True, exist_ok=True)
-        buildroot_dl.mkdir(parents=True, exist_ok=True)
+        for sub in ("busierbox-sources", "sources", "buildroot-dl", "buildroot-defconfigs", "plans", "logs"):
+            (out / sub).mkdir(parents=True, exist_ok=True)
+    lock_rows, failures = mirror_lock_sources(lock, out, args.dry_run)
+    source_plans = []
+    jobs = matrix.expand_jobs(args)
 
-    for src in data.get("sources", []):
-        filename = pathlib.Path(src["filename"]).name
-        urls = src.get("urls") or [src.get("url")]
-        dest = source_dir / filename
-        status = "planned"
+    if args.include_buildroot_packages:
+        buildroot_dir = ROOT / "buildroot" / f"buildroot-{BUILDROOT_VERSION_DEFAULT}"
         if not args.dry_run:
-            if not dest.exists():
-                fetch(urls, dest)
-            actual = sha256_file(dest)
-            if actual != src["sha256"].lower():
-                raise SystemExit(f"mirror-sources: sha256 mismatch for {filename}")
-            shutil.copy2(dest, buildroot_dl / filename)
-            status = "present"
-        manifest_rows.append({
-            "name": src.get("name"),
-            "version": src.get("version"),
-            "filename": filename,
-            "sha256": src.get("sha256"),
-            "urls": urls,
-            "reason": reasons,
-            "status": status,
-        })
+            try:
+                buildroot_dir = ensure_buildroot_tree(lock, out)
+            except Exception as exc:
+                failures.append({"stage": "buildroot-prepare", "error": str(exc)})
+                if args.fail_fast or not args.continue_on_error:
+                    write_manifest(out, lock_path, args, lock_rows, source_plans, failures, args.dry_run, False)
+                    raise SystemExit(1)
+        for job in jobs:
+            cfg = prepare_job_config(job, out / "plans")
+            rec = generate_buildroot_plan(job, cfg, out, buildroot_dir, args, args.dry_run)
+            source_plans.append(rec)
+            if rec.get("status") == "failed":
+                failures.append({"job": job["name"], "error": rec.get("error", "unknown failure")})
+                if args.fail_fast or not args.continue_on_error:
+                    break
 
-    mirror_manifest = {
-        "schema": 1,
-        "source_lock": str(lock_path),
-        "sources": manifest_rows,
-        "limitations": [
-            "This mirror covers BusierBox-pinned sources in manifests/sources.lock.json.",
-            "Buildroot package tarballs beyond the pinned Buildroot archive must be populated through Buildroot DL_DIR for the selected defconfigs.",
-        ],
-    }
-    if args.dry_run:
-        print(json.dumps(mirror_manifest, indent=2, sort_keys=True))
-    else:
-        out.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(lock_path, out / "sources.lock.json")
-        (out / "mirror-manifest.json").write_text(json.dumps(mirror_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        print(f"mirror={out}")
-        print(f"manifest={out / 'mirror-manifest.json'}")
-    return 0
+    strict_ready = not failures
+    manifest = write_manifest(out, lock_path, args, lock_rows, source_plans, failures, args.dry_run, strict_ready)
+    if args.verify and not args.dry_run:
+        cmd = [str(ROOT / "scripts" / "check-offline-readiness"), "--mirror", str(out), "--manifest", str(lock_path), "--strict"]
+        if args.matrix:
+            cmd.extend(["--matrix", args.matrix])
+        elif args.targets or args.payloads:
+            if args.targets:
+                cmd.extend(["--targets", args.targets])
+            if args.payloads:
+                cmd.extend(["--payloads", args.payloads])
+            if args.formats:
+                cmd.extend(["--formats", args.formats])
+        proc = subprocess.run(cmd, cwd=ROOT)
+        if proc.returncode != 0:
+            return proc.returncode
+    return 1 if failures and args.strict else 0
 
 
 if __name__ == "__main__":

@@ -8,6 +8,8 @@ import pathlib
 import subprocess
 import sys
 
+import busierbox_matrix as matrix
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -20,47 +22,187 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def load_json(path):
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def check_lock_sources(mirror, lock):
+    errors = []
+    for src in lock.get("sources", []):
+        filename = pathlib.Path(src["filename"]).name
+        candidates = [
+            mirror / "busierbox-sources" / filename,
+            mirror / "sources" / filename,
+            mirror / "buildroot-dl" / filename,
+        ]
+        if not any(path.exists() for path in candidates):
+            errors.append({
+                "type": "missing-lockfile-source",
+                "filename": filename,
+                "source": src.get("name"),
+                "hint": f"run scripts/mirror-sources --out {mirror} --verify",
+            })
+            continue
+        for path in candidates:
+            if path.exists() and sha256_file(path) != src["sha256"].lower():
+                errors.append({
+                    "type": "sha256-mismatch",
+                    "path": str(path),
+                    "source": src.get("name"),
+                    "expected_sha256": src["sha256"].lower(),
+                    "actual_sha256": sha256_file(path),
+                })
+    return errors
+
+
+def check_manifest_files(mirror, manifest):
+    errors = []
+    for row in manifest.get("files") or []:
+        rel = row.get("path")
+        if not rel:
+            continue
+        path = mirror / rel
+        if not path.exists():
+            errors.append({
+                "type": "missing-mirrored-file",
+                "path": rel,
+                "package": row.get("package"),
+                "jobs": row.get("jobs") or [],
+            })
+            continue
+        if row.get("sha256") and sha256_file(path) != row["sha256"]:
+            errors.append({
+                "type": "sha256-mismatch",
+                "path": rel,
+                "expected_sha256": row["sha256"],
+                "actual_sha256": sha256_file(path),
+            })
+    return errors
+
+
+def wanted_jobs(args):
+    return {(job["target"], job["payload"], job["format"]) for job in matrix.expand_jobs(args)}
+
+
+def manifest_jobs(manifest):
+    return {(job["target"], job["payload"], job["format"]) for job in manifest.get("jobs") or []}
+
+
+def check_strict(mirror, manifest, args):
+    errors = []
+    if manifest.get("failures"):
+        for failure in manifest["failures"]:
+            errors.append({
+                "type": "mirror-fetch-failure",
+                "failure": failure,
+                "hint": "rerun scripts/mirror-sources online with --include-buildroot-packages --verify",
+            })
+    missing_jobs = sorted(wanted_jobs(args) - manifest_jobs(manifest))
+    for target, payload, fmt in missing_jobs:
+        errors.append({
+            "type": "missing-matrix-job",
+            "target": target,
+            "payload": payload,
+            "format": fmt,
+            "hint": "rerun scripts/mirror-sources with the same matrix/target/payload arguments",
+        })
+    for plan in manifest.get("source_plans") or []:
+        status = plan.get("status")
+        if status in {"failed", "pending"}:
+            errors.append({
+                "type": "source-plan-not-ready",
+                "job": (plan.get("job") or {}).get("name"),
+                "status": status,
+                "error": plan.get("error"),
+            })
+        if status == "fetched" and not plan.get("defconfig"):
+            errors.append({
+                "type": "missing-recorded-defconfig",
+                "job": (plan.get("job") or {}).get("name"),
+            })
+    return errors
+
+
+def build_matrix_dry_run(args, mirror):
+    cmd = [str(ROOT / "scripts" / "build-matrix"), "--offline", "--mirror-dir", str(mirror), "--dry-run"]
+    if args.matrix:
+        cmd.extend(["--matrix", args.matrix])
+    else:
+        if args.targets:
+            cmd.extend(["--targets", args.targets])
+        if args.payloads:
+            cmd.extend(["--payloads", args.payloads])
+        if args.formats:
+            cmd.extend(["--formats", args.formats])
+    return subprocess.run(
+        cmd,
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mirror", required=True)
     parser.add_argument("--manifest", default="manifests/sources.lock.json")
     parser.add_argument("--matrix")
+    parser.add_argument("--targets")
+    parser.add_argument("--payloads")
+    parser.add_argument("--formats", default="tgz")
+    parser.add_argument("--strict", action="store_true")
+    parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
     mirror = pathlib.Path(args.mirror)
-    lock = ROOT / args.manifest
-    with open(lock, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
+    lock = load_json(ROOT / args.manifest)
+    manifest_path = mirror / "mirror-manifest.json"
+    mirror_manifest = load_json(manifest_path) if manifest_path.exists() else {}
 
-    errors = []
-    for src in data.get("sources", []):
-        filename = pathlib.Path(src["filename"]).name
-        candidates = [mirror / "sources" / filename, mirror / "buildroot-dl" / filename]
-        if not any(path.exists() for path in candidates):
-            errors.append(f"missing {filename}")
-            continue
-        for path in candidates:
-            if path.exists() and sha256_file(path) != src["sha256"].lower():
-                errors.append(f"sha256 mismatch {path}")
+    errors = check_lock_sources(mirror, lock)
+    if mirror_manifest:
+        errors.extend(check_manifest_files(mirror, mirror_manifest))
+    elif args.strict:
+        errors.append({
+            "type": "missing-mirror-manifest",
+            "path": str(manifest_path),
+            "hint": "run scripts/mirror-sources online first",
+        })
+    if args.strict:
+        errors.extend(check_strict(mirror, mirror_manifest, args))
 
-    if args.matrix:
-        proc = subprocess.run(
-            [str(ROOT / "scripts" / "build-matrix"), "--matrix", args.matrix, "--offline", "--mirror-dir", str(mirror), "--dry-run"],
-            cwd=ROOT,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
+    if args.matrix or args.targets or args.payloads:
+        proc = build_matrix_dry_run(args, mirror)
         if proc.returncode != 0:
-            errors.append("build-matrix offline dry-run failed")
+            errors.append({
+                "type": "build-matrix-offline-dry-run-failed",
+                "stderr": proc.stderr.strip(),
+            })
 
-    if errors:
+    report = {
+        "schema": 1,
+        "mirror": str(mirror),
+        "strict": bool(args.strict),
+        "ok": not errors,
+        "errors": errors,
+    }
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    elif errors:
         for err in errors:
-            print(f"offline-readiness: {err}", file=sys.stderr)
-        raise SystemExit(1)
-    print(f"offline-readiness ok: {mirror}")
-    return 0
+            if err["type"].startswith("missing"):
+                detail = err.get("filename") or err.get("path") or err.get("target")
+                print(f"offline-readiness: {err['type']}: {detail}", file=sys.stderr)
+            elif err["type"] == "sha256-mismatch":
+                print(f"offline-readiness: sha256 mismatch {err.get('path')}", file=sys.stderr)
+            else:
+                print(f"offline-readiness: {err['type']}: {err}", file=sys.stderr)
+    else:
+        print(f"offline-readiness ok: {mirror}")
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":

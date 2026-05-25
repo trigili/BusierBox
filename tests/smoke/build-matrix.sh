@@ -38,6 +38,8 @@ for job in jobs:
         raise SystemExit(f"unexpected job status: {job}")
     if "BUSIERBOX_CONFIG=" not in job.get("command", ""):
         raise SystemExit("dry-run command missing BUSIERBOX_CONFIG")
+    if not job.get("resolved_target"):
+        raise SystemExit("dry-run job missing resolved_target")
 PY
 
 grep -q '^BB_PAYLOAD_PRESET=survey-core$' "$tmp/run/configs/native-survey-core-tgz.conf"
@@ -89,6 +91,8 @@ if data.get("mirror_dir") != mirror:
 if data.get("buildroot_dl_dir") != f"{mirror}/buildroot-dl":
     raise SystemExit("offline matrix summary did not record buildroot_dl_dir")
 for job in data.get("jobs") or []:
+    if not job.get("resolved_target"):
+        raise SystemExit("offline dry-run job missing resolved_target")
     cmd = job.get("command", "")
     for token in ["BUSIERBOX_OFFLINE=1", "BUSIERBOX_MIRROR_DIR=", "BUILDROOT_DL_DIR="]:
         if token not in cmd:

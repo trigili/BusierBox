@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "description": "All currently supported BusierBox targets and built-in payload presets.",
+  "targets": ["all"],
+  "payloads": ["all"],
+  "formats": ["tgz"]
+}
