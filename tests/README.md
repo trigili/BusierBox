@@ -4,7 +4,7 @@ The test harness is layered so developers can get useful signal without propriet
 
 ## Layers
 
-`make smoke-test` builds `dist/busierbox-native-full` plus `dist/busierbox-native-stager`, runs `scripts/verify-artifact` on the full artifact, runs the native host binary, and validates the Tier 0 applet contract. It also checks artifact tier behavior, target tuple resolution, generated mipsel musl Buildroot config creation, payload manifest reality for missing tools, placeholder regression, `survey --json` parsing, `scripts/config-from-survey`, and copy-only self-extraction outside the repository.
+`make smoke-test` builds `dist/busierbox-native-full`, runs `scripts/verify-artifact`, runs the native host binary, and validates the Tier 0 applet contract. It also checks artifact tier behavior, target tuple resolution, generated mipsel musl Buildroot config creation, payload manifest reality for missing tools, placeholder regression, menuconfig serialization, reverse-access server CLI behavior, `survey --json` parsing, `scripts/config-from-survey`, and copy-only self-extraction outside the repository.
 
 `make test-qemu-user` runs target binaries under qemu-user when both the target binary and qemu interpreter exist. Missing cross binaries or interpreters are reported as `SKIP`, not as hard failures. This layer validates ELF compatibility, basic syscall compatibility, and applet behavior.
 
@@ -119,7 +119,6 @@ Useful overrides:
 ROUTER=root@192.168.8.1 make test-glinet
 SKIP_BUILD=1 ARTIFACT=dist/busierbox-mipsel-linux-4.x-musl-full tests/integration/glinet/push-and-test
 KEEP_ARTIFACTS=1 tests/integration/glinet/push-and-test dist/busierbox-mipsel-linux-4.x-musl-full
-BUSIERBOX_SERVER_HOST=192.168.8.241 BUSIERBOX_STAGER_TOKEN=testtoken tests/integration/glinet/stager-callback
 ```
 
 The default remote directory is `/tmp/busierbox-itest`, which avoids the small persistent root filesystem on many OpenWrt-style devices. Override `REMOTE_DIR` only when that location has enough free space for the artifact plus extraction. The harness fails loudly for missing advertised tools, missing applet symlinks, broken extraction, duplicate payload PATH entries, zsh without payload commands, and overlay tool drift.

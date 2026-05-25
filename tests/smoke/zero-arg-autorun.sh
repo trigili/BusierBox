@@ -22,12 +22,12 @@ guard="$tmp/guard"
 mkdir -p "$guard"
 
 cat >"$guard/autorun.lock" <<EOF
-mode=shell
+mode=rshell
 pid=$$
 started_at=0
 artifact_tier=test
 EOF
-BUSIERBOX_AUTORUN_GUARD_PATH="$guard" BUSIERBOX_ZERO_ARG_MODE=shell "$bb" >"$tmp/reentry.out" 2>&1
+BUSIERBOX_AUTORUN_GUARD_PATH="$guard" BUSIERBOX_ZERO_ARG_MODE=rshell "$bb" >"$tmp/reentry.out" 2>&1
 grep -q 'BusierBox autorun already active' "$tmp/reentry.out"
 
 "$bb" doctor >"$tmp/explicit-doctor.out" 2>&1
@@ -35,5 +35,14 @@ grep -q '^artifact_tier=' "$tmp/explicit-doctor.out"
 
 "$bb" rshell --help >"$tmp/rshell-help.out" 2>&1
 grep -q 'usage: busierbox rshell' "$tmp/rshell-help.out"
+
+"$bb" rshell status >"$tmp/rshell-status.out" 2>&1
+grep -q 'rshell_status=' "$tmp/rshell-status.out"
+
+BUSIERBOX_AUTORUN_GUARD_PATH="$guard" "$bb" rshell start --transport socat-tls >"$tmp/socat.out" 2>&1 && {
+    cat "$tmp/socat.out" >&2
+    exit 1
+}
+grep -q 'socat-tls' "$tmp/socat.out"
 
 printf '%s\n' "zero-arg-autorun ok"

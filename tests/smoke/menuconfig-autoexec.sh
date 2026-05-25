@@ -7,23 +7,35 @@ menu=${1:-scripts/menuconfig}
     exit 1
 }
 
-grep -q 'BB_STAGER_ZERO_ARG_MODE=' "$menu"
-grep -q 'BB_STAGER_POST_RECEIVE_ACTION=' "$menu"
-grep -q 'BB_FULL_ZERO_ARG_MODE=' "$menu"
+grep -q 'BB_ZERO_ARG_MODE=' "$menu"
+grep -q 'BB_ZERO_ARG_LOG_MODE=' "$menu"
 grep -q 'BB_ZERO_ARG_CUSTOM_COMMAND=' "$menu"
-grep -q 'BB_RSHELL_MODE=' "$menu"
-grep -q 'BB_DOTFILE_APPS=' "$menu"
+grep -q 'BB_RSHELL_TRANSPORT=' "$menu"
+grep -q 'BB_RSHELL_AUTHKEYS_MODE=' "$menu"
+grep -q 'BB_DOTFILE_ZSH_MODE=' "$menu"
+grep -q 'BB_DOTFILE_TMUX_MODE=' "$menu"
+grep -q 'BB_DOTFILE_GDB_MODE=' "$menu"
+grep -q 'BB_DOTFILE_PROFILE_MODE=' "$menu"
 grep -q 'configure_build_targets' "$menu"
+grep -q 'configure_runtime_mode' "$menu"
 grep -q 'BB_AUTORUN_GUARD_PATH=' "$menu"
-grep -q 'BB_STAGER_AUTO_EXEC:-doctor' "$menu"
-grep -q 'zero-arg:' "$menu"
-grep -q 'Post-receive behavior is configured under' "$menu"
-grep -q 'scripts/busierbox-server --wait-operator-tunnel' "$menu"
+grep -q 'Launch behavior: zero-arg=' "$menu"
+grep -q 'scripts/busierbox-server' "$menu"
 grep -q 'Applet configuration' "$menu"
-grep -q 'Reverse shell settings' "$menu"
+grep -q 'Reverse access' "$menu"
 grep -q 'Dotfiles by app' "$menu"
+grep -q 'BusierBox default initial config' "$menu"
+if grep -q 'default-comfort\\|default-operator\\|default-minimal' "$menu"; then
+    printf '%s\n' "menuconfig-autoexec: old global dotfile profiles are still in menuconfig" >&2
+    exit 1
+fi
 grep -q 'Classic Doom-compatible game runtime' "$menu"
 grep -q 'local/operator-session' "$menu"
+
+if grep -q '"Callbacks:' "$menu" || grep -q 'Post-receive behavior is configured under' "$menu"; then
+    printf '%s\n' "menuconfig-autoexec: retired transport UX is still visible" >&2
+    exit 1
+fi
 
 if awk '
     /operator_session_enabled\(\)/ { in_fn=1 }
@@ -31,7 +43,7 @@ if awk '
     in_fn && /^}/ { in_fn=0 }
     END { exit found ? 0 : 1 }
 ' "$menu"; then
-    printf '%s\n' "menuconfig-autoexec: callback-only config would trigger SSH catch instructions" >&2
+    printf '%s\n' "menuconfig-autoexec: retired transport config would trigger SSH catch instructions" >&2
     exit 1
 fi
 

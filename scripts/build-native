@@ -8,28 +8,23 @@ set -eu
 : "${OUT:=dist/busierbox.core}"
 : "${ARTIFACT_TIER:=core}"
 : "${ADVERTISE_PAYLOAD_TOOLS:=0}"
+: "${BB_RUNTIME_MODE:=extract}"
+: "${BB_RUNTIME_ROOT:=./.busierbox}"
+: "${BB_RUNTIME_ALLOW_FALLBACK_ROOT:=no}"
+: "${BB_RUNTIME_FALLBACK_ROOT:=/tmp/.busierbox}"
 : "${BB_ENABLE_SURVEY:=1}"
 : "${BB_ENABLE_DOCTOR:=1}"
 : "${BB_ENABLE_CONFIG_INFO:=1}"
 : "${BB_ENABLE_EXTRACT:=1}"
 : "${BB_ENABLE_FETCH_FULL:=1}"
-: "${BB_STAGER_CALLBACK_ENABLE:=no}"
-: "${BB_STAGER_CALLBACK_HOST:=}"
-: "${BB_STAGER_CALLBACK_PORT:=}"
-: "${BB_STAGER_CALLBACK_SHELL:=sh}"
-: "${BB_FULL_CALLBACK_ENABLE:=no}"
-: "${BB_FULL_CALLBACK_HOST:=}"
-: "${BB_FULL_CALLBACK_PORT:=4444}"
-: "${BB_FULL_CALLBACK_TOKEN:=}"
-: "${BB_FULL_CALLBACK_TIMEOUT:=10}"
-: "${BB_FULL_CALLBACK_RETRY_COUNT:=3}"
-: "${BB_FULL_CALLBACK_RETRY_DELAY:=2}"
-: "${BB_FULL_CALLBACK_AUTO_EXEC:=doctor}"
-: "${BB_STAGER_ZERO_ARG_MODE:=}"
-: "${BB_STAGER_POST_RECEIVE_ACTION:=${BB_STAGER_AUTO_EXEC:-doctor}}"
-: "${BB_FULL_ZERO_ARG_MODE:=help}"
+: "${BB_ZERO_ARG_MODE:=${BB_FULL_ZERO_ARG_MODE:-help}}"
+: "${BB_ZERO_ARG_LOG_MODE:=quiet}"
 : "${BB_ZERO_ARG_CUSTOM_COMMAND:=}"
-: "${BB_RSHELL_MODE:=ssh}"
+: "${BB_RSHELL_TRANSPORT:=${BB_RSHELL_MODE:-ssh}}"
+: "${BB_RSHELL_AUTHKEYS_MODE:=disabled}"
+: "${BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING:=no}"
+: "${BB_RSHELL_SOCAT_PORT:=22203}"
+: "${BB_BUILTIN_TLS_ENABLE:=no}"
 : "${BB_AUTORUN_GUARD_ENABLE:=yes}"
 : "${BB_AUTORUN_GUARD_PATH:=/tmp/busierbox-autorun}"
 : "${BB_AUTORUN_REENTRY_ACTION:=status}"
@@ -41,17 +36,8 @@ set -eu
 : "${BB_OPERATOR_SERVER_SSH_PORT:=22}"
 : "${BB_OPERATOR_TARGET_BIND_HOST:=127.0.0.1}"
 : "${BB_OPERATOR_KNOWN_HOSTS_POLICY:=off}"
-: "${BB_ENABLE_CALLBACK:=1}"
 
-if [ -z "${BB_STAGER_ZERO_ARG_MODE:-}" ]; then
-    if [ "$BB_STAGER_CALLBACK_ENABLE" = yes ]; then
-        BB_STAGER_ZERO_ARG_MODE=callback
-    else
-        BB_STAGER_ZERO_ARG_MODE=help
-    fi
-fi
-
-src="src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c src/applet_callback.c src/sha256.c"
+src="src/busierbox.c src/applet_payload.c src/applet_survey.c src/applet_envfix.c src/sha256.c"
 miniz_src="third_party/miniz/miniz.c"
 miniz_cflags="-Os -std=c99 -Ithird_party/miniz"
 tmp="${OUT}.$$.tmp"
@@ -62,32 +48,59 @@ scripts/gen-tool-headers
 
 quote_c() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
+if [ "$BB_RSHELL_TRANSPORT" = builtin-tls ] && [ "$BB_BUILTIN_TLS_ENABLE" != yes ]; then
+    printf '%s\n' "build-native: BB_RSHELL_TRANSPORT=builtin-tls requires BB_BUILTIN_TLS_ENABLE=yes and wolfSSL support" >&2
+    exit 1
+fi
+if [ "$BB_BUILTIN_TLS_ENABLE" = yes ]; then
+    _wolfssl_ok=0
+    if pkg-config --exists wolfssl 2>/dev/null; then
+        wolfssl_cflags=$(pkg-config --cflags wolfssl)
+        wolfssl_libs=$(pkg-config --libs wolfssl)
+        # Compile-test to catch broken installs and cross-compile arch mismatches.
+        # pkg-config may return success even when headers are missing or the library
+        # was built for a different architecture.
+        _probe_dir=$(mktemp -d)
+        printf '#include <wolfssl/ssl.h>\nint main(void){wolfSSL_Init();wolfSSL_Cleanup();return 0;}\n' >"$_probe_dir/probe.c"
+        if "$CC" $wolfssl_cflags "$_probe_dir/probe.c" -o "$_probe_dir/probe" $wolfssl_libs >/dev/null 2>&1; then
+            _wolfssl_ok=1
+        fi
+        rm -rf "$_probe_dir"
+    fi
+    if [ "$_wolfssl_ok" = 1 ]; then
+        CPPFLAGS="$CPPFLAGS -DHAVE_WOLFSSL $wolfssl_cflags"
+        LDFLAGS="$LDFLAGS $wolfssl_libs"
+        src="$src src/rshell_tls.c"
+        printf '%s\n' "build-native: wolfSSL $(pkg-config --modversion wolfssl), builtin-tls enabled"
+    else
+        printf '%s\n' "build-native: BB_BUILTIN_TLS_ENABLE=yes requires wolfSSL development libraries" >&2
+        printf '%s\n' "  Debian/Ubuntu:  apt install libwolfssl-dev" >&2
+        printf '%s\n' "  From source:    https://github.com/wolfSSL/wolfssl" >&2
+        printf '%s\n' "  For cross-compile: set WOLFSSL_CFLAGS and WOLFSSL_LIBS explicitly" >&2
+        exit 1
+    fi
+fi
+
 CPPFLAGS="$CPPFLAGS -DBUSIERBOX_ARTIFACT_TIER=\"$ARTIFACT_TIER\""
 CPPFLAGS="$CPPFLAGS -DBUSIERBOX_ADVERTISE_PAYLOAD_TOOLS=$ADVERTISE_PAYLOAD_TOOLS"
+CPPFLAGS="$CPPFLAGS -DBB_RUNTIME_MODE=\"$(quote_c "$BB_RUNTIME_MODE")\""
+CPPFLAGS="$CPPFLAGS -DBB_RUNTIME_ROOT=\"$(quote_c "$BB_RUNTIME_ROOT")\""
+CPPFLAGS="$CPPFLAGS -DBB_RUNTIME_ALLOW_FALLBACK_ROOT=\"$(quote_c "$BB_RUNTIME_ALLOW_FALLBACK_ROOT")\""
+CPPFLAGS="$CPPFLAGS -DBB_RUNTIME_FALLBACK_ROOT=\"$(quote_c "$BB_RUNTIME_FALLBACK_ROOT")\""
 CPPFLAGS="$CPPFLAGS -DBB_ENABLE_SURVEY=$BB_ENABLE_SURVEY"
 CPPFLAGS="$CPPFLAGS -DBB_ENABLE_DOCTOR=$BB_ENABLE_DOCTOR"
 CPPFLAGS="$CPPFLAGS -DBB_ENABLE_CONFIG_INFO=$BB_ENABLE_CONFIG_INFO"
 CPPFLAGS="$CPPFLAGS -DBB_ENABLE_EXTRACT=$BB_ENABLE_EXTRACT"
 CPPFLAGS="$CPPFLAGS -DBB_ENABLE_FETCH_FULL=$BB_ENABLE_FETCH_FULL"
-CPPFLAGS="$CPPFLAGS -DBB_ENABLE_CALLBACK=$BB_ENABLE_CALLBACK"
-CPPFLAGS="$CPPFLAGS -DBB_STAGER_CALLBACK_ENABLE=\"$(quote_c "$BB_STAGER_CALLBACK_ENABLE")\""
-CPPFLAGS="$CPPFLAGS -DBB_STAGER_CALLBACK_HOST=\"$(quote_c "$BB_STAGER_CALLBACK_HOST")\""
-CPPFLAGS="$CPPFLAGS -DBB_STAGER_CALLBACK_PORT=\"$(quote_c "$BB_STAGER_CALLBACK_PORT")\""
-CPPFLAGS="$CPPFLAGS -DBB_STAGER_CALLBACK_SHELL=\"$(quote_c "$BB_STAGER_CALLBACK_SHELL")\""
-CPPFLAGS="$CPPFLAGS -DBB_STAGER_TARGET_NAME=\"$(quote_c "${BB_STAGER_TARGET_NAME:-native}")\""
-CPPFLAGS="$CPPFLAGS -DBB_FULL_CALLBACK_ENABLE=\"$(quote_c "$BB_FULL_CALLBACK_ENABLE")\""
-CPPFLAGS="$CPPFLAGS -DBB_FULL_CALLBACK_HOST=\"$(quote_c "$BB_FULL_CALLBACK_HOST")\""
-CPPFLAGS="$CPPFLAGS -DBB_FULL_CALLBACK_PORT=\"$(quote_c "$BB_FULL_CALLBACK_PORT")\""
-CPPFLAGS="$CPPFLAGS -DBB_FULL_CALLBACK_TOKEN=\"$(quote_c "$BB_FULL_CALLBACK_TOKEN")\""
-CPPFLAGS="$CPPFLAGS -DBB_FULL_CALLBACK_TIMEOUT=$BB_FULL_CALLBACK_TIMEOUT"
-CPPFLAGS="$CPPFLAGS -DBB_FULL_CALLBACK_RETRY_COUNT=$BB_FULL_CALLBACK_RETRY_COUNT"
-CPPFLAGS="$CPPFLAGS -DBB_FULL_CALLBACK_RETRY_DELAY=$BB_FULL_CALLBACK_RETRY_DELAY"
-CPPFLAGS="$CPPFLAGS -DBB_FULL_CALLBACK_AUTO_EXEC=\"$(quote_c "$BB_FULL_CALLBACK_AUTO_EXEC")\""
-CPPFLAGS="$CPPFLAGS -DBB_STAGER_ZERO_ARG_MODE=\"$(quote_c "$BB_STAGER_ZERO_ARG_MODE")\""
-CPPFLAGS="$CPPFLAGS -DBB_STAGER_POST_RECEIVE_ACTION=\"$(quote_c "$BB_STAGER_POST_RECEIVE_ACTION")\""
-CPPFLAGS="$CPPFLAGS -DBB_FULL_ZERO_ARG_MODE=\"$(quote_c "$BB_FULL_ZERO_ARG_MODE")\""
+CPPFLAGS="$CPPFLAGS -DBB_ZERO_ARG_MODE=\"$(quote_c "$BB_ZERO_ARG_MODE")\""
+CPPFLAGS="$CPPFLAGS -DBB_ZERO_ARG_LOG_MODE=\"$(quote_c "$BB_ZERO_ARG_LOG_MODE")\""
 CPPFLAGS="$CPPFLAGS -DBB_ZERO_ARG_CUSTOM_COMMAND=\"$(quote_c "$BB_ZERO_ARG_CUSTOM_COMMAND")\""
-CPPFLAGS="$CPPFLAGS -DBB_RSHELL_MODE=\"$(quote_c "$BB_RSHELL_MODE")\""
+CPPFLAGS="$CPPFLAGS -DBB_RSHELL_TRANSPORT=\"$(quote_c "$BB_RSHELL_TRANSPORT")\""
+CPPFLAGS="$CPPFLAGS -DBB_RSHELL_MODE=\"$(quote_c "$BB_RSHELL_TRANSPORT")\""
+CPPFLAGS="$CPPFLAGS -DBB_RSHELL_AUTHKEYS_MODE=\"$(quote_c "$BB_RSHELL_AUTHKEYS_MODE")\""
+CPPFLAGS="$CPPFLAGS -DBB_RSHELL_GENERATE_HOSTKEY_IF_MISSING=\"$(quote_c "$BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING")\""
+CPPFLAGS="$CPPFLAGS -DBB_RSHELL_SOCAT_PORT=\"$(quote_c "$BB_RSHELL_SOCAT_PORT")\""
+CPPFLAGS="$CPPFLAGS -DBB_BUILTIN_TLS_ENABLE=\"$(quote_c "$BB_BUILTIN_TLS_ENABLE")\""
 CPPFLAGS="$CPPFLAGS -DBB_AUTORUN_GUARD_ENABLE=\"$(quote_c "$BB_AUTORUN_GUARD_ENABLE")\""
 CPPFLAGS="$CPPFLAGS -DBB_AUTORUN_GUARD_PATH=\"$(quote_c "$BB_AUTORUN_GUARD_PATH")\""
 CPPFLAGS="$CPPFLAGS -DBB_AUTORUN_REENTRY_ACTION=\"$(quote_c "$BB_AUTORUN_REENTRY_ACTION")\""

