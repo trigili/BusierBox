@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""Find artifacts across a local BusierBox release repository index."""
+
+import argparse
+import json
+import pathlib
+import subprocess
+import sys
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+def load_json(path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"find-artifact: cannot read {path}: {exc}")
+
+
+def build_index(paths):
+    cmd = [str(ROOT / "scripts" / "index-release-repo"), *paths]
+    return json.loads(subprocess.check_output(cmd, text=True))
+
+
+def tuple_info(row, index):
+    tuple_path = row.get("tuple_path") or ""
+    for item in index.get("tuples", {}).get(tuple_path, []):
+        if item.get("release_dir") == row.get("release_dir"):
+            return item.get("tuple") or row.get("tuple") or {}
+    return row.get("tuple") or {}
+
+
+def matches(row, index, args):
+    info = tuple_info(row, index)
+    if args.sha256 and row.get("sha256") != args.sha256:
+        return False
+    if args.release and row.get("release_name") != args.release:
+        return False
+    if args.arch and info.get("arch") != args.arch:
+        return False
+    if args.libc and info.get("libc") != args.libc:
+        return False
+    if args.kernel and info.get("kernel_floor") != args.kernel:
+        return False
+    if args.cpu and info.get("cpu") != args.cpu:
+        return False
+    if args.abi and info.get("abi") != args.abi:
+        return False
+    if args.payload_preset and row.get("payload_preset") != args.payload_preset:
+        return False
+    if args.tool and args.tool not in (row.get("tools") or []):
+        return False
+    if args.feature and args.feature not in (row.get("features") or []):
+        return False
+    if args.device:
+        aliases = index.get("devices", {}).get(args.device) or []
+        allowed = {
+            (item.get("release_dir"), item.get("tuple_path"))
+            for item in aliases
+        }
+        if (row.get("release_dir"), row.get("tuple_path")) not in allowed:
+            return False
+    return True
+
+
+def label_rank(row):
+    label = ((row.get("compatibility") or {}).get("label") or "exact")
+    return {"exact": 0, "likely": 1, "heuristic": 2, "unsafe": 3, "incompatible": 4}.get(label, 5)
+
+
+def print_text(row, index):
+    info = tuple_info(row, index)
+    print(f"recommended_artifact={row.get('artifact_path') or ''}")
+    print(f"release_name={row.get('release_name') or ''}")
+    print(f"release_dir={row.get('release_dir') or ''}")
+    print(f"artifact={row.get('artifact') or ''}")
+    print(f"sha256={row.get('sha256') or ''}")
+    print(f"tuple_path={row.get('tuple_path') or ''}")
+    print(f"arch={info.get('arch') or ''}")
+    print(f"libc={info.get('libc') or ''}")
+    print(f"kernel_floor={info.get('kernel_floor') or ''}")
+    print(f"cpu={info.get('cpu') or ''}")
+    print(f"abi={info.get('abi') or ''}")
+    print(f"payload_preset={row.get('payload_preset') or ''}")
+    print(f"compatibility={((row.get('compatibility') or {}).get('label') or '')}")
+    print(f"dedupe_count={len((index.get('dedupe', {}).get(row.get('sha256') or '', {}) or {}).get('artifacts') or [])}")
+    print("features=" + " ".join(row.get("features") or []))
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--index", help="prebuilt index from scripts/index-release-repo")
+    parser.add_argument("--release-root", action="append", default=[], help="release dir or directory containing releases; repeatable")
+    parser.add_argument("--release")
+    parser.add_argument("--device")
+    parser.add_argument("--arch")
+    parser.add_argument("--libc")
+    parser.add_argument("--kernel")
+    parser.add_argument("--cpu")
+    parser.add_argument("--abi")
+    parser.add_argument("--tool")
+    parser.add_argument("--payload-preset")
+    parser.add_argument("--feature")
+    parser.add_argument("--sha256")
+    parser.add_argument("--all", action="store_true", help="print all matches")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+
+    if args.index:
+        index = load_json(pathlib.Path(args.index))
+    else:
+        roots = args.release_root or [str(ROOT / "dist" / "releases")]
+        index = build_index(roots)
+
+    rows = [row for row in index.get("artifacts") or [] if matches(row, index, args)]
+    rows.sort(key=lambda row: (label_rank(row), -(row.get("release_mtime") or 0), row.get("payload_preset") or "", row.get("artifact") or ""))
+    if not rows:
+        raise SystemExit("find-artifact: no matching artifact")
+    if args.json:
+        payload = rows if args.all else rows[0]
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.all:
+        for row in rows:
+            print_text(row, index)
+            print()
+    else:
+        print_text(rows[0], index)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

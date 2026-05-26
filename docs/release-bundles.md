@@ -141,6 +141,21 @@ scripts/release-index --release-dir dist/releases/lab-router-pack --write
 Use `scripts/release-index --write` after manual metadata edits to refresh
 `release-index.json`.
 
+For a directory containing multiple release bundles, build a local/offline
+repository index:
+
+```sh
+scripts/index-release-repo dist/releases --write local/release-repo-index.json
+scripts/find-artifact --index local/release-repo-index.json --device glinet-mt1300
+scripts/find-artifact --index local/release-repo-index.json --tool tcpdump --payload-preset survey-core
+scripts/find-artifact --index local/release-repo-index.json --feature reverse-ssh --json
+```
+
+The repository index reuses each bundle's `release-index.json`, records the
+release name and directory for every artifact, deduplicates artifacts by sha256,
+and indexes tuple, device, tool, payload preset, and feature keys. It does not
+download or rebuild anything.
+
 ## Operator Examples
 
 First contact:

@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+"""Index one or more BusierBox release bundles from a source checkout."""
+
+import argparse
+import hashlib
+import json
+import pathlib
+import sys
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+def die(msg, code=1):
+    print(f"index-release-repo: {msg}", file=sys.stderr)
+    raise SystemExit(code)
+
+
+def load_json(path, fallback=None):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        if fallback is not None:
+            return fallback
+        raise
+
+
+def sha256_file(path):
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def unique(items):
+    out = []
+    seen = set()
+    for item in items:
+        if item and item not in seen:
+            out.append(item)
+            seen.add(item)
+    return out
+
+
+def candidate_release_dirs(paths):
+    roots = [pathlib.Path(p) for p in paths] if paths else [ROOT / "dist" / "releases"]
+    out = []
+    for root in roots:
+        if (root / "release.json").is_file():
+            out.append(root)
+            continue
+        if root.is_dir():
+            out.extend(path for path in sorted(root.iterdir()) if (path / "release.json").is_file())
+    return unique([str(path) for path in out])
+
+
+def load_release_index(release_dir):
+    index_path = release_dir / "release-index.json"
+    if index_path.is_file():
+        return load_json(index_path, {})
+    release = load_json(release_dir / "release.json", {})
+    rows = []
+    for rec in release.get("artifacts", []):
+        if rec.get("build_status") == "failed":
+            continue
+        summary = rec.get("tuple_summary") or {}
+        rows.append({
+            "artifact": rec.get("artifact"),
+            "tuple_path": rec.get("tuple_path"),
+            "tuple": rec.get("tuple") or {},
+            "tuple_artifact": rec.get("tuple_artifact"),
+            "payload_preset": rec.get("payload_preset"),
+            "runtime_mode": summary.get("runtime_mode") or rec.get("runtime_mode"),
+            "noresidue_level": summary.get("noresidue_level"),
+            "reverse_access": summary.get("reverse_access") or {},
+            "manifest": rec.get("manifest_path") or rec.get("payload_manifest_path"),
+            "payload_manifest": rec.get("payload_manifest_path"),
+            "config": rec.get("config"),
+            "sha256": rec.get("sha256"),
+            "size": rec.get("size"),
+            "tools": unique((summary.get("busybox_applets") or []) + (summary.get("heavy_tools") or [])),
+            "trailer_support": rec.get("trailer_support"),
+            "compatibility": summary.get("compatibility") or {"schema": 1, "label": "exact", "reasons": []},
+        })
+    return {
+        "schema": 1,
+        "release_name": release.get("release_name"),
+        "git_commit": release.get("git_commit"),
+        "artifacts": rows,
+        "tuples": release.get("layout", {}).get("tuples", {}),
+        "devices": release.get("layout", {}).get("devices", {}),
+    }
+
+
+def artifact_sha(release_dir, row):
+    if row.get("sha256"):
+        return row.get("sha256")
+    rel = row.get("artifact") or row.get("tuple_artifact")
+    if not rel:
+        return ""
+    path = release_dir / rel
+    return sha256_file(path) if path.is_file() else ""
+
+
+def artifact_features(row):
+    features = []
+    features.extend(row.get("tools") or [])
+    if row.get("payload_preset"):
+        features.append(row["payload_preset"])
+    transport = (row.get("reverse_access") or {}).get("transport")
+    if transport:
+        features.append(transport)
+        features.append(f"reverse-{transport}")
+    if row.get("trailer_support"):
+        features.append("trailer")
+    runtime = row.get("runtime_mode")
+    if runtime:
+        features.append(runtime)
+    return unique(features)
+
+
+def build_repo_index(paths):
+    release_dirs = [pathlib.Path(path) for path in candidate_release_dirs(paths)]
+    artifacts = []
+    devices = {}
+    tuples = {}
+    by_sha = {}
+    tools = {}
+    presets = {}
+    features = {}
+
+    for release_dir in release_dirs:
+        index = load_release_index(release_dir)
+        release_name = index.get("release_name") or release_dir.name
+        release_mtime = int((release_dir / "release.json").stat().st_mtime)
+        for alias, meta in (index.get("devices") or {}).items():
+            devices.setdefault(alias, []).append({
+                "release_name": release_name,
+                "release_dir": str(release_dir),
+                "tuple_path": meta.get("tuple_path"),
+                "artifacts": meta.get("artifacts") or [],
+            })
+        for tuple_path, meta in (index.get("tuples") or {}).items():
+            tuples.setdefault(tuple_path, []).append({
+                "release_name": release_name,
+                "release_dir": str(release_dir),
+                "tuple": meta.get("tuple") or {},
+                "artifacts": meta.get("artifacts") or [],
+            })
+        for row in index.get("artifacts") or []:
+            sha = artifact_sha(release_dir, row)
+            artifact = row.get("tuple_artifact") or row.get("artifact") or ""
+            record = dict(row)
+            record.update({
+                "release_name": release_name,
+                "release_dir": str(release_dir),
+                "release_mtime": release_mtime,
+                "artifact": artifact,
+                "artifact_path": str(release_dir / artifact) if artifact else "",
+                "sha256": sha,
+                "features": artifact_features(row),
+            })
+            artifacts.append(record)
+            if sha:
+                entry = by_sha.setdefault(sha, {"sha256": sha, "count": 0, "artifacts": []})
+                entry["count"] += 1
+                entry["artifacts"].append({
+                    "release_name": release_name,
+                    "release_dir": str(release_dir),
+                    "artifact": artifact,
+                })
+            if record.get("payload_preset"):
+                presets.setdefault(record["payload_preset"], []).append(record["artifact_path"])
+            for tool in record.get("tools") or []:
+                tools.setdefault(tool, []).append(record["artifact_path"])
+            for feature in record.get("features") or []:
+                features.setdefault(feature, []).append(record["artifact_path"])
+
+    artifacts.sort(key=lambda r: (r.get("release_mtime") or 0, r.get("release_name") or "", r.get("artifact") or ""), reverse=True)
+    return {
+        "schema": 1,
+        "release_count": len(release_dirs),
+        "artifact_count": len(artifacts),
+        "deduplicated_artifact_count": len(by_sha),
+        "release_dirs": [str(path) for path in release_dirs],
+        "artifacts": artifacts,
+        "dedupe": {key: by_sha[key] for key in sorted(by_sha)},
+        "devices": {key: devices[key] for key in sorted(devices)},
+        "tuples": {key: tuples[key] for key in sorted(tuples)},
+        "payload_presets": {key: unique(presets[key]) for key in sorted(presets)},
+        "tools_present": {key: unique(tools[key]) for key in sorted(tools)},
+        "features": {key: unique(features[key]) for key in sorted(features)},
+    }
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("paths", nargs="*", help="release directory or directory containing release directories")
+    parser.add_argument("--write", help="write index JSON to PATH")
+    args = parser.parse_args(argv)
+
+    doc = build_repo_index(args.paths)
+    text = json.dumps(doc, indent=2, sort_keys=True) + "\n"
+    if args.write:
+        pathlib.Path(args.write).write_text(text, encoding="utf-8")
+        print(f"wrote {args.write}")
+    else:
+        print(text, end="")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

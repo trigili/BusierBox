@@ -113,6 +113,7 @@ smoke-test:
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/build-matrix.sh; else printf '%s\n' "skip: python3 build matrix smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/qemu-matrix.sh; else printf '%s\n' "skip: python3 qemu matrix smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/release-bundles.sh; else printf '%s\n' "skip: python3 release bundle smoke unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/release-repo-index.sh; else printf '%s\n' "skip: python3 release repo index smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/offline-tools.sh; else printf '%s\n' "skip: python3 offline tools smoke unavailable"; fi
 	@tests/smoke/dotfiles-by-app.sh
 	@tests/smoke/zsh-dotfiles.sh
