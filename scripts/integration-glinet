@@ -215,8 +215,10 @@ def capture_busierbox_outputs(host, remote_dir, case_dir):
     commands = [
         ("manifest-json.log", "./busierbox manifest --json"),
         ("doctor-json.log", "./busierbox doctor --json"),
+        ("runtime-config-json.log", "./busierbox runtime-config --json"),
         ("cleanup-ledger-json.log", "./busierbox cleanup-ledger --json"),
         ("clean-dry-run.log", "./busierbox clean --dry-run"),
+        ("clean-dry-run-json.log", "./busierbox clean --dry-run --json"),
         ("rshell-status-json.log", "./busierbox rshell status --json"),
     ]
     for log_name, command in commands:

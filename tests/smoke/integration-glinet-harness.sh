@@ -37,9 +37,13 @@ test -f docs/payload-presets.md
 
 grep -q 'capture_busierbox_outputs' "$script"
 grep -q 'manifest --json' "$script"
+grep -q 'runtime-config --json' "$script"
 grep -q 'cleanup-ledger --json' "$script"
 grep -q 'clean --dry-run' "$script"
+grep -q 'clean --dry-run --json' "$script"
 grep -q 'rshell status --json' "$script"
+grep -q 'runtime-config-json.log' "$script"
+grep -q 'clean-dry-run-json.log' "$script"
 grep -q 'rshell-status-json.log' "$script"
 grep -q 'operator_ssh_port' tests/smoke/rshell-status-json.sh
 grep -q 'remote_forward_port' tests/smoke/rshell-status-json.sh

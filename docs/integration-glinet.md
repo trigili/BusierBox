@@ -86,8 +86,10 @@ captures for:
 
 - `busierbox manifest --json`
 - `busierbox doctor --json`
+- `busierbox runtime-config --json`
 - `busierbox cleanup-ledger --json`
 - `busierbox clean --dry-run`
+- `busierbox clean --dry-run --json`
 - `busierbox rshell status --json`
 
 The final
