@@ -96,10 +96,24 @@ def run_cmd(cmd, *, cwd=ROOT, env=None, timeout=120, log_path=None, check=False)
     return proc
 
 
-def ssh_cmd(host, remote, *, timeout=60, log_path=None, check=False):
-    return run_cmd([
-        "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, remote
-    ], timeout=timeout, log_path=log_path, check=check)
+def ssh_cmd(host, remote, *, timeout=60, log_path=None, check=False, retries=0):
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            return run_cmd([
+                "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, remote
+            ], timeout=timeout, log_path=log_path, check=check)
+        except subprocess.TimeoutExpired as exc:
+            last_exc = exc
+            if log_path is not None:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                with log_path.open("ab") as fh:
+                    fh.write(f"\n[timeout after {timeout}s attempt {attempt + 1}/{retries + 1}]\n".encode())
+            if attempt < retries:
+                time.sleep(1)
+                continue
+            raise
+    raise last_exc
 
 
 def scp_to(host, local, remote, *, timeout=120, log_path=None, check=False):
@@ -227,9 +241,9 @@ def prepare_remote(host, remote_dir, artifact, case_dir):
 def cleanup_remote(host, remote_dir, case_dir, keep_remote):
     quoted = shlex.quote(remote_dir)
     ssh_cmd(host, f"cd {quoted} 2>/dev/null && ./busierbox rshell stop >/dev/null 2>&1 || true",
-            timeout=30, log_path=case_dir / "cleanup.log")
+            timeout=30, log_path=case_dir / "cleanup.log", retries=2)
     if not keep_remote:
-        ssh_cmd(host, f"rm -rf {quoted}", timeout=30, log_path=case_dir / "cleanup.log")
+        ssh_cmd(host, f"rm -rf {quoted}", timeout=30, log_path=case_dir / "cleanup.log", retries=2)
 
 
 def run_remote_case(host, remote_dir, case_dir, command, timeout=120, check=True):
@@ -305,7 +319,7 @@ def capture_busierbox_outputs(host, remote_dir, case_dir):
         quoted = shlex.quote(remote_dir)
         log_path = case_dir / log_name
         ssh_cmd(host, f"cd {quoted}; {command}",
-                timeout=60, log_path=log_path, check=False)
+                timeout=60, log_path=log_path, check=False, retries=2)
         if log_name.endswith("-json.log"):
             validate_captured_json(log_path)
 
