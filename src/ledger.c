@@ -54,3 +54,19 @@ void bb_ledger_record(const char *op, const char *path, const char *scope, const
     fputs("}\n", fp);
     fclose(fp);
 }
+
+int bb_ledger_entry_count(const char *path)
+{
+    FILE *fp = fopen(path, "r");
+    char line[1024];
+    int count = 0;
+
+    if (!fp)
+        return 0;
+    while (fgets(line, sizeof(line), fp)) {
+        if (line[strspn(line, " \t\r\n")] != '\0')
+            count++;
+    }
+    fclose(fp);
+    return count;
+}

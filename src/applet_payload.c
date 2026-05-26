@@ -1910,22 +1910,6 @@ static void print_doctor_rshell_readiness_json(FILE *out)
     fprintf(out, "]}");
 }
 
-static int cleanup_ledger_entry_count(const char *path)
-{
-    FILE *fp = fopen(path, "r");
-    char line[1024];
-    int count = 0;
-
-    if (!fp)
-        return 0;
-    while (fgets(line, sizeof(line), fp)) {
-        if (line[strspn(line, " \t\r\n")] != '\0')
-            count++;
-    }
-    fclose(fp);
-    return count;
-}
-
 static void print_doctor_runtime_config_json(FILE *out)
 {
     fprintf(out, ",\"runtime_config\":{\"effective_config_source\":");
@@ -1943,7 +1927,7 @@ static void print_doctor_cleanup_ledger_json(FILE *out)
     json_string_payload(out, path);
     fprintf(out, ",\"present\":%s,\"entry_count\":%d}",
             bb_path_exists(path) ? "true" : "false",
-            cleanup_ledger_entry_count(path));
+            bb_ledger_entry_count(path));
 }
 
 static void print_doctor_payload_runtime_health_json(FILE *out, int have_payload, const char *payload)
