@@ -14,6 +14,8 @@ grep -q 'BB_DOOM_USER_PATH' scripts/build-payload
 grep -q 'BB_DOOM_WAD_PATH' scripts/build-payload
 grep -q 'BB_DOOM_USER_PATH' configs/busierbox.conf.example
 grep -q 'BB_DOOM_WAD_PATH' configs/busierbox.conf.example
+grep -Fq 'require_static_payload_tool runtime/payload/bin/doom-ascii "doom-ascii"' scripts/buildroot-build-payload
+grep -Fq 'must be statically linked for the BusierBox doom payload' scripts/buildroot-build-payload
 
 scripts/check-buildroot-tool-mappings --tools "nmap nmap-ncat openssl fd zoxide psmisc mtd-utils ubi-utils i2c-tools spi-tools mmc-utils e2fsprogs parted gdb gef-pwndbg radare2 rizin gcore tshark doom" >/dev/null
 scripts/check-buildroot-tool-mappings --tools doom | grep -q 'BR2_PACKAGE_BUSIERBOX_DOOM_ASCII'

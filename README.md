@@ -285,7 +285,7 @@ Optional runtimes:   doom
 
 Some provider names differ from staged command names. For example, selecting `ripgrep` stages `rg`, `usbutils` stages `lsusb`, and `pciutils` stages `lspci`. This is intentional: requested provider intent and staged dispatch commands are tracked separately. If Buildroot drops a package due to dependencies or the binary cannot be found after the build, the tool is listed as missing with a reason and is not dispatchable.
 
-For target builds, selecting `doom` builds the static BusierBox `doom-ascii` provider through Buildroot. Set `BB_DOOM_WAD_PATH` to a local legally usable `.wad`; BusierBox stages that data file and does not download or bundle game data by default.
+For target builds, selecting `doom` builds the static BusierBox `doom-ascii` provider through Buildroot. Set `BB_DOOM_WAD_PATH` to a local legally usable `.wad`; BusierBox stages that data file and does not download or bundle game data by default. Target packaging fails visibly if the staged `doom-ascii` engine is not static.
 
 Artifact inspection and verification:
 

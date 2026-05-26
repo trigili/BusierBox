@@ -253,6 +253,22 @@ check_bin_arch_warn() {
     fi
 }
 
+require_static_payload_tool() {
+    _bin=$1
+    _name=$2
+    if ! command -v file >/dev/null 2>&1; then
+        printf '%s\n' "buildroot-build-payload: WARNING: cannot verify $_name static linkage; 'file' is unavailable" >&2
+        return 0
+    fi
+    _fout=$(file "$_bin" 2>/dev/null || true)
+    case "$_fout" in
+        *ELF*statically\ linked*|*ELF*static-pie\ linked*) return 0 ;;
+        *ELF*)
+            die "$_name must be statically linked for the BusierBox doom payload; got: $_fout"
+            ;;
+    esac
+}
+
 stage_user_binary() {
     _tool=$1
     _src=$2
@@ -757,6 +773,7 @@ fi
 if tool_requested doom; then
     stage_doom_wad
     if stage_first_found_as doom doom-ascii usr/bin/doom bin/doom usr/games/doom; then
+        require_static_payload_tool runtime/payload/bin/doom-ascii "doom-ascii"
         if [ -f "$out_dir/target/usr/share/busierbox/doom/.default.cfg" ]; then
             mkdir -p runtime/payload/share/doom
             cp "$out_dir/target/usr/share/busierbox/doom/.default.cfg" runtime/payload/share/doom/.default.cfg
