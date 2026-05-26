@@ -17,6 +17,8 @@ import hashlib
 import json
 import os
 import select
+import shlex
+import shutil
 import signal
 import socket
 import ssl
@@ -422,6 +424,52 @@ def shquote(value):
     if all(ch.isalnum() or ch in "._-/:=" for ch in text):
         return text
     return "'" + text.replace("'", "'\\''") + "'"
+
+
+def pager_command():
+    configured = os.environ.get("PAGER", "").strip()
+    candidates = []
+    if configured:
+        try:
+            candidates.append(shlex.split(configured))
+        except ValueError:
+            candidates.append([configured])
+    candidates.extend((["less", "-R"], ["more"]))
+    for cmd in candidates:
+        if not cmd:
+            continue
+        exe = cmd[0]
+        if "/" in exe:
+            if os.access(exe, os.X_OK):
+                return cmd
+            continue
+        if shutil.which(exe):
+            return cmd
+    return None
+
+
+def viewable_path(path):
+    candidate = Path(str(path or "")).expanduser()
+    if candidate.is_dir():
+        for name in ("session.json", "events.jsonl"):
+            child = candidate / name
+            if child.is_file():
+                return child
+        return None
+    if candidate.is_file():
+        return candidate
+    return None
+
+
+def open_path_in_pager(path):
+    target = viewable_path(path)
+    if not target:
+        return f"no viewable local file: {path}"
+    cmd = pager_command()
+    if not cmd:
+        return f"no pager found for: {target}"
+    subprocess.run(cmd + [str(target)], check=False)
+    return f"viewed {target}"
 
 
 def pid_alive(pid):
@@ -2035,6 +2083,7 @@ def run_line_tui(cfg):
         print("  6 stage file")
         print("  7 list staged")
         print("  8 unstage file")
+        print("  9 open local path in pager")
         print("  c show generated commands")
         print("  r refresh")
         print("  ? help")
@@ -2060,11 +2109,15 @@ def run_line_tui(cfg):
             name = input("target request name> ").strip()
             if name:
                 print("unstaged" if unstage_file(cfg, name) else "not staged")
+        elif choice == "9" or choice == "v":
+            path = input("local path> ").strip()
+            if path:
+                print(open_path_in_pager(path))
         elif choice == "c":
             for cmd in generated_target_commands(cfg):
                 print(cmd)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage, 8/d unstage, c commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage, 8/d unstage, 9/v view, c commands, r refresh, q quit.")
 
 
 def run_curses_tui(cfg):
@@ -2085,6 +2138,32 @@ def run_curses_tui(cfg):
         for idx, line in enumerate(lines[:max(0, height - 1)], 1):
             safe_add(stdscr, row + idx, col, line[:width - 1])
 
+    def selected_view_path(pane, selected, snap, services, staged_names, release, release_artifacts, release_devices, release_tuples):
+        if pane == 0 and services:
+            row = services[min(selected, len(services) - 1)]
+            return row.get("session_log") or row.get("process_log") or ""
+        if pane == 1 and staged_names:
+            rec = snap["staged"][staged_names[min(selected, len(staged_names) - 1)]]
+            return rec.get("source_path", "")
+        if pane == 2 and snap["uploads"]:
+            rec = snap["uploads"][min(selected, len(snap["uploads"]) - 1)]
+            return rec.get("_metadata_path") or rec.get("stored_path") or ""
+        if pane == 3 and snap["sessions"]:
+            rec = snap["sessions"][min(selected, len(snap["sessions"]) - 1)]
+            return rec.get("path", "")
+        if pane == 4:
+            return str(Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "events.jsonl")
+        if pane == 5:
+            return ""
+        if pane == 6 and release_artifacts:
+            rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
+            return rec.get("path", "")
+        if pane == 7:
+            combined = [{"path": release.get("release_index", "")}] + release_devices + release_tuples
+            rec = combined[min(selected, len(combined) - 1)] if combined else {}
+            return rec.get("path") or rec.get("release_index") or release.get("release_json", "")
+        return ""
+
     def draw(stdscr):
         curses.curs_set(0)
         stdscr.keypad(True)
@@ -2095,27 +2174,29 @@ def run_curses_tui(cfg):
             services = [row["status_row"] for row in snap["services"].values()]
             staged_names = sorted(snap["staged"])
             upload_lines = [
-                f"{m.get('filename', '')} {m.get('size', '')}B {str(m.get('sha256', ''))[:8]} {m.get('remote_addr', '')}"
-                for m in snap["uploads"]
+                f"{'>' if pane == 2 and idx == selected else ' '} {m.get('filename', '')} {m.get('size', '')}B {str(m.get('sha256', ''))[:8]} {m.get('remote_addr', '')}"
+                for idx, m in enumerate(snap["uploads"])
             ] or ["none"]
             session_lines = [
-                f"{s.get('service', '')} {Path(s.get('path', '')).name} exit={s.get('exit_reason', '') or '-'}"
-                for s in snap["sessions"]
+                f"{'>' if pane == 3 and idx == selected else ' '} {s.get('service', '')} {Path(s.get('path', '')).name} exit={s.get('exit_reason', '') or '-'}"
+                for idx, s in enumerate(snap["sessions"])
             ] or ["none"]
             release = snap.get("release") or {}
             release_artifacts = release.get("artifacts") or []
             release_devices = release.get("devices") or []
             release_tuples = release.get("tuples") or []
             release_lines = [
-                f"{a.get('name', '')} {a.get('payload_preset', '')} {a.get('tuple_path', '')}"
-                for a in release_artifacts[:10]
+                f"{'>' if pane == 6 and idx == selected else ' '} {a.get('name', '')} {a.get('payload_preset', '')} {a.get('tuple_path', '')}"
+                for idx, a in enumerate(release_artifacts[:10])
             ] or ["none"]
             device_tuple_lines = [
-                f"dev {d.get('name', '')} -> {d.get('tuple_path', '')}"
-                for d in release_devices[:5]
+                f"{'>' if pane == 7 and selected == 0 else ' '} index {Path(release.get('release_index', '')).name if release.get('release_index') else '-'}"
             ] + [
-                f"tuple {t.get('path', '')}"
-                for t in release_tuples[:5]
+                f"{'>' if pane == 7 and idx == selected else ' '} dev {d.get('name', '')} -> {d.get('tuple_path', '')}"
+                for idx, d in enumerate(release_devices[:5], 1)
+            ] + [
+                f"{'>' if pane == 7 and idx == selected else ' '} tuple {t.get('path', '')}"
+                for idx, t in enumerate(release_tuples[:5], 1 + len(release_devices[:5]))
             ]
             device_tuple_lines = device_tuple_lines or ["none"]
             event_lines = [
@@ -2156,6 +2237,27 @@ def run_curses_tui(cfg):
                     f"sha256: {rec.get('sha256', '')}",
                     f"staged: {rec.get('staged_at', '')}",
                     render_fetch_command(name, cfg, host=snap["selected_local_ip"]),
+                    "v opens source in pager",
+                ]
+            elif pane == 2 and snap["uploads"]:
+                rec = snap["uploads"][min(selected, len(snap["uploads"]) - 1)]
+                detail_lines = [
+                    f"upload: {rec.get('filename', '')}",
+                    f"source: {rec.get('source_path', '')}",
+                    f"stored: {rec.get('stored_path', '')}",
+                    f"metadata: {rec.get('_metadata_path', '')}",
+                    f"remote: {rec.get('remote_addr', '')}",
+                    "v opens metadata in pager",
+                ]
+            elif pane == 3 and snap["sessions"]:
+                rec = snap["sessions"][min(selected, len(snap["sessions"]) - 1)]
+                detail_lines = [
+                    f"session: {rec.get('session_id', Path(rec.get('path', '')).name)}",
+                    f"service: {rec.get('service', '')}",
+                    f"path: {rec.get('path', '')}",
+                    f"state: {rec.get('state', '')}",
+                    f"exit: {rec.get('exit_reason', '') or '-'}",
+                    "v opens session metadata in pager",
                 ]
             elif pane == 6 and release_artifacts:
                 rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
@@ -2167,6 +2269,7 @@ def run_curses_tui(cfg):
                     f"payload: {rec.get('payload_preset', '')}",
                     f"sha256: {rec.get('sha256', '')}",
                     "enter/s stages for fetch",
+                    "v opens artifact in pager",
                 ]
             elif pane == 7:
                 detail_lines = [
@@ -2174,6 +2277,7 @@ def run_curses_tui(cfg):
                     f"index: {release.get('release_index', '')}",
                     f"devices: {len(release_devices)}",
                     f"tuples: {len(release_tuples)}",
+                    "v opens release index in pager",
                 ]
             else:
                 detail_lines = [
@@ -2185,7 +2289,7 @@ def run_curses_tui(cfg):
             stdscr.erase()
             height, width = stdscr.getmaxyx()
             active = sum(1 for row in services if row["actual"] == "listening")
-            safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} | ip={snap['selected_local_ip']} | {utc_now()} | tab panes j/k move enter start/stop s stage d unstage c commands ? help q quit", curses.A_REVERSE)
+            safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} | ip={snap['selected_local_ip']} | {utc_now()} | tab panes j/k move enter start/stop s stage d unstage v view c commands ? help q quit", curses.A_REVERSE)
             left_w = max(34, width // 3)
             right_w = max(20, width - left_w - 1)
             lower_y = max(12, height // 2)
@@ -2258,13 +2362,37 @@ def run_curses_tui(cfg):
                 name = staged_names[min(selected, len(staged_names) - 1)] if pane == 1 else ""
                 if name:
                     unstage_file(cfg, name)
+            elif key in (ord("v"), ord("V")):
+                path = selected_view_path(pane, selected, snap, services, staged_names, release, release_artifacts, release_devices, release_tuples)
+                message = ""
+                if path:
+                    try:
+                        curses.def_prog_mode()
+                        curses.endwin()
+                        message = open_path_in_pager(path)
+                    finally:
+                        curses.reset_prog_mode()
+                        stdscr.keypad(True)
+                        curses.curs_set(0)
+                else:
+                    message = "no local path for selected item"
+                safe_add(stdscr, height - 2, 0, message)
+                stdscr.getch()
             elif key in (ord("?"),):
-                safe_add(stdscr, height - 2, 0, "Help: arrows/jk move, Tab panes, Enter start/stop, s stage, d unstage, c commands, r refresh, q quit")
+                safe_add(stdscr, height - 2, 0, "Help: arrows/jk move, Tab panes, Enter start/stop, s stage, d unstage, v view, c commands, r refresh, q quit")
                 stdscr.getch()
             elif key in (ord("c"), ord("C")):
                 safe_add(stdscr, height - 2, 0, "Commands are shown in the lower-right pane. Press any key.")
                 stdscr.getch()
-            max_items = len(services) if pane == 0 else len(staged_names) if pane == 1 else len(release_artifacts) if pane == 6 else 1
+            max_items = (
+                len(services) if pane == 0 else
+                len(staged_names) if pane == 1 else
+                len(snap["uploads"]) if pane == 2 else
+                len(snap["sessions"]) if pane == 3 else
+                len(release_artifacts) if pane == 6 else
+                (1 + len(release_devices[:5]) + len(release_tuples[:5])) if pane == 7 else
+                1
+            )
             selected = min(max(0, selected), max(0, max_items - 1))
         return 0
 

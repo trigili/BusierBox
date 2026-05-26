@@ -94,6 +94,10 @@ def main():
     if "sys.stdin.isatty()" not in src or "--no-stdin" not in src or "--log-only" not in src:
         print("busierbox-server: stdin EOF/log-only handling not found", file=sys.stderr)
         return 1
+    for word in ("open_path_in_pager", "pager_command", 'ord("v")', "v opens"):
+        if word not in src:
+            print(f"busierbox-server: workbench pager inspection missing: {word}", file=sys.stderr)
+            return 1
     for word in ("tty.setraw", "tcsetattr", "SSLWantReadError", "SSLWantWriteError",
                  "bytearray", "--one-shot", "listener remains open", 'reason = "active"',
                  "TLSVersion.TLSv1_2"):
