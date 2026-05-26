@@ -295,44 +295,6 @@ const char *const *bb_payload_heavy_tools(void)
     return heavy_tools;
 }
 
-static int operator_reverse_ssh_possible(void)
-{
-    return !strcmp(BB_RSHELL_TRANSPORT, "ssh");
-}
-
-void bb_print_autoexec_config(void)
-{
-    printf("zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
-    printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
-    printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
-    printf("runtime_allow_fallback_root=%s\n", BB_RUNTIME_ALLOW_FALLBACK_ROOT);
-    printf("runtime_fallback_root=%s\n", BB_RUNTIME_FALLBACK_ROOT);
-    printf("zero_arg_log_mode=%s\n", BB_ZERO_ARG_LOG_MODE);
-    printf("zero_arg_custom_command_set=%s\n", BB_ZERO_ARG_CUSTOM_COMMAND[0] ? "yes" : "no");
-    printf("rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
-    printf("rshell_encryption=%s\n", BB_RSHELL_ENCRYPTION);
-    printf("rshell_allow_plaintext=%s\n", BB_RSHELL_ALLOW_PLAINTEXT);
-    printf("rshell_authkeys_mode=%s\n", BB_RSHELL_AUTHKEYS_MODE);
-    printf("rshell_run_mode=%s\n", BB_RSHELL_RUN_MODE);
-    printf("rshell_generate_hostkey_if_missing=%s\n", BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING);
-    printf("rshell_socat_port=%s\n", BB_RSHELL_SOCAT_PORT);
-    printf("rshell_shell_provider=%s\n", BB_RSHELL_SHELL_PROVIDER);
-    printf("rshell_retry_count=%s\n", BB_RSHELL_RETRY_COUNT);
-    printf("rshell_retry_interval_sec=%s\n", BB_RSHELL_RETRY_INTERVAL_SEC);
-    printf("rshell_retry_jitter_pct=%s\n", BB_RSHELL_RETRY_JITTER_PCT);
-    printf("rshell_retry_backoff=%s\n", BB_RSHELL_RETRY_BACKOFF);
-    printf("rshell_retry_max_interval_sec=%s\n", BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
-    printf("builtin_tls_enabled=%s\n", BB_BUILTIN_TLS_ENABLE);
-    printf("rshell_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
-    printf("rshell_target_dropbear_port=%s\n", BB_OPERATOR_TARGET_DROPBEAR_PORT);
-    printf("autorun_guard_enabled=%s\n", BB_AUTORUN_GUARD_ENABLE);
-    printf("autorun_guard_path=%s\n", BB_AUTORUN_GUARD_PATH);
-    printf("autorun_reentry_action=%s\n", BB_AUTORUN_REENTRY_ACTION);
-    printf("autorun_stale_lock_policy=%s\n", BB_AUTORUN_STALE_LOCK_POLICY);
-    printf("operator_reverse_ssh_possible=%s\n", operator_reverse_ssh_possible() ? "yes" : "no");
-    printf("operator_reverse_ssh_catch_hint=ssh -p %s root@127.0.0.1\n", BB_OPERATOR_REMOTE_FORWARD_PORT);
-}
-
 static const char *saved_argv0;
 
 void bb_set_argv0(const char *argv0)

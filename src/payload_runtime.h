@@ -20,7 +20,6 @@ struct embedded_payload {
 
 const char *const *bb_payload_busybox_tools(void);
 const char *const *bb_payload_heavy_tools(void);
-void bb_print_autoexec_config(void);
 int bb_get_embedded_payload(struct embedded_payload *ep);
 int bb_verify_embedded_hash(const struct embedded_payload *ep);
 int bb_payload_valid(const char *payload);
