@@ -59,6 +59,21 @@ for key in ["environment_override_count", "cli_override_count"]:
         raise SystemExit(f"doctor runtime config missing {key}")
 if "path" not in data["cleanup_ledger"] or "entry_count" not in data["cleanup_ledger"]:
     raise SystemExit("doctor cleanup ledger state missing")
+environment = data["environment"]
+for key in ["path_has_duplicates", "home_set", "shell_set"]:
+    if not isinstance(environment.get(key), bool):
+        raise SystemExit(f"doctor environment {key} must be boolean")
+if "payload_bin_path_count" in environment and not isinstance(environment["payload_bin_path_count"], int):
+    raise SystemExit("doctor environment payload_bin_path_count must be integer")
+host = data["host"]
+if not isinstance(host.get("mem_available_kb"), int):
+    raise SystemExit("doctor host memory must be integer")
+if not isinstance(host.get("devpts_available"), bool):
+    raise SystemExit("doctor devpts status must be boolean")
+if not isinstance(host.get("default_route_present"), bool):
+    raise SystemExit("doctor default route status must be boolean")
+if host.get("ptrace_probe") not in {"basic-ok", "denied", "unavailable", "unknown"}:
+    raise SystemExit(f"doctor ptrace status unexpected: {host.get('ptrace_probe')!r}")
 PY
 
 (
@@ -106,6 +121,11 @@ if not data["cleanup_ledger"].get("present"):
     raise SystemExit("doctor did not report cleanup ledger presence after extract")
 if data["cleanup_ledger"].get("entry_count", 0) < 1:
     raise SystemExit("doctor cleanup ledger entry count did not increase")
+environment = data["environment"]
+if "payload_bin_path_count" not in environment:
+    raise SystemExit("doctor did not report payload PATH count after extract")
+if not isinstance(environment["payload_bin_path_count"], int):
+    raise SystemExit("doctor payload PATH count after extract must be integer")
 PY
 )
 
