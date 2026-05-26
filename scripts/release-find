@@ -1,0 +1,60 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    cat <<'EOF'
+usage: scripts/release-find [--release-dir DIR] FIND_ARGS...
+
+Run a release bundle's scripts/release-find helper from the source checkout.
+When --release-dir is omitted, the newest dist/releases/* directory is used.
+EOF
+}
+
+latest_release_dir() {
+    set -- dist/releases/*
+    [ -d "${1:-}" ] || return 1
+    ls -dt dist/releases/* 2>/dev/null | sed -n '1p'
+}
+
+release_dir=
+args=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --release-dir)
+            [ $# -ge 2 ] || {
+                printf '%s\n' "release-find: --release-dir requires DIR" >&2
+                exit 2
+            }
+            release_dir=$2
+            shift 2
+            ;;
+        --release-dir=*)
+            release_dir=${1#--release-dir=}
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            args="$args $(printf '%s' "$1" | sed "s/'/'\\\\''/g; s/^/'/; s/$/'/")"
+            shift
+            ;;
+    esac
+done
+
+if [ -z "$release_dir" ]; then
+    release_dir=$(latest_release_dir) || {
+        printf '%s\n' "release-find: no release dir found; pass --release-dir DIR" >&2
+        exit 2
+    }
+fi
+
+helper=$release_dir/scripts/release-find
+[ -x "$helper" ] || {
+    printf '%s\n' "release-find: missing executable helper $helper" >&2
+    exit 1
+}
+
+# shellcheck disable=SC2086
+eval "exec \"\$helper\" $args"

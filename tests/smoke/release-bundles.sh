@@ -291,7 +291,10 @@ if "missing_tools=" in text:
 PY
 
 "$work/release/scripts/release-index" >/dev/null
+scripts/release-index --release-dir "$work/release" >/dev/null
 "$work/release/scripts/release-find" --arch native --libc host --kernel host --payload-preset default >"$work/release-find.out"
+scripts/release-find --release-dir "$work/release" --arch native --libc host --kernel host --payload-preset default >"$work/release-find.wrapper.out"
+cmp "$work/release-find.out" "$work/release-find.wrapper.out"
 grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/busierbox-native-default-full$' "$work/release-find.out"
 "$work/release/scripts/release-find" --device native --json >"$work/release-find.json"
 python3 -m json.tool "$work/release-find.json" >/dev/null
@@ -309,6 +312,7 @@ if sorted(index.get("tuples", {})) != ["by-tuple/native/host/host/host"]:
     raise SystemExit("release-index tuple keys mismatch")
 PY
 "$work/release/scripts/release-self-test" >/dev/null
+scripts/release-self-test --release-dir "$work/release" >/dev/null
 
 scripts/make-release \
     --name failure-smoke \

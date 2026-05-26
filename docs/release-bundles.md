@@ -118,6 +118,14 @@ scripts/release-find --tool tcpdump
 scripts/release-find --payload-preset survey-core
 ```
 
+From a source checkout, the top-level helpers can target a bundle explicitly:
+
+```sh
+scripts/release-self-test --release-dir dist/releases/lab-router-pack
+scripts/release-find --release-dir dist/releases/lab-router-pack --payload-preset survey-core
+scripts/release-index --release-dir dist/releases/lab-router-pack --write
+```
+
 Use `scripts/release-index --write` after manual metadata edits to refresh
 `release-index.json`.
 
