@@ -194,6 +194,11 @@ fi
 needs_cxx=0
 for tool in $BB_HEAVY_TOOLS; do
     is_pre_excluded "$tool" && continue
+    if [ "$tool" = "gdbserver" ]; then
+        case "$BB_GDBSERVER_PROVIDER" in
+            user|local-dropin|overlay|none) continue ;;
+        esac
+    fi
     case "$tool" in
         gdbserver|mosh-client|nmap|nmap-ncat|ripgrep) needs_cxx=1 ;;
     esac

@@ -115,4 +115,16 @@ BUSIERBOX_CONFIG="$work/bad-buildroot.conf" scripts/gen-buildroot-defconfig glin
 grep -q 'gdbserver pre-excluded' "$work/defconfig.err"
 grep -q 'Buildroot GDB BFD fails' "$work/defconfig.err"
 
+cat >"$work/local-dropin-defconfig.conf" <<'EOF'
+BB_HEAVY_TOOLS="gdbserver"
+BB_GDBSERVER_PROVIDER="local-dropin"
+BB_TARGET_ARCH="mipsel"
+BB_TARGET_LIBC="uclibc"
+BB_STATIC_POLICY="static-preferred"
+EOF
+BUSIERBOX_CONFIG="$work/local-dropin-defconfig.conf" scripts/gen-buildroot-defconfig mipsel-linux-2.6-uclibc-legacy >/dev/null
+grep -q '^# gdbserver: provider=local-dropin (not Buildroot), no BR2 symbol emitted$' buildroot/generated-configs/mipsel-linux-2.6-uclibc_defconfig
+grep -q '^BR2_TOOLCHAIN_BUILDROOT_CXX=n$' buildroot/generated-configs/mipsel-linux-2.6-uclibc_defconfig
+! grep -q '^BR2_PACKAGE_GDB' buildroot/generated-configs/mipsel-linux-2.6-uclibc_defconfig
+
 printf '%s\n' "gdbserver-workflow ok"
