@@ -68,6 +68,18 @@ data = json.load(open(sys.argv[1], encoding="utf-8"))
 assert data["installed"] is True
 assert any(item["method"] == "rc-local" and item["action"] == "status-only" for item in data["installations"])
 PY
+"$bb" cleanup-ledger --json | python3 -m json.tool >"$tmp/ledger.json"
+python3 - <<'PY' "$tmp/ledger.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+details = "\n".join(item.get("detail", "") for item in data.get("entries", []))
+for needle in [
+    "recovery binary method=rc-local action=status-only name=bbx_recovery",
+    "recovery marked hook method=rc-local action=status-only name=bbx_recovery",
+]:
+    if needle not in details:
+        raise SystemExit(f"missing recovery ledger metadata: {needle}")
+PY
 "$tmp/root/usr/bin/bbx_recovery" persistence status --root "$tmp/root" --name bbx_recovery >"$tmp/copied-status"
 grep -q 'installed_method=rc-local' "$tmp/copied-status"
 "$tmp/root/usr/bin/bbx_recovery" recovery status --root "$tmp/root" --name bbx_recovery >"$tmp/copied-recovery-status"
@@ -104,6 +116,14 @@ grep -q 'action=script' "$tmp/root/etc/rc.local"
 grep -q '/usr/bin/bbx_recovery.recovery.sh' "$tmp/root/etc/rc.local"
 "$bb" persistence status --root "$tmp/root" --name bbx_recovery >"$tmp/script-status"
 grep -q 'installed_action=script' "$tmp/script-status"
+"$bb" cleanup-ledger --json | python3 -m json.tool >"$tmp/script-ledger.json"
+python3 - <<'PY' "$tmp/script-ledger.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+details = "\n".join(item.get("detail", "") for item in data.get("entries", []))
+if "recovery script method=rc-local action=script name=bbx_recovery source=" not in details:
+    raise SystemExit("missing recovery script ledger metadata")
+PY
 "$bb" persistence uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 test ! -e "$tmp/root/usr/bin/bbx_recovery.recovery.sh"
 

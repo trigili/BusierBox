@@ -612,13 +612,13 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     chmod(hook, 0755);
     {
         char detail[PATH_MAX * 2];
-        snprintf(detail, sizeof(detail), "recovery binary action=%s", action);
+        snprintf(detail, sizeof(detail), "recovery binary method=%s action=%s name=%s", m->name, action, name);
         bb_ledger_record("write", bin, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
         if (!strcmp(action, "script")) {
-            snprintf(detail, sizeof(detail), "recovery script action=%s source=%s", action, script_file);
+            snprintf(detail, sizeof(detail), "recovery script method=%s action=%s name=%s source=%s", m->name, action, name, script_file);
             bb_ledger_record("write", script_dst, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
         }
-        snprintf(detail, sizeof(detail), "recovery marked hook action=%s command=%s backup=%s", action, generated, backup_status > 0 ? backup : "none");
+        snprintf(detail, sizeof(detail), "recovery marked hook method=%s action=%s name=%s command=%s backup=%s", m->name, action, name, generated, backup_status > 0 ? backup : "none");
         bb_ledger_record("modify", hook, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
     }
     printf("%s: installed method=%s name=%s action=%s\n", applet, method, name, action);
