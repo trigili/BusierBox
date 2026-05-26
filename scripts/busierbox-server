@@ -2471,15 +2471,28 @@ def status_summary_and_warnings(services):
         "listener_pid_count": 0,
     }
     warnings = []
+
+    def warning_context(row):
+        return {
+            "service": row.get("name", ""),
+            "port": row.get("port", 0),
+            "configured": row.get("configured", ""),
+            "actual": row.get("actual", ""),
+            "pid": row.get("pid", ""),
+            "pid_alive": row.get("pid_alive", False),
+            "pid_managed": row.get("pid_managed", False),
+            "ownership_evidence": row.get("ownership_evidence") or [],
+            "listener_pids": row.get("listener_pids") or [],
+            "process_log": row.get("process_log", ""),
+            "session_log": row.get("session_log", ""),
+        }
+
     for row in services:
         if row.get("actual") == "listening":
             summary["listening_count"] += 1
             if row.get("configured") not in ("listening", "starting"):
-                warnings.append({
+                warnings.append({**warning_context(row),
                     "type": "unexpected_listener",
-                    "service": row.get("name", ""),
-                    "port": row.get("port", 0),
-                    "listener_pids": row.get("listener_pids") or [],
                     "message": "actual listener was found but configured state does not say the service is listening",
                     "suggested_action": "inspect the listener PID and run scripts/busierbox-server --stop if it is managed",
                 })
@@ -2487,27 +2500,20 @@ def status_summary_and_warnings(services):
             summary["configured_listening_count"] += 1
         if row.get("configured") == "error" or row.get("error"):
             summary["error_count"] += 1
-            warnings.append({
+            warnings.append({**warning_context(row),
                 "type": "service_error",
-                "service": row.get("name", ""),
-                "port": row.get("port", 0),
                 "message": row.get("error", "service is marked error"),
             })
         if row.get("stale"):
             summary["stale_count"] += 1
-            warnings.append({
+            warnings.append({**warning_context(row),
                 "type": "stale_state",
-                "service": row.get("name", ""),
-                "port": row.get("port", 0),
                 "message": "configured state says listening, but no actual listener was found",
                 "suggested_action": "scripts/busierbox-server --stop",
             })
         if row.get("pid") and row.get("pid_alive") and not row.get("pid_managed"):
-            warnings.append({
+            warnings.append({**warning_context(row),
                 "type": "unmanaged_recorded_pid",
-                "service": row.get("name", ""),
-                "port": row.get("port", 0),
-                "pid": row.get("pid", ""),
                 "message": "recorded PID is alive but does not have matching BusierBox ownership evidence",
                 "suggested_action": "inspect the PID before editing server-state.json or stopping it manually",
             })

@@ -644,7 +644,10 @@ def main():
                 item for item in unexpected_doc.get("warnings", [])
                 if item.get("type") == "unexpected_listener" and item.get("service") == "file-service"
             ]
-            if not unexpected_warnings or not unexpected_warnings[-1].get("listener_pids"):
+            if (not unexpected_warnings or
+                    not unexpected_warnings[-1].get("listener_pids") or
+                    unexpected_warnings[-1].get("configured") != "stopped" or
+                    unexpected_warnings[-1].get("actual") != "listening"):
                 print("--json-status did not expose structured unexpected listener warning", file=sys.stderr)
                 print(unexpected_json.stdout, file=sys.stderr)
                 return 1
@@ -672,7 +675,11 @@ def main():
             item for item in stale_doc.get("warnings", [])
             if item.get("type") == "stale_state" and item.get("service") == "file-service"
         ]
-        if stale_doc.get("summary", {}).get("stale_count", 0) < 1 or not stale_warnings:
+        if (stale_doc.get("summary", {}).get("stale_count", 0) < 1 or
+                not stale_warnings or
+                stale_warnings[-1].get("pid") != 999999 or
+                stale_warnings[-1].get("configured") != "listening" or
+                stale_warnings[-1].get("actual") != "stopped"):
             print("--json-status did not expose structured stale-state warning", file=sys.stderr)
             return 1
         stale_stop = run(
@@ -802,7 +809,9 @@ def main():
         ]
         if (unmanaged_rows["file-service"].get("pid_managed") is not False or
                 unmanaged_rows["file-service"].get("ownership_evidence") or
-                not unmanaged_warnings):
+                not unmanaged_warnings or
+                unmanaged_warnings[-1].get("pid") != os.getpid() or
+                unmanaged_warnings[-1].get("pid_managed") is not False):
             print("--json-status did not expose unmanaged recorded PID warning", file=sys.stderr)
             return 1
         unmanaged_stop = run(
