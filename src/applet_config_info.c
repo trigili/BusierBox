@@ -5,8 +5,8 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "effective_config.h"
 #include "payload_runtime.h"
-#include "runtime_config.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -24,10 +24,6 @@
 #ifndef BB_GDBSERVER_PROVIDER
 #define BB_GDBSERVER_PROVIDER "auto"
 #endif
-
-#define BB_ZERO_ARG_MODE bb_config_get("BB_ZERO_ARG_MODE")
-#define BB_RSHELL_TRANSPORT bb_config_get("BB_RSHELL_TRANSPORT")
-#define BB_OPERATOR_SERVER_HOST bb_config_get("BB_OPERATOR_SERVER_HOST")
 
 static int is_help(int argc, char **argv)
 {

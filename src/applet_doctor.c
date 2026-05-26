@@ -5,9 +5,9 @@
 #include <string.h>
 
 #include "applets.h"
+#include "effective_config.h"
 #include "json_helpers.h"
 #include "payload_runtime.h"
-#include "runtime_config.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -32,11 +32,6 @@
 #define BB_USER_OVERLAY_ROOT "./overlay"
 #endif
 
-#define BB_RUNTIME_MODE bb_config_get("BB_RUNTIME_MODE")
-#define BB_RUNTIME_ROOT bb_config_get("BB_RUNTIME_ROOT")
-#define BB_RUNTIME_ALLOW_FALLBACK_ROOT bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT")
-#define BB_RUNTIME_FALLBACK_ROOT bb_config_get("BB_RUNTIME_FALLBACK_ROOT")
-#define BB_ZERO_ARG_MODE bb_config_get("BB_ZERO_ARG_MODE")
 #define json_string_payload bb_json_string
 
 static int is_help(int argc, char **argv)
