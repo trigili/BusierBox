@@ -59,8 +59,25 @@ if missing:
 for item in checks:
     if item.get("status") not in {"pass", "fail", "skipped"}:
         raise SystemExit(f"reality-test: bad status {item!r}")
-    if "ok" not in item or "detail" not in item:
+    if "ok" not in item or "detail" not in item or "skipped" not in item or "type" not in item:
         raise SystemExit(f"reality-test: incomplete check {item!r}")
+    if item["type"] not in {"capability", "constraint", "operator"}:
+        raise SystemExit(f"reality-test: bad check type {item!r}")
+    if item["type"] == "constraint":
+        if "detected" not in item:
+            raise SystemExit(f"reality-test: constraint check missing detected field {item!r}")
+    elif "available" not in item:
+        raise SystemExit(f"reality-test: capability/operator check missing available field {item!r}")
+if by_name["tmp_noexec"].get("type") != "constraint":
+    raise SystemExit("reality-test: tmp_noexec should be a structured constraint")
+if by_name["rootfs_read_only"].get("type") != "constraint":
+    raise SystemExit("reality-test: rootfs_read_only should be a structured constraint")
+if by_name["procfs_partial"].get("type") != "constraint":
+    raise SystemExit("reality-test: procfs_partial should be a structured constraint")
+if by_name["spawn_sh"].get("type") != "capability" or "available" not in by_name["spawn_sh"]:
+    raise SystemExit("reality-test: spawn_sh should expose structured availability")
+if by_name["upload_operator"].get("type") != "operator" or "available" not in by_name["upload_operator"]:
+    raise SystemExit("reality-test: upload_operator should expose structured operator availability")
 summary = doc.get("summary", {})
 if summary.get("pass", 0) + summary.get("fail", 0) + summary.get("skipped", 0) != len(checks):
     raise SystemExit("reality-test: summary counts do not match checks")

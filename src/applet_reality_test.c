@@ -517,6 +517,27 @@ static void run_checks(struct check_result checks[], size_t n, const struct real
     }
 }
 
+static int is_constraint_check(const char *name)
+{
+    return !strcmp(name, "tmp_noexec") ||
+        !strcmp(name, "rootfs_read_only") ||
+        !strcmp(name, "procfs_partial");
+}
+
+static int is_operator_check(const char *name)
+{
+    return !strcmp(name, "connect_operator") ||
+        !strcmp(name, "upload_operator") ||
+        !strcmp(name, "fetch_operator");
+}
+
+static int constraint_detected(const struct check_result *r)
+{
+    if (!strcmp(r->name, "procfs_partial"))
+        return !r->skipped && !r->ok;
+    return !r->skipped && r->ok;
+}
+
 static void print_json(struct check_result checks[], size_t n)
 {
     size_t i;
@@ -533,7 +554,14 @@ static void print_json(struct check_result checks[], size_t n)
         bb_json_string(stdout, checks[i].name);
         printf(",\"status\":");
         bb_json_string(stdout, checks[i].skipped ? "skipped" : (checks[i].ok ? "pass" : "fail"));
-        printf(",\"ok\":%s,\"detail\":", (!checks[i].skipped && checks[i].ok) ? "true" : "false");
+        printf(",\"type\":");
+        bb_json_string(stdout, is_constraint_check(checks[i].name) ? "constraint" : (is_operator_check(checks[i].name) ? "operator" : "capability"));
+        printf(",\"ok\":%s,\"skipped\":%s", (!checks[i].skipped && checks[i].ok) ? "true" : "false", checks[i].skipped ? "true" : "false");
+        if (is_constraint_check(checks[i].name))
+            printf(",\"detected\":%s", constraint_detected(&checks[i]) ? "true" : "false");
+        else
+            printf(",\"available\":%s", (!checks[i].skipped && checks[i].ok) ? "true" : "false");
+        printf(",\"detail\":");
         bb_json_string(stdout, checks[i].detail);
         printf("}");
         if (checks[i].skipped)

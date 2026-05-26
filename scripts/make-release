@@ -796,18 +796,20 @@ def write_release_helpers(script_dir):
                     continue
                 name = check.get("name")
                 ok = boolish(check.get("ok")) or check.get("status") == "pass"
+                available = boolish(check.get("available")) if "available" in check else ok
+                detected = boolish(check.get("detected")) if "detected" in check else ok
                 detail = str(check.get("detail") or "").lower()
                 if name == "tmp_noexec":
-                    facts["tmp_noexec"] = ok
+                    facts["tmp_noexec"] = detected
                 elif name == "rootfs_read_only":
-                    facts["rootfs_read_only"] = ok
-                elif name == "runtime_root_executable" and not ok:
+                    facts["rootfs_read_only"] = detected
+                elif name == "runtime_root_executable" and not available:
                     facts["runtime_exec_blocked"] = True
-                elif name == "extract_core_payload" and not ok:
+                elif name == "extract_core_payload" and not available:
                     facts["payload_possible"] = False
-                elif name == "procfs_partial" and not ok:
-                    facts["procfs_partial"] = True
-                elif name == "temporary_file" and not ok:
+                elif name == "procfs_partial":
+                    facts["procfs_partial"] = detected if "detected" in check else not ok
+                elif name == "temporary_file" and not available:
                     facts["runtime_write_blocked"] = True
                 if "low storage" in detail:
                     facts["low_storage"] = True
