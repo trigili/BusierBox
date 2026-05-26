@@ -62,6 +62,41 @@ for section, field in required:
     if section not in manifest or field not in manifest[section]:
         raise SystemExit(f"manifest-metadata: missing {section}.{field}")
 
+for section in ("compiled_config", "effective_config", "trailer_override"):
+    if section not in manifest:
+        raise SystemExit(f"manifest-metadata: missing {section}")
+if not isinstance(manifest["compiled_config"], dict):
+    raise SystemExit("manifest-metadata: compiled_config must be an object")
+if not isinstance(manifest["effective_config"], dict):
+    raise SystemExit("manifest-metadata: effective_config must be an object")
+if not isinstance(manifest["trailer_override"], dict):
+    raise SystemExit("manifest-metadata: trailer_override must be an object")
+
+trailer = manifest["trailer_override"]
+for key in ("present", "valid", "encoding", "override_count", "status"):
+    if key not in trailer:
+        raise SystemExit(f"manifest-metadata: missing trailer_override.{key}")
+if trailer["present"] is not False:
+    raise SystemExit("manifest-metadata: unexpected trailer in baseline artifact")
+if trailer["valid"] is not False:
+    raise SystemExit("manifest-metadata: absent trailer should not be valid")
+if trailer["override_count"] != 0:
+    raise SystemExit("manifest-metadata: absent trailer should have zero overrides")
+
+for key in (
+    "BB_RUNTIME_MODE",
+    "BB_RUNTIME_ROOT",
+    "BB_ZERO_ARG_MODE",
+    "BB_RSHELL_TRANSPORT",
+    "BB_OPERATOR_SERVER_HOST",
+):
+    if key not in manifest["compiled_config"]:
+        raise SystemExit(f"manifest-metadata: compiled_config missing {key}")
+    if key not in manifest["effective_config"]:
+        raise SystemExit(f"manifest-metadata: effective_config missing {key}")
+    if manifest["compiled_config"][key] != manifest["effective_config"][key]:
+        raise SystemExit(f"manifest-metadata: baseline effective config differs for {key}")
+
 checks = [
     (manifest["busierbox"]["artifact_tier"], config.get("artifact_tier"), "artifact_tier"),
     (manifest["busierbox"]["payload_version"], config.get("payload_version"), "payload_version"),
