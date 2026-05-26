@@ -88,6 +88,7 @@ smoke-test:
 	@tests/smoke/artifact-tiers.sh
 	@tests/smoke/native-help.sh dist/busierbox-native-full
 	@tests/smoke/target-resolution.sh
+	@tests/smoke/tuple-consistency.sh
 	@tests/smoke/busybox-selection.sh
 	@tests/smoke/payload-reality.sh
 	@tests/smoke/menuconfig-autoexec.sh

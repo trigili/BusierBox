@@ -213,12 +213,19 @@ if not native_tuple:
     raise SystemExit("missing native tuple layout metadata")
 if native_tuple.get("manifest") != "by-tuple/native/host/host/host/MANIFEST.json":
     raise SystemExit("native tuple manifest metadata mismatch")
+tuple_meta = native_tuple.get("tuple") or {}
+if tuple_meta.get("discriminator") != "host":
+    raise SystemExit("native tuple discriminator mismatch")
+if tuple_meta.get("path_components", {}).get("kernel_floor") != "host":
+    raise SystemExit("native tuple path component mismatch")
 devices = layout.get("devices", {})
 if devices.get("native", {}).get("tuple_path") != "by-tuple/native/host/host/host":
     raise SystemExit("native device alias mismatch")
 artifact = data["artifacts"][0]
 if artifact.get("tuple_path") != "by-tuple/native/host/host/host":
     raise SystemExit("artifact tuple path missing")
+if artifact.get("tuple", {}).get("path") != artifact.get("tuple_path"):
+    raise SystemExit("artifact tuple path drift")
 if artifact.get("tuple_artifact") != "by-tuple/native/host/host/host/bin/busierbox-native-default-full":
     raise SystemExit("artifact tuple artifact missing")
 summary = artifact.get("tuple_summary") or {}
@@ -288,6 +295,19 @@ PY
 grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/busierbox-native-default-full$' "$work/release-find.out"
 "$work/release/scripts/release-find" --device native --json >"$work/release-find.json"
 python3 -m json.tool "$work/release-find.json" >/dev/null
+python3 - "$work/release/release-index.json" <<'PY'
+import json
+import sys
+
+index = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+row = index["artifacts"][0]
+if row.get("tuple", {}).get("path") != row.get("tuple_path"):
+    raise SystemExit("release-index tuple path drift")
+if row.get("tuple", {}).get("path_components", {}).get("discriminator") != "host":
+    raise SystemExit("release-index tuple components missing")
+if sorted(index.get("tuples", {})) != ["by-tuple/native/host/host/host"]:
+    raise SystemExit("release-index tuple keys mismatch")
+PY
 "$work/release/scripts/release-self-test" >/dev/null
 
 scripts/make-release \

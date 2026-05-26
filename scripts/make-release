@@ -224,8 +224,15 @@ def job_stems(job, resolved_target=None):
     return config_stem, artifact_stem
 
 
+def tuple_value(value, fallback="unknown", lower=False):
+    text = str(value or "").strip()
+    if not text:
+        text = fallback
+    return text.lower() if lower else text
+
+
 def tuple_component(value, fallback="unknown"):
-    return safe_stem(str(value or fallback).replace("/", "-"))
+    return safe_stem(tuple_value(value, fallback=fallback, lower=True).replace("/", "-"))
 
 
 def tuple_discriminator(resolved):
@@ -239,29 +246,56 @@ def tuple_discriminator(resolved):
 
 
 def tuple_metadata(resolved):
-    arch = resolved.get("TARGET_ARCH") or "unknown"
-    libc = resolved.get("TARGET_LIBC") or "unknown"
-    kernel = resolved.get("TARGET_KERNEL_FLOOR") or "unknown"
-    discriminator = tuple_discriminator(resolved)
+    arch = tuple_value(resolved.get("TARGET_ARCH"), lower=True)
+    libc = tuple_value(resolved.get("TARGET_LIBC"), lower=True)
+    kernel = tuple_value(resolved.get("TARGET_KERNEL_FLOOR"), lower=True)
+    cpu = tuple_value(resolved.get("TARGET_CPU"), fallback="")
+    abi = tuple_value(resolved.get("TARGET_ABI"), fallback="")
+    discriminator = tuple_discriminator({"TARGET_CPU": cpu, "TARGET_ABI": abi})
+    components = {
+        "arch": tuple_component(arch),
+        "libc": tuple_component(libc),
+        "kernel_floor": tuple_component(kernel),
+        "discriminator": tuple_component(discriminator),
+    }
     rel = "/".join([
         "by-tuple",
-        tuple_component(arch),
-        tuple_component(libc),
-        tuple_component(kernel),
-        tuple_component(discriminator),
+        components["arch"],
+        components["libc"],
+        components["kernel_floor"],
+        components["discriminator"],
     ])
     return {
         "arch": arch,
         "libc": libc,
         "kernel_floor": kernel,
-        "cpu": resolved.get("TARGET_CPU") or "",
-        "abi": resolved.get("TARGET_ABI") or "",
-        "endian": resolved.get("TARGET_ENDIAN") or "",
-        "static_policy": resolved.get("TARGET_STATIC_POLICY") or "",
-        "payload_tier": resolved.get("TARGET_PAYLOAD_TIER") or "",
-        "qemu_user": resolved.get("TARGET_QEMU_USER") or "",
+        "cpu": cpu,
+        "abi": abi,
+        "endian": tuple_value(resolved.get("TARGET_ENDIAN"), fallback=""),
+        "static_policy": tuple_value(resolved.get("TARGET_STATIC_POLICY"), fallback=""),
+        "payload_tier": tuple_value(resolved.get("TARGET_PAYLOAD_TIER"), fallback=""),
+        "qemu_user": tuple_value(resolved.get("TARGET_QEMU_USER"), fallback=""),
+        "discriminator": discriminator,
+        "path_components": components,
         "path": rel,
     }
+
+
+def validate_tuple_metadata(tuple_info, context="tuple"):
+    required = ("arch", "libc", "kernel_floor", "discriminator")
+    missing = [key for key in required if not tuple_info.get(key) or tuple_info.get(key) == "unknown"]
+    if missing:
+        die(f"{context}: incomplete tuple metadata: " + ", ".join(missing))
+    components = tuple_info.get("path_components") or {}
+    expected = "/".join([
+        "by-tuple",
+        components.get("arch") or tuple_component(tuple_info.get("arch")),
+        components.get("libc") or tuple_component(tuple_info.get("libc")),
+        components.get("kernel_floor") or tuple_component(tuple_info.get("kernel_floor")),
+        components.get("discriminator") or tuple_component(tuple_info.get("discriminator")),
+    ])
+    if tuple_info.get("path") != expected:
+        die(f"{context}: tuple path drift: {tuple_info.get('path')} != {expected}")
 
 
 def path_to(from_dir, target):
@@ -542,6 +576,7 @@ def write_release_helpers(script_dir):
                 row = {
                     "artifact": rec.get("artifact"),
                     "tuple_path": rec.get("tuple_path"),
+                    "tuple": rec.get("tuple") or {},
                     "tuple_artifact": rec.get("tuple_artifact"),
                     "payload_preset": rec.get("payload_preset"),
                     "runtime_mode": summary.get("runtime_mode") or rec.get("runtime_mode"),
@@ -628,6 +663,7 @@ def write_release_helpers(script_dir):
                     {
                         "artifact": rec.get("artifact"),
                         "tuple_path": rec.get("tuple_path"),
+                        "tuple": rec.get("tuple") or {},
                         "tuple_artifact": rec.get("tuple_artifact"),
                         "payload_preset": rec.get("payload_preset"),
                         "runtime_mode": (rec.get("tuple_summary") or {}).get("runtime_mode") or rec.get("runtime_mode"),
@@ -643,7 +679,11 @@ def write_release_helpers(script_dir):
             }
 
         def tuple_match(index, row, args):
-            tuple_info = (index.get("tuples", {}).get(row.get("tuple_path") or "", {}) or {}).get("tuple") or {}
+            tuple_info = (
+                (index.get("tuples", {}).get(row.get("tuple_path") or "", {}) or {}).get("tuple")
+                or row.get("tuple")
+                or {}
+            )
             if args.arch and tuple_info.get("arch") != args.arch:
                 return False
             if args.libc and tuple_info.get("libc") != args.libc:
@@ -722,6 +762,21 @@ def write_release_helpers(script_dir):
             except (OSError, json.JSONDecodeError) as exc:
                 fail(f"invalid JSON {path}: {exc}")
 
+        def tuple_path_for(info):
+            components = info.get("path_components") or {}
+            arch = components.get("arch") or str(info.get("arch") or "unknown").strip().lower().replace("/", "-")
+            libc = components.get("libc") or str(info.get("libc") or "unknown").strip().lower().replace("/", "-")
+            kernel = components.get("kernel_floor") or str(info.get("kernel_floor") or "unknown").strip().lower().replace("/", "-")
+            discr = components.get("discriminator") or str(info.get("discriminator") or "unknown").strip().lower().replace("/", "-")
+            return f"by-tuple/{arch}/{libc}/{kernel}/{discr}"
+
+        def validate_tuple(info, context):
+            for key in ("arch", "libc", "kernel_floor", "discriminator"):
+                if not info.get(key) or info.get(key) == "unknown":
+                    fail(f"{context}: incomplete tuple field {key}")
+            if info.get("path") != tuple_path_for(info):
+                fail(f"{context}: tuple path drift {info.get('path')} != {tuple_path_for(info)}")
+
         def run(cmd, required=True):
             proc = subprocess.run(cmd, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
             if required and proc.returncode != 0:
@@ -736,12 +791,17 @@ def write_release_helpers(script_dir):
                 fail(f"helper is not executable: scripts/{helper}")
         if not (root / "release-index.json").exists():
             run([str(root / "scripts" / "release-index"), "--write"])
-        load_json(root / "release-index.json")
+        index = load_json(root / "release-index.json")
+        layout_tuples = release.get("layout", {}).get("tuples") or {}
+        index_tuples = index.get("tuples") or {}
+        if sorted(index_tuples) != sorted(layout_tuples):
+            fail("release-index tuple keys differ from release layout")
         for path in root.glob("by-tuple/**/MANIFEST.json"):
             load_json(path)
         for rec in release.get("artifacts", []):
             if rec.get("build_status") == "failed":
                 continue
+            validate_tuple(rec.get("tuple") or {}, rec.get("artifact") or "artifact")
             for key in ("artifact", "config"):
                 rel = rec.get(key)
                 if rel and not (root / rel).exists():
@@ -754,6 +814,8 @@ def write_release_helpers(script_dir):
             run([str(root / "scripts" / "artifact-config"), "show", str(artifact)])
             if rec.get("tuple_path") and not (root / rec["tuple_path"]).is_dir():
                 fail(f"missing tuple dir: {rec['tuple_path']}")
+            if rec.get("tuple_path") != (rec.get("tuple") or {}).get("path"):
+                fail(f"artifact tuple_path disagrees with tuple metadata: {rec.get('artifact')}")
             if rec.get("tuple_artifact") and not (root / rec["tuple_artifact"]).exists():
                 fail(f"missing tuple artifact: {rec['tuple_artifact']}")
             if rec.get("tuple", {}).get("arch") == "native" and os.access(artifact, os.X_OK):
@@ -1198,6 +1260,7 @@ def write_tuple_layout(release_dir, records, layout_mode, include_missing=False)
         tuple_path = tuple_info.get("path")
         if not tuple_path:
             continue
+        validate_tuple_metadata(tuple_info, context=rec.get("artifact") or rec.get("name") or "tuple")
         tuple_dir = release_dir / tuple_path
         tuple_dir.mkdir(parents=True, exist_ok=True)
         for sub in ("bin", "configs", "manifests"):
