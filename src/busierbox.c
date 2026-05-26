@@ -68,6 +68,7 @@ const struct bb_applet bb_applets[] = {
     {"doctor", applet_doctor_main, "inspect embedded and extracted payload health"},
 #endif
 #if BB_ENABLE_FETCH_FULL
+    {"fetch", applet_fetch_main, "fetch an operator-staged file"},
     {"fetch-full", applet_fetch_full_main, "download a full BusierBox artifact"},
 #endif
     {"manifest", applet_manifest_main, "print artifact manifest metadata"},

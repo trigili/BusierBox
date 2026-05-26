@@ -18,6 +18,7 @@ import os
 import select
 import socket
 import ssl
+import subprocess
 import sys
 import termios
 import threading
@@ -34,6 +35,9 @@ except ImportError:
 
 
 DEFAULT_CONFIG = Path("local/server-config.json")
+DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
+DEFAULT_STATE_FILE = DEFAULT_OPERATOR_SESSION_DIR / "server-state.json"
+DEFAULT_STAGED_FILE = DEFAULT_OPERATOR_SESSION_DIR / "staged-files.json"
 DEFAULTS = {
     "transport": "ssh",
     "encryption": "tls",
@@ -51,7 +55,196 @@ DEFAULTS = {
     "file_service_enable": "no",
     "file_service_port": 22204,
     "file_service_tls": "yes",
+    "operator_session_dir": str(DEFAULT_OPERATOR_SESSION_DIR),
+    "server_state": str(DEFAULT_STATE_FILE),
+    "staged_files": str(DEFAULT_STAGED_FILE),
 }
+
+
+def utc_now():
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def atomic_write_json(path, data):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + f".tmp.{os.getpid()}")
+    tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
+def read_json_file(path, fallback):
+    path = Path(path)
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return fallback
+
+
+def staged_file_path(cfg):
+    return Path(str(cfg.get("staged_files") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "staged-files.json"))
+
+
+def state_file_path(cfg):
+    return Path(str(cfg.get("server_state") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "server-state.json"))
+
+
+def load_staged(cfg):
+    data = read_json_file(staged_file_path(cfg), {"schema": 1, "staged": {}})
+    if not isinstance(data, dict):
+        data = {"schema": 1, "staged": {}}
+    if not isinstance(data.get("staged"), dict):
+        data["staged"] = {}
+    data.setdefault("schema", 1)
+    return data
+
+
+def reject_traversal_request_name(name):
+    text = urllib.parse.unquote(str(name or "")).strip()
+    if not text:
+        raise ValueError("staged request name must not be empty")
+    parts = [part for part in text.replace("\\", "/").split("/") if part not in ("", ".")]
+    if any(part == ".." for part in parts):
+        raise ValueError("staged request name must not contain path traversal")
+    return text
+
+
+def file_sha256(path):
+    h = hashlib.sha256()
+    with Path(path).open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def stage_file(cfg, path, request_name):
+    src = Path(path).expanduser()
+    if not src.is_file():
+        raise ValueError(f"staged file does not exist or is not a regular file: {src}")
+    request = reject_traversal_request_name(request_name)
+    stat = src.stat()
+    data = load_staged(cfg)
+    data["staged"][request] = {
+        "request_name": request,
+        "source_path": str(src),
+        "size": stat.st_size,
+        "sha256": file_sha256(src),
+        "mtime": int(stat.st_mtime),
+        "staged_at": utc_now(),
+    }
+    atomic_write_json(staged_file_path(cfg), data)
+    return data["staged"][request]
+
+
+def stage_dir(cfg, path):
+    root = Path(path).expanduser()
+    if not root.is_dir():
+        raise ValueError(f"staged directory does not exist: {root}")
+    records = []
+    for child in sorted(root.iterdir()):
+        if child.is_file():
+            records.append(stage_file(cfg, child, child.name))
+    return records
+
+
+def update_server_state(cfg, action, status="configured", extra=None):
+    data = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}, "sessions": []})
+    if not isinstance(data, dict):
+        data = {"schema": 1, "services": {}, "sessions": []}
+    data.setdefault("schema", 1)
+    data.setdefault("services", {})
+    data.setdefault("sessions", [])
+    service = {
+        "status": status,
+        "listen_host": str(cfg.get("listen_host", "")),
+        "ssh_port": int(cfg.get("ssh_listen_port", 0)),
+        "shell_port": int(cfg.get("shell_listen_port", 0)),
+        "file_service_port": int(cfg.get("file_service_port", 0)),
+        "file_service_tls": str(cfg.get("file_service_tls", "yes")),
+        "updated_at": utc_now(),
+    }
+    if extra:
+        service.update(extra)
+    data["services"][action] = service
+    atomic_write_json(state_file_path(cfg), data)
+    return data
+
+
+def mark_service_stopped(cfg, action):
+    return update_server_state(cfg, action, "stopped", {})
+
+
+def release_context():
+    here = Path.cwd()
+    release_json = here / "release.json"
+    if release_json.is_file() and (here / "bin").is_dir() and (here / "scripts").is_dir():
+        artifacts = []
+        for root_name in ("bin", "dist"):
+            root = here / root_name
+            if root.is_dir():
+                artifacts.extend(str(path) for path in sorted(root.iterdir()) if path.is_file())
+        return {"release_dir": str(here), "release_json": str(release_json), "artifacts": artifacts}
+    return {}
+
+
+def render_fetch_command(request_name, cfg, host=None, force=False):
+    candidates = local_ips()
+    host = host or (candidates[0] if candidates else "OPERATOR_IP")
+    cmd = [
+        "busierbox",
+        "fetch",
+        request_name,
+        "--host",
+        host,
+        "--port",
+        str(cfg.get("file_service_port", 22204)),
+    ]
+    if not yes(cfg.get("file_service_tls", "yes")):
+        cmd.append("--no-tls")
+    if force:
+        cmd.append("--force")
+    return " ".join(shquote(part) for part in cmd)
+
+
+def print_staged(cfg):
+    staged = load_staged(cfg).get("staged", {})
+    if not staged:
+        print("No staged files.")
+        return
+    for name in sorted(staged):
+        rec = staged[name]
+        print(f"{name}\t{rec.get('source_path', '')}\t{rec.get('size', '')}\t{rec.get('sha256', '')}")
+        print(f"  {render_fetch_command(name, cfg)}")
+
+
+def recent_sessions(cfg, limit=8):
+    root = Path(str(cfg.get("session_root", "local/sessions")))
+    if not root.is_dir():
+        return []
+    sessions = [p for p in root.iterdir() if p.is_dir()]
+    sessions.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return sessions[:limit]
+
+
+def recent_upload_metadata(cfg, limit=8):
+    root = Path(str(cfg.get("session_root", "local/sessions")))
+    if not root.is_dir():
+        return []
+    metas = sorted(root.glob("*/files/*.metadata.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    out = []
+    for path in metas[:limit]:
+        data = read_json_file(path, {})
+        if isinstance(data, dict):
+            data["_metadata_path"] = str(path)
+            out.append(data)
+    return out
+
+
+def shquote(value):
+    text = str(value)
+    if all(ch.isalnum() or ch in "._-/:=" for ch in text):
+        return text
+    return "'" + text.replace("'", "'\\''") + "'"
 
 
 def load_config(path):
@@ -637,6 +830,156 @@ def read_http_upload(conn, files_dir, addr):
     return metadata, 200 if status == "ok" else 400
 
 
+def read_http_headers(conn):
+    deadline = time.monotonic() + 30
+    raw = bytearray()
+    while b"\r\n\r\n" not in raw:
+        if time.monotonic() >= deadline:
+            raise RuntimeError("timeout reading HTTP headers")
+        chunk = conn.recv(65536)
+        if not chunk:
+            raise RuntimeError("connection closed before HTTP headers")
+        raw.extend(chunk)
+    header_raw, body = bytes(raw).split(b"\r\n\r\n", 1)
+    header_text = header_raw.decode("iso-8859-1", errors="replace")
+    lines = header_text.split("\r\n")
+    request = lines[0].split()
+    if len(request) < 3:
+        raise RuntimeError("malformed HTTP request")
+    headers = {}
+    for line in lines[1:]:
+        if ":" in line:
+            key, value = line.split(":", 1)
+            headers[key.strip().lower()] = value.strip()
+    return request[0], request[1], request[2], headers, body
+
+
+def send_http_response(conn, status_code, body=b"", content_type="application/octet-stream", headers=None):
+    reason = {
+        200: "OK",
+        400: "Bad Request",
+        404: "Not Found",
+        405: "Method Not Allowed",
+        411: "Length Required",
+        500: "Internal Server Error",
+    }.get(status_code, "OK")
+    header_lines = [
+        f"HTTP/1.1 {status_code} {reason}",
+        f"Content-Type: {content_type}",
+        f"Content-Length: {len(body)}",
+        "Connection: close",
+    ]
+    for key, value in (headers or {}).items():
+        header_lines.append(f"{key}: {value}")
+    conn.sendall(("\r\n".join(header_lines) + "\r\n\r\n").encode("ascii") + body)
+
+
+def stream_fetch_response(conn, src, status_code=200, content_type="application/octet-stream", headers=None, head_only=False):
+    src = Path(src)
+    reason = {200: "OK"}.get(status_code, "OK")
+    header_lines = [
+        f"HTTP/1.1 {status_code} {reason}",
+        f"Content-Type: {content_type}",
+        f"Content-Length: {src.stat().st_size}",
+        "Connection: close",
+    ]
+    for key, value in (headers or {}).items():
+        header_lines.append(f"{key}: {value}")
+    conn.sendall(("\r\n".join(header_lines) + "\r\n\r\n").encode("ascii"))
+    if head_only:
+        return
+    with src.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            conn.sendall(chunk)
+
+
+def handle_staged_fetch(cfg, conn, method, target, addr):
+    if method not in {"GET", "HEAD"}:
+        payload = {"status": "rejected", "reason": "staged fetch accepts only GET or HEAD"}
+        send_http_response(conn, 405, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
+        return {"status": "rejected", "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}
+    parsed = urllib.parse.urlparse(target)
+    if parsed.path not in {"/fetch", "/fetch/"}:
+        payload = {"status": "rejected", "reason": "unknown fetch endpoint"}
+        send_http_response(conn, 404, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
+        return {"status": "rejected", "reason": "unknown endpoint", "remote_addr": f"{addr[0]}:{addr[1]}"}
+    query = urllib.parse.parse_qs(parsed.query)
+    name = query.get("name", [""])[0]
+    try:
+        name = reject_traversal_request_name(name)
+    except ValueError as exc:
+        payload = {"status": "rejected", "reason": str(exc)}
+        send_http_response(conn, 400, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
+        return {"status": "rejected", "reason": str(exc), "remote_addr": f"{addr[0]}:{addr[1]}"}
+    staged = load_staged(cfg).get("staged", {})
+    rec = staged.get(name)
+    if not rec:
+        payload = {"status": "missing", "reason": "no staged file for request", "request_name": name}
+        send_http_response(conn, 404, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
+        return {"status": "missing", "request_name": name, "remote_addr": f"{addr[0]}:{addr[1]}"}
+    src = Path(rec.get("source_path", ""))
+    if not src.is_file():
+        payload = {"status": "missing", "reason": "staged source file is no longer present", "request_name": name}
+        send_http_response(conn, 404, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
+        return {"status": "missing-source", "request_name": name, "remote_addr": f"{addr[0]}:{addr[1]}"}
+    headers = {
+        "X-BusierBox-Request-Name": urllib.parse.quote(name, safe="/._-"),
+        "X-BusierBox-Sha256": rec.get("sha256", ""),
+        "X-BusierBox-Source-Size": str(src.stat().st_size),
+        "Content-Disposition": f"attachment; filename={urllib.parse.quote(Path(name).name or src.name)}",
+    }
+    stream_fetch_response(conn, src, 200, "application/octet-stream", headers=headers, head_only=(method == "HEAD"))
+    return {
+        "status": "served",
+        "request_name": name,
+        "source_path": str(src),
+        "size": src.stat().st_size,
+        "sha256": rec.get("sha256", ""),
+        "timestamp": utc_now(),
+        "remote_addr": f"{addr[0]}:{addr[1]}",
+    }
+
+
+def handle_file_service_http(cfg, conn, files_dir, addr):
+    method, target, _version, headers, body = read_http_headers(conn)
+    if method in {"GET", "HEAD"}:
+        return handle_staged_fetch(cfg, conn, method, target, addr), 200
+    if method not in {"PUT", "POST"}:
+        metadata = {
+            "status": "rejected",
+            "reason": "file service accepts only target-initiated PUT/POST uploads or GET staged fetches",
+            "method": method,
+            "source_path": target,
+            "remote_addr": f"{addr[0]}:{addr[1]}",
+        }
+        send_json_response(conn, 405, metadata)
+        return metadata, 405
+    # Reconstruct the header block for the existing upload reader to keep upload
+    # behavior unchanged while sharing the initial parse path with GET.
+    request_line = f"{method} {target} HTTP/1.1\r\n"
+    header_lines = "".join(f"{key}: {value}\r\n" for key, value in headers.items())
+    buffered = request_line.encode("iso-8859-1") + header_lines.encode("iso-8859-1") + b"\r\n" + body
+
+    class BufferedConn:
+        def __init__(self, base, first):
+            self.base = base
+            self.first = bytearray(first)
+
+        def recv(self, n):
+            if self.first:
+                chunk = bytes(self.first[:n])
+                del self.first[:n]
+                return chunk
+            return self.base.recv(n)
+
+        def sendall(self, data):
+            return self.base.sendall(data)
+
+    metadata, status_code = read_http_upload(BufferedConn(conn, buffered), files_dir, addr)
+    send_json_response(conn, status_code, metadata)
+    return metadata, status_code
+
+
 def send_json_response(conn, status_code, payload):
     reason = {
         200: "OK",
@@ -678,7 +1021,9 @@ def serve_file_service(cfg, timeout, max_sessions=0):
     files_dir.mkdir(parents=True, exist_ok=True)
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     print("Receive-only file service. Accepts target-initiated PUT/POST uploads.")
+    print("Also serves operator-staged files only when the target explicitly requests them with busierbox fetch.")
     print("This service does not send artifacts, execute commands, or provide callback RPC.")
+    update_server_state(cfg, "file-service", "listening", {"session_log": str(log_dir), "staged_file": str(staged_file_path(cfg))})
     sessions = 0
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -687,29 +1032,33 @@ def serve_file_service(cfg, timeout, max_sessions=0):
         sock.settimeout(timeout)
         print_candidates(cfg, port)
         while True:
-            print("Waiting for file upload...")
+            print("Waiting for file upload/fetch...")
             try:
                 raw, addr = sock.accept()
             except socket.timeout:
-                print("timeout waiting for file upload", file=sys.stderr)
+                print("timeout waiting for file upload/fetch", file=sys.stderr)
+                mark_service_stopped(cfg, "file-service")
                 return 1 if sessions == 0 else 0
             try:
                 with raw:
                     conn = context.wrap_socket(raw, server_side=True) if context else raw
                     with conn:
-                        metadata, status_code = read_http_upload(conn, files_dir, addr)
-                        send_json_response(conn, status_code, metadata)
-                        print(f"file-service upload {metadata.get('status')}: {metadata.get('stored_path', metadata.get('reason', ''))}")
+                        metadata, status_code = handle_file_service_http(cfg, conn, files_dir, addr)
+                        if metadata.get("status") == "served":
+                            print(f"file-service fetch served: {metadata.get('request_name')} <- {metadata.get('source_path')}")
+                        else:
+                            print(f"file-service upload {metadata.get('status')}: {metadata.get('stored_path', metadata.get('reason', ''))}")
             except Exception as exc:
                 try:
                     send_json_response(raw, 500, {"status": "error", "reason": str(exc)})
                 except Exception:
                     pass
-                print(f"file-service upload failed: {exc}", file=sys.stderr)
+                print(f"file-service request failed: {exc}", file=sys.stderr)
             finally:
                 sessions += 1
             if max_sessions > 0 and sessions >= max_sessions:
                 break
+    mark_service_stopped(cfg, "file-service")
     return 0
 
 
@@ -805,6 +1154,255 @@ def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes
     return 0
 
 
+def service_port(cfg, service):
+    if service == "ssh":
+        return int(cfg.get("ssh_listen_port", 22202))
+    if service in {"tls-shell", "plain-shell"}:
+        return int(cfg.get("shell_listen_port", 22203))
+    if service == "file-service":
+        return int(cfg.get("file_service_port", 22204))
+    return 0
+
+
+def port_listening(host, port):
+    del host
+    target = f"{int(port):04X}"
+    try:
+        for table in ("/proc/net/tcp", "/proc/net/tcp6"):
+            path = Path(table)
+            if not path.is_file():
+                continue
+            for line in path.read_text(encoding="ascii", errors="ignore").splitlines()[1:]:
+                cols = line.split()
+                if len(cols) > 3 and cols[1].rsplit(":", 1)[-1].upper() == target and cols[3] == "0A":
+                    return True
+    except (OSError, ValueError):
+        return False
+    return False
+
+
+def workbench_snapshot(cfg):
+    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
+    staged = load_staged(cfg).get("staged", {})
+    services = {}
+    for name in ("ssh", "tls-shell", "plain-shell", "file-service"):
+        port = service_port(cfg, name)
+        services[name] = {
+            "port": port,
+            "listening": port_listening(str(cfg.get("listen_host", "127.0.0.1")), port),
+            "state": (state.get("services") or {}).get(name, {}),
+        }
+    return {"state": state, "staged": staged, "services": services}
+
+
+def print_workbench(cfg):
+    snap = workbench_snapshot(cfg)
+    print("BusierBox operator workbench")
+    print("")
+    print("Local IP candidates:")
+    candidates = local_ips()
+    if candidates:
+        for ip in candidates:
+            print(f"  {ip}")
+    else:
+        print("  OPERATOR_IP")
+    print("")
+    print("Services:")
+    for name, info in snap["services"].items():
+        state = info["state"].get("status", "unknown")
+        listening = "listening" if info["listening"] else "not-listening"
+        print(f"  {name:12s} port={info['port']} {listening} state={state}")
+        log = info["state"].get("session_log")
+        if log:
+            print(f"    log: {log}")
+    print("")
+    print("Staged files:")
+    if snap["staged"]:
+        for name in sorted(snap["staged"]):
+            rec = snap["staged"][name]
+            print(f"  {name} <- {rec.get('source_path', '')}")
+            print(f"    {render_fetch_command(name, cfg)}")
+    else:
+        print("  none")
+    print("")
+    print("Received uploads:")
+    uploads = recent_upload_metadata(cfg)
+    if uploads:
+        for meta in uploads:
+            print(f"  {meta.get('filename', '')} size={meta.get('size', '')} status={meta.get('transfer_status', meta.get('status', ''))}")
+            print(f"    source: {meta.get('source_path', '')}")
+            print(f"    stored: {meta.get('stored_path', '')}")
+            print(f"    metadata: {meta.get('_metadata_path', '')}")
+    else:
+        print("  none")
+    print("")
+    print("Recent sessions:")
+    sessions = recent_sessions(cfg)
+    if sessions:
+        for path in sessions:
+            print(f"  {path}")
+    else:
+        print("  none")
+    rel = release_context()
+    if rel:
+        print("")
+        print("Release:")
+        for key, value in sorted(rel.items()):
+            if isinstance(value, list):
+                print(f"  {key}:")
+                for item in value:
+                    print(f"    {item}")
+            else:
+                print(f"  {key}: {value}")
+
+
+def start_service_process(cfg, service, argv_extra=None):
+    cmd = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--config",
+        str(Path(str(cfg.get("_config_path", DEFAULT_CONFIG)))),
+        "--transport",
+        service,
+    ]
+    cmd.extend(["--state-file", str(state_file_path(cfg)), "--staged-file", str(staged_file_path(cfg))])
+    if service == "file-service":
+        cmd.extend(["--file-service-tls", str(cfg.get("file_service_tls", "yes"))])
+    if argv_extra:
+        cmd.extend(argv_extra)
+    log_root = Path(str(cfg.get("session_root", "local/sessions")))
+    log_root.mkdir(parents=True, exist_ok=True)
+    log_path = log_root / f"operator-{service}-{int(time.time())}.log"
+    with log_path.open("ab") as log:
+        proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    update_server_state(cfg, service, "starting", {"pid": proc.pid, "process_log": str(log_path)})
+    print(f"started {service}: pid={proc.pid} log={log_path}")
+
+
+def stop_recorded_service(cfg, service):
+    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
+    rec = (state.get("services") or {}).get(service, {})
+    pid = rec.get("pid")
+    if pid:
+        try:
+            os.kill(int(pid), 15)
+            print(f"stopped {service}: pid={pid}")
+        except OSError as exc:
+            print(f"{service}: unable to stop pid {pid}: {exc}", file=sys.stderr)
+    else:
+        print(f"{service}: no recorded pid")
+    mark_service_stopped(cfg, service)
+
+
+def run_line_tui(cfg):
+    while True:
+        print("")
+        print_workbench(cfg)
+        print("")
+        print("Actions:")
+        print("  1 start ssh")
+        print("  2 start tls-shell")
+        print("  3 start plain-shell")
+        print("  4 start file-service")
+        print("  5 stop service")
+        print("  6 stage file")
+        print("  7 list staged")
+        print("  q quit")
+        choice = input("> ").strip()
+        if choice == "q":
+            mark_service_stopped(cfg, "workbench")
+            return 0
+        if choice in {"1", "2", "3", "4"}:
+            service = {"1": "ssh", "2": "tls-shell", "3": "plain-shell", "4": "file-service"}[choice]
+            start_service_process(cfg, service)
+        elif choice == "5":
+            stop_recorded_service(cfg, input("service> ").strip())
+        elif choice == "6":
+            path = input("local file> ").strip()
+            name = input("target request name> ").strip()
+            rec = stage_file(cfg, path, name)
+            print(f"staged {rec['request_name']}")
+            print(render_fetch_command(rec["request_name"], cfg))
+        elif choice == "7":
+            print_staged(cfg)
+
+
+def run_curses_tui(cfg):
+    import curses
+
+    def draw(stdscr):
+        curses.curs_set(0)
+        while True:
+            snap = workbench_snapshot(cfg)
+            stdscr.erase()
+            row = 0
+            stdscr.addstr(row, 0, "BusierBox operator workbench")
+            row += 2
+            stdscr.addstr(row, 0, "Services")
+            row += 1
+            for name, info in snap["services"].items():
+                listening = "listening" if info["listening"] else "not-listening"
+                state = info["state"].get("status", "unknown")
+                stdscr.addstr(row, 0, f"{name:12s} port={info['port']} {listening} state={state}"[:curses.COLS - 1])
+                row += 1
+            row += 1
+            stdscr.addstr(row, 0, "Staged files")
+            row += 1
+            staged = snap["staged"]
+            if staged:
+                for name in sorted(staged):
+                    rec = staged[name]
+                    stdscr.addstr(row, 0, f"{name} <- {rec.get('source_path', '')}"[:curses.COLS - 1])
+                    row += 1
+                    stdscr.addstr(row, 2, render_fetch_command(name, cfg)[:curses.COLS - 3])
+                    row += 1
+            else:
+                stdscr.addstr(row, 0, "none")
+                row += 1
+            row += 1
+            stdscr.addstr(row, 0, "1 ssh  2 tls-shell  3 plain-shell  4 file-service  5 stop  6 stage  7 refresh  q quit"[:curses.COLS - 1])
+            key = stdscr.getch()
+            if key in (ord("q"), ord("Q")):
+                return 0
+            if key in (ord("1"), ord("2"), ord("3"), ord("4")):
+                service = {ord("1"): "ssh", ord("2"): "tls-shell", ord("3"): "plain-shell", ord("4"): "file-service"}[key]
+                start_service_process(cfg, service)
+            elif key == ord("5"):
+                curses.echo()
+                stdscr.addstr(row + 1, 0, "service> ")
+                service = stdscr.getstr(row + 1, 9, 32).decode("utf-8", errors="replace").strip()
+                curses.noecho()
+                if service:
+                    stop_recorded_service(cfg, service)
+            elif key == ord("6"):
+                curses.echo()
+                stdscr.addstr(row + 1, 0, "local file> ")
+                path = stdscr.getstr(row + 1, 12, 240).decode("utf-8", errors="replace").strip()
+                stdscr.addstr(row + 2, 0, "target request name> ")
+                name = stdscr.getstr(row + 2, 21, 240).decode("utf-8", errors="replace").strip()
+                curses.noecho()
+                if path and name:
+                    try:
+                        stage_file(cfg, path, name)
+                    except ValueError:
+                        pass
+        return 0
+
+    return curses.wrapper(draw)
+
+
+def run_tui(cfg):
+    update_server_state(cfg, "workbench", "open", {"state_file": str(state_file_path(cfg))})
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        print_workbench(cfg)
+        return 0
+    try:
+        return run_curses_tui(cfg)
+    except Exception as exc:
+        print(f"curses workbench unavailable, using line menu: {exc}", file=sys.stderr)
+        return run_line_tui(cfg)
+
+
 def _resolve_transport(cfg, args_transport):
     """Map --transport flag and config fields to a canonical action."""
     if args_transport:
@@ -841,6 +1439,11 @@ Transport modes:
   plain-shell — Plaintext shell listener (debug/insecure; socat+none or builtin+none)
   file-service — Receive-only TLS upload service for target-initiated files/evidence
 
+File staging:
+  --transport file-service --serve-file ./tool --as /tmp/tool
+  --transport file-service --serve-dir local/operator-files
+  --transport file-service --list-staged
+
 Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
 """,
     )
@@ -852,6 +1455,20 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="transport to listen for (overrides config)")
     parser.add_argument("--file-service", action="store_true",
                         help="receive target-initiated file uploads and store them under local/sessions")
+    parser.add_argument("--tui", action="store_true",
+                        help="open the operator-side service/file staging workbench")
+    parser.add_argument("--serve-file",
+                        help="stage a local file for explicit target fetch")
+    parser.add_argument("--as", dest="serve_as",
+                        help="target request name for --serve-file, for example /tmp/myfile")
+    parser.add_argument("--serve-dir",
+                        help="stage direct child files from a local directory for explicit target fetch")
+    parser.add_argument("--list-staged", action="store_true",
+                        help="list operator-staged target fetch files and commands")
+    parser.add_argument("--state-file",
+                        help="operator workbench state JSON path")
+    parser.add_argument("--staged-file",
+                        help="operator staged-files JSON path")
     parser.add_argument("--listen-host", help="listener bind address")
     parser.add_argument("--ssh-port", type=int, help="SSH reverse-forward listener port")
     parser.add_argument("--shell-port", type=int,
@@ -881,6 +1498,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     args = parser.parse_args(argv)
 
     cfg = load_config(args.config)
+    cfg["_config_path"] = args.config
     if args.listen_host:
         cfg["listen_host"] = args.listen_host
     if args.ssh_port:
@@ -894,6 +1512,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["file_service_port"] = args.file_port
     if args.file_service_tls:
         cfg["file_service_tls"] = args.file_service_tls
+    if args.state_file:
+        cfg["server_state"] = args.state_file
+    if args.staged_file:
+        cfg["staged_files"] = args.staged_file
 
     timeout = None if args.timeout == 0 else args.timeout
     action = "file-service" if args.file_service else _resolve_transport(cfg, args.transport)
@@ -903,6 +1525,29 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         if script_bytes and not script_bytes.endswith(b"\n"):
             script_bytes += b"\n"
     session_timeout = None if args.session_timeout == 0 else args.session_timeout
+
+    try:
+        if args.serve_file:
+            request_name = args.serve_as or Path(args.serve_file).name
+            rec = stage_file(cfg, args.serve_file, request_name)
+            print(f"staged {rec['request_name']} <- {rec['source_path']}")
+            print(render_fetch_command(rec["request_name"], cfg))
+            action = "file-service"
+        if args.serve_dir:
+            records = stage_dir(cfg, args.serve_dir)
+            for rec in records:
+                print(f"staged {rec['request_name']} <- {rec['source_path']}")
+                print(render_fetch_command(rec["request_name"], cfg))
+            action = "file-service"
+        if args.list_staged:
+            print_staged(cfg)
+            return 0
+    except ValueError as exc:
+        print(f"busierbox-server: {exc}", file=sys.stderr)
+        return 2
+
+    if args.tui:
+        return run_tui(cfg)
 
     if action == "ssh":
         return serve_ssh(cfg, timeout)

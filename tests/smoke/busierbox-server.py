@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import socket
 import ssl
 import subprocess
@@ -20,6 +21,33 @@ def free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
+
+
+def recv_all(sock):
+    out = b""
+    while True:
+        chunk = sock.recv(65536)
+        if not chunk:
+            return out
+        out += chunk
+
+
+def connect_with_retry(port, payload, tls_context=None):
+    deadline = time.time() + 5
+    last = None
+    while time.time() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5) as raw:
+                if tls_context:
+                    with tls_context.wrap_socket(raw, server_hostname="busierbox") as conn:
+                        conn.sendall(payload)
+                        return recv_all(conn)
+                raw.sendall(payload)
+                return recv_all(raw)
+        except (ConnectionRefusedError, TimeoutError, OSError) as exc:
+            last = exc
+            time.sleep(0.05)
+    raise RuntimeError(f"server did not open port {port}: {last}")
 
 
 def main():
@@ -43,6 +71,10 @@ def main():
     if "file-service" not in combined or "--file-service" not in combined:
         print("busierbox-server help missing receive-only file service", file=sys.stderr)
         return 1
+    for word in ("--tui", "--serve-file", "--serve-dir", "--list-staged"):
+        if word not in combined:
+            print(f"busierbox-server help missing operator workbench flag: {word}", file=sys.stderr)
+            return 1
 
     # Paramiko key comparison must use get_name/get_base64, not object equality
     src = (ROOT / "scripts" / "busierbox-server").read_text()
@@ -218,6 +250,239 @@ def main():
         if len(metadata.get("sha256", "")) != 64:
             print("file service metadata missing sha256", file=sys.stderr)
             return 1
+
+        state_file = Path(tmp) / "operator-session" / "server-state.json"
+        staged_file = Path(tmp) / "operator-session" / "staged-files.json"
+        uploads_view = run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--state-file", str(state_file),
+            "--staged-file", str(staged_file),
+            "--tui",
+        )
+        if ("Received uploads" not in uploads_view.stdout or
+                "evidence.txt" not in uploads_view.stdout or
+                "metadata:" not in uploads_view.stdout):
+            print("workbench did not show received upload metadata", file=sys.stderr)
+            print(uploads_view.stdout, file=sys.stderr)
+            return 1
+
+        staged_source = Path(tmp) / "operator-file.bin"
+        staged_source.write_bytes(b"operator staged bytes\n")
+        fetch_port = free_port()
+        fetch_cfg = Path(tmp) / "server-config-fetch.json"
+        fetch_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "file_service_port": fetch_port,
+            "session_root": str(Path(tmp) / "sessions-fetch"),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+            "file_service_tls": "no",
+        }), encoding="utf-8")
+
+        tui = run(
+            "scripts/busierbox-server",
+            "--config", str(fetch_cfg),
+            "--state-file", str(state_file),
+            "--staged-file", str(staged_file),
+            "--tui",
+        )
+        if tui.returncode != 0 or "BusierBox operator workbench" not in tui.stdout:
+            print("noninteractive TUI/workbench failed:", file=sys.stderr)
+            print(tui.stdout, file=sys.stderr)
+            print(tui.stderr, file=sys.stderr)
+            return 1
+
+        release_dir = Path(tmp) / "release"
+        (release_dir / "bin").mkdir(parents=True)
+        (release_dir / "scripts").mkdir()
+        (release_dir / "release.json").write_text('{"schema":1}\n', encoding="utf-8")
+        (release_dir / "bin" / "busierbox-test").write_text("artifact\n", encoding="utf-8")
+        release_view = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--tui",
+            ],
+            cwd=release_dir,
+            text=True,
+            capture_output=True,
+        )
+        if "Release:" not in release_view.stdout or "busierbox-test" not in release_view.stdout:
+            print("workbench did not show release artifact paths", file=sys.stderr)
+            print(release_view.stdout, file=sys.stderr)
+            return 1
+
+        bad_stage = run(
+            "scripts/busierbox-server",
+            "--config", str(fetch_cfg),
+            "--state-file", str(state_file),
+            "--staged-file", str(staged_file),
+            "--transport", "file-service",
+            "--serve-file", str(staged_source),
+            "--as", "../bad",
+            "--timeout", "0.01",
+        )
+        if bad_stage.returncode == 0 or "path traversal" not in (bad_stage.stdout + bad_stage.stderr):
+            print("staged path traversal was not rejected", file=sys.stderr)
+            return 1
+
+        proc = subprocess.Popen(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--transport", "file-service",
+                "--serve-file", str(staged_source),
+                "--as", "/tmp/myfile",
+                "--file-service-tls", "no",
+                "--one-shot",
+                "--timeout", "5",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        request = (
+            "GET /fetch?name=%2Ftmp%2Fmyfile HTTP/1.1\r\n"
+            "Host: 127.0.0.1\r\n"
+            "\r\n"
+        ).encode("ascii")
+        response = connect_with_retry(fetch_port, request)
+        stdout, stderr = proc.communicate(timeout=5)
+        if proc.returncode != 0:
+            print("staged fetch server exited nonzero:", file=sys.stderr)
+            print(stdout, file=sys.stderr)
+            print(stderr, file=sys.stderr)
+            return 1
+        if b"HTTP/1.1 200 OK" not in response or not response.endswith(b"operator staged bytes\n"):
+            print("staged fetch did not return the staged file:", file=sys.stderr)
+            print(response.decode("utf-8", errors="replace"), file=sys.stderr)
+            return 1
+        staged_doc = json.loads(staged_file.read_text(encoding="utf-8"))
+        if "/tmp/myfile" not in staged_doc.get("staged", {}):
+            print("staged-files JSON missing request name", file=sys.stderr)
+            return 1
+        listed = run(
+            "scripts/busierbox-server",
+            "--config", str(fetch_cfg),
+            "--state-file", str(state_file),
+            "--staged-file", str(staged_file),
+            "--list-staged",
+        )
+        if listed.returncode != 0 or "busierbox fetch /tmp/myfile" not in listed.stdout:
+            print("--list-staged did not show target fetch command", file=sys.stderr)
+            print(listed.stdout, file=sys.stderr)
+            return 1
+
+        serve_dir = Path(tmp) / "operator-files"
+        serve_dir.mkdir()
+        (serve_dir / "tcpdump").write_text("fake tcpdump\n", encoding="utf-8")
+        list_dir = run(
+            "scripts/busierbox-server",
+            "--config", str(fetch_cfg),
+            "--state-file", str(state_file),
+            "--staged-file", str(staged_file),
+            "--transport", "file-service",
+            "--serve-dir", str(serve_dir),
+            "--list-staged",
+            "--timeout", "0.01",
+        )
+        if list_dir.returncode != 0 or "busierbox fetch tcpdump" not in list_dir.stdout:
+            print("--serve-dir did not stage direct child files", file=sys.stderr)
+            print(list_dir.stdout, file=sys.stderr)
+            print(list_dir.stderr, file=sys.stderr)
+            return 1
+
+        bb = ROOT / "dist" / "busierbox.core"
+        if not bb.exists():
+            bb = ROOT / "dist" / "busierbox-native-full"
+        if bb.exists() and os.access(bb, os.X_OK):
+            bb_run = Path(tmp) / "busierbox"
+            try:
+                bb_run.symlink_to(bb)
+            except OSError:
+                bb_run.write_bytes(bb.read_bytes())
+                bb_run.chmod(0o755)
+            existing = Path(tmp) / "existing.out"
+            existing.write_text("existing\n", encoding="utf-8")
+            overwrite = subprocess.run(
+                [str(bb_run), "fetch", "/tmp/myfile", "--host", "127.0.0.1", "--port", str(fetch_port),
+                 "--no-tls", "--output", str(existing)],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            if overwrite.returncode == 0 or "overwrite" not in (overwrite.stdout + overwrite.stderr):
+                print("fetch applet did not protect existing output", file=sys.stderr)
+                return 1
+            traversal = subprocess.run(
+                [str(bb_run), "fetch", "../bad", "--host", "127.0.0.1", "--port", str(fetch_port), "--no-tls"],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            if traversal.returncode == 0 or "path traversal" not in (traversal.stdout + traversal.stderr):
+                print("fetch applet did not reject request traversal", file=sys.stderr)
+                return 1
+
+            fetch_port2 = free_port()
+            fetch_cfg2 = Path(tmp) / "server-config-fetch2.json"
+            fetch_cfg2.write_text(json.dumps({
+                "listen_host": "127.0.0.1",
+                "file_service_port": fetch_port2,
+                "session_root": str(Path(tmp) / "sessions-fetch2"),
+                "tls_cert": str(cert_path),
+                "tls_key": str(key_path),
+                "file_service_tls": "no",
+            }), encoding="utf-8")
+            fetched = Path(tmp) / "fetched.out"
+            proc2 = subprocess.Popen(
+                [
+                    str(server), "--config", str(fetch_cfg2),
+                    "--state-file", str(Path(tmp) / "state2.json"),
+                    "--staged-file", str(Path(tmp) / "staged2.json"),
+                    "--transport", "file-service",
+                    "--serve-file", str(staged_source),
+                    "--as", "/tmp/myfile",
+                    "--file-service-tls", "no",
+                    "--one-shot",
+                    "--timeout", "5",
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            deadline = time.time() + 5
+            fetch = None
+            while time.time() < deadline:
+                fetch = subprocess.run(
+                    [str(bb_run), "fetch", "/tmp/myfile", "--host", "127.0.0.1", "--port", str(fetch_port2),
+                     "--no-tls", "--output", str(fetched)],
+                    cwd=ROOT,
+                    text=True,
+                    capture_output=True,
+                )
+                if fetch.returncode == 0:
+                    break
+                if "download failed" not in (fetch.stdout + fetch.stderr):
+                    break
+                time.sleep(0.1)
+            stdout2, stderr2 = proc2.communicate(timeout=5)
+            if not fetch or fetch.returncode != 0 or fetched.read_bytes() != b"operator staged bytes\n":
+                print("fetch applet did not retrieve staged file", file=sys.stderr)
+                print(fetch.stdout if fetch else "", file=sys.stderr)
+                print(fetch.stderr if fetch else "", file=sys.stderr)
+                print(stdout2, file=sys.stderr)
+                print(stderr2, file=sys.stderr)
+                return 1
+        else:
+            print("skip: built BusierBox artifact missing; fetch applet server smoke skipped")
 
     print("busierbox-server smoke ok")
     return 0
