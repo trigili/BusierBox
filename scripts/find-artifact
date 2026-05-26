@@ -37,6 +37,8 @@ def matches(row, index, args):
         return False
     if args.release and row.get("release_name") != args.release:
         return False
+    if args.tuple_path and row.get("tuple_path") != args.tuple_path:
+        return False
     if args.arch and info.get("arch") != args.arch:
         return False
     if args.libc and info.get("libc") != args.libc:
@@ -96,6 +98,7 @@ def print_text(row, index):
 def active_filters(args):
     keys = (
         "release",
+        "tuple_path",
         "device",
         "arch",
         "libc",
@@ -137,6 +140,7 @@ def main(argv=None):
     parser.add_argument("--index", help="prebuilt index from scripts/index-release-repo")
     parser.add_argument("--release-root", action="append", default=[], help="release dir or directory containing releases; repeatable")
     parser.add_argument("--release")
+    parser.add_argument("--tuple-path", help="canonical release tuple path, such as by-tuple/mipsel/musl/4.x/mips32r2-24kc")
     parser.add_argument("--device")
     parser.add_argument("--arch")
     parser.add_argument("--libc")

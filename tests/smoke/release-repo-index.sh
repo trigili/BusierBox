@@ -119,6 +119,9 @@ grep -q '^payload_preset=survey-core$' "$tmp/find-device.out"
 grep -q '^compatibility=exact$' "$tmp/find-device.out"
 grep -q '^compatibility_reason=fixture$' "$tmp/find-device.out"
 grep -q '^dedupe_count=2$' "$tmp/find-device.out"
+scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --release one >"$tmp/find-tuple.out"
+grep -q '^release_name=one$' "$tmp/find-tuple.out"
+grep -q '^tuple_path=by-tuple/mipsel/musl/4.x/mips32r2-24kc$' "$tmp/find-tuple.out"
 scripts/find-artifact --index "$tmp/repo-index.json" --payload-preset ssh-operator --feature reverse-ssh --json >"$tmp/find-json.out"
 python3 - "$tmp/find-json.out" <<'PY'
 import json
@@ -143,7 +146,18 @@ assert doc["selected"]["release_name"] == "two"
 assert doc["index"]["deduplicated_artifact_count"] == 1
 assert "newest release_mtime" in doc["selection_policy"]
 PY
+scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --recommendation-json >"$tmp/recommend-tuple-json.out"
+python3 - "$tmp/recommend-tuple-json.out" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert doc["filters"]["tuple_path"] == "by-tuple/mipsel/musl/4.x/mips32r2-24kc"
+assert doc["match_count"] == 2
+assert doc["selected"]["tuple_path"] == "by-tuple/mipsel/musl/4.x/mips32r2-24kc"
+PY
 grep -q -- '--recommendation-json' docs/release-bundles.md
+grep -q -- '--tuple-path by-tuple/' docs/release-bundles.md
 grep -q 'policy used to prefer lower-risk compatibility labels' docs/release-bundles.md
 
 printf '%s\n' "release-repo-index ok"
