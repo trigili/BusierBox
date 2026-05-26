@@ -92,9 +92,18 @@ captures for:
 - `busierbox plan extract --json`
 - `busierbox plan rshell --json`
 - `busierbox plan clean --json`
+- `busierbox plan recovery install --method openwrt-procd --action rshell --json`
+- `busierbox plan recovery install --method cron-reboot --action command --json -- 'busierbox rshell start'`
 - `busierbox clean --dry-run`
 - `busierbox clean --dry-run --json`
+- `busierbox clean --dry-run --external --json`
+- `busierbox clean --external`
 - `busierbox rshell status --json`
+- `busierbox recovery status --json`
+
+The external clean capture intentionally runs without `--apply` so the harness
+records the refusal path without mutating target-owned files. Root-writing
+integration coverage remains opt-in behind `--include-root-write-tests`.
 
 The final
 machine-readable result is:
