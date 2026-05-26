@@ -11,11 +11,13 @@ Transport model:
 """
 
 import argparse
+import atexit
 import base64
 import hashlib
 import json
 import os
 import select
+import signal
 import socket
 import ssl
 import subprocess
@@ -32,6 +34,11 @@ try:
     HAVE_PARAMIKO = True
 except ImportError:
     HAVE_PARAMIKO = False
+
+
+SHUTDOWN = threading.Event()
+OWNED_SOCKETS = []
+OWNED_TRANSPORTS = []
 
 
 DEFAULT_CONFIG = Path("local/server-config.json")
@@ -79,6 +86,46 @@ def read_json_file(path, fallback):
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return fallback
+
+
+def append_event(cfg, service, event, level="info", session=None, remote=None, details=None):
+    record = {
+        "schema": 1,
+        "ts": utc_now(),
+        "service": service,
+        "session": session or "",
+        "event": event,
+        "level": level,
+        "remote": remote or "",
+        "details": details or {},
+    }
+    operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
+    events_path = operator_dir / "events.jsonl"
+    events_path.parent.mkdir(parents=True, exist_ok=True)
+    with events_path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, sort_keys=True) + "\n")
+    if session:
+        session_path = Path(str(session)) / "events.jsonl"
+        try:
+            with session_path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, sort_keys=True) + "\n")
+        except OSError:
+            pass
+
+
+def event_tail(cfg, limit=12):
+    path = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "events.jsonl"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    out = []
+    for line in lines[-limit:]:
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+    return out
 
 
 def staged_file_path(cfg):
@@ -161,6 +208,7 @@ def update_server_state(cfg, action, status="configured", extra=None):
         "shell_port": int(cfg.get("shell_listen_port", 0)),
         "file_service_port": int(cfg.get("file_service_port", 0)),
         "file_service_tls": str(cfg.get("file_service_tls", "yes")),
+        "pid": os.getpid(),
         "updated_at": utc_now(),
     }
     if extra:
@@ -172,6 +220,14 @@ def update_server_state(cfg, action, status="configured", extra=None):
 
 def mark_service_stopped(cfg, action):
     return update_server_state(cfg, action, "stopped", {})
+
+
+def mark_service_error(cfg, action, reason, extra=None):
+    data = {"error": str(reason)}
+    if extra:
+        data.update(extra)
+    append_event(cfg, action, "service_error", "error", details=data)
+    return update_server_state(cfg, action, "error", data)
 
 
 def release_context():
@@ -245,6 +301,129 @@ def shquote(value):
     if all(ch.isalnum() or ch in "._-/:=" for ch in text):
         return text
     return "'" + text.replace("'", "'\\''") + "'"
+
+
+def pid_alive(pid):
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def pid_cmdline(pid):
+    try:
+        raw = Path(f"/proc/{int(pid)}/cmdline").read_bytes()
+        return raw.replace(b"\0", b" ").decode("utf-8", errors="replace").strip()
+    except (OSError, ValueError, TypeError):
+        return ""
+
+
+def pid_is_managed_server(pid):
+    cmd = pid_cmdline(pid)
+    return "busierbox-server" in cmd or (Path(sys.argv[0]).name == "busierbox-server" and str(os.getpid()) == str(pid))
+
+
+def port_listener_pids(port):
+    inodes = set()
+    target = f"{int(port):04X}"
+    for table in ("/proc/net/tcp", "/proc/net/tcp6"):
+        path = Path(table)
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="ascii", errors="ignore").splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            cols = line.split()
+            if len(cols) > 9 and cols[1].rsplit(":", 1)[-1].upper() == target and cols[3] == "0A":
+                inodes.add(cols[9])
+    pids = []
+    if not inodes:
+        return pids
+    proc = Path("/proc")
+    for pid_dir in proc.iterdir() if proc.is_dir() else []:
+        if not pid_dir.name.isdigit():
+            continue
+        fd_dir = pid_dir / "fd"
+        try:
+            for fd in fd_dir.iterdir():
+                try:
+                    target_link = os.readlink(fd)
+                except OSError:
+                    continue
+                if target_link.startswith("socket:[") and target_link[8:-1] in inodes:
+                    pids.append(int(pid_dir.name))
+                    break
+        except OSError:
+            continue
+    return sorted(set(pids))
+
+
+def register_socket(sock):
+    OWNED_SOCKETS.append(sock)
+    return sock
+
+
+def unregister_socket(sock):
+    try:
+        OWNED_SOCKETS.remove(sock)
+    except ValueError:
+        pass
+
+
+def close_registered_resources():
+    SHUTDOWN.set()
+    for transport in list(OWNED_TRANSPORTS):
+        try:
+            transport.close()
+        except Exception:
+            pass
+    for sock in list(OWNED_SOCKETS):
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+
+def _signal_shutdown(_signum, _frame):
+    SHUTDOWN.set()
+    close_registered_resources()
+
+
+def install_shutdown_handlers():
+    atexit.register(close_registered_resources)
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            signal.signal(sig, _signal_shutdown)
+        except (OSError, ValueError):
+            pass
+
+
+def bind_listen_socket(cfg, service, port, backlog):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((str(cfg["listen_host"]), int(port)))
+        sock.listen(backlog)
+        register_socket(sock)
+        return sock
+    except OSError as exc:
+        try:
+            sock.close()
+        except OSError:
+            pass
+        owners = [{"pid": pid, "cmdline": pid_cmdline(pid)} for pid in port_listener_pids(port)]
+        mark_service_error(cfg, service, exc, {"listen_host": str(cfg["listen_host"]), "port": int(port), "owners": owners})
+        print(f"{service}: unable to bind {cfg['listen_host']}:{port}: {exc}", file=sys.stderr)
+        if owners:
+            print("possible listener owners:", file=sys.stderr)
+            for owner in owners:
+                print(f"  pid={owner['pid']} {owner['cmdline']}", file=sys.stderr)
+        print("Run: scripts/busierbox-server --status", file=sys.stderr)
+        print("Or stop managed listeners with: scripts/busierbox-server --stop", file=sys.stderr)
+        raise
 
 
 def load_config(path):
@@ -368,6 +547,18 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
     def set_transport(self, transport):
         self.transport = transport
 
+    def close(self):
+        try:
+            if self._listener_sock:
+                self._listener_sock.close()
+        except OSError:
+            pass
+        try:
+            if self.transport:
+                self.transport.close()
+        except Exception:
+            pass
+
     def check_auth_publickey(self, username, key):
         if keys_equal(self.authorized_key, key):
             print(f"SSH auth OK for {username}")
@@ -401,10 +592,11 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind((str(self.forward_host), int(self.forward_port)))
             sock.listen(20)
+            register_socket(sock)
             self._listener_sock = sock
             self.listener = sock
             try:
-                while self.transport and self.transport.is_active():
+                while not SHUTDOWN.is_set() and self.transport and self.transport.is_active():
                     try:
                         sock.settimeout(2.0)
                         try:
@@ -429,6 +621,7 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
                         target=pipe, args=(chan, local), daemon=True
                     ).start()
             finally:
+                unregister_socket(sock)
                 try:
                     sock.close()
                 except OSError:
@@ -505,6 +698,7 @@ class _KexGuess2CompatTransport(paramiko.Transport if HAVE_PARAMIKO else object)
 
 
 def serve_ssh(cfg, timeout):
+    service = "ssh"
     if not HAVE_PARAMIKO:
         print("Paramiko is required for SSH reverse-forward mode.", file=sys.stderr)
         print("Install python3-paramiko or use --transport tls-shell.", file=sys.stderr)
@@ -514,11 +708,17 @@ def serve_ssh(cfg, timeout):
     log_dir = session_log_dir(cfg, "ssh")
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((str(cfg["listen_host"]), int(cfg["ssh_listen_port"])))
-        sock.listen(20)
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir)})
+    sock = None
+    transport = None
+    server = None
+    bound = False
+    try:
+        sock = bind_listen_socket(cfg, service, cfg["ssh_listen_port"], 20)
+        bound = True
         sock.settimeout(timeout)
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir)})
+        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": int(cfg["ssh_listen_port"])})
         print_candidates(cfg, cfg["ssh_listen_port"])
         print(f"Authorized target key: {cfg['authorized_dbclient_pubkey']}")
         print("Waiting for dbclient reverse-forward connection...")
@@ -527,23 +727,45 @@ def serve_ssh(cfg, timeout):
         except socket.timeout:
             print("timeout waiting for reverse SSH connection", file=sys.stderr)
             return 1
-    print(f"Connection from {addr[0]}:{addr[1]}")
+        except OSError:
+            if SHUTDOWN.is_set():
+                return 0
+            raise
+        print(f"Connection from {addr[0]}:{addr[1]}")
+        append_event(cfg, service, "connection_open", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
 
-    transport = _KexGuess2CompatTransport(client)
-    transport.add_server_key(host_key)
-    # Pin to the one kex algorithm both Paramiko and the Dropbear build support.
-    # Dropbear's first preference is sntrup761 (PQ hybrid), which Paramiko
-    # doesn't implement, so we must pin to avoid an impossible negotiation.
-    _sec = transport.get_security_options()
-    _sec.kex = ("diffie-hellman-group14-sha256",)
-    server = ReverseSSHServer(authorized, cfg["forward_host"], cfg["forward_port"])
-    server.set_transport(transport)
-    transport.start_server(server=server)
-    try:
-        while transport.is_active():
-            time.sleep(1.0)
+        transport = _KexGuess2CompatTransport(client)
+        OWNED_TRANSPORTS.append(transport)
+        transport.add_server_key(host_key)
+        # Pin to the one kex algorithm both Paramiko and the Dropbear build support.
+        # Dropbear's first preference is sntrup761 (PQ hybrid), which Paramiko
+        # doesn't implement, so we must pin to avoid an impossible negotiation.
+        _sec = transport.get_security_options()
+        _sec.kex = ("diffie-hellman-group14-sha256",)
+        server = ReverseSSHServer(authorized, cfg["forward_host"], cfg["forward_port"])
+        server.set_transport(transport)
+        transport.start_server(server=server)
+        while not SHUTDOWN.is_set() and transport.is_active():
+            time.sleep(0.5)
+        append_event(cfg, service, "connection_close", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
     finally:
-        transport.close()
+        if server:
+            server.close()
+        if transport:
+            try:
+                OWNED_TRANSPORTS.remove(transport)
+            except ValueError:
+                pass
+            transport.close()
+        if sock:
+            unregister_socket(sock)
+            try:
+                sock.close()
+            except OSError:
+                pass
+        if bound:
+            mark_service_stopped(cfg, service)
+            append_event(cfg, service, "service_stop", session=str(log_dir))
     return 0
 
 
@@ -1000,6 +1222,7 @@ def send_json_response(conn, status_code, payload):
 
 
 def serve_file_service(cfg, timeout, max_sessions=0):
+    service = "file-service"
     port = int(cfg["file_service_port"])
     use_tls = yes(cfg.get("file_service_tls", "yes"))
     cert = Path(str(cfg["tls_cert"]))
@@ -1023,48 +1246,68 @@ def serve_file_service(cfg, timeout, max_sessions=0):
     print("Receive-only file service. Accepts target-initiated PUT/POST uploads.")
     print("Also serves operator-staged files only when the target explicitly requests them with busierbox fetch.")
     print("This service does not send artifacts, execute commands, or provide callback RPC.")
-    update_server_state(cfg, "file-service", "listening", {"session_log": str(log_dir), "staged_file": str(staged_file_path(cfg))})
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "staged_file": str(staged_file_path(cfg))})
     sessions = 0
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((str(cfg["listen_host"]), port))
-        sock.listen(20)
+    sock = None
+    bound = False
+    try:
+        sock = bind_listen_socket(cfg, service, port, 20)
+        bound = True
         sock.settimeout(timeout)
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "staged_file": str(staged_file_path(cfg))})
+        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "tls": use_tls})
         print_candidates(cfg, port)
-        while True:
+        while not SHUTDOWN.is_set():
             print("Waiting for file upload/fetch...")
             try:
                 raw, addr = sock.accept()
             except socket.timeout:
                 print("timeout waiting for file upload/fetch", file=sys.stderr)
-                mark_service_stopped(cfg, "file-service")
                 return 1 if sessions == 0 else 0
+            except OSError:
+                if SHUTDOWN.is_set():
+                    return 0
+                raise
             try:
                 with raw:
                     conn = context.wrap_socket(raw, server_side=True) if context else raw
                     with conn:
+                        append_event(cfg, service, "connection_open", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
                         metadata, status_code = handle_file_service_http(cfg, conn, files_dir, addr)
                         if metadata.get("status") == "served":
                             print(f"file-service fetch served: {metadata.get('request_name')} <- {metadata.get('source_path')}")
+                            append_event(cfg, service, "fetch_complete", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
                         else:
                             print(f"file-service upload {metadata.get('status')}: {metadata.get('stored_path', metadata.get('reason', ''))}")
+                            append_event(cfg, service, "upload_complete", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
             except Exception as exc:
                 try:
                     send_json_response(raw, 500, {"status": "error", "reason": str(exc)})
                 except Exception:
                     pass
                 print(f"file-service request failed: {exc}", file=sys.stderr)
+                append_event(cfg, service, "request_error", "error", session=str(log_dir), details={"error": str(exc)})
             finally:
                 sessions += 1
             if max_sessions > 0 and sessions >= max_sessions:
                 break
-    mark_service_stopped(cfg, "file-service")
+    finally:
+        if sock:
+            unregister_socket(sock)
+            try:
+                sock.close()
+            except OSError:
+                pass
+        if bound:
+            mark_service_stopped(cfg, service)
+            append_event(cfg, service, "service_stop", session=str(log_dir))
     return 0
 
 
 def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=None,
                     expect=None, session_timeout=None):
     """TLS shell listener — accepts both builtin+tls and socat+tls targets."""
+    service = "tls-shell"
     cert = Path(str(cfg["tls_cert"]))
     key = Path(str(cfg["tls_key"]))
     if not cert.is_file() or not key.is_file():
@@ -1083,13 +1326,17 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=N
     context.load_cert_chain(str(cert), str(key))
     print(f"TLS shell listener — accepts builtin+tls and socat+tls transports")
     sessions = 0
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((str(cfg["listen_host"]), port))
-        sock.listen(1)
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir)})
+    sock = None
+    bound = False
+    try:
+        sock = bind_listen_socket(cfg, service, port, 1)
+        bound = True
         sock.settimeout(timeout)
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir)})
+        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port})
         print_candidates(cfg, port)
-        while True:
+        while not SHUTDOWN.is_set():
             print("Waiting for TLS shell connection...")
             try:
                 raw, addr = sock.accept()
@@ -1098,7 +1345,12 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=N
                 (Path(log_dir) / "exit-reason").write_text("timeout\n", encoding="utf-8")
                 print("relay exit reason: timeout", file=sys.stderr)
                 return 1 if sessions == 0 else 0
+            except OSError:
+                if SHUTDOWN.is_set():
+                    return 0
+                raise
             print(f"TLS connection from {addr[0]}:{addr[1]}")
+            append_event(cfg, service, "shell_connected", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
             try:
                 with context.wrap_socket(raw, server_side=True) as conn:
                     reason = relay_stdio(conn, log_dir, use_stdin=use_stdin,
@@ -1109,29 +1361,46 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=N
             except ssl.SSLError as exc:
                 print(f"TLS session failed: {exc}", file=sys.stderr)
                 (Path(log_dir) / "exit-reason").write_text("tls_error\n", encoding="utf-8")
+                append_event(cfg, service, "shell_error", "error", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details={"error": str(exc)})
             finally:
                 sessions += 1
+                append_event(cfg, service, "shell_disconnected", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
             if max_sessions > 0 and sessions >= max_sessions:
                 break
             print("Shell session ended; listener remains open for target retry/reconnect.")
+    finally:
+        if sock:
+            unregister_socket(sock)
+            try:
+                sock.close()
+            except OSError:
+                pass
+        if bound:
+            mark_service_stopped(cfg, service)
+            append_event(cfg, service, "service_stop", session=str(log_dir))
     return 0
 
 
 def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=None,
                       expect=None, session_timeout=None):
     """Plaintext shell listener — debug/insecure; socat+none or builtin+none."""
+    service = "plain-shell"
     port = int(cfg["shell_listen_port"])
     print("WARNING: plain-shell is INSECURE and for debug use only!", file=sys.stderr)
     log_dir = session_log_dir(cfg, "plain-shell")
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     sessions = 0
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((str(cfg["listen_host"]), port))
-        sock.listen(1)
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir)})
+    sock = None
+    bound = False
+    try:
+        sock = bind_listen_socket(cfg, service, port, 1)
+        bound = True
         sock.settimeout(timeout)
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir)})
+        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port})
         print_candidates(cfg, port)
-        while True:
+        while not SHUTDOWN.is_set():
             print("Waiting for plaintext shell connection (INSECURE)...")
             try:
                 conn, addr = sock.accept()
@@ -1140,7 +1409,12 @@ def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes
                 (Path(log_dir) / "exit-reason").write_text("timeout\n", encoding="utf-8")
                 print("relay exit reason: timeout", file=sys.stderr)
                 return 1 if sessions == 0 else 0
+            except OSError:
+                if SHUTDOWN.is_set():
+                    return 0
+                raise
             print(f"Plain connection from {addr[0]}:{addr[1]}")
+            append_event(cfg, service, "shell_connected", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
             with conn:
                 reason = relay_stdio(conn, log_dir, use_stdin=use_stdin,
                                       script_bytes=script_bytes, expect=expect,
@@ -1148,9 +1422,20 @@ def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes
                 if expect is not None and reason == "expectation_missing":
                     return 1
             sessions += 1
+            append_event(cfg, service, "shell_disconnected", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
             if max_sessions > 0 and sessions >= max_sessions:
                 break
             print("Shell session ended; listener remains open for target retry/reconnect.")
+    finally:
+        if sock:
+            unregister_socket(sock)
+            try:
+                sock.close()
+            except OSError:
+                pass
+        if bound:
+            mark_service_stopped(cfg, service)
+            append_event(cfg, service, "service_stop", session=str(log_dir))
     return 0
 
 
@@ -1193,6 +1478,126 @@ def workbench_snapshot(cfg):
             "state": (state.get("services") or {}).get(name, {}),
         }
     return {"state": state, "staged": staged, "services": services}
+
+
+def service_status_rows(cfg):
+    snap = workbench_snapshot(cfg)
+    rows = []
+    for name, info in snap["services"].items():
+        rec = dict(info["state"])
+        pid = rec.get("pid")
+        actual = "listening" if info["listening"] else "stopped"
+        stale = bool(rec.get("status") == "listening" and not info["listening"])
+        rows.append({
+            "name": name,
+            "port": info["port"],
+            "actual": actual,
+            "configured": rec.get("status", "unknown"),
+            "pid": pid or "",
+            "pid_alive": pid_alive(pid) if pid else False,
+            "stale": stale,
+            "error": rec.get("error", ""),
+            "owners": rec.get("owners", []),
+            "session_log": rec.get("session_log", ""),
+            "process_log": rec.get("process_log", ""),
+        })
+    return rows
+
+
+def status_document(cfg):
+    return {
+        "schema": 1,
+        "state_file": str(state_file_path(cfg)),
+        "staged_files": str(staged_file_path(cfg)),
+        "session_root": str(cfg.get("session_root", "local/sessions")),
+        "services": service_status_rows(cfg),
+        "staged": load_staged(cfg).get("staged", {}),
+        "uploads": recent_upload_metadata(cfg),
+        "sessions": [str(path) for path in recent_sessions(cfg)],
+        "events": event_tail(cfg),
+        "release": release_context(),
+    }
+
+
+def print_status(cfg, json_output=False):
+    doc = status_document(cfg)
+    if json_output:
+        print(json.dumps(doc, indent=2, sort_keys=True))
+        return 0
+    print("BusierBox server status")
+    print(f"  state_file: {doc['state_file']}")
+    print(f"  staged_files: {doc['staged_files']}")
+    print(f"  session_root: {doc['session_root']}")
+    print("")
+    print("Services:")
+    for row in doc["services"]:
+        stale = " stale-state" if row["stale"] else ""
+        pid = f" pid={row['pid']}" if row["pid"] else ""
+        print(f"  {row['name']:12s} port={row['port']} configured={row['configured']} actual={row['actual']}{pid}{stale}")
+        if row["error"]:
+            print(f"    error: {row['error']}")
+        if row["process_log"]:
+            print(f"    process_log: {row['process_log']}")
+        if row["session_log"]:
+            print(f"    session_log: {row['session_log']}")
+    if any(row["stale"] for row in doc["services"]):
+        print("")
+        print("Warnings:")
+        print("  stale state detected; run scripts/busierbox-server --stop to clean managed records")
+    print("")
+    print("Recent sessions:")
+    for session in doc["sessions"] or ["none"]:
+        print(f"  {session}")
+    print("")
+    print("Recent uploads:")
+    if doc["uploads"]:
+        for meta in doc["uploads"]:
+            print(f"  {meta.get('filename', '')} size={meta.get('size', '')} metadata={meta.get('_metadata_path', '')}")
+    else:
+        print("  none")
+    return 0
+
+
+def stop_managed_services(cfg):
+    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
+    services = state.get("services") if isinstance(state, dict) else {}
+    if not isinstance(services, dict):
+        services = {}
+    stopped = 0
+    skipped = 0
+    for name, rec in sorted(services.items()):
+        pid = rec.get("pid") if isinstance(rec, dict) else None
+        if isinstance(rec, dict) and rec.get("status") == "stopped":
+            print(f"{name}: already stopped")
+            skipped += 1
+            continue
+        if not pid:
+            mark_service_stopped(cfg, name)
+            print(f"{name}: no pid recorded; marked stopped")
+            skipped += 1
+            continue
+        if not pid_alive(pid):
+            mark_service_stopped(cfg, name)
+            print(f"{name}: stale pid {pid}; marked stopped")
+            skipped += 1
+            continue
+        if not pid_is_managed_server(pid):
+            print(f"{name}: skipped pid {pid}; not clearly a managed busierbox-server process")
+            skipped += 1
+            continue
+        try:
+            os.kill(int(pid), signal.SIGTERM)
+            stopped += 1
+            mark_service_stopped(cfg, name)
+            append_event(cfg, name, "service_stop", details={"pid": pid, "via": "server-stop"})
+            print(f"{name}: stopped pid {pid}")
+        except OSError as exc:
+            mark_service_error(cfg, name, exc)
+            print(f"{name}: failed to stop pid {pid}: {exc}", file=sys.stderr)
+            skipped += 1
+    if stopped == 0 and skipped == 0:
+        print("No managed services recorded.")
+    return 0
 
 
 def print_workbench(cfg):
@@ -1275,7 +1680,8 @@ def start_service_process(cfg, service, argv_extra=None):
     log_path = log_root / f"operator-{service}-{int(time.time())}.log"
     with log_path.open("ab") as log:
         proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-    update_server_state(cfg, service, "starting", {"pid": proc.pid, "process_log": str(log_path)})
+    update_server_state(cfg, service, "starting", {"pid": proc.pid, "managed_by": os.getpid(), "process_log": str(log_path)})
+    append_event(cfg, service, "service_start_requested", details={"pid": proc.pid, "process_log": str(log_path), "managed_by": os.getpid()})
     print(f"started {service}: pid={proc.pid} log={log_path}")
 
 
@@ -1401,6 +1807,13 @@ def run_tui(cfg):
     except Exception as exc:
         print(f"curses workbench unavailable, using line menu: {exc}", file=sys.stderr)
         return run_line_tui(cfg)
+    finally:
+        state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
+        for name, rec in (state.get("services") or {}).items():
+            if isinstance(rec, dict) and str(rec.get("managed_by", "")) == str(os.getpid()):
+                stop_recorded_service(cfg, name)
+        mark_service_stopped(cfg, "workbench")
+        append_event(cfg, "workbench", "shutdown")
 
 
 def _resolve_transport(cfg, args_transport):
@@ -1429,6 +1842,7 @@ def _resolve_transport(cfg, args_transport):
 
 
 def main(argv=None):
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(
         description="Catch BusierBox reverse-access transports from a target.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1457,6 +1871,14 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="receive target-initiated file uploads and store them under local/sessions")
     parser.add_argument("--tui", action="store_true",
                         help="open the operator-side service/file staging workbench")
+    parser.add_argument("--no-tui", action="store_true",
+                        help="preserve direct listener CLI behavior when running interactively with no args")
+    parser.add_argument("--status", action="store_true",
+                        help="show managed service state, actual listeners, sessions, uploads, and stale warnings")
+    parser.add_argument("--json-status", action="store_true",
+                        help="print --status information as JSON")
+    parser.add_argument("--stop", action="store_true",
+                        help="stop known managed listeners from server-state PID records")
     parser.add_argument("--serve-file",
                         help="stage a local file for explicit target fetch")
     parser.add_argument("--as", dest="serve_as",
@@ -1495,7 +1917,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="literal text that must appear in captured shell output")
     parser.add_argument("--session-timeout", type=float, default=30,
                         help="seconds to allow a scripted shell session; 0 disables the limit")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_argv)
 
     cfg = load_config(args.config)
     cfg["_config_path"] = args.config
@@ -1516,6 +1938,11 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["server_state"] = args.state_file
     if args.staged_file:
         cfg["staged_files"] = args.staged_file
+
+    if args.status or args.json_status:
+        return print_status(cfg, json_output=args.json_status)
+    if args.stop:
+        return stop_managed_services(cfg)
 
     timeout = None if args.timeout == 0 else args.timeout
     action = "file-service" if args.file_service else _resolve_transport(cfg, args.transport)
@@ -1546,26 +1973,35 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         print(f"busierbox-server: {exc}", file=sys.stderr)
         return 2
 
-    if args.tui:
+    if args.tui or (not raw_argv and not args.no_tui and sys.stdin.isatty() and sys.stdout.isatty()):
         return run_tui(cfg)
 
-    if action == "ssh":
-        return serve_ssh(cfg, timeout)
-    if action == "tls-shell":
-        return serve_tls_shell(cfg, timeout, use_stdin=not (args.no_stdin or args.log_only),
-                               max_sessions=1 if args.one_shot or args.script else 0,
-                               script_bytes=script_bytes, expect=args.expect,
-                               session_timeout=session_timeout)
-    if action == "plain-shell":
-        return serve_plain_shell(cfg, timeout, use_stdin=not (args.no_stdin or args.log_only),
-                                 max_sessions=1 if args.one_shot or args.script else 0,
-                                 script_bytes=script_bytes, expect=args.expect,
-                                 session_timeout=session_timeout)
-    if action == "file-service":
-        return serve_file_service(cfg, timeout, max_sessions=1 if args.one_shot else 0)
+    try:
+        if action == "ssh":
+            return serve_ssh(cfg, timeout)
+        if action == "tls-shell":
+            return serve_tls_shell(cfg, timeout, use_stdin=not (args.no_stdin or args.log_only),
+                                   max_sessions=1 if args.one_shot or args.script else 0,
+                                   script_bytes=script_bytes, expect=args.expect,
+                                   session_timeout=session_timeout)
+        if action == "plain-shell":
+            return serve_plain_shell(cfg, timeout, use_stdin=not (args.no_stdin or args.log_only),
+                                     max_sessions=1 if args.one_shot or args.script else 0,
+                                     script_bytes=script_bytes, expect=args.expect,
+                                     session_timeout=session_timeout)
+        if action == "file-service":
+            return serve_file_service(cfg, timeout, max_sessions=1 if args.one_shot else 0)
+    except KeyboardInterrupt:
+        print("busierbox-server: interrupted, shutting down", file=sys.stderr)
+        append_event(cfg, action, "shutdown", details={"reason": "keyboard_interrupt"})
+        mark_service_stopped(cfg, action)
+        return 130
+    except OSError:
+        return 1
     print(f"unsupported transport: {action}", file=sys.stderr)
     return 2
 
 
 if __name__ == "__main__":
+    install_shutdown_handlers()
     raise SystemExit(main())

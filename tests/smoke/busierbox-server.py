@@ -71,7 +71,7 @@ def main():
     if "file-service" not in combined or "--file-service" not in combined:
         print("busierbox-server help missing receive-only file service", file=sys.stderr)
         return 1
-    for word in ("--tui", "--serve-file", "--serve-dir", "--list-staged"):
+    for word in ("--tui", "--serve-file", "--serve-dir", "--list-staged", "--status", "--stop", "--json-status"):
         if word not in combined:
             print(f"busierbox-server help missing operator workbench flag: {word}", file=sys.stderr)
             return 1
@@ -172,6 +172,155 @@ def main():
             print("Legacy socat_listen_port field not accepted:", file=sys.stderr)
             print(result2.stdout, file=sys.stderr)
             print(result2.stderr, file=sys.stderr)
+            return 1
+
+        lifecycle_port = free_port()
+        lifecycle_cfg = Path(tmp) / "server-config-lifecycle.json"
+        lifecycle_state = Path(tmp) / "operator-session" / "lifecycle-state.json"
+        lifecycle_staged = Path(tmp) / "operator-session" / "lifecycle-staged.json"
+        lifecycle_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "file_service_port": lifecycle_port,
+            "session_root": str(Path(tmp) / "sessions-lifecycle"),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+            "file_service_tls": "no",
+            "operator_session_dir": str(Path(tmp) / "operator-session"),
+        }), encoding="utf-8")
+        lifecycle_proc = subprocess.Popen(
+            [
+                str(server), "--config", str(lifecycle_cfg),
+                "--state-file", str(lifecycle_state),
+                "--staged-file", str(lifecycle_staged),
+                "--transport", "file-service",
+                "--file-service-tls", "no",
+                "--timeout", "30",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        status_doc = None
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            status = run(
+                "scripts/busierbox-server", "--config", str(lifecycle_cfg),
+                "--state-file", str(lifecycle_state),
+                "--staged-file", str(lifecycle_staged),
+                "--json-status",
+            )
+            if status.returncode == 0:
+                status_doc = json.loads(status.stdout)
+                rows = {row["name"]: row for row in status_doc["services"]}
+                if rows["file-service"]["actual"] == "listening" and rows["file-service"].get("pid"):
+                    break
+            time.sleep(0.05)
+        else:
+            print("lifecycle file-service did not reach listening state", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        rows = {row["name"]: row for row in status_doc["services"]}
+        if not rows["file-service"].get("pid"):
+            print("status missing file-service pid", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        stop = run(
+            "scripts/busierbox-server", "--config", str(lifecycle_cfg),
+            "--state-file", str(lifecycle_state),
+            "--staged-file", str(lifecycle_staged),
+            "--stop",
+        )
+        if stop.returncode != 0 or "stopped pid" not in stop.stdout:
+            print("--stop did not stop managed listener", file=sys.stderr)
+            print(stop.stdout, file=sys.stderr)
+            print(stop.stderr, file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        stdout_life, stderr_life = lifecycle_proc.communicate(timeout=5)
+        if lifecycle_proc.returncode not in (0, -15):
+            print("managed listener exited unexpectedly after --stop", file=sys.stderr)
+            print(stdout_life, file=sys.stderr)
+            print(stderr_life, file=sys.stderr)
+            return 1
+        status_after = run(
+            "scripts/busierbox-server", "--config", str(lifecycle_cfg),
+            "--state-file", str(lifecycle_state),
+            "--staged-file", str(lifecycle_staged),
+            "--json-status",
+        )
+        rows_after = {row["name"]: row for row in json.loads(status_after.stdout)["services"]}
+        if rows_after["file-service"]["actual"] == "listening":
+            print("file-service port still listening after --stop", file=sys.stderr)
+            return 1
+        rebind = subprocess.Popen(
+            [
+                str(server), "--config", str(lifecycle_cfg),
+                "--state-file", str(lifecycle_state),
+                "--staged-file", str(lifecycle_staged),
+                "--transport", "file-service",
+                "--file-service-tls", "no",
+                "--one-shot",
+                "--timeout", "5",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        missing_request = b"GET /fetch?name=missing HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"
+        response_rebind = connect_with_retry(lifecycle_port, missing_request)
+        stdout_rebind, stderr_rebind = rebind.communicate(timeout=5)
+        if rebind.returncode != 0 or b"HTTP/1.1 404" not in response_rebind:
+            print("file-service did not rebind cleanly after --stop", file=sys.stderr)
+            print(stdout_rebind, file=sys.stderr)
+            print(stderr_rebind, file=sys.stderr)
+            return 1
+
+        bind_fail_port = free_port()
+        bind_fail_cfg = Path(tmp) / "server-config-bind-fail.json"
+        bind_fail_state = Path(tmp) / "operator-session" / "bind-fail-state.json"
+        bind_fail_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "file_service_port": bind_fail_port,
+            "session_root": str(Path(tmp) / "sessions-bind-fail"),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+            "file_service_tls": "no",
+            "operator_session_dir": str(Path(tmp) / "operator-session"),
+        }), encoding="utf-8")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as blocker:
+            blocker.bind(("127.0.0.1", bind_fail_port))
+            blocker.listen(1)
+            bind_fail = run(
+                "scripts/busierbox-server", "--config", str(bind_fail_cfg),
+                "--state-file", str(bind_fail_state),
+                "--staged-file", str(lifecycle_staged),
+                "--transport", "file-service",
+                "--file-service-tls", "no",
+                "--timeout", "0.05",
+            )
+        combined_bind = bind_fail.stdout + bind_fail.stderr
+        if bind_fail.returncode == 0 or "Traceback" in combined_bind or "unable to bind" not in combined_bind:
+            print("bind failure was not reported cleanly", file=sys.stderr)
+            print(combined_bind, file=sys.stderr)
+            return 1
+        state_after_bind = json.loads(bind_fail_state.read_text(encoding="utf-8"))
+        if state_after_bind["services"]["file-service"].get("status") != "error":
+            print("bind failure did not mark service error", file=sys.stderr)
+            return 1
+
+        state_after_bind["services"]["file-service"].update({"status": "listening", "pid": 999999, "updated_at": "stale"})
+        lifecycle_state.write_text(json.dumps(state_after_bind, indent=2) + "\n", encoding="utf-8")
+        stale = run(
+            "scripts/busierbox-server", "--config", str(lifecycle_cfg),
+            "--state-file", str(lifecycle_state),
+            "--staged-file", str(lifecycle_staged),
+            "--status",
+        )
+        if "stale-state" not in stale.stdout:
+            print("--status did not warn on stale listening state", file=sys.stderr)
+            print(stale.stdout, file=sys.stderr)
             return 1
 
         upload_port = free_port()
