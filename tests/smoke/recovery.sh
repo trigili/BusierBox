@@ -22,6 +22,9 @@ esac
 "$bb" persistence --help >/dev/null
 "$bb" recovery --help >"$tmp/recovery-help"
 grep -q 'deprecated compatibility alias for persistence' "$tmp/recovery-help"
+grep -q 'evidence-push' "$tmp/recovery-help"
+grep -q 'evidence-then-rshell' "$tmp/recovery-help"
+grep -q 'dmesg-push' "$tmp/recovery-help"
 "$bb" persistence --survey --json --root "$tmp/root" | python3 -m json.tool >/dev/null
 "$bb" recovery --survey --json --root "$tmp/root" | python3 -m json.tool >/dev/null
 "$bb" persistence --plan --root "$tmp/root" >"$tmp/plan"
@@ -110,6 +113,55 @@ grep -q 'installed_method=rc-local' "$tmp/copied-recovery-status"
 
 "$bb" recovery install --method rcS --dry-run --root "$tmp/root" --name bbx_recovery >"$tmp/rcs-dry-run"
 grep -q 'Would install persistence method=rcS' "$tmp/rcs-dry-run"
+
+if "$bb" persistence install --method rc-local --action evidence-push --dry-run --root "$tmp/root" --name 'bad name' >"$tmp/bad-name.out" 2>"$tmp/bad-name.err"; then
+    printf '%s\n' "recovery: invalid recovery name unexpectedly succeeded" >&2
+    exit 1
+fi
+grep -q 'recovery name must use letters' "$tmp/bad-name.err"
+
+"$bb" persistence install --method rc-local --action evidence-push --dry-run --root "$tmp/root" --name bbx_recovery >"$tmp/evidence-dry-run"
+grep -q 'Action: evidence-push' "$tmp/evidence-dry-run"
+grep -q 'Generated command: /usr/bin/bbx_recovery evidence push --quiet' "$tmp/evidence-dry-run"
+"$bb" persistence install --method rc-local --action evidence-push --apply --root "$tmp/root" --name bbx_recovery >/dev/null
+grep -q 'action=evidence-push' "$tmp/root/etc/rc.local"
+grep -q '/usr/bin/bbx_recovery evidence push --quiet' "$tmp/root/etc/rc.local"
+"$bb" persistence status --json --root "$tmp/root" --name bbx_recovery >"$tmp/evidence-status.json"
+python3 - <<'PY' "$tmp/evidence-status.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+item = next(item for item in data["installations"] if item["method"] == "rc-local")
+assert item["action"] == "evidence-push"
+assert item["generated_command"] == "/usr/bin/bbx_recovery evidence push --quiet"
+assert item["binary_present"] is True
+PY
+"$bb" persistence uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
+
+"$bb" persistence install --method rc-local --action evidence-then-rshell --apply --root "$tmp/root" --name bbx_recovery >/dev/null
+grep -q 'action=evidence-then-rshell' "$tmp/root/etc/rc.local"
+grep -q '/usr/bin/bbx_recovery evidence push --quiet && /usr/bin/bbx_recovery rshell start' "$tmp/root/etc/rc.local"
+"$bb" persistence status --root "$tmp/root" --name bbx_recovery >"$tmp/evidence-rshell-status"
+grep -q 'installed_action=evidence-then-rshell' "$tmp/evidence-rshell-status"
+grep -q 'installed_command=/usr/bin/bbx_recovery evidence push --quiet && /usr/bin/bbx_recovery rshell start' "$tmp/evidence-rshell-status"
+"$bb" persistence uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
+
+"$bb" persistence install --method rc-local --action dmesg-push --dry-run --root "$tmp/root" --name bbx_recovery >"$tmp/dmesg-dry-run"
+grep -q 'Action: dmesg-push' "$tmp/dmesg-dry-run"
+grep -q 'dmesg >/tmp/bbx_recovery-dmesg.txt' "$tmp/dmesg-dry-run"
+grep -q -- '--dest bbx_recovery-dmesg.txt' "$tmp/dmesg-dry-run"
+"$bb" persistence install --method rc-local --action dmesg-push --apply --root "$tmp/root" --name bbx_recovery >/dev/null
+grep -q 'action=dmesg-push' "$tmp/root/etc/rc.local"
+grep -q 'rm -f /tmp/bbx_recovery-dmesg.txt' "$tmp/root/etc/rc.local"
+"$bb" persistence status --json --root "$tmp/root" --name bbx_recovery >"$tmp/dmesg-status.json"
+python3 - <<'PY' "$tmp/dmesg-status.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+item = next(item for item in data["installations"] if item["method"] == "rc-local")
+assert item["action"] == "dmesg-push"
+assert "dmesg >/tmp/bbx_recovery-dmesg.txt" in item["generated_command"]
+assert "--dest bbx_recovery-dmesg.txt" in item["generated_command"]
+PY
+"$bb" persistence uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 
 "$bb" persistence uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 test ! -e "$tmp/root/usr/bin/bbx_recovery"

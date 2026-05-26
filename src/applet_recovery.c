@@ -201,6 +201,20 @@ static int copy_file_path(const char *src, const char *dst)
     return fclose(out);
 }
 
+static int shell_name_safe(const char *s)
+{
+    size_t i;
+    if (!s || !*s)
+        return 0;
+    for (i = 0; s[i]; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.'))
+            return 0;
+    }
+    return 1;
+}
+
 static int backup_existing_file(const char *path, char *backup, size_t backupsz)
 {
     struct stat st;
@@ -473,8 +487,14 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
         fprintf(stderr, "%s: unsupported method %s\n", applet, method);
         return 2;
     }
-    if (strcmp(action, "rshell") && strcmp(action, "command") && strcmp(action, "script") && strcmp(action, "status-only")) {
+    if (strcmp(action, "rshell") && strcmp(action, "command") && strcmp(action, "script") &&
+        strcmp(action, "status-only") && strcmp(action, "evidence-push") &&
+        strcmp(action, "evidence-then-rshell") && strcmp(action, "dmesg-push")) {
         fprintf(stderr, "%s: unsupported recovery action %s\n", applet, action);
+        return 2;
+    }
+    if (!shell_name_safe(name)) {
+        fprintf(stderr, "%s: recovery name must use letters, numbers, dot, dash, or underscore\n", applet);
         return 2;
     }
     recovery_join(hook, sizeof(hook), root, m->path);
@@ -482,6 +502,12 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     recovery_script_path(script_dst, sizeof(script_dst), root, name);
     if (!strcmp(action, "rshell"))
         snprintf(generated, sizeof(generated), "/usr/bin/%s rshell start", name);
+    else if (!strcmp(action, "evidence-push"))
+        snprintf(generated, sizeof(generated), "/usr/bin/%s evidence push --quiet", name);
+    else if (!strcmp(action, "evidence-then-rshell"))
+        snprintf(generated, sizeof(generated), "/usr/bin/%s evidence push --quiet && /usr/bin/%s rshell start", name, name);
+    else if (!strcmp(action, "dmesg-push"))
+        snprintf(generated, sizeof(generated), "dmesg >/tmp/%s-dmesg.txt 2>&1; /usr/bin/%s evidence push /tmp/%s-dmesg.txt --dest %s-dmesg.txt --quiet; rm -f /tmp/%s-dmesg.txt", name, name, name, name, name);
     else if (!strcmp(action, "script")) {
         if (!script_file || !*script_file) {
             fprintf(stderr, "%s: recovery action script requires --file FILE\n", applet);
@@ -558,6 +584,10 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
         }
     }
     backup[0] = '\0';
+    if (remove_recovery_block(hook, name) != 0) {
+        fprintf(stderr, "%s: cannot replace existing hook block in %s: %s\n", applet, hook, strerror(errno));
+        return 1;
+    }
     backup_status = backup_existing_file(hook, backup, sizeof(backup));
     if (backup_status < 0) {
         fprintf(stderr, "%s: cannot backup hook %s: %s\n", applet, hook, strerror(errno));
@@ -599,10 +629,11 @@ int applet_recovery_main(int argc, char **argv)
             puts("recovery is a deprecated compatibility alias for persistence.");
         puts("usage: busierbox persistence --survey|--plan [--json] [--root ROOT]");
         puts("       busierbox persistence status [--json] [--root ROOT] [--name NAME]");
-        puts("       busierbox persistence install --method METHOD [--action rshell|command|script|status-only] --dry-run|--apply [--external] [--root ROOT] [--name NAME] [--file SCRIPT] [-- COMMAND]");
+        puts("       busierbox persistence install --method METHOD [--action rshell|evidence-push|evidence-then-rshell|dmesg-push|command|script|status-only] --dry-run|--apply [--external] [--root ROOT] [--name NAME] [--file SCRIPT] [-- COMMAND]");
         puts("       busierbox persistence uninstall --method METHOD --dry-run|--apply [--external] [--root ROOT] [--name NAME]");
         puts("Persistence is authorized lab persistence/recovery only. Survey and plan never modify the target.");
         puts("Install and uninstall require an explicit method plus --dry-run or --apply; real-root writes require --external --apply.");
+        puts("Evidence actions upload target-initiated evidence to the configured receive-only operator file service.");
         return 0;
     }
     if (!strcmp(cmd, "install"))

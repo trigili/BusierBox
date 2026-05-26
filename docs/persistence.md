@@ -26,6 +26,9 @@ check. Explicit recovery actions are also available:
 ```sh
 busierbox persistence install --method rc-local --name busierbox_recovery --dry-run
 busierbox persistence install --method openwrt-procd --action rshell --external --apply
+busierbox persistence install --method rc-local --action evidence-push --dry-run
+busierbox persistence install --method rc-local --action evidence-then-rshell --external --apply
+busierbox persistence install --method rc-local --action dmesg-push --external --apply
 busierbox persistence install --method cron-reboot --action command --dry-run -- 'busierbox rshell start'
 busierbox persistence install --method rc-local --action script --file ./recover.sh --external --apply
 busierbox persistence install --method rc-local --name busierbox_recovery --external --apply
@@ -38,6 +41,9 @@ Actions:
 
 - `status-only`: run `busierbox persistence status`; this is the conservative default.
 - `rshell`: run `busierbox rshell start` with the artifact's effective runtime config.
+- `evidence-push`: upload a generated BusierBox evidence summary to the configured receive-only file service.
+- `evidence-then-rshell`: upload generated evidence, then start `rshell` only if the upload command succeeds.
+- `dmesg-push`: capture `dmesg` to a temporary file, upload it as evidence, then remove the temporary file.
 - `command`: run the explicit command provided after `--`.
 - `script`: copy `--file` to `/usr/bin/<name>.recovery.sh` and run it from the hook.
 
@@ -48,6 +54,11 @@ marked BusierBox block is appended. Hook blocks include action metadata and the
 generated command between `BEGIN BUSIERBOX RECOVERY` and `END BUSIERBOX
 RECOVERY` markers. Uninstall removes only those marked blocks and staged
 BusierBox files.
+
+Evidence actions are explicit crash/reboot workflows for lab targets that panic
+or reboot during testing. They do not add a hidden control channel, do not
+execute operator-supplied commands, and still require the target artifact to be
+configured with an operator host/file-service before upload can succeed.
 
 `busierbox recovery` remains as a deprecated compatibility alias. Internal hook
 markers still use `BUSIERBOX RECOVERY` so older cleanup/status checks keep
