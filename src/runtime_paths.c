@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "runtime_config.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -206,4 +207,67 @@ int bb_path_has_duplicate_entries(const char *path)
     }
     free(outer);
     return dup;
+}
+
+int bb_extract_root_usable(const char *path)
+{
+    if (!path || !path[0] || !bb_path_exists(path))
+        return 0;
+    if (access(path, W_OK | X_OK) != 0)
+        return 0;
+    return !bb_dir_is_noexec(path);
+}
+
+unsigned long long bb_extract_required_bytes(unsigned long long payload_size)
+{
+    unsigned long long need = payload_size * 4ULL;
+    if (need < 8ULL * 1024ULL * 1024ULL)
+        need = 8ULL * 1024ULL * 1024ULL;
+    return need;
+}
+
+int bb_enough_space_for_extract(unsigned long long size, const char *root)
+{
+    struct statvfs v;
+    unsigned long long free_bytes;
+
+    if (statvfs(root, &v) != 0)
+        return 1;
+    free_bytes = (unsigned long long)v.f_bavail * (unsigned long long)v.f_frsize;
+    return free_bytes > bb_extract_required_bytes(size);
+}
+
+/*
+ * Select and create the runtime root used for payload extraction.  Successful
+ * directory creation is ledgered because cleanup owns only BusierBox-created
+ * runtime trees; callers receive the root path, not ownership of the ledger.
+ */
+int bb_choose_extract_root(char *out, size_t outsz)
+{
+    char path[PATH_MAX];
+    const char *runtime_root = bb_config_get("BB_RUNTIME_ROOT");
+    const char *fallback_enabled = bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT");
+    const char *fallback_root = bb_config_get("BB_RUNTIME_FALLBACK_ROOT");
+    const char *roots[2];
+    int i, nroots = 0;
+
+    if (runtime_root && runtime_root[0])
+        roots[nroots++] = runtime_root;
+    if (fallback_enabled && !strcmp(fallback_enabled, "yes") &&
+        fallback_root && fallback_root[0])
+        roots[nroots++] = fallback_root;
+
+    for (i = 0; i < nroots; i++) {
+        if (!roots[i] || !roots[i][0])
+            continue;
+        snprintf(path, sizeof(path), "%s", roots[i]);
+        if (bb_mkdir_p(path, 0700) != 0)
+            continue;
+        bb_ledger_record("mkdir", path, "runtime", "runtime root");
+        if (!bb_extract_root_usable(path))
+            continue;
+        snprintf(out, outsz, "%s", path);
+        return 0;
+    }
+    return -1;
 }

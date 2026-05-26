@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -709,52 +708,6 @@ static int archive_path(char *out, size_t outsz)
     return -1;
 }
 
-static int choose_extract_root(char *out, size_t outsz)
-{
-    char path[PATH_MAX];
-    const char *roots[4];
-    int i, nroots = 0;
-
-    if (BB_RUNTIME_ROOT[0])
-        roots[nroots++] = BB_RUNTIME_ROOT;
-    if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && BB_RUNTIME_FALLBACK_ROOT[0])
-        roots[nroots++] = BB_RUNTIME_FALLBACK_ROOT;
-
-    for (i = 0; i < nroots; i++) {
-        if (!roots[i] || !roots[i][0])
-            continue;
-        snprintf(path, sizeof(path), "%s", roots[i]);
-        if (bb_mkdir_p(path, 0700) != 0)
-            continue;
-        bb_ledger_record("mkdir", path, "runtime", "runtime root");
-        if (access(path, W_OK | X_OK) != 0)
-            continue;
-        if (bb_dir_is_noexec(path))
-            continue;
-        snprintf(out, outsz, "%s", path);
-        return 0;
-    }
-    return -1;
-}
-
-static unsigned long long extract_required_bytes(unsigned long long payload_size)
-{
-    unsigned long long need = payload_size * 4ULL;
-    if (need < 8ULL * 1024ULL * 1024ULL)
-        need = 8ULL * 1024ULL * 1024ULL;
-    return need;
-}
-
-static int enough_space_size(unsigned long long size, const char *root)
-{
-    struct statvfs v;
-    unsigned long long free_bytes;
-    if (statvfs(root, &v) != 0)
-        return 1;
-    free_bytes = (unsigned long long)v.f_bavail * (unsigned long long)v.f_frsize;
-    return free_bytes > extract_required_bytes(size);
-}
-
 struct payload_stream {
     FILE *fp;
     unsigned long long remaining;
@@ -1125,7 +1078,7 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
     snprintf(final, sizeof(final), "%s/payload", root);
     snprintf(extracted, sizeof(extracted), "%s/payload", tmp);
 
-    if (!enough_space_size(ep->size, root)) {
+    if (!bb_enough_space_for_extract(ep->size, root)) {
         fprintf(stderr, "extract: not enough free space in %s\n", root);
         return -1;
     }
@@ -1211,7 +1164,7 @@ static int extract_archive_file_to_root(const char *archive, const char *root, i
     is_tgz = strstr(archive, ".gz") || strstr(archive, ".tgz");
     snprintf(ep.format, sizeof(ep.format), "%s", is_tgz ? "tgz" : "tar");
 
-    if (!enough_space_size(ep.size, root))
+    if (!bb_enough_space_for_extract(ep.size, root))
         return -1;
     fp = fopen(archive, "rb");
     if (!fp)
@@ -1267,7 +1220,7 @@ static int ensure_payload_mode(char *payload, size_t payloadsz, int require_full
             return 0;
         }
     }
-    if (choose_extract_root(root, sizeof(root)) != 0)
+    if (bb_choose_extract_root(root, sizeof(root)) != 0)
         return -1;
     if (have_ep) {
         if (extract_embedded_to_root(&ep, root, !require_full) != 0)
@@ -1713,7 +1666,7 @@ int applet_extract_main(int argc, char **argv)
         printf("payload: reuse %s\n", payload);
         return 0;
     }
-    if (choose_extract_root(root, sizeof(root)) != 0) {
+    if (bb_choose_extract_root(root, sizeof(root)) != 0) {
         fprintf(stderr, "extract: no writable executable runtime directory found\n");
         return 1;
     }
@@ -1743,15 +1696,6 @@ int applet_extract_main(int argc, char **argv)
     return 0;
 }
 
-static int extract_root_currently_usable(const char *path)
-{
-    if (!path || !path[0] || !bb_path_exists(path))
-        return 0;
-    if (access(path, W_OK | X_OK) != 0)
-        return 0;
-    return !bb_dir_is_noexec(path);
-}
-
 static void print_extract_root_probe_json(FILE *out, const char *role, const char *path,
                                           unsigned long long payload_size, int selected)
 {
@@ -1775,7 +1719,7 @@ static void print_extract_root_probe_json(FILE *out, const char *role, const cha
             noexec ? "true" : "false");
     fprintf(out, ",\"available_bytes\":%llu,\"free_space_ok\":%s,\"selected\":%s}",
             exists ? bb_path_available_bytes(path) : 0ULL,
-            exists && enough_space_size(payload_size, path) ? "true" : "false",
+            exists && bb_enough_space_for_extract(payload_size, path) ? "true" : "false",
             selected ? "true" : "false");
 }
 
@@ -1784,9 +1728,9 @@ static void print_doctor_extraction_runtime_json(FILE *out, unsigned long long p
     const char *selected = NULL;
     int fallback_enabled = !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes");
 
-    if (extract_root_currently_usable(BB_RUNTIME_ROOT))
+    if (bb_extract_root_usable(BB_RUNTIME_ROOT))
         selected = BB_RUNTIME_ROOT;
-    else if (fallback_enabled && extract_root_currently_usable(BB_RUNTIME_FALLBACK_ROOT))
+    else if (fallback_enabled && bb_extract_root_usable(BB_RUNTIME_FALLBACK_ROOT))
         selected = BB_RUNTIME_FALLBACK_ROOT;
 
     fprintf(out, ",\"extraction_runtime\":{\"runtime_root\":");
@@ -1795,7 +1739,7 @@ static void print_doctor_extraction_runtime_json(FILE *out, unsigned long long p
     json_string_payload(out, BB_RUNTIME_FALLBACK_ROOT);
     fprintf(out, ",\"fallback_enabled\":%s,\"required_bytes\":%llu,\"writable_executable\":%s,\"selected_root\":",
             fallback_enabled ? "true" : "false",
-            extract_required_bytes(payload_size),
+            bb_extract_required_bytes(payload_size),
             selected ? "true" : "false");
     if (selected)
         json_string_payload(out, selected);
@@ -2042,10 +1986,10 @@ int applet_doctor_main(int argc, char **argv)
                     manifest = bb_read_text_file(manifest_path, 1024 * 1024);
             } else {
                 root[0] = '\0';
-                if (BB_RUNTIME_ROOT[0] && access(BB_RUNTIME_ROOT, W_OK | X_OK) == 0 && !bb_dir_is_noexec(BB_RUNTIME_ROOT))
+                if (bb_extract_root_usable(BB_RUNTIME_ROOT))
                     snprintf(root, sizeof(root), "%s", BB_RUNTIME_ROOT);
-                else if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && BB_RUNTIME_FALLBACK_ROOT[0] &&
-                         access(BB_RUNTIME_FALLBACK_ROOT, W_OK | X_OK) == 0 && !bb_dir_is_noexec(BB_RUNTIME_FALLBACK_ROOT))
+                else if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+                         bb_extract_root_usable(BB_RUNTIME_FALLBACK_ROOT))
                     snprintf(root, sizeof(root), "%s", BB_RUNTIME_FALLBACK_ROOT);
             }
             if (manifest)
@@ -2185,7 +2129,7 @@ int applet_doctor_main(int argc, char **argv)
         printf("payload_extraction_mode=%s\n", payload_extraction_mode(payload, mode, sizeof(mode)));
     } else {
         puts("extracted_payload=no");
-        if (choose_extract_root(root, sizeof(root)) == 0)
+        if (bb_choose_extract_root(root, sizeof(root)) == 0)
             printf("candidate_extract_root=%s\n", root);
     }
 
@@ -2253,11 +2197,11 @@ int applet_doctor_main(int argc, char **argv)
     printf("home_set=%s\n", getenv("HOME") && *getenv("HOME") ? "yes" : "no");
     printf("shell_set=%s\n", getenv("SHELL") && *getenv("SHELL") ? "yes" : "no");
 
-    if (choose_extract_root(root, sizeof(root)) == 0) {
+    if (bb_choose_extract_root(root, sizeof(root)) == 0) {
         printf("extract_root_writable_executable=yes\n");
         printf("extract_root=%s\n", root);
         printf("extract_root_noexec=%s\n", bb_dir_is_noexec(root) ? "yes" : "no");
-        printf("extract_root_free_space_ok=%s\n", enough_space_size(ep.present ? ep.size : 1, root) ? "yes" : "no");
+        printf("extract_root_free_space_ok=%s\n", bb_enough_space_for_extract(ep.present ? ep.size : 1, root) ? "yes" : "no");
         printf("extract_root_available_bytes=%llu\n", bb_path_available_bytes(root));
     } else {
         puts("extract_root_writable_executable=no");
