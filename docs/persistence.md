@@ -26,7 +26,7 @@ check. Explicit recovery actions are also available:
 ```sh
 busierbox persistence install --method rc-local --name busierbox_recovery --dry-run
 busierbox persistence install --method openwrt-procd --action rshell --external --apply
-busierbox persistence install --method cron-reboot --action command -- 'busierbox rshell start'
+busierbox persistence install --method cron-reboot --action command --dry-run -- 'busierbox rshell start'
 busierbox persistence install --method rc-local --action script --file ./recover.sh --external --apply
 busierbox persistence install --method rc-local --name busierbox_recovery --external --apply
 busierbox persistence status --name busierbox_recovery
