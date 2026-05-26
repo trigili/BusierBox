@@ -20,6 +20,7 @@ done
 
 "$script" --dry-run --all-safe --operator-host 127.0.0.1 >/dev/null
 scripts/busierbox-bringup --help 2>&1 | grep -q 'Guided target bring-up flow'
+scripts/busierbox-bringup --help 2>&1 | grep -q -- '--reality-json PATH'
 scripts/busierbox-bringup --help 2>&1 | grep -q 'does not start scripts/busierbox-server'
 scripts/busierbox-bringup --help 2>&1 | grep -q 'does not install persistence'
 scripts/busierbox-bringup --help 2>&1 | grep -q 'integration-glinet is the regression harness'
@@ -44,14 +45,19 @@ import sys
 root = pathlib.Path(__file__).resolve().parents[1]
 if "--json" not in sys.argv or "--survey-json" not in sys.argv:
     raise SystemExit(2)
+if "--reality-json" not in sys.argv:
+    raise SystemExit("missing --reality-json")
 print(json.dumps({
     "selected": {"artifact_path": str(root / "bin" / "busierbox-mipsel-full")},
     "compatibility": {"label": "likely", "reasons": ["arch exact", "libc inferred musl"]},
 }))
 PY
 chmod +x "$release_tmp/scripts/release-find"
-release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --release-dir "$release_tmp" --configure-trailer --json)
-printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["compatibility"]["label"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert "artifact-config set" in d["generated_trailer_override_command"]'
+cat >"$release_tmp/reality.json" <<'JSON'
+{"schema":1,"checks":[{"name":"runtime_root_executable","status":"pass","ok":true,"available":true,"detail":"ok"}]}
+JSON
+release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --reality-json "$release_tmp/reality.json" --release-dir "$release_tmp" --configure-trailer --json)
+printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["compatibility"]["label"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert d["reality_json"]; assert "artifact-config set" in d["generated_trailer_override_command"]'
 rm -rf "$release_tmp"
 grep -q 'BUSIERBOX_CONFIG="$recommended" make package' scripts/busierbox-bringup
 grep -q 'Bringup is a guided onboarding flow' README.md

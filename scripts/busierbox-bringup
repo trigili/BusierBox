@@ -31,6 +31,7 @@ Options:
   --survey-only               stop after survey and recommendation
   --recommend-only            use --survey-json or captured survey; do not build final artifact
   --survey-json PATH          use an existing survey JSON instead of touching target
+  --reality-json PATH         use an existing reality-test JSON for release scoring
   --write-target-preset NAME  write local/presets/targets/NAME.json from survey
   --release-dir DIR           choose a compatible artifact from a release bundle
   --configure-trailer         print artifact-config command for operator overrides
@@ -66,6 +67,7 @@ run_integration=
 dry_run=no
 keep_remote=no
 survey_input=
+reality_input=
 write_target_preset=
 release_dir=
 configure_trailer=no
@@ -92,6 +94,8 @@ while [ "$#" -gt 0 ]; do
         --recommend-only) recommend_only=yes; shift ;;
         --survey-json) survey_input=$2; shift 2 ;;
         --survey-json=*) survey_input=${1#--survey-json=}; shift ;;
+        --reality-json) reality_input=$2; shift 2 ;;
+        --reality-json=*) reality_input=${1#--reality-json=}; shift ;;
         --write-target-preset) write_target_preset=$2; shift 2 ;;
         --write-target-preset=*) write_target_preset=${1#--write-target-preset=}; shift ;;
         --release-dir) release_dir=$2; shift 2 ;;
@@ -300,7 +304,12 @@ PY
 choose_release_artifact() {
     [ -n "$release_dir" ] || return 0
     release_find_json="$run_dir/release-find.json"
-    if scripts/release-find --release-dir "$release_dir" --survey-json "$survey" --json >"$release_find_json" 2>"$run_dir/release-find.err"; then
+    reality_args=
+    if [ -f "$reality" ]; then
+        reality_args="--reality-json $(shell_quote "$reality")"
+    fi
+    # shellcheck disable=SC2086 # reality_args is assembled from fixed flags plus shell-quoted path.
+    if scripts/release-find --release-dir "$release_dir" --survey-json "$survey" $reality_args --json >"$release_find_json" 2>"$run_dir/release-find.err"; then
         eval "$(extract_release_selection)"
     else
         write_summary fail "release artifact selection failed"
@@ -358,6 +367,9 @@ fi
 
 if [ -n "$survey_input" ]; then
     cp "$survey_input" "$survey"
+fi
+if [ -n "$reality_input" ]; then
+    cp "$reality_input" "$reality"
 fi
 
 if [ ! -f "$survey" ]; then
