@@ -189,7 +189,8 @@ test -f "$work/release/docs/recovery.md"
 test -f "$work/release/docs/survey-and-bringup.md"
 test -f "$work/release.tar.gz"
 grep -q 'scripts/busierbox-server --transport tls-shell' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q 'not an artifact sender, target command executor, or callback RPC' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'receive-only file uploads' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'not an artifact sender' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'scripts/busierbox-server' "$work/release/release-index.json"
 
 python3 -m json.tool "$work/release/release.json" >/dev/null

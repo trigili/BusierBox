@@ -174,6 +174,16 @@ scripts/busierbox-server --transport ssh --ssh-port 22
 ssh -p 2200 root@127.0.0.1
 ```
 
+For receive-only evidence uploads, start the operator file service. It accepts
+target-initiated HTTP PUT/POST uploads over TLS by default, stores files under
+`local/sessions/<timestamp>-file-service/files/`, and writes per-file metadata
+JSON with source path, size, sha256, timestamp, and transfer status. It does
+not send artifacts, execute commands, or provide callback RPC.
+
+```sh
+scripts/busierbox-server --file-service --file-port 22204
+```
+
 Inspect and clean BusierBox-controlled runtime state:
 
 ```sh

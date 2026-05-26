@@ -12,6 +12,7 @@ Transport model:
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import select
@@ -22,6 +23,7 @@ import termios
 import threading
 import time
 import tty
+import urllib.parse
 from pathlib import Path
 
 try:
@@ -46,6 +48,9 @@ DEFAULTS = {
     "tls_key": "local/operator-session/shell-server.key",
     "tls_verify": "no",
     "session_root": "local/sessions",
+    "file_service_enable": "no",
+    "file_service_port": 22204,
+    "file_service_tls": "yes",
 }
 
 
@@ -73,7 +78,7 @@ def load_config(path):
     elif t == "builtin-tls":
         cfg["transport"] = "builtin"
         cfg.setdefault("encryption", "tls")
-    for key in ("ssh_listen_port", "shell_listen_port", "forward_port"):
+    for key in ("ssh_listen_port", "shell_listen_port", "forward_port", "file_service_port"):
         cfg[key] = int(cfg[key])
     return cfg
 
@@ -527,6 +532,187 @@ def generate_tls_cert(cert: Path, key: Path) -> bool:
     return False
 
 
+def yes(value):
+    return str(value).lower() in {"1", "true", "yes", "on"}
+
+
+def safe_upload_name(source_path):
+    parsed = urllib.parse.urlparse(source_path or "")
+    raw = urllib.parse.unquote(parsed.path or source_path or "upload.bin")
+    name = Path(raw).name
+    return name or "upload.bin"
+
+
+def read_http_upload(conn, files_dir, addr):
+    deadline = time.monotonic() + 30
+    raw = bytearray()
+    while b"\r\n\r\n" not in raw:
+        if time.monotonic() >= deadline:
+            raise RuntimeError("timeout reading upload headers")
+        chunk = conn.recv(65536)
+        if not chunk:
+            raise RuntimeError("connection closed before upload headers")
+        raw.extend(chunk)
+    header_raw, body = bytes(raw).split(b"\r\n\r\n", 1)
+    header_text = header_raw.decode("iso-8859-1", errors="replace")
+    lines = header_text.split("\r\n")
+    request = lines[0].split()
+    if len(request) < 3:
+        raise RuntimeError("malformed HTTP request")
+    method, target, _version = request[:3]
+    headers = {}
+    for line in lines[1:]:
+        if ":" in line:
+            key, value = line.split(":", 1)
+            headers[key.strip().lower()] = value.strip()
+    if method not in {"PUT", "POST"}:
+        return {
+            "status": "rejected",
+            "reason": "receive-only file service accepts only PUT or POST",
+            "method": method,
+            "source_path": target,
+            "remote_addr": f"{addr[0]}:{addr[1]}",
+        }, 405
+    if "content-length" not in headers:
+        return {
+            "status": "rejected",
+            "reason": "missing Content-Length",
+            "method": method,
+            "source_path": target,
+            "remote_addr": f"{addr[0]}:{addr[1]}",
+        }, 411
+    try:
+        expected = int(headers["content-length"])
+    except ValueError:
+        return {
+            "status": "rejected",
+            "reason": "invalid Content-Length",
+            "method": method,
+            "source_path": target,
+            "remote_addr": f"{addr[0]}:{addr[1]}",
+        }, 400
+    source_path = headers.get("x-busierbox-source-path") or urllib.parse.urlparse(target).path
+    out_name = safe_upload_name(source_path)
+    out_path = files_dir / out_name
+    if out_path.exists():
+        stem = out_path.stem
+        suffix = out_path.suffix
+        out_path = files_dir / f"{stem}-{int(time.time())}{suffix}"
+    h = hashlib.sha256()
+    written = 0
+    with out_path.open("wb") as fh:
+        if body:
+            piece = body[:expected]
+            fh.write(piece)
+            h.update(piece)
+            written += len(piece)
+        while written < expected:
+            chunk = conn.recv(min(65536, expected - written))
+            if not chunk:
+                break
+            fh.write(chunk)
+            h.update(chunk)
+            written += len(chunk)
+    status = "ok" if written == expected else "truncated"
+    metadata = {
+        "schema": 1,
+        "status": status,
+        "method": method,
+        "source_path": urllib.parse.unquote(source_path),
+        "stored_path": str(out_path),
+        "filename": out_path.name,
+        "size": written,
+        "expected_size": expected,
+        "sha256": h.hexdigest(),
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "remote_addr": f"{addr[0]}:{addr[1]}",
+        "uid": headers.get("x-busierbox-uid", ""),
+        "gid": headers.get("x-busierbox-gid", ""),
+        "mode": headers.get("x-busierbox-mode", ""),
+        "transfer_status": status,
+    }
+    meta_path = files_dir / f"{out_path.name}.metadata.json"
+    metadata["metadata_path"] = str(meta_path)
+    meta_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return metadata, 200 if status == "ok" else 400
+
+
+def send_json_response(conn, status_code, payload):
+    reason = {
+        200: "OK",
+        400: "Bad Request",
+        405: "Method Not Allowed",
+        411: "Length Required",
+        500: "Internal Server Error",
+    }.get(status_code, "OK")
+    body = json.dumps(payload, sort_keys=True).encode("utf-8") + b"\n"
+    headers = (
+        f"HTTP/1.1 {status_code} {reason}\r\n"
+        "Content-Type: application/json\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    ).encode("ascii")
+    conn.sendall(headers + body)
+
+
+def serve_file_service(cfg, timeout, max_sessions=0):
+    port = int(cfg["file_service_port"])
+    use_tls = yes(cfg.get("file_service_tls", "yes"))
+    cert = Path(str(cfg["tls_cert"]))
+    key = Path(str(cfg["tls_key"]))
+    context = None
+    if use_tls:
+        if not cert.is_file() or not key.is_file():
+            print(f"TLS cert/key not found, generating: {cert}", file=sys.stderr)
+            if not generate_tls_cert(cert, key):
+                print(f"TLS cert/key generation failed — see {cert.parent}/openssl-generate.log", file=sys.stderr)
+                return 2
+            print(f"Generated TLS cert/key: {cert}", file=sys.stderr)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        if hasattr(ssl, "TLSVersion"):
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(str(cert), str(key))
+    log_dir = session_log_dir(cfg, "file-service")
+    files_dir = log_dir / "files"
+    files_dir.mkdir(parents=True, exist_ok=True)
+    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    print("Receive-only file service. Accepts target-initiated PUT/POST uploads.")
+    print("This service does not send artifacts, execute commands, or provide callback RPC.")
+    sessions = 0
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((str(cfg["listen_host"]), port))
+        sock.listen(20)
+        sock.settimeout(timeout)
+        print_candidates(cfg, port)
+        while True:
+            print("Waiting for file upload...")
+            try:
+                raw, addr = sock.accept()
+            except socket.timeout:
+                print("timeout waiting for file upload", file=sys.stderr)
+                return 1 if sessions == 0 else 0
+            try:
+                with raw:
+                    conn = context.wrap_socket(raw, server_side=True) if context else raw
+                    with conn:
+                        metadata, status_code = read_http_upload(conn, files_dir, addr)
+                        send_json_response(conn, status_code, metadata)
+                        print(f"file-service upload {metadata.get('status')}: {metadata.get('stored_path', metadata.get('reason', ''))}")
+            except Exception as exc:
+                try:
+                    send_json_response(raw, 500, {"status": "error", "reason": str(exc)})
+                except Exception:
+                    pass
+                print(f"file-service upload failed: {exc}", file=sys.stderr)
+            finally:
+                sessions += 1
+            if max_sessions > 0 and sessions >= max_sessions:
+                break
+    return 0
+
+
 def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=None,
                     expect=None, session_timeout=None):
     """TLS shell listener — accepts both builtin+tls and socat+tls targets."""
@@ -633,6 +819,8 @@ def _resolve_transport(cfg, args_transport):
         return t
 
     # Derive from config transport + encryption
+    if yes(cfg.get("file_service_enable", "no")):
+        return "file-service"
     t = cfg.get("transport", "ssh")
     enc = cfg.get("encryption", "tls")
     if t == "ssh":
@@ -651,6 +839,7 @@ Transport modes:
   ssh         — Paramiko reverse-forward listener for Dropbear/dbclient (BB_RSHELL_TRANSPORT=ssh)
   tls-shell   — TLS shell listener accepting builtin+tls AND socat+tls transports
   plain-shell — Plaintext shell listener (debug/insecure; socat+none or builtin+none)
+  file-service — Receive-only TLS upload service for target-initiated files/evidence
 
 Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
 """,
@@ -659,8 +848,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="JSON config written by menuconfig")
     parser.add_argument("--transport",
                         choices=("ssh", "ssh-reverse", "tls-shell", "socat-tls",
-                                 "builtin-tls", "plain-shell"),
+                                 "builtin-tls", "plain-shell", "file-service"),
                         help="transport to listen for (overrides config)")
+    parser.add_argument("--file-service", action="store_true",
+                        help="receive target-initiated file uploads and store them under local/sessions")
     parser.add_argument("--listen-host", help="listener bind address")
     parser.add_argument("--ssh-port", type=int, help="SSH reverse-forward listener port")
     parser.add_argument("--shell-port", type=int,
@@ -669,6 +860,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help=argparse.SUPPRESS)  # compat alias for --shell-port
     parser.add_argument("--forward-port", type=int,
                         help="remote forward port exposed on the operator workstation")
+    parser.add_argument("--file-port", type=int,
+                        help="receive-only file service listener port")
+    parser.add_argument("--file-service-tls", choices=("yes", "no"),
+                        help="use TLS for file-service uploads (default yes)")
     parser.add_argument("--timeout", type=float, default=0,
                         help="seconds to wait for a connection; 0 waits forever")
     parser.add_argument("--no-stdin", action="store_true",
@@ -695,9 +890,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["shell_listen_port"] = shell_port
     if args.forward_port:
         cfg["forward_port"] = args.forward_port
+    if args.file_port:
+        cfg["file_service_port"] = args.file_port
+    if args.file_service_tls:
+        cfg["file_service_tls"] = args.file_service_tls
 
     timeout = None if args.timeout == 0 else args.timeout
-    action = _resolve_transport(cfg, args.transport)
+    action = "file-service" if args.file_service else _resolve_transport(cfg, args.transport)
     script_bytes = None
     if args.script:
         script_bytes = Path(args.script).read_bytes()
@@ -717,6 +916,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                                  max_sessions=1 if args.one_shot or args.script else 0,
                                  script_bytes=script_bytes, expect=args.expect,
                                  session_timeout=session_timeout)
+    if action == "file-service":
+        return serve_file_service(cfg, timeout, max_sessions=1 if args.one_shot else 0)
     print(f"unsupported transport: {action}", file=sys.stderr)
     return 2
 

@@ -864,10 +864,11 @@ def write_release_quickstart(path, name):
 
                scripts/busierbox-server --transport tls-shell --shell-port 22203
                scripts/busierbox-server --transport ssh --ssh-port 22202
+               scripts/busierbox-server --file-service --file-port 22204
 
-               The bundled server catches target-initiated reverse access. It is
-               not an artifact sender, target command executor, or callback RPC
-               server.
+               The bundled server catches target-initiated reverse access and
+               receive-only file uploads. It is not an artifact sender, target
+               command executor, or callback RPC server.
 
             6. Cleanup and recovery checks:
 
@@ -880,8 +881,8 @@ def write_release_quickstart(path, name):
 
                Keep target survey, manifest, doctor, and cleanup-ledger JSON with
                the bundle's release.json and release-index.json. Receive-only file
-               upload channels, when enabled in future bundles, should store under
-               local/sessions/<timestamp>/files/.
+               uploads store under local/sessions/<timestamp>-file-service/files/
+               with per-file metadata JSON.
             """
         ).lstrip(),
         encoding="utf-8",
