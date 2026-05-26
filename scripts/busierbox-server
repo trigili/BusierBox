@@ -47,6 +47,168 @@ RECORDED_SHUTDOWNS = set()
 EVENT_COUNTER = itertools.count(1)
 
 
+class EventLog:
+    """Structured JSONL event log shared by status, TUI, and future frontends."""
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
+        self.path = self.operator_dir / "events.jsonl"
+
+    def write(self, service, event, level="info", session=None, remote=None, details=None):
+        session_id = ""
+        session_path_text = ""
+        session_path = None
+        if session:
+            session_path = Path(str(session))
+            session_id = session_path.name
+            session_path_text = str(session_path)
+        record = {
+            "schema": 1,
+            "id": f"evt-{os.getpid()}-{next(EVENT_COUNTER)}",
+            "ts": utc_now(),
+            "service": service,
+            "session": session_id,
+            "session_path": session_path_text,
+            "event": event,
+            "level": level,
+            "remote": remote or "",
+            "details": details or {},
+        }
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, sort_keys=True) + "\n")
+        if session_path:
+            try:
+                with (session_path / "events.jsonl").open("a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(record, sort_keys=True) + "\n")
+            except OSError:
+                pass
+        return record
+
+    def records(self):
+        try:
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return [], 0
+        out = []
+        invalid = 0
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                invalid += 1
+        return out, invalid
+
+    def tail(self, limit=12):
+        records, _invalid = self.records()
+        return records[-limit:]
+
+    def stats(self, limit=12):
+        records, invalid = self.records()
+        tail = records[-limit:]
+        return {
+            "path": str(self.path),
+            "total_count": len(records),
+            "tail_count": len(tail),
+            "invalid_count": invalid,
+            "tail_limit": limit,
+            "tail": tail,
+        }
+
+
+class Service:
+    def __init__(self, name, port=None, tls=False, pid=None, state="configured"):
+        self.name = name
+        self.port = port
+        self.tls = tls
+        self.pid = pid
+        self.state = state
+
+    def as_dict(self):
+        return {
+            "name": self.name,
+            "port": self.port,
+            "tls": self.tls,
+            "pid": self.pid,
+            "state": self.state,
+        }
+
+
+class Session:
+    def __init__(self, session_id, service, path, state="starting", remote=""):
+        self.session_id = session_id
+        self.service = service
+        self.path = str(path)
+        self.state = state
+        self.remote = remote
+
+    def as_dict(self):
+        return {
+            "session_id": self.session_id,
+            "service": self.service,
+            "path": self.path,
+            "state": self.state,
+            "remote": self.remote,
+        }
+
+
+class ServiceManager:
+    """Runtime owner for sockets/transports so shutdown is one explicit path."""
+
+    def __init__(self):
+        self.shutdown_event = SHUTDOWN
+        self.sockets = OWNED_SOCKETS
+        self.transports = OWNED_TRANSPORTS
+        self.service_threads = []
+        self.child_processes = []
+        self._lock = threading.Lock()
+
+    def register_socket(self, sock):
+        with self._lock:
+            if sock not in self.sockets:
+                self.sockets.append(sock)
+        return sock
+
+    def unregister_socket(self, sock):
+        with self._lock:
+            try:
+                self.sockets.remove(sock)
+            except ValueError:
+                pass
+
+    def register_transport(self, transport):
+        with self._lock:
+            if transport not in self.transports:
+                self.transports.append(transport)
+        return transport
+
+    def unregister_transport(self, transport):
+        with self._lock:
+            try:
+                self.transports.remove(transport)
+            except ValueError:
+                pass
+
+    def shutdown(self):
+        self.shutdown_event.set()
+        for transport in list(self.transports):
+            try:
+                transport.close()
+            except Exception:
+                pass
+        for sock in list(self.sockets):
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+
+SERVICE_MANAGER = ServiceManager()
+
+
 DEFAULT_CONFIG = Path("local/server-config.json")
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
 DEFAULT_STATE_FILE = DEFAULT_OPERATOR_SESSION_DIR / "server-state.json"
@@ -106,80 +268,15 @@ def read_json_file(path, fallback):
 
 
 def append_event(cfg, service, event, level="info", session=None, remote=None, details=None):
-    session_id = ""
-    session_path_text = ""
-    session_path = None
-    if session:
-        session_path = Path(str(session))
-        session_id = session_path.name
-        session_path_text = str(session_path)
-    record = {
-        "schema": 1,
-        "id": f"evt-{os.getpid()}-{next(EVENT_COUNTER)}",
-        "ts": utc_now(),
-        "service": service,
-        "session": session_id,
-        "session_path": session_path_text,
-        "event": event,
-        "level": level,
-        "remote": remote or "",
-        "details": details or {},
-    }
-    operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
-    events_path = operator_dir / "events.jsonl"
-    events_path.parent.mkdir(parents=True, exist_ok=True)
-    with events_path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record, sort_keys=True) + "\n")
-    if session_path:
-        events_path = session_path / "events.jsonl"
-        try:
-            with events_path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(record, sort_keys=True) + "\n")
-        except OSError:
-            pass
+    return EventLog(cfg).write(service, event, level=level, session=session, remote=remote, details=details)
 
 
 def event_tail(cfg, limit=12):
-    path = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "events.jsonl"
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return []
-    out = []
-    for line in lines[-limit:]:
-        try:
-            out.append(json.loads(line))
-        except json.JSONDecodeError:
-            pass
-    return out
+    return EventLog(cfg).tail(limit)
 
 
 def event_log_stats(cfg, limit=12):
-    path = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "events.jsonl"
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return {"path": str(path), "total_count": 0, "tail_count": 0, "invalid_count": 0, "tail_limit": limit, "tail": []}
-    total = 0
-    invalid = 0
-    parsed = []
-    for line in lines:
-        if not line.strip():
-            continue
-        try:
-            parsed.append(json.loads(line))
-            total += 1
-        except json.JSONDecodeError:
-            invalid += 1
-    tail = parsed[-limit:]
-    return {
-        "path": str(path),
-        "total_count": total,
-        "tail_count": len(tail),
-        "invalid_count": invalid,
-        "tail_limit": limit,
-        "tail": tail,
-    }
+    return EventLog(cfg).stats(limit)
 
 
 def staged_file_path(cfg):
@@ -956,29 +1053,23 @@ def port_listener_pids(port):
 
 
 def register_socket(sock):
-    OWNED_SOCKETS.append(sock)
-    return sock
+    return SERVICE_MANAGER.register_socket(sock)
 
 
 def unregister_socket(sock):
-    try:
-        OWNED_SOCKETS.remove(sock)
-    except ValueError:
-        pass
+    SERVICE_MANAGER.unregister_socket(sock)
+
+
+def register_transport(transport):
+    return SERVICE_MANAGER.register_transport(transport)
+
+
+def unregister_transport(transport):
+    SERVICE_MANAGER.unregister_transport(transport)
 
 
 def close_registered_resources():
-    SHUTDOWN.set()
-    for transport in list(OWNED_TRANSPORTS):
-        try:
-            transport.close()
-        except Exception:
-            pass
-    for sock in list(OWNED_SOCKETS):
-        try:
-            sock.close()
-        except OSError:
-            pass
+    SERVICE_MANAGER.shutdown()
 
 
 def request_shutdown(reason="shutdown"):
@@ -1480,8 +1571,7 @@ def serve_ssh(cfg, timeout):
         upsert_state_session(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}")
         append_event(cfg, service, "connection_open", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
 
-        transport = _KexGuess2CompatTransport(client)
-        OWNED_TRANSPORTS.append(transport)
+        transport = register_transport(_KexGuess2CompatTransport(client))
         transport.add_server_key(host_key)
         # Pin to the one kex algorithm both Paramiko and the Dropbear build support.
         # Dropbear's first preference is sntrup761 (PQ hybrid), which Paramiko
@@ -1498,10 +1588,7 @@ def serve_ssh(cfg, timeout):
         if server:
             server.close()
         if transport:
-            try:
-                OWNED_TRANSPORTS.remove(transport)
-            except ValueError:
-                pass
+            unregister_transport(transport)
             transport.close()
         if sock:
             unregister_socket(sock)
