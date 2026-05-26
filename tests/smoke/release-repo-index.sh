@@ -127,5 +127,19 @@ assert row["release_name"] == "two"
 assert row["payload_preset"] == "ssh-operator"
 assert "reverse-ssh" in row["features"]
 PY
+scripts/find-artifact --index "$tmp/repo-index.json" --device lab-router --recommendation-json >"$tmp/recommend-json.out"
+python3 - "$tmp/recommend-json.out" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert doc["schema"] == 1
+assert doc["command"] == "find-artifact"
+assert doc["filters"]["device"] == "lab-router"
+assert doc["match_count"] == 1
+assert doc["selected"]["release_name"] == "two"
+assert doc["index"]["deduplicated_artifact_count"] == 1
+assert "newest release_mtime" in doc["selection_policy"]
+PY
 
 printf '%s\n' "release-repo-index ok"

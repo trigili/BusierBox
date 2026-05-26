@@ -88,6 +88,45 @@ def print_text(row, index):
     print("features=" + " ".join(row.get("features") or []))
 
 
+def active_filters(args):
+    keys = (
+        "release",
+        "device",
+        "arch",
+        "libc",
+        "kernel",
+        "cpu",
+        "abi",
+        "tool",
+        "payload_preset",
+        "feature",
+        "sha256",
+    )
+    return {key: getattr(args, key) for key in keys if getattr(args, key)}
+
+
+def recommendation_document(index, rows, args):
+    return {
+        "schema": 1,
+        "command": "find-artifact",
+        "filters": active_filters(args),
+        "match_count": len(rows),
+        "selection_policy": [
+            "lowest compatibility risk label",
+            "newest release_mtime",
+            "payload preset name",
+            "artifact path",
+        ],
+        "selected": rows[0] if rows else None,
+        "matches": rows if args.all else rows[:1],
+        "index": {
+            "release_count": index.get("release_count", 0),
+            "artifact_count": index.get("artifact_count", 0),
+            "deduplicated_artifact_count": index.get("deduplicated_artifact_count", 0),
+        },
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--index", help="prebuilt index from scripts/index-release-repo")
@@ -105,6 +144,8 @@ def main(argv=None):
     parser.add_argument("--sha256")
     parser.add_argument("--all", action="store_true", help="print all matches")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--recommendation-json", action="store_true",
+                        help="print selected artifact plus filters, match count, and selection policy")
     args = parser.parse_args(argv)
 
     if args.index:
@@ -117,6 +158,9 @@ def main(argv=None):
     rows.sort(key=lambda row: (label_rank(row), -(row.get("release_mtime") or 0), row.get("payload_preset") or "", row.get("artifact") or ""))
     if not rows:
         raise SystemExit("find-artifact: no matching artifact")
+    if args.recommendation_json:
+        print(json.dumps(recommendation_document(index, rows, args), indent=2, sort_keys=True))
+        return 0
     if args.json:
         payload = rows if args.all else rows[0]
         print(json.dumps(payload, indent=2, sort_keys=True))
