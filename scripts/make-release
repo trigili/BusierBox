@@ -576,6 +576,7 @@ def write_release_helpers(script_dir):
                 "trailer_support": {
                     "helpers": [
                         "scripts/artifact-config",
+                        "scripts/busierbox-server",
                         "scripts/configure-artifact",
                         "scripts/configure-all",
                         "scripts/verify-checksums",
@@ -729,7 +730,7 @@ def write_release_helpers(script_dir):
 
         release = load_json(root / "release.json")
         run([str(root / "scripts" / "verify-checksums"), "--original"])
-        for helper in ("artifact-config", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find"):
+        for helper in ("artifact-config", "busierbox-server", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find"):
             path = root / "scripts" / helper
             if not os.access(path, os.X_OK):
                 fail(f"helper is not executable: scripts/{helper}")
@@ -789,6 +790,8 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
     config_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "scripts" / "artifact-config", script_dir / "artifact-config")
     (script_dir / "artifact-config").chmod(0o755)
+    shutil.copy2(ROOT / "scripts" / "busierbox-server", script_dir / "busierbox-server")
+    (script_dir / "busierbox-server").chmod(0o755)
     write_release_helpers(script_dir)
     for name in ("busierbox.conf.example", "native-linux.example"):
         src = ROOT / "configs" / name
@@ -813,6 +816,76 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
         shutil.copy2(src_doc, doc_dir / "README-release.md")
     if include_sources_manifest and (ROOT / "manifests" / "sources.lock.json").exists():
         shutil.copy2(ROOT / "manifests" / "sources.lock.json", release_dir / "sources.lock.json")
+
+
+def write_release_quickstart(path, name):
+    path.write_text(
+        textwrap.dedent(
+            f"""
+            BusierBox Release Quickstart: {name}
+            ======================================
+
+            1. Verify the bundle before touching artifacts:
+
+               scripts/verify-checksums --original
+               scripts/release-self-test
+
+            2. Choose an artifact:
+
+               scripts/release-find --device glinet-mt1300
+               scripts/release-find --payload-preset survey-core
+
+               Device aliases live under devices/<alias>/ and canonical tuples live
+               under by-tuple/<arch>/<libc>/<kernel-floor>/<cpu-or-abi>/.
+
+            3. Configure operator settings with trailer overrides:
+
+               scripts/configure-artifact bin/busierbox-...-full \\
+                 --operator-host 192.168.8.241 \\
+                 --transport builtin \\
+                 --shell-port 22203
+
+               scripts/configure-all --operator-host 192.168.8.241 --transport builtin
+               scripts/verify-checksums --configured
+
+               Trailer edits cannot change target tuple compatibility, payload
+               contents, dotfiles, overlays, or compiled features. XOR obfuscation
+               is not encryption.
+
+            4. First contact on the target:
+
+               chmod +x ./busierbox
+               ./busierbox survey --json
+               ./busierbox manifest --json
+               ./busierbox doctor
+               ./busierbox plan extract
+
+            5. Start an operator listener only when reverse access is intended:
+
+               scripts/busierbox-server --transport tls-shell --shell-port 22203
+               scripts/busierbox-server --transport ssh --ssh-port 22202
+
+               The bundled server catches target-initiated reverse access. It is
+               not an artifact sender, target command executor, or callback RPC
+               server.
+
+            6. Cleanup and recovery checks:
+
+               ./busierbox cleanup-ledger --json
+               ./busierbox clean --dry-run
+               ./busierbox persistence --survey
+               ./busierbox persistence --plan
+
+            7. Evidence and logs:
+
+               Keep target survey, manifest, doctor, and cleanup-ledger JSON with
+               the bundle's release.json and release-index.json. Receive-only file
+               upload channels, when enabled in future bundles, should store under
+               local/sessions/<timestamp>/files/.
+            """
+        ).lstrip(),
+        encoding="utf-8",
+    )
 
 
 def write_release_readme(path, name):
@@ -1359,6 +1432,7 @@ def main(argv=None):
     for sub in ("bin", "configs", "manifests", "logs", "scripts", "docs"):
         (release_dir / sub).mkdir(parents=True, exist_ok=True)
     copy_bundle_support(release_dir, include_sources_manifest=include_sources_manifest)
+    write_release_quickstart(release_dir / "RELEASE-QUICKSTART.txt", release_name)
     write_release_readme(release_dir / "docs" / "README-release.md", release_name)
 
     records = []

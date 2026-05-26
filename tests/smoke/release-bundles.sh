@@ -161,6 +161,7 @@ test -f "$work/release/devices/native/target.json"
 test -f "$work/release/devices/native/README.txt"
 test -f "$work/release/devices/native/notes.md"
 test -x "$work/release/scripts/artifact-config"
+test -x "$work/release/scripts/busierbox-server"
 test -x "$work/release/scripts/configure-artifact"
 test -x "$work/release/scripts/configure-all"
 test -x "$work/release/scripts/verify-checksums"
@@ -176,6 +177,7 @@ if grep -q -- '--run-mode auto|oneshot' "$work/configure-help.out"; then
     exit 1
 fi
 test -f "$work/release/SHA256SUMS.original"
+test -f "$work/release/RELEASE-QUICKSTART.txt"
 test -f "$work/release/release.json"
 test -f "$work/release/release-index.json"
 test -f "$work/release/docs/README-release.md"
@@ -186,6 +188,9 @@ test -f "$work/release/docs/manifest.md"
 test -f "$work/release/docs/recovery.md"
 test -f "$work/release/docs/survey-and-bringup.md"
 test -f "$work/release.tar.gz"
+grep -q 'scripts/busierbox-server --transport tls-shell' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'not an artifact sender, target command executor, or callback RPC' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'scripts/busierbox-server' "$work/release/release-index.json"
 
 python3 -m json.tool "$work/release/release.json" >/dev/null
 grep -q '"release_name": "smoke"' "$work/release/release.json"
