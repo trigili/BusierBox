@@ -72,7 +72,7 @@ def main():
         print("busierbox-server help missing receive-only file service", file=sys.stderr)
         return 1
     for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--list-staged", "--status", "--stop", "--json-status",
-                 "--queue-command", "--list-command-queue", "--clear-command-queue"):
+                 "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file"):
         if word not in combined:
             print(f"busierbox-server help missing operator workbench flag: {word}", file=sys.stderr)
             return 1
@@ -95,7 +95,7 @@ def main():
     if "sys.stdin.isatty()" not in src or "--no-stdin" not in src or "--log-only" not in src:
         print("busierbox-server: stdin EOF/log-only handling not found", file=sys.stderr)
         return 1
-    for word in ("open_path_in_pager", "pager_command", 'ord("v")', "v opens"):
+    for word in ("open_path_in_pager", "pager_command", 'ord("v")', "v opens", "copy_generated_command", "clipboard_command"):
         if word not in src:
             print(f"busierbox-server: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
@@ -151,6 +151,23 @@ def main():
         if "Generating" not in combined and "Generated" not in combined and "generating" not in combined:
             print("Server did not report TLS cert generation:", file=sys.stderr)
             print(combined, file=sys.stderr)
+            return 1
+
+        command_copy_file = Path(tmp) / "operator-session" / "last-command.txt"
+        copied = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-copy-file", str(command_copy_file),
+            "--copy-target-command", "1",
+        )
+        if copied.returncode != 0 or "copied target command 1" not in copied.stdout:
+            print("generated target command was not copied/exported", file=sys.stderr)
+            print(copied.stdout, file=sys.stderr)
+            print(copied.stderr, file=sys.stderr)
+            return 1
+        copied_text = command_copy_file.read_text(encoding="utf-8")
+        if "busierbox put /etc/config/network" not in copied_text:
+            print("generated target command copy file has wrong content", file=sys.stderr)
             return 1
 
         queue_file = Path(tmp) / "operator-session" / "command-queue.json"

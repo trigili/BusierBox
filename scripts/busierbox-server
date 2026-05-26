@@ -48,6 +48,7 @@ DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
 DEFAULT_STATE_FILE = DEFAULT_OPERATOR_SESSION_DIR / "server-state.json"
 DEFAULT_STAGED_FILE = DEFAULT_OPERATOR_SESSION_DIR / "staged-files.json"
 DEFAULT_COMMAND_QUEUE_FILE = DEFAULT_OPERATOR_SESSION_DIR / "command-queue.json"
+DEFAULT_COMMAND_COPY_FILE = DEFAULT_OPERATOR_SESSION_DIR / "last-command.txt"
 DEFAULTS = {
     "transport": "ssh",
     "encryption": "tls",
@@ -69,6 +70,7 @@ DEFAULTS = {
     "server_state": str(DEFAULT_STATE_FILE),
     "staged_files": str(DEFAULT_STAGED_FILE),
     "command_queue_file": str(DEFAULT_COMMAND_QUEUE_FILE),
+    "command_copy_file": str(DEFAULT_COMMAND_COPY_FILE),
 }
 
 
@@ -143,6 +145,10 @@ def staged_file_path(cfg):
 
 def command_queue_path(cfg):
     return Path(str(cfg.get("command_queue_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "command-queue.json"))
+
+
+def command_copy_path(cfg):
+    return Path(str(cfg.get("command_copy_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "last-command.txt"))
 
 
 def state_file_path(cfg):
@@ -556,6 +562,49 @@ def open_path_in_pager(path):
         return f"no pager found for: {target}"
     subprocess.run(cmd + [str(target)], check=False)
     return f"viewed {target}"
+
+
+def clipboard_command():
+    for cmd in (["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"], ["pbcopy"]):
+        if shutil.which(cmd[0]):
+            return cmd
+    return None
+
+
+def copy_text_for_operator(cfg, text, label="command"):
+    value = str(text or "")
+    if not value:
+        raise ValueError(f"{label} is empty")
+    path = command_copy_path(cfg)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value + "\n", encoding="utf-8")
+    copied = False
+    helper = clipboard_command()
+    if helper:
+        try:
+            subprocess.run(helper, input=value, text=True, check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            copied = True
+        except OSError:
+            copied = False
+    append_event(cfg, "workbench", "target_command_copied",
+                 details={"path": str(path), "clipboard": copied, "label": label})
+    return {
+        "path": str(path),
+        "clipboard": copied,
+        "text": value,
+    }
+
+
+def copy_generated_command(cfg, index):
+    commands = generated_target_commands(cfg)
+    try:
+        pos = int(index) - 1
+    except (TypeError, ValueError):
+        raise ValueError("target command index must be a positive integer")
+    if pos < 0 or pos >= len(commands):
+        raise ValueError(f"target command index out of range: {index}")
+    return copy_text_for_operator(cfg, commands[pos], label=f"target_command_{index}")
 
 
 def pid_alive(pid):
@@ -1920,6 +1969,7 @@ def status_document(cfg):
         "state_file": str(state_file_path(cfg)),
         "staged_files": str(staged_file_path(cfg)),
         "command_queue_file": str(command_queue_path(cfg)),
+        "command_copy_file": str(command_copy_path(cfg)),
         "session_root": str(cfg.get("session_root", "local/sessions")),
         "services": service_status_rows(cfg),
         "local_ips": ips,
@@ -1955,6 +2005,7 @@ def print_status(cfg, json_output=False):
     print(f"  state_file: {doc['state_file']}")
     print(f"  staged_files: {doc['staged_files']}")
     print(f"  command_queue_file: {doc['command_queue_file']}")
+    print(f"  command_copy_file: {doc['command_copy_file']}")
     print(f"  session_root: {doc['session_root']}")
     print("")
     print("Services:")
@@ -2193,7 +2244,7 @@ def run_line_tui(cfg):
         print("  7 list staged")
         print("  8 unstage file")
         print("  9 open local path in pager")
-        print("  c show generated commands")
+        print("  c show/copy generated commands")
         print("  r refresh")
         print("  ? help")
         print("  q quit")
@@ -2223,10 +2274,18 @@ def run_line_tui(cfg):
             if path:
                 print(open_path_in_pager(path))
         elif choice == "c":
-            for cmd in generated_target_commands(cfg):
-                print(cmd)
+            commands = generated_target_commands(cfg)
+            for idx, cmd in enumerate(commands, 1):
+                print(f"{idx}: {cmd}")
+            chosen = input("copy command number, or blank to skip> ").strip()
+            if chosen:
+                try:
+                    rec = copy_generated_command(cfg, chosen)
+                    print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
+                except ValueError as exc:
+                    print(exc)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage, 8/d unstage, 9/v view, c commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage, 8/d unstage, 9/v view, c show/copy commands, r refresh, q quit.")
 
 
 def run_curses_tui(cfg):
@@ -2312,7 +2371,10 @@ def run_curses_tui(cfg):
                 f"{e.get('ts', '')} {e.get('service', '')}:{e.get('event', '')}"
                 for e in snap["events"][-8:]
             ] or ["none"]
-            command_lines = snap["target_commands"] or ["none"]
+            command_lines = [
+                f"{'>' if pane == 5 and idx == selected else ' '} {idx + 1}: {cmd}"
+                for idx, cmd in enumerate(snap["target_commands"])
+            ] or ["none"]
             service_lines = []
             for idx, row in enumerate(services):
                 prefix = ">" if pane == 0 and idx == selected else " "
@@ -2388,6 +2450,14 @@ def run_curses_tui(cfg):
                     f"tuples: {len(release_tuples)}",
                     "v opens release index in pager",
                 ]
+            elif pane == 5 and snap["target_commands"]:
+                command = snap["target_commands"][min(selected, len(snap["target_commands"]) - 1)]
+                detail_lines = [
+                    "generated target command:",
+                    command,
+                    f"copy_file: {command_copy_path(cfg)}",
+                    "c copies command locally",
+                ]
             else:
                 detail_lines = [
                     f"state: {state_file_path(cfg)}",
@@ -2398,7 +2468,7 @@ def run_curses_tui(cfg):
             stdscr.erase()
             height, width = stdscr.getmaxyx()
             active = sum(1 for row in services if row["actual"] == "listening")
-            safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} | ip={snap['selected_local_ip']} | {utc_now()} | tab panes j/k move enter start/stop s stage d unstage v view c commands ? help q quit", curses.A_REVERSE)
+            safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} | ip={snap['selected_local_ip']} | {utc_now()} | tab panes j/k move enter start/stop s stage d unstage v view c copy ? help q quit", curses.A_REVERSE)
             left_w = max(34, width // 3)
             right_w = max(20, width - left_w - 1)
             lower_y = max(12, height // 2)
@@ -2488,16 +2558,25 @@ def run_curses_tui(cfg):
                 safe_add(stdscr, height - 2, 0, message)
                 stdscr.getch()
             elif key in (ord("?"),):
-                safe_add(stdscr, height - 2, 0, "Help: arrows/jk move, Tab panes, Enter start/stop, s stage, d unstage, v view, c commands, r refresh, q quit")
+                safe_add(stdscr, height - 2, 0, "Help: arrows/jk move, Tab panes, Enter start/stop, s stage, d unstage, v view, c copy command, r refresh, q quit")
                 stdscr.getch()
             elif key in (ord("c"), ord("C")):
-                safe_add(stdscr, height - 2, 0, "Commands are shown in the lower-right pane. Press any key.")
+                if snap["target_commands"]:
+                    idx = min(selected, len(snap["target_commands"]) - 1) + 1 if pane == 5 else 1
+                    try:
+                        rec = copy_generated_command(cfg, idx)
+                        safe_add(stdscr, height - 2, 0, f"Copied command {idx} to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
+                    except ValueError as exc:
+                        safe_add(stdscr, height - 2, 0, str(exc))
+                else:
+                    safe_add(stdscr, height - 2, 0, "No generated target commands.")
                 stdscr.getch()
             max_items = (
                 len(services) if pane == 0 else
                 len(staged_names) if pane == 1 else
                 len(snap["uploads"]) if pane == 2 else
                 len(snap["sessions"]) if pane == 3 else
+                len(snap["target_commands"]) if pane == 5 else
                 len(release_artifacts) if pane == 6 else
                 (1 + len(release_devices[:5]) + len(release_tuples[:5])) if pane == 7 else
                 1
@@ -2614,6 +2693,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="operator staged-files JSON path")
     parser.add_argument("--command-queue-file",
                         help="operator command queue JSON path")
+    parser.add_argument("--command-copy-file",
+                        help="operator last copied/generated command text path")
+    parser.add_argument("--copy-target-command", type=int,
+                        help="copy/export generated target command N to clipboard when available and to the command copy file")
     parser.add_argument("--queue-command",
                         help="record an explicit operator command queue entry; this server does not deliver or execute it")
     parser.add_argument("--queue-timeout", type=int,
@@ -2675,6 +2758,19 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["staged_files"] = args.staged_file
     if args.command_queue_file:
         cfg["command_queue_file"] = args.command_queue_file
+    if args.command_copy_file:
+        cfg["command_copy_file"] = args.command_copy_file
+
+    try:
+        if args.copy_target_command:
+            rec = copy_generated_command(cfg, args.copy_target_command)
+            print(f"copied target command {args.copy_target_command} to {rec['path']}")
+            print(f"clipboard={'yes' if rec['clipboard'] else 'no'}")
+            print(rec["text"])
+            return 0
+    except ValueError as exc:
+        print(f"busierbox-server: {exc}", file=sys.stderr)
+        return 2
 
     try:
         if args.clear_command_queue:

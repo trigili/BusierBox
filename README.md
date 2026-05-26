@@ -189,9 +189,11 @@ Run `scripts/busierbox-server --tui` for the operator workbench. It can inspect
 services, recent sessions, received uploads, staged fetch files, and release
 bundle artifacts/devices/tuples when launched from a release directory. The
 curses view can open local logs, metadata, and staged/release files in a pager
-for operator inspection. Staging a file or release artifact only prepares an
-explicit target-side `busierbox fetch` command; it does not execute commands on
-the target.
+for operator inspection. Generated target commands can be copied locally with
+the `c` key or exported with `--copy-target-command`; the fallback copy path is
+`local/operator-session/last-command.txt`. Staging a file or release artifact
+only prepares an explicit target-side `busierbox fetch` command; it does not
+execute commands on the target.
 
 The optional command queue remains a separate advanced feature. Operator-side
 queue entries can be recorded with `scripts/busierbox-server --queue-command`

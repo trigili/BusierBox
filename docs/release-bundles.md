@@ -241,7 +241,9 @@ scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it does not push the artifact or run it. In the
 curses workbench, `v` opens the selected local metadata/log/artifact path in the
-operator's pager when one is available.
+operator's pager when one is available, and `c` copies the selected generated
+target command to the local clipboard when possible plus
+`local/operator-session/last-command.txt`.
 
 Inspect and clean BusierBox-controlled runtime state:
 
