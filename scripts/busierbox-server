@@ -2095,7 +2095,20 @@ def status_document(cfg):
     staged = load_staged(cfg).get("staged", {})
     ips = local_ips()
     services = service_status_rows(cfg)
+    uploads = recent_upload_metadata(cfg)
+    sessions = recent_session_records(cfg)
+    events = event_tail(cfg)
+    command_queue = command_queue_summary(cfg)
     summary, warnings = status_summary_and_warnings(services)
+    summary.update({
+        "staged_count": len(staged),
+        "upload_count": len(uploads),
+        "session_count": len(sessions),
+        "event_count": len(events),
+        "command_queue_total_count": command_queue.get("total_count", 0),
+        "command_queue_queued_count": command_queue.get("queued_count", 0),
+        "command_queue_result_count": command_queue.get("result_count", 0),
+    })
     return {
         "schema": 1,
         "state_file": str(state_file_path(cfg)),
@@ -2110,11 +2123,11 @@ def status_document(cfg):
         "selected_local_ip": (ips or ["OPERATOR_IP"])[0],
         "target_commands": generated_target_commands(cfg, staged),
         "staged": staged,
-        "uploads": recent_upload_metadata(cfg),
-        "sessions": recent_session_records(cfg),
-        "events": event_tail(cfg),
+        "uploads": uploads,
+        "sessions": sessions,
+        "events": events,
         "release": release_context(),
-        "command_queue": command_queue_summary(cfg),
+        "command_queue": command_queue,
     }
 
 

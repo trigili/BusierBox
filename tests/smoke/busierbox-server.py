@@ -254,6 +254,10 @@ def main():
         if queue_status_json["summary"].get("service_count") != 4:
             print("server json status service summary is wrong", file=sys.stderr)
             return 1
+        if (queue_status_json["summary"].get("command_queue_total_count") != 1 or
+                queue_status_json["summary"].get("command_queue_result_count") != 1):
+            print("server json status missing aggregate command queue counts", file=sys.stderr)
+            return 1
         api_status_doc = run(
             "scripts/busierbox-server",
             "--config", str(cfg),
@@ -626,6 +630,17 @@ def main():
         upload_state = json.loads((upload_operator_dir / "server-state.json").read_text(encoding="utf-8"))
         if not any(item.get("session_id") == session_doc.get("session_id") for item in upload_state.get("sessions", [])):
             print("server-state sessions missing file-service session id", file=sys.stderr)
+            return 1
+        upload_status_json = run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--json-status",
+        )
+        upload_doc = json.loads(upload_status_json.stdout)
+        if (upload_doc.get("summary", {}).get("upload_count", 0) < 1 or
+                upload_doc.get("summary", {}).get("session_count", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_count", 0) < 1):
+            print("server json status missing aggregate upload/session/event counts", file=sys.stderr)
             return 1
         upload_status_text = run(
             "scripts/busierbox-server",
