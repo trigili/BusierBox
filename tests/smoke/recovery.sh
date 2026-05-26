@@ -51,6 +51,18 @@ if "$bb" persistence install --method rc-local --root "$tmp/root" --name bbx_rec
 fi
 grep -q 'require --apply' "$tmp/err"
 
+if "$bb" persistence install --method rc-local --apply --name bbx_recovery 2>"$tmp/real-root-install.err"; then
+    printf '%s\n' "recovery: real-root install without --external unexpectedly succeeded" >&2
+    exit 1
+fi
+grep -q 'real-root install/uninstall requires --external --apply' "$tmp/real-root-install.err"
+
+if "$bb" persistence uninstall --method rc-local --apply --name bbx_recovery 2>"$tmp/real-root-uninstall.err"; then
+    printf '%s\n' "recovery: real-root uninstall without --external unexpectedly succeeded" >&2
+    exit 1
+fi
+grep -q 'real-root install/uninstall requires --external --apply' "$tmp/real-root-uninstall.err"
+
 "$bb" persistence install --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 test -x "$tmp/root/usr/bin/bbx_recovery"
 grep -q 'BEGIN BUSIERBOX RECOVERY bbx_recovery' "$tmp/root/etc/rc.local"
