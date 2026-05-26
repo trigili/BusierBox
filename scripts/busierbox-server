@@ -2916,6 +2916,21 @@ def print_workbench(cfg):
 
 
 def start_service_process(cfg, service, argv_extra=None):
+    current = {row["name"]: row for row in service_status_rows(cfg)}.get(service)
+    if current and current.get("actual") == "listening":
+        append_event(
+            cfg,
+            service,
+            "service_start_skipped",
+            details={
+                "reason": "already-listening",
+                "port": current.get("port", 0),
+                "listener_pids": current.get("listener_pids") or [],
+                "pid": current.get("pid", ""),
+            },
+        )
+        print(f"{service}: already listening on port {current.get('port', '')}; not starting duplicate")
+        return None
     cmd = [
         sys.executable,
         str(Path(__file__).resolve()),
@@ -2938,6 +2953,7 @@ def start_service_process(cfg, service, argv_extra=None):
     update_server_state(cfg, service, "starting", {"pid": proc.pid, "managed_by": os.getpid(), "process_log": str(log_path)})
     append_event(cfg, service, "service_start_requested", details={"pid": proc.pid, "process_log": str(log_path), "managed_by": os.getpid()})
     print(f"started {service}: pid={proc.pid} log={log_path}")
+    return proc
 
 
 def stop_recorded_service(cfg, service):

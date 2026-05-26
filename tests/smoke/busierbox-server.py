@@ -518,6 +518,47 @@ def main():
             print(lifecycle_status_text.stdout, file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
+        dup_start = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import importlib.machinery, importlib.util, pathlib, sys; "
+                    "p=pathlib.Path(sys.argv[1]); "
+                    "loader=importlib.machinery.SourceFileLoader('srv', str(p)); "
+                    "spec=importlib.util.spec_from_loader('srv', loader); "
+                    "m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); "
+                    "cfg=m.load_config(sys.argv[2]); "
+                    "cfg['_config_path']=sys.argv[2]; "
+                    "cfg['server_state']=sys.argv[3]; "
+                    "cfg['staged_files']=sys.argv[4]; "
+                    "m.start_service_process(cfg, 'file-service')"
+                ),
+                str(server),
+                str(lifecycle_cfg),
+                str(lifecycle_state),
+                str(lifecycle_staged),
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+        )
+        if dup_start.returncode != 0 or "already listening" not in dup_start.stdout:
+            print("workbench duplicate service start was not skipped cleanly", file=sys.stderr)
+            print(dup_start.stdout, file=sys.stderr)
+            print(dup_start.stderr, file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        dup_state = json.loads(lifecycle_state.read_text(encoding="utf-8"))
+        if dup_state.get("services", {}).get("file-service", {}).get("pid") != rows["file-service"].get("pid"):
+            print("duplicate service start changed recorded listener pid", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        dup_events = [json.loads(line) for line in (Path(tmp) / "operator-session" / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+        if not any(event.get("event") == "service_start_skipped" and event.get("details", {}).get("reason") == "already-listening" for event in dup_events):
+            print("duplicate service start did not log service_start_skipped", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
         stop = run(
             "scripts/busierbox-server", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
