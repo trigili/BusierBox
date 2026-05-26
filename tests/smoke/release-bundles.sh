@@ -122,6 +122,14 @@ test -x "$work/release/scripts/artifact-config"
 test -x "$work/release/scripts/configure-artifact"
 test -x "$work/release/scripts/configure-all"
 test -x "$work/release/scripts/verify-checksums"
+"$work/release/scripts/configure-artifact" --help >"$work/configure-help.out" 2>&1 || test "$?" -eq 2
+grep -q -- '--run-mode auto|foreground|background' "$work/configure-help.out"
+grep -q -- '--shell-provider auto|target-sh|payload-busybox-sh|payload-busybox-ash|payload-zsh|custom' "$work/configure-help.out"
+grep -q -- '--zero-arg-log-mode none|quiet|status|verbose' "$work/configure-help.out"
+if grep -q -- '--run-mode auto|oneshot' "$work/configure-help.out"; then
+    printf '%s\n' "release-bundles: configure-artifact help advertised stale run mode" >&2
+    exit 1
+fi
 test -f "$work/release/SHA256SUMS.original"
 test -f "$work/release/release.json"
 test -f "$work/release/docs/README-release.md"

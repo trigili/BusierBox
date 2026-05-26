@@ -311,10 +311,10 @@ def write_release_helpers(script_dir):
           --target-bind-host HOST
           --transport ssh|builtin|socat
           --encryption tls|none
-          --run-mode auto|oneshot
-          --shell-provider auto|busybox|payload|custom
+          --run-mode auto|foreground|background
+          --shell-provider auto|target-sh|payload-busybox-sh|payload-busybox-ash|payload-zsh|custom
           --zero-arg-mode help|rshell|command
-          --zero-arg-log-mode quiet|status
+          --zero-arg-log-mode none|quiet|status|verbose
           --runtime-mode extract|no-residue
           --obfuscation none|xor
 
