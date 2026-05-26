@@ -45,9 +45,20 @@ busierbox survey --write-shell-script /tmp/busierbox-survey.sh
 scripts/config-from-survey --format shell survey.json
 scripts/config-from-survey --format json survey.json
 scripts/config-from-survey --write-config local/recommended.conf survey.json
+scripts/preset-from-survey --survey survey.json --name glinet-mt1300-lab
+scripts/preset-from-survey --survey survey.json --name glinet-mt1300-lab --write-local
 ```
 
 `scripts/config-from-survey` is conservative. It emits comments for uncertainty, avoids external writes unless `--allow-external-writes` is set, and keeps `BB_ZERO_ARG_MODE="help"` unless `--allow-network-autorun` is explicitly requested.
+
+`scripts/preset-from-survey` writes reusable target compatibility presets under
+`local/presets/targets/`. Those generated presets intentionally contain only
+target tuple metadata such as arch, endian, libc, kernel floor, CPU/ABI, static
+policy hints, survey provenance, confidence, and review notes. Runtime mode,
+payload preset, reverse-shell transport, operator host/ports, zero-arg behavior,
+dotfiles, and overlays remain in normal payload/runtime configs. `scripts/resolve-target`
+discovers these local presets automatically, so a generated name can be used
+with `TARGET=<name>` after review.
 
 For target-side debugging, prefer the provider-based gdbserver workflow in
 [gdbserver-workflow.md](gdbserver-workflow.md). Buildroot gdbserver is kept where

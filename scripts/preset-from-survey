@@ -1,0 +1,300 @@
+#!/usr/bin/env python3
+"""Generate a reusable BusierBox target preset from survey JSON."""
+
+import argparse
+import datetime as dt
+import hashlib
+import json
+import pathlib
+import re
+import sys
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+DEFAULT_OUTPUT_DIR = ROOT / "local" / "presets" / "targets"
+TARGET_ONLY_FORBIDDEN = {
+    "payload_preset",
+    "runtime_mode",
+    "rshell_transport",
+    "operator_host",
+    "zero_arg_mode",
+    "overlays",
+    "dotfiles",
+    "BB_PAYLOAD_PRESET",
+    "BB_RUNTIME_MODE",
+    "BB_RSHELL_TRANSPORT",
+    "BB_OPERATOR_SERVER_HOST",
+    "BB_ZERO_ARG_MODE",
+}
+
+
+def die(msg, code=1):
+    print(f"preset-from-survey: {msg}", file=sys.stderr)
+    raise SystemExit(code)
+
+
+def load_json(path):
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def useful(value):
+    if value in (None, "", "unknown", "auto"):
+        return ""
+    return str(value)
+
+
+def first(*values, default="unknown"):
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return default
+
+
+def arch_norm(machine):
+    machine = str(machine or "unknown").lower()
+    table = {
+        "mips": "mips",
+        "mips64": "mips",
+        "mipsel": "mipsel",
+        "mips64el": "mipsel",
+        "armv7l": "armv7",
+        "armv6l": "armv7",
+        "aarch64": "aarch64",
+        "x86_64": "x86_64",
+        "amd64": "x86_64",
+        "i386": "i386",
+        "i486": "i386",
+        "i586": "i386",
+        "i686": "i386",
+    }
+    return table.get(machine, machine or "unknown")
+
+
+def kernel_floor(release):
+    release = str(release or "unknown")
+    parts = release.split(".", 2)
+    if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+        major = int(parts[0])
+        minor = int(parts[1])
+        if major < 3:
+            return f"{major}.{minor}"
+        if major == 3:
+            return "3.x"
+        if major == 4:
+            return "4.x"
+        return "current"
+    return "unknown"
+
+
+def guess_libc(data):
+    recs = data.get("recommendations", {})
+    for key in ("libc_guess", "libc"):
+        if useful(recs.get(key)):
+            return useful(recs.get(key))
+    hints = " ".join(
+        str(x)
+        for x in [
+            data.get("libc", ""),
+            data.get("os", ""),
+            data.get("os_markers", {}),
+            data.get("shell_probe", {}),
+        ]
+    ).lower()
+    if "musl" in hints:
+        return "musl"
+    if "uclibc" in hints or "u-clibc" in hints:
+        return "uclibc"
+    if "glibc" in hints or "gnu libc" in hints:
+        return "glibc"
+    if "openwrt" in hints:
+        return "musl"
+    return "unknown"
+
+
+def default_qemu(arch):
+    return {
+        "native": "native",
+        "mipsel": "qemu-mipsel-static",
+        "mips": "qemu-mips-static",
+        "armv7": "qemu-arm-static",
+        "aarch64": "qemu-aarch64-static",
+        "x86_64": "qemu-x86_64-static",
+        "i386": "qemu-i386-static",
+    }.get(arch, "")
+
+
+def openwrt_hints(data):
+    text = json.dumps(data.get("os_markers", {}), sort_keys=True)
+    hints = {}
+    for key, pattern in {
+        "distrib_id": r"DISTRIB_ID='?([^'\n]+)'?",
+        "distrib_target": r"DISTRIB_TARGET='?([^'\n]+)'?",
+        "distrib_description": r"DISTRIB_DESCRIPTION='?([^'\n]+)'?",
+    }.items():
+        match = re.search(pattern, text)
+        if match:
+            hints[key] = match.group(1)
+    return hints
+
+
+def cpu_guess(data, arch):
+    recs = data.get("recommendations", {})
+    if useful(recs.get("target_cpu_guess")):
+        return useful(recs.get("target_cpu_guess"))
+    text = json.dumps(data, sort_keys=True).lower()
+    if arch in ("mips", "mipsel") and ("mt7621" in text or "mips32r2" in text):
+        return "mips32r2-24kc"
+    if arch in ("mips", "mipsel"):
+        return "generic"
+    if arch == "armv7":
+        return "cortex-a9"
+    if arch == "aarch64":
+        return "generic"
+    return "generic"
+
+
+def confidence(value, *evidence):
+    if value in ("", "unknown"):
+        return "low"
+    for item in evidence:
+        if item not in (None, "", "unknown"):
+            return "high"
+    return "medium"
+
+
+def generated_preset(data, survey_path, name):
+    recs = data.get("recommendations", {})
+    uname = data.get("uname", {})
+    machine = first(data.get("arch"), uname.get("machine"))
+    arch = useful(recs.get("target_arch_guess")) or arch_norm(machine)
+    kernel = first(data.get("kernel"), uname.get("release"))
+    kfloor = useful(recs.get("kernel_floor_guess")) or kernel_floor(kernel)
+    endian = useful(recs.get("endian_guess")) or useful(data.get("endianness")) or "auto"
+    libc = useful(recs.get("libc_guess")) or guess_libc(data)
+    cpu = cpu_guess(data, arch)
+    abi = useful(recs.get("target_abi_guess")) or "default"
+    notes = ["Generated preset; review before committing."]
+    if libc == "unknown":
+        notes.append("libc could not be inferred confidently.")
+    if kfloor == "unknown":
+        notes.append("kernel floor could not be inferred confidently.")
+    owrt = openwrt_hints(data)
+    if owrt:
+        notes.append("OpenWrt hints were found in the survey output.")
+
+    preset = {
+        "schema": 1,
+        "name": name,
+        "description": "Generated from BusierBox survey",
+        "arch": arch,
+        "endian": endian,
+        "libc": libc,
+        "kernel_floor": kfloor,
+        "cpu": cpu,
+        "abi": abi,
+        "static_policy": useful(recs.get("static_policy")) or "static-preferred",
+        "payload_tier": "core",
+        "qemu_user": default_qemu(arch),
+        "support_status": "supported",
+        "category": "local/generated",
+        "display_path": f"local/generated/{name}",
+        "openwrt": owrt,
+        "source": {
+            "type": "survey",
+            "survey_sha256": sha256_file(survey_path),
+            "hostname": uname.get("nodename", ""),
+            "kernel": kernel,
+            "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
+        },
+        "confidence": {
+            "arch": confidence(arch, data.get("arch"), uname.get("machine"), recs.get("target_arch_guess")),
+            "libc": confidence(libc, recs.get("libc_guess"), data.get("libc"), owrt),
+            "kernel_floor": confidence(kfloor, data.get("kernel"), uname.get("release"), recs.get("kernel_floor_guess")),
+            "cpu": confidence(cpu, recs.get("target_cpu_guess"), owrt.get("distrib_target")),
+        },
+        "notes": notes,
+    }
+    validate_preset(preset)
+    return preset
+
+
+def validate_name(name):
+    if not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]*$", name or ""):
+        die("preset name must use letters, numbers, dot, underscore, or dash and start alphanumeric", 2)
+
+
+def validate_preset(preset):
+    missing = [key for key in ("name", "arch", "libc", "kernel_floor", "cpu", "abi") if not preset.get(key)]
+    if missing:
+        die("generated preset missing required target field(s): " + ", ".join(missing))
+    forbidden = sorted(key for key in TARGET_ONLY_FORBIDDEN if key in preset)
+    if forbidden:
+        die("target preset contains runtime/payload field(s): " + ", ".join(forbidden))
+
+
+def known_names(local_dirs):
+    names = set()
+    builtins = load_json(ROOT / "targets" / "presets.json")
+    for item in builtins.get("presets", []):
+        if item.get("preset_name"):
+            names.add(item["preset_name"])
+    for directory in local_dirs:
+        if not directory.is_dir():
+            continue
+        for path in directory.glob("*.json"):
+            try:
+                item = load_json(path)
+            except Exception:
+                continue
+            if item.get("name"):
+                names.add(item["name"])
+            if item.get("preset_name"):
+                names.add(item["preset_name"])
+    return names
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--survey", required=True, help="survey JSON path")
+    parser.add_argument("--name", required=True, help="local target preset name")
+    parser.add_argument("--json", action="store_true", help="print generated preset JSON")
+    parser.add_argument("--write-local", action="store_true", help="write under local/presets/targets")
+    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help=argparse.SUPPRESS)
+    parser.add_argument("--overwrite", action="store_true", help="replace an existing local preset file")
+    args = parser.parse_args(argv)
+
+    validate_name(args.name)
+    survey_path = pathlib.Path(args.survey)
+    if not survey_path.is_file():
+        die(f"survey not found: {survey_path}", 2)
+    data = load_json(survey_path)
+    preset = generated_preset(data, survey_path, args.name)
+
+    output_dir = pathlib.Path(args.output_dir)
+    local_dirs = [output_dir, ROOT / "local" / "presets" / "targets", ROOT / "local" / "targets" / "presets"]
+    output_path = output_dir / f"{args.name}.json"
+    if args.write_local:
+        existing_names = known_names(local_dirs)
+        if args.name in existing_names and not args.overwrite:
+            die(f"preset name already exists: {args.name}; use --overwrite to replace a local file", 2)
+        if output_path.exists() and not args.overwrite:
+            die(f"output already exists: {output_path}; use --overwrite", 2)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps(preset, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"wrote {output_path}")
+    else:
+        print(json.dumps(preset, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

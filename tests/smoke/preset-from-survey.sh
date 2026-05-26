@@ -1,0 +1,76 @@
+#!/bin/sh
+set -eu
+
+tmp_root=${TMPDIR:-local/tmp}
+mkdir -p "$tmp_root"
+work=$(mktemp -d "$tmp_root/preset-from-survey.XXXXXX")
+trap 'rm -rf "$work"' EXIT HUP INT TERM
+
+survey=tests/fixtures/survey/glinet-mt7621.json
+preset_name=glinet-mt1300-lab
+
+scripts/preset-from-survey --survey "$survey" --name "$preset_name" --json >"$work/preset.json"
+python3 -m json.tool "$work/preset.json" >/dev/null
+python3 - "$work/preset.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+expected = {
+    "name": "glinet-mt1300-lab",
+    "arch": "mipsel",
+    "endian": "little",
+    "libc": "musl",
+    "kernel_floor": "4.x",
+    "cpu": "mips32r2-24kc",
+    "abi": "default",
+}
+for key, value in expected.items():
+    if data.get(key) != value:
+        raise SystemExit(f"{key} mismatch: {data.get(key)!r}")
+for forbidden in (
+    "payload_preset",
+    "runtime_mode",
+    "rshell_transport",
+    "operator_host",
+    "zero_arg_mode",
+    "BB_PAYLOAD_PRESET",
+    "BB_RUNTIME_MODE",
+    "BB_RSHELL_TRANSPORT",
+):
+    if forbidden in data:
+        raise SystemExit(f"target preset leaked runtime field: {forbidden}")
+if data.get("source", {}).get("type") != "survey":
+    raise SystemExit("missing survey provenance")
+if len(data.get("source", {}).get("survey_sha256", "")) != 64:
+    raise SystemExit("missing survey hash")
+if data.get("confidence", {}).get("arch") not in {"high", "medium"}:
+    raise SystemExit("missing confidence metadata")
+if not data.get("notes"):
+    raise SystemExit("missing review notes")
+PY
+
+scripts/preset-from-survey \
+    --survey "$survey" \
+    --name "$preset_name" \
+    --write-local \
+    --output-dir "$work/presets" >"$work/write.out"
+grep -q "wrote $work/presets/$preset_name.json" "$work/write.out"
+
+if scripts/preset-from-survey --survey "$survey" --name "$preset_name" --write-local --output-dir "$work/presets" >"$work/dup.out" 2>"$work/dup.err"; then
+    printf '%s\n' "preset-from-survey: duplicate write unexpectedly succeeded" >&2
+    exit 1
+fi
+grep -q 'preset name already exists' "$work/dup.err"
+
+BUSIERBOX_LOCAL_TARGET_PRESETS="$work/presets" scripts/resolve-target "$preset_name" >"$work/resolved"
+grep -q '^TARGET_ARCH=mipsel$' "$work/resolved"
+grep -q '^TARGET_ENDIAN=little$' "$work/resolved"
+grep -q '^TARGET_LIBC=musl$' "$work/resolved"
+grep -q '^TARGET_KERNEL_FLOOR=4.x$' "$work/resolved"
+grep -q '^TARGET_CPU=mips32r2-24kc$' "$work/resolved"
+
+BUSIERBOX_LOCAL_TARGET_PRESETS="$work/presets" scripts/resolve-target --list >"$work/list"
+grep -q "^$preset_name	" "$work/list"
+
+printf '%s\n' "preset-from-survey ok"

@@ -2,6 +2,7 @@
 set -eu
 
 presets=${BUSIERBOX_PRESETS:-targets/presets.json}
+local_preset_dirs=${BUSIERBOX_LOCAL_TARGET_PRESETS:-local/presets/targets:local/targets/presets}
 config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
 mode=target
 target=
@@ -30,6 +31,10 @@ explicit target name override is configured.
 
 The flat --list output is kept stable for scripts. --list-tree prints the
 same presets grouped by display_path-style categories for humans.
+
+Local single-preset JSON files are also discovered from
+BUSIERBOX_LOCAL_TARGET_PRESETS, defaulting to:
+  local/presets/targets:local/targets/presets
 EOF
         exit 0
         ;;
@@ -184,14 +189,65 @@ PY
 fi
 
 if [ "$mode" = list ]; then
-    python3 - "$presets" <<'PY'
+    python3 - "$presets" "$local_preset_dirs" <<'PY'
 import json
+import pathlib
 import sys
 
-with open(sys.argv[1], "r", encoding="utf-8") as fh:
-    data = json.load(fh)
+presets_path, local_dirs = sys.argv[1:]
 
-for p in data.get("presets", []):
+def default_qemu(arch):
+    return {
+        "native": "native",
+        "mipsel": "qemu-mipsel-static",
+        "mips": "qemu-mips-static",
+        "armv7": "qemu-arm-static",
+        "aarch64": "qemu-aarch64-static",
+        "x86_64": "qemu-x86_64-static",
+        "i386": "qemu-i386-static",
+    }.get(arch or "", "")
+
+def normalize(item, source="builtin"):
+    item = dict(item)
+    if "preset_name" not in item and "name" in item:
+        notes = item.get("notes", "")
+        if isinstance(notes, list):
+            notes = "; ".join(str(note) for note in notes if note)
+        item = {
+            **item,
+            "preset_name": item.get("name"),
+            "support_status": item.get("support_status", "supported"),
+            "payload_tier": item.get("payload_tier", "core"),
+            "qemu_user": item.get("qemu_user", default_qemu(item.get("arch"))),
+            "notes": notes,
+            "category": item.get("category", "local/generated"),
+            "display_path": item.get("display_path", f"local/generated/{item.get('name', '')}"),
+        }
+    item["_source"] = source
+    return item
+
+def load_presets():
+    with open(presets_path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    out = [normalize(item) for item in data.get("presets", [])]
+    seen = {item.get("preset_name") for item in out}
+    for dirname in [part for part in local_dirs.split(":") if part]:
+        directory = pathlib.Path(dirname)
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.glob("*.json")):
+            try:
+                item = normalize(json.load(open(path, "r", encoding="utf-8")), source=str(path))
+            except Exception as exc:
+                print(f"resolve-target: skipping invalid local preset {path}: {exc}", file=sys.stderr)
+                continue
+            name = item.get("preset_name")
+            if name and name not in seen:
+                out.append(item)
+                seen.add(name)
+    return out
+
+for p in load_presets():
     print("\t".join([
         p.get("preset_name", ""),
         p.get("support_status", ""),
@@ -202,15 +258,65 @@ PY
 fi
 
 if [ "$mode" = list_tree ]; then
-    python3 - "$presets" <<'PY'
+    python3 - "$presets" "$local_preset_dirs" <<'PY'
 import json
+import pathlib
 import sys
 
-with open(sys.argv[1], "r", encoding="utf-8") as fh:
-    data = json.load(fh)
+presets_path, local_dirs = sys.argv[1:]
+
+def default_qemu(arch):
+    return {
+        "native": "native",
+        "mipsel": "qemu-mipsel-static",
+        "mips": "qemu-mips-static",
+        "armv7": "qemu-arm-static",
+        "aarch64": "qemu-aarch64-static",
+        "x86_64": "qemu-x86_64-static",
+        "i386": "qemu-i386-static",
+    }.get(arch or "", "")
+
+def normalize(item):
+    item = dict(item)
+    if "preset_name" not in item and "name" in item:
+        notes = item.get("notes", "")
+        if isinstance(notes, list):
+            notes = "; ".join(str(note) for note in notes if note)
+        item = {
+            **item,
+            "preset_name": item.get("name"),
+            "support_status": item.get("support_status", "supported"),
+            "payload_tier": item.get("payload_tier", "core"),
+            "qemu_user": item.get("qemu_user", default_qemu(item.get("arch"))),
+            "notes": notes,
+            "category": item.get("category", "local/generated"),
+            "display_path": item.get("display_path", f"local/generated/{item.get('name', '')}"),
+        }
+    return item
+
+def load_presets():
+    with open(presets_path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    out = [normalize(item) for item in data.get("presets", [])]
+    seen = {item.get("preset_name") for item in out}
+    for dirname in [part for part in local_dirs.split(":") if part]:
+        directory = pathlib.Path(dirname)
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.glob("*.json")):
+            try:
+                item = normalize(json.load(open(path, "r", encoding="utf-8")))
+            except Exception as exc:
+                print(f"resolve-target: skipping invalid local preset {path}: {exc}", file=sys.stderr)
+                continue
+            name = item.get("preset_name")
+            if name and name not in seen:
+                out.append(item)
+                seen.add(name)
+    return out
 
 current = None
-for p in data.get("presets", []):
+for p in load_presets():
     category = p.get("category") or "uncategorized"
     if category != current:
         current = category
@@ -223,17 +329,67 @@ PY
     exit 0
 fi
 
-python3 - "$presets" "$target" <<'PY'
+python3 - "$presets" "$local_preset_dirs" "$target" <<'PY'
 import json
+import pathlib
 import shlex
 import sys
 
-presets, target = sys.argv[1:]
-with open(presets, "r", encoding="utf-8") as fh:
-    data = json.load(fh)
+presets, local_dirs, target = sys.argv[1:]
+
+def default_qemu(arch):
+    return {
+        "native": "native",
+        "mipsel": "qemu-mipsel-static",
+        "mips": "qemu-mips-static",
+        "armv7": "qemu-arm-static",
+        "aarch64": "qemu-aarch64-static",
+        "x86_64": "qemu-x86_64-static",
+        "i386": "qemu-i386-static",
+    }.get(arch or "", "")
+
+def normalize(item, source="builtin"):
+    item = dict(item)
+    if "preset_name" not in item and "name" in item:
+        notes = item.get("notes", "")
+        if isinstance(notes, list):
+            notes = "; ".join(str(note) for note in notes if note)
+        item = {
+            **item,
+            "preset_name": item.get("name"),
+            "support_status": item.get("support_status", "supported"),
+            "payload_tier": item.get("payload_tier", "core"),
+            "qemu_user": item.get("qemu_user", default_qemu(item.get("arch"))),
+            "notes": notes,
+            "category": item.get("category", "local/generated"),
+            "display_path": item.get("display_path", f"local/generated/{item.get('name', '')}"),
+        }
+    item["_source"] = source
+    return item
+
+def load_presets():
+    with open(presets, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    out = [normalize(item) for item in data.get("presets", [])]
+    seen = {item.get("preset_name") for item in out}
+    for dirname in [part for part in local_dirs.split(":") if part]:
+        directory = pathlib.Path(dirname)
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.glob("*.json")):
+            try:
+                item = normalize(json.load(open(path, "r", encoding="utf-8")), source=str(path))
+            except Exception as exc:
+                print(f"resolve-target: skipping invalid local preset {path}: {exc}", file=sys.stderr)
+                continue
+            name = item.get("preset_name")
+            if name and name not in seen:
+                out.append(item)
+                seen.add(name)
+    return out
 
 preset = None
-for item in data.get("presets", []):
+for item in load_presets():
     if item.get("preset_name") == target:
         preset = item
         break
