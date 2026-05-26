@@ -21,6 +21,7 @@ SAFE_CASES = [
     "survey-core",
     "trailer-runtime-override",
     "recovery-fakeroot",
+    "no-residue-cleanup",
     "default-extract-help",
     "builtin-core-shell",
     "zero-arg-builtin",
@@ -42,6 +43,7 @@ PAYLOAD_PRESETS = {
     "survey-core": "survey-core",
     "trailer-runtime-override": "survey-core",
     "recovery-fakeroot": "survey-core",
+    "no-residue-cleanup": "default",
     "default-extract-help": "default",
     "builtin-core-shell": "builtin-core-shell",
     "zero-arg-builtin": "builtin-core-shell",
@@ -144,6 +146,9 @@ def write_case_config(case_dir, case, operator_host, args):
         lines.append('BB_RSHELL_RUN_MODE="auto"')
     if case == "socat-rescue":
         lines.append('BB_STATIC_POLICY="dynamic"')
+    if case == "no-residue-cleanup":
+        lines.append('BB_RUNTIME_MODE="no-residue"')
+        lines.append('BB_RUNTIME_ROOT="./.busierbox-nores"')
     config = case_dir / "busierbox.conf"
     config.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return config
@@ -416,6 +421,23 @@ def case_recovery_fakeroot(ctx):
                     "! grep -q 'BEGIN BUSIERBOX RECOVERY bbx_itest' fake-root/etc/rc.local")
 
 
+def case_no_residue_cleanup(ctx):
+    run_remote_case(ctx["host"], ctx["remote_dir"], ctx["case_dir"],
+                    "./busierbox sh -c 'echo nores-ok' > nores.out; "
+                    "grep -q '^nores-ok$' nores.out; "
+                    "test ! -e .busierbox-nores; "
+                    "./busierbox sh -c 'while :; do sleep 1; done' >/dev/null 2>nores-term.err & "
+                    "pid=$!; i=0; "
+                    "while [ ! -e .busierbox-nores ]; do "
+                    "i=$((i + 1)); "
+                    "if [ \"$i\" -gt 80 ]; then kill \"$pid\" 2>/dev/null || true; exit 1; fi; "
+                    "sleep 0.1; "
+                    "done; "
+                    "kill -TERM \"$pid\"; "
+                    "if wait \"$pid\"; then exit 1; else rc=$?; [ \"$rc\" -eq 143 ]; fi; "
+                    "test ! -e .busierbox-nores")
+
+
 def case_default_extract_help(ctx):
     action = ("./busierbox > zero-arg.out 2>&1 || true; "
               "grep -Ei 'usage|busierbox|commands' zero-arg.out; "
@@ -543,6 +565,7 @@ CASE_FUNCS = {
     "survey-core": case_survey_core,
     "trailer-runtime-override": case_trailer_runtime_override,
     "recovery-fakeroot": case_recovery_fakeroot,
+    "no-residue-cleanup": case_no_residue_cleanup,
     "default-extract-help": case_default_extract_help,
     "builtin-core-shell": case_builtin_core_shell,
     "zero-arg-builtin": case_zero_arg_builtin,

@@ -48,6 +48,10 @@ install, status, and uninstall against a fake root inside the remote workdir.
 It does not write to the target's real `/etc` or `/usr/bin`; real-root recovery
 checks remain opt-in through explicit external-write cases.
 
+`no-residue-cleanup` builds a no-residue artifact, runs a normal BusyBox payload
+command, then terminates a foreground payload command and verifies that the
+temporary runtime root is removed in both paths.
+
 Run one reverse shell case:
 
 ```sh

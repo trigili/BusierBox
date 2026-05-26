@@ -11,7 +11,7 @@ server=${2:-scripts/busierbox-server}
 }
 
 cases=$("$script" --case list)
-for case_name in survey-core trailer-runtime-override recovery-fakeroot default-extract-help builtin-core-shell zero-arg-builtin socat-rescue ssh-operator; do
+for case_name in survey-core trailer-runtime-override recovery-fakeroot no-residue-cleanup default-extract-help builtin-core-shell zero-arg-builtin socat-rescue ssh-operator; do
     printf '%s\n' "$cases" | grep -qx "$case_name" || {
         printf '%s\n' "integration-glinet-harness: missing case $case_name" >&2
         exit 1
@@ -46,6 +46,10 @@ grep -q 'case_recovery_fakeroot' "$script"
 grep -q 'recovery install --method rc-local --action command --dry-run' "$script"
 grep -q 'recovery uninstall --method rc-local --apply' "$script"
 grep -q 'recovery-fakeroot-status.json' "$script"
+grep -q 'case_no_residue_cleanup' "$script"
+grep -q 'BB_RUNTIME_MODE="no-residue"' "$script"
+grep -q 'kill -TERM' "$script"
+grep -q '.busierbox-nores' "$script"
 grep -q '"failure_reasons"' "$script"
 grep -q '"counts"' "$script"
 grep -q 'json.loads(text)' "$script"
