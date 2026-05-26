@@ -30,8 +30,10 @@ grep -q '^trailer_present=no$' "$work/runtime.none"
 python3 -m json.tool "$work/runtime.none.json" >/dev/null
 
 scripts/artifact-config set "$work/busierbox" \
+    BB_RSHELL_TRANSPORT=ssh \
     BB_OPERATOR_SERVER_HOST=198.51.100.7 \
     BB_OPERATOR_REMOTE_FORWARD_PORT=2299 \
+    BB_OPERATOR_SERVER_SSH_PORT=22022 \
     BB_ZERO_ARG_LOG_MODE=status >"$work/set.out"
 test "$(wc -c <"$work/busierbox" | tr -d ' ')" -eq $((base_size + 4096))
 scripts/artifact-config show "$work/busierbox" >"$work/show.set"
@@ -56,7 +58,22 @@ assert r["effective_config_source"] == "trailer"
 assert r["trailer_override"]["present"] is True
 assert r["trailer_override"]["valid"] is True
 assert r["trailer_override"]["encoding"] == "plain"
+assert r["effective_config"]["BB_RSHELL_TRANSPORT"] == "ssh"
 assert r["effective_config"]["BB_OPERATOR_SERVER_HOST"] == "198.51.100.7"
+assert r["effective_config"]["BB_OPERATOR_REMOTE_FORWARD_PORT"] == "2299"
+assert r["effective_config"]["BB_OPERATOR_SERVER_SSH_PORT"] == "22022"
+PY
+"$work/busierbox" rshell status --json >"$work/rshell.status.trailer.json"
+python3 - "$work/rshell.status.trailer.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert r["runtime_config"]["effective_config_source"] == "trailer"
+assert r["transport"] == "ssh"
+assert r["operator_host"] == "198.51.100.7"
+assert r["remote_forward_port"] == "2299"
+assert r["operator_ssh_port"] == "22022"
+assert "--ssh-port 22022" in r["server_listener"]
+assert "2299" in r["connect_hint"]
 PY
 BB_OPERATOR_SERVER_HOST=203.0.113.9 "$work/busierbox" runtime-config --json >"$work/runtime.env.json"
 python3 - "$work/runtime.env.json" <<'PY'
