@@ -391,7 +391,7 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
         raise ValueError("command queue max output must be a positive integer")
     data = load_command_queue(cfg)
     now = utc_now()
-    digest = hashlib.sha256(f"{now}\0{text}\0{os.getpid()}".encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha256(f"{now}\0{time.time_ns()}\0{text}\0{os.getpid()}".encode("utf-8")).hexdigest()[:16]
     rec = {
         "id": f"cq-{digest}",
         "created_at": now,

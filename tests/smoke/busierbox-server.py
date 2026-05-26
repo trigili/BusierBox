@@ -254,6 +254,40 @@ def main():
         if len(queue_doc_after_bad.get("commands", [])) != 1:
             print("invalid command queue entries were persisted", file=sys.stderr)
             return 1
+        unique_queue_file = Path(tmp) / "operator-session" / "unique-command-queue.json"
+        unique_queue = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import importlib.machinery, importlib.util, json, pathlib, sys; "
+                    "p=pathlib.Path(sys.argv[1]); "
+                    "loader=importlib.machinery.SourceFileLoader('srv', str(p)); "
+                    "spec=importlib.util.spec_from_loader('srv', loader); "
+                    "m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); "
+                    "cfg=m.load_config(sys.argv[2]); cfg['command_queue_file']=sys.argv[3]; "
+                    "a=m.queue_command(cfg, 'busierbox survey'); "
+                    "b=m.queue_command(cfg, 'busierbox survey'); "
+                    "print(json.dumps([a['id'], b['id']]))"
+                ),
+                str(server),
+                str(cfg),
+                str(unique_queue_file),
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+        )
+        if unique_queue.returncode != 0:
+            print("same-process command queue uniqueness smoke failed", file=sys.stderr)
+            print(unique_queue.stdout, file=sys.stderr)
+            print(unique_queue.stderr, file=sys.stderr)
+            return 1
+        unique_ids = json.loads(unique_queue.stdout)
+        if len(unique_ids) != 2 or unique_ids[0] == unique_ids[1]:
+            print("same-process command queue entries received duplicate ids", file=sys.stderr)
+            print(unique_queue.stdout, file=sys.stderr)
+            return 1
         queue_list = run(
             "scripts/busierbox-server",
             "--config", str(cfg),
