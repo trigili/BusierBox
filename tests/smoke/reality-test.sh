@@ -70,4 +70,57 @@ if by_name["fetch_operator"]["status"] != "skipped":
     raise SystemExit("reality-test: fetch_operator should be skipped without staged file")
 PY
 
+port=$(python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+staged="$tmp/staged-fetch.txt"
+printf '%s\n' "staged reality fetch" >"$staged"
+operator_dir="$tmp/operator-session"
+sessions_dir="$tmp/sessions"
+cfg="$tmp/server-config.json"
+cat >"$cfg" <<EOF
+{
+  "listen_host": "127.0.0.1",
+  "file_service_port": $port,
+  "file_service_tls": "no",
+  "operator_session_dir": "$operator_dir",
+  "session_root": "$sessions_dir"
+}
+EOF
+scripts/busierbox-server --config "$cfg" --transport file-service --file-service-tls no \
+    --serve-file "$staged" --as reality-fetch.txt --timeout 10 >"$tmp/server.out" 2>"$tmp/server.err" &
+server_pid=$!
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    if scripts/busierbox-server --config "$cfg" --json-status | grep -q "\"actual\": \"listening\""; then
+        break
+    fi
+    sleep 0.1
+done
+BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard-active" "$bb" reality-test --json \
+    --operator-host 127.0.0.1 --file-port "$port" --no-tls \
+    --check-upload --check-fetch reality-fetch.txt >"$tmp/reality-active.json"
+kill "$server_pid" 2>/dev/null || true
+wait "$server_pid" 2>/dev/null || true
+python3 -m json.tool "$tmp/reality-active.json" >/dev/null
+python3 - "$tmp/reality-active.json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+by_name = {item.get("name"): item for item in doc.get("checks", [])}
+for name in ("upload_operator", "fetch_operator"):
+    item = by_name.get(name)
+    if not item:
+        raise SystemExit(f"reality-test: missing active check {name}")
+    if item.get("status") == "skipped":
+        raise SystemExit(f"reality-test: {name} unexpectedly skipped when explicitly enabled")
+    if item.get("status") != "pass":
+        raise SystemExit(f"reality-test: {name} did not pass against local operator service: {item}")
+PY
+
 printf '%s\n' "reality-test ok"

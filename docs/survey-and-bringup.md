@@ -14,6 +14,20 @@ The shell survey exists because a working native BusierBox binary only proves th
 operator upload/fetch checks as skipped unless those side-effecting services are
 explicitly configured for the run.
 
+Operator file-service checks are opt-in because they create target-initiated
+network traffic and upload a small probe file:
+
+```sh
+busierbox reality-test --json \
+  --operator-host 192.0.2.10 --file-port 22204 --no-tls \
+  --check-upload --check-fetch reality-fetch.txt
+```
+
+`--check-upload` uploads a generated probe file to the receive-only operator
+file-service. `--check-fetch REQUEST` performs a staged-file fetch check for the
+given request name. Fetch probing currently requires `--no-tls`; TLS upload
+probing follows the artifact's built-in TLS support.
+
 The generated shell probe is POSIX-ish and avoids required Python, Perl, awk,
 sed, grep, or coreutils dependencies. It uses common target commands only when
 they are present and writes probe files only under

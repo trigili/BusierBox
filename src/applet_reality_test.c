@@ -32,6 +32,14 @@ struct check_result {
     char detail[256];
 };
 
+struct reality_opts {
+    const char *operator_host;
+    const char *file_port;
+    const char *tls;
+    int check_upload;
+    const char *fetch_request;
+};
+
 static int is_help(int argc, char **argv)
 {
     return argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"));
@@ -281,6 +289,120 @@ static void check_outbound_operator(struct check_result *r)
     set_result(r, connect_with_timeout(host, port, detail, sizeof(detail)), 0, detail);
 }
 
+static void check_operator_upload(struct check_result *r, const struct reality_opts *opts)
+{
+    char dir[PATH_MAX], path[PATH_MAX + 64], portbuf[32];
+    int fd, rc;
+    char *argv[9];
+    int argc = 0;
+
+    if (!opts->check_upload) {
+        set_result(r, 0, 1, "enable with --check-upload");
+        return;
+    }
+    if (!opts->operator_host || !*opts->operator_host) {
+        set_result(r, 0, 1, "operator host not configured");
+        return;
+    }
+    runtime_probe_dir(dir, sizeof(dir));
+    if (bb_mkdir_p(dir, 0700) != 0) {
+        set_errno_result(r, "mkdir runtime probe dir");
+        return;
+    }
+    snprintf(path, sizeof(path), "%s/upload-check.%ld.txt", dir, (long)getpid());
+    fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+    if (fd < 0) {
+        set_errno_result(r, "create upload probe");
+        return;
+    }
+    if (write(fd, "busierbox reality-test upload\n", 30) != 30) {
+        close(fd);
+        unlink(path);
+        set_errno_result(r, "write upload probe");
+        return;
+    }
+    close(fd);
+    snprintf(portbuf, sizeof(portbuf), "%s", opts->file_port && *opts->file_port ? opts->file_port : BB_OPERATOR_FILE_SERVICE_PORT);
+    argv[argc++] = "--host";
+    argv[argc++] = (char *)opts->operator_host;
+    argv[argc++] = "--port";
+    argv[argc++] = portbuf;
+    argv[argc++] = "--tls";
+    argv[argc++] = (char *)(opts->tls && *opts->tls ? opts->tls : BB_OPERATOR_FILE_SERVICE_TLS);
+    argv[argc++] = "--dest";
+    argv[argc++] = "reality-test-upload.txt";
+    argv[argc++] = "--quiet";
+    rc = bb_operator_upload_file(path, "busierbox-reality-upload.txt", "reality-test", argc, argv);
+    unlink(path);
+    if (rc == 0)
+        set_result(r, 1, 0, "upload accepted by operator file-service");
+    else
+        set_result(r, 0, 0, "operator upload failed");
+}
+
+static void check_operator_fetch(struct check_result *r, const struct reality_opts *opts)
+{
+    char detail[256], request[512], portbuf[32], hostbuf[256];
+    struct addrinfo hints, *res = NULL, *ai;
+    int ok = 0;
+
+    if (!opts->fetch_request || !*opts->fetch_request) {
+        set_result(r, 0, 1, "enable with --check-fetch REQUEST");
+        return;
+    }
+    if (!opts->operator_host || !*opts->operator_host) {
+        set_result(r, 0, 1, "operator host not configured");
+        return;
+    }
+    if (strcmp(opts->tls && *opts->tls ? opts->tls : BB_OPERATOR_FILE_SERVICE_TLS, "no")) {
+        set_result(r, 0, 1, "active fetch check currently requires --no-tls");
+        return;
+    }
+    snprintf(portbuf, sizeof(portbuf), "%s", opts->file_port && *opts->file_port ? opts->file_port : BB_OPERATOR_FILE_SERVICE_PORT);
+    snprintf(hostbuf, sizeof(hostbuf), "%s", opts->operator_host);
+    snprintf(request, sizeof(request),
+             "GET /fetch?name=%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
+             opts->fetch_request, hostbuf);
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(hostbuf, portbuf, &hints, &res) != 0) {
+        set_result(r, 0, 0, "resolve failed");
+        return;
+    }
+    detail[0] = '\0';
+    for (ai = res; ai; ai = ai->ai_next) {
+        int fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        char buf[256];
+        ssize_t n;
+        if (fd < 0)
+            continue;
+        if (connect(fd, ai->ai_addr, ai->ai_addrlen) != 0) {
+            snprintf(detail, sizeof(detail), "%s", strerror(errno));
+            close(fd);
+            continue;
+        }
+        if (write(fd, request, strlen(request)) < 0) {
+            snprintf(detail, sizeof(detail), "write request: %s", strerror(errno));
+            close(fd);
+            continue;
+        }
+        n = read(fd, buf, sizeof(buf) - 1);
+        close(fd);
+        if (n > 0) {
+            buf[n] = '\0';
+            if (strstr(buf, " 200 ")) {
+                ok = 1;
+                snprintf(detail, sizeof(detail), "fetch accepted by operator file-service");
+                break;
+            }
+            snprintf(detail, sizeof(detail), "%.120s", buf);
+        }
+    }
+    freeaddrinfo(res);
+    set_result(r, ok, 0, detail[0] ? detail : "no response");
+}
+
 static void check_payload_busybox(struct check_result *r)
 {
     char payload[PATH_MAX], busybox[PATH_MAX + 64];
@@ -346,7 +468,7 @@ static void check_dmesg_readable(struct check_result *r)
         set_result(r, 0, 0, "kernel message buffer not readable");
 }
 
-static void run_checks(struct check_result checks[], size_t n)
+static void run_checks(struct check_result checks[], size_t n, const struct reality_opts *opts)
 {
     size_t i;
     for (i = 0; i < n; i++) {
@@ -373,9 +495,9 @@ static void run_checks(struct check_result checks[], size_t n)
         else if (!strcmp(checks[i].name, "connect_operator"))
             check_outbound_operator(&checks[i]);
         else if (!strcmp(checks[i].name, "upload_operator"))
-            set_result(&checks[i], 0, 1, "requires configured file-service and upload side effect");
+            check_operator_upload(&checks[i], opts);
         else if (!strcmp(checks[i].name, "fetch_operator"))
-            set_result(&checks[i], 0, 1, "requires staged operator file");
+            check_operator_fetch(&checks[i], opts);
         else if (!strcmp(checks[i].name, "extract_core_payload"))
             check_core_payload_extractable(&checks[i]);
         else if (!strcmp(checks[i].name, "exec_payload_busybox"))
@@ -448,6 +570,7 @@ static void print_text(struct check_result checks[], size_t n)
 
 int applet_reality_test_main(int argc, char **argv)
 {
+    struct reality_opts opts;
     struct check_result checks[] = {
         {"runtime_root_writable", 0, 0, ""},
         {"temporary_file", 0, 0, ""},
@@ -474,21 +597,57 @@ int applet_reality_test_main(int argc, char **argv)
     int json = 0;
     int i;
 
+    opts.operator_host = BB_OPERATOR_SERVER_HOST;
+    opts.file_port = BB_OPERATOR_FILE_SERVICE_PORT;
+    opts.tls = BB_OPERATOR_FILE_SERVICE_TLS;
+    opts.check_upload = 0;
+    opts.fetch_request = NULL;
+
     if (is_help(argc, argv)) {
-        puts("usage: busierbox reality-test [--json]");
+        puts("usage: busierbox reality-test [--json] [--operator-host HOST] [--file-port PORT] [--tls yes|no|--no-tls] [--check-upload] [--check-fetch REQUEST]");
         puts("Actively probes target runtime capabilities and degrades gracefully on broken systems.");
+        puts("Upload/fetch checks are side-effecting and run only when explicitly requested.");
         return 0;
     }
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--json"))
             json = 1;
+        else if (!strcmp(argv[i], "--operator-host")) {
+            if (++i >= argc) {
+                fputs("reality-test: --operator-host requires a value\n", stderr);
+                return 2;
+            }
+            opts.operator_host = argv[i];
+        } else if (!strcmp(argv[i], "--file-port")) {
+            if (++i >= argc) {
+                fputs("reality-test: --file-port requires a value\n", stderr);
+                return 2;
+            }
+            opts.file_port = argv[i];
+        } else if (!strcmp(argv[i], "--tls")) {
+            if (++i >= argc || (strcmp(argv[i], "yes") && strcmp(argv[i], "no"))) {
+                fputs("reality-test: --tls requires yes or no\n", stderr);
+                return 2;
+            }
+            opts.tls = argv[i];
+        } else if (!strcmp(argv[i], "--no-tls")) {
+            opts.tls = "no";
+        } else if (!strcmp(argv[i], "--check-upload")) {
+            opts.check_upload = 1;
+        } else if (!strcmp(argv[i], "--check-fetch")) {
+            if (++i >= argc) {
+                fputs("reality-test: --check-fetch requires a request name\n", stderr);
+                return 2;
+            }
+            opts.fetch_request = argv[i];
+        }
         else {
             fprintf(stderr, "reality-test: unknown option %s\n", argv[i]);
             return 2;
         }
     }
 
-    run_checks(checks, sizeof(checks) / sizeof(checks[0]));
+    run_checks(checks, sizeof(checks) / sizeof(checks[0]), &opts);
     if (json)
         print_json(checks, sizeof(checks) / sizeof(checks[0]));
     else
