@@ -2363,6 +2363,24 @@ def service_tls_enabled(cfg, service):
     return False
 
 
+def wait_service_port_released(cfg, service, pid=None, timeout=3.0):
+    port = service_port(cfg, service)
+    if not port:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if not pid or not pid_alive(pid):
+                return True
+            time.sleep(0.05)
+        return not pid or not pid_alive(pid)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        endpoints = listener_endpoints(port)
+        if not endpoints:
+            return True
+        time.sleep(0.05)
+    return not listener_endpoints(port)
+
+
 def port_listening(host, port):
     del host
     return bool(listener_endpoints(port))
@@ -2703,12 +2721,20 @@ def stop_managed_services(cfg):
         try:
             append_event(cfg, name, "shutdown", details={"pid": pid, "reason": "SIGTERM", "via": "server-stop", "ownership_evidence": ownership_evidence})
             os.kill(int(pid), signal.SIGTERM)
-            stopped += 1
-            mark_service_stopped(cfg, name)
-            append_event(cfg, name, "service_stop", details={"pid": pid, "via": "server-stop", "ownership_evidence": ownership_evidence})
-            print(f"{name}: stopped pid {pid}")
+            if wait_service_port_released(cfg, name, pid=pid):
+                stopped += 1
+                mark_service_stopped(cfg, name)
+                append_event(cfg, name, "service_stop", details={"pid": pid, "via": "server-stop", "ownership_evidence": ownership_evidence, "port_released": True})
+                print(f"{name}: stopped pid {pid}; port released")
+            else:
+                raise TimeoutError(f"listener port {service_port(cfg, name)} still appears bound after SIGTERM")
         except OSError as exc:
             mark_service_error(cfg, name, exc)
+            print(f"{name}: failed to stop pid {pid}: {exc}", file=sys.stderr)
+            skipped += 1
+        except TimeoutError as exc:
+            mark_service_error(cfg, name, exc)
+            append_event(cfg, name, "service_stop_failed", "error", details={"pid": pid, "reason": "port-still-bound", "via": "server-stop", "error": str(exc)})
             print(f"{name}: failed to stop pid {pid}: {exc}", file=sys.stderr)
             skipped += 1
     if stopped == 0 and skipped == 0:
@@ -2888,11 +2914,18 @@ def stop_recorded_service(cfg, service):
     try:
         append_event(cfg, service, "shutdown", details={"pid": pid, "reason": "SIGTERM", "via": "workbench-stop", "ownership_evidence": ownership_evidence})
         os.kill(int(pid), signal.SIGTERM)
-        print(f"stopped {service}: pid={pid}")
-        mark_service_stopped(cfg, service)
-        append_event(cfg, service, "service_stop", details={"pid": pid, "via": "workbench-stop", "ownership_evidence": ownership_evidence})
+        if wait_service_port_released(cfg, service, pid=pid):
+            print(f"stopped {service}: pid={pid}; port released")
+            mark_service_stopped(cfg, service)
+            append_event(cfg, service, "service_stop", details={"pid": pid, "via": "workbench-stop", "ownership_evidence": ownership_evidence, "port_released": True})
+        else:
+            raise TimeoutError(f"listener port {service_port(cfg, service)} still appears bound after SIGTERM")
     except OSError as exc:
         mark_service_error(cfg, service, exc)
+        print(f"{service}: unable to stop pid {pid}: {exc}", file=sys.stderr)
+    except TimeoutError as exc:
+        mark_service_error(cfg, service, exc)
+        append_event(cfg, service, "service_stop_failed", "error", details={"pid": pid, "reason": "port-still-bound", "via": "workbench-stop", "error": str(exc)})
         print(f"{service}: unable to stop pid {pid}: {exc}", file=sys.stderr)
 
 

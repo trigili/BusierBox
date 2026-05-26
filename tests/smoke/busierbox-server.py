@@ -480,7 +480,7 @@ def main():
             "--staged-file", str(lifecycle_staged),
             "--stop",
         )
-        if stop.returncode != 0 or "stopped pid" not in stop.stdout:
+        if stop.returncode != 0 or "stopped pid" not in stop.stdout or "port released" not in stop.stdout:
             print("--stop did not stop managed listener", file=sys.stderr)
             print(stop.stdout, file=sys.stderr)
             print(stop.stderr, file=sys.stderr)
@@ -500,6 +500,13 @@ def main():
         ]
         if not shutdown_events or shutdown_events[-1].get("details", {}).get("reason") != "SIGTERM":
             print("--stop did not leave a structured SIGTERM shutdown event", file=sys.stderr)
+            return 1
+        service_stop_events = [
+            event for event in lifecycle_events
+            if event.get("service") == "file-service" and event.get("event") == "service_stop"
+        ]
+        if not service_stop_events or service_stop_events[-1].get("details", {}).get("port_released") is not True:
+            print("--stop did not record that the listener port was released", file=sys.stderr)
             return 1
         status_after = run(
             "scripts/busierbox-server", "--config", str(lifecycle_cfg),
