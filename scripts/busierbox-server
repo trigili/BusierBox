@@ -674,24 +674,28 @@ def pid_is_managed_server(pid):
     return "busierbox-server" in cmd or (Path(sys.argv[0]).name == "busierbox-server" and str(os.getpid()) == str(pid))
 
 
-def port_listener_pids(port):
-    inodes = set()
-    target = f"{int(port):04X}"
-    for table in ("/proc/net/tcp", "/proc/net/tcp6"):
-        path = Path(table)
-        if not path.is_file():
-            continue
-        try:
-            lines = path.read_text(encoding="ascii", errors="ignore").splitlines()[1:]
-        except OSError:
-            continue
-        for line in lines:
-            cols = line.split()
-            if len(cols) > 9 and cols[1].rsplit(":", 1)[-1].upper() == target and cols[3] == "0A":
-                inodes.add(cols[9])
-    pids = []
-    if not inodes:
-        return pids
+def proc_tcp_address(hexaddr, family):
+    try:
+        raw = bytes.fromhex(hexaddr)
+    except ValueError:
+        return hexaddr
+    try:
+        if family == "tcp":
+            return socket.inet_ntop(socket.AF_INET, raw[::-1])
+        if family == "tcp6":
+            # Linux /proc/net/tcp6 stores each 32-bit word little-endian.
+            chunks = [raw[pos:pos + 4][::-1] for pos in range(0, len(raw), 4)]
+            return socket.inet_ntop(socket.AF_INET6, b"".join(chunks))
+    except OSError:
+        return hexaddr
+    return hexaddr
+
+
+def socket_inode_pids(inodes):
+    wanted = {str(inode) for inode in inodes if inode}
+    if not wanted:
+        return {}
+    found = {inode: [] for inode in wanted}
     proc = Path("/proc")
     for pid_dir in proc.iterdir() if proc.is_dir() else []:
         if not pid_dir.name.isdigit():
@@ -703,11 +707,48 @@ def port_listener_pids(port):
                     target_link = os.readlink(fd)
                 except OSError:
                     continue
-                if target_link.startswith("socket:[") and target_link[8:-1] in inodes:
-                    pids.append(int(pid_dir.name))
-                    break
+                if target_link.startswith("socket:["):
+                    inode = target_link[8:-1]
+                    if inode in wanted:
+                        found.setdefault(inode, []).append(int(pid_dir.name))
         except OSError:
             continue
+    return {inode: sorted(set(pids)) for inode, pids in found.items()}
+
+
+def listener_endpoints(port):
+    entries = []
+    target = f"{int(port):04X}"
+    for table, family in (("/proc/net/tcp", "tcp"), ("/proc/net/tcp6", "tcp6")):
+        path = Path(table)
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="ascii", errors="ignore").splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            cols = line.split()
+            if len(cols) > 9 and cols[1].rsplit(":", 1)[-1].upper() == target and cols[3] == "0A":
+                host_hex, port_hex = cols[1].rsplit(":", 1)
+                entries.append({
+                    "family": family,
+                    "address": proc_tcp_address(host_hex, family),
+                    "port": int(port_hex, 16),
+                    "inode": cols[9],
+                })
+    inode_pids = socket_inode_pids([entry["inode"] for entry in entries])
+    for entry in entries:
+        pids = inode_pids.get(entry["inode"], [])
+        entry["pids"] = pids
+        entry["processes"] = [{"pid": pid, "cmdline": pid_cmdline(pid)} for pid in pids]
+    return entries
+
+
+def port_listener_pids(port):
+    pids = []
+    for endpoint in listener_endpoints(port):
+        pids.extend(endpoint.get("pids", []))
     return sorted(set(pids))
 
 
@@ -1987,19 +2028,7 @@ def service_tls_enabled(cfg, service):
 
 def port_listening(host, port):
     del host
-    target = f"{int(port):04X}"
-    try:
-        for table in ("/proc/net/tcp", "/proc/net/tcp6"):
-            path = Path(table)
-            if not path.is_file():
-                continue
-            for line in path.read_text(encoding="ascii", errors="ignore").splitlines()[1:]:
-                cols = line.split()
-                if len(cols) > 3 and cols[1].rsplit(":", 1)[-1].upper() == target and cols[3] == "0A":
-                    return True
-    except (OSError, ValueError):
-        return False
-    return False
+    return bool(listener_endpoints(port))
 
 
 def raw_service_snapshot(cfg):
@@ -2007,10 +2036,12 @@ def raw_service_snapshot(cfg):
     services = {}
     for name in ("ssh", "tls-shell", "plain-shell", "file-service"):
         port = service_port(cfg, name)
-        listener_pids = port_listener_pids(port)
+        endpoints = listener_endpoints(port)
+        listener_pids = sorted({pid for endpoint in endpoints for pid in endpoint.get("pids", [])})
         services[name] = {
             "port": port,
-            "listening": bool(listener_pids) or port_listening(str(cfg.get("listen_host", "127.0.0.1")), port),
+            "listening": bool(endpoints),
+            "listener_endpoints": endpoints,
             "listener_pids": listener_pids,
             "state": (state.get("services") or {}).get(name, {}),
         }
@@ -2048,6 +2079,7 @@ def service_status_rows(cfg):
             "pid": pid or "",
             "pid_alive": pid_alive(pid) if pid else False,
             "listener_pids": info.get("listener_pids", []),
+            "listener_endpoints": info.get("listener_endpoints", []),
             "listener_processes": [
                 {"pid": listener_pid, "cmdline": pid_cmdline(listener_pid)}
                 for listener_pid in info.get("listener_pids", [])
@@ -2186,6 +2218,10 @@ def print_status(cfg, json_output=False):
         pid = f" pid={row['pid']}" if row["pid"] else ""
         tls = "yes" if row["tls"] else "no"
         print(f"  {row['name']:12s} port={row['port']} tls={tls} configured={row['configured']} actual={row['actual']}{pid}{stale}")
+        if row["listener_endpoints"]:
+            for endpoint in row["listener_endpoints"]:
+                pids = ",".join(str(pid) for pid in endpoint.get("pids", [])) or "unknown"
+                print(f"    listener={endpoint.get('address', '')}:{endpoint.get('port', '')} family={endpoint.get('family', '')} pids={pids}")
         if row["listener_processes"]:
             for owner in row["listener_processes"]:
                 print(f"    listener_pid={owner['pid']} {owner.get('cmdline', '')}")

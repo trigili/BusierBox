@@ -390,8 +390,28 @@ def main():
             print("status missing actual listener pid/process details", file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
+        endpoints = rows["file-service"].get("listener_endpoints") or []
+        if not any(endpoint.get("address") == "127.0.0.1" and endpoint.get("port") == lifecycle_port for endpoint in endpoints):
+            print("status missing actual listener endpoint address/port", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        if not any(endpoint.get("pids") for endpoint in endpoints):
+            print("status listener endpoints missing owning PIDs", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
         if rows["file-service"].get("tls") is not False or rows["tls-shell"].get("tls") is not True:
             print("status missing normalized service TLS flags", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        lifecycle_status_text = run(
+            "scripts/busierbox-server", "--config", str(lifecycle_cfg),
+            "--state-file", str(lifecycle_state),
+            "--staged-file", str(lifecycle_staged),
+            "--status",
+        )
+        if f"listener=127.0.0.1:{lifecycle_port}" not in lifecycle_status_text.stdout:
+            print("text status missing actual listener endpoint", file=sys.stderr)
+            print(lifecycle_status_text.stdout, file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
         stop = run(
