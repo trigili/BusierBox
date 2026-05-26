@@ -1910,15 +1910,6 @@ static void print_doctor_rshell_readiness_json(FILE *out)
     fprintf(out, "]}");
 }
 
-static void print_doctor_runtime_config_json(FILE *out)
-{
-    fprintf(out, ",\"runtime_config\":{\"effective_config_source\":");
-    json_string_payload(out, bb_config_effective_source());
-    fprintf(out, ",\"trailer_override\":");
-    bb_config_print_trailer_json(out, json_string_payload);
-    fprintf(out, "}");
-}
-
 static void print_doctor_cleanup_ledger_json(FILE *out)
 {
     char path[PATH_MAX];
@@ -2096,7 +2087,8 @@ int applet_doctor_main(int argc, char **argv)
             print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
             print_doctor_rshell_readiness_json(stdout);
-            print_doctor_runtime_config_json(stdout);
+            printf(",\"runtime_config\":");
+            bb_config_print_runtime_summary_json(stdout, json_string_payload);
             print_doctor_cleanup_ledger_json(stdout);
             printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s",
                    bb_path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
@@ -2161,7 +2153,8 @@ int applet_doctor_main(int argc, char **argv)
             print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
             print_doctor_rshell_readiness_json(stdout);
-            print_doctor_runtime_config_json(stdout);
+            printf(",\"runtime_config\":");
+            bb_config_print_runtime_summary_json(stdout, json_string_payload);
             print_doctor_cleanup_ledger_json(stdout);
             printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s}",
                    bb_path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",

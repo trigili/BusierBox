@@ -762,11 +762,8 @@ int applet_rshell_main(int argc, char **argv)
             printf(",\"max_interval_sec\":");
             json_string_main(stdout, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
             printf("}");
-            printf(",\"runtime_config\":{\"effective_config_source\":");
-            json_string_main(stdout, bb_config_effective_source());
-            printf(",\"trailer_override\":");
-            bb_config_print_trailer_json(stdout, json_string_main);
-            printf("}");
+            printf(",\"runtime_config\":");
+            bb_config_print_runtime_summary_json(stdout, json_string_main);
             printf(",\"zero_arg_autorun\":%s", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "true" : "false");
             printf(",\"guard_path\":");
             json_string_main(stdout, guard);

@@ -541,6 +541,15 @@ void bb_config_print_trailer_json(FILE *out, void (*json_string)(FILE *, const c
     fputc('}', out);
 }
 
+void bb_config_print_runtime_summary_json(FILE *out, void (*json_string)(FILE *, const char *))
+{
+    fprintf(out, "{\"effective_config_source\":");
+    json_string(out, bb_config_effective_source());
+    fprintf(out, ",\"trailer_override\":");
+    bb_config_print_trailer_json(out, json_string);
+    fputc('}', out);
+}
+
 int applet_runtime_config_main(int argc, char **argv)
 {
     int json = 0;
