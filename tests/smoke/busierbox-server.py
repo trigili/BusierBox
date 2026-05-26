@@ -254,7 +254,9 @@ def main():
                 "busierbox reality-test --json" not in queue_status_text.stdout or
                 "result-received" not in queue_status_text.stdout or
                 "command_result_received" not in queue_status_text.stdout or
-                "Event log:" not in queue_status_text.stdout):
+                "Event log:" not in queue_status_text.stdout or
+                "tls=yes" not in queue_status_text.stdout or
+                "tls=no" not in queue_status_text.stdout):
             print("text --status missing command queue/event sections", file=sys.stderr)
             print(queue_status_text.stdout, file=sys.stderr)
             return 1
@@ -352,6 +354,10 @@ def main():
             return 1
         if not rows["file-service"].get("listener_pids") or not rows["file-service"].get("listener_processes"):
             print("status missing actual listener pid/process details", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        if rows["file-service"].get("tls") is not False or rows["tls-shell"].get("tls") is not True:
+            print("status missing normalized service TLS flags", file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
         stop = run(

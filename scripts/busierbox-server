@@ -1938,6 +1938,14 @@ def service_port(cfg, service):
     return 0
 
 
+def service_tls_enabled(cfg, service):
+    if service == "tls-shell":
+        return True
+    if service == "file-service":
+        return yes(str(cfg.get("file_service_tls", "yes")))
+    return False
+
+
 def port_listening(host, port):
     del host
     target = f"{int(port):04X}"
@@ -1995,6 +2003,7 @@ def service_status_rows(cfg):
         rows.append({
             "name": name,
             "port": info["port"],
+            "tls": service_tls_enabled(cfg, name),
             "actual": actual,
             "configured": rec.get("status", "unknown"),
             "pid": pid or "",
@@ -2064,7 +2073,8 @@ def print_status(cfg, json_output=False):
     for row in doc["services"]:
         stale = " stale-state" if row["stale"] else ""
         pid = f" pid={row['pid']}" if row["pid"] else ""
-        print(f"  {row['name']:12s} port={row['port']} configured={row['configured']} actual={row['actual']}{pid}{stale}")
+        tls = "yes" if row["tls"] else "no"
+        print(f"  {row['name']:12s} port={row['port']} tls={tls} configured={row['configured']} actual={row['actual']}{pid}{stale}")
         if row["listener_processes"]:
             for owner in row["listener_processes"]:
                 print(f"    listener_pid={owner['pid']} {owner.get('cmdline', '')}")
@@ -2182,8 +2192,8 @@ def print_workbench(cfg):
     for row in snap["services"].values():
         item = row["status_row"]
         pid = f" pid={item['pid']}" if item["pid"] else ""
-        tls = " tls=yes" if item["name"] in {"tls-shell", "file-service"} and yes(str(snap["state"].get("services", {}).get(item["name"], {}).get("file_service_tls", "yes"))) else ""
-        print(f"  {item['name']:12s} port={item['port']} desired={item['configured']} actual={item['actual']}{pid}{tls}")
+        tls = "yes" if item["tls"] else "no"
+        print(f"  {item['name']:12s} port={item['port']} tls={tls} desired={item['configured']} actual={item['actual']}{pid}")
         if item["error"]:
             print(f"    error: {item['error']}")
         if item["session_log"]:
@@ -2448,7 +2458,8 @@ def run_curses_tui(cfg):
             service_lines = []
             for idx, row in enumerate(services):
                 prefix = ">" if pane == 0 and idx == selected else " "
-                service_lines.append(f"{prefix} {row['name']:12s} {row['actual']}/{row['configured']} port={row['port']} pid={row['pid'] or '-'}")
+                tls = "yes" if row["tls"] else "no"
+                service_lines.append(f"{prefix} {row['name']:12s} {row['actual']}/{row['configured']} port={row['port']} tls={tls} pid={row['pid'] or '-'}")
             staged_lines = []
             for idx, name in enumerate(staged_names):
                 rec = snap["staged"][name]
@@ -2463,6 +2474,7 @@ def run_curses_tui(cfg):
                     f"port: {row['port']}",
                     f"desired: {row['configured']}",
                     f"actual: {row['actual']}",
+                    f"tls: {'yes' if row['tls'] else 'no'}",
                     f"pid: {row['pid'] or '-'} alive={row['pid_alive']}",
                     f"session_log: {row['session_log'] or '-'}",
                     f"process_log: {row['process_log'] or '-'}",
