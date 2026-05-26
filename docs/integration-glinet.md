@@ -43,6 +43,11 @@ built artifact, applies allowlisted post-build runtime overrides with
 `config-info`, and `rshell status --json` report the trailer-derived effective
 configuration.
 
+The safe set also includes `recovery-fakeroot`, which exercises recovery
+install, status, and uninstall against a fake root inside the remote workdir.
+It does not write to the target's real `/etc` or `/usr/bin`; real-root recovery
+checks remain opt-in through explicit external-write cases.
+
 Run one reverse shell case:
 
 ```sh

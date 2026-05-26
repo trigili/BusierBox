@@ -20,6 +20,7 @@ DEFAULT_TARGET = "glinet-mt7621-openwrt-musl"
 SAFE_CASES = [
     "survey-core",
     "trailer-runtime-override",
+    "recovery-fakeroot",
     "default-extract-help",
     "builtin-core-shell",
     "zero-arg-builtin",
@@ -40,6 +41,7 @@ class SkipCase(RuntimeError):
 PAYLOAD_PRESETS = {
     "survey-core": "survey-core",
     "trailer-runtime-override": "survey-core",
+    "recovery-fakeroot": "survey-core",
     "default-extract-help": "default",
     "builtin-core-shell": "builtin-core-shell",
     "zero-arg-builtin": "builtin-core-shell",
@@ -386,6 +388,34 @@ def case_trailer_runtime_override(ctx):
                     "grep -q '\"remote_forward_port\":\"2288\"' rshell-status-trailer.json")
 
 
+def case_recovery_fakeroot(ctx):
+    run_remote_case(ctx["host"], ctx["remote_dir"], ctx["case_dir"],
+                    "rm -rf fake-root; mkdir -p fake-root/etc; "
+                    "printf '# existing rc.local\\n' > fake-root/etc/rc.local; "
+                    "root=$PWD/fake-root; "
+                    "./busierbox recovery install --method rc-local --action command --dry-run "
+                    "--root \"$root\" --name bbx_itest -- 'busierbox rshell start' > recovery-dry-run.out; "
+                    "grep -q 'Would install persistence method=rc-local' recovery-dry-run.out; "
+                    "grep -q 'Action: command' recovery-dry-run.out; "
+                    "grep -q 'Generated command: busierbox rshell start' recovery-dry-run.out; "
+                    "./busierbox recovery install --method rc-local --action command --apply "
+                    "--root \"$root\" --name bbx_itest -- 'busierbox rshell start' > recovery-install.out; "
+                    "test -x fake-root/usr/bin/bbx_itest; "
+                    "grep -q 'BEGIN BUSIERBOX RECOVERY bbx_itest' fake-root/etc/rc.local; "
+                    "grep -q 'action=command' fake-root/etc/rc.local; "
+                    "./busierbox recovery status --json --root \"$root\" --name bbx_itest > recovery-fakeroot-status.json; "
+                    "grep -q '\"installed\":true' recovery-fakeroot-status.json; "
+                    "grep -q '\"method\":\"rc-local\"' recovery-fakeroot-status.json; "
+                    "grep -q '\"action\":\"command\"' recovery-fakeroot-status.json; "
+                    "grep -q '\"generated_command\":\"busierbox rshell start\"' recovery-fakeroot-status.json; "
+                    "./busierbox recovery uninstall --method rc-local --apply "
+                    "--root \"$root\" --name bbx_itest > recovery-uninstall.out; "
+                    "./busierbox recovery status --json --root \"$root\" --name bbx_itest > recovery-fakeroot-after.json; "
+                    "grep -q '\"installed\":false' recovery-fakeroot-after.json; "
+                    "test ! -e fake-root/usr/bin/bbx_itest; "
+                    "! grep -q 'BEGIN BUSIERBOX RECOVERY bbx_itest' fake-root/etc/rc.local")
+
+
 def case_default_extract_help(ctx):
     action = ("./busierbox > zero-arg.out 2>&1 || true; "
               "grep -Ei 'usage|busierbox|commands' zero-arg.out; "
@@ -512,6 +542,7 @@ def case_ssh_operator(ctx):
 CASE_FUNCS = {
     "survey-core": case_survey_core,
     "trailer-runtime-override": case_trailer_runtime_override,
+    "recovery-fakeroot": case_recovery_fakeroot,
     "default-extract-help": case_default_extract_help,
     "builtin-core-shell": case_builtin_core_shell,
     "zero-arg-builtin": case_zero_arg_builtin,
