@@ -1377,13 +1377,15 @@ def artifact_summary(release_dir, rec, include_missing=False):
     heavy = payload_tools.get("heavy_tools") or payload_tools.get("staged_payload_tools") or (payload_manifest or {}).get("staged_payload_tools") or []
     busybox = payload_tools.get("busybox_applets") or (payload_manifest or {}).get("busybox_applets") or []
     native = [key for key, value in sorted(native_features.items()) if value is True]
+    noresidue_level = runtime.get("noresidue_level")
     summary = {
         "artifact": rec.get("artifact"),
         "target": (payload_manifest or {}).get("target") or rec.get("resolved_target") or rec.get("target"),
         "payload_manifest": rec.get("payload_manifest_path"),
         "payload_preset": rec.get("payload_preset"),
         "runtime_mode": rec.get("runtime_mode") or runtime.get("mode"),
-        "noresidue_level": runtime.get("noresidue_level"),
+        "noresidue_level": noresidue_level,
+        "noresidue_policy": noresidue_policy_summary(runtime.get("mode"), noresidue_level),
         "reverse_access": {
             "transport": rshell.get("transport"),
             "session_policy": rshell.get("session_policy"),
@@ -1423,6 +1425,26 @@ def artifact_summary(release_dir, rec, include_missing=False):
     return summary
 
 
+def noresidue_policy_summary(runtime_mode, level):
+    level = level or "best-effort"
+    aggressive = level == "aggressive"
+    active = runtime_mode == "no-residue"
+    return {
+        "level": level,
+        "runtime_mode": runtime_mode or "",
+        "active": active,
+        "best_effort_cleanup": True,
+        "forensic_no_trace": False,
+        "aggressive_minimizes_runtime_residue": aggressive,
+        "scope": "BusierBox-owned runtime roots and ledgered files where reasonable; external writes require explicit operator action",
+        "caveat": (
+            "aggressive minimizes BusierBox runtime residue but cannot guarantee absence of residue"
+            if aggressive else
+            "best-effort cleanup removes owned runtime state where reasonable"
+        ),
+    }
+
+
 def compatibility_baseline(tuple_info):
     reasons = []
     for key in ("arch", "endian", "libc", "kernel_floor", "cpu", "abi", "static_policy"):
@@ -1459,6 +1481,7 @@ def manifest_text_for_tuple(tuple_info, records, include_missing=False):
             f"  status={rec.get('build_status', '')}",
             f"  runtime_mode={summary.get('runtime_mode') or rec.get('runtime_mode') or ''}",
             f"  noresidue_level={summary.get('noresidue_level') or ''}",
+            "  noresidue_policy=" + json.dumps(summary.get("noresidue_policy") or {}, sort_keys=True),
             f"  size={rec.get('size', '')}",
             f"  sha256={rec.get('sha256', '')}",
             f"  config={rec.get('config', '')}",

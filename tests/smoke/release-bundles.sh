@@ -232,12 +232,15 @@ if artifact.get("tuple", {}).get("path") != artifact.get("tuple_path"):
 if artifact.get("tuple_artifact") != "by-tuple/native/host/host/host/bin/busierbox-native-default-full":
     raise SystemExit("artifact tuple artifact missing")
 summary = artifact.get("tuple_summary") or {}
-for key in ("payload_manifest", "native_applets", "busybox_applets", "core_extraction_behavior", "trailer_overridable_fields", "command_queue"):
+for key in ("payload_manifest", "native_applets", "busybox_applets", "core_extraction_behavior", "trailer_overridable_fields", "command_queue", "noresidue_policy"):
     if key not in summary:
         raise SystemExit(f"tuple summary missing {key}")
 queue = summary.get("command_queue") or {}
 if queue.get("enabled") != "no" or queue.get("default_enabled") is not False or queue.get("executes_commands") is not False:
     raise SystemExit(f"tuple summary command queue policy unsafe/missing: {queue!r}")
+noresidue = summary.get("noresidue_policy") or {}
+if noresidue.get("best_effort_cleanup") is not True or noresidue.get("forensic_no_trace") is not False:
+    raise SystemExit(f"tuple summary no-residue policy unsafe/missing: {noresidue!r}")
 compat = summary.get("compatibility") or {}
 if compat.get("label") != "exact":
     raise SystemExit(f"tuple summary compatibility missing/exact mismatch: {compat!r}")
@@ -273,12 +276,15 @@ artifacts = manifest.get("artifacts", [])
 if len(artifacts) != 1:
     raise SystemExit("tuple manifest artifact count mismatch")
 summary = artifacts[0]
-for key in ("payload_preset", "runtime_mode", "noresidue_level", "payload_manifest", "native_applets", "busybox_applets", "heavy_tools", "sha256", "config", "command_queue"):
+for key in ("payload_preset", "runtime_mode", "noresidue_level", "payload_manifest", "native_applets", "busybox_applets", "heavy_tools", "sha256", "config", "command_queue", "noresidue_policy"):
     if key not in summary:
         raise SystemExit(f"tuple artifact summary missing {key}")
 queue = summary.get("command_queue") or {}
 if queue.get("enabled") != "no" or queue.get("default_enabled") is not False or queue.get("executes_commands") is not False:
     raise SystemExit(f"tuple manifest command queue policy unsafe/missing: {queue!r}")
+noresidue = summary.get("noresidue_policy") or {}
+if noresidue.get("best_effort_cleanup") is not True or noresidue.get("forensic_no_trace") is not False:
+    raise SystemExit(f"tuple manifest no-residue policy unsafe/missing: {noresidue!r}")
 if (summary.get("compatibility") or {}).get("label") != "exact":
     raise SystemExit("tuple artifact compatibility baseline missing")
 if "missing_tools" in summary or "missing_tool_reasons" in summary:
@@ -290,6 +296,7 @@ for needle in (
     "payload_manifest=",
     "compatibility=exact",
     "noresidue_level=",
+    "noresidue_policy=",
     "busybox_applets=",
     "core_extraction=",
     "trailer_overridable_fields=",
