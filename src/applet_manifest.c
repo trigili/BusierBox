@@ -10,7 +10,6 @@
 
 #include "applets.h"
 #include "json_helpers.h"
-#include "runtime_config.h"
 
 #define json_string_payload bb_json_string
 
@@ -90,79 +89,12 @@
 #ifndef BB_GDBSERVER_PROVIDER
 #define BB_GDBSERVER_PROVIDER "auto"
 #endif
-#ifndef BB_RUNTIME_MODE
-#define BB_RUNTIME_MODE "extract"
-#endif
-#ifndef BB_RUNTIME_ROOT
-#define BB_RUNTIME_ROOT "./.busierbox"
-#endif
-#ifndef BB_RUNTIME_ALLOW_FALLBACK_ROOT
-#define BB_RUNTIME_ALLOW_FALLBACK_ROOT "no"
-#endif
-#ifndef BB_RUNTIME_FALLBACK_ROOT
-#define BB_RUNTIME_FALLBACK_ROOT "/tmp/.busierbox"
-#endif
 #ifndef BB_FULL_ZERO_ARG_MODE
 #define BB_FULL_ZERO_ARG_MODE "help"
 #endif
 #ifndef BB_ZERO_ARG_MODE
 #define BB_ZERO_ARG_MODE BB_FULL_ZERO_ARG_MODE
 #endif
-#ifndef BB_ZERO_ARG_LOG_MODE
-#define BB_ZERO_ARG_LOG_MODE "quiet"
-#endif
-#ifndef BB_RSHELL_MODE
-#define BB_RSHELL_MODE "ssh"
-#endif
-#ifndef BB_RSHELL_TRANSPORT
-#define BB_RSHELL_TRANSPORT BB_RSHELL_MODE
-#endif
-#ifndef BB_RSHELL_AUTHKEYS_MODE
-#define BB_RSHELL_AUTHKEYS_MODE "disabled"
-#endif
-#ifndef BB_RSHELL_RUN_MODE
-#define BB_RSHELL_RUN_MODE "auto"
-#endif
-#ifndef BB_RSHELL_SOCAT_PORT
-#define BB_RSHELL_SOCAT_PORT "22203"
-#endif
-#ifndef BB_RSHELL_SHELL_PROVIDER
-#define BB_RSHELL_SHELL_PROVIDER "auto"
-#endif
-#ifndef BB_RSHELL_RETRY_COUNT
-#define BB_RSHELL_RETRY_COUNT "1"
-#endif
-#ifndef BB_RSHELL_RETRY_INTERVAL_SEC
-#define BB_RSHELL_RETRY_INTERVAL_SEC "5"
-#endif
-#ifndef BB_RSHELL_RETRY_JITTER_PCT
-#define BB_RSHELL_RETRY_JITTER_PCT "20"
-#endif
-#ifndef BB_RSHELL_RETRY_BACKOFF
-#define BB_RSHELL_RETRY_BACKOFF "none"
-#endif
-#ifndef BB_RSHELL_RETRY_MAX_INTERVAL_SEC
-#define BB_RSHELL_RETRY_MAX_INTERVAL_SEC "300"
-#endif
-#ifndef BB_RSHELL_ENCRYPTION
-#define BB_RSHELL_ENCRYPTION "tls"
-#endif
-#ifndef BB_OPERATOR_REMOTE_FORWARD_PORT
-#define BB_OPERATOR_REMOTE_FORWARD_PORT "2200"
-#endif
-#ifndef BB_OPERATOR_SERVER_HOST
-#define BB_OPERATOR_SERVER_HOST ""
-#endif
-#ifndef BB_OPERATOR_SERVER_SSH_PORT
-#define BB_OPERATOR_SERVER_SSH_PORT "22"
-#endif
-#ifndef BB_OPERATOR_TARGET_BIND_HOST
-#define BB_OPERATOR_TARGET_BIND_HOST "127.0.0.1"
-#endif
-#ifndef BB_OPERATOR_TARGET_DROPBEAR_PORT
-#define BB_OPERATOR_TARGET_DROPBEAR_PORT "2222"
-#endif
-
 #ifndef BB_ENABLE_SURVEY
 #define BB_ENABLE_SURVEY 1
 #endif
@@ -175,52 +107,7 @@
 #ifndef BB_ENABLE_CONFIG_INFO
 #define BB_ENABLE_CONFIG_INFO 1
 #endif
-
-/* Runtime/operator keys resolve through compiled defaults, trailer, and env precedence. */
-#undef BB_RUNTIME_MODE
-#undef BB_RUNTIME_ROOT
-#undef BB_RUNTIME_ALLOW_FALLBACK_ROOT
-#undef BB_RUNTIME_FALLBACK_ROOT
-#undef BB_ZERO_ARG_MODE
-#undef BB_ZERO_ARG_LOG_MODE
-#undef BB_RSHELL_TRANSPORT
-#undef BB_RSHELL_ENCRYPTION
-#undef BB_RSHELL_AUTHKEYS_MODE
-#undef BB_RSHELL_RUN_MODE
-#undef BB_RSHELL_SOCAT_PORT
-#undef BB_RSHELL_SHELL_PROVIDER
-#undef BB_RSHELL_RETRY_COUNT
-#undef BB_RSHELL_RETRY_INTERVAL_SEC
-#undef BB_RSHELL_RETRY_JITTER_PCT
-#undef BB_RSHELL_RETRY_BACKOFF
-#undef BB_RSHELL_RETRY_MAX_INTERVAL_SEC
-#undef BB_OPERATOR_REMOTE_FORWARD_PORT
-#undef BB_OPERATOR_SERVER_HOST
-#undef BB_OPERATOR_SERVER_SSH_PORT
-#undef BB_OPERATOR_TARGET_BIND_HOST
-#undef BB_OPERATOR_TARGET_DROPBEAR_PORT
-#define BB_RUNTIME_MODE bb_config_get("BB_RUNTIME_MODE")
-#define BB_RUNTIME_ROOT bb_config_get("BB_RUNTIME_ROOT")
-#define BB_RUNTIME_ALLOW_FALLBACK_ROOT bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT")
-#define BB_RUNTIME_FALLBACK_ROOT bb_config_get("BB_RUNTIME_FALLBACK_ROOT")
-#define BB_ZERO_ARG_MODE bb_config_get("BB_ZERO_ARG_MODE")
-#define BB_ZERO_ARG_LOG_MODE bb_config_get("BB_ZERO_ARG_LOG_MODE")
-#define BB_RSHELL_TRANSPORT bb_config_get("BB_RSHELL_TRANSPORT")
-#define BB_RSHELL_ENCRYPTION bb_config_get("BB_RSHELL_ENCRYPTION")
-#define BB_RSHELL_AUTHKEYS_MODE bb_config_get("BB_RSHELL_AUTHKEYS_MODE")
-#define BB_RSHELL_RUN_MODE bb_config_get("BB_RSHELL_RUN_MODE")
-#define BB_RSHELL_SOCAT_PORT bb_config_get("BB_RSHELL_SOCAT_PORT")
-#define BB_RSHELL_SHELL_PROVIDER bb_config_get("BB_RSHELL_SHELL_PROVIDER")
-#define BB_RSHELL_RETRY_COUNT bb_config_get("BB_RSHELL_RETRY_COUNT")
-#define BB_RSHELL_RETRY_INTERVAL_SEC bb_config_get("BB_RSHELL_RETRY_INTERVAL_SEC")
-#define BB_RSHELL_RETRY_JITTER_PCT bb_config_get("BB_RSHELL_RETRY_JITTER_PCT")
-#define BB_RSHELL_RETRY_BACKOFF bb_config_get("BB_RSHELL_RETRY_BACKOFF")
-#define BB_RSHELL_RETRY_MAX_INTERVAL_SEC bb_config_get("BB_RSHELL_RETRY_MAX_INTERVAL_SEC")
-#define BB_OPERATOR_REMOTE_FORWARD_PORT bb_config_get("BB_OPERATOR_REMOTE_FORWARD_PORT")
-#define BB_OPERATOR_SERVER_HOST bb_config_get("BB_OPERATOR_SERVER_HOST")
-#define BB_OPERATOR_SERVER_SSH_PORT bb_config_get("BB_OPERATOR_SERVER_SSH_PORT")
-#define BB_OPERATOR_TARGET_BIND_HOST bb_config_get("BB_OPERATOR_TARGET_BIND_HOST")
-#define BB_OPERATOR_TARGET_DROPBEAR_PORT bb_config_get("BB_OPERATOR_TARGET_DROPBEAR_PORT")
+#include "effective_config.h"
 
 static const char *busybox_tools[] = {
 #include "bbx_busybox_applets.h"
