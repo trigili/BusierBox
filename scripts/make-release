@@ -1372,6 +1372,7 @@ def artifact_summary(release_dir, rec, include_missing=False):
     native_features = (manifest or {}).get("native_features") or {}
     runtime = (manifest or {}).get("runtime") or {}
     rshell = (manifest or {}).get("rshell") or {}
+    command_queue = ((manifest or {}).get("operator_services") or {}).get("command_queue") or {}
     trailer_keys = sorted(((manifest or {}).get("effective_config") or {}).keys())
     heavy = payload_tools.get("heavy_tools") or payload_tools.get("staged_payload_tools") or (payload_manifest or {}).get("staged_payload_tools") or []
     busybox = payload_tools.get("busybox_applets") or (payload_manifest or {}).get("busybox_applets") or []
@@ -1390,6 +1391,18 @@ def artifact_summary(release_dir, rec, include_missing=False):
             "operator_shell_port": rshell.get("operator_shell_port"),
             "operator_ssh_port": rshell.get("operator_ssh_port"),
             "remote_forward_port": rshell.get("remote_forward_port"),
+        },
+        "command_queue": {
+            "enabled": command_queue.get("enabled", "no"),
+            "default_enabled": command_queue.get("default_enabled", False),
+            "port": command_queue.get("port", ""),
+            "tls": command_queue.get("tls", ""),
+            "require_token": command_queue.get("require_token", ""),
+            "token_source": command_queue.get("token_source", ""),
+            "allowed_commands": command_queue.get("allowed_commands", "none"),
+            "allow_arbitrary": command_queue.get("allow_arbitrary", "no"),
+            "target_polling": command_queue.get("target_polling", False),
+            "executes_commands": command_queue.get("executes_commands", False),
         },
         "native_applets": native,
         "busybox_applets": busybox,
@@ -1466,6 +1479,7 @@ def manifest_text_for_tuple(tuple_info, records, include_missing=False):
                 lines.append(f"  build_missing={summary.get('build_missing')}")
         reverse = summary.get("reverse_access") or {}
         lines.append("  reverse_access_defaults=" + json.dumps(reverse, sort_keys=True))
+        lines.append("  command_queue_policy=" + json.dumps(summary.get("command_queue") or {}, sort_keys=True))
         lines.append("  trailer_overridable_fields=" + ", ".join(summary.get("trailer_overridable_fields") or []))
     if records:
         example = records[0].get("tuple_artifact") or records[0].get("artifact", "bin/busierbox-...-full")
