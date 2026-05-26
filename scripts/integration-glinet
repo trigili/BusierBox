@@ -234,6 +234,23 @@ def validate_captured_json(log_path):
         raise RuntimeError(f"captured JSON log is invalid: {log_path}: {exc}") from exc
 
 
+def summarize_cases(cases):
+    counts = {"pass": 0, "fail": 0, "skip": 0}
+    failures = []
+    for case in cases:
+        status = case.get("status", "fail")
+        counts[status] = counts.get(status, 0) + 1
+        reason = case.get("error") or case.get("reason")
+        if reason:
+            failures.append({
+                "case": case.get("case", ""),
+                "status": status,
+                "reason": reason,
+                "logs": case.get("logs", ""),
+            })
+    return counts, failures
+
+
 def capture_busierbox_outputs(host, remote_dir, case_dir):
     commands = [
         ("manifest-json.log", "./busierbox manifest --json"),
@@ -580,6 +597,7 @@ def main(argv=None):
         summary["status"] = "pass"
     elif any(c["status"] == "pass" for c in summary["cases"]):
         summary["status"] = "partial"
+    summary["counts"], summary["failure_reasons"] = summarize_cases(summary["cases"])
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
     return 0 if summary["status"] in ("pass", "skip") else 1

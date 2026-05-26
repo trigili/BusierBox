@@ -29,12 +29,36 @@ def case_reason(case):
     return case.get("reason") or case.get("error") or ""
 
 
+def case_counts(cases):
+    counts = {"pass": 0, "fail": 0, "skip": 0}
+    for case in cases:
+        status = case.get("status", "fail")
+        counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
 def print_table(path, data):
     cases = data.get("cases") or []
+    counts = data.get("counts") or case_counts(cases)
+    failures = data.get("failure_reasons") or [
+        {
+            "case": case.get("case", ""),
+            "status": case.get("status", ""),
+            "reason": case_reason(case),
+            "logs": case.get("logs") or case.get("case_dir") or data.get("log_dir", ""),
+        }
+        for case in cases
+        if case_reason(case)
+    ]
     print(f"summary={path}")
     print(f"status={data.get('status', '')}")
     print(f"host={data.get('host', '')}")
     print(f"log_dir={data.get('log_dir', '')}")
+    print(f"counts=pass:{counts.get('pass', 0)} fail:{counts.get('fail', 0)} skip:{counts.get('skip', 0)}")
+    if failures:
+        print("failure_reasons:")
+        for item in failures:
+            print(f"  {item.get('case', '')}: {item.get('status', '')}: {item.get('reason', '')}")
     print("")
     print(f"{'Case':<24} {'Status':<8} {'Artifact Size':>13} {'SHA256':<12} Log")
     for case in cases:

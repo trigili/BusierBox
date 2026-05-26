@@ -117,7 +117,8 @@ local/integration-runs/<timestamp>/summary.json
 ```
 
 The summary records `pass`, `fail`, or `skip` per case, artifact path and hash,
-remote workdir, and the local log directory.
+remote workdir, local log directory, aggregate status counts, and
+`failure_reasons` entries with the case, status, reason, and log path.
 
 Render the latest run:
 

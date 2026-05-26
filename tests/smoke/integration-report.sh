@@ -8,6 +8,9 @@ chmod +x scripts/integration-report scripts/integration-compare
 
 scripts/integration-report "$new" >local/tmp.integration-report.out
 grep -q '^status=partial$' local/tmp.integration-report.out
+grep -q '^counts=pass:2 fail:1 skip:0$' local/tmp.integration-report.out
+grep -q '^failure_reasons:$' local/tmp.integration-report.out
+grep -q 'builtin-core-shell: fail: listener timeout' local/tmp.integration-report.out
 grep -q 'survey-core' local/tmp.integration-report.out
 grep -q 'listener timeout' local/tmp.integration-report.out
 
