@@ -2,6 +2,7 @@
 #define BUSIERBOX_APPLETS_H
 
 #include <stddef.h>
+#include <stdio.h>
 #include <sys/stat.h>
 
 struct bb_applet {
@@ -34,6 +35,8 @@ int bb_choose_extract_root(char *out, size_t outsz);
 unsigned long long bb_extract_required_bytes(unsigned long long payload_size);
 int bb_enough_space_for_extract(unsigned long long size, const char *root);
 int bb_extract_root_usable(const char *path);
+int bb_extract_payload_stream(FILE *fp, unsigned long long size, const char *format,
+                              const char *root, int core_only);
 const char *bb_ptrace_probe_status(void);
 unsigned long long bb_mem_available_kb(void);
 int bb_has_default_route(void);
