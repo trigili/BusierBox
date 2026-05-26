@@ -438,6 +438,7 @@ def record_command_result(cfg, command_id, result_path):
             rec["status"] = "result-received"
             rec["result_received_at"] = utc_now()
             rec["result"] = result
+            rec["result_command_id"] = str(command_id)
             rec["result_source_path"] = str(path)
             save_command_queue(cfg, data)
             append_event(
@@ -446,6 +447,7 @@ def record_command_result(cfg, command_id, result_path):
                 "command_result_received",
                 details={
                     "id": command_id,
+                    "command_id": command_id,
                     "result_source_path": str(path),
                     "status": result.get("status", ""),
                     "exit_code": result.get("exit_code", ""),

@@ -166,11 +166,13 @@ def main():
         # Use a high ephemeral port with a short timeout so the server exits
         # cleanly after confirming it started (rather than binding to port 1).
         cfg = Path(tmp) / "server-config.json"
+        queue_operator_dir = Path(tmp) / "operator-session-queue"
         cfg.write_text(json.dumps({
             "transport": "tls-shell",
             "listen_host": "127.0.0.1",
             "shell_listen_port": port1,
             "session_root": str(Path(tmp) / "sessions"),
+            "operator_session_dir": str(queue_operator_dir),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
         }), encoding="utf-8")
@@ -188,7 +190,7 @@ def main():
             print(combined, file=sys.stderr)
             return 1
 
-        command_copy_file = Path(tmp) / "operator-session" / "last-command.txt"
+        command_copy_file = queue_operator_dir / "last-command.txt"
         copied = run(
             "scripts/busierbox-server",
             "--config", str(cfg),
@@ -205,7 +207,7 @@ def main():
             print("generated target command copy file has wrong content", file=sys.stderr)
             return 1
 
-        queue_file = Path(tmp) / "operator-session" / "command-queue.json"
+        queue_file = queue_operator_dir / "command-queue.json"
         queued = run(
             "scripts/busierbox-server",
             "--config", str(cfg),
@@ -358,8 +360,17 @@ def main():
         command_after_result = queue_after_result["commands"][0]
         if (command_after_result.get("status") != "result-received" or
                 command_after_result.get("result", {}).get("exit_code") != 0 or
+                command_after_result.get("result_command_id") != command_id or
                 not command_after_result.get("result_received_at")):
             print("operator command queue result metadata missing", file=sys.stderr)
+            return 1
+        event_log = queue_operator_dir / "events.jsonl"
+        result_events = [
+            json.loads(line) for line in event_log.read_text(encoding="utf-8").splitlines()
+            if "command_result_received" in line
+        ]
+        if not result_events or result_events[-1].get("details", {}).get("command_id") != command_id:
+            print("operator command queue result event missing command id", file=sys.stderr)
             return 1
         queue_status_doc = run(
             "scripts/busierbox-server",
