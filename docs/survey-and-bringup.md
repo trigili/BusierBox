@@ -19,6 +19,8 @@ Safe defaults:
 - no external writes by default
 - no zero-arg network autorun by default
 - passive survey before reverse access
+- release bundles can configure operator host/ports later with trailer helpers
+  without changing target tuple compatibility or payload contents
 - `./.busierbox` preferred when the current directory is writable
 - `/tmp/.busierbox` only when the current directory is not suitable
 

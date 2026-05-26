@@ -120,3 +120,64 @@ scripts/release-find --payload-preset survey-core
 
 Use `scripts/release-index --write` after manual metadata edits to refresh
 `release-index.json`.
+
+## Operator Examples
+
+First contact:
+
+```sh
+bin/busierbox-native-survey-core-full survey --json > survey.json
+bin/busierbox-native-default-full config-info
+bin/busierbox-native-default-full doctor
+bin/busierbox-native-default-full manifest --json
+```
+
+Choose a GL.iNet exemplar artifact:
+
+```sh
+scripts/release-find --device glinet-mt1300
+devices/glinet-mt1300/artifacts/README.txt
+```
+
+Configure a bundle for an operator endpoint after release:
+
+```sh
+scripts/verify-checksums --original
+scripts/configure-all \
+  --operator-host 192.168.8.241 \
+  --transport ssh \
+  --ssh-port 2222 \
+  --remote-forward-port 2200
+scripts/verify-checksums --configured
+```
+
+Start explicit reverse access on the target:
+
+```sh
+./busierbox rshell status --json
+./busierbox rshell start
+```
+
+For the builtin TLS shell preset, prepare the operator listener and then run the
+artifact explicitly:
+
+```sh
+scripts/busierbox-server --transport tls-shell --shell-port 22203
+./busierbox rshell start
+```
+
+For the SSH operator preset, listen for the reverse SSH forward and connect
+through the forwarded port:
+
+```sh
+scripts/busierbox-server --transport ssh --ssh-port 22
+ssh -p 2200 root@127.0.0.1
+```
+
+Inspect and clean BusierBox-controlled runtime state:
+
+```sh
+./busierbox cleanup-ledger --json
+./busierbox clean --dry-run
+./busierbox clean --dry-run --json
+```

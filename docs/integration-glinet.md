@@ -51,6 +51,8 @@ checks remain opt-in through explicit external-write cases.
 `no-residue-cleanup` builds a no-residue artifact, runs a normal BusyBox payload
 command, then terminates a foreground payload command and verifies that the
 temporary runtime root is removed in both paths.
+No-residue is best-effort ephemeral runtime cleanup, not forensic no-trace
+execution.
 
 Run one reverse shell case:
 

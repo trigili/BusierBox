@@ -45,6 +45,10 @@ than the compiled manifest. `busierbox config-info` and `busierbox doctor
 `payload/bin/busybox` and metadata only; `busierbox extract` and heavy-tool
 dispatch upgrade that runtime root to full before use.
 
+BusierBox is not a BusyBox fork. Native BusierBox applets are compiled into the
+supervisor. BusyBox applets dispatch through `payload/bin/busybox`, while heavy
+tools dispatch through `payload/bin/<tool>` after full extraction.
+
 Integration runs capture manifest output next to the case logs so each validation run can be tied back to the artifact and preset that produced it.
 
 Post-build runtime override trailers are edited with

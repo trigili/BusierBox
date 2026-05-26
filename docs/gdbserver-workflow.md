@@ -5,6 +5,10 @@ keeps Buildroot support where that works, but for known-problem tuples such as
 mipsel/mips musl static builds, the preferred path is a local drop-in, user
 binary, or overlay.
 
+`gdbserver` is a staged heavy tool. It dispatches from `payload/bin/gdbserver`
+after full payload extraction, not from the native BusierBox supervisor and not
+through BusyBox.
+
 ## Local Drop-Ins
 
 Search order:

@@ -29,6 +29,10 @@ mode/root, zero-arg mode/logging, reverse-shell transport, operator host and
 ports, retry settings, shell provider, and autorun guard settings. Target tuple,
 architecture, libc, kernel floor, static policy, compiled feature flags, heavy
 tool selection, dotfiles, and overlay contents are intentionally rejected.
+Trailer overrides cannot change target tuple compatibility and cannot add,
+remove, or replace payload contents. Rebuild the artifact when the target tuple,
+BusyBox applets, heavy tools, dotfiles, overlays, or compiled features need to
+change.
 
 The trailer is fixed-size and appended at EOF with `BBXCONFIGv1` magic, version,
 encoding, payload format, payload offset/size, SHA-256 of the decoded

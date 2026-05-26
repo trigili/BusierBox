@@ -9,7 +9,7 @@ BusierBox is not a BusyBox replacement and is not a BusyBox fork. BusierBox mana
 - 🧭 Survey first: `busierbox survey --json` and the portable shell probe collect target facts without assuming Python or a full userspace.
 - 🧰 One artifact, many tools: the supervisor dispatches BusyBox applets and staged heavy tools from a reproducible payload.
 - 🧪 Bring-up loop: `scripts/busierbox-bringup` can survey a target, generate a conservative config, rebuild, and optionally run integration checks.
-- 🧾 Explainable artifacts: `busierbox manifest --json` and `payload/manifest.json` show what was built, staged, missing, and validated.
+- 🧾 Explainable artifacts: `busierbox manifest --json` and `busierbox doctor` show positive inventory by default: compiled native applets, available BusyBox applets, staged heavy tools, runtime mode, reverse-access settings, and trailer override state. Missing requested tools are available through explicit `--include-missing` output and release build reports.
 - 🧹 Cleanup visibility: `busierbox cleanup-ledger --json` and `busierbox clean --dry-run --json` show BusierBox-controlled runtime paths before removal.
 - 🔒 Safe defaults: no external writes and no network autorun unless explicitly configured.
 
@@ -80,7 +80,13 @@ busierbox dropbear  -> payload/bin/dropbear
 busierbox curl      -> payload/bin/curl
 ```
 
-Heavy tools are only advertised when a real executable was staged into `payload/bin`. Requested tools that cannot be provided remain visible in the payload manifest as missing, with a reason, but do not become placeholder commands.
+Native applets such as `survey`, `envfix`, `extract`, `clean`, `list`,
+`config-info`, and `doctor` are compiled into BusierBox. BusyBox applets
+dispatch through `payload/bin/busybox`; heavy tools dispatch through
+`payload/bin/<tool>`. Heavy tools are only advertised when a real executable was
+staged into `payload/bin`. Requested tools that cannot be provided remain
+visible in explicit build/runtime missing reports, but do not become placeholder
+commands.
 
 ## Layout
 
@@ -396,9 +402,18 @@ When launching payload tools BusierBox sets:
 
 `./busierbox list --plain` prints script-friendly command rows such as `busybox sh` and `tool strace`. `./busierbox list --json` prints the compiled native, BusyBox, and staged-tool command lists.
 
-`./busierbox doctor` and `./busierbox doctor --json` report embedded payload presence, format, size, hash status, extraction status and mode, payload directory, manifest presence, BusyBox presence, BusyBox applet count, staged tools, missing requested tools, candidate extraction health, `/dev/pts`, and a conservative ptrace status.
+`./busierbox doctor` and `./busierbox doctor --json` report target/runtime
+health and available capabilities by default: embedded payload presence, format,
+size, hash status, extraction status and mode, payload directory, manifest
+presence, BusyBox presence, BusyBox applet count, staged tools, candidate
+extraction health, `/dev/pts`, and a conservative ptrace status. Add
+`--include-missing` when you need requested-but-unavailable tool details.
 
-Doctor also reports payload identity/staleness, applet symlink count, overlay status and warnings, missing-tool reasons, terminfo availability, zsh presence, PATH duplicate hints, extraction free space, available memory, default-route presence, and recommendations for common tmux/dropbear/terminfo failures.
+Doctor also reports payload identity/staleness, applet symlink count, overlay
+status and warnings, terminfo availability, zsh presence, PATH duplicate hints,
+extraction free space, available memory, default-route presence, and
+recommendations for common tmux/dropbear/terminfo failures. Missing-tool
+reasons are included only with `--include-missing`.
 
 `./busierbox plan` and `./busierbox plan --json` preview the operator-visible impact of extraction, reverse shell startup, cleanup, and recovery install actions without modifying the target. See `docs/plan-mode.md`.
 
@@ -406,7 +421,11 @@ Doctor also reports payload identity/staleness, applet symlink count, overlay st
 
 `scripts/artifact-config` can inspect, set, import, export, and clear optional runtime override trailers on existing artifacts. Overrides are limited to selected runtime/operator keys such as reverse-access host/ports, transport, run mode, retry settings, zero-arg mode, and log verbosity. They do not change target tuple, compiled features, payload tools, dotfiles, or overlay contents. Optional XOR obfuscation is not encryption and must not be used for credentials or private keys.
 
-`scripts/make-release` builds reusable multi-target release bundles under `dist/releases/`. Bundles include artifacts, generated configs, manifests, checksum files, copied trailer-configuration helpers, and docs for post-build operator overrides. See `docs/release-bundles.md`.
+`scripts/make-release` builds reusable multi-target release bundles under
+`dist/releases/`. Bundles include artifacts, generated configs, manifests,
+checksum files, copied trailer-configuration helpers, a release self-test,
+artifact finder/index tools, and docs for post-build operator overrides. See
+`docs/release-bundles.md`.
 
 `./busierbox persistence --survey` and `./busierbox persistence --plan` enumerate authorized lab persistence/recovery options without changing the target. Installation requires an explicit method/action plus `--dry-run` or `--external --apply`, and writes are recorded in the cleanup ledger with visible action metadata. `./busierbox recovery` remains as a deprecated compatibility alias.
 

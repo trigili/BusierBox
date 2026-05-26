@@ -40,4 +40,34 @@ do
     }
 done
 
+require_text() {
+    file=$1
+    pattern=$2
+    grep -Eq "$pattern" "$file" || {
+        printf '%s\n' "stale-ux-text: $file missing required wording: $pattern" >&2
+        exit 1
+    }
+}
+
+require_text README.md 'not a BusyBox replacement and is not a BusyBox fork'
+require_text README.md 'payload/bin/busybox'
+require_text README.md 'payload/bin/<tool>'
+require_text README.md 'positive inventory by default'
+require_text README.md 'release self-test'
+require_text docs/manifest.md 'positive inventory by default'
+require_text docs/manifest.md 'payload/bin/busybox'
+require_text docs/manifest.md 'payload/bin/<tool>'
+require_text docs/artifact-runtime-overrides.md 'cannot change target tuple compatibility'
+require_text docs/artifact-runtime-overrides.md 'remove, or replace payload contents'
+require_text docs/release-bundles.md 'scripts/release-self-test'
+require_text docs/release-bundles.md 'scripts/release-find --device glinet-mt1300'
+require_text docs/release-bundles.md 'scripts/verify-checksums --configured'
+require_text docs/cleanup-ledger.md 'not forensic no-trace execution'
+require_text docs/recovery.md 'authorized lab reboot recovery'
+require_text docs/recovery.md 'visible and'
+require_text docs/recovery.md 'reversible'
+require_text docs/gdbserver-workflow.md 'payload/bin/gdbserver'
+require_text docs/survey-and-bringup.md 'without changing target tuple compatibility or payload contents'
+require_text docs/integration-glinet.md 'best-effort ephemeral runtime cleanup'
+
 printf '%s\n' "stale-ux-text ok"
