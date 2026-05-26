@@ -8,8 +8,9 @@ Current behavior is intentionally non-executing:
 
 - `BB_COMMAND_QUEUE_ENABLE` defaults to `no`.
 - `busierbox command-queue status --json` reports the compiled/effective policy.
-- `busierbox command-queue poll --json`, `once`, and `daemon` do not execute
-  queued commands in this build.
+- `busierbox command-queue poll --json`, `once`, and `daemon` report a dry-run
+  target polling plan. They do not contact the operator service, fetch queue
+  entries, upload results, or execute queued commands in this build.
 - `scripts/busierbox-server --queue-command ...` records explicit operator
   queue entries in `local/operator-session/command-queue.json` for inspection
   and future tooling. The current server does not deliver or execute them.
@@ -43,6 +44,10 @@ Safety boundary:
   and `plan command-queue`.
 - Trailer overrides alone are not an execution capability; this build does not
   execute queued commands.
+- Target-side `poll`, `once`, and `daemon` expose `would_poll`,
+  `poll_transport_supported=false`, `delivery_supported=false`,
+  `result_upload_supported=false`, and `execution_supported=false` so frontend
+  and integration tooling can distinguish policy/planning from active control.
 
 Operator queue inspection:
 
