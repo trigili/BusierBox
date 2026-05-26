@@ -5,7 +5,8 @@ set -eu
 
 src=${1:-src/applet_rshell.c}
 autorun_src=${2:-src/busierbox.c}
-all_src="$src $autorun_src"
+config_src=${3:-src/effective_config.h}
+all_src="$src $autorun_src $config_src"
 
 [ -f "$src" ] || {
     printf '%s\n' "rshell-lifecycle: missing $src" >&2
@@ -13,6 +14,10 @@ all_src="$src $autorun_src"
 }
 [ -f "$autorun_src" ] || {
     printf '%s\n' "rshell-lifecycle: missing $autorun_src" >&2
+    exit 1
+}
+[ -f "$config_src" ] || {
+    printf '%s\n' "rshell-lifecycle: missing $config_src" >&2
     exit 1
 }
 
