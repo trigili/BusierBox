@@ -209,6 +209,17 @@ def main():
         if queue_status["command_queue"]["queued_count"] != 1:
             print("json command queue listing missing queued entry", file=sys.stderr)
             return 1
+        queue_summary = queue_status["command_queue"]
+        if (queue_summary.get("enabled") != "no" or
+                queue_summary.get("default_enabled") is not False or
+                queue_summary.get("allowed_commands") != "none" or
+                queue_summary.get("allow_arbitrary") != "no" or
+                queue_summary.get("executes_commands") is not False or
+                queue_summary.get("operator_queue_records_only") is not True or
+                queue_summary.get("active_control_channel") is not False):
+            print("json command queue listing missing explicit safety policy", file=sys.stderr)
+            print(queue_list.stdout, file=sys.stderr)
+            return 1
         command_id = queue_status["command_queue"]["commands"][0]["id"]
         result_json = Path(tmp) / "command-result.json"
         result_json.write_text(json.dumps({
@@ -247,6 +258,15 @@ def main():
         queue_status_json = json.loads(queue_status_doc.stdout)
         if queue_status_json["command_queue"]["result_count"] != 1:
             print("server json status missing command queue summary", file=sys.stderr)
+            return 1
+        status_queue = queue_status_json["command_queue"]
+        if (status_queue.get("enabled") != "no" or
+                status_queue.get("configured_for_polling") is not False or
+                status_queue.get("arbitrary_execution_allowed") is not False or
+                status_queue.get("active_control_channel") is not False or
+                status_queue.get("executes_commands") is not False):
+            print("server json status missing command queue safety policy", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         if "summary" not in queue_status_json or "warnings" not in queue_status_json:
             print("server json status missing top-level summary/warnings", file=sys.stderr)
@@ -289,6 +309,8 @@ def main():
             "--status",
         )
         if ("Command queue:" not in queue_status_text.stdout or
+                "enabled=no default_enabled=no" not in queue_status_text.stdout or
+                "allowed_commands=none allow_arbitrary=no active_control_channel=no" not in queue_status_text.stdout or
                 "busierbox reality-test --json" not in queue_status_text.stdout or
                 "result-received" not in queue_status_text.stdout or
                 "command_result_received" not in queue_status_text.stdout or
