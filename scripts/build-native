@@ -23,6 +23,7 @@ fi
 : "${BB_STATIC_POLICY:=static-preferred}"
 : "${BB_PAYLOAD_PRESET:=default}"
 : "${BB_RUNTIME_MODE:=extract}"
+: "${BB_NORESIDUE_LEVEL:=best-effort}"
 : "${BB_RUNTIME_ROOT:=./.busierbox}"
 : "${BB_RUNTIME_ALLOW_FALLBACK_ROOT:=no}"
 : "${BB_RUNTIME_FALLBACK_ROOT:=/tmp/.busierbox}"
@@ -100,6 +101,14 @@ case "$BB_RSHELL_TRANSPORT" in
     socat-tls)   BB_RSHELL_TRANSPORT=socat;   BB_RSHELL_ENCRYPTION=${BB_RSHELL_ENCRYPTION:-tls} ;;
 esac
 : "${BB_RSHELL_ENCRYPTION:=tls}"
+
+case "$BB_NORESIDUE_LEVEL" in
+    best-effort|aggressive) ;;
+    *)
+        printf '%s\n' "build-native: invalid BB_NORESIDUE_LEVEL=$BB_NORESIDUE_LEVEL (expected best-effort or aggressive)" >&2
+        exit 1
+        ;;
+esac
 
 # Validate transport+encryption combination
 if [ "$BB_RSHELL_TRANSPORT" = builtin ] && [ "$BB_RSHELL_ENCRYPTION" = none ]; then
@@ -184,6 +193,7 @@ CPPFLAGS="$CPPFLAGS -DBB_KERNEL_FLOOR=\"$(quote_c "$BB_KERNEL_FLOOR")\""
 CPPFLAGS="$CPPFLAGS -DBB_STATIC_POLICY=\"$(quote_c "$BB_STATIC_POLICY")\""
 CPPFLAGS="$CPPFLAGS -DBB_PAYLOAD_PRESET=\"$(quote_c "$BB_PAYLOAD_PRESET")\""
 CPPFLAGS="$CPPFLAGS -DBB_RUNTIME_MODE=\"$(quote_c "$BB_RUNTIME_MODE")\""
+CPPFLAGS="$CPPFLAGS -DBB_NORESIDUE_LEVEL=\"$(quote_c "$BB_NORESIDUE_LEVEL")\""
 CPPFLAGS="$CPPFLAGS -DBB_RUNTIME_ROOT=\"$(quote_c "$BB_RUNTIME_ROOT")\""
 CPPFLAGS="$CPPFLAGS -DBB_RUNTIME_ALLOW_FALLBACK_ROOT=\"$(quote_c "$BB_RUNTIME_ALLOW_FALLBACK_ROOT")\""
 CPPFLAGS="$CPPFLAGS -DBB_RUNTIME_FALLBACK_ROOT=\"$(quote_c "$BB_RUNTIME_FALLBACK_ROOT")\""

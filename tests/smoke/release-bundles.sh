@@ -173,6 +173,7 @@ grep -q -- '--run-mode auto|foreground|background' "$work/configure-help.out"
 grep -q -- '--session-policy single|reconnect|persistent' "$work/configure-help.out"
 grep -q -- '--shell-provider auto|target-sh|payload-busybox-sh|payload-busybox-ash|payload-zsh|custom' "$work/configure-help.out"
 grep -q -- '--zero-arg-log-mode none|quiet|status|verbose' "$work/configure-help.out"
+grep -q -- '--noresidue-level best-effort|aggressive' "$work/configure-help.out"
 if grep -q -- '--run-mode auto|oneshot' "$work/configure-help.out"; then
     printf '%s\n' "release-bundles: configure-artifact help advertised stale run mode" >&2
     exit 1
@@ -268,7 +269,7 @@ artifacts = manifest.get("artifacts", [])
 if len(artifacts) != 1:
     raise SystemExit("tuple manifest artifact count mismatch")
 summary = artifacts[0]
-for key in ("payload_preset", "runtime_mode", "payload_manifest", "native_applets", "busybox_applets", "heavy_tools", "sha256", "config"):
+for key in ("payload_preset", "runtime_mode", "noresidue_level", "payload_manifest", "native_applets", "busybox_applets", "heavy_tools", "sha256", "config"):
     if key not in summary:
         raise SystemExit(f"tuple artifact summary missing {key}")
 if (summary.get("compatibility") or {}).get("label") != "exact":
@@ -281,6 +282,7 @@ for needle in (
     "Payload variants:",
     "payload_manifest=",
     "compatibility=exact",
+    "noresidue_level=",
     "busybox_applets=",
     "core_extraction=",
     "trailer_overridable_fields=",
@@ -659,11 +661,13 @@ PY
     "$work/release/bin/busierbox-native-default-full" \
     --operator-host 192.0.2.55 \
     --transport builtin \
+    --noresidue-level aggressive \
     --shell-port 22203 >/dev/null
 
 "$work/release/scripts/artifact-config" show "$work/release/bin/busierbox-native-default-full" >"$work/show.out"
 grep -q '^trailer_present=yes$' "$work/show.out"
 grep -q '^BB_OPERATOR_SERVER_HOST=192.0.2.55$' "$work/show.out"
+grep -q '^BB_NORESIDUE_LEVEL=aggressive$' "$work/show.out"
 test -x "$work/release/bin/busierbox-native-default-full"
 "$work/release/scripts/configure-artifact" \
     "$work/release/bin/busierbox-native-default-full" \

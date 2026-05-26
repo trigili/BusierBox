@@ -45,6 +45,7 @@ required = [
     ("payload", "preset"),
     ("payload", "gdbserver_provider"),
     ("runtime", "mode"),
+    ("runtime", "noresidue_level"),
     ("runtime", "root"),
     ("zero_arg", "mode"),
     ("rshell", "transport"),
@@ -97,6 +98,7 @@ if trailer["override_count"] != 0:
 
 for key in (
     "BB_RUNTIME_MODE",
+    "BB_NORESIDUE_LEVEL",
     "BB_RUNTIME_ROOT",
     "BB_ZERO_ARG_MODE",
     "BB_RSHELL_TRANSPORT",
@@ -116,6 +118,7 @@ checks = [
     (manifest["busierbox"]["payload_version"], config.get("payload_version"), "payload_version"),
     (manifest["payload"]["gdbserver_provider"], config.get("gdbserver_provider"), "gdbserver_provider"),
     (manifest["runtime"]["mode"], config.get("runtime_mode"), "runtime_mode"),
+    (manifest["runtime"]["noresidue_level"], config.get("noresidue_level"), "noresidue_level"),
     (manifest["runtime"]["root"], config.get("runtime_root"), "runtime_root"),
     (manifest["zero_arg"]["mode"], config.get("zero_arg_mode"), "zero_arg_mode"),
     (manifest["rshell"]["transport"], config.get("rshell_transport"), "rshell_transport"),

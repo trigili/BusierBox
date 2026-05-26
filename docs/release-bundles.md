@@ -94,7 +94,8 @@ XOR trailer obfuscation is not encryption. Do not place credentials, private
 keys, or other secrets in trailer overrides or release bundles.
 
 Trailer overrides can adjust selected runtime/operator settings such as
-operator host, ports, transport, run mode, zero-arg mode, and log verbosity.
+operator host, ports, transport, run mode, zero-arg mode, no-residue level, and
+log verbosity.
 They cannot change target architecture, libc, kernel floor, static policy,
 payload tools, heavy tools, dotfiles, overlays, or compiled features.
 

@@ -9,6 +9,7 @@ grep -q '^BB_TARGET_PRESET=glinet-mt7621-openwrt-musl$' "$tmp/glinet.conf"
 grep -q '^BB_TARGET_ARCH=mipsel$' "$tmp/glinet.conf"
 grep -q '^BB_TARGET_LIBC=musl$' "$tmp/glinet.conf"
 grep -q '^BB_RUNTIME_ALLOW_EXTERNAL_WRITES=no$' "$tmp/glinet.conf"
+grep -q '^BB_NORESIDUE_LEVEL=best-effort$' "$tmp/glinet.conf"
 grep -q '^BB_ZERO_ARG_MODE=help$' "$tmp/glinet.conf"
 
 scripts/config-from-survey --format json tests/fixtures/survey/generic-openwrt-mipsel.json >"$tmp/openwrt.json"

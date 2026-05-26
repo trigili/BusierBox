@@ -37,6 +37,7 @@ scripts/artifact-config set "$work/busierbox" \
     BB_OPERATOR_FILE_SERVICE_ENABLE=yes \
     BB_OPERATOR_FILE_SERVICE_PORT=22244 \
     BB_OPERATOR_FILE_SERVICE_TLS=no \
+    BB_NORESIDUE_LEVEL=aggressive \
     BB_ZERO_ARG_LOG_MODE=status >"$work/set.out"
 test "$(wc -c <"$work/busierbox" | tr -d ' ')" -eq $((base_size + 4096))
 scripts/artifact-config show "$work/busierbox" >"$work/show.set"
@@ -44,6 +45,7 @@ grep -q '^trailer_present=yes$' "$work/show.set"
 grep -q '^trailer_valid=yes$' "$work/show.set"
 grep -q '^BB_OPERATOR_SERVER_HOST=198.51.100.7$' "$work/show.set"
 grep -q '^BB_OPERATOR_FILE_SERVICE_PORT=22244$' "$work/show.set"
+grep -q '^BB_NORESIDUE_LEVEL=aggressive$' "$work/show.set"
 "$work/busierbox" config-info >"$work/config.set"
 grep -q '^trailer_override_present=yes$' "$work/config.set"
 grep -q '^trailer_override_valid=yes$' "$work/config.set"
@@ -53,6 +55,7 @@ grep -q '^effective_rshell_operator_host=198.51.100.7$' "$work/config.set"
 "$work/busierbox" runtime-config >"$work/runtime.set"
 grep -q '^effective_config_source=trailer$' "$work/runtime.set"
 grep -q '^trailer_encoding=plain$' "$work/runtime.set"
+grep -q '^effective_BB_NORESIDUE_LEVEL=aggressive$' "$work/runtime.set"
 grep -q '^effective_BB_OPERATOR_SERVER_HOST=198.51.100.7$' "$work/runtime.set"
 grep -q '^effective_BB_OPERATOR_FILE_SERVICE_ENABLE=yes$' "$work/runtime.set"
 "$work/busierbox" runtime-config --json >"$work/runtime.set.json"
@@ -70,6 +73,7 @@ assert r["effective_config"]["BB_OPERATOR_SERVER_SSH_PORT"] == "22022"
 assert r["effective_config"]["BB_OPERATOR_FILE_SERVICE_ENABLE"] == "yes"
 assert r["effective_config"]["BB_OPERATOR_FILE_SERVICE_PORT"] == "22244"
 assert r["effective_config"]["BB_OPERATOR_FILE_SERVICE_TLS"] == "no"
+assert r["effective_config"]["BB_NORESIDUE_LEVEL"] == "aggressive"
 PY
 "$work/busierbox" rshell status --json >"$work/rshell.status.trailer.json"
 python3 - "$work/rshell.status.trailer.json" <<'PY'

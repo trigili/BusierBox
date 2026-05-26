@@ -6,6 +6,9 @@
 #ifndef BB_RUNTIME_MODE
 #define BB_RUNTIME_MODE "extract"
 #endif
+#ifndef BB_NORESIDUE_LEVEL
+#define BB_NORESIDUE_LEVEL "best-effort"
+#endif
 #ifndef BB_RUNTIME_ROOT
 #define BB_RUNTIME_ROOT "./.busierbox"
 #endif
@@ -121,6 +124,7 @@
  * overrides, then applet-registered CLI overrides.
  */
 #undef BB_RUNTIME_MODE
+#undef BB_NORESIDUE_LEVEL
 #undef BB_RUNTIME_ROOT
 #undef BB_RUNTIME_ALLOW_FALLBACK_ROOT
 #undef BB_RUNTIME_FALLBACK_ROOT
@@ -157,6 +161,7 @@
 #undef BB_OPERATOR_FILE_SERVICE_PORT
 #undef BB_OPERATOR_FILE_SERVICE_TLS
 #define BB_RUNTIME_MODE bb_config_get("BB_RUNTIME_MODE")
+#define BB_NORESIDUE_LEVEL bb_config_get("BB_NORESIDUE_LEVEL")
 #define BB_RUNTIME_ROOT bb_config_get("BB_RUNTIME_ROOT")
 #define BB_RUNTIME_ALLOW_FALLBACK_ROOT bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT")
 #define BB_RUNTIME_FALLBACK_ROOT bb_config_get("BB_RUNTIME_FALLBACK_ROOT")

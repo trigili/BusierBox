@@ -67,6 +67,8 @@ static void plan_print_extract(int json)
         bb_json_string(stdout, BB_RUNTIME_ROOT);
         fputs("],\"would_remove\":[],\"would_start\":[],\"would_connect\":[],\"requires_external_writes\":false", stdout);
         fputs(",\"runtime_root\":", stdout); bb_json_string(stdout, BB_RUNTIME_ROOT);
+        fputs(",\"runtime_mode\":", stdout); bb_json_string(stdout, BB_RUNTIME_MODE);
+        fputs(",\"noresidue_level\":", stdout); bb_json_string(stdout, BB_NORESIDUE_LEVEL);
         fputs(",\"fallback_root\":", stdout); bb_json_string(stdout, BB_RUNTIME_FALLBACK_ROOT);
         printf(",\"fallback_enabled\":%s", !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "true" : "false");
         fputs(",\"cleanup_ledger_path\":", stdout);
@@ -81,6 +83,8 @@ static void plan_print_extract(int json)
     puts("Plan: extract");
     plan_print_config_source_text();
     printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
+    printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
+    printf("noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
     printf("fallback_root=%s\n", BB_RUNTIME_FALLBACK_ROOT);
     printf("fallback_enabled=%s\n", !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "yes" : "no");
     printf("cleanup_ledger_path=%s\n", bb_ledger_path(ledger, sizeof(ledger)));
@@ -163,6 +167,7 @@ static void plan_print_rshell(int json)
         fputs(",\"expected_transport_behavior\":", stdout); bb_json_string(stdout, connect);
         printf(",\"zero_arg_autorun\":%s", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "true" : "false");
         printf(",\"no_residue_cleanup\":%s", !strcmp(BB_RUNTIME_MODE, "no-residue") ? "true" : "false");
+        fputs(",\"noresidue_level\":", stdout); bb_json_string(stdout, BB_NORESIDUE_LEVEL);
         plan_print_config_source_json();
         puts("}");
         return;
@@ -180,6 +185,7 @@ static void plan_print_rshell(int json)
     printf("expected_transport_behavior=%s\n", connect);
     printf("zero_arg_autorun=%s\n", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "yes" : "no");
     printf("no_residue_cleanup=%s\n", !strcmp(BB_RUNTIME_MODE, "no-residue") ? "yes" : "no");
+    printf("noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
     puts("would_create:");
     printf("  %s\n", guard);
     printf("  %s\n", log_path);

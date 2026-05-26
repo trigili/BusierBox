@@ -42,6 +42,7 @@ BB_PAYLOAD_FORMAT="tgz"
 BB_PAYLOAD_VERSION="dev"
 BB_PAYLOAD_PRESET="default"
 BB_RUNTIME_MODE="extract"
+BB_NORESIDUE_LEVEL="best-effort"
 BB_RUNTIME_ROOT="./.busierbox"
 BB_RUNTIME_ALLOW_FALLBACK_ROOT="no"
 BB_RUNTIME_FALLBACK_ROOT="/tmp/.busierbox"
@@ -122,6 +123,7 @@ if [ -f "$CFG_FILE" ]; then
 fi
 
 BB_RUNTIME_MODE="${BB_RUNTIME_MODE:-extract}"
+BB_NORESIDUE_LEVEL="${BB_NORESIDUE_LEVEL:-best-effort}"
 BB_RUNTIME_ROOT="${BB_RUNTIME_ROOT:-./.busierbox}"
 BB_RUNTIME_ALLOW_FALLBACK_ROOT="${BB_RUNTIME_ALLOW_FALLBACK_ROOT:-no}"
 BB_RUNTIME_FALLBACK_ROOT="${BB_RUNTIME_FALLBACK_ROOT:-/tmp/.busierbox}"
@@ -235,6 +237,7 @@ is_uint_value() {
 payload_preset_vars() {
     cat <<'EOF'
 BB_RUNTIME_MODE
+BB_NORESIDUE_LEVEL
 BB_RUNTIME_ROOT
 BB_RUNTIME_ALLOW_FALLBACK_ROOT
 BB_RUNTIME_ALLOW_EXTERNAL_WRITES
@@ -362,6 +365,7 @@ load_payload_preset() {
 
 normalize_payload_config() {
     BB_RUNTIME_MODE="${BB_RUNTIME_MODE:-extract}"
+    BB_NORESIDUE_LEVEL="${BB_NORESIDUE_LEVEL:-best-effort}"
     BB_RUNTIME_ROOT="${BB_RUNTIME_ROOT:-./.busierbox}"
     BB_RUNTIME_ALLOW_FALLBACK_ROOT="${BB_RUNTIME_ALLOW_FALLBACK_ROOT:-no}"
     BB_RUNTIME_ALLOW_EXTERNAL_WRITES="${BB_RUNTIME_ALLOW_EXTERNAL_WRITES:-no}"
@@ -473,6 +477,7 @@ BB_PAYLOAD_FORMAT="$BB_PAYLOAD_FORMAT"
 BB_PAYLOAD_VERSION="$BB_PAYLOAD_VERSION"
 BB_PAYLOAD_PRESET="$BB_PAYLOAD_PRESET"
 BB_RUNTIME_MODE="$BB_RUNTIME_MODE"
+BB_NORESIDUE_LEVEL="$BB_NORESIDUE_LEVEL"
 BB_RUNTIME_ROOT="$BB_RUNTIME_ROOT"
 BB_RUNTIME_ALLOW_FALLBACK_ROOT="$BB_RUNTIME_ALLOW_FALLBACK_ROOT"
 BB_RUNTIME_FALLBACK_ROOT="$BB_RUNTIME_FALLBACK_ROOT"
@@ -790,6 +795,16 @@ validate_config() {
     _errors=""
     _warnings=""
 
+    case "$BB_RUNTIME_MODE" in
+        extract|core-only|no-residue) ;;
+        *) _errors="$_errors\n- invalid runtime mode: $BB_RUNTIME_MODE." ;;
+    esac
+
+    case "$BB_NORESIDUE_LEVEL" in
+        best-effort|aggressive) ;;
+        *) _errors="$_errors\n- invalid no-residue level: $BB_NORESIDUE_LEVEL." ;;
+    esac
+
     if [ "$BB_RUNTIME_MODE" = "core-only" ]; then
         case "$BB_RSHELL_TRANSPORT" in
             ssh|socat)
@@ -885,7 +900,7 @@ validate_config() {
         _warnings="$_warnings\n- zero-arg log mode none suppresses output, but minimal autorun guard files may still be written."
     fi
     if [ "$BB_RUNTIME_MODE" = no-residue ]; then
-        _warnings="$_warnings\n- no-residue cleanup is best-effort."
+        _warnings="$_warnings\n- no-residue cleanup is best-effort; aggressive minimizes BusierBox runtime residue but is not forensic no-trace execution."
     fi
 
     if [ -n "$_errors" ]; then
@@ -1074,7 +1089,7 @@ show_page_help() {
             ;;
         runtime)
             _title="Runtime mode help"
-            _text="extract: full-featured; writes under the runtime root, normally ./.busierbox.\n\ncore-only: no payload extraction; built-in applets only. Heavy tools, dotfiles, and user overlays are ignored/unavailable.\n\nno-residue: temporary runtime with best-effort cleanup. Payload tools may still have their own behavior.\n\nExternal writes are required only for choices such as root authorized_keys handling."
+            _text="extract: full-featured; writes under the runtime root, normally ./.busierbox.\n\ncore-only: no payload extraction; built-in applets only. Heavy tools, dotfiles, and user overlays are ignored/unavailable.\n\nno-residue: temporary runtime with best-effort cleanup. Payload tools may still have their own behavior.\n\nNo-residue level best-effort keeps the current visible cleanup behavior. aggressive minimizes BusierBox runtime residue but still does not promise forensic no-trace execution.\n\nExternal writes are required only for choices such as root authorized_keys handling."
             ;;
         launch)
             _title="Launch behavior help"
@@ -1387,11 +1402,12 @@ configure_runtime_mode() {
         dialog --title "Runtime mode" \
             --menu "Configure filesystem impact. BusierBox controls its own writes but external payload tools may still have their own behavior." 21 88 8 \
             "1" "Runtime mode: $BB_RUNTIME_MODE" \
-            "2" "Runtime root: $BB_RUNTIME_ROOT" \
-            "3" "Allow fallback root: $BB_RUNTIME_ALLOW_FALLBACK_ROOT" \
-            "4" "Fallback root: $BB_RUNTIME_FALLBACK_ROOT" \
-            "5" "Allow external writes: $BB_RUNTIME_ALLOW_EXTERNAL_WRITES" \
-            "6" "Build internal core artifact: $BB_BUILD_INTERNAL_CORE" \
+            "2" "No-residue level: $BB_NORESIDUE_LEVEL" \
+            "3" "Runtime root: $BB_RUNTIME_ROOT" \
+            "4" "Allow fallback root: $BB_RUNTIME_ALLOW_FALLBACK_ROOT" \
+            "5" "Fallback root: $BB_RUNTIME_FALLBACK_ROOT" \
+            "6" "Allow external writes: $BB_RUNTIME_ALLOW_EXTERNAL_WRITES" \
+            "7" "Build internal core artifact: $BB_BUILD_INTERNAL_CORE" \
             "H" "Help" \
             "0" "Back" \
             2>"$temp_out" || return 0
@@ -1414,11 +1430,20 @@ configure_runtime_mode() {
                     fi
                 fi
                 ;;
-            2) dialog --title "Runtime root" --inputbox "Default BusierBox-controlled runtime directory." 9 78 "$BB_RUNTIME_ROOT" 2>"$temp_out" || true; BB_RUNTIME_ROOT=$(cat "$temp_out") ;;
-            3) [ "$BB_RUNTIME_ALLOW_FALLBACK_ROOT" = yes ] && BB_RUNTIME_ALLOW_FALLBACK_ROOT=no || BB_RUNTIME_ALLOW_FALLBACK_ROOT=yes ;;
-            4) dialog --title "Fallback runtime root" --inputbox "Used only when fallback is explicitly allowed." 9 78 "$BB_RUNTIME_FALLBACK_ROOT" 2>"$temp_out" || true; BB_RUNTIME_FALLBACK_ROOT=$(cat "$temp_out") ;;
-            5) [ "$BB_RUNTIME_ALLOW_EXTERNAL_WRITES" = yes ] && BB_RUNTIME_ALLOW_EXTERNAL_WRITES=no || BB_RUNTIME_ALLOW_EXTERNAL_WRITES=yes ;;
-            6) [ "$BB_BUILD_INTERNAL_CORE" = yes ] && BB_BUILD_INTERNAL_CORE=no || BB_BUILD_INTERNAL_CORE=yes ;;
+            2)
+                dialog --title "No-residue level" \
+                    --radiolist "best-effort is normal runtime-root cleanup. aggressive minimizes BusierBox runtime residue but is not forensic no-trace execution." 12 86 2 \
+                    "best-effort" "Clean owned runtime root and keep visible audit/status semantics" "$(mode_onoff "$BB_NORESIDUE_LEVEL" best-effort)" \
+                    "aggressive" "Minimize BusierBox runtime residue; still visible and best-effort" "$(mode_onoff "$BB_NORESIDUE_LEVEL" aggressive)" \
+                    2>"$temp_out" || true
+                _v=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_v" ] && BB_NORESIDUE_LEVEL="$_v"
+                ;;
+            3) dialog --title "Runtime root" --inputbox "Default BusierBox-controlled runtime directory." 9 78 "$BB_RUNTIME_ROOT" 2>"$temp_out" || true; BB_RUNTIME_ROOT=$(cat "$temp_out") ;;
+            4) [ "$BB_RUNTIME_ALLOW_FALLBACK_ROOT" = yes ] && BB_RUNTIME_ALLOW_FALLBACK_ROOT=no || BB_RUNTIME_ALLOW_FALLBACK_ROOT=yes ;;
+            5) dialog --title "Fallback runtime root" --inputbox "Used only when fallback is explicitly allowed." 9 78 "$BB_RUNTIME_FALLBACK_ROOT" 2>"$temp_out" || true; BB_RUNTIME_FALLBACK_ROOT=$(cat "$temp_out") ;;
+            6) [ "$BB_RUNTIME_ALLOW_EXTERNAL_WRITES" = yes ] && BB_RUNTIME_ALLOW_EXTERNAL_WRITES=no || BB_RUNTIME_ALLOW_EXTERNAL_WRITES=yes ;;
+            7) [ "$BB_BUILD_INTERNAL_CORE" = yes ] && BB_BUILD_INTERNAL_CORE=no || BB_BUILD_INTERNAL_CORE=yes ;;
             H) show_page_help runtime ;;
             0) return 0 ;;
         esac
@@ -3030,7 +3055,7 @@ show_summary() {
 "$summary
 
 Payload:
-  runtime=$BB_RUNTIME_MODE root=$BB_RUNTIME_ROOT
+  runtime=$BB_RUNTIME_MODE noresidue=$BB_NORESIDUE_LEVEL root=$BB_RUNTIME_ROOT
   format=$BB_PAYLOAD_FORMAT  version=$BB_PAYLOAD_VERSION
   BusyBox groups: $BB_BUSYBOX_GROUPS
   heavy tools: ${BB_HEAVY_TOOLS:-none}

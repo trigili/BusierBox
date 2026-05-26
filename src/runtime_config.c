@@ -18,6 +18,9 @@
 #ifndef BB_RUNTIME_MODE
 #define BB_RUNTIME_MODE "extract"
 #endif
+#ifndef BB_NORESIDUE_LEVEL
+#define BB_NORESIDUE_LEVEL "best-effort"
+#endif
 #ifndef BB_RUNTIME_ROOT
 #define BB_RUNTIME_ROOT "./.busierbox"
 #endif
@@ -138,6 +141,7 @@ struct cfg_entry {
 
 static struct cfg_entry cfg[] = {
     {"BB_RUNTIME_MODE", BB_RUNTIME_MODE, "", 0},
+    {"BB_NORESIDUE_LEVEL", BB_NORESIDUE_LEVEL, "", 0},
     {"BB_RUNTIME_ROOT", BB_RUNTIME_ROOT, "", 0},
     {"BB_RUNTIME_ALLOW_FALLBACK_ROOT", BB_RUNTIME_ALLOW_FALLBACK_ROOT, "", 0},
     {"BB_RUNTIME_FALLBACK_ROOT", BB_RUNTIME_FALLBACK_ROOT, "", 0},
@@ -457,6 +461,7 @@ void bb_print_autoexec_config(void)
 
     printf("zero_arg_mode=%s\n", bb_config_get("BB_ZERO_ARG_MODE"));
     printf("runtime_mode=%s\n", bb_config_get("BB_RUNTIME_MODE"));
+    printf("noresidue_level=%s\n", bb_config_get("BB_NORESIDUE_LEVEL"));
     printf("runtime_root=%s\n", bb_config_get("BB_RUNTIME_ROOT"));
     printf("runtime_allow_fallback_root=%s\n", bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT"));
     printf("runtime_fallback_root=%s\n", bb_config_get("BB_RUNTIME_FALLBACK_ROOT"));

@@ -257,6 +257,8 @@ static void write_manifest_json(FILE *out, int include_missing)
     json_string_payload(out, BB_GDBSERVER_PROVIDER);
     fprintf(out, "},\"runtime\":{\"mode\":");
     json_string_payload(out, BB_RUNTIME_MODE);
+    fprintf(out, ",\"noresidue_level\":");
+    json_string_payload(out, BB_NORESIDUE_LEVEL);
     fprintf(out, ",\"root\":");
     json_string_payload(out, BB_RUNTIME_ROOT);
     fprintf(out, ",\"allow_fallback_root\":");

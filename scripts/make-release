@@ -462,6 +462,7 @@ def write_release_helpers(script_dir):
           --zero-arg-mode help|rshell|command
           --zero-arg-log-mode none|quiet|status|verbose
           --runtime-mode extract|no-residue
+          --noresidue-level best-effort|aggressive
           --obfuscation none|xor
 
         XOR is not encryption and must not be used for secrets.
@@ -506,6 +507,7 @@ def write_release_helpers(script_dir):
                 --zero-arg-mode) [ $# -ge 2 ] || usage; kv="$kv BB_ZERO_ARG_MODE=$2"; shift ;;
                 --zero-arg-log-mode) [ $# -ge 2 ] || usage; kv="$kv BB_ZERO_ARG_LOG_MODE=$2"; shift ;;
                 --runtime-mode) [ $# -ge 2 ] || usage; kv="$kv BB_RUNTIME_MODE=$2"; shift ;;
+                --noresidue-level) [ $# -ge 2 ] || usage; kv="$kv BB_NORESIDUE_LEVEL=$2"; shift ;;
                 --help|-h) usage ;;
                 *) printf '%s\n' "configure-artifact: unknown option $1" >&2; usage ;;
             esac
@@ -582,6 +584,7 @@ def write_release_helpers(script_dir):
                     "tuple_artifact": rec.get("tuple_artifact"),
                     "payload_preset": rec.get("payload_preset"),
                     "runtime_mode": summary.get("runtime_mode") or rec.get("runtime_mode"),
+                    "noresidue_level": summary.get("noresidue_level"),
                     "reverse_access": summary.get("reverse_access") or {},
                     "manifest": rec.get("manifest_path") or rec.get("payload_manifest_path"),
                     "payload_manifest": rec.get("payload_manifest_path"),
@@ -674,6 +677,7 @@ def write_release_helpers(script_dir):
                         "tuple_artifact": rec.get("tuple_artifact"),
                         "payload_preset": rec.get("payload_preset"),
                         "runtime_mode": (rec.get("tuple_summary") or {}).get("runtime_mode") or rec.get("runtime_mode"),
+                        "noresidue_level": (rec.get("tuple_summary") or {}).get("noresidue_level"),
                         "reverse_access": (rec.get("tuple_summary") or {}).get("reverse_access") or {},
                         "manifest": rec.get("manifest_path") or rec.get("payload_manifest_path"),
                         "payload_manifest": rec.get("payload_manifest_path"),
@@ -941,6 +945,7 @@ def write_release_helpers(script_dir):
         print(f"tuple_path={row.get('tuple_path')}")
         print(f"payload_preset={row.get('payload_preset')}")
         print(f"runtime_mode={row.get('runtime_mode') or ''}")
+        print(f"noresidue_level={row.get('noresidue_level') or ''}")
         print(f"reverse_access_default={(row.get('reverse_access') or {}).get('transport') or ''}")
         print(f"compatibility={(row.get('compatibility') or {}).get('label') or ''}")
         for reason in (row.get("compatibility") or {}).get("reasons") or []:
@@ -1374,6 +1379,7 @@ def artifact_summary(release_dir, rec, include_missing=False):
         "payload_manifest": rec.get("payload_manifest_path"),
         "payload_preset": rec.get("payload_preset"),
         "runtime_mode": rec.get("runtime_mode") or runtime.get("mode"),
+        "noresidue_level": runtime.get("noresidue_level"),
         "reverse_access": {
             "transport": rshell.get("transport"),
             "session_policy": rshell.get("session_policy"),
@@ -1436,6 +1442,7 @@ def manifest_text_for_tuple(tuple_info, records, include_missing=False):
             f"- {rec.get('payload_preset')} -> {rec.get('tuple_artifact', rec.get('artifact', ''))}",
             f"  status={rec.get('build_status', '')}",
             f"  runtime_mode={summary.get('runtime_mode') or rec.get('runtime_mode') or ''}",
+            f"  noresidue_level={summary.get('noresidue_level') or ''}",
             f"  size={rec.get('size', '')}",
             f"  sha256={rec.get('sha256', '')}",
             f"  config={rec.get('config', '')}",

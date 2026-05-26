@@ -120,7 +120,10 @@ static void cleanup_no_residue_root(const char *root, const char *detail)
      */
     if (strcmp(root, runtime_root) && strcmp(root, fallback_root))
         return;
-    bb_ledger_record("remove", root, "runtime", detail);
+    if (!strcmp(bb_config_get("BB_NORESIDUE_LEVEL"), "aggressive"))
+        bb_ledger_record("remove", root, "runtime", "aggressive no-residue cleanup");
+    else
+        bb_ledger_record("remove", root, "runtime", detail);
     bb_rm_rf(root);
 }
 

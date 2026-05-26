@@ -55,8 +55,18 @@ With `busierbox clean --external --apply`, `root-merge` cleanup removes only the
 BusierBox marked block, while `root-copy` cleanup removes the file only when the
 ledger says BusierBox created it.
 
-No-residue mode is best-effort ephemeral runtime. It removes the selected
-extraction root after foreground payload commands, forwards common interrupt
-signals to the child process, and still attempts cleanup after interrupted
-foreground commands. It records top-level paths in the cleanup ledger, but it is
-not forensic no-trace execution.
+No-residue mode is best-effort ephemeral runtime. `BB_NORESIDUE_LEVEL` controls
+how strongly BusierBox tries to minimize its own runtime residue:
+
+- `best-effort`: current behavior; remove the selected runtime root and ledgered
+  files where reasonable, while keeping visible logs/status when configured.
+- `aggressive`: minimize BusierBox runtime writes and cleanup detail after
+  payload commands, while still staying visible, reversible where applicable,
+  and auditable.
+
+Both levels remove only BusierBox-owned runtime roots after foreground payload
+commands, forward common interrupt signals to the child process, and still
+attempt cleanup after interrupted foreground commands. No-residue cleanup is
+not forensic no-trace execution, and aggressive mode cannot guarantee absence
+of residue from the kernel, filesystem journal, shell history, payload tools,
+or operator-requested external writes.

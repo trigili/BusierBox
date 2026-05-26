@@ -75,10 +75,12 @@ int applet_config_info_main(int argc, char **argv)
     printf("trailer_override_status=%s\n", bb_config_trailer_error());
     printf("effective_config_source=%s\n", bb_config_effective_source());
     printf("compiled_zero_arg_mode=%s\n", bb_config_compiled("BB_ZERO_ARG_MODE"));
+    printf("compiled_noresidue_level=%s\n", bb_config_compiled("BB_NORESIDUE_LEVEL"));
     printf("compiled_rshell_transport=%s\n", bb_config_compiled("BB_RSHELL_TRANSPORT"));
     printf("compiled_rshell_session_policy=%s\n", bb_config_compiled("BB_RSHELL_SESSION_POLICY"));
     printf("compiled_rshell_operator_host=%s\n", bb_config_compiled("BB_OPERATOR_SERVER_HOST"));
     printf("effective_zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
+    printf("effective_noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
     printf("effective_rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
     printf("effective_rshell_session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
     printf("effective_rshell_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);

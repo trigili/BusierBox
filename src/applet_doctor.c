@@ -56,6 +56,8 @@ static void print_doctor_manifest_summary_json(FILE *out, int payload_manifest_f
     json_string_payload(out, BUSIERBOX_ARTIFACT_TIER);
     fprintf(out, ",\"runtime_mode\":");
     json_string_payload(out, BB_RUNTIME_MODE);
+    fprintf(out, ",\"noresidue_level\":");
+    json_string_payload(out, BB_NORESIDUE_LEVEL);
     fprintf(out, ",\"zero_arg_mode\":");
     json_string_payload(out, BB_ZERO_ARG_MODE);
     fprintf(out, ",\"payload_manifest_found\":%s", payload_manifest_found ? "true" : "false");
@@ -259,6 +261,8 @@ int applet_doctor_main(int argc, char **argv)
             json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
             printf(",\"runtime_mode\":");
             json_string_payload(stdout, BB_RUNTIME_MODE);
+            printf(",\"noresidue_level\":");
+            json_string_payload(stdout, BB_NORESIDUE_LEVEL);
             printf(",\"runtime_root\":");
             json_string_payload(stdout, BB_RUNTIME_ROOT);
             printf("}}\n");
@@ -323,6 +327,8 @@ int applet_doctor_main(int argc, char **argv)
             json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
             printf(",\"runtime_mode\":");
             json_string_payload(stdout, BB_RUNTIME_MODE);
+            printf(",\"noresidue_level\":");
+            json_string_payload(stdout, BB_NORESIDUE_LEVEL);
             printf(",\"runtime_root\":");
             json_string_payload(stdout, BB_RUNTIME_ROOT);
             printf("}}\n");

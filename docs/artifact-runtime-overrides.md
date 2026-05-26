@@ -25,8 +25,9 @@ manifest --json` includes `compiled_config`, `effective_config`, and
 `trailer_override`.
 
 Allowed trailer keys are limited to runtime/operator behavior: runtime
-mode/root, zero-arg mode/logging, reverse-shell transport, operator host and
-ports, retry settings, session policy (`single`, `reconnect`, or
+mode/root, no-residue level (`best-effort` or `aggressive`), zero-arg
+mode/logging, reverse-shell transport, operator host and ports, retry settings,
+session policy (`single`, `reconnect`, or
 `persistent`), shell provider, and autorun guard settings. Target tuple,
 architecture, libc, kernel floor, static policy, compiled feature flags, heavy
 tool selection, dotfiles, and overlay contents are intentionally rejected.

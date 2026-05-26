@@ -52,7 +52,8 @@ checks remain opt-in through explicit external-write cases.
 command, then terminates a foreground payload command and verifies that the
 temporary runtime root is removed in both paths.
 No-residue is best-effort ephemeral runtime cleanup, not forensic no-trace
-execution.
+execution. `BB_NORESIDUE_LEVEL=aggressive` minimizes BusierBox runtime residue
+more strongly, but still does not claim stealth.
 
 Run one reverse shell case:
 
