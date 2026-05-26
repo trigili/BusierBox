@@ -61,6 +61,30 @@ mkdir "$run"
         }
     fi
     [ ! -e .bbx-runtime ]
+    ../busierbox-no-residue sh -c 'while :; do sleep 1; done' >/dev/null 2>term.err &
+    bb_pid=$!
+    i=0
+    while [ ! -e .bbx-runtime ]; do
+        i=$((i + 1))
+        if [ "$i" -gt 50 ]; then
+            kill "$bb_pid" 2>/dev/null || true
+            printf '%s\n' "runtime-modes: no-residue signal test did not create runtime root" >&2
+            exit 1
+        fi
+        sleep 0.1
+    done
+    kill -TERM "$bb_pid"
+    if wait "$bb_pid"; then
+        printf '%s\n' "runtime-modes: SIGTERM no-residue command unexpectedly succeeded" >&2
+        exit 1
+    else
+        rc=$?
+        [ "$rc" -eq 143 ] || {
+            printf '%s\n' "runtime-modes: expected SIGTERM no-residue exit 143, got $rc" >&2
+            exit 1
+        }
+    fi
+    [ ! -e .bbx-runtime ]
 )
 
 build_mode_artifact no-residue "$tmp/busierbox-no-residue-fallback" ".bbx-runtime-blocked" yes ".bbx-fallback"
