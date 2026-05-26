@@ -601,15 +601,31 @@ def recent_sessions(cfg, limit=8):
     return sessions[:limit]
 
 
+def count_file_lines(path):
+    try:
+        with Path(path).open(encoding="utf-8") as fh:
+            return sum(1 for _ in fh)
+    except OSError:
+        return 0
+
+
 def recent_session_records(cfg, limit=8):
     out = []
     for path in recent_sessions(cfg, limit):
-        meta = read_json_file(path / "session.json", {})
+        metadata_path = path / "session.json"
+        events_path = path / "events.jsonl"
+        meta = read_json_file(metadata_path, {})
         if isinstance(meta, dict) and meta:
             meta.setdefault("service", path.name.split("-", 2)[-1] if "-" in path.name else "unknown")
             meta.setdefault("path", str(path))
             meta.setdefault("exit_reason", "")
             meta.setdefault("updated_at", utc_now_from_mtime(path.stat().st_mtime))
+            meta["metadata_path"] = str(metadata_path)
+            meta["event_log"] = str(events_path) if events_path.is_file() else ""
+            meta["event_count"] = count_file_lines(events_path)
+            meta["upload_count"] = len(meta.get("uploads") or [])
+            meta["fetch_count"] = len(meta.get("fetches") or [])
+            meta["artifact_count"] = len(meta.get("artifacts") or [])
             out.append(meta)
             continue
         exit_reason = ""
@@ -621,6 +637,12 @@ def recent_session_records(cfg, limit=8):
         out.append({
             "service": service,
             "path": str(path),
+            "metadata_path": str(metadata_path) if metadata_path.is_file() else "",
+            "event_log": str(events_path) if events_path.is_file() else "",
+            "event_count": count_file_lines(events_path),
+            "upload_count": len(list(path.glob("files/*.metadata.json"))),
+            "fetch_count": 0,
+            "artifact_count": 0,
             "exit_reason": exit_reason,
             "updated_at": utc_now_from_mtime(path.stat().st_mtime),
         })
@@ -2426,8 +2448,15 @@ def print_status(cfg, json_output=False):
         print("  recorded live PID without ownership evidence detected; --stop will skip it")
     print("")
     print("Recent sessions:")
-    for session in doc["sessions"] or ["none"]:
-        print(f"  {session}")
+    if doc["sessions"]:
+        for session in doc["sessions"]:
+            print(f"  {session.get('service', '')} {session.get('path', '')} state={session.get('state', '')} exit={session.get('exit_reason', '')}")
+            print(f"    uploads={session.get('upload_count', 0)} fetches={session.get('fetch_count', 0)} events={session.get('event_count', 0)} artifacts={session.get('artifact_count', 0)} updated={session.get('updated_at', '')}")
+            print(f"    metadata: {session.get('metadata_path', '')}")
+            if session.get("event_log"):
+                print(f"    event_log: {session.get('event_log', '')}")
+    else:
+        print("  none")
     print("")
     print("Recent uploads:")
     if doc["uploads"]:
@@ -2588,7 +2617,11 @@ def print_workbench(cfg):
     sessions = snap["sessions"]
     if sessions:
         for item in sessions:
-            print(f"  {item.get('service', '')} {item.get('path', '')} exit={item.get('exit_reason', '')} updated={item.get('updated_at', '')}")
+            print(f"  {item.get('service', '')} {item.get('path', '')} state={item.get('state', '')} exit={item.get('exit_reason', '')} updated={item.get('updated_at', '')}")
+            print(f"    uploads={item.get('upload_count', 0)} fetches={item.get('fetch_count', 0)} events={item.get('event_count', 0)} artifacts={item.get('artifact_count', 0)}")
+            print(f"    metadata: {item.get('metadata_path', '')}")
+            if item.get("event_log"):
+                print(f"    event_log: {item.get('event_log', '')}")
     else:
         print("  none")
     print("")
@@ -2814,7 +2847,7 @@ def run_curses_tui(cfg):
                 for idx, m in enumerate(snap["uploads"])
             ] or ["none"]
             session_lines = [
-                f"{'>' if pane == 3 and idx == selected else ' '} {s.get('service', '')} {Path(s.get('path', '')).name} exit={s.get('exit_reason', '') or '-'}"
+                f"{'>' if pane == 3 and idx == selected else ' '} {s.get('service', '')} {Path(s.get('path', '')).name} up={s.get('upload_count', 0)} fetch={s.get('fetch_count', 0)} ev={s.get('event_count', 0)} exit={s.get('exit_reason', '') or '-'}"
                 for idx, s in enumerate(snap["sessions"])
             ] or ["none"]
             release = snap.get("release") or {}
@@ -2896,8 +2929,14 @@ def run_curses_tui(cfg):
                     f"session: {rec.get('session_id', Path(rec.get('path', '')).name)}",
                     f"service: {rec.get('service', '')}",
                     f"path: {rec.get('path', '')}",
+                    f"metadata: {rec.get('metadata_path', '')}",
+                    f"event_log: {rec.get('event_log', '')}",
                     f"state: {rec.get('state', '')}",
                     f"exit: {rec.get('exit_reason', '') or '-'}",
+                    f"uploads: {rec.get('upload_count', 0)}",
+                    f"fetches: {rec.get('fetch_count', 0)}",
+                    f"events: {rec.get('event_count', 0)}",
+                    f"artifacts: {rec.get('artifact_count', 0)}",
                     "v opens session metadata in pager",
                 ]
             elif pane == 6 and release_artifacts:
