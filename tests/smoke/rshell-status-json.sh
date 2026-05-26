@@ -79,8 +79,8 @@ if not data["remote_forward_port"]:
 for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec"]:
     if key not in data["retry"]:
         raise SystemExit(f"retry field missing: {key}")
-if data["runtime_config"].get("effective_config_source") not in {"compiled", "trailer", "env"}:
-    raise SystemExit("runtime config source missing")
+if data["runtime_config"].get("effective_config_source") != "cli":
+    raise SystemExit("runtime config cli source missing")
 if "trailer_override" not in data["runtime_config"]:
     raise SystemExit("trailer override usage missing")
 if ":" not in data["target_dropbear"]:

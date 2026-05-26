@@ -373,8 +373,10 @@ int applet_rshell_main(int argc, char **argv)
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--transport") && i + 1 < argc) {
             transport = argv[++i];
+            bb_config_set_cli_override("BB_RSHELL_TRANSPORT", transport);
         } else if (!strncmp(argv[i], "--transport=", 12)) {
             transport = argv[i] + 12;
+            bb_config_set_cli_override("BB_RSHELL_TRANSPORT", transport);
         }
     }
 

@@ -120,6 +120,8 @@ struct cfg_entry {
     const char *compiled;
     char value[256];
     int has_override;
+    char cli_value[256];
+    int has_cli_override;
 };
 
 static struct cfg_entry cfg[] = {
@@ -294,15 +296,28 @@ const char *bb_config_get(const char *key)
     /*
      * Runtime configuration precedence is intentionally narrow and visible:
      * compiled defaults are the baseline, a valid trailer may override only
-     * cfg[] keys, and environment variables win for operator-side debugging.
+     * cfg[] keys, environment variables win for operator-side debugging, and
+     * command-specific CLI flags win when an applet registers them here.
      */
-    env = getenv(key);
-    if (env && *env)
-        return env;
     ent = find_entry(key);
     if (!ent)
         return "";
+    if (ent->has_cli_override)
+        return ent->cli_value;
+    env = getenv(key);
+    if (env && *env)
+        return env;
     return ent->has_override ? ent->value : ent->compiled;
+}
+
+int bb_config_set_cli_override(const char *key, const char *value)
+{
+    struct cfg_entry *ent = find_entry(key);
+    if (!ent || !value)
+        return -1;
+    snprintf(ent->cli_value, sizeof(ent->cli_value), "%s", value);
+    ent->has_cli_override = 1;
+    return 0;
 }
 
 int bb_config_trailer_present(void)
@@ -347,9 +362,21 @@ static int env_override_count(void)
     return count;
 }
 
+static int cli_override_count(void)
+{
+    size_t i;
+    int count = 0;
+    for (i = 0; i < sizeof(cfg) / sizeof(cfg[0]); i++)
+        if (cfg[i].has_cli_override)
+            count++;
+    return count;
+}
+
 const char *bb_config_effective_source(void)
 {
     load_config();
+    if (cli_override_count() > 0)
+        return "cli";
     if (env_override_count() > 0)
         return "env";
     if (trailer_valid && override_count > 0)
@@ -398,6 +425,8 @@ void bb_config_print_runtime_summary_json(FILE *out, void (*json_string)(FILE *,
     json_string(out, bb_config_effective_source());
     fprintf(out, ",\"trailer_override\":");
     bb_config_print_trailer_json(out, json_string);
+    fprintf(out, ",\"environment_override_count\":%d", env_override_count());
+    fprintf(out, ",\"cli_override_count\":%d", cli_override_count());
     fputc('}', out);
 }
 
@@ -543,7 +572,7 @@ int applet_runtime_config_main(int argc, char **argv)
 
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
         puts("usage: busierbox runtime-config [--json]");
-        puts("Print compiled, trailer, environment, and effective runtime configuration.");
+        puts("Print compiled, trailer, environment, CLI, and effective runtime configuration.");
         return 0;
     }
     for (i = 1; i < argc; i++) {
@@ -560,6 +589,7 @@ int applet_runtime_config_main(int argc, char **argv)
         fputs(",\"trailer_override\":", stdout);
         bb_config_print_trailer_json(stdout, bb_json_string);
         fprintf(stdout, ",\"environment_override_count\":%d", env_override_count());
+        fprintf(stdout, ",\"cli_override_count\":%d", cli_override_count());
         fputs(",\"compiled_config\":", stdout);
         bb_config_print_compiled_json(stdout, bb_json_string);
         fputs(",\"effective_config\":", stdout);
@@ -574,6 +604,7 @@ int applet_runtime_config_main(int argc, char **argv)
     printf("trailer_override_count=%d\n", bb_config_trailer_override_count());
     printf("trailer_status=%s\n", bb_config_trailer_error());
     printf("environment_override_count=%d\n", env_override_count());
+    printf("cli_override_count=%d\n", cli_override_count());
     for (j = 0; j < sizeof(cfg) / sizeof(cfg[0]); j++) {
         printf("compiled_%s=%s\n", cfg[j].key, cfg[j].compiled);
         printf("effective_%s=%s\n", cfg[j].key, bb_config_get(cfg[j].key));

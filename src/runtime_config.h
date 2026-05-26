@@ -7,6 +7,7 @@
 #include "trailer_config.h"
 
 const char *bb_config_get(const char *key);
+int bb_config_set_cli_override(const char *key, const char *value);
 const char *bb_config_compiled(const char *key);
 int bb_config_key_allowed(const char *key);
 int bb_config_trailer_present(void);

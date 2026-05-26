@@ -105,7 +105,8 @@
 
 /*
  * Effective runtime configuration follows the documented precedence in
- * runtime_config.c: compiled defaults, valid trailer overrides, then env.
+ * runtime_config.c: compiled defaults, valid trailer overrides, environment
+ * overrides, then applet-registered CLI overrides.
  */
 #undef BB_RUNTIME_MODE
 #undef BB_RUNTIME_ROOT

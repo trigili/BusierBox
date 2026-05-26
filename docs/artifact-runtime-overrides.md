@@ -13,13 +13,14 @@ scripts/artifact-config clear dist/busierbox-native-full
 ```
 
 Effective config precedence is compiled defaults, then valid trailer overrides,
-then environment overrides for the same `BB_*` keys.
+then environment overrides for the same `BB_*` keys, then command-specific CLI
+flags where an applet exposes them.
 
 `busierbox config-info` reports trailer presence, validity, encoding, and
 selected compiled/effective values. `busierbox runtime-config` and
 `busierbox runtime-config --json` report the full allowlisted compiled config,
 effective config, trailer metadata, environment override count, and
-`effective_config_source` (`compiled`, `trailer`, or `env`). `busierbox
+`effective_config_source` (`compiled`, `trailer`, `env`, or `cli`). `busierbox
 manifest --json` includes `compiled_config`, `effective_config`, and
 `trailer_override`.
 
