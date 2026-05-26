@@ -22,6 +22,8 @@ int bb_rm_rf(const char *path);
 int bb_clean_external_from_ledger(void);
 void bb_set_argv0(const char *argv0);
 void bb_print_applet_list(FILE *out);
+int bb_print_support_token(void);
+void bb_write_artifact_manifest_file(const char *root);
 
 int applet_survey_main(int argc, char **argv);
 int applet_envfix_main(int argc, char **argv);
