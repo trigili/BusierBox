@@ -39,8 +39,10 @@ except ImportError:
 
 
 SHUTDOWN = threading.Event()
+SHUTDOWN_REASON = ""
 OWNED_SOCKETS = []
 OWNED_TRANSPORTS = []
+RECORDED_SHUTDOWNS = set()
 
 
 DEFAULT_CONFIG = Path("local/server-config.json")
@@ -729,9 +731,19 @@ def close_registered_resources():
             pass
 
 
-def _signal_shutdown(_signum, _frame):
-    SHUTDOWN.set()
+def request_shutdown(reason="shutdown"):
+    global SHUTDOWN_REASON
+    if reason and not SHUTDOWN_REASON:
+        SHUTDOWN_REASON = reason
     close_registered_resources()
+
+
+def _signal_shutdown(_signum, _frame):
+    try:
+        signame = signal.Signals(_signum).name
+    except ValueError:
+        signame = str(_signum)
+    request_shutdown(signame)
 
 
 def install_shutdown_handlers():
@@ -766,6 +778,17 @@ def bind_listen_socket(cfg, service, port, backlog):
         print("Run: scripts/busierbox-server --status", file=sys.stderr)
         print("Or stop managed listeners with: scripts/busierbox-server --stop", file=sys.stderr)
         raise
+
+
+def record_shutdown_event(cfg, service, session=None):
+    reason = SHUTDOWN_REASON
+    if not reason:
+        return
+    key = (service, str(session or ""), reason)
+    if key in RECORDED_SHUTDOWNS:
+        return
+    RECORDED_SHUTDOWNS.add(key)
+    append_event(cfg, service, "shutdown", session=str(session) if session else None, details={"reason": reason})
 
 
 def load_config(path):
@@ -1237,6 +1260,7 @@ def serve_ssh(cfg, timeout):
             except OSError:
                 pass
         if bound:
+            record_shutdown_event(cfg, service, session=log_dir)
             mark_service_stopped(cfg, service)
             finish_session_record(cfg, service, log_dir)
             append_event(cfg, service, "service_stop", session=str(log_dir))
@@ -1865,6 +1889,7 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=N
             except OSError:
                 pass
         if bound:
+            record_shutdown_event(cfg, service, session=log_dir)
             mark_service_stopped(cfg, service)
             finish_session_record(cfg, service, log_dir, exit_reason=exit_reason_for(log_dir))
             append_event(cfg, service, "service_stop", session=str(log_dir))
@@ -1929,6 +1954,7 @@ def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes
             except OSError:
                 pass
         if bound:
+            record_shutdown_event(cfg, service, session=log_dir)
             mark_service_stopped(cfg, service)
             finish_session_record(cfg, service, log_dir, exit_reason=exit_reason_for(log_dir))
             append_event(cfg, service, "service_stop", session=str(log_dir))
@@ -2167,6 +2193,7 @@ def stop_managed_services(cfg):
             skipped += 1
             continue
         try:
+            append_event(cfg, name, "shutdown", details={"pid": pid, "reason": "SIGTERM", "via": "server-stop"})
             os.kill(int(pid), signal.SIGTERM)
             stopped += 1
             mark_service_stopped(cfg, name)
@@ -2956,7 +2983,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             return serve_file_service(cfg, timeout, max_sessions=1 if args.one_shot else 0)
     except KeyboardInterrupt:
         print("busierbox-server: interrupted, shutting down", file=sys.stderr)
-        append_event(cfg, action, "shutdown", details={"reason": "keyboard_interrupt"})
+        request_shutdown("keyboard_interrupt")
+        record_shutdown_event(cfg, action)
         mark_service_stopped(cfg, action)
         return 130
     except OSError:

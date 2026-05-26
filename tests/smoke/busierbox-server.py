@@ -392,6 +392,15 @@ def main():
             print(stdout_life, file=sys.stderr)
             print(stderr_life, file=sys.stderr)
             return 1
+        lifecycle_events_path = Path(tmp) / "operator-session" / "events.jsonl"
+        lifecycle_events = [json.loads(line) for line in lifecycle_events_path.read_text(encoding="utf-8").splitlines()]
+        shutdown_events = [
+            event for event in lifecycle_events
+            if event.get("service") == "file-service" and event.get("event") == "shutdown"
+        ]
+        if not shutdown_events or shutdown_events[-1].get("details", {}).get("reason") != "SIGTERM":
+            print("--stop did not leave a structured SIGTERM shutdown event", file=sys.stderr)
+            return 1
         status_after = run(
             "scripts/busierbox-server", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
