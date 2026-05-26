@@ -86,6 +86,7 @@ smoke-test:
 	@scripts/inspect-artifact dist/busierbox-native-full >/dev/null
 	@scripts/verify-artifact dist/busierbox-native-full
 	@tests/smoke/artifact-tiers.sh
+	@tests/smoke/native-help.sh dist/busierbox-native-full
 	@tests/smoke/target-resolution.sh
 	@tests/smoke/busybox-selection.sh
 	@tests/smoke/payload-reality.sh
