@@ -20,6 +20,7 @@ fi
 grep -q 'invalid reverse access profile(s): no-such-profile' "$work/bad-reverse.err"
 
 scripts/make-release --name matrix-smoke --matrix release/matrices/iot-lab.json --dry-run >"$work/matrix-dry-run.out"
+grep -q '^version=2026.05.25$' "$work/matrix-dry-run.out"
 python3 - "$work/matrix-dry-run.out" release/matrices/iot-lab.json <<'PY'
 import json
 import sys
@@ -150,6 +151,59 @@ for name in ("buildroot", "miniz", "doom-ascii"):
         raise SystemExit(f"missing source lock entry: {name}")
     if not sources[name].get("version") or not sources[name].get("sha256"):
         raise SystemExit(f"incomplete source lock entry: {name}")
+PY
+
+scripts/make-release \
+    --name iot-metadata \
+    --matrix release/matrices/iot-lab.json \
+    --targets native \
+    --payload-presets default \
+    --skip-build \
+    --out-dir "$work/iot-release" >"$work/iot-release.out"
+python3 - "$work/iot-release/release.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if data.get("release_version") != "2026.05.25":
+    raise SystemExit("release_version missing")
+matrix = data.get("matrix", {})
+if matrix.get("version") != "2026.05.25":
+    raise SystemExit("matrix version missing")
+include = matrix.get("include", {})
+for key in ("artifact_config_helper", "config_examples", "checksums", "manifest", "docs"):
+    if include.get(key) is not True:
+        raise SystemExit(f"matrix include.{key} missing")
+PY
+
+cat >"$work/source-lock-matrix.json" <<'JSON'
+{
+  "name": "source-lock-matrix",
+  "version": "test",
+  "targets": ["native"],
+  "payload_presets": ["default"],
+  "include": {
+    "source_lock": true
+  }
+}
+JSON
+scripts/make-release \
+    --name source-lock \
+    --matrix "$work/source-lock-matrix.json" \
+    --skip-build \
+    --out-dir "$work/source-lock-release" >"$work/source-lock-release.out"
+test -f "$work/source-lock-release/sources.lock.json"
+python3 - "$work/source-lock-release/release.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if data.get("release_version") != "test":
+    raise SystemExit("source lock release version missing")
+if data.get("include_sources_manifest") is not True:
+    raise SystemExit("source lock include flag missing")
+if data.get("matrix", {}).get("include", {}).get("source_lock") is not True:
+    raise SystemExit("matrix source_lock include missing")
 PY
 
 scripts/make-release \

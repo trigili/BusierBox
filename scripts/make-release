@@ -58,6 +58,11 @@ def load_release_matrix(path):
         return json.load(fh)
 
 
+def matrix_include_options(data):
+    include = data.get("include") or {}
+    return include if isinstance(include, dict) else {}
+
+
 def matrix_list(args, data, key, fallback):
     cli = getattr(args, key.replace("_", "-"), None)
     if cli is None:
@@ -593,12 +598,17 @@ def main(argv=None):
 
     data = load_release_matrix(args.matrix)
     release_name = data.get("name") or args.name
+    release_version = data.get("version")
+    include_options = matrix_include_options(data)
+    include_sources_manifest = bool(args.include_sources_manifest or include_options.get("sources_manifest") or include_options.get("source_lock"))
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
     release_dir = pathlib.Path(args.out_dir) if args.out_dir else ROOT / "dist" / "releases" / f"{safe_stem(args.name)}-{stamp}"
     jobs = selected_jobs(args, data)
     validate_selected_jobs(jobs)
     if args.dry_run:
         print(f"release={release_name}")
+        if release_version:
+            print(f"version={release_version}")
         print(f"release_dir={release_dir}")
         for job in jobs:
             runtime = f" runtime={job['runtime_mode']}" if job.get("runtime_mode") else ""
@@ -608,7 +618,7 @@ def main(argv=None):
 
     for sub in ("bin", "configs", "manifests", "logs", "scripts", "docs"):
         (release_dir / sub).mkdir(parents=True, exist_ok=True)
-    copy_bundle_support(release_dir, include_sources_manifest=args.include_sources_manifest)
+    copy_bundle_support(release_dir, include_sources_manifest=include_sources_manifest)
     write_release_readme(release_dir / "docs" / "README-release.md", release_name)
 
     records = []
@@ -636,12 +646,16 @@ def main(argv=None):
     release = {
         "schema_version": SCHEMA_VERSION,
         "release_name": release_name,
+        "release_version": release_version,
         "timestamp": stamp,
         "git_commit": git_commit,
         "build_host": safe_build_host_metadata(),
         "source_lock": source_lock_metadata(),
         "matrix": {
             "path": args.matrix,
+            "name": data.get("name"),
+            "version": release_version,
+            "include": include_options,
             "targets": [job["target"] for job in jobs],
             "payload_presets": [job["payload"] for job in jobs],
             "configs": [job.get("config_source") for job in jobs if job.get("config_source")],
@@ -649,7 +663,7 @@ def main(argv=None):
             "runtime_modes": [job.get("runtime_mode") for job in jobs if job.get("runtime_mode")],
             "reverse_access_profiles": selected_reverse_access_profiles(args, data),
         },
-        "include_sources_manifest": bool(args.include_sources_manifest),
+        "include_sources_manifest": include_sources_manifest,
         "skip_build": bool(args.skip_build),
         "artifacts": records,
         "failures": [rec for rec in records if rec.get("build_status") == "failed"],

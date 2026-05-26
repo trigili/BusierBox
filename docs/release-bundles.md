@@ -23,6 +23,11 @@ Each release contains:
 - `release.json`: build status, commit, safe build-host metadata, source-lock summary, selected matrix, artifact paths, checksums, and failures.
 - `SHA256SUMS.original`: pristine bundle checksums.
 
+When a matrix includes `version` or `include`, those values are preserved in
+`release.json` for reproducibility. Set `include.source_lock` or
+`include.sources_manifest` to copy `manifests/sources.lock.json` into the
+bundle without relying on the CLI flag.
+
 Matrix files can include a `configs` list. Each listed config is used as a
 base config for every selected target/payload/format combination, and
 `scripts/make-release` writes generated per-combination configs under
