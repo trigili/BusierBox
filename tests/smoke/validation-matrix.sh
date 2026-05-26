@@ -34,6 +34,7 @@ require 'custom shell provider empty command' 'BB_RSHELL_CUSTOM_SHELL'
 require 'root authkeys without external writes' 'root-copy|root-merge|BB_RUNTIME_ALLOW_EXTERNAL_WRITES'
 require 'invalid retry values' 'BB_RSHELL_RETRY_COUNT|BB_RSHELL_RETRY_INTERVAL_SEC|BB_RSHELL_RETRY_JITTER_PCT|BB_RSHELL_RETRY_MAX_INTERVAL_SEC'
 require 'invalid run mode' 'BB_RSHELL_RUN_MODE'
+require 'invalid session policy' 'BB_RSHELL_SESSION_POLICY'
 require 'invalid shell provider' 'BB_RSHELL_SHELL_PROVIDER'
 require 'invalid retry backoff' 'BB_RSHELL_RETRY_BACKOFF'
 require 'invalid rshell transport' 'BB_RSHELL_TRANSPORT'
@@ -50,6 +51,7 @@ for pattern in \
     'transport=ssh but dropbear is not in heavy tools' \
     'BB_RSHELL_RETRY_COUNT must be an integer' \
     'invalid rshell run mode' \
+    'invalid rshell session policy' \
     'invalid shell provider' \
     'authkeys mode.*writes outside the runtime root'
 do
@@ -77,6 +79,7 @@ write_case_config() {
         printf '%s\n' 'BB_RSHELL_ALLOW_PLAINTEXT="no"'
         printf '%s\n' 'BB_RSHELL_AUTHKEYS_MODE="disabled"'
         printf '%s\n' 'BB_RSHELL_RUN_MODE="auto"'
+        printf '%s\n' 'BB_RSHELL_SESSION_POLICY="single"'
         printf '%s\n' 'BB_RSHELL_SHELL_PROVIDER="auto"'
         printf '%s\n' 'BB_RSHELL_RETRY_COUNT="1"'
         printf '%s\n' 'BB_RSHELL_RETRY_INTERVAL_SEC="5"'
@@ -139,6 +142,8 @@ expect_package_invalid invalid-retry 'BB_RSHELL_RETRY_COUNT must be an integer' 
     'BB_RSHELL_RETRY_COUNT="abc"'
 expect_package_invalid invalid-run-mode 'invalid rshell run mode' \
     'BB_RSHELL_RUN_MODE="sideways"'
+expect_package_invalid invalid-session-policy 'invalid rshell session policy' \
+    'BB_RSHELL_SESSION_POLICY="resume"'
 expect_package_invalid invalid-shell-provider 'invalid shell provider' \
     'BB_RSHELL_SHELL_PROVIDER="fish"'
 expect_package_invalid invalid-runtime 'invalid runtime mode' \

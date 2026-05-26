@@ -28,6 +28,7 @@ for name in default survey-core builtin-core-shell payload-bash socat-rescue ssh
     grep -q '^BB_TRAILER_OVERRIDES_ENABLE=' "$file"
     grep -q '^BB_RSHELL_TRANSPORT=' "$file"
     grep -q '^BB_RSHELL_RUN_MODE=' "$file"
+    grep -q '^BB_RSHELL_SESSION_POLICY=' "$file"
     grep -q '^BB_HEAVY_TOOLS=' "$file"
     meta="$preset_dir/$name.meta.json"
     [ -f "$meta" ] || {
@@ -106,6 +107,7 @@ done
 
 grep -q 'BB_PAYLOAD_PRESET=' "$menu"
 grep -q 'BB_RSHELL_RUN_MODE' "$menu"
+grep -q 'BB_RSHELL_SESSION_POLICY' "$menu"
 grep -q 'BB_TRAILER_OBFUSCATION' "$menu"
 grep -q 'BB_DOOM_USER_PATH' "$menu"
 grep -q 'BB_DOOM_WAD_PATH' "$menu"

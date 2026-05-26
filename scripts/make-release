@@ -457,6 +457,7 @@ def write_release_helpers(script_dir):
           --transport ssh|builtin|socat
           --encryption tls|none
           --run-mode auto|foreground|background
+          --session-policy single|reconnect|persistent
           --shell-provider auto|target-sh|payload-busybox-sh|payload-busybox-ash|payload-zsh|custom
           --zero-arg-mode help|rshell|command
           --zero-arg-log-mode none|quiet|status|verbose
@@ -500,6 +501,7 @@ def write_release_helpers(script_dir):
                 --transport) [ $# -ge 2 ] || usage; kv="$kv BB_RSHELL_TRANSPORT=$2"; shift ;;
                 --encryption) [ $# -ge 2 ] || usage; kv="$kv BB_RSHELL_ENCRYPTION=$2"; shift ;;
                 --run-mode) [ $# -ge 2 ] || usage; kv="$kv BB_RSHELL_RUN_MODE=$2"; shift ;;
+                --session-policy) [ $# -ge 2 ] || usage; kv="$kv BB_RSHELL_SESSION_POLICY=$2"; shift ;;
                 --shell-provider) [ $# -ge 2 ] || usage; kv="$kv BB_RSHELL_SHELL_PROVIDER=$2"; shift ;;
                 --zero-arg-mode) [ $# -ge 2 ] || usage; kv="$kv BB_ZERO_ARG_MODE=$2"; shift ;;
                 --zero-arg-log-mode) [ $# -ge 2 ] || usage; kv="$kv BB_ZERO_ARG_LOG_MODE=$2"; shift ;;
@@ -1165,6 +1167,7 @@ def artifact_summary(release_dir, rec, include_missing=False):
         "runtime_mode": rec.get("runtime_mode") or runtime.get("mode"),
         "reverse_access": {
             "transport": rshell.get("transport"),
+            "session_policy": rshell.get("session_policy"),
             "operator_host": rshell.get("operator_host"),
             "operator_shell_port": rshell.get("operator_shell_port"),
             "operator_ssh_port": rshell.get("operator_ssh_port"),

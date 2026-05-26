@@ -48,6 +48,7 @@ required = [
     ("runtime", "root"),
     ("zero_arg", "mode"),
     ("rshell", "transport"),
+    ("rshell", "session_policy"),
     ("rshell", "operator_host"),
     ("rshell", "operator_shell_port"),
     ("rshell", "operator_ssh_port"),
@@ -99,6 +100,7 @@ for key in (
     "BB_RUNTIME_ROOT",
     "BB_ZERO_ARG_MODE",
     "BB_RSHELL_TRANSPORT",
+    "BB_RSHELL_SESSION_POLICY",
     "BB_OPERATOR_SERVER_HOST",
     "BB_OPERATOR_FILE_SERVICE_PORT",
 ):
@@ -117,6 +119,7 @@ checks = [
     (manifest["runtime"]["root"], config.get("runtime_root"), "runtime_root"),
     (manifest["zero_arg"]["mode"], config.get("zero_arg_mode"), "zero_arg_mode"),
     (manifest["rshell"]["transport"], config.get("rshell_transport"), "rshell_transport"),
+    (manifest["rshell"]["session_policy"], config.get("rshell_session_policy"), "rshell_session_policy"),
     (manifest["rshell"]["operator_shell_port"], config.get("rshell_socat_port"), "rshell_socat_port"),
     (manifest["rshell"]["remote_forward_port"], config.get("operator_reverse_ssh_catch_hint", "").split()[2] if config.get("operator_reverse_ssh_catch_hint") else None, "remote_forward_port"),
 ]

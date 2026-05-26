@@ -76,9 +76,11 @@ int applet_config_info_main(int argc, char **argv)
     printf("effective_config_source=%s\n", bb_config_effective_source());
     printf("compiled_zero_arg_mode=%s\n", bb_config_compiled("BB_ZERO_ARG_MODE"));
     printf("compiled_rshell_transport=%s\n", bb_config_compiled("BB_RSHELL_TRANSPORT"));
+    printf("compiled_rshell_session_policy=%s\n", bb_config_compiled("BB_RSHELL_SESSION_POLICY"));
     printf("compiled_rshell_operator_host=%s\n", bb_config_compiled("BB_OPERATOR_SERVER_HOST"));
     printf("effective_zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
     printf("effective_rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
+    printf("effective_rshell_session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
     printf("effective_rshell_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
     have_embedded = bb_get_embedded_payload(&ep) == 0;
     have_payload = bb_candidate_payload_dir(payload, sizeof(payload)) == 0;

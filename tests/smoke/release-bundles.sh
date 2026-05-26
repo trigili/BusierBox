@@ -170,6 +170,7 @@ test -x "$work/release/scripts/release-find"
 test -x "$work/release/scripts/release-self-test"
 "$work/release/scripts/configure-artifact" --help >"$work/configure-help.out" 2>&1 || test "$?" -eq 2
 grep -q -- '--run-mode auto|foreground|background' "$work/configure-help.out"
+grep -q -- '--session-policy single|reconnect|persistent' "$work/configure-help.out"
 grep -q -- '--shell-provider auto|target-sh|payload-busybox-sh|payload-busybox-ash|payload-zsh|custom' "$work/configure-help.out"
 grep -q -- '--zero-arg-log-mode none|quiet|status|verbose' "$work/configure-help.out"
 if grep -q -- '--run-mode auto|oneshot' "$work/configure-help.out"; then

@@ -16,7 +16,8 @@ chmod 0755 "$work/busierbox"
 scripts/artifact-config set "$work/busierbox" \
     BB_RUNTIME_ROOT="$work/runtime" \
     BB_OPERATOR_SERVER_HOST=192.0.2.77 \
-    BB_RSHELL_TRANSPORT=builtin >/dev/null
+    BB_RSHELL_TRANSPORT=builtin \
+    BB_RSHELL_SESSION_POLICY=reconnect >/dev/null
 
 "$work/busierbox" plan --json | python3 -m json.tool >/dev/null
 "$work/busierbox" plan extract --json >"$work/extract.json"
@@ -55,6 +56,7 @@ assert any(path.endswith("/runtime") for path in extract["would_create"])
 
 assert rshell["command"] == "rshell"
 assert rshell["transport"] == "builtin"
+assert rshell["session_policy"] == "reconnect"
 assert rshell["operator_host"] == "192.0.2.77"
 assert rshell["requires_external_writes"] is False
 assert "192.0.2.77" in rshell["would_connect"][0]

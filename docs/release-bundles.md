@@ -154,6 +154,7 @@ scripts/verify-checksums --original
 scripts/configure-all \
   --operator-host 192.168.8.241 \
   --transport ssh \
+  --session-policy single \
   --ssh-port 2222 \
   --remote-forward-port 2200
 scripts/verify-checksums --configured
@@ -165,6 +166,10 @@ Start explicit reverse access on the target:
 ./busierbox rshell status --json
 ./busierbox rshell start
 ```
+
+`single` stops after the first successful shell session exits. `reconnect`
+starts fresh sessions after disconnect up to the configured retry count, and
+`persistent` keeps trying indefinitely; neither mode claims session resume.
 
 For the builtin TLS shell preset, prepare the operator listener and then run the
 artifact explicitly:

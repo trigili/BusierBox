@@ -51,6 +51,9 @@
 #ifndef BB_RSHELL_RUN_MODE
 #define BB_RSHELL_RUN_MODE "auto"
 #endif
+#ifndef BB_RSHELL_SESSION_POLICY
+#define BB_RSHELL_SESSION_POLICY "single"
+#endif
 #ifndef BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
 #define BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING "no"
 #endif
@@ -146,6 +149,7 @@ static struct cfg_entry cfg[] = {
     {"BB_RSHELL_ALLOW_PLAINTEXT", BB_RSHELL_ALLOW_PLAINTEXT, "", 0},
     {"BB_RSHELL_AUTHKEYS_MODE", BB_RSHELL_AUTHKEYS_MODE, "", 0},
     {"BB_RSHELL_RUN_MODE", BB_RSHELL_RUN_MODE, "", 0},
+    {"BB_RSHELL_SESSION_POLICY", BB_RSHELL_SESSION_POLICY, "", 0},
     {"BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING", BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING, "", 0},
     {"BB_RSHELL_SOCAT_PORT", BB_RSHELL_SOCAT_PORT, "", 0},
     {"BB_RSHELL_SHELL_PROVIDER", BB_RSHELL_SHELL_PROVIDER, "", 0},
@@ -463,6 +467,7 @@ void bb_print_autoexec_config(void)
     printf("rshell_allow_plaintext=%s\n", bb_config_get("BB_RSHELL_ALLOW_PLAINTEXT"));
     printf("rshell_authkeys_mode=%s\n", bb_config_get("BB_RSHELL_AUTHKEYS_MODE"));
     printf("rshell_run_mode=%s\n", bb_config_get("BB_RSHELL_RUN_MODE"));
+    printf("rshell_session_policy=%s\n", bb_config_get("BB_RSHELL_SESSION_POLICY"));
     printf("rshell_generate_hostkey_if_missing=%s\n", bb_config_get("BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING"));
     printf("rshell_socat_port=%s\n", bb_config_get("BB_RSHELL_SOCAT_PORT"));
     printf("rshell_shell_provider=%s\n", bb_config_get("BB_RSHELL_SHELL_PROVIDER"));
@@ -519,6 +524,7 @@ void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *
     const char *transport = bb_config_get("BB_RSHELL_TRANSPORT");
     const char *encryption = bb_config_get("BB_RSHELL_ENCRYPTION");
     const char *run_mode = bb_config_get("BB_RSHELL_RUN_MODE");
+    const char *session_policy = bb_config_get("BB_RSHELL_SESSION_POLICY");
     const char *zero_arg_mode = bb_config_get("BB_ZERO_ARG_MODE");
     const char *operator_host = bb_config_get("BB_OPERATOR_SERVER_HOST");
     const char *shell_port = bb_config_get("BB_RSHELL_SOCAT_PORT");
@@ -540,6 +546,8 @@ void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *
     json_string(out, encryption);
     fprintf(out, ",\"run_mode\":");
     json_string(out, run_mode);
+    fprintf(out, ",\"session_policy\":");
+    json_string(out, session_policy);
     fprintf(out, ",\"zero_arg_autorun\":%s", !strcmp(zero_arg_mode, "rshell") ? "true" : "false");
     fprintf(out, ",\"operator_host_set\":%s", operator_host[0] ? "true" : "false");
     fprintf(out, ",\"operator_host\":");

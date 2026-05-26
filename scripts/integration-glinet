@@ -145,6 +145,7 @@ def write_case_config(case_dir, case, operator_host, args):
         f'BB_OPERATOR_TARGET_DROPBEAR_PORT="{args.dropbear_port}"',
         f'BB_RSHELL_SOCAT_PORT="{args.shell_port}"',
         'BB_RSHELL_AUTHKEYS_MODE="disabled"',
+        'BB_RSHELL_SESSION_POLICY="single"',
         'BB_RUNTIME_ALLOW_EXTERNAL_WRITES="no"',
     ]
     if case == "ssh-operator":

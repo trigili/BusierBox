@@ -58,6 +58,7 @@ BB_RSHELL_ALLOW_PLAINTEXT="no"
 BB_RSHELL_MODE="ssh"
 BB_RSHELL_AUTHKEYS_MODE="disabled"
 BB_RSHELL_RUN_MODE="auto"
+BB_RSHELL_SESSION_POLICY="single"
 BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING="no"
 BB_RSHELL_SOCAT_PORT="22203"
 BB_RSHELL_SHELL_PROVIDER="auto"
@@ -146,6 +147,7 @@ BB_RSHELL_ALLOW_PLAINTEXT="${BB_RSHELL_ALLOW_PLAINTEXT:-no}"
 BB_RSHELL_MODE="$BB_RSHELL_TRANSPORT"
 BB_RSHELL_AUTHKEYS_MODE="${BB_RSHELL_AUTHKEYS_MODE:-disabled}"
 BB_RSHELL_RUN_MODE="${BB_RSHELL_RUN_MODE:-auto}"
+BB_RSHELL_SESSION_POLICY="${BB_RSHELL_SESSION_POLICY:-single}"
 BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING="${BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING:-no}"
 BB_RSHELL_SOCAT_PORT="${BB_RSHELL_SOCAT_PORT:-22203}"
 BB_RSHELL_SHELL_PROVIDER="${BB_RSHELL_SHELL_PROVIDER:-auto}"
@@ -249,6 +251,7 @@ BB_RSHELL_ENCRYPTION
 BB_RSHELL_ALLOW_PLAINTEXT
 BB_RSHELL_AUTHKEYS_MODE
 BB_RSHELL_RUN_MODE
+BB_RSHELL_SESSION_POLICY
 BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
 BB_RSHELL_SOCAT_PORT
 BB_RSHELL_SHELL_PROVIDER
@@ -487,6 +490,7 @@ BB_RSHELL_ENCRYPTION="$BB_RSHELL_ENCRYPTION"
 BB_RSHELL_ALLOW_PLAINTEXT="$BB_RSHELL_ALLOW_PLAINTEXT"
 BB_RSHELL_AUTHKEYS_MODE="$BB_RSHELL_AUTHKEYS_MODE"
 BB_RSHELL_RUN_MODE="$BB_RSHELL_RUN_MODE"
+BB_RSHELL_SESSION_POLICY="$BB_RSHELL_SESSION_POLICY"
 BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING="$BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING"
 BB_RSHELL_SOCAT_PORT="$BB_RSHELL_SOCAT_PORT"
 BB_RSHELL_SHELL_PROVIDER="$BB_RSHELL_SHELL_PROVIDER"
@@ -842,6 +846,11 @@ validate_config() {
     case "$BB_RSHELL_RUN_MODE" in
         foreground|background|auto) ;;
         *) _errors="$_errors\n- invalid rshell run mode: $BB_RSHELL_RUN_MODE." ;;
+    esac
+
+    case "$BB_RSHELL_SESSION_POLICY" in
+        single|reconnect|persistent) ;;
+        *) _errors="$_errors\n- invalid rshell session policy: $BB_RSHELL_SESSION_POLICY." ;;
     esac
 
     if [ "$BB_RSHELL_TRANSPORT" = builtin ] && [ "$BB_RSHELL_ENCRYPTION" = tls ] && ! can_build_builtin_tls; then
@@ -2306,6 +2315,7 @@ Server listener: scripts/busierbox-server --transport ssh --ssh-port ${_sp}
 Target action: busierbox rshell
 Target Dropbear: ${_bh}:${_tp}
 Reverse forward: 127.0.0.1:${_fp} -> target ${_bh}:${_tp}
+Session policy: ${BB_RSHELL_SESSION_POLICY}
 Connect from operator: ssh -p ${_fp} root@127.0.0.1
 EOF
             ;;
@@ -2323,6 +2333,7 @@ Operator host: ${_h}
 Server listener: scripts/busierbox-server --transport ${_server_transport} --shell-port ${_shell_port}
 Target action: busierbox rshell
 Shell provider: ${BB_RSHELL_SHELL_PROVIDER}
+Session policy: ${BB_RSHELL_SESSION_POLICY}
 Connect model: ${_connect_model}
 EOF
             ;;
@@ -2393,6 +2404,7 @@ $(_rshell_summary_text)
 | Transport | ${BB_RSHELL_TRANSPORT} |
 | Encryption | ${BB_RSHELL_ENCRYPTION} |
 | Shell provider | ${BB_RSHELL_SHELL_PROVIDER} |
+| Session policy | ${BB_RSHELL_SESSION_POLICY} |
 | Operator host | ${_h} |
 | Operator SSH user | ${_u} |
 | busierbox-server listen port | ${_sp} |
@@ -2675,6 +2687,13 @@ configure_rshell_credentials_policy() {
 }
 
 configure_rshell_retry_lifecycle() {
+    dialog --title "Session policy" \
+        --radiolist "Select behavior after a shell session connects and later disconnects. All policies use retry count for initial connection setup." 14 88 3 \
+        "single" "Stop after the first successful shell session exits" "$(mode_onoff "$BB_RSHELL_SESSION_POLICY" single)" \
+        "reconnect" "Start fresh shell sessions after disconnect, bounded by retry count" "$(mode_onoff "$BB_RSHELL_SESSION_POLICY" reconnect)" \
+        "persistent" "Keep trying indefinitely after disconnects; fresh sessions, not resume" "$(mode_onoff "$BB_RSHELL_SESSION_POLICY" persistent)" \
+        2>"$temp_out" || true
+    _v=$(cat "$temp_out" | tr -d '"'); [ -n "$_v" ] && BB_RSHELL_SESSION_POLICY="$_v"
     dialog --title "Retry count" --inputbox "Connection setup retries. -1 retries indefinitely, 0 means one attempt only." 9 78 "$BB_RSHELL_RETRY_COUNT" 2>"$temp_out" || true
     _v=$(cat "$temp_out"); [ -n "$_v" ] && BB_RSHELL_RETRY_COUNT="$_v"
     dialog --title "Retry interval" --inputbox "Initial retry interval in seconds." 9 78 "$BB_RSHELL_RETRY_INTERVAL_SEC" 2>"$temp_out" || true
@@ -2748,7 +2767,7 @@ configure_reverse_shell() {
                 set -- "$@" "5" "Shell listener: $BB_RSHELL_SOCAT_PORT" ;;
         esac
         set -- "$@" \
-            "7" "Retry / lifecycle: count=$BB_RSHELL_RETRY_COUNT interval=${BB_RSHELL_RETRY_INTERVAL_SEC}s backoff=$BB_RSHELL_RETRY_BACKOFF" \
+            "7" "Retry / lifecycle: policy=$BB_RSHELL_SESSION_POLICY count=$BB_RSHELL_RETRY_COUNT interval=${BB_RSHELL_RETRY_INTERVAL_SEC}s backoff=$BB_RSHELL_RETRY_BACKOFF" \
             "8" "Summary / export: remote=127.0.0.1:$BB_OPERATOR_REMOTE_FORWARD_PORT target-port=$_target_port"
         set -- "$@" "H" "Help" "0" "Back"
 

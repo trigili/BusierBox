@@ -10,6 +10,7 @@ mkdir -p "$tmp/guard"
 cat >"$tmp/guard/rshell.status" <<'EOF'
 state=running
 transport=ssh
+session_policy=reconnect
 rshell_pid=1234
 dropbear_pid=2345
 dbclient_pid=3456
@@ -31,6 +32,7 @@ for key in [
     "transport",
     "encryption",
     "run_mode",
+    "session_policy",
     "operator_host",
     "operator_shell_port",
     "operator_ssh_port",
@@ -58,6 +60,8 @@ if data["guard_path"] != sys.argv[2]:
     raise SystemExit("guard path mismatch")
 if data["state"] != "running":
     raise SystemExit("recorded state missing")
+if data["session_policy"] != "reconnect":
+    raise SystemExit("session policy from status file missing")
 if data["pids"].get("rshell") != "1234":
     raise SystemExit("rshell pid missing")
 if data["pids"].get("dropbear") != "2345":
@@ -76,7 +80,7 @@ if not data["operator_shell_port"]:
     raise SystemExit("operator shell port missing")
 if not data["remote_forward_port"]:
     raise SystemExit("remote forward port missing")
-for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec"]:
+for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec", "pre_connect_count", "post_disconnect_count"]:
     if key not in data["retry"]:
         raise SystemExit(f"retry field missing: {key}")
 if data["runtime_config"].get("effective_config_source") != "cli":
@@ -94,6 +98,7 @@ PY
 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --transport ssh >"$tmp/status-human.out"
 grep -q '^operator_ssh_port=' "$tmp/status-human.out"
 grep -q '^remote_forward_port=' "$tmp/status-human.out"
+grep -q '^session_policy=' "$tmp/status-human.out"
 grep -q '^target_dropbear=' "$tmp/status-human.out"
 grep -q '^server_listener=scripts/busierbox-server --transport ssh --ssh-port ' "$tmp/status-human.out"
 grep -q '^zero_arg_autorun=' "$tmp/status-human.out"

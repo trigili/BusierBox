@@ -37,6 +37,7 @@ awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'dropbear'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RUNTIME_ALLOW_EXTERNAL_WRITES'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_SHELL_PROVIDER'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_RUN_MODE'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_SESSION_POLICY'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_RETRY_BACKOFF'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'payload-zsh'
 

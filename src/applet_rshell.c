@@ -134,6 +134,7 @@ static void print_rshell_config_status(FILE *out, const char *transport)
     fprintf(out, "transport=%s\n", transport);
     fprintf(out, "encryption=%s\n", BB_RSHELL_ENCRYPTION);
     fprintf(out, "run_mode=%s\n", BB_RSHELL_RUN_MODE);
+    fprintf(out, "session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
     fprintf(out, "operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
     fprintf(out, "operator_shell_port=%s\n", BB_RSHELL_SOCAT_PORT);
     fprintf(out, "operator_ssh_port=%s\n", BB_OPERATOR_SERVER_SSH_PORT);
@@ -208,6 +209,38 @@ static int should_retry_after_attempt(int attempt)
     return attempt < retry_count;
 }
 
+static int should_reconnect_after_success(int reconnects)
+{
+    int retry_count;
+
+    if (!strcmp(BB_RSHELL_SESSION_POLICY, "single"))
+        return 0;
+    if (!strcmp(BB_RSHELL_SESSION_POLICY, "persistent"))
+        return 1;
+    if (strcmp(BB_RSHELL_SESSION_POLICY, "reconnect"))
+        return 0;
+    retry_count = parse_int_default(BB_RSHELL_RETRY_COUNT, 1);
+    if (retry_count < 0)
+        return 1;
+    return reconnects < retry_count;
+}
+
+static int valid_session_policy(void)
+{
+    return !strcmp(BB_RSHELL_SESSION_POLICY, "single") ||
+           !strcmp(BB_RSHELL_SESSION_POLICY, "reconnect") ||
+           !strcmp(BB_RSHELL_SESSION_POLICY, "persistent");
+}
+
+static const char *post_success_retry_count(void)
+{
+    if (!strcmp(BB_RSHELL_SESSION_POLICY, "single"))
+        return "0";
+    if (!strcmp(BB_RSHELL_SESSION_POLICY, "persistent"))
+        return "-1";
+    return BB_RSHELL_RETRY_COUNT;
+}
+
 static int should_background_rshell(const char *transport)
 {
     const char *zero_arg = getenv("BUSIERBOX_ZERO_ARG_CONTEXT");
@@ -248,8 +281,9 @@ static void write_rshell_background_status(const char *transport, pid_t pid)
     if (fd >= 0) {
         dprintf(fd,
                 "state=starting\ntransport=%s\nencryption=%s\n"
-                "rshell_pid=%ld\nstarted_at=%ld\n",
-                transport, BB_RSHELL_ENCRYPTION, (long)pid, (long)now);
+                "run_mode=%s\nsession_policy=%s\nrshell_pid=%ld\nstarted_at=%ld\n",
+                transport, BB_RSHELL_ENCRYPTION, BB_RSHELL_RUN_MODE,
+                BB_RSHELL_SESSION_POLICY, (long)pid, (long)now);
         close(fd);
         bb_ledger_record("write", path, "runtime", "rshell status");
     }
@@ -354,8 +388,8 @@ int applet_rshell_main(int argc, char **argv)
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
         puts("usage: busierbox rshell [start|status|logs|cleanup|stop|restart] [--json] [--dry-run] [--transport ssh|socat|builtin]");
         puts("Starts or manages the configured reverse access transport.");
-        printf("Configured transport: %s  encryption: %s  run_mode: %s\n",
-               BB_RSHELL_TRANSPORT, BB_RSHELL_ENCRYPTION, BB_RSHELL_RUN_MODE);
+        printf("Configured transport: %s  encryption: %s  run_mode: %s  session_policy: %s\n",
+               BB_RSHELL_TRANSPORT, BB_RSHELL_ENCRYPTION, BB_RSHELL_RUN_MODE, BB_RSHELL_SESSION_POLICY);
         printf("Shell provider: %s  retries: %s backoff=%s interval=%ss max=%ss\n",
                BB_RSHELL_SHELL_PROVIDER, BB_RSHELL_RETRY_COUNT, BB_RSHELL_RETRY_BACKOFF,
                BB_RSHELL_RETRY_INTERVAL_SEC, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
@@ -394,6 +428,7 @@ int applet_rshell_main(int argc, char **argv)
             char line[512], key[128], val[384];
             char rshell_pid[64] = "", dropbear_pid[64] = "", dbclient_pid[64] = "", socat_pid[64] = "";
             char state[64] = "";
+            char recorded_session_policy[64] = "";
             char started_at[64] = "", last_exit_reason[256] = "";
             char target_dropbear[128], server_listener[256], connect_hint[256];
             int first = 1;
@@ -419,6 +454,8 @@ int applet_rshell_main(int argc, char **argv)
                     snprintf(dbclient_pid, sizeof(dbclient_pid), "%s", eq);
                 else if (!strcmp(line, "socat_pid"))
                     snprintf(socat_pid, sizeof(socat_pid), "%s", eq);
+                else if (!strcmp(line, "session_policy"))
+                    snprintf(recorded_session_policy, sizeof(recorded_session_policy), "%s", eq);
                 else if (!strcmp(line, "started_at"))
                     snprintf(started_at, sizeof(started_at), "%s", eq);
                 else if (!strcmp(line, "last_exit_reason"))
@@ -436,6 +473,8 @@ int applet_rshell_main(int argc, char **argv)
             json_string_main(stdout, BB_RSHELL_ENCRYPTION);
             printf(",\"run_mode\":");
             json_string_main(stdout, BB_RSHELL_RUN_MODE);
+            printf(",\"session_policy\":");
+            json_string_main(stdout, recorded_session_policy[0] ? recorded_session_policy : BB_RSHELL_SESSION_POLICY);
             printf(",\"operator_host\":");
             json_string_main(stdout, BB_OPERATOR_SERVER_HOST);
             printf(",\"operator_shell_port\":");
@@ -460,6 +499,10 @@ int applet_rshell_main(int argc, char **argv)
             json_string_main(stdout, BB_RSHELL_RETRY_BACKOFF);
             printf(",\"max_interval_sec\":");
             json_string_main(stdout, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+            printf(",\"pre_connect_count\":");
+            json_string_main(stdout, BB_RSHELL_RETRY_COUNT);
+            printf(",\"post_disconnect_count\":");
+            json_string_main(stdout, post_success_retry_count());
             printf("}");
             printf(",\"runtime_config\":");
             bb_config_print_runtime_summary_json(stdout, json_string_main);
@@ -665,6 +708,10 @@ int applet_rshell_main(int argc, char **argv)
         fprintf(stderr, "rshell: unsupported transport '%s' (supported: ssh, socat, builtin)\n", transport);
         return 2;
     }
+    if (!valid_session_policy()) {
+        fprintf(stderr, "rshell: unsupported session policy '%s' (supported: single, reconnect, persistent)\n", BB_RSHELL_SESSION_POLICY);
+        return 2;
+    }
     if (!strcmp(transport, "none")) {
         fputs("rshell: reverse shell is disabled in this build (BB_RSHELL_TRANSPORT=none)\n", stderr);
         return 1;
@@ -676,13 +723,25 @@ int applet_rshell_main(int argc, char **argv)
     if (!strcmp(transport, "builtin")) {
 #ifdef HAVE_WOLFSSL
         if (!strcmp(BB_RSHELL_ENCRYPTION, "tls") || !strcmp(BB_BUILTIN_TLS_ENABLE, "yes")) {
-            int attempt;
+            int initial_attempt = 0;
+            int reconnect_attempt = 0;
+            int connected_once = 0;
             select_rshell_shell(shell_cmd, sizeof(shell_cmd), NULL);
-            for (attempt = 0; ; attempt++) {
+            for (;;) {
                 rc = rshell_builtin_tls(BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT, shell_cmd);
-                if (rc == 0 || !should_retry_after_attempt(attempt))
+                if (rc == 0)
+                    connected_once = 1;
+                if (!connected_once) {
+                    if (!should_retry_after_attempt(initial_attempt))
+                        return rc;
+                    sleep((unsigned int)retry_delay_for_attempt(initial_attempt));
+                    initial_attempt++;
+                    continue;
+                }
+                if (!should_reconnect_after_success(reconnect_attempt))
                     return rc;
-                sleep((unsigned int)retry_delay_for_attempt(attempt));
+                sleep((unsigned int)retry_delay_for_attempt(reconnect_attempt));
+                reconnect_attempt++;
             }
         }
         fputs("rshell: builtin transport with encryption=none is not implemented\n", stderr);
@@ -774,17 +833,32 @@ int applet_rshell_main(int argc, char **argv)
             strcat(cmd, ",pty,stderr,setsid,sigint,sane");
             }
         }
-        for (i = 0; ; i++) {
-            rc = system(cmd);
-            if (rc == -1)
-                rc = 1;
-            else if (WIFEXITED(rc))
-                rc = WEXITSTATUS(rc);
-            else
-                rc = 1;
-            if (rc == 0 || !should_retry_after_attempt(i))
-                return rc;
-            sleep((unsigned int)retry_delay_for_attempt(i));
+        {
+            int initial_attempt = 0;
+            int reconnect_attempt = 0;
+            int connected_once = 0;
+            for (;;) {
+                rc = system(cmd);
+                if (rc == -1)
+                    rc = 1;
+                else if (WIFEXITED(rc))
+                    rc = WEXITSTATUS(rc);
+                else
+                    rc = 1;
+                if (rc == 0)
+                    connected_once = 1;
+                if (!connected_once) {
+                    if (!should_retry_after_attempt(initial_attempt))
+                        return rc;
+                    sleep((unsigned int)retry_delay_for_attempt(initial_attempt));
+                    initial_attempt++;
+                    continue;
+                }
+                if (!should_reconnect_after_success(reconnect_attempt))
+                    return rc;
+                sleep((unsigned int)retry_delay_for_attempt(reconnect_attempt));
+                reconnect_attempt++;
+            }
         }
     }
 
@@ -966,10 +1040,12 @@ int applet_rshell_main(int argc, char **argv)
             if (lfd >= 0) {
                 dprintf(lfd,
                     "state=active\ntransport=%s\nencryption=%s\n"
+                    "run_mode=%s\nsession_policy=%s\n"
                     "dropbear_pid=%ld\ndbclient_pid=%ld\n"
                     "connect_hint=ssh -p %s root@127.0.0.1\n"
                     "started_at=%ld\n",
                     transport, BB_RSHELL_ENCRYPTION,
+                    BB_RSHELL_RUN_MODE, BB_RSHELL_SESSION_POLICY,
                     dropbear_pid, dbclient_pid,
                     BB_OPERATOR_REMOTE_FORWARD_PORT,
                     (long)now);

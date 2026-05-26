@@ -157,6 +157,7 @@ static void plan_print_rshell(int json)
         fputs(",\"transport\":", stdout); bb_json_string(stdout, BB_RSHELL_TRANSPORT);
         fputs(",\"encryption\":", stdout); bb_json_string(stdout, BB_RSHELL_ENCRYPTION);
         fputs(",\"run_mode\":", stdout); bb_json_string(stdout, BB_RSHELL_RUN_MODE);
+        fputs(",\"session_policy\":", stdout); bb_json_string(stdout, BB_RSHELL_SESSION_POLICY);
         fputs(",\"shell_provider\":", stdout); bb_json_string(stdout, BB_RSHELL_SHELL_PROVIDER);
         fputs(",\"operator_host\":", stdout); bb_json_string(stdout, BB_OPERATOR_SERVER_HOST);
         fputs(",\"expected_transport_behavior\":", stdout); bb_json_string(stdout, connect);
@@ -173,6 +174,7 @@ static void plan_print_rshell(int json)
     printf("transport=%s\n", BB_RSHELL_TRANSPORT);
     printf("encryption=%s\n", BB_RSHELL_ENCRYPTION);
     printf("run_mode=%s\n", BB_RSHELL_RUN_MODE);
+    printf("session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
     printf("shell_provider=%s\n", BB_RSHELL_SHELL_PROVIDER);
     printf("operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
     printf("expected_transport_behavior=%s\n", connect);

@@ -21,6 +21,7 @@ The command is read-only. It reports:
 - paths it would create, modify, or remove
 - processes or transports it would start
 - operator endpoints it would connect to
+- rshell session policy (`single`, `reconnect`, or `persistent`)
 - whether real-root external writes would be required
 - runtime root and cleanup ledger paths
 - no-residue cleanup implications where relevant
