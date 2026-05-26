@@ -809,6 +809,16 @@ def main():
                 upload_doc.get("summary", {}).get("event_count", 0) < 1):
             print("server json status missing aggregate upload/session/event counts", file=sys.stderr)
             return 1
+        upload_item = (upload_doc.get("uploads") or [{}])[0]
+        if (upload_item.get("metadata_path") != str(metadata_path) or
+                upload_item.get("stored_exists") is not True or
+                upload_item.get("session_id") != session_json_paths[0].parent.name or
+                upload_item.get("session_path") != str(session_json_paths[0].parent) or
+                upload_item.get("sha256_prefix") != metadata.get("sha256", "")[:12] or
+                upload_item.get("status") != "ok"):
+            print("server json status missing upload browser metadata", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         upload_session = (upload_doc.get("sessions") or [{}])[0]
         if (upload_session.get("upload_count") != 1 or
                 upload_session.get("event_count", 0) < 1 or
@@ -833,6 +843,8 @@ def main():
                 "file-service:upload_complete" not in upload_status_text.stdout or
                 "Command queue:" not in upload_status_text.stdout or
                 "uploads=1" not in upload_status_text.stdout or
+                "stored_exists=True" not in upload_status_text.stdout or
+                "session:" not in upload_status_text.stdout or
                 "metadata:" not in upload_status_text.stdout or
                 "event_log:" not in upload_status_text.stdout):
             print("text --status missing event log or command queue section", file=sys.stderr)
@@ -857,6 +869,8 @@ def main():
                 "tls_cert:" not in uploads_view.stdout or
                 "Event log" not in uploads_view.stdout or
                 "uploads=1" not in uploads_view.stdout or
+                "stored_exists: True" not in uploads_view.stdout or
+                "session:" not in uploads_view.stdout or
                 "./busierbox put /etc/config/network" not in uploads_view.stdout):
             print("workbench did not show received upload metadata", file=sys.stderr)
             print(uploads_view.stdout, file=sys.stderr)

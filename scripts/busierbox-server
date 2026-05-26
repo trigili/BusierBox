@@ -681,7 +681,14 @@ def recent_upload_metadata(cfg, limit=8):
     for path in metas[:limit]:
         data = read_json_file(path, {})
         if isinstance(data, dict):
+            stored_path = data.get("stored_path", "")
+            data["metadata_path"] = str(path)
             data["_metadata_path"] = str(path)
+            data["session_path"] = str(path.parent.parent)
+            data["session_id"] = path.parent.parent.name
+            data["stored_exists"] = Path(str(stored_path)).is_file() if stored_path else False
+            data["sha256_prefix"] = str(data.get("sha256", ""))[:12]
+            data["status"] = data.get("transfer_status", data.get("status", ""))
             out.append(data)
     return out
 
@@ -2481,7 +2488,11 @@ def print_status(cfg, json_output=False):
     print("Recent uploads:")
     if doc["uploads"]:
         for meta in doc["uploads"]:
-            print(f"  {meta.get('filename', '')} size={meta.get('size', '')} metadata={meta.get('_metadata_path', '')}")
+            print(f"  {meta.get('filename', '')} size={meta.get('size', '')} sha256={meta.get('sha256_prefix', '')} status={meta.get('status', '')} stored_exists={meta.get('stored_exists', False)}")
+            print(f"    source: {meta.get('source_path', '')}")
+            print(f"    stored: {meta.get('stored_path', '')}")
+            print(f"    metadata: {meta.get('metadata_path', meta.get('_metadata_path', ''))}")
+            print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
     else:
         print("  none")
     print("")
@@ -2629,7 +2640,9 @@ def print_workbench(cfg):
             print(f"    source: {meta.get('source_path', '')}")
             print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
             print(f"    stored: {meta.get('stored_path', '')}")
-            print(f"    metadata: {meta.get('_metadata_path', '')}")
+            print(f"    metadata: {meta.get('metadata_path', meta.get('_metadata_path', ''))}")
+            print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
+            print(f"    stored_exists: {meta.get('stored_exists', False)}")
     else:
         print("  none")
     print("")
@@ -2835,7 +2848,7 @@ def run_curses_tui(cfg):
             return rec.get("source_path", "")
         if pane == 2 and snap["uploads"]:
             rec = snap["uploads"][min(selected, len(snap["uploads"]) - 1)]
-            return rec.get("_metadata_path") or rec.get("stored_path") or ""
+            return rec.get("metadata_path") or rec.get("_metadata_path") or rec.get("stored_path") or ""
         if pane == 3 and snap["sessions"]:
             rec = snap["sessions"][min(selected, len(snap["sessions"]) - 1)]
             return rec.get("path", "")
@@ -2863,7 +2876,7 @@ def run_curses_tui(cfg):
             services = [row["status_row"] for row in snap["services"].values()]
             staged_names = sorted(snap["staged"])
             upload_lines = [
-                f"{'>' if pane == 2 and idx == selected else ' '} {m.get('filename', '')} {m.get('size', '')}B {str(m.get('sha256', ''))[:8]} {m.get('remote_addr', '')}"
+                f"{'>' if pane == 2 and idx == selected else ' '} {m.get('filename', '')} {m.get('size', '')}B {m.get('sha256_prefix', str(m.get('sha256', ''))[:12])} status={m.get('status', '')}"
                 for idx, m in enumerate(snap["uploads"])
             ] or ["none"]
             session_lines = [
@@ -2941,7 +2954,11 @@ def run_curses_tui(cfg):
                     f"upload: {rec.get('filename', '')}",
                     f"source: {rec.get('source_path', '')}",
                     f"stored: {rec.get('stored_path', '')}",
-                    f"metadata: {rec.get('_metadata_path', '')}",
+                    f"metadata: {rec.get('metadata_path', rec.get('_metadata_path', ''))}",
+                    f"session: {rec.get('session_id', '')}",
+                    f"session_path: {rec.get('session_path', '')}",
+                    f"stored_exists: {rec.get('stored_exists', False)}",
+                    f"sha256: {rec.get('sha256', '')}",
                     f"remote: {rec.get('remote_addr', '')}",
                     "v opens metadata in pager",
                 ]
