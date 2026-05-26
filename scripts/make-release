@@ -1159,6 +1159,23 @@ def manifest_text_for_tuple(tuple_info, records, include_missing=False):
         reverse = summary.get("reverse_access") or {}
         lines.append("  reverse_access_defaults=" + json.dumps(reverse, sort_keys=True))
         lines.append("  trailer_overridable_fields=" + ", ".join(summary.get("trailer_overridable_fields") or []))
+    if records:
+        example = records[0].get("tuple_artifact") or records[0].get("artifact", "bin/busierbox-...-full")
+        example_name = pathlib.Path(example).name
+        lines.extend([
+            "",
+            "Tuple quickstart:",
+            f"- choose_artifact: scripts/release-find --payload-preset {records[0].get('payload_preset', '')}",
+            f"- configure_trailer: scripts/configure-artifact {example} --operator-host 192.168.8.241 --transport builtin --shell-port 22203",
+            "- verify_checksums: scripts/verify-checksums --configured",
+            f"- first_contact: ./{example_name} survey --json",
+            f"- manifest: ./{example_name} manifest --json",
+            f"- doctor: ./{example_name} doctor",
+            f"- rshell_status: ./{example_name} rshell status --json",
+            f"- cleanup_ledger: ./{example_name} cleanup-ledger --json",
+            f"- clean_dry_run: ./{example_name} clean --dry-run",
+            f"- recovery_plan: ./{example_name} persistence --plan",
+        ])
     lines.append("")
     return "\n".join(lines)
 

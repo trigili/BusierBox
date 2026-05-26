@@ -259,7 +259,20 @@ for key in ("payload_preset", "runtime_mode", "payload_manifest", "native_applet
 if "missing_tools" in summary or "missing_tool_reasons" in summary:
     raise SystemExit("tuple manifest should default to positive inventory only")
 text = open(sys.argv[2], "r", encoding="utf-8").read()
-for needle in ("Payload variants:", "payload_manifest=", "busybox_applets=", "core_extraction=", "trailer_overridable_fields=", "reverse_access_defaults="):
+for needle in (
+    "Payload variants:",
+    "payload_manifest=",
+    "busybox_applets=",
+    "core_extraction=",
+    "trailer_overridable_fields=",
+    "reverse_access_defaults=",
+    "Tuple quickstart:",
+    "configure_trailer:",
+    "first_contact:",
+    "rshell_status:",
+    "cleanup_ledger:",
+    "recovery_plan:",
+):
     if needle not in text:
         raise SystemExit(f"tuple MANIFEST.txt missing {needle}")
 if "missing_tools=" in text:
