@@ -1,0 +1,27 @@
+{
+  "name": "iot-lab",
+  "version": "2026.05.25",
+  "targets": [
+    "glinet-mt7621-openwrt-musl",
+    "mipsel-linux-4.x-musl",
+    "mipsel-linux-2.6-uclibc-legacy",
+    "armv7-linux-3.x-musl"
+  ],
+  "payload_presets": [
+    "survey-core",
+    "default",
+    "builtin-core-shell",
+    "ssh-operator"
+  ],
+  "configs": [],
+  "formats": [
+    "tgz"
+  ],
+  "include": {
+    "artifact_config_helper": true,
+    "config_examples": true,
+    "checksums": true,
+    "manifest": true,
+    "docs": true
+  }
+}
