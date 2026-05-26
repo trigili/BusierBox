@@ -50,10 +50,13 @@ for key in ["enabled", "transport", "operator_host_set", "server_listener", "con
         raise SystemExit(f"doctor rshell readiness missing {key}")
 if not isinstance(data["rshell_readiness"]["warnings"], list):
     raise SystemExit("doctor rshell warnings must be a list")
-if data["runtime_config"].get("effective_config_source") not in {"compiled", "trailer", "env"}:
+if data["runtime_config"].get("effective_config_source") not in {"compiled", "trailer", "env", "cli"}:
     raise SystemExit("doctor runtime config source missing")
 if "trailer_override" not in data["runtime_config"]:
     raise SystemExit("doctor runtime trailer state missing")
+for key in ["environment_override_count", "cli_override_count"]:
+    if key not in data["runtime_config"]:
+        raise SystemExit(f"doctor runtime config missing {key}")
 if "path" not in data["cleanup_ledger"] or "entry_count" not in data["cleanup_ledger"]:
     raise SystemExit("doctor cleanup ledger state missing")
 PY
