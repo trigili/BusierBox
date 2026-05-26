@@ -5,6 +5,13 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 TARGET_MATRIX=${1:-"$ROOT/tests/matrix/targets.example.json"}
 SYSTEM_MATRIX=${2:-"$ROOT/tests/matrix/environments.example.json"}
 
+grep -q '^test-qemu-user: package-native$' "$ROOT/Makefile"
+grep -q '^test-qemu-system:$' "$ROOT/Makefile"
+if grep -q '^test-qemu-\(user\|system\): package$' "$ROOT/Makefile"; then
+    printf '%s\n' "qemu-matrix: QEMU tests must not build the active configured target before matrix skips" >&2
+    exit 1
+fi
+
 if ! command -v python3 >/dev/null 2>&1; then
     printf '%s\n' "skip: python3 qemu matrix smoke unavailable"
     exit 0

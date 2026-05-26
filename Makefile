@@ -155,10 +155,10 @@ smoke-test:
 	  cd - >/dev/null && rm -rf "$$_bbx_tmp"
 	@printf '%s\n' "smoke-test ok"
 
-test-qemu-user: package
+test-qemu-user: package-native
 	@tests/qemu-user/run-qemu-user-matrix
 
-test-qemu-system: package
+test-qemu-system:
 	@tests/qemu-system/run-qemu-system-matrix
 
 test-glinet:
