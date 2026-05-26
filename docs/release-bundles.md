@@ -27,7 +27,9 @@ Each release contains:
   `README.txt`, `notes.md`, and an `artifacts` pointer to the canonical tuple.
 - `scripts/`: copied `artifact-config` plus wrapper helpers, release
   self-test, index, and finder tools.
-- `docs/`: release and runtime override notes.
+- `docs/`: release, licensing, and runtime override notes.
+- `LICENSE` and `NOTICE`: BusierBox GPL license text and short project license
+  notice.
 - `release.json`: build status, commit, safe build-host metadata, source-lock summary, selected matrix, artifact paths, canonical tuple paths, device aliases, checksums, and failures.
 - `release-index.json`: searchable index for artifacts, tuples, devices,
   payload presets, present tools, reverse-access capabilities, and trailer

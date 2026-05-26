@@ -1068,6 +1068,10 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
     script_dir.mkdir(parents=True, exist_ok=True)
     doc_dir.mkdir(parents=True, exist_ok=True)
     config_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("LICENSE", "NOTICE"):
+        src = ROOT / name
+        if src.exists():
+            shutil.copy2(src, release_dir / name)
     shutil.copy2(ROOT / "scripts" / "artifact-config", script_dir / "artifact-config")
     (script_dir / "artifact-config").chmod(0o755)
     shutil.copy2(ROOT / "scripts" / "busierbox-server", script_dir / "busierbox-server")
@@ -1082,6 +1086,7 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
         "cleanup-ledger.md",
         "command-queue.md",
         "gdbserver-workflow.md",
+        "licensing.md",
         "manifest.md",
         "recovery.md",
         "survey-and-bringup.md",
