@@ -10,7 +10,6 @@
 #include <unistd.h>
 
 #include "applets.h"
-#include "json_helpers.h"
 #include "payload_runtime.h"
 #include "runtime_config.h"
 #include "sha256.h"
@@ -334,19 +333,12 @@ void bb_print_autoexec_config(void)
     printf("operator_reverse_ssh_catch_hint=ssh -p %s root@127.0.0.1\n", BB_OPERATOR_REMOTE_FORWARD_PORT);
 }
 
-static int is_help(int argc, char **argv)
-{
-    return argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"));
-}
-
 static const char *saved_argv0;
 
 void bb_set_argv0(const char *argv0)
 {
     saved_argv0 = argv0;
 }
-
-#define json_string_payload bb_json_string
 
 static int read_exe_dir(char *out, size_t outsz)
 {
@@ -489,7 +481,7 @@ static void payload_mode_path(char *out, size_t outsz, const char *payload)
     snprintf(out, outsz, "%s/%s", payload, BBX_PAYLOAD_MODE_FILE);
 }
 
-static int payload_is_full(const char *payload)
+int bb_payload_is_full(const char *payload)
 {
     char path[PATH_MAX], mode[32];
     payload_mode_path(path, sizeof(path), payload);
@@ -586,7 +578,7 @@ static int candidate_payload(char *out, size_t outsz)
     return -1;
 }
 
-static int archive_path(char *out, size_t outsz)
+int bb_payload_archive_path(char *out, size_t outsz)
 {
     char exe_dir[PATH_MAX], path[PATH_MAX];
 
@@ -706,7 +698,7 @@ int bb_payload_id_matches(const struct embedded_payload *ep, const char *payload
            strcmp(found_format, ep->format) == 0;
 }
 
-static int extract_embedded_to_root(const struct embedded_payload *ep, const char *root, int core_only)
+int bb_extract_embedded_to_root(const struct embedded_payload *ep, const char *root, int core_only)
 {
     char lock[PATH_MAX], tmp[PATH_MAX], final[PATH_MAX], extracted[PATH_MAX];
     FILE *fp;
@@ -726,7 +718,7 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
         if (errno != EEXIST)
             return -1;
         sleep(1);
-        if (bb_payload_valid(final) && (core_only || payload_is_full(final)))
+        if (bb_payload_valid(final) && (core_only || bb_payload_is_full(final)))
             return 0;
         if (++waits > 30) {
             rmdir(lock);
@@ -780,7 +772,7 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
     return 0;
 }
 
-static int extract_archive_file_to_root(const char *archive, const char *root, int core_only)
+int bb_extract_archive_file_to_root(const char *archive, const char *root, int core_only)
 {
     struct embedded_payload ep;
     FILE *fp;
@@ -842,7 +834,7 @@ int bb_ensure_payload_mode(char *payload, size_t payloadsz, int require_full)
             fprintf(stderr, "busierbox: extracted payload is from a different binary; re-extracting...\n");
             bb_rm_rf(payload);
             /* fall through to extract */
-        } else if (require_full && !payload_is_full(payload)) {
+        } else if (require_full && !bb_payload_is_full(payload)) {
             fprintf(stderr, "busierbox: upgrading core payload extraction to full payload...\n");
             bb_rm_rf(payload);
             /* fall through to extract */
@@ -853,18 +845,18 @@ int bb_ensure_payload_mode(char *payload, size_t payloadsz, int require_full)
     if (bb_choose_extract_root(root, sizeof(root)) != 0)
         return -1;
     if (have_ep) {
-        if (extract_embedded_to_root(&ep, root, !require_full) != 0)
+        if (bb_extract_embedded_to_root(&ep, root, !require_full) != 0)
             return -1;
     } else {
-        if (archive_path(archive, sizeof(archive)) != 0)
+        if (bb_payload_archive_path(archive, sizeof(archive)) != 0)
             return -1;
         fprintf(stderr, "busierbox: warning: using dev-only external payload archive fallback: %s\n", archive);
-        if (extract_archive_file_to_root(archive, root, !require_full) != 0)
+        if (bb_extract_archive_file_to_root(archive, root, !require_full) != 0)
             return -1;
     }
     bb_write_artifact_manifest_file(root);
     snprintf(payload, payloadsz, "%s/payload", root);
-    return bb_payload_valid(payload) && (!require_full || payload_is_full(payload)) ? 0 : -1;
+    return bb_payload_valid(payload) && (!require_full || bb_payload_is_full(payload)) ? 0 : -1;
 }
 
 static int ensure_payload(char *payload, size_t payloadsz)
@@ -891,7 +883,7 @@ int bb_embedded_payload_available(void)
 int bb_dev_payload_archive_available(void)
 {
     char archive[PATH_MAX];
-    return archive_path(archive, sizeof(archive)) == 0;
+    return bb_payload_archive_path(archive, sizeof(archive)) == 0;
 }
 
 int bb_payload_tool_is_heavy(const char *name)
@@ -900,62 +892,5 @@ int bb_payload_tool_is_heavy(const char *name)
     for (i = 0; heavy_tools[i]; i++)
         if (!strcmp(name, heavy_tools[i]))
             return 1;
-    return 0;
-}
-
-int applet_extract_main(int argc, char **argv)
-{
-    char payload[PATH_MAX], archive[PATH_MAX], root[PATH_MAX];
-    struct embedded_payload ep;
-    int i, force = 0;
-
-    for (i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], "--force"))
-            force = 1;
-    }
-    if (is_help(argc, argv)) {
-        puts("usage: busierbox extract [--force]");
-        puts("Extracts embedded payload into a writable runtime directory.");
-        puts("  --force  Remove any existing extracted payload before extracting.");
-        return 0;
-    }
-    if (force) {
-        char old_payload[PATH_MAX];
-        if (candidate_payload(old_payload, sizeof(old_payload)) == 0) {
-            printf("extract: removing existing payload at %s\n", old_payload);
-            bb_rm_rf(old_payload);
-        }
-    }
-    if (!force && candidate_payload(payload, sizeof(payload)) == 0 && payload_is_full(payload)) {
-        printf("payload: reuse %s\n", payload);
-        return 0;
-    }
-    if (bb_choose_extract_root(root, sizeof(root)) != 0) {
-        fprintf(stderr, "extract: no writable executable runtime directory found\n");
-        return 1;
-    }
-    if (bb_get_embedded_payload(&ep) == 0) {
-        if (extract_embedded_to_root(&ep, root, 0) != 0) {
-            fprintf(stderr, "extract: embedded payload extraction failed\n");
-            return 1;
-        }
-    } else {
-        if (archive_path(archive, sizeof(archive)) != 0) {
-            fprintf(stderr, "extract: no embedded payload found and no dev fallback archive found\n");
-            return 1;
-        }
-        fprintf(stderr, "extract: warning: using dev-only external payload archive fallback: %s\n", archive);
-        if (extract_archive_file_to_root(archive, root, 0) != 0) {
-            fprintf(stderr, "extract: archive extraction failed for %s\n", archive);
-            return 1;
-        }
-    }
-    snprintf(payload, sizeof(payload), "%s/payload", root);
-    if (!bb_payload_valid(payload)) {
-        fprintf(stderr, "extract: extracted payload failed validation\n");
-        return 1;
-    }
-    bb_write_artifact_manifest_file(root);
-    printf("payload: extracted %s\n", payload);
     return 0;
 }
