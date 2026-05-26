@@ -946,7 +946,9 @@ def ensure_host_key(path):
 
 
 class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
-    def __init__(self, authorized_key, forward_host, forward_port):
+    def __init__(self, cfg, session_dir, authorized_key, forward_host, forward_port):
+        self.cfg = cfg
+        self.session_dir = session_dir
         self.authorized_key = authorized_key
         self.forward_host = forward_host
         self.forward_port = forward_port
@@ -989,6 +991,18 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
         self.start_forward_listener()
         print(f"Reverse SSH forward active: {address}:{requested}")
         print(f"Connect with: ssh -p {requested} root@127.0.0.1")
+        append_event(
+            self.cfg,
+            "ssh",
+            "reverse_forward_active",
+            session=str(self.session_dir),
+            details={
+                "requested_address": address,
+                "requested_port": requested,
+                "forward_host": str(self.forward_host),
+                "forward_port": int(self.forward_port),
+            },
+        )
         return requested
 
     def check_channel_direct_tcpip_request(self, chanid, origin, destination):
@@ -1156,7 +1170,7 @@ def serve_ssh(cfg, timeout):
         # doesn't implement, so we must pin to avoid an impossible negotiation.
         _sec = transport.get_security_options()
         _sec.kex = ("diffie-hellman-group14-sha256",)
-        server = ReverseSSHServer(authorized, cfg["forward_host"], cfg["forward_port"])
+        server = ReverseSSHServer(cfg, log_dir, authorized, cfg["forward_host"], cfg["forward_port"])
         server.set_transport(transport)
         transport.start_server(server=server)
         while not SHUTDOWN.is_set() and transport.is_active():

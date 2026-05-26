@@ -120,6 +120,10 @@ def main():
         if word not in src:
             print(f"busierbox-server: file service feature missing: {word}", file=sys.stderr)
             return 1
+    for word in ("reverse_forward_active", "requested_port", "forward_host"):
+        if word not in src:
+            print(f"busierbox-server: reverse forward event missing: {word}", file=sys.stderr)
+            return 1
 
     with tempfile.TemporaryDirectory() as tmp:
         cert_path = Path(tmp) / "shell-server.crt"
