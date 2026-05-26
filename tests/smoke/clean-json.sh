@@ -43,6 +43,30 @@ PY
 
     ./busierbox extract >/dev/null
     test -d .busierbox/payload
+    ./busierbox cleanup-ledger --json >ledger-after-extract.json
+    python3 -m json.tool ledger-after-extract.json >/dev/null
+    python3 - ledger-after-extract.json <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if doc.get("schema") != 1:
+    raise SystemExit("cleanup ledger json schema missing")
+if not doc.get("path", "").endswith("cleanup-ledger.jsonl"):
+    raise SystemExit("cleanup ledger path missing")
+entries = doc.get("entries")
+if not isinstance(entries, list) or not entries:
+    raise SystemExit("cleanup ledger entries missing after extract")
+details = "\n".join(item.get("detail", "") for item in entries if isinstance(item, dict))
+ops = {item.get("op") for item in entries if isinstance(item, dict)}
+scopes = {item.get("scope") for item in entries if isinstance(item, dict)}
+if "embedded payload extracted" not in details:
+    raise SystemExit("cleanup ledger missing extraction detail")
+if "extract" not in ops or "write" not in ops:
+    raise SystemExit("cleanup ledger missing extract/write operations")
+if "payload" not in scopes:
+    raise SystemExit("cleanup ledger missing payload scope")
+PY
     ./busierbox clean --ledger --json >clean.json
     python3 -m json.tool clean.json >/dev/null
     python3 - clean.json <<'PY'
