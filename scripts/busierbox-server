@@ -13,6 +13,7 @@ Transport model:
 import argparse
 import atexit
 import base64
+import itertools
 import hashlib
 import json
 import os
@@ -43,6 +44,7 @@ SHUTDOWN_REASON = ""
 OWNED_SOCKETS = []
 OWNED_TRANSPORTS = []
 RECORDED_SHUTDOWNS = set()
+EVENT_COUNTER = itertools.count(1)
 
 
 DEFAULT_CONFIG = Path("local/server-config.json")
@@ -98,15 +100,19 @@ def read_json_file(path, fallback):
 
 def append_event(cfg, service, event, level="info", session=None, remote=None, details=None):
     session_id = ""
+    session_path_text = ""
     session_path = None
     if session:
         session_path = Path(str(session))
         session_id = session_path.name
+        session_path_text = str(session_path)
     record = {
         "schema": 1,
+        "id": f"evt-{os.getpid()}-{next(EVENT_COUNTER)}",
         "ts": utc_now(),
         "service": service,
         "session": session_id,
+        "session_path": session_path_text,
         "event": event,
         "level": level,
         "remote": remote or "",

@@ -631,10 +631,19 @@ def main():
         if any(event.get("session") != session_doc.get("session_id") for event in session_events):
             print("session event records should carry the session id, not an empty/path value", file=sys.stderr)
             return 1
+        if any(not event.get("id") or not event.get("session_path") for event in session_events):
+            print("session event records should carry stable ids and session paths", file=sys.stderr)
+            return 1
+        if any(event.get("session_path") != str(session_json_paths[0].parent) for event in session_events):
+            print("session event records should carry the exact session path", file=sys.stderr)
+            return 1
         global_events_path = upload_operator_dir / "events.jsonl"
         global_events = [json.loads(line) for line in global_events_path.read_text(encoding="utf-8").splitlines()]
         if "upload_complete" not in {event.get("event") for event in global_events}:
             print("global operator event log missing upload_complete", file=sys.stderr)
+            return 1
+        if any(not event.get("id") for event in global_events):
+            print("global operator event log entries should carry stable ids", file=sys.stderr)
             return 1
         upload_state = json.loads((upload_operator_dir / "server-state.json").read_text(encoding="utf-8"))
         if not any(item.get("session_id") == session_doc.get("session_id") for item in upload_state.get("sessions", [])):
