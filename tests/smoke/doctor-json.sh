@@ -15,7 +15,7 @@ import sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-for key in ["schema", "embedded_payload", "extracted_payload", "extraction_runtime", "payload_manifest", "payload_inventory", "payload_runtime_health", "manifest_summary", "rshell_readiness", "runtime_config", "cleanup_ledger", "environment", "host", "artifact"]:
+for key in ["schema", "embedded_payload", "extracted_payload", "extraction_runtime", "payload_manifest", "payload_inventory", "payload_runtime_health", "manifest_summary", "rshell_readiness", "runtime_config", "cleanup_ledger", "noresidue_policy", "environment", "host", "artifact"]:
     if key not in data:
         raise SystemExit(f"missing doctor key: {key}")
 if "present" not in data["embedded_payload"]:
@@ -60,6 +60,15 @@ for key in ["environment_override_count", "cli_override_count"]:
         raise SystemExit(f"doctor runtime config missing {key}")
 if "path" not in data["cleanup_ledger"] or "entry_count" not in data["cleanup_ledger"]:
     raise SystemExit("doctor cleanup ledger state missing")
+noresidue = data["noresidue_policy"]
+if noresidue.get("forensic_no_trace") is not False:
+    raise SystemExit("doctor no-residue policy must reject forensic no-trace claims")
+if noresidue.get("best_effort") is not True:
+    raise SystemExit("doctor no-residue policy must report best-effort cleanup")
+if noresidue.get("external_writes_require_explicit_apply") is not True:
+    raise SystemExit("doctor no-residue policy must require explicit external apply")
+if "BusierBox-owned runtime roots" not in noresidue.get("cleanup_scope", ""):
+    raise SystemExit("doctor no-residue policy cleanup scope missing")
 environment = data["environment"]
 for key in ["path_has_duplicates", "home_set", "shell_set"]:
     if not isinstance(environment.get(key), bool):

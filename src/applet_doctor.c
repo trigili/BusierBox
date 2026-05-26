@@ -143,6 +143,39 @@ static void print_doctor_payload_inventory_json(FILE *out, const char *manifest,
     fprintf(out, "}");
 }
 
+static void print_noresidue_policy_json(FILE *out)
+{
+    int active = !strcmp(BB_RUNTIME_MODE, "no-residue");
+    int aggressive = !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+
+    fprintf(out, "{\"active\":%s,\"level\":", active ? "true" : "false");
+    json_string_payload(out, BB_NORESIDUE_LEVEL);
+    fprintf(out, ",\"cleanup_scope\":\"BusierBox-owned runtime roots and ledgered files only\"");
+    fprintf(out, ",\"best_effort\":true");
+    fprintf(out, ",\"aggressive_minimizes_runtime_residue\":%s", aggressive ? "true" : "false");
+    fprintf(out, ",\"forensic_no_trace\":false");
+    fprintf(out, ",\"external_writes_require_explicit_apply\":true");
+    fprintf(out, ",\"guarantee\":");
+    json_string_payload(out, aggressive ?
+        "aggressive minimizes BusierBox runtime residue but cannot guarantee absence of residue" :
+        "best-effort cleanup removes owned runtime state where reasonable");
+    fprintf(out, "}");
+}
+
+static void print_noresidue_policy_text(void)
+{
+    int active = !strcmp(BB_RUNTIME_MODE, "no-residue");
+    int aggressive = !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+
+    printf("noresidue_active=%s\n", active ? "yes" : "no");
+    printf("noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
+    puts("noresidue_cleanup_scope=BusierBox-owned runtime roots and ledgered files only");
+    puts("noresidue_best_effort=yes");
+    printf("noresidue_aggressive_minimizes_runtime_residue=%s\n", aggressive ? "yes" : "no");
+    puts("noresidue_forensic_no_trace=no");
+    puts("noresidue_external_writes_require_explicit_apply=yes");
+}
+
 int applet_doctor_main(int argc, char **argv)
 {
     const char *const *busybox_tools = bb_payload_busybox_tools();
@@ -244,6 +277,8 @@ int applet_doctor_main(int argc, char **argv)
             bb_config_print_runtime_summary_json(stdout, json_string_payload);
             printf(",\"cleanup_ledger\":");
             bb_print_cleanup_ledger_json(stdout, json_string_payload);
+            printf(",\"noresidue_policy\":");
+            print_noresidue_policy_json(stdout);
             printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s",
                    bb_path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
                    getenv("HOME") && *getenv("HOME") ? "true" : "false",
@@ -315,6 +350,8 @@ int applet_doctor_main(int argc, char **argv)
             bb_config_print_runtime_summary_json(stdout, json_string_payload);
             printf(",\"cleanup_ledger\":");
             bb_print_cleanup_ledger_json(stdout, json_string_payload);
+            printf(",\"noresidue_policy\":");
+            print_noresidue_policy_json(stdout);
             printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s}",
                    bb_path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
                    getenv("HOME") && *getenv("HOME") ? "true" : "false",
@@ -417,6 +454,7 @@ int applet_doctor_main(int argc, char **argv)
     printf("path_has_duplicates=%s\n", bb_path_has_duplicate_entries(getenv("PATH")) ? "yes" : "no");
     printf("home_set=%s\n", getenv("HOME") && *getenv("HOME") ? "yes" : "no");
     printf("shell_set=%s\n", getenv("SHELL") && *getenv("SHELL") ? "yes" : "no");
+    print_noresidue_policy_text();
 
     if (bb_choose_extract_root(root, sizeof(root)) == 0) {
         printf("extract_root_writable_executable=yes\n");

@@ -110,6 +110,25 @@ mkdir "$run"
     cd "$run"
     ../busierbox-no-residue-aggressive config-info >config-info.out
     grep -q '^effective_noresidue_level=aggressive$' config-info.out
+    ../busierbox-no-residue-aggressive doctor >doctor.out
+    grep -q '^noresidue_active=yes$' doctor.out
+    grep -q '^noresidue_level=aggressive$' doctor.out
+    grep -q '^noresidue_aggressive_minimizes_runtime_residue=yes$' doctor.out
+    grep -q '^noresidue_forensic_no_trace=no$' doctor.out
+    grep -q '^noresidue_external_writes_require_explicit_apply=yes$' doctor.out
+    ../busierbox-no-residue-aggressive doctor --json | python3 -m json.tool >doctor.json
+    python3 - doctor.json <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+policy = doc["noresidue_policy"]
+assert policy["active"] is True
+assert policy["level"] == "aggressive"
+assert policy["aggressive_minimizes_runtime_residue"] is True
+assert policy["forensic_no_trace"] is False
+assert policy["external_writes_require_explicit_apply"] is True
+PY
     ../busierbox-no-residue-aggressive manifest --json | python3 -m json.tool >manifest.json
     grep -q '"noresidue_level": "aggressive"' manifest.json
     ../busierbox-no-residue-aggressive plan extract --json | python3 -m json.tool >plan.json
