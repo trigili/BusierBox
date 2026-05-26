@@ -2330,6 +2330,20 @@ def print_workbench(cfg):
     print(f"Current time: {utc_now()}")
     print(f"Selected local IP: {snap['selected_local_ip']}")
     print("")
+    print("Operator paths:")
+    paths = snap.get("paths") or {}
+    for label, key in (
+        ("state_file", "state_file"),
+        ("staged_files", "staged_files"),
+        ("command_queue_file", "command_queue_file"),
+        ("command_copy_file", "command_copy_file"),
+        ("event_log", "event_log"),
+        ("session_root", "session_root"),
+    ):
+        print(f"  {label}: {paths.get(key, snap.get(key, ''))}")
+    print(f"  tls_cert: {cfg.get('tls_cert', '')}")
+    print(f"  tls_key: {cfg.get('tls_key', '')}")
+    print("")
     print("Local IP candidates:")
     candidates = snap["local_ips"]
     if candidates:

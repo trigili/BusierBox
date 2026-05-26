@@ -728,6 +728,9 @@ def main():
                 "evidence.txt" not in uploads_view.stdout or
                 "metadata:" not in uploads_view.stdout or
                 "Generated target commands" not in uploads_view.stdout or
+                "Operator paths:" not in uploads_view.stdout or
+                "event_log:" not in uploads_view.stdout or
+                "tls_cert:" not in uploads_view.stdout or
                 "Event log" not in uploads_view.stdout or
                 "./busierbox put /etc/config/network" not in uploads_view.stdout):
             print("workbench did not show received upload metadata", file=sys.stderr)
@@ -758,6 +761,13 @@ def main():
             print("noninteractive TUI/workbench failed:", file=sys.stderr)
             print(tui.stdout, file=sys.stderr)
             print(tui.stderr, file=sys.stderr)
+            return 1
+        if ("Operator paths:" not in tui.stdout or
+                str(state_file) not in tui.stdout or
+                str(staged_file) not in tui.stdout or
+                "session_root:" not in tui.stdout):
+            print("noninteractive TUI/workbench missing operator path details", file=sys.stderr)
+            print(tui.stdout, file=sys.stderr)
             return 1
 
         release_dir = Path(tmp) / "release"
