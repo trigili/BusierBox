@@ -254,7 +254,10 @@ view. The same document includes `generated_at` and a `paths` object for stable
 discovery of server state, staged files, event logs, command queue records, and
 the session root. Event log entries include stable `id`, `session`, and
 `session_path` fields so frontend and integration tooling can correlate global
-operator events with per-session logs.
+operator events with per-session logs. The `events` array is a bounded recent
+tail; `event_log_stats` reports the event log path, total valid event count,
+tail count, invalid JSONL line count, and tail limit so API consumers can tell
+whether there is more history to page or inspect from disk.
 
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it does not push the artifact or run it. In the

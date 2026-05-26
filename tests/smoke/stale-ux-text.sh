@@ -62,6 +62,8 @@ require_text docs/artifact-runtime-overrides.md 'remove, or replace payload cont
 require_text docs/release-bundles.md 'scripts/release-self-test'
 require_text docs/release-bundles.md 'scripts/release-find --device glinet-mt1300'
 require_text docs/release-bundles.md 'scripts/verify-checksums --configured'
+require_text docs/release-bundles.md 'event_log_stats'
+require_text docs/release-bundles.md 'total valid event count'
 require_text docs/cleanup-ledger.md 'not forensic no-trace execution'
 require_text docs/recovery.md 'authorized lab reboot recovery'
 require_text docs/recovery.md 'visible and'
