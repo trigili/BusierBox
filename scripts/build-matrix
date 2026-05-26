@@ -150,6 +150,7 @@ def main():
     parser.add_argument("--list-payloads", action="store_true")
     parser.add_argument("--targets", help="comma-separated targets, or all")
     parser.add_argument("--payloads", help="comma-separated payload presets, or all")
+    parser.add_argument("--payload-presets", dest="payload_presets", help="alias for --payloads")
     parser.add_argument("--formats", help="comma-separated formats; default tgz or matrix formats")
     parser.add_argument("--matrix", help="matrix JSON file")
     parser.add_argument("--jobs", type=int, default=1, help="accepted for CLI compatibility; builds are serialized")
@@ -191,6 +192,8 @@ def main():
                 preflight.extend(["--targets", args.targets])
             if args.payloads:
                 preflight.extend(["--payloads", args.payloads])
+            if args.payload_presets:
+                preflight.extend(["--payload-presets", args.payload_presets])
             if args.formats:
                 preflight.extend(["--formats", args.formats])
         proc = subprocess.run(preflight, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)

@@ -17,7 +17,7 @@ Preview a matrix without building:
 ```sh
 scripts/build-matrix \
   --targets glinet-mt7621-openwrt-musl,aarch64-linux-4.x-musl \
-  --payloads survey-core,builtin-core-shell,full-debug \
+  --payload-presets survey-core,builtin-core-shell,full-debug \
   --formats tgz \
   --dry-run
 ```
@@ -25,7 +25,7 @@ scripts/build-matrix \
 Run a small native matrix:
 
 ```sh
-scripts/build-matrix --targets native --payloads survey-core,default --formats tgz
+scripts/build-matrix --targets native --payload-presets survey-core,default --formats tgz
 ```
 
 The script generates per-job configs under:
@@ -52,7 +52,7 @@ the first failure.
 ```json
 {
   "targets": ["glinet-mt7621-openwrt-musl", "aarch64-linux-4.x-musl"],
-  "payloads": ["survey-core", "builtin-core-shell"],
+  "payload_presets": ["survey-core", "builtin-core-shell"],
   "formats": ["tgz"],
   "variants": {
     "operator": {
@@ -70,7 +70,11 @@ scripts/build-matrix --matrix configs/matrix/example.json --dry-run
 ```
 
 Variant keys that are not `target`, `targets`, `payload`, `payloads`,
-`payload_preset`, `format`, or `formats` are appended to the generated config.
+`payload_preset`, `payload_presets`, `format`, or `formats` are appended to the
+generated config.
+
+The older `payloads` key and `--payloads` flag remain accepted as aliases for
+payload presets; release-style matrices should prefer `payload_presets`.
 
 ## Jobs And Offline Flags
 

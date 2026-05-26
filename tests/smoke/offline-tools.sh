@@ -32,14 +32,14 @@ EOF
 scripts/mirror-sources \
     --matrix "$tmp/matrix.json" \
     --targets all \
-    --payloads all \
+    --payload-presets all \
     --source-only \
     --out "$tmp/matrix-mirror" \
     --dry-run >"$tmp/matrix-mirror-plan.json"
 python3 -m json.tool "$tmp/matrix-mirror-plan.json" >/dev/null
 grep -q "$tmp/matrix.json" "$tmp/matrix-mirror-plan.json"
 grep -q '"targets": "all"' "$tmp/matrix-mirror-plan.json"
-grep -q '"payloads": "all"' "$tmp/matrix-mirror-plan.json"
+grep -q '"payload_presets": "all"' "$tmp/matrix-mirror-plan.json"
 grep -q '"source_plans"' "$tmp/matrix-mirror-plan.json"
 grep -q 'skipped-native' "$tmp/matrix-mirror-plan.json"
 
@@ -101,7 +101,8 @@ PY
 scripts/check-offline-readiness \
     --mirror "$tmp/ready" \
     --manifest "$tmp/sources.lock.json" \
-    --matrix "$tmp/payload-presets-matrix.json" >"$tmp/readiness-payload-presets.out"
+    --targets native \
+    --payload-presets survey-core,ssh-operator >"$tmp/readiness-payload-presets.out"
 grep -q 'offline-readiness ok' "$tmp/readiness-payload-presets.out"
 
 if scripts/check-offline-readiness \

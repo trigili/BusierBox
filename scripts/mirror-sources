@@ -344,6 +344,7 @@ def main():
     parser.add_argument("--matrix")
     parser.add_argument("--targets")
     parser.add_argument("--payloads")
+    parser.add_argument("--payload-presets", dest="payload_presets")
     parser.add_argument("--formats")
     parser.add_argument("--include-buildroot-packages", action="store_true")
     parser.add_argument("--buildroot-output-base")
@@ -398,11 +399,13 @@ def main():
         cmd = [str(ROOT / "scripts" / "check-offline-readiness"), "--mirror", str(out), "--manifest", str(lock_path), "--strict"]
         if args.matrix:
             cmd.extend(["--matrix", args.matrix])
-        elif args.targets or args.payloads:
+        elif args.targets or args.payloads or args.payload_presets:
             if args.targets:
                 cmd.extend(["--targets", args.targets])
             if args.payloads:
                 cmd.extend(["--payloads", args.payloads])
+            if args.payload_presets:
+                cmd.extend(["--payload-presets", args.payload_presets])
             if args.formats:
                 cmd.extend(["--formats", args.formats])
         proc = subprocess.run(cmd, cwd=ROOT)

@@ -133,6 +133,8 @@ def build_matrix_dry_run(args, mirror):
             cmd.extend(["--targets", args.targets])
         if args.payloads:
             cmd.extend(["--payloads", args.payloads])
+        if args.payload_presets:
+            cmd.extend(["--payload-presets", args.payload_presets])
         if args.formats:
             cmd.extend(["--formats", args.formats])
     return subprocess.run(
@@ -152,6 +154,7 @@ def main():
     parser.add_argument("--matrix")
     parser.add_argument("--targets")
     parser.add_argument("--payloads")
+    parser.add_argument("--payload-presets", dest="payload_presets")
     parser.add_argument("--formats")
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--json", action="store_true")
@@ -174,7 +177,7 @@ def main():
     if args.strict:
         errors.extend(check_strict(mirror, mirror_manifest, args))
 
-    if args.matrix or args.targets or args.payloads:
+    if args.matrix or args.targets or args.payloads or args.payload_presets:
         proc = build_matrix_dry_run(args, mirror)
         if proc.returncode != 0:
             errors.append({

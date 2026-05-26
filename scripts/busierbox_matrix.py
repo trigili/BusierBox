@@ -50,7 +50,13 @@ def load_matrix(path):
 def expand_jobs(args):
     matrix = load_matrix(args.matrix) if getattr(args, "matrix", None) else {}
     targets = csv_items(getattr(args, "targets", None)) or matrix.get("targets") or ["native"]
-    payloads = csv_items(getattr(args, "payloads", None)) or matrix.get("payload_presets") or matrix.get("payloads") or ["default"]
+    payloads = (
+        csv_items(getattr(args, "payload_presets", None))
+        or csv_items(getattr(args, "payloads", None))
+        or matrix.get("payload_presets")
+        or matrix.get("payloads")
+        or ["default"]
+    )
     formats = csv_items(getattr(args, "formats", None)) or matrix.get("formats") or ["tgz"]
     if targets == ["all"]:
         targets = list_targets()

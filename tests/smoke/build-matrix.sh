@@ -15,7 +15,7 @@ grep -qx survey-core "$tmp/payloads"
 
 scripts/build-matrix \
     --targets native \
-    --payloads survey-core,default \
+    --payload-presets survey-core,default \
     --formats tgz \
     --dry-run \
     --run-dir "$tmp/run" >"$tmp/dry-run.out"
@@ -30,6 +30,8 @@ with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 if not data.get("dry_run"):
     raise SystemExit("matrix summary did not record dry_run")
+if data.get("matrix", {}).get("payload_presets") != "survey-core,default":
+    raise SystemExit("matrix summary did not record payload_presets alias")
 jobs = data.get("jobs") or []
 if len(jobs) != 2:
     raise SystemExit(f"expected 2 dry-run jobs, got {len(jobs)}")
