@@ -97,24 +97,26 @@ static void print_doctor_payload_runtime_health_json(FILE *out, int have_payload
     fprintf(out, "}");
 }
 
-static void print_doctor_payload_inventory_json(FILE *out, const char *manifest)
+static void print_doctor_payload_inventory_json(FILE *out, const char *manifest, int include_missing)
 {
     const char *const *heavy_tools = bb_payload_heavy_tools();
 
     fprintf(out, ",\"payload_inventory\":{\"manifest_found\":%s", manifest ? "true" : "false");
-    fprintf(out, ",\"requested_payload_tools\":");
-    if (manifest)
-        bb_json_write_raw_field_or(out, manifest, "requested_payload_tools", "[]");
-    else
-        bb_json_write_string_array(out, heavy_tools);
     fprintf(out, ",\"built_payload_tools\":");
     bb_json_write_raw_field_or(out, manifest, "built_payload_tools", "[]");
     fprintf(out, ",\"staged_payload_tools\":");
     bb_json_write_raw_field_or(out, manifest, "staged_payload_tools", "[]");
-    fprintf(out, ",\"missing_payload_tools\":");
-    bb_json_write_raw_field_or(out, manifest, "missing_payload_tools", "[]");
-    fprintf(out, ",\"missing_payload_tool_reasons\":");
-    bb_json_write_raw_field_or(out, manifest, "missing_payload_tool_reasons", "{}");
+    if (include_missing) {
+        fprintf(out, ",\"requested_payload_tools\":");
+        if (manifest)
+            bb_json_write_raw_field_or(out, manifest, "requested_payload_tools", "[]");
+        else
+            bb_json_write_string_array(out, heavy_tools);
+        fprintf(out, ",\"missing_payload_tools\":");
+        bb_json_write_raw_field_or(out, manifest, "missing_payload_tools", "[]");
+        fprintf(out, ",\"missing_payload_tool_reasons\":");
+        bb_json_write_raw_field_or(out, manifest, "missing_payload_tool_reasons", "{}");
+    }
     fprintf(out, ",\"overlay_enabled\":");
     bb_json_write_raw_field_or(out, manifest, "overlay_enabled", !strcmp(BB_USER_OVERLAY_ENABLE, "yes") ? "true" : "false");
     fprintf(out, ",\"overlay_root\":");
@@ -150,12 +152,13 @@ int applet_doctor_main(int argc, char **argv)
     int applet_count = 0;
     int json = 0;
     int support_token = 0;
+    int include_missing = 0;
     int i;
 
     memset(&ep, 0, sizeof(ep));
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox doctor [--json|--support-token]");
+        puts("usage: busierbox doctor [--json|--support-token] [--include-missing]");
         puts("Reports embedded payload, extraction, BusyBox, and staged tool health.");
         return 0;
     }
@@ -164,6 +167,8 @@ int applet_doctor_main(int argc, char **argv)
             json = 1;
         else if (!strcmp(argv[i], "--support-token"))
             support_token = 1;
+        else if (!strcmp(argv[i], "--include-missing"))
+            include_missing = 1;
         else {
             fprintf(stderr, "doctor: unknown option %s\n", argv[i]);
             return 2;
@@ -228,7 +233,7 @@ int applet_doctor_main(int argc, char **argv)
             if (manifest)
                 printf(",\"overlay_enabled\":%s", !strcmp(bb_json_bool_value(manifest, "overlay_enabled"), "yes") ? "true" : "false");
             printf("}");
-            print_doctor_payload_inventory_json(stdout, manifest);
+            print_doctor_payload_inventory_json(stdout, manifest, include_missing);
             print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
             printf(",\"rshell_readiness\":");
@@ -297,7 +302,7 @@ int applet_doctor_main(int argc, char **argv)
             bb_print_extraction_runtime_json(stdout, 1, json_string_payload);
             printf(",\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d}",
                    manifest ? "true" : "false", applet_count);
-            print_doctor_payload_inventory_json(stdout, manifest);
+            print_doctor_payload_inventory_json(stdout, manifest, include_missing);
             print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
             printf(",\"rshell_readiness\":");
@@ -358,12 +363,17 @@ int applet_doctor_main(int argc, char **argv)
         printf("staged_tools=");
         bb_json_array_summary(manifest, "staged_payload_tools", stdout);
         printf("\n");
-        printf("missing_tools=");
-        bb_json_array_summary(manifest, "missing_payload_tools", stdout);
-        printf("\n");
-        printf("missing_tool_reasons=");
-        bb_json_object_summary(manifest, "missing_payload_tool_reasons", stdout);
-        printf("\n");
+        if (include_missing) {
+            printf("requested_tools=");
+            bb_json_array_summary(manifest, "requested_payload_tools", stdout);
+            printf("\n");
+            printf("missing_tools=");
+            bb_json_array_summary(manifest, "missing_payload_tools", stdout);
+            printf("\n");
+            printf("missing_tool_reasons=");
+            bb_json_object_summary(manifest, "missing_payload_tool_reasons", stdout);
+            printf("\n");
+        }
         printf("overlay_enabled=%s\n", bb_json_bool_value(manifest, "overlay_enabled"));
         printf("overlay_tools=");
         bb_json_array_summary(manifest, "overlay_tools", stdout);

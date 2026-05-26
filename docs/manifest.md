@@ -5,7 +5,10 @@
 ```sh
 busierbox manifest
 busierbox manifest --json
+busierbox manifest --json --include-missing
 busierbox manifest --base64
+busierbox doctor --json
+busierbox doctor --json --include-missing
 ```
 
 The JSON manifest includes:
@@ -21,6 +24,13 @@ The JSON manifest includes:
 - native feature flags
 - BusyBox applets and staged heavy tools compiled into the dispatch table
 - compiled config, effective config, and post-build override trailer status
+
+Artifact-facing manifest and doctor output are positive inventory by default:
+they describe what is present and usable. They do not list every requested or
+unavailable payload tool unless `--include-missing` is supplied. Release
+bundles keep broader builder-facing negative inventory in explicit
+`build-report.json` / `*.build-missing.json` reports when
+`scripts/make-release --include-missing-reports` is used.
 
 Extraction writes the artifact manifest to
 `./.busierbox/manifest/artifact.json` next to the runtime payload. The extracted

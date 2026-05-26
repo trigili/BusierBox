@@ -468,6 +468,281 @@ def write_release_helpers(script_dir):
         }
         ''',
     )
+    write_executable(
+        script_dir / "release-index",
+        r'''
+        #!/usr/bin/env python3
+        import json
+        import pathlib
+        import sys
+
+        root = pathlib.Path(__file__).resolve().parents[1]
+
+        def load(path, fallback):
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                return fallback
+
+        def unique(items):
+            out = []
+            seen = set()
+            for item in items:
+                if item and item not in seen:
+                    out.append(item)
+                    seen.add(item)
+            return out
+
+        def build_index():
+            release = load(root / "release.json", {})
+            artifacts = []
+            tools = {}
+            presets = {}
+            transports = {}
+            for rec in release.get("artifacts", []):
+                if rec.get("build_status") == "failed":
+                    continue
+                summary = rec.get("tuple_summary") or {}
+                present_tools = unique((summary.get("busybox_applets") or []) + (summary.get("heavy_tools") or []))
+                row = {
+                    "artifact": rec.get("artifact"),
+                    "tuple_path": rec.get("tuple_path"),
+                    "tuple_artifact": rec.get("tuple_artifact"),
+                    "payload_preset": rec.get("payload_preset"),
+                    "runtime_mode": summary.get("runtime_mode") or rec.get("runtime_mode"),
+                    "reverse_access": summary.get("reverse_access") or {},
+                    "manifest": rec.get("manifest_path") or rec.get("payload_manifest_path"),
+                    "payload_manifest": rec.get("payload_manifest_path"),
+                    "config": rec.get("config"),
+                    "sha256": rec.get("sha256"),
+                    "size": rec.get("size"),
+                    "tools": present_tools,
+                    "trailer_support": rec.get("trailer_support"),
+                }
+                artifacts.append(row)
+                preset = row.get("payload_preset")
+                if preset:
+                    presets.setdefault(preset, []).append(row.get("artifact"))
+                transport = (row.get("reverse_access") or {}).get("transport")
+                if transport:
+                    transports.setdefault(transport, []).append(row.get("artifact"))
+                for tool in present_tools:
+                    tools.setdefault(tool, []).append(row.get("artifact"))
+            return {
+                "schema": 1,
+                "release_name": release.get("release_name"),
+                "git_commit": release.get("git_commit"),
+                "artifacts": artifacts,
+                "tuples": release.get("layout", {}).get("tuples", {}),
+                "devices": release.get("layout", {}).get("devices", {}),
+                "payload_presets": {key: unique(value) for key, value in sorted(presets.items())},
+                "tools_present": {key: unique(value) for key, value in sorted(tools.items())},
+                "reverse_access": {key: unique(value) for key, value in sorted(transports.items())},
+                "trailer_support": {
+                    "helpers": [
+                        "scripts/artifact-config",
+                        "scripts/configure-artifact",
+                        "scripts/configure-all",
+                        "scripts/verify-checksums",
+                    ],
+                    "note": "Trailer overrides cannot change target tuple or payload contents.",
+                },
+                "checksums": {
+                    "original": "SHA256SUMS.original",
+                    "configured": "SHA256SUMS.configured",
+                },
+            }
+
+        if len(sys.argv) > 1 and sys.argv[1] in {"--help", "-h"}:
+            print("usage: scripts/release-index [--write]")
+            raise SystemExit(0)
+        index = build_index()
+        if len(sys.argv) > 1 and sys.argv[1] == "--write":
+            (root / "release-index.json").write_text(json.dumps(index, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            print("wrote release-index.json")
+        else:
+            print(json.dumps(index, indent=2, sort_keys=True))
+        ''',
+    )
+    write_executable(
+        script_dir / "release-find",
+        r'''
+        #!/usr/bin/env python3
+        import argparse
+        import json
+        import pathlib
+        import sys
+
+        root = pathlib.Path(__file__).resolve().parents[1]
+
+        def load(path):
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise SystemExit(f"release-find: cannot read {path}: {exc}")
+
+        def ensure_index():
+            path = root / "release-index.json"
+            if path.exists():
+                return load(path)
+            release = load(root / "release.json")
+            return {
+                "schema": 1,
+                "artifacts": [
+                    {
+                        "artifact": rec.get("artifact"),
+                        "tuple_path": rec.get("tuple_path"),
+                        "tuple_artifact": rec.get("tuple_artifact"),
+                        "payload_preset": rec.get("payload_preset"),
+                        "runtime_mode": (rec.get("tuple_summary") or {}).get("runtime_mode") or rec.get("runtime_mode"),
+                        "reverse_access": (rec.get("tuple_summary") or {}).get("reverse_access") or {},
+                        "manifest": rec.get("manifest_path") or rec.get("payload_manifest_path"),
+                        "payload_manifest": rec.get("payload_manifest_path"),
+                        "tools": ((rec.get("tuple_summary") or {}).get("busybox_applets") or []) + ((rec.get("tuple_summary") or {}).get("heavy_tools") or []),
+                    }
+                    for rec in release.get("artifacts", [])
+                    if rec.get("build_status") != "failed"
+                ],
+                "devices": release.get("layout", {}).get("devices", {}),
+            }
+
+        def tuple_match(index, row, args):
+            tuple_info = (index.get("tuples", {}).get(row.get("tuple_path") or "", {}) or {}).get("tuple") or {}
+            if args.arch and tuple_info.get("arch") != args.arch:
+                return False
+            if args.libc and tuple_info.get("libc") != args.libc:
+                return False
+            if args.kernel and tuple_info.get("kernel_floor") != args.kernel:
+                return False
+            return True
+
+        parser = argparse.ArgumentParser(description="Find BusierBox release artifacts by tuple, device, feature, tool, or preset.")
+        parser.add_argument("--arch")
+        parser.add_argument("--libc")
+        parser.add_argument("--kernel")
+        parser.add_argument("--device")
+        parser.add_argument("--feature")
+        parser.add_argument("--tool")
+        parser.add_argument("--payload-preset")
+        parser.add_argument("--json", action="store_true")
+        args = parser.parse_args()
+
+        index = ensure_index()
+        candidates = list(index.get("artifacts") or [])
+        if args.device:
+            device = index.get("devices", {}).get(args.device)
+            if not device:
+                raise SystemExit(f"release-find: unknown device alias {args.device}")
+            candidates = [row for row in candidates if row.get("tuple_path") == device.get("tuple_path")]
+        if args.payload_preset:
+            candidates = [row for row in candidates if row.get("payload_preset") == args.payload_preset]
+        if args.tool:
+            candidates = [row for row in candidates if args.tool in (row.get("tools") or [])]
+        if args.feature:
+            candidates = [
+                row for row in candidates
+                if args.feature in (row.get("tools") or [])
+                or args.feature == (row.get("reverse_access") or {}).get("transport")
+                or args.feature == row.get("payload_preset")
+            ]
+        candidates = [row for row in candidates if tuple_match(index, row, args)]
+        if not candidates:
+            raise SystemExit("release-find: no matching artifact")
+        row = candidates[0]
+        if args.json:
+            print(json.dumps(row, indent=2, sort_keys=True))
+            raise SystemExit(0)
+        artifact = row.get("tuple_artifact") or row.get("artifact")
+        print(f"recommended_artifact={artifact}")
+        print(f"tuple_path={row.get('tuple_path')}")
+        print(f"payload_preset={row.get('payload_preset')}")
+        print(f"runtime_mode={row.get('runtime_mode') or ''}")
+        print(f"reverse_access_default={(row.get('reverse_access') or {}).get('transport') or ''}")
+        print(f"manifest={row.get('manifest') or ''}")
+        print(f"first_command=./{pathlib.Path(artifact).name} survey --json")
+        ''',
+    )
+    write_executable(
+        script_dir / "release-self-test",
+        r'''
+        #!/usr/bin/env python3
+        import json
+        import os
+        import pathlib
+        import shutil
+        import subprocess
+        import sys
+        import tempfile
+
+        root = pathlib.Path(__file__).resolve().parents[1]
+
+        def fail(msg):
+            print(f"release-self-test: {msg}", file=sys.stderr)
+            raise SystemExit(1)
+
+        def load_json(path):
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                fail(f"invalid JSON {path}: {exc}")
+
+        def run(cmd, required=True):
+            proc = subprocess.run(cmd, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
+            if required and proc.returncode != 0:
+                fail(f"{' '.join(map(str, cmd))} failed:\n{proc.stdout}")
+            return proc
+
+        release = load_json(root / "release.json")
+        run([str(root / "scripts" / "verify-checksums"), "--original"])
+        for helper in ("artifact-config", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find"):
+            path = root / "scripts" / helper
+            if not os.access(path, os.X_OK):
+                fail(f"helper is not executable: scripts/{helper}")
+        if not (root / "release-index.json").exists():
+            run([str(root / "scripts" / "release-index"), "--write"])
+        load_json(root / "release-index.json")
+        for path in root.glob("by-tuple/**/MANIFEST.json"):
+            load_json(path)
+        for rec in release.get("artifacts", []):
+            if rec.get("build_status") == "failed":
+                continue
+            for key in ("artifact", "config"):
+                rel = rec.get(key)
+                if rel and not (root / rel).exists():
+                    fail(f"missing {key}: {rel}")
+            for key in ("manifest_path", "payload_manifest_path", "config_info_path"):
+                rel = rec.get(key)
+                if rel and not (root / rel).exists():
+                    fail(f"missing manifest sidecar: {rel}")
+            artifact = root / rec["artifact"]
+            run([str(root / "scripts" / "artifact-config"), "show", str(artifact)])
+            if rec.get("tuple_path") and not (root / rec["tuple_path"]).is_dir():
+                fail(f"missing tuple dir: {rec['tuple_path']}")
+            if rec.get("tuple_artifact") and not (root / rec["tuple_artifact"]).exists():
+                fail(f"missing tuple artifact: {rec['tuple_artifact']}")
+            if rec.get("tuple", {}).get("arch") == "native" and os.access(artifact, os.X_OK):
+                run([str(artifact), "manifest", "--json"])
+            with tempfile.TemporaryDirectory(prefix=".self-test-", dir=root) as tmp:
+                test_artifact = pathlib.Path(tmp) / artifact.name
+                shutil.copy2(artifact, test_artifact)
+                run([str(root / "scripts" / "artifact-config"), "set", str(test_artifact), "BB_ZERO_ARG_LOG_MODE=quiet"])
+                run([str(root / "scripts" / "artifact-config"), "clear", str(test_artifact)])
+        for alias, item in (release.get("layout", {}).get("devices") or {}).items():
+            dev = root / item.get("path", "")
+            if not dev.is_dir():
+                fail(f"missing device alias dir: {alias}")
+            target = root / item.get("tuple_path", "")
+            if not target.is_dir():
+                fail(f"device alias {alias} points at missing tuple {item.get('tuple_path')}")
+            artifacts = dev / "artifacts"
+            if not artifacts.exists():
+                fail(f"device alias {alias} lacks artifacts pointer")
+        for path in root.rglob("*"):
+            if path.is_symlink() and not path.exists():
+                fail(f"broken symlink: {path.relative_to(root)}")
+        print("release-self-test ok")
+        ''',
+    )
 
 
 def copy_bundle_support(release_dir, include_sources_manifest=False):
@@ -512,10 +787,17 @@ def write_release_readme(path, name):
 
             ```sh
             scripts/verify-checksums --original
+            scripts/release-self-test
+            scripts/release-find --device glinet-mt1300
             scripts/configure-artifact bin/busierbox-...-full --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/configure-all --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/verify-checksums --configured
             ```
+
+            Start with `devices/<alias>/` when you know the device exemplar, or
+            `by-tuple/<arch>/<libc>/<kernel-floor>/<cpu-or-abi>/` when you know
+            the compatibility tuple. The flat `bin/`, `configs/`, and
+            `manifests/` directories remain stable script-facing paths.
 
             XOR trailer obfuscation is not encryption and must not be used for secrets or
             private keys. Network autorun and external writes are not enabled by this bundle
@@ -629,7 +911,58 @@ def embedded_payload_manifest(path):
         return None
 
 
-def artifact_summary(release_dir, rec):
+def write_build_missing_report(path, rec, payload_manifest):
+    missing = payload_manifest.get("missing_payload_tools") or []
+    reasons = payload_manifest.get("missing_payload_tool_reasons") or {}
+    requested = payload_manifest.get("requested_payload_tools") or []
+    built = set(payload_manifest.get("built_payload_tools") or [])
+    rows = []
+    for tool in missing:
+        rows.append(
+            {
+                "requested_tool": tool,
+                "provider": payload_manifest.get("gdbserver_provider") if tool == "gdbserver" else "auto",
+                "reason_missing": reasons.get(tool, "not built or not staged"),
+                "known_build_failure": None,
+                "compatibility_note": f"{tool} is absent from this artifact and is not part of the positive runtime inventory.",
+                "suggested_provider_or_drop_in_workaround": "Enable a compatible Buildroot provider or stage a target-compatible user/provider binary where supported.",
+            }
+        )
+    report = {
+        "schema": 1,
+        "artifact": rec.get("artifact"),
+        "target": rec.get("resolved_target") or rec.get("target"),
+        "payload_preset": rec.get("payload_preset"),
+        "requested_tools": requested,
+        "built_tools": sorted(built),
+        "missing_tools": rows,
+    }
+    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def write_build_report(release_dir, records):
+    reports = []
+    for rec in records:
+        if rec.get("build_missing_path"):
+            reports.append(
+                {
+                    "artifact": rec.get("artifact"),
+                    "target": rec.get("resolved_target") or rec.get("target"),
+                    "payload_preset": rec.get("payload_preset"),
+                    "build_missing": rec.get("build_missing_path"),
+                }
+            )
+    report = {
+        "schema": 1,
+        "failures": [rec for rec in records if rec.get("build_status") == "failed"],
+        "missing_reports": reports,
+    }
+    path = release_dir / "build-report.json"
+    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def artifact_summary(release_dir, rec, include_missing=False):
     manifest = read_json_file(release_dir / rec.get("manifest_path", "")) if rec.get("manifest_path") else None
     payload_manifest = read_json_file(release_dir / rec.get("payload_manifest_path", "")) if rec.get("payload_manifest_path") else None
     payload_tools = (manifest or {}).get("payload_tools") or {}
@@ -638,11 +971,9 @@ def artifact_summary(release_dir, rec):
     rshell = (manifest or {}).get("rshell") or {}
     trailer_keys = sorted(((manifest or {}).get("effective_config") or {}).keys())
     heavy = payload_tools.get("heavy_tools") or payload_tools.get("staged_payload_tools") or (payload_manifest or {}).get("staged_payload_tools") or []
-    missing = payload_tools.get("missing_payload_tools") or (payload_manifest or {}).get("missing_payload_tools") or []
-    missing_reasons = payload_tools.get("missing_payload_tool_reasons") or (payload_manifest or {}).get("missing_payload_tool_reasons") or {}
     busybox = payload_tools.get("busybox_applets") or (payload_manifest or {}).get("busybox_applets") or []
     native = [key for key, value in sorted(native_features.items()) if value is True]
-    return {
+    summary = {
         "artifact": rec.get("artifact"),
         "target": (payload_manifest or {}).get("target") or rec.get("resolved_target") or rec.get("target"),
         "payload_manifest": rec.get("payload_manifest_path"),
@@ -659,8 +990,6 @@ def artifact_summary(release_dir, rec):
         "busybox_applets": busybox,
         "core_extraction_behavior": "BusyBox applet dispatch extracts a core payload subset; heavy tools upgrade to full extraction.",
         "heavy_tools": heavy,
-        "missing_tools": missing,
-        "missing_tool_reasons": missing_reasons,
         "trailer_overridable_fields": trailer_keys,
         "size": rec.get("size"),
         "sha256": rec.get("sha256"),
@@ -668,9 +997,14 @@ def artifact_summary(release_dir, rec):
         "manifest": rec.get("manifest_path"),
         "config_info": rec.get("config_info_path"),
     }
+    if include_missing:
+        summary["missing_tools"] = payload_tools.get("missing_payload_tools") or (payload_manifest or {}).get("missing_payload_tools") or []
+        summary["missing_tool_reasons"] = payload_tools.get("missing_payload_tool_reasons") or (payload_manifest or {}).get("missing_payload_tool_reasons") or {}
+        summary["build_missing"] = rec.get("build_missing_path")
+    return summary
 
 
-def manifest_text_for_tuple(tuple_info, records):
+def manifest_text_for_tuple(tuple_info, records, include_missing=False):
     lines = [
         "BusierBox compatibility tuple",
         f"tuple_path={tuple_info['path']}",
@@ -699,11 +1033,14 @@ def manifest_text_for_tuple(tuple_info, records):
             f"  busybox_applets={', '.join(summary.get('busybox_applets') or [])}",
             f"  core_extraction={summary.get('core_extraction_behavior', '')}",
             f"  heavy_tools={', '.join(summary.get('heavy_tools') or [])}",
-            f"  missing_tools={', '.join(summary.get('missing_tools') or [])}",
         ])
-        reasons = summary.get("missing_tool_reasons") or {}
-        if reasons:
-            lines.append("  missing_tool_reasons=" + json.dumps(reasons, sort_keys=True))
+        if include_missing:
+            lines.append(f"  missing_tools={', '.join(summary.get('missing_tools') or [])}")
+            reasons = summary.get("missing_tool_reasons") or {}
+            if reasons:
+                lines.append("  missing_tool_reasons=" + json.dumps(reasons, sort_keys=True))
+            if summary.get("build_missing"):
+                lines.append(f"  build_missing={summary.get('build_missing')}")
         reverse = summary.get("reverse_access") or {}
         lines.append("  reverse_access_defaults=" + json.dumps(reverse, sort_keys=True))
         lines.append("  trailer_overridable_fields=" + ", ".join(summary.get("trailer_overridable_fields") or []))
@@ -711,7 +1048,7 @@ def manifest_text_for_tuple(tuple_info, records):
     return "\n".join(lines)
 
 
-def write_tuple_layout(release_dir, records, layout_mode):
+def write_tuple_layout(release_dir, records, layout_mode, include_missing=False):
     tuples = {}
     devices = {}
 
@@ -752,8 +1089,13 @@ def write_tuple_layout(release_dir, records, layout_mode):
             tuple_config_info = tuple_dir / "manifests" / flat_config_info.name
             place_entry(flat_config_info, tuple_config_info, layout_mode)
             rec["tuple_config_info"] = tuple_config_info.relative_to(release_dir).as_posix()
+        if rec.get("build_missing_path"):
+            flat_build_missing = release_dir / rec["build_missing_path"]
+            tuple_build_missing = tuple_dir / "manifests" / flat_build_missing.name
+            place_entry(flat_build_missing, tuple_build_missing, layout_mode)
+            rec["tuple_build_missing"] = tuple_build_missing.relative_to(release_dir).as_posix()
 
-        rec["tuple_summary"] = artifact_summary(release_dir, rec)
+        rec["tuple_summary"] = artifact_summary(release_dir, rec, include_missing=include_missing)
         bucket = tuples.setdefault(tuple_path, {"tuple": tuple_info, "artifacts": []})
         bucket["artifacts"].append(rec)
 
@@ -769,7 +1111,7 @@ def write_tuple_layout(release_dir, records, layout_mode):
             "artifacts": [rec.get("tuple_summary") for rec in item["artifacts"]],
         }
         (tuple_dir / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        (tuple_dir / "MANIFEST.txt").write_text(manifest_text_for_tuple(item["tuple"], item["artifacts"]), encoding="utf-8")
+        (tuple_dir / "MANIFEST.txt").write_text(manifest_text_for_tuple(item["tuple"], item["artifacts"], include_missing=include_missing), encoding="utf-8")
         (tuple_dir / "README.txt").write_text(
             f"BusierBox artifacts for compatibility tuple {tuple_path}.\n"
             "Use this tuple when the target arch/libc/kernel floor match, regardless of device name.\n"
@@ -890,6 +1232,10 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
     payload_manifest = embedded_payload_manifest(dest)
     if payload_manifest:
         payload_manifest_path.write_text(json.dumps(payload_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        if args.include_missing_reports:
+            build_missing = release_dir / "manifests" / f"{stem}.build-missing.json"
+            write_build_missing_report(build_missing, rec, payload_manifest)
+            rec["build_missing_path"] = f"manifests/{build_missing.name}"
     if resolved.get("TARGET_ARCH") == "native" and os.access(dest, os.X_OK):
         run_capture([str(dest), "manifest", "--json"], manifest)
         run_capture([str(dest), "config-info"], config_info)
@@ -937,6 +1283,8 @@ def main(argv=None):
     parser.add_argument("--config")
     parser.add_argument("--matrix")
     parser.add_argument("--include-sources-manifest", action="store_true")
+    parser.add_argument("--include-missing-reports", action="store_true",
+                        help="emit builder-facing build-missing reports for requested but unavailable payload tools")
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--symlink-layout", dest="layout_mode", action="store_const", const="symlink", default="symlink",
@@ -989,7 +1337,8 @@ def main(argv=None):
         if args.fail_fast and rec.get("build_status") == "failed":
             break
 
-    layout = write_tuple_layout(release_dir, records, args.layout_mode)
+    layout = write_tuple_layout(release_dir, records, args.layout_mode, include_missing=args.include_missing_reports)
+    build_report_path = write_build_report(release_dir, records) if args.include_missing_reports else None
 
     release = {
         "schema_version": SCHEMA_VERSION,
@@ -1012,13 +1361,16 @@ def main(argv=None):
             "reverse_access_profiles": selected_reverse_access_profiles(args, data),
         },
         "include_sources_manifest": include_sources_manifest,
+        "include_missing_reports": bool(args.include_missing_reports),
         "skip_build": bool(args.skip_build),
         "layout": layout,
+        "build_report": build_report_path.relative_to(release_dir).as_posix() if build_report_path else None,
         "artifacts": records,
         "failures": [rec for rec in records if rec.get("build_status") == "failed"],
         "trailer_support_status": "bundled artifact-config helpers; XOR is not encryption",
     }
     (release_dir / "release.json").write_text(json.dumps(release, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    run_capture([str(release_dir / "scripts" / "release-index"), "--write"], release_dir / "logs" / "release-index.log", required=True)
     original = checksum_manifest(release_dir, "SHA256SUMS.original")
     shutil.copy2(original, release_dir / "SHA256SUMS")
     tarball = make_tarball(release_dir)

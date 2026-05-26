@@ -11,6 +11,7 @@ scripts/make-release --name lab-router-pack --targets glinet-mt7621-openwrt-musl
 scripts/make-release --name lab-router-pack --reverse-access-profiles builtin,ssh
 scripts/make-release --name lab-router-pack --matrix release/matrices/iot-lab.json
 scripts/make-release --name lab-router-pack --copy-layout
+scripts/make-release --name lab-router-pack --include-missing-reports
 scripts/make-release --name lab-router-pack --dry-run
 ```
 
@@ -24,9 +25,13 @@ Each release contains:
   `MANIFEST.json`, and per-tuple `bin/`, `configs/`, and `manifests/`.
 - `devices/<alias>/`: device or exemplar aliases with `target.json`,
   `README.txt`, `notes.md`, and an `artifacts` pointer to the canonical tuple.
-- `scripts/`: copied `artifact-config` plus wrapper helpers.
+- `scripts/`: copied `artifact-config` plus wrapper helpers, release
+  self-test, index, and finder tools.
 - `docs/`: release and runtime override notes.
 - `release.json`: build status, commit, safe build-host metadata, source-lock summary, selected matrix, artifact paths, canonical tuple paths, device aliases, checksums, and failures.
+- `release-index.json`: searchable index for artifacts, tuples, devices,
+  payload presets, present tools, reverse-access capabilities, and trailer
+  support.
 - `SHA256SUMS.original`: pristine bundle checksums.
 
 The flat `bin/`, `configs/`, and `manifests/` paths are stable script-facing
@@ -41,11 +46,14 @@ where symlinks are inconvenient; use `--symlink-layout` to request the default
 explicitly.
 
 Each per-tuple `MANIFEST.txt` summarizes the payload variants in that tuple:
-native applets, BusyBox applets and core extraction behavior, heavy tools,
-missing tools and reasons, runtime mode, reverse-access defaults,
-trailer-overridable fields, size, checksum, config path, and the statically
-extracted embedded payload manifest path. The JSON manifest contains the same
-data in machine-readable form.
+native applets, BusyBox applets and core extraction behavior, staged heavy
+tools, runtime mode, reverse-access defaults, trailer-overridable fields, size,
+checksum, config path, and the statically extracted embedded payload manifest
+path. The JSON manifest contains the same data in machine-readable form.
+Missing or requested-but-unavailable tools are builder-facing negative
+inventory and are omitted by default; pass `--include-missing-reports` to emit
+`build-report.json` plus per-artifact `*.build-missing.json` files and include
+those fields in tuple manifests.
 
 When a matrix includes `version` or `include`, those values are preserved in
 `release.json` for reproducibility. Set `include.source_lock` or
@@ -97,4 +105,18 @@ bundle with:
 ```sh
 scripts/verify-checksums --original
 scripts/verify-checksums --configured
+scripts/release-self-test
 ```
+
+Use `scripts/release-find` to choose an artifact without reading every
+manifest:
+
+```sh
+scripts/release-find --device glinet-mt1300
+scripts/release-find --arch mipsel --libc musl --kernel 4.x
+scripts/release-find --tool tcpdump
+scripts/release-find --payload-preset survey-core
+```
+
+Use `scripts/release-index --write` after manual metadata edits to refresh
+`release-index.json`.

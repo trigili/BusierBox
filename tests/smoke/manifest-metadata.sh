@@ -21,6 +21,7 @@ import sys
 
 bb = sys.argv[1]
 manifest = json.loads(subprocess.check_output([bb, "manifest", "--json"], text=True))
+manifest_missing = json.loads(subprocess.check_output([bb, "manifest", "--json", "--include-missing"], text=True))
 config = {}
 for line in subprocess.check_output([bb, "config-info"], text=True).splitlines():
     if "=" in line:
@@ -69,8 +70,18 @@ if not isinstance(manifest["compiled_config"], dict):
     raise SystemExit("manifest-metadata: compiled_config must be an object")
 if not isinstance(manifest["effective_config"], dict):
     raise SystemExit("manifest-metadata: effective_config must be an object")
-if not isinstance(manifest["trailer_override"], dict):
-    raise SystemExit("manifest-metadata: trailer_override must be an object")
+    if not isinstance(manifest["trailer_override"], dict):
+        raise SystemExit("manifest-metadata: trailer_override must be an object")
+payload_tools = manifest.get("payload_tools") or {}
+for key in ("requested_payload_tools", "missing_payload_tools", "missing_payload_tool_reasons"):
+    if key in payload_tools:
+        raise SystemExit(f"manifest-metadata: default manifest should not include {key}")
+payload_tools_missing = manifest_missing.get("payload_tools") or {}
+for key in ("requested_payload_tools", "missing_payload_tools"):
+    if not isinstance(payload_tools_missing.get(key), list):
+        raise SystemExit(f"manifest-metadata: include-missing manifest lacks list {key}")
+if not isinstance(payload_tools_missing.get("missing_payload_tool_reasons"), dict):
+    raise SystemExit("manifest-metadata: include-missing manifest lacks missing reasons object")
 
 trailer = manifest["trailer_override"]
 for key in ("present", "valid", "encoding", "override_count", "status"):

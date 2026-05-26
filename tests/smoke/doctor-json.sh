@@ -34,14 +34,15 @@ for root in data["extraction_runtime"]["roots"]:
 if "present" not in data["payload_runtime_health"]:
     raise SystemExit("doctor payload runtime health presence missing")
 inventory = data["payload_inventory"]
-for key in ["manifest_found", "requested_payload_tools", "built_payload_tools", "staged_payload_tools", "missing_payload_tools", "missing_payload_tool_reasons", "overlay_enabled", "overlay_root", "overlay_applied_paths", "overlay_files", "overlay_tools", "overlay_warnings", "user_provided_tools", "included_shared_libs", "applet_symlink_skips"]:
+for key in ["manifest_found", "built_payload_tools", "staged_payload_tools", "overlay_enabled", "overlay_root", "overlay_applied_paths", "overlay_files", "overlay_tools", "overlay_warnings", "user_provided_tools", "included_shared_libs", "applet_symlink_skips"]:
     if key not in inventory:
         raise SystemExit(f"doctor payload inventory missing {key}")
-for key in ["requested_payload_tools", "built_payload_tools", "staged_payload_tools", "missing_payload_tools", "overlay_applied_paths", "overlay_files", "overlay_tools", "overlay_warnings", "user_provided_tools", "included_shared_libs", "applet_symlink_skips"]:
+for key in ["built_payload_tools", "staged_payload_tools", "overlay_applied_paths", "overlay_files", "overlay_tools", "overlay_warnings", "user_provided_tools", "included_shared_libs", "applet_symlink_skips"]:
     if not isinstance(inventory[key], list):
         raise SystemExit(f"doctor payload inventory {key} must be a list")
-if not isinstance(inventory["missing_payload_tool_reasons"], dict):
-    raise SystemExit("doctor payload inventory missing reasons must be an object")
+for key in ["requested_payload_tools", "missing_payload_tools", "missing_payload_tool_reasons"]:
+    if key in inventory:
+        raise SystemExit(f"doctor default inventory should not include {key}")
 for key in ["target_preset", "payload_preset", "runtime_mode", "zero_arg_mode"]:
     if key not in data["manifest_summary"]:
         raise SystemExit(f"doctor manifest summary missing {key}")
@@ -80,6 +81,7 @@ PY
     cd "$tmp"
     "$OLDPWD/$bb" extract >/dev/null
     "$OLDPWD/$bb" doctor --json >doctor-after.json
+    "$OLDPWD/$bb" doctor --json --include-missing >doctor-after-missing.json
     python3 -m json.tool doctor-after.json >/dev/null
     python3 - doctor-after.json <<'PY'
 import json
@@ -102,11 +104,12 @@ if not data["payload_manifest"].get("found"):
 inventory = data.get("payload_inventory", {})
 if not inventory.get("manifest_found"):
     raise SystemExit("doctor payload inventory did not report manifest")
-for key in ["requested_payload_tools", "built_payload_tools", "staged_payload_tools", "missing_payload_tools", "overlay_files", "overlay_tools", "overlay_warnings", "user_provided_tools", "included_shared_libs"]:
+for key in ["built_payload_tools", "staged_payload_tools", "overlay_files", "overlay_tools", "overlay_warnings", "user_provided_tools", "included_shared_libs"]:
     if not isinstance(inventory.get(key), list):
         raise SystemExit(f"doctor payload inventory {key} missing or not a list")
-if not isinstance(inventory.get("missing_payload_tool_reasons"), dict):
-    raise SystemExit("doctor payload inventory missing reasons is not an object")
+for key in ["requested_payload_tools", "missing_payload_tools", "missing_payload_tool_reasons"]:
+    if key in inventory:
+        raise SystemExit(f"doctor default inventory should not include {key}")
 health = data.get("payload_runtime_health", {})
 if not health.get("present"):
     raise SystemExit("doctor did not report payload runtime health")
@@ -126,6 +129,17 @@ if "payload_bin_path_count" not in environment:
     raise SystemExit("doctor did not report payload PATH count after extract")
 if not isinstance(environment["payload_bin_path_count"], int):
     raise SystemExit("doctor payload PATH count after extract must be integer")
+PY
+    python3 - doctor-after-missing.json <<'PY'
+import json
+
+data = json.load(open("doctor-after-missing.json", "r", encoding="utf-8"))
+inventory = data.get("payload_inventory", {})
+for key in ["requested_payload_tools", "missing_payload_tools"]:
+    if not isinstance(inventory.get(key), list):
+        raise SystemExit(f"doctor include-missing inventory {key} missing or not a list")
+if not isinstance(inventory.get("missing_payload_tool_reasons"), dict):
+    raise SystemExit("doctor include-missing reasons missing or not an object")
 PY
 )
 

@@ -221,7 +221,7 @@ static char *capture_json_alloc(manifest_capture_writer writer, void *ctx, size_
     return buf;
 }
 
-static void write_manifest_json(FILE *out)
+static void write_manifest_json(FILE *out, int include_missing)
 {
     int i;
 
@@ -365,7 +365,16 @@ static void write_manifest_json(FILE *out)
             fputc(',', out);
         json_string_payload(out, heavy_tools[i]);
     }
-    fprintf(out, "]}}\n");
+    if (include_missing) {
+        fprintf(out, "],\"requested_payload_tools\":[");
+        for (i = 0; heavy_tools[i]; i++) {
+            if (i)
+                fputc(',', out);
+            json_string_payload(out, heavy_tools[i]);
+        }
+        fprintf(out, "],\"missing_payload_tools\":[],\"missing_payload_tool_reasons\":{}");
+    }
+    fprintf(out, include_missing ? "}}\n" : "]}}\n");
 }
 
 static int base64_write_bytes(const unsigned char *data, size_t len)
@@ -393,8 +402,7 @@ static int base64_write_bytes(const unsigned char *data, size_t len)
 
 static int write_manifest_json_capture(FILE *out, void *ctx)
 {
-    (void)ctx;
-    write_manifest_json(out);
+    write_manifest_json(out, ctx != NULL);
     return ferror(out) ? -1 : 0;
 }
 
@@ -501,7 +509,7 @@ void bb_write_artifact_manifest_file(const char *root)
     fp = fopen(tmp, "w");
     if (!fp)
         return;
-    write_manifest_json(fp);
+    write_manifest_json(fp, 0);
     if (fclose(fp) != 0) {
         unlink(tmp);
         return;
@@ -516,10 +524,11 @@ void bb_write_artifact_manifest_file(const char *root)
 int applet_manifest_main(int argc, char **argv)
 {
     int json = 0, base64 = 0;
+    int include_missing = 0;
     int i;
 
     if (manifest_is_help(argc, argv)) {
-        puts("usage: busierbox manifest [--json|--base64]");
+        puts("usage: busierbox manifest [--json|--base64] [--include-missing]");
         puts("Print artifact and preset metadata embedded in this BusierBox binary.");
         return 0;
     }
@@ -528,6 +537,8 @@ int applet_manifest_main(int argc, char **argv)
             json = 1;
         else if (!strcmp(argv[i], "--base64"))
             base64 = 1;
+        else if (!strcmp(argv[i], "--include-missing"))
+            include_missing = 1;
         else {
             fprintf(stderr, "manifest: unknown option %s\n", argv[i]);
             return 2;
@@ -538,7 +549,7 @@ int applet_manifest_main(int argc, char **argv)
         return 2;
     }
     if (json) {
-        write_manifest_json(stdout);
+        write_manifest_json(stdout, include_missing);
         return 0;
     }
     if (base64)

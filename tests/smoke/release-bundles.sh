@@ -161,6 +161,9 @@ test -x "$work/release/scripts/artifact-config"
 test -x "$work/release/scripts/configure-artifact"
 test -x "$work/release/scripts/configure-all"
 test -x "$work/release/scripts/verify-checksums"
+test -x "$work/release/scripts/release-index"
+test -x "$work/release/scripts/release-find"
+test -x "$work/release/scripts/release-self-test"
 "$work/release/scripts/configure-artifact" --help >"$work/configure-help.out" 2>&1 || test "$?" -eq 2
 grep -q -- '--run-mode auto|foreground|background' "$work/configure-help.out"
 grep -q -- '--shell-provider auto|target-sh|payload-busybox-sh|payload-busybox-ash|payload-zsh|custom' "$work/configure-help.out"
@@ -171,6 +174,7 @@ if grep -q -- '--run-mode auto|oneshot' "$work/configure-help.out"; then
 fi
 test -f "$work/release/SHA256SUMS.original"
 test -f "$work/release/release.json"
+test -f "$work/release/release-index.json"
 test -f "$work/release/docs/README-release.md"
 test -f "$work/release/docs/trailer-overrides.md"
 test -f "$work/release.tar.gz"
@@ -204,6 +208,8 @@ summary = artifact.get("tuple_summary") or {}
 for key in ("payload_manifest", "native_applets", "busybox_applets", "core_extraction_behavior", "trailer_overridable_fields"):
     if key not in summary:
         raise SystemExit(f"tuple summary missing {key}")
+if "missing_tools" in summary or "missing_tool_reasons" in summary:
+    raise SystemExit("tuple summary should default to positive inventory only")
 host = data.get("build_host", {})
 for key in ("system", "machine", "python_version"):
     if not host.get(key):
@@ -234,14 +240,25 @@ artifacts = manifest.get("artifacts", [])
 if len(artifacts) != 1:
     raise SystemExit("tuple manifest artifact count mismatch")
 summary = artifacts[0]
-for key in ("payload_preset", "runtime_mode", "payload_manifest", "native_applets", "busybox_applets", "heavy_tools", "missing_tools", "sha256", "config"):
+for key in ("payload_preset", "runtime_mode", "payload_manifest", "native_applets", "busybox_applets", "heavy_tools", "sha256", "config"):
     if key not in summary:
         raise SystemExit(f"tuple artifact summary missing {key}")
+if "missing_tools" in summary or "missing_tool_reasons" in summary:
+    raise SystemExit("tuple manifest should default to positive inventory only")
 text = open(sys.argv[2], "r", encoding="utf-8").read()
 for needle in ("Payload variants:", "payload_manifest=", "busybox_applets=", "core_extraction=", "trailer_overridable_fields=", "reverse_access_defaults="):
     if needle not in text:
         raise SystemExit(f"tuple MANIFEST.txt missing {needle}")
+if "missing_tools=" in text:
+    raise SystemExit("tuple MANIFEST.txt should not include missing tools by default")
 PY
+
+"$work/release/scripts/release-index" >/dev/null
+"$work/release/scripts/release-find" --arch native --libc host --kernel host --payload-preset default >"$work/release-find.out"
+grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/busierbox-native-default-full$' "$work/release-find.out"
+"$work/release/scripts/release-find" --device native --json >"$work/release-find.json"
+python3 -m json.tool "$work/release-find.json" >/dev/null
+"$work/release/scripts/release-self-test" >/dev/null
 
 scripts/make-release \
     --name failure-smoke \
@@ -288,6 +305,34 @@ import sys
 data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 if data.get("layout", {}).get("mode") != "copy":
     raise SystemExit("copy layout metadata mismatch")
+PY
+
+scripts/make-release \
+    --name missing-reports \
+    --targets native \
+    --payload-presets default \
+    --skip-build \
+    --include-missing-reports \
+    --out-dir "$work/missing-release" >"$work/missing-release.out"
+test -f "$work/missing-release/build-report.json"
+python3 - "$work/missing-release/release.json" "$work/missing-release/by-tuple/native/host/host/host/MANIFEST.json" "$work/missing-release/by-tuple/native/host/host/host/MANIFEST.txt" <<'PY'
+import json
+import sys
+
+release = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if release.get("include_missing_reports") is not True:
+    raise SystemExit("include_missing_reports flag missing")
+if release.get("build_report") != "build-report.json":
+    raise SystemExit("build report path missing")
+summary = release["artifacts"][0].get("tuple_summary") or {}
+if "missing_tools" not in summary or "missing_tool_reasons" not in summary:
+    raise SystemExit("missing reports release lacks missing-tool inventory")
+manifest = json.load(open(sys.argv[2], "r", encoding="utf-8"))
+if "missing_tools" not in manifest.get("artifacts", [{}])[0]:
+    raise SystemExit("tuple manifest lacks opt-in missing tools")
+text = open(sys.argv[3], "r", encoding="utf-8").read()
+if "missing_tools=" not in text:
+    raise SystemExit("tuple MANIFEST.txt lacks opt-in missing tools")
 PY
 
 if [ -f dist/busierbox-mipsel-linux-4.x-musl-full ]; then
