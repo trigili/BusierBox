@@ -1,9 +1,10 @@
-miniz is public domain software with an Unlicense-style notice.
+miniz is permissively licensed. The vendored copy carries an MIT-style notice
+in `third_party/miniz/LICENSE` plus public-domain/Unlicense-style source-file
+notices.
 
 The vendored files are:
 - third_party/miniz/miniz.c
 - third_party/miniz/miniz.h
 
 Upstream source:
-https://github.com/richgel999/miniz/tree/3.0.2
-
+https://github.com/richgel999/miniz/tree/2.2.0

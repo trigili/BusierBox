@@ -1,8 +1,8 @@
-miniz 3.0.2 is vendored for built-in gzip inflate support.
+miniz 2.2.0 is vendored for built-in gzip inflate support.
 
 Source:
-https://github.com/richgel999/miniz/tree/3.0.2
+https://github.com/richgel999/miniz/tree/2.2.0
 
 License:
-Public domain / Unlicense-style notice in `miniz.h` and `miniz.c`.
-
+MIT-style permissive notice in `LICENSE` plus public-domain/Unlicense-style
+source-file notices.

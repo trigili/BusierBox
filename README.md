@@ -7,8 +7,8 @@ BusierBox is not a BusyBox replacement and is not a BusyBox fork. BusierBox mana
 BusierBox's own code and project-maintained scripts are licensed under
 GPL-2.0-or-later. Release artifacts can include separately licensed upstream
 payload/build components such as BusyBox, Buildroot, doom-ascii, and miniz; see
-[docs/licensing.md](docs/licensing.md) for the compatibility notes and source
-license inventory.
+[NOTICE](NOTICE) and [docs/licensing.md](docs/licensing.md) for the project
+license declaration, compatibility notes, and source license inventory.
 
 ## Why It Is Handy
 
