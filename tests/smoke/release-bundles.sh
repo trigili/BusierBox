@@ -180,6 +180,11 @@ test -f "$work/release/release.json"
 test -f "$work/release/release-index.json"
 test -f "$work/release/docs/README-release.md"
 test -f "$work/release/docs/trailer-overrides.md"
+test -f "$work/release/docs/cleanup-ledger.md"
+test -f "$work/release/docs/gdbserver-workflow.md"
+test -f "$work/release/docs/manifest.md"
+test -f "$work/release/docs/recovery.md"
+test -f "$work/release/docs/survey-and-bringup.md"
 test -f "$work/release.tar.gz"
 
 python3 -m json.tool "$work/release/release.json" >/dev/null

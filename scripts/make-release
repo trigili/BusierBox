@@ -794,7 +794,14 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
         src = ROOT / "configs" / name
         if src.exists():
             shutil.copy2(src, config_dir / name)
-    for name in ("artifact-runtime-overrides.md", "manifest.md", "recovery.md", "gdbserver-workflow.md"):
+    for name in (
+        "artifact-runtime-overrides.md",
+        "cleanup-ledger.md",
+        "gdbserver-workflow.md",
+        "manifest.md",
+        "recovery.md",
+        "survey-and-bringup.md",
+    ):
         src = ROOT / "docs" / name
         if src.exists():
             shutil.copy2(src, doc_dir / name)
