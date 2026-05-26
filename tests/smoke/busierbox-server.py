@@ -331,11 +331,15 @@ def main():
         upload_port = free_port()
         upload_cfg = Path(tmp) / "server-config-upload.json"
         session_root = Path(tmp) / "sessions-upload"
+        upload_operator_dir = Path(tmp) / "operator-session-upload"
         upload_cfg.write_text(json.dumps({
             "file_service_enable": "yes",
             "listen_host": "127.0.0.1",
             "file_service_port": upload_port,
             "session_root": str(session_root),
+            "operator_session_dir": str(upload_operator_dir),
+            "server_state": str(upload_operator_dir / "server-state.json"),
+            "staged_files": str(upload_operator_dir / "staged-files.json"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
         }), encoding="utf-8")
@@ -403,6 +407,36 @@ def main():
             return 1
         if len(metadata.get("sha256", "")) != 64:
             print("file service metadata missing sha256", file=sys.stderr)
+            return 1
+        session_json_paths = list(session_root.glob("*/session.json"))
+        if len(session_json_paths) != 1:
+            print("file service did not write session.json", file=sys.stderr)
+            return 1
+        session_doc = json.loads(session_json_paths[0].read_text(encoding="utf-8"))
+        if (session_doc.get("service") != "file-service" or
+                session_doc.get("state") != "stopped" or
+                not session_doc.get("session_id") or
+                not session_doc.get("uploads")):
+            print("file service session.json missing structured fields", file=sys.stderr)
+            print(session_doc, file=sys.stderr)
+            return 1
+        session_events = [json.loads(line) for line in (session_json_paths[0].parent / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+        event_names = {event.get("event") for event in session_events}
+        for expected_event in ("service_start", "connection_open", "upload_start", "upload_complete", "connection_close", "service_stop"):
+            if expected_event not in event_names:
+                print(f"session events missing {expected_event}", file=sys.stderr)
+                return 1
+        if any(event.get("session") != session_doc.get("session_id") for event in session_events):
+            print("session event records should carry the session id, not an empty/path value", file=sys.stderr)
+            return 1
+        global_events_path = upload_operator_dir / "events.jsonl"
+        global_events = [json.loads(line) for line in global_events_path.read_text(encoding="utf-8").splitlines()]
+        if "upload_complete" not in {event.get("event") for event in global_events}:
+            print("global operator event log missing upload_complete", file=sys.stderr)
+            return 1
+        upload_state = json.loads((upload_operator_dir / "server-state.json").read_text(encoding="utf-8"))
+        if not any(item.get("session_id") == session_doc.get("session_id") for item in upload_state.get("sessions", [])):
+            print("server-state sessions missing file-service session id", file=sys.stderr)
             return 1
 
         state_file = Path(tmp) / "operator-session" / "server-state.json"
