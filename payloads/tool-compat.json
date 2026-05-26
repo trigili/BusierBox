@@ -616,10 +616,15 @@
       "notes": "Partition editors are explicitly dangerous and should never be default-selected."
     },
     "doom": {
-      "providers": ["local-dropin", "overlay", "host-native"],
-      "classification": "provider-only optional runtime",
-      "expected_payload_size": "provider-defined",
-      "static_constraints": "User/provider binary must match the target architecture and libc.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay",
+        "host-native"
+      ],
+      "classification": "optional runtime",
+      "expected_payload_size": "small engine plus user-staged WAD data",
+      "static_constraints": "Buildroot provider builds doom-ascii statically; user/provider binaries must match the target architecture and libc.",
       "requires_devpts": false,
       "requires_pty": false,
       "requires_ptrace": false,
@@ -634,14 +639,8 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "known_provider_issues": [
-        {
-          "severity": "warning",
-          "message": "doom is a fun optional runtime entry, but BusierBox does not fetch or bundle a Doom engine or game data.",
-          "suggested_action": "Provide a target-compatible doom/chocolate-doom binary through your overlay/local provider and stage any legally usable WAD data yourself."
-        }
-      ],
-      "notes": "Classic Doom-compatible game runtime. Must be supplied by overlay/local provider; BusierBox does not download game data."
+      "known_provider_issues": [],
+      "notes": "Classic Doom-compatible terminal runtime. BusierBox can build doom-ascii as the engine; it does not bundle commercial game data, so stage a legally usable WAD separately."
     }
   }
 }

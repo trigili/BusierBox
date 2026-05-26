@@ -144,7 +144,7 @@ die() {
 [ "$TARGET_STATUS" = supported ] || die "target $TARGET_NAME is $TARGET_STATUS: $TARGET_NOTES"
 
 case "$TARGET_ARCH:$TARGET_LIBC" in
-    mipsel:musl|mipsel:uclibc|mips:musl|mips:uclibc|armv7:musl|aarch64:musl|x86_64:musl|i386:musl) ;;
+    mipsel:musl|mipsel:uclibc|mips:musl|mips:uclibc|armv7:musl|armv7:uclibc|aarch64:musl|x86_64:musl|i386:musl) ;;
     *) die "unsupported generated tuple arch=$TARGET_ARCH libc=$TARGET_LIBC" ;;
 esac
 
@@ -246,7 +246,7 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     printf '%s\n' "BR2_TARGET_GENERIC_HOSTNAME=\"$hostname\""
     printf '%s\n' "BR2_TARGET_GENERIC_ISSUE=\"BusierBox $TARGET_NAME payload\""
     printf '%s\n' "BR2_PACKAGE_BUSYBOX=y"
-    _bbcfg=$(BB_BUSYBOX_GROUPS="${BB_BUSYBOX_GROUPS:-}" BB_BUSYBOX_APPLETS="${BB_BUSYBOX_APPLETS:-}" BB_BUSYBOX_APPLET_OVERRIDES="${BB_BUSYBOX_APPLET_OVERRIDES:-}" TARGET="$TARGET_NAME" BUILDROOT_VERSION="${BUILDROOT_VERSION:-2026.02.2}" OUT_DIR="$(pwd)/$defconfig_dir" scripts/gen-buildroot-busybox-config 2>/dev/null) || _bbcfg=
+    _bbcfg=$(BB_BUSYBOX_GROUPS="${BB_BUSYBOX_GROUPS:-}" BB_BUSYBOX_APPLETS="${BB_BUSYBOX_APPLETS:-}" BB_BUSYBOX_APPLET_OVERRIDES="${BB_BUSYBOX_APPLET_OVERRIDES:-}" TARGET="$TARGET_NAME" TARGET_LIBC="$TARGET_LIBC" BUILDROOT_VERSION="${BUILDROOT_VERSION:-2026.02.2}" OUT_DIR="$(pwd)/$defconfig_dir" scripts/gen-buildroot-busybox-config 2>/dev/null) || _bbcfg=
     if [ -n "$_bbcfg" ] && [ -f "$_bbcfg" ]; then
         printf '%s\n' "BR2_PACKAGE_BUSYBOX_CONFIG=\"$_bbcfg\""
     else
@@ -351,7 +351,7 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
                 printf '%s\n' "BR2_PACKAGE_E2FSPROGS_DEBUGFS=y"
                 ;;
             parted) printf '%s\n' "BR2_PACKAGE_PARTED=y" ;;
-            doom) printf '%s\n' "# doom is provider/overlay-only unless the target Buildroot tree supplies a compatible package" ;;
+            doom) printf '%s\n' "BR2_PACKAGE_BUSIERBOX_DOOM_ASCII=y" ;;
             *) printf '%s\n' "# Unknown heavy tool requested: $tool" ;;
         esac
     done

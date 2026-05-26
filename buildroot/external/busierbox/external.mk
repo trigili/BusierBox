@@ -1,6 +1,8 @@
 # BusierBox Buildroot external tree.
 # Payload packaging is handled by scripts/buildroot-build-payload.
 
+include $(sort $(wildcard $(BR2_EXTERNAL_BUSIERBOX_PATH)/package/*/*.mk))
+
 # Disable KEXGUESS2 in Dropbear so dbclient does not send an optimistic kex
 # packet before negotiation completes.  Paramiko (busierbox-server SSH mode)
 # does not implement the RFC 4253 §7.1 wrong-guess skip, so the sntrup761

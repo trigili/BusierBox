@@ -45,11 +45,11 @@ TOOL_SYMBOLS = {
     "mmc-utils": ["BR2_PACKAGE_MMC_UTILS"],
     "e2fsprogs": ["BR2_PACKAGE_E2FSPROGS"],
     "parted": ["BR2_PACKAGE_PARTED"],
+    "doom": ["BR2_PACKAGE_BUSIERBOX_DOOM_ASCII"],
 }
 
 PROVIDER_ONLY = {
     "xxd": "provided by selected BusyBox applet; no Buildroot package symbol emitted",
-    "doom": "provider/overlay-only unless the active Buildroot tree supplies a compatible Doom package",
     "gdb": "prefer target gdbserver plus operator-side gdb; target full gdb is local-dropin/overlay only",
     "gef-pwndbg": "operator-side GDB plugin workspace only",
     "radare2": "no Buildroot package mapping in the checked tree; local-dropin/overlay only",
@@ -122,6 +122,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/busierbox.conf")
     parser.add_argument("--buildroot-dir", default="buildroot/buildroot-2026.02.2")
+    parser.add_argument("--external-dir", default="buildroot/external/busierbox")
     parser.add_argument("--compat", default="payloads/tool-compat.json")
     parser.add_argument("--tools", default="")
     parser.add_argument("--strict", action="store_true", help="exit nonzero for untested/provider-required mappings too")
@@ -139,6 +140,9 @@ def main():
         print(f"broken buildroot-tree missing path={br}")
         return 1
     symbols = buildroot_symbols(br)
+    external = pathlib.Path(args.external_dir)
+    if external.exists():
+        symbols.update(buildroot_symbols(external))
     compat = {}
     cp = pathlib.Path(args.compat)
     if cp.exists():

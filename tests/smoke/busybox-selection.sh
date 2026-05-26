@@ -23,4 +23,7 @@ grep -q '^CONFIG_DEVMEM=y$' "$cfg"
 cfg=$(BB_BUSYBOX_GROUPS="shell" BB_BUSYBOX_APPLET_OVERRIDES="+ascii" TARGET=selection-ascii OUT_DIR="$tmp" scripts/gen-buildroot-busybox-config)
 grep -q '^CONFIG_ASCII=y$' "$cfg"
 
+cfg=$(BB_BUSYBOX_GROUPS="shell" TARGET=armv7-linux-3.x-uclibc-eabi TARGET_LIBC=uclibc OUT_DIR="$tmp" scripts/gen-buildroot-busybox-config)
+grep -q '^CONFIG_ASH_INTERNAL_GLOB=y$' "$cfg"
+
 printf '%s\n' "busybox-selection ok"

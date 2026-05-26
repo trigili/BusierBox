@@ -13,6 +13,7 @@ OVERRIDES="${BB_BUSYBOX_APPLET_OVERRIDES:-}"
 BUILDROOT_VERSION="${BUILDROOT_VERSION:-2026.02.2}"
 BUILDROOT_DIR="${BUILDROOT_DIR:-buildroot/buildroot-$BUILDROOT_VERSION}"
 OUT_DIR="${OUT_DIR:-buildroot/generated-configs}"
+TARGET_LIBC="${TARGET_LIBC:-}"
 
 outfile="$OUT_DIR/${TARGET}-busybox.config"
 base="$BUILDROOT_DIR/package/busybox/busybox.config"
@@ -90,6 +91,12 @@ for sym in \
 do
     enable_sym "$sym" "$outfile"
 done
+
+case "$TARGET_LIBC:$TARGET" in
+    uclibc:*|*:*-uclibc|*:*-uclibc-*)
+        enable_sym CONFIG_ASH_INTERNAL_GLOB "$outfile"
+        ;;
+esac
 
 scripts/busybox-applet-map | awk -v groups="$GROUPS" -v applets="$APPLETS" -v overrides="$OVERRIDES" '
     BEGIN {

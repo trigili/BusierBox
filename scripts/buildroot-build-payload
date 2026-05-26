@@ -694,6 +694,10 @@ if tool_requested parted; then
 fi
 if tool_requested doom; then
     stage_first_found doom usr/bin/doom bin/doom usr/games/doom usr/bin/chocolate-doom bin/chocolate-doom usr/games/chocolate-doom || printf '%s\n' "buildroot-build-payload: requested doom but no built binary was found" >&2
+    if [ -f "$out_dir/target/usr/share/busierbox/doom/.default.cfg" ]; then
+        mkdir -p runtime/payload/share/doom
+        cp "$out_dir/target/usr/share/busierbox/doom/.default.cfg" runtime/payload/share/doom/.default.cfg
+    fi
 fi
 
 # Stage terminfo database if built
