@@ -244,8 +244,9 @@ scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host
 
 `--json-status` and `--api-status` include top-level `summary` and `warnings`
 objects for frontend and automation consumers. Stale server-state records,
-service errors, listener counts, and command queue counts can be read without
-re-parsing the human status view.
+service errors, listener counts, command queue counts, and release
+artifact/device/tuple counts can be read without re-parsing the human status
+view.
 
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it does not push the artifact or run it. In the

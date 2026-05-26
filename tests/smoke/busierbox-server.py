@@ -789,6 +789,13 @@ def main():
             print("json status missing release browser metadata", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
+        release_summary = release_doc.get("summary") or {}
+        if (release_summary.get("release_artifact_count", 0) < 1 or
+                release_summary.get("release_device_count") != 1 or
+                release_summary.get("release_tuple_count") != 1):
+            print("json status missing release aggregate counts", file=sys.stderr)
+            print(release_status.stdout, file=sys.stderr)
+            return 1
         staged_release = subprocess.run(
             [
                 str(server),

@@ -2099,6 +2099,7 @@ def status_document(cfg):
     sessions = recent_session_records(cfg)
     events = event_tail(cfg)
     command_queue = command_queue_summary(cfg)
+    release = release_context()
     summary, warnings = status_summary_and_warnings(services)
     summary.update({
         "staged_count": len(staged),
@@ -2108,6 +2109,9 @@ def status_document(cfg):
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_result_count": command_queue.get("result_count", 0),
+        "release_artifact_count": len(release.get("artifacts") or []),
+        "release_device_count": len(release.get("devices") or []),
+        "release_tuple_count": len(release.get("tuples") or []),
     })
     return {
         "schema": 1,
@@ -2126,7 +2130,7 @@ def status_document(cfg):
         "uploads": uploads,
         "sessions": sessions,
         "events": events,
-        "release": release_context(),
+        "release": release,
         "command_queue": command_queue,
     }
 
