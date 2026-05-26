@@ -242,6 +242,11 @@ scripts/busierbox-server --api-status
 scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host/bin/busierbox-native-default-full --list-staged
 ```
 
+`--json-status` and `--api-status` include top-level `summary` and `warnings`
+objects for frontend and automation consumers. Stale server-state records,
+service errors, listener counts, and command queue counts can be read without
+re-parsing the human status view.
+
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it does not push the artifact or run it. In the
 curses workbench, `v` opens the selected local metadata/log/artifact path in the

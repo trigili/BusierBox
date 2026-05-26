@@ -244,8 +244,15 @@ def main():
             "--command-queue-file", str(queue_file),
             "--json-status",
         )
-        if json.loads(queue_status_doc.stdout)["command_queue"]["result_count"] != 1:
+        queue_status_json = json.loads(queue_status_doc.stdout)
+        if queue_status_json["command_queue"]["result_count"] != 1:
             print("server json status missing command queue summary", file=sys.stderr)
+            return 1
+        if "summary" not in queue_status_json or "warnings" not in queue_status_json:
+            print("server json status missing top-level summary/warnings", file=sys.stderr)
+            return 1
+        if queue_status_json["summary"].get("service_count") != 4:
+            print("server json status service summary is wrong", file=sys.stderr)
             return 1
         api_status_doc = run(
             "scripts/busierbox-server",
@@ -494,6 +501,20 @@ def main():
         if "stale-state" not in stale.stdout:
             print("--status did not warn on stale listening state", file=sys.stderr)
             print(stale.stdout, file=sys.stderr)
+            return 1
+        stale_json = run(
+            "scripts/busierbox-server", "--config", str(lifecycle_cfg),
+            "--state-file", str(lifecycle_state),
+            "--staged-file", str(lifecycle_staged),
+            "--json-status",
+        )
+        stale_doc = json.loads(stale_json.stdout)
+        stale_warnings = [
+            item for item in stale_doc.get("warnings", [])
+            if item.get("type") == "stale_state" and item.get("service") == "file-service"
+        ]
+        if stale_doc.get("summary", {}).get("stale_count", 0) < 1 or not stale_warnings:
+            print("--json-status did not expose structured stale-state warning", file=sys.stderr)
             return 1
 
         upload_port = free_port()
