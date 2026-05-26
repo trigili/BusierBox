@@ -37,6 +37,12 @@ Run all safe cases:
 scripts/integration-glinet --host root@192.168.8.1 --operator-host auto --all-safe
 ```
 
+The safe set includes a `trailer-runtime-override` case. That case copies the
+built artifact, applies allowlisted post-build runtime overrides with
+`scripts/artifact-config`, and verifies on the target that `runtime-config`,
+`config-info`, and `rshell status --json` report the trailer-derived effective
+configuration.
+
 Run one reverse shell case:
 
 ```sh

@@ -17,7 +17,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 RUN_ROOT = ROOT / "local" / "integration-runs"
 DEFAULT_TARGET = "glinet-mt7621-openwrt-musl"
-SAFE_CASES = ["survey-core", "default-extract-help", "builtin-core-shell", "zero-arg-builtin"]
+SAFE_CASES = [
+    "survey-core",
+    "trailer-runtime-override",
+    "default-extract-help",
+    "builtin-core-shell",
+    "zero-arg-builtin",
+]
 ALL_CASES = SAFE_CASES + ["socat-rescue", "ssh-operator"]
 PORTS = {
     "ssh": 22202,
@@ -33,6 +39,7 @@ class SkipCase(RuntimeError):
 
 PAYLOAD_PRESETS = {
     "survey-core": "survey-core",
+    "trailer-runtime-override": "survey-core",
     "default-extract-help": "default",
     "builtin-core-shell": "builtin-core-shell",
     "zero-arg-builtin": "builtin-core-shell",
@@ -170,6 +177,23 @@ def build_artifact(case_dir, target, config, args):
         "size": artifact.stat().st_size,
     }, indent=2) + "\n", encoding="utf-8")
     return artifact
+
+
+def apply_case_artifact_overrides(case, artifact, case_dir):
+    if case != "trailer-runtime-override":
+        return artifact
+    configured = case_dir / "busierbox-trailer"
+    shutil.copy2(artifact, configured)
+    configured.chmod(0o755)
+    run_cmd([
+        "scripts/artifact-config", "set", str(configured),
+        "BB_OPERATOR_SERVER_HOST=198.51.100.88",
+        "BB_OPERATOR_SERVER_SSH_PORT=22088",
+        "BB_OPERATOR_REMOTE_FORWARD_PORT=2288",
+        "BB_RSHELL_TRANSPORT=ssh",
+        "BB_ZERO_ARG_LOG_MODE=status",
+    ], timeout=60, log_path=case_dir / "artifact-config.log", check=True)
+    return configured
 
 
 def collect_target_facts(host, remote_dir, case_dir):
@@ -339,6 +363,29 @@ def case_survey_core(ctx):
                     "test ! -d .busierbox/payload/bin")
 
 
+def case_trailer_runtime_override(ctx):
+    run_remote_case(ctx["host"], ctx["remote_dir"], ctx["case_dir"],
+                    "./busierbox runtime-config > runtime-config.out; "
+                    "grep -q '^effective_config_source=trailer$' runtime-config.out; "
+                    "grep -q '^trailer_present=yes$' runtime-config.out; "
+                    "grep -q '^trailer_valid=yes$' runtime-config.out; "
+                    "grep -q '^trailer_encoding=plain$' runtime-config.out; "
+                    "grep -q '^effective_BB_OPERATOR_SERVER_HOST=198.51.100.88$' runtime-config.out; "
+                    "grep -q '^effective_BB_OPERATOR_SERVER_SSH_PORT=22088$' runtime-config.out; "
+                    "grep -q '^effective_BB_OPERATOR_REMOTE_FORWARD_PORT=2288$' runtime-config.out; "
+                    "grep -q '^effective_BB_RSHELL_TRANSPORT=ssh$' runtime-config.out; "
+                    "grep -q '^effective_BB_ZERO_ARG_LOG_MODE=status$' runtime-config.out; "
+                    "./busierbox config-info > config-info.out; "
+                    "grep -q '^trailer_override_present=yes$' config-info.out; "
+                    "grep -q '^trailer_override_valid=yes$' config-info.out; "
+                    "grep -q '^effective_config_source=trailer$' config-info.out; "
+                    "./busierbox rshell status --json > rshell-status-trailer.json; "
+                    "grep -q '\"effective_config_source\":\"trailer\"' rshell-status-trailer.json; "
+                    "grep -q '\"operator_host\":\"198.51.100.88\"' rshell-status-trailer.json; "
+                    "grep -q '\"operator_ssh_port\":\"22088\"' rshell-status-trailer.json; "
+                    "grep -q '\"remote_forward_port\":\"2288\"' rshell-status-trailer.json")
+
+
 def case_default_extract_help(ctx):
     action = ("./busierbox > zero-arg.out 2>&1 || true; "
               "grep -Ei 'usage|busierbox|commands' zero-arg.out; "
@@ -464,6 +511,7 @@ def case_ssh_operator(ctx):
 
 CASE_FUNCS = {
     "survey-core": case_survey_core,
+    "trailer-runtime-override": case_trailer_runtime_override,
     "default-extract-help": case_default_extract_help,
     "builtin-core-shell": case_builtin_core_shell,
     "zero-arg-builtin": case_zero_arg_builtin,
@@ -486,6 +534,7 @@ def run_case(case, args, run_dir, operator_host):
         config = write_case_config(case_dir, case, operator_host, args)
         result["config"] = str(config)
         artifact = Path(args.artifact) if args.artifact else build_artifact(case_dir, args.target_preset, config, args)
+        artifact = apply_case_artifact_overrides(case, artifact, case_dir)
         result["artifact"] = str(artifact)
         result["artifact_sha256"] = sha256(artifact)
         prepare_remote(args.host, remote_dir, artifact, case_dir)
