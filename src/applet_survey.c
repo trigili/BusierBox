@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "json_helpers.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -254,19 +255,7 @@ static void json_recommendation_warnings(const char *extract_dir)
 
 static void json_string(const char *s)
 {
-    putchar('"');
-    if (s) {
-        while (*s) {
-            unsigned char c = (unsigned char)*s++;
-            if (c == '"' || c == '\\') { putchar('\\'); putchar(c); }
-            else if (c == '\n') fputs("\\n", stdout);
-            else if (c == '\r') fputs("\\r", stdout);
-            else if (c == '\t') fputs("\\t", stdout);
-            else if (c < 32) printf("\\u%04x", c);
-            else putchar(c);
-        }
-    }
-    putchar('"');
+    bb_json_string(stdout, s);
 }
 
 static void json_meminfo(void)

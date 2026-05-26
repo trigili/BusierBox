@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "json_helpers.h"
 #include "runtime_config.h"
 #include "sha256.h"
 #include "../third_party/miniz/miniz.h"
@@ -460,30 +461,7 @@ static int mkdir_p(const char *path, mode_t mode)
     return 0;
 }
 
-static void json_string_payload(FILE *out, const char *s)
-{
-    fputc('"', out);
-    if (s) {
-        while (*s) {
-            unsigned char c = (unsigned char)*s++;
-            if (c == '"' || c == '\\') {
-                fputc('\\', out);
-                fputc(c, out);
-            } else if (c == '\n') {
-                fputs("\\n", out);
-            } else if (c == '\r') {
-                fputs("\\r", out);
-            } else if (c == '\t') {
-                fputs("\\t", out);
-            } else if (c < 32) {
-                fprintf(out, "\\u%04x", c);
-            } else {
-                fputc(c, out);
-            }
-        }
-    }
-    fputc('"', out);
-}
+#define json_string_payload bb_json_string
 
 static int path_exists(const char *path)
 {

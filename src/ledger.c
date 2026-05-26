@@ -8,6 +8,7 @@
 #include <time.h>
 
 #include "applets.h"
+#include "json_helpers.h"
 #include "runtime_config.h"
 
 #ifndef PATH_MAX
@@ -40,31 +41,6 @@ static int ledger_mkdir_p(const char *path, mode_t mode)
     return 0;
 }
 
-static void ledger_json_string(FILE *out, const char *s)
-{
-    fputc('"', out);
-    if (s) {
-        while (*s) {
-            unsigned char c = (unsigned char)*s++;
-            if (c == '"' || c == '\\') {
-                fputc('\\', out);
-                fputc(c, out);
-            } else if (c == '\n') {
-                fputs("\\n", out);
-            } else if (c == '\r') {
-                fputs("\\r", out);
-            } else if (c == '\t') {
-                fputs("\\t", out);
-            } else if (c < 32) {
-                fprintf(out, "\\u%04x", c);
-            } else {
-                fputc(c, out);
-            }
-        }
-    }
-    fputc('"', out);
-}
-
 const char *bb_ledger_path(char *out, size_t outsz)
 {
     snprintf(out, outsz, "%s/run/cleanup-ledger.jsonl", BB_RUNTIME_ROOT);
@@ -84,15 +60,15 @@ void bb_ledger_record(const char *op, const char *path, const char *scope, const
     if (!fp)
         return;
     fputs("{\"op\":", fp);
-    ledger_json_string(fp, op);
+    bb_json_string(fp, op);
     fputs(",\"path\":", fp);
-    ledger_json_string(fp, path);
+    bb_json_string(fp, path);
     fputs(",\"scope\":", fp);
-    ledger_json_string(fp, scope ? scope : "runtime");
+    bb_json_string(fp, scope ? scope : "runtime");
     fprintf(fp, ",\"ts\":%ld", (long)now);
     if (detail && *detail) {
         fputs(",\"detail\":", fp);
-        ledger_json_string(fp, detail);
+        bb_json_string(fp, detail);
     }
     fputs("}\n", fp);
     fclose(fp);

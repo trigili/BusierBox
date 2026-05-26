@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "json_helpers.h"
 #include "runtime_config.h"
 
 #ifndef PATH_MAX
@@ -542,30 +543,7 @@ static int should_background_rshell(const char *transport)
     return 0;
 }
 
-static void json_string_main(FILE *out, const char *s)
-{
-    fputc('"', out);
-    if (s) {
-        while (*s) {
-            unsigned char c = (unsigned char)*s++;
-            if (c == '"' || c == '\\') {
-                fputc('\\', out);
-                fputc(c, out);
-            } else if (c == '\n') {
-                fputs("\\n", out);
-            } else if (c == '\r') {
-                fputs("\\r", out);
-            } else if (c == '\t') {
-                fputs("\\t", out);
-            } else if (c < 32) {
-                fprintf(out, "\\u%04x", c);
-            } else {
-                fputc(c, out);
-            }
-        }
-    }
-    fputc('"', out);
-}
+#define json_string_main bb_json_string
 
 static void write_rshell_background_status(const char *transport, pid_t pid)
 {
