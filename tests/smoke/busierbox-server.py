@@ -219,6 +219,11 @@ def main():
         else:
             print("lifecycle file-service did not reach listening state", file=sys.stderr)
             lifecycle_proc.terminate()
+            try:
+                lifecycle_proc.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                lifecycle_proc.kill()
+                lifecycle_proc.communicate(timeout=2)
             return 1
         rows = {row["name"]: row for row in status_doc["services"]}
         if not rows["file-service"].get("pid"):
@@ -411,7 +416,10 @@ def main():
         )
         if ("Received uploads" not in uploads_view.stdout or
                 "evidence.txt" not in uploads_view.stdout or
-                "metadata:" not in uploads_view.stdout):
+                "metadata:" not in uploads_view.stdout or
+                "Generated target commands" not in uploads_view.stdout or
+                "Event log" not in uploads_view.stdout or
+                "./busierbox put /etc/config/network" not in uploads_view.stdout):
             print("workbench did not show received upload metadata", file=sys.stderr)
             print(uploads_view.stdout, file=sys.stderr)
             return 1
@@ -436,7 +444,7 @@ def main():
             "--staged-file", str(staged_file),
             "--tui",
         )
-        if tui.returncode != 0 or "BusierBox operator workbench" not in tui.stdout:
+        if tui.returncode != 0 or "BusierBox Operator Workbench" not in tui.stdout:
             print("noninteractive TUI/workbench failed:", file=sys.stderr)
             print(tui.stdout, file=sys.stderr)
             print(tui.stderr, file=sys.stderr)
@@ -526,6 +534,35 @@ def main():
         if listed.returncode != 0 or "busierbox fetch /tmp/myfile" not in listed.stdout:
             print("--list-staged did not show target fetch command", file=sys.stderr)
             print(listed.stdout, file=sys.stderr)
+            return 1
+        status_enriched = run(
+            "scripts/busierbox-server",
+            "--config", str(fetch_cfg),
+            "--state-file", str(state_file),
+            "--staged-file", str(staged_file),
+            "--json-status",
+        )
+        status_doc = json.loads(status_enriched.stdout)
+        if ("/tmp/myfile" not in status_doc.get("staged", {}) or
+                not any("fetch /tmp/myfile" in cmd for cmd in status_doc.get("target_commands", [])) or
+                "selected_local_ip" not in status_doc or
+                not isinstance(status_doc.get("events"), list)):
+            print("json status missing enriched workbench fields", file=sys.stderr)
+            print(status_enriched.stdout, file=sys.stderr)
+            return 1
+        unstage = run(
+            "scripts/busierbox-server",
+            "--config", str(fetch_cfg),
+            "--state-file", str(state_file),
+            "--staged-file", str(staged_file),
+            "--unstage", "/tmp/myfile",
+            "--list-staged",
+        )
+        staged_after_unstage = json.loads(staged_file.read_text(encoding="utf-8"))
+        if unstage.returncode != 0 or "/tmp/myfile" in staged_after_unstage.get("staged", {}):
+            print("--unstage did not remove staged request", file=sys.stderr)
+            print(unstage.stdout, file=sys.stderr)
+            print(unstage.stderr, file=sys.stderr)
             return 1
 
         serve_dir = Path(tmp) / "operator-files"
