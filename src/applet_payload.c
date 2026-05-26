@@ -2707,6 +2707,40 @@ static void print_doctor_cleanup_ledger_json(FILE *out)
             cleanup_ledger_entry_count(path));
 }
 
+static void print_doctor_payload_runtime_health_json(FILE *out, int have_payload, const char *payload)
+{
+    char busybox[PATH_MAX], symlink_count_path[PATH_MAX], symlink_count[32] = "";
+    char terminfo[PATH_MAX], tmux_ti[PATH_MAX], zsh_path[PATH_MAX], bin_dir[PATH_MAX];
+
+    fprintf(out, ",\"payload_runtime_health\":{\"present\":%s", have_payload ? "true" : "false");
+    if (!have_payload || !payload || !payload[0]) {
+        fprintf(out, "}");
+        return;
+    }
+    snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
+    snprintf(symlink_count_path, sizeof(symlink_count_path),
+             "%s/share/busierbox/applet-symlink-count.txt", payload);
+    read_first_line(symlink_count_path, symlink_count, sizeof(symlink_count));
+    snprintf(terminfo, sizeof(terminfo), "%s/share/terminfo", payload);
+    snprintf(tmux_ti, sizeof(tmux_ti), "%s/share/terminfo/t/tmux", payload);
+    snprintf(zsh_path, sizeof(zsh_path), "%s/bin/zsh", payload);
+    snprintf(bin_dir, sizeof(bin_dir), "%s/bin", payload);
+
+    fprintf(out, ",\"dir\":");
+    json_string_payload(out, payload);
+    fprintf(out, ",\"busybox_executable\":%s", executable_file(busybox) ? "true" : "false");
+    fprintf(out, ",\"applet_symlink_count\":");
+    if (symlink_count[0])
+        json_string_payload(out, symlink_count);
+    else
+        fprintf(out, "null");
+    fprintf(out, ",\"terminfo_present\":%s", path_exists(terminfo) ? "true" : "false");
+    fprintf(out, ",\"tmux_terminfo_present\":%s", path_exists(tmux_ti) ? "true" : "false");
+    fprintf(out, ",\"zsh_present\":%s", executable_file(zsh_path) ? "true" : "false");
+    fprintf(out, ",\"payload_bin_path_count\":%d", path_entry_count(getenv("PATH"), bin_dir));
+    fprintf(out, "}");
+}
+
 int applet_doctor_main(int argc, char **argv)
 {
     struct embedded_payload ep;
@@ -2795,6 +2829,7 @@ int applet_doctor_main(int argc, char **argv)
                 printf(",\"overlay_enabled\":%s", !strcmp(json_bool_value(manifest, "overlay_enabled"), "yes") ? "true" : "false");
             }
             printf("}");
+            print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
             print_doctor_rshell_readiness_json(stdout);
             print_doctor_runtime_config_json(stdout);
@@ -2858,6 +2893,7 @@ int applet_doctor_main(int argc, char **argv)
             print_doctor_extraction_runtime_json(stdout, 1);
             printf(",\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d}",
                    manifest ? "true" : "false", applet_count);
+            print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
             print_doctor_rshell_readiness_json(stdout);
             print_doctor_runtime_config_json(stdout);

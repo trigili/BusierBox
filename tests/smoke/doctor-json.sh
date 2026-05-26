@@ -15,7 +15,7 @@ import sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-for key in ["schema", "embedded_payload", "extracted_payload", "extraction_runtime", "payload_manifest", "manifest_summary", "rshell_readiness", "runtime_config", "cleanup_ledger", "environment", "host", "artifact"]:
+for key in ["schema", "embedded_payload", "extracted_payload", "extraction_runtime", "payload_manifest", "payload_runtime_health", "manifest_summary", "rshell_readiness", "runtime_config", "cleanup_ledger", "environment", "host", "artifact"]:
     if key not in data:
         raise SystemExit(f"missing doctor key: {key}")
 if "present" not in data["embedded_payload"]:
@@ -31,6 +31,8 @@ for root in data["extraction_runtime"]["roots"]:
     for key in ["role", "configured", "exists", "writable", "executable", "noexec", "available_bytes", "free_space_ok", "selected"]:
         if key not in root:
             raise SystemExit(f"doctor extraction root missing {key}")
+if "present" not in data["payload_runtime_health"]:
+    raise SystemExit("doctor payload runtime health presence missing")
 for key in ["target_preset", "payload_preset", "runtime_mode", "zero_arg_mode"]:
     if key not in data["manifest_summary"]:
         raise SystemExit(f"doctor manifest summary missing {key}")
@@ -70,6 +72,14 @@ if data["extracted_payload"].get("extraction_mode") != "full":
     raise SystemExit("doctor did not report full extraction mode")
 if not data["payload_manifest"].get("found"):
     raise SystemExit("doctor did not report payload manifest")
+health = data.get("payload_runtime_health", {})
+if not health.get("present"):
+    raise SystemExit("doctor did not report payload runtime health")
+for key in ["dir", "busybox_executable", "applet_symlink_count", "terminfo_present", "tmux_terminfo_present", "zsh_present", "payload_bin_path_count"]:
+    if key not in health:
+        raise SystemExit(f"doctor payload runtime health missing {key}")
+if not health.get("busybox_executable"):
+    raise SystemExit("doctor payload runtime health did not report executable busybox")
 if not data["manifest_summary"].get("payload_manifest_found"):
     raise SystemExit("doctor manifest summary did not report payload manifest")
 if not data["cleanup_ledger"].get("present"):
