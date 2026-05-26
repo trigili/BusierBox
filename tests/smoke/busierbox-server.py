@@ -393,6 +393,18 @@ def main():
         if not state_after_bind["services"]["file-service"].get("owners"):
             print("bind failure did not record possible listener owners", file=sys.stderr)
             return 1
+        bind_events_path = Path(tmp) / "operator-session" / "events.jsonl"
+        bind_events = [json.loads(line) for line in bind_events_path.read_text(encoding="utf-8").splitlines()]
+        bind_error = [event for event in bind_events if event.get("event") == "bind_error"]
+        if not bind_error:
+            print("bind failure did not write structured bind_error event", file=sys.stderr)
+            return 1
+        if bind_error[-1].get("service") != "file-service" or bind_error[-1].get("level") != "error":
+            print("bind_error event missing service/error level", file=sys.stderr)
+            return 1
+        if bind_error[-1].get("details", {}).get("port") != bind_fail_port:
+            print("bind_error event missing failed port", file=sys.stderr)
+            return 1
 
         state_after_bind["services"]["file-service"].update({"status": "listening", "pid": 999999, "updated_at": "stale"})
         lifecycle_state.write_text(json.dumps(state_after_bind, indent=2) + "\n", encoding="utf-8")

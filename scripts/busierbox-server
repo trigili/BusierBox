@@ -322,11 +322,11 @@ def mark_service_stopped(cfg, action):
     return update_server_state(cfg, action, "stopped", {})
 
 
-def mark_service_error(cfg, action, reason, extra=None):
+def mark_service_error(cfg, action, reason, extra=None, event_name="service_error"):
     data = {"error": str(reason)}
     if extra:
         data.update(extra)
-    append_event(cfg, action, "service_error", "error", details=data)
+    append_event(cfg, action, event_name, "error", details=data)
     return update_server_state(cfg, action, "error", data)
 
 
@@ -719,7 +719,7 @@ def bind_listen_socket(cfg, service, port, backlog):
         except OSError:
             pass
         owners = [{"pid": pid, "cmdline": pid_cmdline(pid)} for pid in port_listener_pids(port)]
-        mark_service_error(cfg, service, exc, {"listen_host": str(cfg["listen_host"]), "port": int(port), "owners": owners})
+        mark_service_error(cfg, service, exc, {"listen_host": str(cfg["listen_host"]), "port": int(port), "owners": owners}, event_name="bind_error")
         print(f"{service}: unable to bind {cfg['listen_host']}:{port}: {exc}", file=sys.stderr)
         if owners:
             print("possible listener owners:", file=sys.stderr)
