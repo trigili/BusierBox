@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import pty
 import signal
 import socket
 import ssl
@@ -1088,6 +1089,46 @@ def main():
                 "./busierbox put /etc/config/network" not in uploads_view.stdout):
             print("workbench did not show received upload metadata", file=sys.stderr)
             print(uploads_view.stdout, file=sys.stderr)
+            return 1
+
+        tui_sigint_state = Path(tmp) / "operator-session" / "tui-sigint-state.json"
+        tui_master, tui_slave = pty.openpty()
+        try:
+            tui_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(upload_cfg),
+                    "--state-file", str(tui_sigint_state),
+                    "--staged-file", str(staged_file),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=tui_slave,
+                stdout=tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "xterm"},
+            )
+            os.close(tui_slave)
+            tui_slave = -1
+            time.sleep(0.5)
+            tui_proc.send_signal(signal.SIGINT)
+            _tui_stdout, tui_stderr = tui_proc.communicate(timeout=5)
+        finally:
+            if tui_slave != -1:
+                os.close(tui_slave)
+            try:
+                os.close(tui_master)
+            except OSError:
+                pass
+        if tui_proc.returncode not in (0, 130) or "Traceback" in (tui_stderr or ""):
+            print("interactive TUI SIGINT did not exit cleanly", file=sys.stderr)
+            print(tui_stderr or "", file=sys.stderr)
+            return 1
+        tui_sigint_doc = json.loads(tui_sigint_state.read_text(encoding="utf-8"))
+        if tui_sigint_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
+            print("interactive TUI SIGINT did not mark workbench stopped", file=sys.stderr)
+            print(json.dumps(tui_sigint_doc, indent=2), file=sys.stderr)
             return 1
 
         staged_source = Path(tmp) / "operator-file.bin"

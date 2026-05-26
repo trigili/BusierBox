@@ -2978,7 +2978,7 @@ def stop_recorded_service(cfg, service):
 
 
 def run_line_tui(cfg):
-    while True:
+    while not SHUTDOWN.is_set():
         print("")
         print_workbench(cfg)
         print("")
@@ -3034,6 +3034,7 @@ def run_line_tui(cfg):
                     print(exc)
         elif choice == "?":
             print("Keys: 1-4 start services, 5 stop, 6 stage, 8/d unstage, 9/v view, c show/copy commands, r refresh, q quit.")
+    return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 
 def run_curses_tui(cfg):
@@ -3086,7 +3087,7 @@ def run_curses_tui(cfg):
         stdscr.keypad(True)
         pane = 0
         selected = 0
-        while True:
+        while not SHUTDOWN.is_set():
             snap = workbench_snapshot(cfg)
             services = [row["status_row"] for row in snap["services"].values()]
             staged_names = sorted(snap["staged"])
@@ -3353,7 +3354,7 @@ def run_curses_tui(cfg):
                 1
             )
             selected = min(max(0, selected), max(0, max_items - 1))
-        return 0
+        return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
     return curses.wrapper(draw)
 
@@ -3365,6 +3366,10 @@ def run_tui(cfg):
         return 0
     try:
         return run_curses_tui(cfg)
+    except KeyboardInterrupt:
+        request_shutdown("keyboard_interrupt")
+        print("busierbox-server: interrupted, shutting down workbench", file=sys.stderr)
+        return 130
     except Exception as exc:
         print(f"curses workbench unavailable, using line menu: {exc}", file=sys.stderr)
         return run_line_tui(cfg)
@@ -3374,7 +3379,7 @@ def run_tui(cfg):
             if isinstance(rec, dict) and str(rec.get("managed_by", "")) == str(os.getpid()):
                 stop_recorded_service(cfg, name)
         mark_service_stopped(cfg, "workbench")
-        append_event(cfg, "workbench", "shutdown")
+        append_event(cfg, "workbench", "shutdown", details={"reason": SHUTDOWN_REASON or "quit"})
 
 
 def _resolve_transport(cfg, args_transport):
