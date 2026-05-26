@@ -7,7 +7,7 @@ CFLAGS ?= -Os -Wall -Wextra -std=c99
 CPPFLAGS ?=
 LDFLAGS ?=
 
-SRC := src/busierbox.c src/applet_payload.c src/applet_clean.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/ledger.c src/json_helpers.c
+SRC := src/busierbox.c src/applet_payload.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/ledger.c src/json_helpers.c
 
 .PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release verify-artifact check-buildroot-tool-mappings target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-glinet test-all
 
