@@ -125,6 +125,9 @@ def main():
         if word not in src:
             print(f"busierbox-server: reverse forward event missing: {word}", file=sys.stderr)
             return 1
+    if 'name="busierbox-reverse-forward"' not in src or "join(timeout=2.0)" not in src:
+        print("busierbox-server: reverse-forward listener thread is not explicitly owned/joined", file=sys.stderr)
+        return 1
 
     with tempfile.TemporaryDirectory() as tmp:
         cert_path = Path(tmp) / "shell-server.crt"

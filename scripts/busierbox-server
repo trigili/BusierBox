@@ -994,6 +994,7 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
         self.transport = None
         self.listener = None
         self._listener_sock = None
+        self._listener_thread = None
 
     def set_transport(self, transport):
         self.transport = transport
@@ -1008,6 +1009,11 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
             if self.transport:
                 self.transport.close()
         except Exception:
+            pass
+        try:
+            if self._listener_thread and self._listener_thread.is_alive():
+                self._listener_thread.join(timeout=2.0)
+        except RuntimeError:
             pass
 
     def check_auth_publickey(self, username, key):
@@ -1090,7 +1096,8 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
                 except OSError:
                     pass
 
-        threading.Thread(target=run, daemon=True).start()
+        self._listener_thread = threading.Thread(target=run, name="busierbox-reverse-forward")
+        self._listener_thread.start()
 
 
 def pipe(src, dst):
