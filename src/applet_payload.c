@@ -11,6 +11,7 @@
 
 #include "applets.h"
 #include "json_helpers.h"
+#include "payload_runtime.h"
 #include "runtime_config.h"
 #include "sha256.h"
 
@@ -285,6 +286,16 @@ static const char *heavy_tools[] = {
     NULL
 };
 
+const char *const *bb_payload_busybox_tools(void)
+{
+    return busybox_tools;
+}
+
+const char *const *bb_payload_heavy_tools(void)
+{
+    return heavy_tools;
+}
+
 static int compare_strings(const void *a, const void *b)
 {
     return strcmp(*(const char **)a, *(const char **)b);
@@ -372,7 +383,7 @@ static int operator_reverse_ssh_possible(void)
     return !strcmp(BB_RSHELL_TRANSPORT, "ssh");
 }
 
-static void print_autoexec_config(void)
+void bb_print_autoexec_config(void)
 {
     printf("zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
     printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
@@ -416,17 +427,6 @@ void bb_set_argv0(const char *argv0)
 {
     saved_argv0 = argv0;
 }
-
-struct embedded_payload {
-    int present;
-    char exe[PATH_MAX];
-    unsigned long long offset;
-    unsigned long long size;
-    char sha256[65];
-    char version[128];
-    char format[16];
-    unsigned long long compressed_size;
-};
 
 #define json_string_payload bb_json_string
 
@@ -511,7 +511,7 @@ static int parse_trailer_text(char *text, struct embedded_payload *ep)
     return 0;
 }
 
-static int get_embedded_payload(struct embedded_payload *ep)
+int bb_get_embedded_payload(struct embedded_payload *ep)
 {
     FILE *fp;
     long fsize;
@@ -540,7 +540,7 @@ static int get_embedded_payload(struct embedded_payload *ep)
     fclose(fp);
     trailer[BBX_TRAILER_SIZE] = '\0';
     /* parse_trailer_text does memset(ep, 0) internally; preserve the exe path
-     * we already resolved above so verify_embedded_hash can open the binary. */
+     * we already resolved above so bb_verify_embedded_hash can open the binary. */
     {
         char saved_exe[PATH_MAX];
         snprintf(saved_exe, sizeof(saved_exe), "%s", ep->exe);
@@ -553,7 +553,7 @@ static int get_embedded_payload(struct embedded_payload *ep)
     return 0;
 }
 
-static int payload_valid(const char *payload)
+int bb_payload_valid(const char *payload)
 {
     char busybox[PATH_MAX], version[PATH_MAX], found[128];
 
@@ -580,7 +580,7 @@ static int payload_is_full(const char *payload)
     return !strcmp(mode, "full");
 }
 
-static const char *payload_extraction_mode(const char *payload, char *out, size_t outsz)
+const char *bb_payload_extraction_mode(const char *payload, char *out, size_t outsz)
 {
     char path[PATH_MAX], mode[32];
     payload_mode_path(path, sizeof(path), payload);
@@ -621,14 +621,14 @@ static int candidate_payload(char *out, size_t outsz)
     int fallback_ok = yes_str(BB_RUNTIME_ALLOW_FALLBACK_ROOT) ||
                       yes_str(getenv("BUSIERBOX_ALLOW_FALLBACK_ROOT"));
 
-    if (env && payload_valid(env)) {
+    if (env && bb_payload_valid(env)) {
         snprintf(out, outsz, "%s", env);
         return 0;
     }
 
     if (read_exe_dir(exe_dir, sizeof(exe_dir)) == 0) {
         snprintf(path, sizeof(path), "%s/payload", exe_dir);
-        if (payload_valid(path)) {
+        if (bb_payload_valid(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
         }
@@ -636,7 +636,7 @@ static int candidate_payload(char *out, size_t outsz)
 
     if (BB_RUNTIME_ROOT[0]) {
         snprintf(path, sizeof(path), "%s/payload", BB_RUNTIME_ROOT);
-        if (payload_valid(path)) {
+        if (bb_payload_valid(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
         }
@@ -646,21 +646,21 @@ static int candidate_payload(char *out, size_t outsz)
      * root is explicitly permitted.  In strict mode these are not considered. */
     if (fallback_ok) {
         snprintf(path, sizeof(path), "/tmp/busierbox-%ld/payload", (long)uid);
-        if (payload_valid(path)) {
+        if (bb_payload_valid(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
         }
         snprintf(path, sizeof(path), "/var/tmp/busierbox-%ld/payload", (long)uid);
-        if (payload_valid(path)) {
+        if (bb_payload_valid(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
         }
         snprintf(path, sizeof(path), "/dev/shm/busierbox-%ld/payload", (long)uid);
-        if (payload_valid(path)) {
+        if (bb_payload_valid(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
         }
-        if (payload_valid("runtime/payload")) {
+        if (bb_payload_valid("runtime/payload")) {
             snprintf(out, outsz, "%s", "runtime/payload");
             return 0;
         }
@@ -703,7 +703,7 @@ static int archive_path(char *out, size_t outsz)
     return -1;
 }
 
-static int verify_embedded_hash(const struct embedded_payload *ep)
+int bb_verify_embedded_hash(const struct embedded_payload *ep)
 {
     FILE *fp = fopen(ep->exe, "rb");
     bb_sha256_ctx ctx;
@@ -747,7 +747,7 @@ static void write_payload_id(const struct embedded_payload *ep, const char *payl
     fclose(fp);
 }
 
-static int payload_id_matches(const struct embedded_payload *ep, const char *payload_dir)
+int bb_payload_id_matches(const struct embedded_payload *ep, const char *payload_dir)
 {
     char id_path[PATH_MAX], line[256], key[64], val[192];
     char found_sha256[65] = "", found_size[32] = "", found_version[128] = "", found_format[16] = "";
@@ -808,7 +808,7 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
         if (errno != EEXIST)
             return -1;
         sleep(1);
-        if (payload_valid(final) && (core_only || payload_is_full(final)))
+        if (bb_payload_valid(final) && (core_only || payload_is_full(final)))
             return 0;
         if (++waits > 30) {
             rmdir(lock);
@@ -821,7 +821,7 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
         return -1;
     }
 
-    if (verify_embedded_hash(ep) != 0) {
+    if (bb_verify_embedded_hash(ep) != 0) {
         bb_rm_rf(tmp);
         rmdir(lock);
         fprintf(stderr, "extract: embedded payload sha256 mismatch\n");
@@ -842,7 +842,7 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
         rmdir(lock);
         return -1;
     }
-    if (!payload_valid(extracted)) {
+    if (!bb_payload_valid(extracted)) {
         bb_rm_rf(tmp);
         rmdir(lock);
         return -1;
@@ -893,7 +893,7 @@ static int extract_archive_file_to_root(const char *archive, const char *root, i
             rc = bb_extract_payload_stream(fp, ep.size, ep.format, tmp, core_only);
         else
             rc = -1;
-        if (rc == 0 && payload_valid(extracted)) {
+        if (rc == 0 && bb_payload_valid(extracted)) {
             bb_rm_rf(final);
             rc = rename(extracted, final);
             if (rc == 0) {
@@ -914,13 +914,13 @@ int bb_ensure_payload_mode(char *payload, size_t payloadsz, int require_full)
 {
     char archive[PATH_MAX], root[PATH_MAX];
     struct embedded_payload ep;
-    int have_ep = (get_embedded_payload(&ep) == 0);
+    int have_ep = (bb_get_embedded_payload(&ep) == 0);
 
     if (!strcmp(BB_RUNTIME_MODE, "core-only"))
         return -1;
 
     if (candidate_payload(payload, payloadsz) == 0) {
-        if (have_ep && !payload_id_matches(&ep, payload)) {
+        if (have_ep && !bb_payload_id_matches(&ep, payload)) {
             fprintf(stderr, "busierbox: extracted payload is from a different binary; re-extracting...\n");
             bb_rm_rf(payload);
             /* fall through to extract */
@@ -946,7 +946,7 @@ int bb_ensure_payload_mode(char *payload, size_t payloadsz, int require_full)
     }
     bb_write_artifact_manifest_file(root);
     snprintf(payload, payloadsz, "%s/payload", root);
-    return payload_valid(payload) && (!require_full || payload_is_full(payload)) ? 0 : -1;
+    return bb_payload_valid(payload) && (!require_full || payload_is_full(payload)) ? 0 : -1;
 }
 
 static int ensure_payload(char *payload, size_t payloadsz)
@@ -967,7 +967,7 @@ int bb_candidate_payload_dir(char *payload, size_t payloadsz)
 int bb_embedded_payload_available(void)
 {
     struct embedded_payload ep;
-    return get_embedded_payload(&ep) == 0;
+    return bb_get_embedded_payload(&ep) == 0;
 }
 
 int bb_dev_payload_archive_available(void)
@@ -1055,7 +1055,7 @@ int applet_extract_main(int argc, char **argv)
         fprintf(stderr, "extract: no writable executable runtime directory found\n");
         return 1;
     }
-    if (get_embedded_payload(&ep) == 0) {
+    if (bb_get_embedded_payload(&ep) == 0) {
         if (extract_embedded_to_root(&ep, root, 0) != 0) {
             fprintf(stderr, "extract: embedded payload extraction failed\n");
             return 1;
@@ -1072,399 +1072,12 @@ int applet_extract_main(int argc, char **argv)
         }
     }
     snprintf(payload, sizeof(payload), "%s/payload", root);
-    if (!payload_valid(payload)) {
+    if (!bb_payload_valid(payload)) {
         fprintf(stderr, "extract: extracted payload failed validation\n");
         return 1;
     }
     bb_write_artifact_manifest_file(root);
     printf("payload: extracted %s\n", payload);
-    return 0;
-}
-
-static void print_doctor_manifest_summary_json(FILE *out, int payload_manifest_found, int applet_count)
-{
-    int heavy_count = 0;
-    int i;
-    for (i = 0; heavy_tools[i]; i++)
-        heavy_count++;
-    fprintf(out, ",\"manifest_summary\":{\"target_preset\":");
-    json_string_payload(out, BB_TARGET_PRESET);
-    fprintf(out, ",\"target_name\":");
-    json_string_payload(out, BB_TARGET_NAME);
-    fprintf(out, ",\"payload_preset\":");
-    json_string_payload(out, BB_PAYLOAD_PRESET);
-    fprintf(out, ",\"artifact_tier\":");
-    json_string_payload(out, BUSIERBOX_ARTIFACT_TIER);
-    fprintf(out, ",\"runtime_mode\":");
-    json_string_payload(out, BB_RUNTIME_MODE);
-    fprintf(out, ",\"zero_arg_mode\":");
-    json_string_payload(out, BB_ZERO_ARG_MODE);
-    fprintf(out, ",\"payload_manifest_found\":%s", payload_manifest_found ? "true" : "false");
-    fprintf(out, ",\"busybox_applets_count\":%d,\"configured_heavy_tools_count\":%d}",
-            applet_count, heavy_count);
-}
-
-static void print_doctor_payload_runtime_health_json(FILE *out, int have_payload, const char *payload)
-{
-    char busybox[PATH_MAX], symlink_count_path[PATH_MAX], symlink_count[32] = "";
-    char terminfo[PATH_MAX], tmux_ti[PATH_MAX], zsh_path[PATH_MAX], bin_dir[PATH_MAX];
-
-    fprintf(out, ",\"payload_runtime_health\":{\"present\":%s", have_payload ? "true" : "false");
-    if (!have_payload || !payload || !payload[0]) {
-        fprintf(out, "}");
-        return;
-    }
-    snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
-    snprintf(symlink_count_path, sizeof(symlink_count_path),
-             "%s/share/busierbox/applet-symlink-count.txt", payload);
-    bb_read_first_line(symlink_count_path, symlink_count, sizeof(symlink_count));
-    snprintf(terminfo, sizeof(terminfo), "%s/share/terminfo", payload);
-    snprintf(tmux_ti, sizeof(tmux_ti), "%s/share/terminfo/t/tmux", payload);
-    snprintf(zsh_path, sizeof(zsh_path), "%s/bin/zsh", payload);
-    snprintf(bin_dir, sizeof(bin_dir), "%s/bin", payload);
-
-    fprintf(out, ",\"dir\":");
-    json_string_payload(out, payload);
-    fprintf(out, ",\"busybox_executable\":%s", bb_executable_file(busybox) ? "true" : "false");
-    fprintf(out, ",\"applet_symlink_count\":");
-    if (symlink_count[0])
-        json_string_payload(out, symlink_count);
-    else
-        fprintf(out, "null");
-    fprintf(out, ",\"terminfo_present\":%s", bb_path_exists(terminfo) ? "true" : "false");
-    fprintf(out, ",\"tmux_terminfo_present\":%s", bb_path_exists(tmux_ti) ? "true" : "false");
-    fprintf(out, ",\"zsh_present\":%s", bb_executable_file(zsh_path) ? "true" : "false");
-    fprintf(out, ",\"payload_bin_path_count\":%d", bb_path_entry_count(getenv("PATH"), bin_dir));
-    fprintf(out, "}");
-}
-
-static void print_doctor_payload_inventory_json(FILE *out, const char *manifest)
-{
-    fprintf(out, ",\"payload_inventory\":{\"manifest_found\":%s", manifest ? "true" : "false");
-    fprintf(out, ",\"requested_payload_tools\":");
-    if (manifest)
-        bb_json_write_raw_field_or(out, manifest, "requested_payload_tools", "[]");
-    else
-        bb_json_write_string_array(out, heavy_tools);
-    fprintf(out, ",\"built_payload_tools\":");
-    bb_json_write_raw_field_or(out, manifest, "built_payload_tools", "[]");
-    fprintf(out, ",\"staged_payload_tools\":");
-    bb_json_write_raw_field_or(out, manifest, "staged_payload_tools", "[]");
-    fprintf(out, ",\"missing_payload_tools\":");
-    bb_json_write_raw_field_or(out, manifest, "missing_payload_tools", "[]");
-    fprintf(out, ",\"missing_payload_tool_reasons\":");
-    bb_json_write_raw_field_or(out, manifest, "missing_payload_tool_reasons", "{}");
-    fprintf(out, ",\"overlay_enabled\":");
-    bb_json_write_raw_field_or(out, manifest, "overlay_enabled", !strcmp(BB_USER_OVERLAY_ENABLE, "yes") ? "true" : "false");
-    fprintf(out, ",\"overlay_root\":");
-    if (manifest)
-        bb_json_write_raw_field_or(out, manifest, "overlay_root", "null");
-    else
-        json_string_payload(out, BB_USER_OVERLAY_ROOT);
-    fprintf(out, ",\"overlay_applied_paths\":");
-    bb_json_write_raw_field_or(out, manifest, "overlay_applied_paths", "[]");
-    fprintf(out, ",\"overlay_files\":");
-    bb_json_write_raw_field_or(out, manifest, "overlay_files", "[]");
-    fprintf(out, ",\"overlay_tools\":");
-    bb_json_write_raw_field_or(out, manifest, "overlay_tools", "[]");
-    fprintf(out, ",\"overlay_warnings\":");
-    bb_json_write_raw_field_or(out, manifest, "overlay_warnings", "[]");
-    fprintf(out, ",\"user_provided_tools\":");
-    bb_json_write_raw_field_or(out, manifest, "user_provided_tools", "[]");
-    fprintf(out, ",\"included_shared_libs\":");
-    bb_json_write_raw_field_or(out, manifest, "included_shared_libs", "[]");
-    fprintf(out, ",\"applet_symlink_skips\":");
-    bb_json_write_raw_field_or(out, manifest, "applet_symlink_skips", "[]");
-    fprintf(out, "}");
-}
-
-int applet_doctor_main(int argc, char **argv)
-{
-    struct embedded_payload ep;
-    char payload[PATH_MAX], manifest_path[PATH_MAX], busybox[PATH_MAX];
-    char root[PATH_MAX];
-    char *manifest = NULL;
-    int have_payload = 0;
-    int applet_count = 0;
-    int json = 0;
-    int support_token = 0;
-    int i;
-
-    memset(&ep, 0, sizeof(ep));
-
-    if (is_help(argc, argv)) {
-        puts("usage: busierbox doctor [--json|--support-token]");
-        puts("Reports embedded payload, extraction, BusyBox, and staged tool health.");
-        return 0;
-    }
-    for (i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], "--json"))
-            json = 1;
-        else if (!strcmp(argv[i], "--support-token"))
-            support_token = 1;
-        else {
-            fprintf(stderr, "doctor: unknown option %s\n", argv[i]);
-            return 2;
-        }
-    }
-    if (json && support_token) {
-        fputs("doctor: choose one of --json or --support-token\n", stderr);
-        return 2;
-    }
-    if (support_token)
-        return bb_print_support_token();
-
-    if (get_embedded_payload(&ep) == 0) {
-        if (json) {
-            int hash_ok = verify_embedded_hash(&ep) == 0;
-            have_payload = candidate_payload(payload, sizeof(payload)) == 0;
-            if (have_payload) {
-                snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
-                snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", payload);
-                if (bb_path_exists(manifest_path))
-                    manifest = bb_read_text_file(manifest_path, 1024 * 1024);
-            } else {
-                root[0] = '\0';
-                if (bb_extract_root_usable(BB_RUNTIME_ROOT))
-                    snprintf(root, sizeof(root), "%s", BB_RUNTIME_ROOT);
-                else if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
-                         bb_extract_root_usable(BB_RUNTIME_FALLBACK_ROOT))
-                    snprintf(root, sizeof(root), "%s", BB_RUNTIME_FALLBACK_ROOT);
-            }
-            if (manifest)
-                applet_count = bb_json_array_count_field(manifest, "busybox_applets");
-            else {
-                for (i = 0; busybox_tools[i]; i++)
-                    applet_count++;
-            }
-            printf("{\"schema\":1,\"embedded_payload\":{\"present\":true,\"format\":");
-            json_string_payload(stdout, ep.format);
-            printf(",\"size\":%llu,\"sha256\":", ep.size);
-            json_string_payload(stdout, ep.sha256);
-            printf(",\"version\":");
-            json_string_payload(stdout, ep.version);
-            printf(",\"hash_ok\":%s}", hash_ok ? "true" : "false");
-            printf(",\"extracted_payload\":{\"present\":%s", have_payload ? "true" : "false");
-            if (have_payload) {
-                char mode[32];
-                printf(",\"dir\":");
-                json_string_payload(stdout, payload);
-                printf(",\"extraction_mode\":");
-                json_string_payload(stdout, payload_extraction_mode(payload, mode, sizeof(mode)));
-                printf(",\"busybox_present\":%s", bb_executable_file(busybox) ? "true" : "false");
-                printf(",\"manifest_found\":%s", bb_path_exists(manifest_path) ? "true" : "false");
-                printf(",\"identity_match\":%s", payload_id_matches(&ep, payload) ? "true" : "false");
-            } else if (root[0]) {
-                printf(",\"candidate_extract_root\":");
-                json_string_payload(stdout, root);
-            }
-            printf("}");
-            printf(",\"extraction_runtime\":");
-            bb_print_extraction_runtime_json(stdout, ep.size, json_string_payload);
-            printf(",\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d",
-                   manifest ? "true" : "false", applet_count);
-            if (manifest) {
-                printf(",\"overlay_enabled\":%s", !strcmp(bb_json_bool_value(manifest, "overlay_enabled"), "yes") ? "true" : "false");
-            }
-            printf("}");
-            print_doctor_payload_inventory_json(stdout, manifest);
-            print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
-            print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
-            printf(",\"rshell_readiness\":");
-            bb_config_print_rshell_readiness_json(stdout, json_string_payload);
-            printf(",\"runtime_config\":");
-            bb_config_print_runtime_summary_json(stdout, json_string_payload);
-            printf(",\"cleanup_ledger\":");
-            bb_print_cleanup_ledger_json(stdout, json_string_payload);
-            printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s",
-                   bb_path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
-                   getenv("HOME") && *getenv("HOME") ? "true" : "false",
-                   getenv("SHELL") && *getenv("SHELL") ? "true" : "false");
-            if (have_payload) {
-                char bin_dir[PATH_MAX];
-                snprintf(bin_dir, sizeof(bin_dir), "%s/bin", payload);
-                printf(",\"payload_bin_path_count\":%d", bb_path_entry_count(getenv("PATH"), bin_dir));
-            }
-            printf("},\"host\":{\"mem_available_kb\":%llu,\"devpts_available\":%s,\"ptrace_probe\":",
-                   bb_mem_available_kb(), bb_path_exists("/dev/pts") ? "true" : "false");
-            json_string_payload(stdout, bb_ptrace_probe_status());
-            printf(",\"default_route_present\":%s}", bb_has_default_route() ? "true" : "false");
-            printf(",\"artifact\":{\"tier\":");
-            json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
-            printf(",\"runtime_mode\":");
-            json_string_payload(stdout, BB_RUNTIME_MODE);
-            printf(",\"runtime_root\":");
-            json_string_payload(stdout, BB_RUNTIME_ROOT);
-            printf("}}\n");
-            free(manifest);
-            return 0;
-        }
-        printf("embedded_payload=yes\n");
-        printf("embedded_format=%s\n", ep.format);
-        printf("embedded_size=%llu\n", ep.size);
-        printf("embedded_sha256=%s\n", ep.sha256);
-        printf("embedded_version=%s\n", ep.version);
-        printf("embedded_hash_ok=%s\n", verify_embedded_hash(&ep) == 0 ? "yes" : "no");
-    } else {
-        if (json) {
-            have_payload = candidate_payload(payload, sizeof(payload)) == 0;
-            if (have_payload) {
-                snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
-                snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", payload);
-                if (bb_path_exists(manifest_path))
-                    manifest = bb_read_text_file(manifest_path, 1024 * 1024);
-            }
-            if (manifest)
-                applet_count = bb_json_array_count_field(manifest, "busybox_applets");
-            else {
-                for (i = 0; busybox_tools[i]; i++)
-                    applet_count++;
-            }
-            printf("{\"schema\":1,\"embedded_payload\":{\"present\":false},\"extracted_payload\":{\"present\":%s",
-                   have_payload ? "true" : "false");
-            if (have_payload) {
-                char mode[32];
-                printf(",\"dir\":");
-                json_string_payload(stdout, payload);
-                printf(",\"extraction_mode\":");
-                json_string_payload(stdout, payload_extraction_mode(payload, mode, sizeof(mode)));
-                printf(",\"busybox_present\":%s", bb_executable_file(busybox) ? "true" : "false");
-                printf(",\"manifest_found\":%s", bb_path_exists(manifest_path) ? "true" : "false");
-            }
-            printf("}");
-            printf(",\"extraction_runtime\":");
-            bb_print_extraction_runtime_json(stdout, 1, json_string_payload);
-            printf(",\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d}",
-                   manifest ? "true" : "false", applet_count);
-            print_doctor_payload_inventory_json(stdout, manifest);
-            print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
-            print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
-            printf(",\"rshell_readiness\":");
-            bb_config_print_rshell_readiness_json(stdout, json_string_payload);
-            printf(",\"runtime_config\":");
-            bb_config_print_runtime_summary_json(stdout, json_string_payload);
-            printf(",\"cleanup_ledger\":");
-            bb_print_cleanup_ledger_json(stdout, json_string_payload);
-            printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s}",
-                   bb_path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
-                   getenv("HOME") && *getenv("HOME") ? "true" : "false",
-                   getenv("SHELL") && *getenv("SHELL") ? "true" : "false");
-            printf(",\"host\":{\"mem_available_kb\":%llu,\"devpts_available\":%s,\"ptrace_probe\":",
-                   bb_mem_available_kb(), bb_path_exists("/dev/pts") ? "true" : "false");
-            json_string_payload(stdout, bb_ptrace_probe_status());
-            printf(",\"default_route_present\":%s}", bb_has_default_route() ? "true" : "false");
-            printf(",\"artifact\":{\"tier\":");
-            json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
-            printf(",\"runtime_mode\":");
-            json_string_payload(stdout, BB_RUNTIME_MODE);
-            printf(",\"runtime_root\":");
-            json_string_payload(stdout, BB_RUNTIME_ROOT);
-            printf("}}\n");
-            free(manifest);
-            return 0;
-        }
-        puts("embedded_payload=no");
-    }
-
-    if (candidate_payload(payload, sizeof(payload)) == 0) {
-        char mode[32];
-        have_payload = 1;
-        printf("extracted_payload=yes\n");
-        printf("payload_dir=%s\n", payload);
-        printf("payload_extraction_mode=%s\n", payload_extraction_mode(payload, mode, sizeof(mode)));
-    } else {
-        puts("extracted_payload=no");
-        if (bb_choose_extract_root(root, sizeof(root)) == 0)
-            printf("candidate_extract_root=%s\n", root);
-    }
-
-    if (have_payload) {
-        snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
-        printf("busybox_present=%s\n", bb_executable_file(busybox) ? "yes" : "no");
-        snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", payload);
-        printf("payload_manifest_found=%s\n", bb_path_exists(manifest_path) ? "yes" : "no");
-        if (ep.present)
-            printf("payload_identity_match=%s\n", payload_id_matches(&ep, payload) ? "yes" : "no (stale or different binary)");
-        if (bb_path_exists(manifest_path))
-            manifest = bb_read_text_file(manifest_path, 1024 * 1024);
-    }
-
-    if (manifest) {
-        printf("busybox_applets=");
-        applet_count = bb_json_array_summary(manifest, "busybox_applets", stdout);
-        printf("\n");
-        printf("busybox_applets_count=%d\n", applet_count);
-        printf("staged_tools=");
-        bb_json_array_summary(manifest, "staged_payload_tools", stdout);
-        printf("\n");
-        printf("missing_tools=");
-        bb_json_array_summary(manifest, "missing_payload_tools", stdout);
-        printf("\n");
-        printf("missing_tool_reasons=");
-        bb_json_object_summary(manifest, "missing_payload_tool_reasons", stdout);
-        printf("\n");
-        printf("overlay_enabled=%s\n", bb_json_bool_value(manifest, "overlay_enabled"));
-        printf("overlay_tools=");
-        bb_json_array_summary(manifest, "overlay_tools", stdout);
-        printf("\n");
-        printf("overlay_files=");
-        bb_json_array_summary(manifest, "overlay_files", stdout);
-        printf("\n");
-        printf("overlay_warnings=");
-        bb_json_array_summary(manifest, "overlay_warnings", stdout);
-        printf("\n");
-        free(manifest);
-    } else {
-        int i;
-        for (i = 0; busybox_tools[i]; i++)
-            applet_count++;
-        printf("busybox_applets_count=%d\n", applet_count);
-    }
-
-    if (have_payload) {
-        char symlink_count_path[PATH_MAX], symlink_count[32] = "unknown";
-        char terminfo[PATH_MAX], tmux_ti[PATH_MAX], zsh_path[PATH_MAX];
-        char bin_dir[PATH_MAX];
-        snprintf(symlink_count_path, sizeof(symlink_count_path),
-                 "%s/share/busierbox/applet-symlink-count.txt", payload);
-        bb_read_first_line(symlink_count_path, symlink_count, sizeof(symlink_count));
-        printf("applet_symlink_count=%s\n", symlink_count);
-        snprintf(terminfo, sizeof(terminfo), "%s/share/terminfo", payload);
-        snprintf(tmux_ti, sizeof(tmux_ti), "%s/share/terminfo/t/tmux", payload);
-        printf("terminfo_present=%s\n", bb_path_exists(terminfo) ? "yes" : "no");
-        printf("tmux_terminfo_present=%s\n", bb_path_exists(tmux_ti) ? "yes" : "no");
-        snprintf(zsh_path, sizeof(zsh_path), "%s/bin/zsh", payload);
-        printf("zsh_present=%s\n", bb_executable_file(zsh_path) ? "yes" : "no");
-        snprintf(bin_dir, sizeof(bin_dir), "%s/bin", payload);
-        printf("payload_bin_path_count=%d\n", bb_path_entry_count(getenv("PATH"), bin_dir));
-    }
-    printf("path_has_duplicates=%s\n", bb_path_has_duplicate_entries(getenv("PATH")) ? "yes" : "no");
-    printf("home_set=%s\n", getenv("HOME") && *getenv("HOME") ? "yes" : "no");
-    printf("shell_set=%s\n", getenv("SHELL") && *getenv("SHELL") ? "yes" : "no");
-
-    if (bb_choose_extract_root(root, sizeof(root)) == 0) {
-        printf("extract_root_writable_executable=yes\n");
-        printf("extract_root=%s\n", root);
-        printf("extract_root_noexec=%s\n", bb_dir_is_noexec(root) ? "yes" : "no");
-        printf("extract_root_free_space_ok=%s\n", bb_enough_space_for_extract(ep.present ? ep.size : 1, root) ? "yes" : "no");
-        printf("extract_root_available_bytes=%llu\n", bb_path_available_bytes(root));
-    } else {
-        puts("extract_root_writable_executable=no");
-    }
-    printf("mem_available_kb=%llu\n", bb_mem_available_kb());
-    printf("devpts_available=%s\n", bb_path_exists("/dev/pts") ? "yes" : "no");
-    printf("ptrace_probe=%s\n", bb_ptrace_probe_status());
-    printf("default_route_present=%s\n", bb_has_default_route() ? "yes" : "no");
-    if (!bb_path_exists("/dev/pts"))
-        puts("recommendation=mount devpts for tmux/dropbear interactive sessions");
-    printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
-    print_autoexec_config();
-    if (have_payload) {
-        char ti[PATH_MAX];
-        snprintf(ti, sizeof(ti), "%s/share/terminfo", payload);
-        if (!bb_path_exists(ti))
-            puts("recommendation=stage terminfo when using tmux/screen/htop");
-    }
     return 0;
 }
 
@@ -1490,7 +1103,7 @@ int applet_config_info_main(int argc, char **argv)
 #endif
     puts("core_static_status=see build output");
     printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
-    print_autoexec_config();
+    bb_print_autoexec_config();
     printf("trailer_override_present=%s\n", bb_config_trailer_present() ? "yes" : "no");
     printf("trailer_override_valid=%s\n", bb_config_trailer_valid() ? "yes" : "no");
     printf("trailer_override_encoding=%s\n", bb_config_trailer_encoding());
@@ -1503,7 +1116,7 @@ int applet_config_info_main(int argc, char **argv)
     printf("effective_zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
     printf("effective_rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
     printf("effective_rshell_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
-    have_embedded = get_embedded_payload(&ep) == 0;
+    have_embedded = bb_get_embedded_payload(&ep) == 0;
     have_payload = candidate_payload(payload, sizeof(payload)) == 0;
     printf("embedded_payload=%s\n", have_embedded ? "yes" : "no");
     printf("payload_version=%s\n", BUSIERBOX_PAYLOAD_VERSION);
@@ -1520,7 +1133,7 @@ int applet_config_info_main(int argc, char **argv)
     printf("payload_present=%s\n", have_payload ? payload : "no");
     if (have_payload) {
         char mode[32];
-        printf("payload_extraction_mode=%s\n", payload_extraction_mode(payload, mode, sizeof(mode)));
+        printf("payload_extraction_mode=%s\n", bb_payload_extraction_mode(payload, mode, sizeof(mode)));
     }
     printf("payload_tools_present=");
     if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
