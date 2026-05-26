@@ -199,18 +199,21 @@ static void plan_print_rshell(int json)
 static void plan_print_command_queue(int json)
 {
     int enabled = !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes");
+    int configured = enabled && BB_OPERATOR_SERVER_HOST[0];
     if (json) {
         fputs("{\"schema\":1,\"command\":\"command-queue\",\"would_create\":[],\"would_modify\":[],\"would_remove\":[],\"would_start\":[", stdout);
-        if (enabled)
+        if (configured)
             bb_json_string(stdout, "command-queue poll");
         fputs("],\"would_connect\":[", stdout);
-        if (enabled) {
+        if (configured) {
             char endpoint[128];
-            snprintf(endpoint, sizeof(endpoint), "operator command queue port %s", BB_COMMAND_QUEUE_PORT);
+            snprintf(endpoint, sizeof(endpoint), "%s:%s", BB_OPERATOR_SERVER_HOST, BB_COMMAND_QUEUE_PORT);
             bb_json_string(stdout, endpoint);
         }
         fputs("],\"requires_external_writes\":false", stdout);
-        printf(",\"enabled\":%s,\"execution_supported\":false", enabled ? "true" : "false");
+        printf(",\"enabled\":%s,\"configured_for_polling\":%s,\"missing_operator_host\":%s,\"execution_supported\":false",
+               enabled ? "true" : "false", configured ? "true" : "false",
+               (enabled && !BB_OPERATOR_SERVER_HOST[0]) ? "true" : "false");
         fputs(",\"allowed_commands\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
         fputs(",\"allow_arbitrary\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
         fputs(",\"safety_boundary\":", stdout); bb_json_string(stdout, "explicit opt-in target polling; queued command execution is not implemented");
@@ -221,6 +224,8 @@ static void plan_print_command_queue(int json)
     puts("Plan: command-queue");
     plan_print_config_source_text();
     printf("enabled=%s\n", BB_COMMAND_QUEUE_ENABLE);
+    printf("configured_for_polling=%s\n", configured ? "yes" : "no");
+    printf("missing_operator_host=%s\n", (enabled && !BB_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
     printf("port=%s\n", BB_COMMAND_QUEUE_PORT);
     printf("tls=%s\n", BB_COMMAND_QUEUE_TLS);
     printf("require_token=%s\n", BB_COMMAND_QUEUE_REQUIRE_TOKEN);

@@ -18,20 +18,22 @@ static int is_help(int argc, char **argv)
 
 static void print_help(void)
 {
-    puts("usage: busierbox command-queue [status|poll|once|daemon] [--json] [--dry-run]");
+    puts("usage: busierbox command-queue [status|poll|once|daemon] [--json] [--dry-run] [--operator-host HOST]");
     puts("Inspect explicit opt-in command queue policy and target polling plan.");
     puts("This build does not fetch, deliver, or execute queued commands.");
 }
 
-static int mode_would_poll(const char *mode, int enabled)
+static int mode_would_poll(const char *mode, int enabled, const char *operator_host)
 {
-    return enabled && (strcmp(mode, "status") != 0);
+    return enabled && operator_host && operator_host[0] && (strcmp(mode, "status") != 0);
 }
 
-static const char *mode_status(const char *mode, int enabled)
+static const char *mode_status(const char *mode, int enabled, const char *operator_host)
 {
     if (!enabled)
         return "disabled";
+    if (!operator_host || !operator_host[0])
+        return "missing_operator_host";
     if (!strcmp(mode, "status"))
         return "configured";
     if (!strcmp(mode, "poll"))
@@ -43,24 +45,26 @@ static const char *mode_status(const char *mode, int enabled)
     return "unknown";
 }
 
-static void print_json(const char *mode, int dry_run)
+static void print_json(const char *mode, int dry_run, const char *operator_host)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
     fputs("{\"schema\":1,\"command\":\"command-queue\",\"mode\":", stdout);
     bb_json_string(stdout, mode);
     printf(",\"enabled\":%s", enabled ? "true" : "false");
     printf(",\"dry_run\":%s", dry_run ? "true" : "false");
-    printf(",\"would_poll\":%s", mode_would_poll(mode, enabled) ? "true" : "false");
+    printf(",\"configured_for_polling\":%s", (enabled && operator_host && operator_host[0]) ? "true" : "false");
+    printf(",\"missing_operator_host\":%s", (enabled && (!operator_host || !operator_host[0])) ? "true" : "false");
+    printf(",\"would_poll\":%s", mode_would_poll(mode, enabled, operator_host) ? "true" : "false");
     fputs(",\"operator_host\":", stdout);
-    bb_json_string(stdout, BB_OPERATOR_SERVER_HOST);
+    bb_json_string(stdout, operator_host ? operator_host : "");
     fputs(",\"port\":", stdout);
     bb_json_string(stdout, BB_COMMAND_QUEUE_PORT);
     fputs(",\"tls\":", stdout);
     bb_json_string(stdout, BB_COMMAND_QUEUE_TLS);
     fputs(",\"endpoint\":", stdout);
-    if (BB_OPERATOR_SERVER_HOST[0]) {
+    if (operator_host && operator_host[0]) {
         char endpoint[512];
-        snprintf(endpoint, sizeof(endpoint), "%s:%s", BB_OPERATOR_SERVER_HOST, BB_COMMAND_QUEUE_PORT);
+        snprintf(endpoint, sizeof(endpoint), "%s:%s", operator_host, BB_COMMAND_QUEUE_PORT);
         bb_json_string(stdout, endpoint);
     } else {
         bb_json_string(stdout, "");
@@ -78,22 +82,24 @@ static void print_json(const char *mode, int dry_run)
     fputs(",\"result_upload_supported\":false", stdout);
     fputs(",\"poll_transport_supported\":false", stdout);
     fputs(",\"status\":", stdout);
-    bb_json_string(stdout, mode_status(mode, enabled));
+    bb_json_string(stdout, mode_status(mode, enabled, operator_host));
     fputs(",\"safety_boundary\":\"target polling is explicit and dry-run only in this build; no command delivery or execution is implemented\"", stdout);
     fputs(",\"queued_command\":null}\n", stdout);
 }
 
-static void print_text(const char *mode, int dry_run)
+static void print_text(const char *mode, int dry_run, const char *operator_host)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
     printf("command_queue_mode=%s\n", mode);
     printf("command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
     printf("command_queue_dry_run=%s\n", dry_run ? "yes" : "no");
-    printf("command_queue_would_poll=%s\n", mode_would_poll(mode, enabled) ? "yes" : "no");
-    printf("command_queue_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
+    printf("command_queue_configured_for_polling=%s\n", (enabled && operator_host && operator_host[0]) ? "yes" : "no");
+    printf("command_queue_missing_operator_host=%s\n", (enabled && (!operator_host || !operator_host[0])) ? "yes" : "no");
+    printf("command_queue_would_poll=%s\n", mode_would_poll(mode, enabled, operator_host) ? "yes" : "no");
+    printf("command_queue_operator_host=%s\n", operator_host ? operator_host : "");
     printf("command_queue_port=%s\n", BB_COMMAND_QUEUE_PORT);
-    if (BB_OPERATOR_SERVER_HOST[0])
-        printf("command_queue_endpoint=%s:%s\n", BB_OPERATOR_SERVER_HOST, BB_COMMAND_QUEUE_PORT);
+    if (operator_host && operator_host[0])
+        printf("command_queue_endpoint=%s:%s\n", operator_host, BB_COMMAND_QUEUE_PORT);
     else
         puts("command_queue_endpoint=");
     printf("command_queue_tls=%s\n", BB_COMMAND_QUEUE_TLS);
@@ -105,13 +111,14 @@ static void print_text(const char *mode, int dry_run)
     puts("command_queue_delivery_supported=no");
     puts("command_queue_result_upload_supported=no");
     puts("command_queue_poll_transport_supported=no");
-    printf("command_queue_status=%s\n", mode_status(mode, enabled));
+    printf("command_queue_status=%s\n", mode_status(mode, enabled, operator_host));
     puts("command_queue_safety_boundary=explicit target polling dry-run only; queued command delivery/execution is not implemented");
 }
 
 int applet_command_queue_main(int argc, char **argv)
 {
     const char *mode = "status";
+    const char *operator_host = BB_OPERATOR_SERVER_HOST;
     int json = 0, dry_run = 1;
     int i;
 
@@ -124,6 +131,8 @@ int applet_command_queue_main(int argc, char **argv)
             json = 1;
         } else if (!strcmp(argv[i], "--dry-run")) {
             dry_run = 1;
+        } else if (!strcmp(argv[i], "--operator-host") && i + 1 < argc) {
+            operator_host = argv[++i];
         } else if (!strcmp(argv[i], "status") || !strcmp(argv[i], "poll") ||
                    !strcmp(argv[i], "once") || !strcmp(argv[i], "daemon")) {
             mode = argv[i];
@@ -133,8 +142,8 @@ int applet_command_queue_main(int argc, char **argv)
         }
     }
     if (json)
-        print_json(mode, dry_run);
+        print_json(mode, dry_run, operator_host);
     else
-        print_text(mode, dry_run);
+        print_text(mode, dry_run, operator_host);
     return 0;
 }
