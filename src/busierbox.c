@@ -81,6 +81,7 @@ const struct bb_applet bb_applets[] = {
     {"upload", applet_upload_main, "alias for put"},
     {"config-push", applet_upload_main, "upload effective runtime config to the operator service"},
     {"evidence", applet_upload_main, "upload operator evidence to the receive-only service"},
+    {"command-queue", applet_command_queue_main, "inspect explicit opt-in command queue status"},
 };
 
 const unsigned int bb_applet_count = sizeof(bb_applets) / sizeof(bb_applets[0]);

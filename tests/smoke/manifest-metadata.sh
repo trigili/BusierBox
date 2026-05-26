@@ -57,6 +57,7 @@ required = [
     ("rshell", "target_dropbear"),
     ("rshell", "authkeys_mode"),
     ("rshell", "retry"),
+    ("operator_services", "command_queue"),
     ("dotfiles", "enabled"),
     ("dotfiles", "bash"),
     ("overlay", "enabled"),
@@ -105,6 +106,9 @@ for key in (
     "BB_RSHELL_SESSION_POLICY",
     "BB_OPERATOR_SERVER_HOST",
     "BB_OPERATOR_FILE_SERVICE_PORT",
+    "BB_COMMAND_QUEUE_ENABLE",
+    "BB_COMMAND_QUEUE_ALLOWED_COMMANDS",
+    "BB_COMMAND_QUEUE_ALLOW_ARBITRARY",
 ):
     if key not in manifest["compiled_config"]:
         raise SystemExit(f"manifest-metadata: compiled_config missing {key}")
@@ -137,6 +141,13 @@ if file_service.get("tls") != manifest["effective_config"]["BB_OPERATOR_FILE_SER
     raise SystemExit("manifest-metadata: file service tls does not match effective config")
 if file_service.get("target_initiated") is not True or file_service.get("receive_only") is not True:
     raise SystemExit("manifest-metadata: file service safety metadata missing")
+command_queue = manifest.get("operator_services", {}).get("command_queue", {})
+if command_queue.get("enabled") != manifest["effective_config"]["BB_COMMAND_QUEUE_ENABLE"]:
+    raise SystemExit("manifest-metadata: command queue enable does not match effective config")
+if command_queue.get("allowed_commands") != manifest["effective_config"]["BB_COMMAND_QUEUE_ALLOWED_COMMANDS"]:
+    raise SystemExit("manifest-metadata: command queue policy does not match effective config")
+if command_queue.get("executes_commands") is not False or command_queue.get("default_enabled") is not False:
+    raise SystemExit("manifest-metadata: command queue safety metadata missing")
 
 retry = manifest["rshell"]["retry"]
 for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec"]:

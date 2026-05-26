@@ -38,6 +38,8 @@ require 'invalid session policy' 'BB_RSHELL_SESSION_POLICY'
 require 'invalid shell provider' 'BB_RSHELL_SHELL_PROVIDER'
 require 'invalid retry backoff' 'BB_RSHELL_RETRY_BACKOFF'
 require 'invalid rshell transport' 'BB_RSHELL_TRANSPORT'
+require 'invalid command queue policy' 'BB_COMMAND_QUEUE_ALLOWED_COMMANDS'
+require 'command queue arbitrary guard' 'BB_COMMAND_QUEUE_ALLOW_ARBITRARY'
 
 grep -q 'validate_build_config' "$pkg" || {
     printf '%s\n' "validation-matrix: package-target must validate configs outside menuconfig" >&2
@@ -53,6 +55,7 @@ for pattern in \
     'invalid rshell run mode' \
     'invalid rshell session policy' \
     'invalid shell provider' \
+    'invalid command queue allowed commands policy' \
     'authkeys mode.*writes outside the runtime root'
 do
     grep -q "$pattern" "$pkg" || {
@@ -150,6 +153,10 @@ expect_package_invalid invalid-runtime 'invalid runtime mode' \
     'BB_RUNTIME_MODE="forever"'
 expect_package_invalid invalid-transport 'invalid rshell transport' \
     'BB_RSHELL_TRANSPORT="wireguard"'
+expect_package_invalid invalid-command-queue-policy 'invalid command queue allowed commands policy' \
+    'BB_COMMAND_QUEUE_ALLOWED_COMMANDS="everything"'
+expect_package_invalid disabled-command-queue-arbitrary 'command queue is disabled but arbitrary execution is allowed' \
+    'BB_COMMAND_QUEUE_ALLOW_ARBITRARY="yes"'
 
 if "$pkg" default >"$tmp/default-target.out" 2>"$tmp/default-target.err"; then
     printf '%s\n' "validation-matrix: package-target accepted blank default target" >&2

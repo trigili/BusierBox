@@ -1078,6 +1078,7 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
     for name in (
         "artifact-runtime-overrides.md",
         "cleanup-ledger.md",
+        "command-queue.md",
         "gdbserver-workflow.md",
         "manifest.md",
         "recovery.md",

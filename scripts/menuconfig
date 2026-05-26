@@ -85,6 +85,13 @@ BB_OPERATOR_KNOWN_HOSTS_POLICY="off"
 BB_OPERATOR_FILE_SERVICE_ENABLE="no"
 BB_OPERATOR_FILE_SERVICE_PORT="22204"
 BB_OPERATOR_FILE_SERVICE_TLS="yes"
+BB_COMMAND_QUEUE_ENABLE="no"
+BB_COMMAND_QUEUE_PORT="22205"
+BB_COMMAND_QUEUE_TLS="yes"
+BB_COMMAND_QUEUE_REQUIRE_TOKEN="yes"
+BB_COMMAND_QUEUE_TOKEN_SOURCE="manual"
+BB_COMMAND_QUEUE_ALLOWED_COMMANDS="none"
+BB_COMMAND_QUEUE_ALLOW_ARBITRARY="no"
 BB_SERVER_CONFIG_PATH="local/server-config.json"
 BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
 BB_HEAVY_TOOLS=""
@@ -181,6 +188,13 @@ BB_OPERATOR_KNOWN_HOSTS_POLICY="${BB_OPERATOR_KNOWN_HOSTS_POLICY:-off}"
 BB_OPERATOR_FILE_SERVICE_ENABLE="${BB_OPERATOR_FILE_SERVICE_ENABLE:-no}"
 BB_OPERATOR_FILE_SERVICE_PORT="${BB_OPERATOR_FILE_SERVICE_PORT:-22204}"
 BB_OPERATOR_FILE_SERVICE_TLS="${BB_OPERATOR_FILE_SERVICE_TLS:-yes}"
+BB_COMMAND_QUEUE_ENABLE="${BB_COMMAND_QUEUE_ENABLE:-no}"
+BB_COMMAND_QUEUE_PORT="${BB_COMMAND_QUEUE_PORT:-22205}"
+BB_COMMAND_QUEUE_TLS="${BB_COMMAND_QUEUE_TLS:-yes}"
+BB_COMMAND_QUEUE_REQUIRE_TOKEN="${BB_COMMAND_QUEUE_REQUIRE_TOKEN:-yes}"
+BB_COMMAND_QUEUE_TOKEN_SOURCE="${BB_COMMAND_QUEUE_TOKEN_SOURCE:-manual}"
+BB_COMMAND_QUEUE_ALLOWED_COMMANDS="${BB_COMMAND_QUEUE_ALLOWED_COMMANDS:-none}"
+BB_COMMAND_QUEUE_ALLOW_ARBITRARY="${BB_COMMAND_QUEUE_ALLOW_ARBITRARY:-no}"
 BB_SERVER_CONFIG_PATH="${BB_SERVER_CONFIG_PATH:-local/server-config.json}"
 BB_TARGETS="${BB_TARGETS:-${BB_TARGET_PRESET:-native}}"
 [ "$BB_TARGETS" = "native" ] && [ "${BB_TARGET_PRESET:-native}" != "native" ] && BB_TARGETS="$BB_TARGET_PRESET"
@@ -522,6 +536,13 @@ BB_OPERATOR_KNOWN_HOSTS_POLICY="$BB_OPERATOR_KNOWN_HOSTS_POLICY"
 BB_OPERATOR_FILE_SERVICE_ENABLE="$BB_OPERATOR_FILE_SERVICE_ENABLE"
 BB_OPERATOR_FILE_SERVICE_PORT="$BB_OPERATOR_FILE_SERVICE_PORT"
 BB_OPERATOR_FILE_SERVICE_TLS="$BB_OPERATOR_FILE_SERVICE_TLS"
+BB_COMMAND_QUEUE_ENABLE="$BB_COMMAND_QUEUE_ENABLE"
+BB_COMMAND_QUEUE_PORT="$BB_COMMAND_QUEUE_PORT"
+BB_COMMAND_QUEUE_TLS="$BB_COMMAND_QUEUE_TLS"
+BB_COMMAND_QUEUE_REQUIRE_TOKEN="$BB_COMMAND_QUEUE_REQUIRE_TOKEN"
+BB_COMMAND_QUEUE_TOKEN_SOURCE="$BB_COMMAND_QUEUE_TOKEN_SOURCE"
+BB_COMMAND_QUEUE_ALLOWED_COMMANDS="$BB_COMMAND_QUEUE_ALLOWED_COMMANDS"
+BB_COMMAND_QUEUE_ALLOW_ARBITRARY="$BB_COMMAND_QUEUE_ALLOW_ARBITRARY"
 BB_SERVER_CONFIG_PATH="$BB_SERVER_CONFIG_PATH"
 BB_BUSYBOX_GROUPS="$BB_BUSYBOX_GROUPS"
 BB_HEAVY_TOOLS="$BB_HEAVY_TOOLS"
@@ -891,10 +912,42 @@ validate_config() {
         none|linear|exponential) ;;
         *) _errors="$_errors\n- invalid rshell retry backoff: $BB_RSHELL_RETRY_BACKOFF." ;;
     esac
+    case "$BB_COMMAND_QUEUE_ENABLE" in
+        no|yes) ;;
+        *) _errors="$_errors\n- invalid command queue enable value: $BB_COMMAND_QUEUE_ENABLE." ;;
+    esac
+    case "$BB_COMMAND_QUEUE_TLS" in
+        no|yes) ;;
+        *) _errors="$_errors\n- invalid command queue TLS value: $BB_COMMAND_QUEUE_TLS." ;;
+    esac
+    case "$BB_COMMAND_QUEUE_REQUIRE_TOKEN" in
+        no|yes) ;;
+        *) _errors="$_errors\n- invalid command queue token requirement: $BB_COMMAND_QUEUE_REQUIRE_TOKEN." ;;
+    esac
+    case "$BB_COMMAND_QUEUE_TOKEN_SOURCE" in
+        manual|generated) ;;
+        *) _errors="$_errors\n- invalid command queue token source: $BB_COMMAND_QUEUE_TOKEN_SOURCE." ;;
+    esac
+    case "$BB_COMMAND_QUEUE_ALLOWED_COMMANDS" in
+        none|busierbox-only|allowlist|custom) ;;
+        *) _errors="$_errors\n- invalid command queue allowed commands policy: $BB_COMMAND_QUEUE_ALLOWED_COMMANDS." ;;
+    esac
+    case "$BB_COMMAND_QUEUE_ALLOW_ARBITRARY" in
+        no|yes) ;;
+        *) _errors="$_errors\n- invalid command queue arbitrary-execution flag: $BB_COMMAND_QUEUE_ALLOW_ARBITRARY." ;;
+    esac
     is_int_value "$BB_RSHELL_RETRY_COUNT" || _errors="$_errors\n- BB_RSHELL_RETRY_COUNT must be an integer (-1 means retry indefinitely)."
     is_uint_value "$BB_RSHELL_RETRY_INTERVAL_SEC" || _errors="$_errors\n- BB_RSHELL_RETRY_INTERVAL_SEC must be a non-negative integer."
     is_uint_value "$BB_RSHELL_RETRY_JITTER_PCT" || _errors="$_errors\n- BB_RSHELL_RETRY_JITTER_PCT must be a non-negative integer."
     is_uint_value "$BB_RSHELL_RETRY_MAX_INTERVAL_SEC" || _errors="$_errors\n- BB_RSHELL_RETRY_MAX_INTERVAL_SEC must be a non-negative integer."
+    is_uint_value "$BB_COMMAND_QUEUE_PORT" || _errors="$_errors\n- BB_COMMAND_QUEUE_PORT must be a non-negative integer."
+    if [ "$BB_COMMAND_QUEUE_ENABLE" != yes ]; then
+        [ "$BB_COMMAND_QUEUE_ALLOWED_COMMANDS" = none ] || _errors="$_errors\n- command queue is disabled but allowed commands is $BB_COMMAND_QUEUE_ALLOWED_COMMANDS; keep disabled queues at policy=none."
+        [ "$BB_COMMAND_QUEUE_ALLOW_ARBITRARY" = no ] || _errors="$_errors\n- command queue is disabled but arbitrary execution is allowed."
+    fi
+    if [ "$BB_COMMAND_QUEUE_ALLOW_ARBITRARY" = yes ] && [ "$BB_COMMAND_QUEUE_ALLOWED_COMMANDS" != custom ]; then
+        _errors="$_errors\n- arbitrary command queue execution requires allowed commands policy custom."
+    fi
 
     if [ "$BB_ZERO_ARG_LOG_MODE" = none ] && [ "$BB_AUTORUN_GUARD_ENABLE" = yes ]; then
         _warnings="$_warnings\n- zero-arg log mode none suppresses output, but minimal autorun guard files may still be written."
@@ -2864,6 +2917,7 @@ configure_applet_configuration() {
             "3" "Reverse shell" \
             "4" "Dotfiles by app" \
             "5" "Persistence binary name: $BB_RECOVERY_BINARY_NAME" \
+            "6" "Advanced / Explicit command queue: $BB_COMMAND_QUEUE_ENABLE policy=$BB_COMMAND_QUEUE_ALLOWED_COMMANDS" \
             "H" "Help" \
             "0" "Back" \
             2>"$temp_out" || return 0
@@ -2880,7 +2934,58 @@ configure_applet_configuration() {
                 _v=$(cat "$temp_out")
                 [ -n "$_v" ] && BB_RECOVERY_BINARY_NAME="$_v"
                 ;;
+            6) configure_command_queue ;;
             H) show_page_help rshell ;;
+            0) return 0 ;;
+        esac
+    done
+}
+
+configure_command_queue() {
+    while :; do
+        dialog --title "Advanced / Explicit command queue" \
+            --menu "This enables target-side polling for operator-supplied commands. It is not needed for normal reverse shells or file transfer. Leave disabled unless you explicitly want this behavior.\n\nCurrent builds expose policy/status only; queued command execution is not implemented." 23 92 8 \
+            "1" "Enable command queue: $BB_COMMAND_QUEUE_ENABLE" \
+            "2" "Port: $BB_COMMAND_QUEUE_PORT" \
+            "3" "TLS: $BB_COMMAND_QUEUE_TLS" \
+            "4" "Require token: $BB_COMMAND_QUEUE_REQUIRE_TOKEN" \
+            "5" "Token source: $BB_COMMAND_QUEUE_TOKEN_SOURCE" \
+            "6" "Allowed commands policy: $BB_COMMAND_QUEUE_ALLOWED_COMMANDS" \
+            "7" "Allow arbitrary commands: $BB_COMMAND_QUEUE_ALLOW_ARBITRARY" \
+            "0" "Back" \
+            2>"$temp_out" || return 0
+        _choice=$(cat "$temp_out")
+        case "$_choice" in
+            1) [ "$BB_COMMAND_QUEUE_ENABLE" = yes ] && BB_COMMAND_QUEUE_ENABLE=no || BB_COMMAND_QUEUE_ENABLE=yes ;;
+            2) dialog --title "Command queue port" --inputbox "Operator command queue port." 8 60 "$BB_COMMAND_QUEUE_PORT" 2>"$temp_out" || true; BB_COMMAND_QUEUE_PORT=$(cat "$temp_out") ;;
+            3) [ "$BB_COMMAND_QUEUE_TLS" = yes ] && BB_COMMAND_QUEUE_TLS=no || BB_COMMAND_QUEUE_TLS=yes ;;
+            4) [ "$BB_COMMAND_QUEUE_REQUIRE_TOKEN" = yes ] && BB_COMMAND_QUEUE_REQUIRE_TOKEN=no || BB_COMMAND_QUEUE_REQUIRE_TOKEN=yes ;;
+            5)
+                dialog --title "Command queue token source" --radiolist "Select token source." 11 64 2 \
+                    "manual" "Operator supplies token outside this config" "$(mode_onoff "$BB_COMMAND_QUEUE_TOKEN_SOURCE" manual)" \
+                    "generated" "Generate token in future queue tooling" "$(mode_onoff "$BB_COMMAND_QUEUE_TOKEN_SOURCE" generated)" \
+                    2>"$temp_out" || true
+                _v=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_v" ] && BB_COMMAND_QUEUE_TOKEN_SOURCE="$_v"
+                ;;
+            6)
+                dialog --title "Command queue policy" --radiolist "Select the maximum command policy. Execution is still not implemented in this build." 14 76 4 \
+                    "none" "No command execution allowed" "$(mode_onoff "$BB_COMMAND_QUEUE_ALLOWED_COMMANDS" none)" \
+                    "busierbox-only" "Future mode: BusierBox applets only" "$(mode_onoff "$BB_COMMAND_QUEUE_ALLOWED_COMMANDS" busierbox-only)" \
+                    "allowlist" "Future mode: configured allowlist only" "$(mode_onoff "$BB_COMMAND_QUEUE_ALLOWED_COMMANDS" allowlist)" \
+                    "custom" "Future mode: explicit custom policy" "$(mode_onoff "$BB_COMMAND_QUEUE_ALLOWED_COMMANDS" custom)" \
+                    2>"$temp_out" || true
+                _v=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_v" ] && BB_COMMAND_QUEUE_ALLOWED_COMMANDS="$_v"
+                ;;
+            7)
+                if [ "$BB_COMMAND_QUEUE_ALLOW_ARBITRARY" = yes ]; then
+                    BB_COMMAND_QUEUE_ALLOW_ARBITRARY=no
+                else
+                    dialog --title "Dangerous command queue mode" \
+                        --yesno "Allowing arbitrary queued commands is a dangerous future mode and is not required for normal workflows.\n\nSet allow_arbitrary=yes anyway?" 10 76 && BB_COMMAND_QUEUE_ALLOW_ARBITRARY=yes || true
+                fi
+                ;;
             0) return 0 ;;
         esac
     done

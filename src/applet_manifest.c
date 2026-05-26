@@ -313,6 +313,21 @@ static void write_manifest_json(FILE *out, int include_missing)
     fprintf(out, ",\"tls\":");
     json_string_payload(out, BB_OPERATOR_FILE_SERVICE_TLS);
     fprintf(out, ",\"target_initiated\":true,\"receive_only\":true}");
+    fprintf(out, ",\"command_queue\":{\"enabled\":");
+    json_string_payload(out, BB_COMMAND_QUEUE_ENABLE);
+    fprintf(out, ",\"port\":");
+    json_string_payload(out, BB_COMMAND_QUEUE_PORT);
+    fprintf(out, ",\"tls\":");
+    json_string_payload(out, BB_COMMAND_QUEUE_TLS);
+    fprintf(out, ",\"require_token\":");
+    json_string_payload(out, BB_COMMAND_QUEUE_REQUIRE_TOKEN);
+    fprintf(out, ",\"token_source\":");
+    json_string_payload(out, BB_COMMAND_QUEUE_TOKEN_SOURCE);
+    fprintf(out, ",\"allowed_commands\":");
+    json_string_payload(out, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
+    fprintf(out, ",\"allow_arbitrary\":");
+    json_string_payload(out, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    fprintf(out, ",\"target_polling\":true,\"executes_commands\":false,\"default_enabled\":false}");
     fprintf(out, "},\"dotfiles\":{\"enabled\":");
     json_string_payload(out, BB_DOTFILES_ENABLE);
     fprintf(out, ",\"zsh\":");
@@ -625,6 +640,9 @@ int applet_manifest_main(int argc, char **argv)
     printf("rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
     printf("rshell_encryption=%s\n", BB_RSHELL_ENCRYPTION);
     printf("rshell_session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
+    printf("command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
+    printf("command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
+    printf("command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
     printf("heavy_tools=");
     for (i = 0; heavy_tools[i]; i++)
         printf("%s%s", i ? " " : "", heavy_tools[i]);

@@ -70,6 +70,7 @@ int applet_recovery_main(int argc, char **argv);
 int applet_rshell_main(int argc, char **argv);
 int applet_plan_main(int argc, char **argv);
 int applet_upload_main(int argc, char **argv);
+int applet_command_queue_main(int argc, char **argv);
 int bb_operator_upload_file(const char *path, const char *source_path, const char *kind,
                             int argc, char **argv);
 

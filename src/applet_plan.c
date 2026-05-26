@@ -196,6 +196,41 @@ static void plan_print_rshell(int json)
     puts("requires_external_writes=no");
 }
 
+static void plan_print_command_queue(int json)
+{
+    int enabled = !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes");
+    if (json) {
+        fputs("{\"schema\":1,\"command\":\"command-queue\",\"would_create\":[],\"would_modify\":[],\"would_remove\":[],\"would_start\":[", stdout);
+        if (enabled)
+            bb_json_string(stdout, "command-queue poll");
+        fputs("],\"would_connect\":[", stdout);
+        if (enabled) {
+            char endpoint[128];
+            snprintf(endpoint, sizeof(endpoint), "operator command queue port %s", BB_COMMAND_QUEUE_PORT);
+            bb_json_string(stdout, endpoint);
+        }
+        fputs("],\"requires_external_writes\":false", stdout);
+        printf(",\"enabled\":%s,\"execution_supported\":false", enabled ? "true" : "false");
+        fputs(",\"allowed_commands\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
+        fputs(",\"allow_arbitrary\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+        fputs(",\"safety_boundary\":", stdout); bb_json_string(stdout, "explicit opt-in target polling; queued command execution is not implemented");
+        plan_print_config_source_json();
+        puts("}");
+        return;
+    }
+    puts("Plan: command-queue");
+    plan_print_config_source_text();
+    printf("enabled=%s\n", BB_COMMAND_QUEUE_ENABLE);
+    printf("port=%s\n", BB_COMMAND_QUEUE_PORT);
+    printf("tls=%s\n", BB_COMMAND_QUEUE_TLS);
+    printf("require_token=%s\n", BB_COMMAND_QUEUE_REQUIRE_TOKEN);
+    printf("allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
+    printf("allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    puts("execution_supported=no");
+    puts("safety_boundary=explicit opt-in target polling; queued command execution is not implemented");
+    puts("requires_external_writes=no");
+}
+
 struct plan_recovery_method {
     const char *name;
     const char *path;
@@ -402,7 +437,7 @@ int applet_plan_main(int argc, char **argv)
     int i;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox plan [--json] [extract|rshell|clean]");
+        puts("usage: busierbox plan [--json] [extract|rshell|clean|command-queue]");
         puts("       busierbox plan [--json] recovery install --method METHOD --action ACTION [options]");
         puts("Shows intended filesystem, process, and network impact without modifying the target.");
         return 0;
@@ -430,6 +465,10 @@ int applet_plan_main(int argc, char **argv)
         plan_print_rshell(json);
         return 0;
     }
+    if (!strcmp(topic, "command-queue")) {
+        plan_print_command_queue(json);
+        return 0;
+    }
     if (!strcmp(topic, "recovery") || !strcmp(topic, "persistence")) {
         if (i < argc && !strcmp(argv[i], "install"))
             return plan_recovery_install(argc, argv, json);
@@ -438,7 +477,7 @@ int applet_plan_main(int argc, char **argv)
     }
     if (!strcmp(topic, "summary")) {
         if (json) {
-            fputs("{\"schema\":1,\"command\":\"summary\",\"available_plans\":[\"extract\",\"rshell\",\"clean\",\"recovery install\"]", stdout);
+            fputs("{\"schema\":1,\"command\":\"summary\",\"available_plans\":[\"extract\",\"rshell\",\"clean\",\"command-queue\",\"recovery install\"]", stdout);
             plan_print_config_source_json();
             puts("}");
         } else {
@@ -446,6 +485,7 @@ int applet_plan_main(int argc, char **argv)
             puts("  busierbox plan extract");
             puts("  busierbox plan rshell");
             puts("  busierbox plan clean");
+            puts("  busierbox plan command-queue");
             puts("  busierbox plan recovery install --method openwrt-procd --action rshell");
             plan_print_config_source_text();
         }

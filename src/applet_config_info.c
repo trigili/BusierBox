@@ -79,11 +79,17 @@ int applet_config_info_main(int argc, char **argv)
     printf("compiled_rshell_transport=%s\n", bb_config_compiled("BB_RSHELL_TRANSPORT"));
     printf("compiled_rshell_session_policy=%s\n", bb_config_compiled("BB_RSHELL_SESSION_POLICY"));
     printf("compiled_rshell_operator_host=%s\n", bb_config_compiled("BB_OPERATOR_SERVER_HOST"));
+    printf("compiled_command_queue_enable=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_ENABLE"));
+    printf("compiled_command_queue_allowed_commands=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_ALLOWED_COMMANDS"));
+    printf("compiled_command_queue_allow_arbitrary=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_ALLOW_ARBITRARY"));
     printf("effective_zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
     printf("effective_noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
     printf("effective_rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
     printf("effective_rshell_session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
     printf("effective_rshell_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
+    printf("effective_command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
+    printf("effective_command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
+    printf("effective_command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
     have_embedded = bb_get_embedded_payload(&ep) == 0;
     have_payload = bb_candidate_payload_dir(payload, sizeof(payload)) == 0;
     printf("embedded_payload=%s\n", have_embedded ? "yes" : "no");

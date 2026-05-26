@@ -349,6 +349,7 @@ Workflow documentation:
 - [Plan mode](docs/plan-mode.md)
 - [Cleanup ledger and no-residue](docs/cleanup-ledger.md)
 - [Persistence](docs/persistence.md)
+- [Command queue](docs/command-queue.md)
 - [Manifest and support token](docs/manifest.md)
 - [Artifact runtime overrides](docs/artifact-runtime-overrides.md)
 - [gdbserver workflow](docs/gdbserver-workflow.md)

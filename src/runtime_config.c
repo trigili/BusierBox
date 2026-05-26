@@ -126,6 +126,27 @@
 #ifndef BB_OPERATOR_FILE_SERVICE_TLS
 #define BB_OPERATOR_FILE_SERVICE_TLS "yes"
 #endif
+#ifndef BB_COMMAND_QUEUE_ENABLE
+#define BB_COMMAND_QUEUE_ENABLE "no"
+#endif
+#ifndef BB_COMMAND_QUEUE_PORT
+#define BB_COMMAND_QUEUE_PORT "22205"
+#endif
+#ifndef BB_COMMAND_QUEUE_TLS
+#define BB_COMMAND_QUEUE_TLS "yes"
+#endif
+#ifndef BB_COMMAND_QUEUE_REQUIRE_TOKEN
+#define BB_COMMAND_QUEUE_REQUIRE_TOKEN "yes"
+#endif
+#ifndef BB_COMMAND_QUEUE_TOKEN_SOURCE
+#define BB_COMMAND_QUEUE_TOKEN_SOURCE "manual"
+#endif
+#ifndef BB_COMMAND_QUEUE_ALLOWED_COMMANDS
+#define BB_COMMAND_QUEUE_ALLOWED_COMMANDS "none"
+#endif
+#ifndef BB_COMMAND_QUEUE_ALLOW_ARBITRARY
+#define BB_COMMAND_QUEUE_ALLOW_ARBITRARY "no"
+#endif
 #ifndef BB_BUILTIN_TLS_ENABLE
 #define BB_BUILTIN_TLS_ENABLE "no"
 #endif
@@ -177,6 +198,13 @@ static struct cfg_entry cfg[] = {
     {"BB_OPERATOR_FILE_SERVICE_ENABLE", BB_OPERATOR_FILE_SERVICE_ENABLE, "", 0},
     {"BB_OPERATOR_FILE_SERVICE_PORT", BB_OPERATOR_FILE_SERVICE_PORT, "", 0},
     {"BB_OPERATOR_FILE_SERVICE_TLS", BB_OPERATOR_FILE_SERVICE_TLS, "", 0},
+    {"BB_COMMAND_QUEUE_ENABLE", BB_COMMAND_QUEUE_ENABLE, "", 0},
+    {"BB_COMMAND_QUEUE_PORT", BB_COMMAND_QUEUE_PORT, "", 0},
+    {"BB_COMMAND_QUEUE_TLS", BB_COMMAND_QUEUE_TLS, "", 0},
+    {"BB_COMMAND_QUEUE_REQUIRE_TOKEN", BB_COMMAND_QUEUE_REQUIRE_TOKEN, "", 0},
+    {"BB_COMMAND_QUEUE_TOKEN_SOURCE", BB_COMMAND_QUEUE_TOKEN_SOURCE, "", 0},
+    {"BB_COMMAND_QUEUE_ALLOWED_COMMANDS", BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "", 0},
+    {"BB_COMMAND_QUEUE_ALLOW_ARBITRARY", BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "", 0},
 };
 
 static int loaded;
@@ -487,6 +515,13 @@ void bb_print_autoexec_config(void)
     printf("operator_file_service_enable=%s\n", bb_config_get("BB_OPERATOR_FILE_SERVICE_ENABLE"));
     printf("operator_file_service_port=%s\n", bb_config_get("BB_OPERATOR_FILE_SERVICE_PORT"));
     printf("operator_file_service_tls=%s\n", bb_config_get("BB_OPERATOR_FILE_SERVICE_TLS"));
+    printf("command_queue_enable=%s\n", bb_config_get("BB_COMMAND_QUEUE_ENABLE"));
+    printf("command_queue_port=%s\n", bb_config_get("BB_COMMAND_QUEUE_PORT"));
+    printf("command_queue_tls=%s\n", bb_config_get("BB_COMMAND_QUEUE_TLS"));
+    printf("command_queue_require_token=%s\n", bb_config_get("BB_COMMAND_QUEUE_REQUIRE_TOKEN"));
+    printf("command_queue_token_source=%s\n", bb_config_get("BB_COMMAND_QUEUE_TOKEN_SOURCE"));
+    printf("command_queue_allowed_commands=%s\n", bb_config_get("BB_COMMAND_QUEUE_ALLOWED_COMMANDS"));
+    printf("command_queue_allow_arbitrary=%s\n", bb_config_get("BB_COMMAND_QUEUE_ALLOW_ARBITRARY"));
     printf("autorun_guard_enabled=%s\n", bb_config_get("BB_AUTORUN_GUARD_ENABLE"));
     printf("autorun_guard_path=%s\n", bb_config_get("BB_AUTORUN_GUARD_PATH"));
     printf("autorun_reentry_action=%s\n", bb_config_get("BB_AUTORUN_REENTRY_ACTION"));

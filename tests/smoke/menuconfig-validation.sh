@@ -39,6 +39,8 @@ awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_SHELL_PROVIDER'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_RUN_MODE'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_SESSION_POLICY'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_RETRY_BACKOFF'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_COMMAND_QUEUE_ALLOWED_COMMANDS'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_COMMAND_QUEUE_ALLOW_ARBITRARY'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'payload-zsh'
 
 if grep -q 'BB_ARTIFACT_PROFILE\|Artifact profile\|configure_artifact_outputs' "$menu"; then
