@@ -353,12 +353,40 @@ cmp -s root-ssh.before root-ssh.after
         raise RuntimeError("/root/.ssh changed during disabled/payload-home policy case")
 
 
+def write_operator_server_config(case_dir, args):
+    operator_dir = case_dir / "operator-session"
+    session_root = case_dir / "operator-sessions"
+    cfg = {
+        "listen_host": "0.0.0.0",
+        "ssh_listen_port": args.ssh_port,
+        "shell_listen_port": args.shell_port,
+        "forward_port": args.forward_port,
+        "file_service_port": 22204,
+        "operator_session_dir": str(operator_dir),
+        "server_state": str(operator_dir / "server-state.json"),
+        "staged_files": str(operator_dir / "staged-files.json"),
+        "command_queue_file": str(operator_dir / "command-queue.json"),
+        "command_copy_file": str(operator_dir / "last-command.txt"),
+        "session_root": str(session_root),
+        "tls_cert": str(operator_dir / "shell-server.crt"),
+        "tls_key": str(operator_dir / "shell-server.key"),
+        "operator_host_key": str(operator_dir / "operator_ssh_host_key"),
+        "authorized_dbclient_pubkey": str(operator_dir / "id_dbclient.pub"),
+    }
+    operator_dir.mkdir(parents=True, exist_ok=True)
+    path = case_dir / "operator-server-config.json"
+    path.write_text(json.dumps(cfg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
 def start_shell_server(case_dir, transport, port, marker, args):
     script = case_dir / "server-script.sh"
     script.write_text(f"echo {marker}\nuname -m\nexit\n", encoding="utf-8")
+    config = write_operator_server_config(case_dir, args)
     log_file = (case_dir / "server.log").open("wb")
     proc = subprocess.Popen([
         sys.executable, "-u", "scripts/busierbox-server",
+        "--config", str(config),
         "--transport", transport,
         "--shell-port", str(port),
         "--timeout", str(args.connect_timeout),
@@ -530,9 +558,11 @@ def case_socat_rescue(ctx):
 
 
 def case_ssh_operator(ctx):
+    config = write_operator_server_config(ctx["case_dir"], ctx["args"])
     log_file = (ctx["case_dir"] / "server.log").open("wb")
     server = subprocess.Popen([
         sys.executable, "-u", "scripts/busierbox-server",
+        "--config", str(config),
         "--transport", "ssh",
         "--ssh-port", str(ctx["args"].ssh_port),
         "--forward-port", str(ctx["args"].forward_port),
@@ -660,7 +690,36 @@ def run_case(case, args, run_dir, operator_host):
                 result["error"] = str(exc)
             log(f"{case}: cleanup failed: {exc}")
         result["duration_sec"] = round(time.monotonic() - started, 3)
+        event_log = case_dir / "operator-session" / "events.jsonl"
+        if event_log.is_file():
+            result["operator_event_log"] = str(event_log)
     return result
+
+
+def aggregate_operator_events(run_dir, summary):
+    combined = run_dir / "operator-events.jsonl"
+    count = 0
+    with combined.open("w", encoding="utf-8") as out:
+        for case in summary.get("cases", []):
+            path = case.get("operator_event_log")
+            if not path:
+                continue
+            event_log = Path(path)
+            if not event_log.is_file():
+                continue
+            for line in event_log.read_text(encoding="utf-8", errors="replace").splitlines():
+                if not line.strip():
+                    continue
+                out.write(line.rstrip() + "\n")
+                count += 1
+    if count:
+        summary["event_log"] = str(combined)
+        summary["event_count"] = count
+    else:
+        try:
+            combined.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def check_target(args, run_dir):
@@ -729,12 +788,14 @@ def main(argv=None):
     if args.dry_run:
         summary["status"] = "dry-run"
         summary["cases"] = [{"case": c, "status": "planned"} for c in cases]
+        aggregate_operator_events(run_dir, summary)
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(summary, indent=2))
         return 0
     if not check_target(args, run_dir):
         summary["status"] = "skip"
         summary["reason"] = f"target unreachable: {args.host}"
+        aggregate_operator_events(run_dir, summary)
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(summary, indent=2))
         return 0
@@ -750,6 +811,7 @@ def main(argv=None):
     elif any(c["status"] == "pass" for c in summary["cases"]):
         summary["status"] = "partial"
     summary["counts"], summary["failure_reasons"] = summarize_cases(summary["cases"])
+    aggregate_operator_events(run_dir, summary)
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
     return 0 if summary["status"] in ("pass", "skip") else 1
