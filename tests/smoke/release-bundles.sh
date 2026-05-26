@@ -124,6 +124,8 @@ test -x "$work/release/scripts/configure-all"
 test -x "$work/release/scripts/verify-checksums"
 test -f "$work/release/SHA256SUMS.original"
 test -f "$work/release/release.json"
+test -f "$work/release/docs/README-release.md"
+test -f "$work/release/docs/trailer-overrides.md"
 test -f "$work/release.tar.gz"
 
 python3 -m json.tool "$work/release/release.json" >/dev/null

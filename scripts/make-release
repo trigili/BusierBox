@@ -412,6 +412,9 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
         src = ROOT / "docs" / name
         if src.exists():
             shutil.copy2(src, doc_dir / name)
+    trailer_doc = ROOT / "docs" / "artifact-runtime-overrides.md"
+    if trailer_doc.exists():
+        shutil.copy2(trailer_doc, doc_dir / "trailer-overrides.md")
     src_doc = ROOT / "docs" / "release-bundles.md"
     if src_doc.exists():
         shutil.copy2(src_doc, doc_dir / "README-release.md")
