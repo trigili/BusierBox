@@ -147,18 +147,20 @@ grep -q 'installed_command=/usr/bin/bbx_recovery evidence push --quiet && /usr/b
 
 "$bb" persistence install --method rc-local --action dmesg-push --dry-run --root "$tmp/root" --name bbx_recovery >"$tmp/dmesg-dry-run"
 grep -q 'Action: dmesg-push' "$tmp/dmesg-dry-run"
-grep -q 'dmesg >/tmp/bbx_recovery-dmesg.txt' "$tmp/dmesg-dry-run"
+grep -q 'bbx_dmesg_dir=' "$tmp/dmesg-dry-run"
+grep -q 'dmesg >"$bbx_dmesg"' "$tmp/dmesg-dry-run"
 grep -q -- '--dest bbx_recovery-dmesg.txt' "$tmp/dmesg-dry-run"
 "$bb" persistence install --method rc-local --action dmesg-push --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 grep -q 'action=dmesg-push' "$tmp/root/etc/rc.local"
-grep -q 'rm -f /tmp/bbx_recovery-dmesg.txt' "$tmp/root/etc/rc.local"
+grep -q 'rm -f "$bbx_dmesg"' "$tmp/root/etc/rc.local"
 "$bb" persistence status --json --root "$tmp/root" --name bbx_recovery >"$tmp/dmesg-status.json"
 python3 - <<'PY' "$tmp/dmesg-status.json"
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 assert item["action"] == "dmesg-push"
-assert "dmesg >/tmp/bbx_recovery-dmesg.txt" in item["generated_command"]
+assert "bbx_dmesg_dir=" in item["generated_command"]
+assert "dmesg >\"$bbx_dmesg\"" in item["generated_command"]
 assert "--dest bbx_recovery-dmesg.txt" in item["generated_command"]
 PY
 "$bb" persistence uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null

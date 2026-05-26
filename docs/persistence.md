@@ -43,7 +43,7 @@ Actions:
 - `rshell`: run `busierbox rshell start` with the artifact's effective runtime config.
 - `evidence-push`: upload a generated BusierBox evidence summary to the configured receive-only file service.
 - `evidence-then-rshell`: upload generated evidence, then start `rshell` only if the upload command succeeds.
-- `dmesg-push`: capture `dmesg` to a temporary file, upload it as evidence, then remove the temporary file.
+- `dmesg-push`: capture `dmesg` to a temporary file under the BusierBox runtime root, upload it as evidence, then remove the temporary file.
 - `command`: run the explicit command provided after `--`.
 - `script`: copy `--file` to `/usr/bin/<name>.recovery.sh` and run it from the hook.
 

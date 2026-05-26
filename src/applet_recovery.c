@@ -507,7 +507,7 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     else if (!strcmp(action, "evidence-then-rshell"))
         snprintf(generated, sizeof(generated), "/usr/bin/%s evidence push --quiet && /usr/bin/%s rshell start", name, name);
     else if (!strcmp(action, "dmesg-push"))
-        snprintf(generated, sizeof(generated), "dmesg >/tmp/%s-dmesg.txt 2>&1; /usr/bin/%s evidence push /tmp/%s-dmesg.txt --dest %s-dmesg.txt --quiet; rm -f /tmp/%s-dmesg.txt", name, name, name, name, name);
+        snprintf(generated, sizeof(generated), "bbx_dmesg_dir=%s/run; mkdir -p \"$bbx_dmesg_dir\" 2>/dev/null || bbx_dmesg_dir=.; bbx_dmesg=\"$bbx_dmesg_dir/%s-dmesg.txt\"; dmesg >\"$bbx_dmesg\" 2>&1; /usr/bin/%s evidence push \"$bbx_dmesg\" --dest %s-dmesg.txt --quiet; rm -f \"$bbx_dmesg\"", BB_RUNTIME_ROOT, name, name, name);
     else if (!strcmp(action, "script")) {
         if (!script_file || !*script_file) {
             fprintf(stderr, "%s: recovery action script requires --file FILE\n", applet);
