@@ -291,6 +291,14 @@ def main():
                 queue_status_json["summary"].get("command_queue_result_count") != 1):
             print("server json status missing aggregate command queue counts", file=sys.stderr)
             return 1
+        event_stats = queue_status_json.get("event_log_stats") or {}
+        if (event_stats.get("total_count", 0) < 2 or
+                event_stats.get("tail_count") != len(queue_status_json.get("events", [])) or
+                queue_status_json["summary"].get("event_count") != event_stats.get("total_count") or
+                queue_status_json["summary"].get("event_tail_count") != event_stats.get("tail_count")):
+            print("server json status missing event log total/tail stats", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
         api_status_doc = run(
             "scripts/busierbox-server",
             "--config", str(cfg),
@@ -728,6 +736,13 @@ def main():
                 upload_doc.get("summary", {}).get("session_count", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_count", 0) < 1):
             print("server json status missing aggregate upload/session/event counts", file=sys.stderr)
+            return 1
+        upload_event_stats = upload_doc.get("event_log_stats") or {}
+        if (upload_event_stats.get("total_count", 0) < len(global_events) or
+                upload_event_stats.get("tail_count") != len(upload_doc.get("events", [])) or
+                upload_doc.get("summary", {}).get("event_tail_count") != upload_event_stats.get("tail_count")):
+            print("server json status missing upload event log stats", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
             return 1
         upload_status_text = run(
             "scripts/busierbox-server",

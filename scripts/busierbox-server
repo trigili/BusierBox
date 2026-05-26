@@ -154,6 +154,34 @@ def event_tail(cfg, limit=12):
     return out
 
 
+def event_log_stats(cfg, limit=12):
+    path = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "events.jsonl"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {"path": str(path), "total_count": 0, "tail_count": 0, "invalid_count": 0, "tail_limit": limit, "tail": []}
+    total = 0
+    invalid = 0
+    parsed = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            parsed.append(json.loads(line))
+            total += 1
+        except json.JSONDecodeError:
+            invalid += 1
+    tail = parsed[-limit:]
+    return {
+        "path": str(path),
+        "total_count": total,
+        "tail_count": len(tail),
+        "invalid_count": invalid,
+        "tail_limit": limit,
+        "tail": tail,
+    }
+
+
 def staged_file_path(cfg):
     return Path(str(cfg.get("staged_files") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "staged-files.json"))
 
@@ -2165,7 +2193,8 @@ def status_document(cfg):
     services = service_status_rows(cfg)
     uploads = recent_upload_metadata(cfg)
     sessions = recent_session_records(cfg)
-    events = event_tail(cfg)
+    event_stats = event_log_stats(cfg)
+    events = event_stats["tail"]
     command_queue = command_queue_summary(cfg)
     release = release_context()
     summary, warnings = status_summary_and_warnings(services)
@@ -2173,7 +2202,9 @@ def status_document(cfg):
         "staged_count": len(staged),
         "upload_count": len(uploads),
         "session_count": len(sessions),
-        "event_count": len(events),
+        "event_count": event_stats["total_count"],
+        "event_tail_count": event_stats["tail_count"],
+        "event_invalid_count": event_stats["invalid_count"],
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_result_count": command_queue.get("result_count", 0),
@@ -2214,6 +2245,9 @@ def status_document(cfg):
         "uploads": uploads,
         "sessions": sessions,
         "events": events,
+        "event_log_stats": {
+            key: value for key, value in event_stats.items() if key != "tail"
+        },
         "release": release,
         "command_queue": command_queue,
     }
