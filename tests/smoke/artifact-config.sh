@@ -274,6 +274,65 @@ assert r["trailer_override"]["encoding"] == "rot13"
 assert r["trailer_override"]["status"] == "unsupported encoding"
 PY
 
+cp "$work/busierbox" "$work/busierbox-bad-payload-format"
+python3 - "$work/busierbox-bad-payload-format" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+b = bytearray(p.read_bytes())
+start = len(b) - 4096
+needle = b"payload_format=raw\n"
+pos = b.find(needle, start)
+if pos < 0:
+    raise SystemExit("payload_format metadata not found")
+b[pos:pos + len(needle)] = b"payload_format=b64\n"
+p.write_bytes(b)
+PY
+if scripts/artifact-config show "$work/busierbox-bad-payload-format" >"$work/show.bad-payload-format" 2>&1; then
+    printf '%s\n' "artifact-config smoke: unsupported payload format trailer unexpectedly passed" >&2
+    exit 1
+fi
+grep -q '^trailer_status=unsupported payload format b64$' "$work/show.bad-payload-format"
+"$work/busierbox-bad-payload-format" runtime-config --json >"$work/runtime.bad-payload-format.json"
+python3 - "$work/runtime.bad-payload-format.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert r["effective_config_source"] == "compiled"
+assert r["trailer_override"]["present"] is True
+assert r["trailer_override"]["valid"] is False
+assert r["trailer_override"]["status"] == "unsupported payload format"
+PY
+
+cp "$artifact" "$work/busierbox-bad-hex-payload"
+BB_TRAILER_OBFUSCATION=xor scripts/artifact-config set "$work/busierbox-bad-hex-payload" BB_OPERATOR_SERVER_HOST=192.0.2.46 >/dev/null
+python3 - "$work/busierbox-bad-hex-payload" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+b = bytearray(p.read_bytes())
+start = len(b) - 4096
+needle = b"ENDMETA\n"
+pos = b.find(needle, start)
+if pos < 0:
+    raise SystemExit("trailer payload marker not found")
+payload_pos = pos + len(needle)
+b[payload_pos:payload_pos + 2] = b"zz"
+p.write_bytes(b)
+PY
+if scripts/artifact-config show "$work/busierbox-bad-hex-payload" >"$work/show.bad-hex-payload" 2>&1; then
+    printf '%s\n' "artifact-config smoke: invalid hex payload trailer unexpectedly passed" >&2
+    exit 1
+fi
+grep -q '^trailer_status=invalid hex payload$' "$work/show.bad-hex-payload"
+"$work/busierbox-bad-hex-payload" runtime-config --json >"$work/runtime.bad-hex-payload.json"
+python3 - "$work/runtime.bad-hex-payload.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert r["effective_config_source"] == "compiled"
+assert r["trailer_override"]["present"] is True
+assert r["trailer_override"]["valid"] is False
+assert r["trailer_override"]["encoding"] == "xor"
+assert r["trailer_override"]["status"] == "invalid hex payload"
+PY
+
 cp "$artifact" "$work/busierbox-bad-xor-key"
 BB_TRAILER_OBFUSCATION=xor scripts/artifact-config set "$work/busierbox-bad-xor-key" BB_OPERATOR_SERVER_HOST=192.0.2.45 >/dev/null
 python3 - "$work/busierbox-bad-xor-key" <<'PY'
