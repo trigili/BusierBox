@@ -24,6 +24,7 @@ int bb_payload_tool_is_heavy(const char *name);
 const char *bb_ledger_path(char *out, size_t outsz);
 void bb_ledger_record(const char *op, const char *path, const char *scope, const char *detail);
 int bb_ledger_entry_count(const char *path);
+void bb_print_cleanup_ledger_json(FILE *out, void (*json_string)(FILE *, const char *));
 int bb_rm_rf(const char *path);
 int bb_mkdir_p(const char *path, mode_t mode);
 char *bb_read_text_file(const char *path, size_t max_bytes);

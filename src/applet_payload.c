@@ -1181,17 +1181,6 @@ static void print_doctor_rshell_readiness_json(FILE *out)
     fprintf(out, "]}");
 }
 
-static void print_doctor_cleanup_ledger_json(FILE *out)
-{
-    char path[PATH_MAX];
-    bb_ledger_path(path, sizeof(path));
-    fprintf(out, ",\"cleanup_ledger\":{\"path\":");
-    json_string_payload(out, path);
-    fprintf(out, ",\"present\":%s,\"entry_count\":%d}",
-            bb_path_exists(path) ? "true" : "false",
-            bb_ledger_entry_count(path));
-}
-
 static void print_doctor_payload_runtime_health_json(FILE *out, int have_payload, const char *payload)
 {
     char busybox[PATH_MAX], symlink_count_path[PATH_MAX], symlink_count[32] = "";
@@ -1361,7 +1350,8 @@ int applet_doctor_main(int argc, char **argv)
             print_doctor_rshell_readiness_json(stdout);
             printf(",\"runtime_config\":");
             bb_config_print_runtime_summary_json(stdout, json_string_payload);
-            print_doctor_cleanup_ledger_json(stdout);
+            printf(",\"cleanup_ledger\":");
+            bb_print_cleanup_ledger_json(stdout, json_string_payload);
             printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s",
                    bb_path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
                    getenv("HOME") && *getenv("HOME") ? "true" : "false",
@@ -1428,7 +1418,8 @@ int applet_doctor_main(int argc, char **argv)
             print_doctor_rshell_readiness_json(stdout);
             printf(",\"runtime_config\":");
             bb_config_print_runtime_summary_json(stdout, json_string_payload);
-            print_doctor_cleanup_ledger_json(stdout);
+            printf(",\"cleanup_ledger\":");
+            bb_print_cleanup_ledger_json(stdout, json_string_payload);
             printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s}",
                    bb_path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
                    getenv("HOME") && *getenv("HOME") ? "true" : "false",

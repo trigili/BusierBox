@@ -70,3 +70,15 @@ int bb_ledger_entry_count(const char *path)
     fclose(fp);
     return count;
 }
+
+void bb_print_cleanup_ledger_json(FILE *out, void (*json_string)(FILE *, const char *))
+{
+    char path[PATH_MAX];
+
+    bb_ledger_path(path, sizeof(path));
+    fprintf(out, "{\"path\":");
+    json_string(out, path);
+    fprintf(out, ",\"present\":%s,\"entry_count\":%d}",
+            bb_path_exists(path) ? "true" : "false",
+            bb_ledger_entry_count(path));
+}
