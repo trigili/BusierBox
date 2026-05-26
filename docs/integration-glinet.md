@@ -101,6 +101,10 @@ captures for:
 - `busierbox rshell status --json`
 - `busierbox recovery status --json`
 
+The harness validates captured `*-json.log` files locally after each command,
+so JSON regressions fail the case even when the target does not provide Python
+or another JSON parser.
+
 The external clean capture intentionally runs without `--apply` so the harness
 records the refusal path without mutating target-owned files. Root-writing
 integration coverage remains opt-in behind `--include-root-write-tests`.

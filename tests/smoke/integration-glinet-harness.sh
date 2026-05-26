@@ -36,6 +36,8 @@ test -f docs/bringup.md
 test -f docs/payload-presets.md
 
 grep -q 'capture_busierbox_outputs' "$script"
+grep -q 'validate_captured_json' "$script"
+grep -q 'json.loads(text)' "$script"
 grep -q 'manifest --json' "$script"
 grep -q 'runtime-config --json' "$script"
 grep -q 'cleanup-ledger --json' "$script"

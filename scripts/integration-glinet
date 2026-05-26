@@ -211,6 +211,29 @@ def run_remote_case(host, remote_dir, case_dir, command, timeout=120, check=True
     return proc
 
 
+def captured_stdout(log_path):
+    lines = Path(log_path).read_text(encoding="utf-8", errors="replace").splitlines()
+    body = []
+    for line in lines:
+        if line.startswith("$ "):
+            body = []
+            continue
+        if line.startswith("[exit "):
+            break
+        body.append(line)
+    return "\n".join(body).strip()
+
+
+def validate_captured_json(log_path):
+    text = captured_stdout(log_path)
+    if not text:
+        raise RuntimeError(f"captured JSON log is empty: {log_path}")
+    try:
+        json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"captured JSON log is invalid: {log_path}: {exc}") from exc
+
+
 def capture_busierbox_outputs(host, remote_dir, case_dir):
     commands = [
         ("manifest-json.log", "./busierbox manifest --json"),
@@ -232,8 +255,11 @@ def capture_busierbox_outputs(host, remote_dir, case_dir):
     ]
     for log_name, command in commands:
         quoted = shlex.quote(remote_dir)
+        log_path = case_dir / log_name
         ssh_cmd(host, f"cd {quoted}; {command}",
-                timeout=60, log_path=case_dir / log_name, check=False)
+                timeout=60, log_path=log_path, check=False)
+        if log_name.endswith("-json.log"):
+            validate_captured_json(log_path)
 
 
 def validate_root_ssh_unchanged(host, remote_dir, case_dir, action):
