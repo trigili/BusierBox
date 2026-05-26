@@ -62,6 +62,19 @@ if data["state"] != "running":
     raise SystemExit("recorded state missing")
 if data["session_policy"] != "reconnect":
     raise SystemExit("session policy from status file missing")
+sem = data.get("session_semantics") or {}
+if sem.get("retry_until_first_connection") is not True:
+    raise SystemExit("retry-until-first-connection semantic missing")
+if sem.get("stop_after_first_success") is not False:
+    raise SystemExit("reconnect policy should not stop after first success")
+if sem.get("reconnect_after_disconnect") is not True:
+    raise SystemExit("reconnect policy should reconnect after disconnect")
+if sem.get("persistent_lifecycle") is not False:
+    raise SystemExit("reconnect policy should not report persistent lifecycle")
+if sem.get("fresh_session_on_reconnect") is not True:
+    raise SystemExit("reconnect policy should report fresh sessions on reconnect")
+if sem.get("session_resume_supported") is not False:
+    raise SystemExit("rshell should not claim session resume")
 if data["pids"].get("rshell") != "1234":
     raise SystemExit("rshell pid missing")
 if data["pids"].get("dropbear") != "2345":
@@ -116,6 +129,64 @@ if data["state"] != "inactive":
     raise SystemExit("inactive state missing")
 if data["pids"]["rshell"] is not None:
     raise SystemExit("inactive pid should be null")
+sem = data.get("session_semantics") or {}
+if data["session_policy"] == "single":
+    if sem.get("stop_after_first_success") is not True or sem.get("reconnect_after_disconnect") is not False:
+        raise SystemExit("inactive single policy semantics mismatch")
+elif data["session_policy"] == "reconnect":
+    if sem.get("reconnect_after_disconnect") is not True or sem.get("persistent_lifecycle") is not False:
+        raise SystemExit("inactive reconnect policy semantics mismatch")
+elif data["session_policy"] == "persistent":
+    if sem.get("reconnect_after_disconnect") is not True or sem.get("persistent_lifecycle") is not True:
+        raise SystemExit("inactive persistent policy semantics mismatch")
+else:
+    raise SystemExit(f"unexpected inactive session policy: {data['session_policy']}")
+if sem.get("session_resume_supported") is not False:
+    raise SystemExit("inactive status should not claim session resume")
+PY
+
+BB_RSHELL_SESSION_POLICY=single BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/single.json"
+python3 -m json.tool "$tmp/single.json" >/dev/null
+python3 - "$tmp/single.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+sem = data.get("session_semantics") or {}
+if data["session_policy"] != "single":
+    raise SystemExit("env single policy not reflected in status")
+if sem.get("stop_after_first_success") is not True:
+    raise SystemExit("single policy should stop after first success")
+if sem.get("reconnect_after_disconnect") is not False:
+    raise SystemExit("single policy should not reconnect after disconnect")
+if data["retry"].get("post_disconnect_count") != "0":
+    raise SystemExit("single policy should report zero post-disconnect retries")
+if sem.get("session_resume_supported") is not False:
+    raise SystemExit("single policy should not claim session resume")
+PY
+
+BB_RSHELL_SESSION_POLICY=persistent BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/persistent.json"
+python3 -m json.tool "$tmp/persistent.json" >/dev/null
+python3 - "$tmp/persistent.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+sem = data.get("session_semantics") or {}
+if data["session_policy"] != "persistent":
+    raise SystemExit("env persistent policy not reflected in status")
+if sem.get("persistent_lifecycle") is not True:
+    raise SystemExit("persistent policy should report persistent lifecycle")
+if sem.get("reconnect_after_disconnect") is not True:
+    raise SystemExit("persistent policy should reconnect after disconnect")
+if sem.get("fresh_session_on_reconnect") is not True:
+    raise SystemExit("persistent policy should report fresh sessions")
+if data["retry"].get("post_disconnect_count") != "-1":
+    raise SystemExit("persistent policy should report unbounded post-disconnect retry")
+if sem.get("session_resume_supported") is not False:
+    raise SystemExit("persistent policy should not claim session resume")
 PY
 
 printf '%s\n' "rshell-status-json ok"

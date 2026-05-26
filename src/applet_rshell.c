@@ -232,13 +232,28 @@ static int valid_session_policy(void)
            !strcmp(BB_RSHELL_SESSION_POLICY, "persistent");
 }
 
-static const char *post_success_retry_count(void)
+static const char *policy_post_success_retry_count(const char *policy)
 {
-    if (!strcmp(BB_RSHELL_SESSION_POLICY, "single"))
+    if (!strcmp(policy, "single"))
         return "0";
-    if (!strcmp(BB_RSHELL_SESSION_POLICY, "persistent"))
+    if (!strcmp(policy, "persistent"))
         return "-1";
     return BB_RSHELL_RETRY_COUNT;
+}
+
+static int policy_reconnects_after_disconnect(const char *policy)
+{
+    return !strcmp(policy, "reconnect") || !strcmp(policy, "persistent");
+}
+
+static int policy_stops_after_first_success(const char *policy)
+{
+    return !strcmp(policy, "single");
+}
+
+static int policy_persistent_lifecycle(const char *policy)
+{
+    return !strcmp(policy, "persistent");
 }
 
 static int should_background_rshell(const char *transport)
@@ -429,6 +444,7 @@ int applet_rshell_main(int argc, char **argv)
             char rshell_pid[64] = "", dropbear_pid[64] = "", dbclient_pid[64] = "", socat_pid[64] = "";
             char state[64] = "";
             char recorded_session_policy[64] = "";
+            const char *effective_session_policy;
             char started_at[64] = "", last_exit_reason[256] = "";
             char target_dropbear[128], server_listener[256], connect_hint[256];
             int first = 1;
@@ -465,6 +481,7 @@ int applet_rshell_main(int argc, char **argv)
                 fclose(fp);
                 fp = fopen(status_path, "r");
             }
+            effective_session_policy = recorded_session_policy[0] ? recorded_session_policy : BB_RSHELL_SESSION_POLICY;
             printf("{\"schema\":1,\"state\":");
             json_string_main(stdout, fp ? (state[0] ? state : "active") : "inactive");
             printf(",\"transport\":");
@@ -474,7 +491,12 @@ int applet_rshell_main(int argc, char **argv)
             printf(",\"run_mode\":");
             json_string_main(stdout, BB_RSHELL_RUN_MODE);
             printf(",\"session_policy\":");
-            json_string_main(stdout, recorded_session_policy[0] ? recorded_session_policy : BB_RSHELL_SESSION_POLICY);
+            json_string_main(stdout, effective_session_policy);
+            printf(",\"session_semantics\":{\"retry_until_first_connection\":true,\"stop_after_first_success\":%s,\"reconnect_after_disconnect\":%s,\"persistent_lifecycle\":%s,\"fresh_session_on_reconnect\":%s,\"session_resume_supported\":false}",
+                   policy_stops_after_first_success(effective_session_policy) ? "true" : "false",
+                   policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false",
+                   policy_persistent_lifecycle(effective_session_policy) ? "true" : "false",
+                   policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false");
             printf(",\"operator_host\":");
             json_string_main(stdout, BB_OPERATOR_SERVER_HOST);
             printf(",\"operator_shell_port\":");
@@ -502,7 +524,7 @@ int applet_rshell_main(int argc, char **argv)
             printf(",\"pre_connect_count\":");
             json_string_main(stdout, BB_RSHELL_RETRY_COUNT);
             printf(",\"post_disconnect_count\":");
-            json_string_main(stdout, post_success_retry_count());
+            json_string_main(stdout, policy_post_success_retry_count(effective_session_policy));
             printf("}");
             printf(",\"runtime_config\":");
             bb_config_print_runtime_summary_json(stdout, json_string_main);

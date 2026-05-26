@@ -197,6 +197,9 @@ Start explicit reverse access on the target:
 `single` stops after the first successful shell session exits. `reconnect`
 starts fresh sessions after disconnect up to the configured retry count, and
 `persistent` keeps trying indefinitely; neither mode claims session resume.
+`rshell status --json` includes `session_semantics` so operator tooling can
+distinguish first-connect retry, post-disconnect reconnects, persistent
+lifecycle, and fresh-session reconnect behavior without parsing prose.
 
 For the builtin TLS shell preset, prepare the operator listener and then run the
 artifact explicitly:
