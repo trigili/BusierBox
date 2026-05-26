@@ -16,6 +16,9 @@ dropbear_pid=2345
 dbclient_pid=3456
 started_at=1710000000
 last_exit_reason=none
+initial_attempts=2
+reconnect_attempts=1
+connected_once=yes
 EOF
 
 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json --transport ssh >"$tmp/status.json"
@@ -42,6 +45,7 @@ for key in [
     "shell_provider",
     "retry",
     "runtime_config",
+    "runtime_counters",
     "zero_arg_autorun",
     "guard_path",
     "pids",
@@ -85,6 +89,13 @@ if data["started_at"] != "1710000000":
     raise SystemExit("started_at missing")
 if data["last_exit_reason"] != "none":
     raise SystemExit("last_exit_reason missing")
+counters = data.get("runtime_counters") or {}
+if counters.get("initial_attempts") != "2":
+    raise SystemExit("initial attempts missing")
+if counters.get("reconnect_attempts") != "1":
+    raise SystemExit("reconnect attempts missing")
+if counters.get("connected_once") is not True:
+    raise SystemExit("connected_once counter missing")
 if "ssh -p" not in data["connect_hint"]:
     raise SystemExit("connect hint missing")
 if not data["operator_ssh_port"]:

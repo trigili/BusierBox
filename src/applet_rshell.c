@@ -241,6 +241,48 @@ static const char *policy_post_success_retry_count(const char *policy)
     return BB_RSHELL_RETRY_COUNT;
 }
 
+static int connection_was_established(int rc, time_t started_at, time_t ended_at)
+{
+    if (rc == 0)
+        return 1;
+    if (ended_at > started_at && ended_at - started_at >= 2)
+        return 1;
+    return 0;
+}
+
+static void write_rshell_runtime_status(const char *transport, const char *state,
+        int initial_attempts, int reconnect_attempts, int connected_once,
+        int last_exit_code, const char *last_exit_reason)
+{
+    const char *guard = autorun_guard_path();
+    char path[PATH_MAX];
+    int fd;
+    time_t now = time(NULL);
+
+    if (!yes_value(BB_AUTORUN_GUARD_ENABLE))
+        return;
+    bb_mkdir_p(guard, 0700);
+    bb_ledger_record("mkdir", guard, "runtime", "rshell guard path");
+    snprintf(path, sizeof(path), "%s/rshell.status", guard);
+    fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+    if (fd < 0)
+        return;
+    dprintf(fd,
+            "state=%s\ntransport=%s\nencryption=%s\n"
+            "run_mode=%s\nsession_policy=%s\n"
+            "rshell_pid=%ld\nstarted_at=%ld\nupdated_at=%ld\n"
+            "initial_attempts=%d\nreconnect_attempts=%d\nconnected_once=%s\n"
+            "last_exit_code=%d\nlast_exit_reason=%s\n",
+            state, transport, BB_RSHELL_ENCRYPTION,
+            BB_RSHELL_RUN_MODE, BB_RSHELL_SESSION_POLICY,
+            (long)getpid(), (long)now, (long)now,
+            initial_attempts, reconnect_attempts,
+            connected_once ? "yes" : "no",
+            last_exit_code, last_exit_reason ? last_exit_reason : "");
+    close(fd);
+    bb_ledger_record("write", path, "runtime", "rshell status");
+}
+
 static int policy_reconnects_after_disconnect(const char *policy)
 {
     return !strcmp(policy, "reconnect") || !strcmp(policy, "persistent");
@@ -446,6 +488,7 @@ int applet_rshell_main(int argc, char **argv)
             char recorded_session_policy[64] = "";
             const char *effective_session_policy;
             char started_at[64] = "", last_exit_reason[256] = "";
+            char initial_attempts[64] = "", reconnect_attempts[64] = "", connected_once[64] = "";
             char target_dropbear[128], server_listener[256], connect_hint[256];
             int first = 1;
 
@@ -476,6 +519,12 @@ int applet_rshell_main(int argc, char **argv)
                     snprintf(started_at, sizeof(started_at), "%s", eq);
                 else if (!strcmp(line, "last_exit_reason"))
                     snprintf(last_exit_reason, sizeof(last_exit_reason), "%s", eq);
+                else if (!strcmp(line, "initial_attempts"))
+                    snprintf(initial_attempts, sizeof(initial_attempts), "%s", eq);
+                else if (!strcmp(line, "reconnect_attempts"))
+                    snprintf(reconnect_attempts, sizeof(reconnect_attempts), "%s", eq);
+                else if (!strcmp(line, "connected_once"))
+                    snprintf(connected_once, sizeof(connected_once), "%s", eq);
             }
             if (fp) {
                 fclose(fp);
@@ -525,6 +574,22 @@ int applet_rshell_main(int argc, char **argv)
             json_string_main(stdout, BB_RSHELL_RETRY_COUNT);
             printf(",\"post_disconnect_count\":");
             json_string_main(stdout, policy_post_success_retry_count(effective_session_policy));
+            printf("}");
+            printf(",\"runtime_counters\":{\"initial_attempts\":");
+            if (initial_attempts[0])
+                json_string_main(stdout, initial_attempts);
+            else
+                printf("null");
+            printf(",\"reconnect_attempts\":");
+            if (reconnect_attempts[0])
+                json_string_main(stdout, reconnect_attempts);
+            else
+                printf("null");
+            printf(",\"connected_once\":");
+            if (connected_once[0])
+                printf("%s", !strcmp(connected_once, "yes") ? "true" : "false");
+            else
+                printf("null");
             printf("}");
             printf(",\"runtime_config\":");
             bb_config_print_runtime_summary_json(stdout, json_string_main);
@@ -750,18 +815,36 @@ int applet_rshell_main(int argc, char **argv)
             int connected_once = 0;
             select_rshell_shell(shell_cmd, sizeof(shell_cmd), NULL);
             for (;;) {
+                time_t started_at, ended_at;
+                write_rshell_runtime_status(transport,
+                    connected_once ? "reconnecting" : "connecting",
+                    initial_attempt + 1, reconnect_attempt, connected_once,
+                    -1, connected_once ? "post-disconnect-retry" : "pre-connect-retry");
+                started_at = time(NULL);
                 rc = rshell_builtin_tls(BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT, shell_cmd);
-                if (rc == 0)
+                ended_at = time(NULL);
+                if (connection_was_established(rc, started_at, ended_at))
                     connected_once = 1;
+                write_rshell_runtime_status(transport, connected_once ? "disconnected" : "connect-failed",
+                    initial_attempt + 1, reconnect_attempt, connected_once,
+                    rc, connected_once ? "session-disconnected" : "connect-failed");
                 if (!connected_once) {
-                    if (!should_retry_after_attempt(initial_attempt))
+                    if (!should_retry_after_attempt(initial_attempt)) {
+                        write_rshell_runtime_status(transport, "exited",
+                            initial_attempt + 1, reconnect_attempt, connected_once,
+                            rc, "initial-retry-limit");
                         return rc;
+                    }
                     sleep((unsigned int)retry_delay_for_attempt(initial_attempt));
                     initial_attempt++;
                     continue;
                 }
-                if (!should_reconnect_after_success(reconnect_attempt))
+                if (!should_reconnect_after_success(reconnect_attempt)) {
+                    write_rshell_runtime_status(transport, "exited",
+                        initial_attempt + 1, reconnect_attempt, connected_once,
+                        rc, policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "policy-single-complete" : "post-disconnect-retry-limit");
                     return rc;
+                }
                 sleep((unsigned int)retry_delay_for_attempt(reconnect_attempt));
                 reconnect_attempt++;
             }
@@ -860,24 +943,42 @@ int applet_rshell_main(int argc, char **argv)
             int reconnect_attempt = 0;
             int connected_once = 0;
             for (;;) {
+                time_t started_at, ended_at;
+                write_rshell_runtime_status(transport,
+                    connected_once ? "reconnecting" : "connecting",
+                    initial_attempt + 1, reconnect_attempt, connected_once,
+                    -1, connected_once ? "post-disconnect-retry" : "pre-connect-retry");
+                started_at = time(NULL);
                 rc = system(cmd);
+                ended_at = time(NULL);
                 if (rc == -1)
                     rc = 1;
                 else if (WIFEXITED(rc))
                     rc = WEXITSTATUS(rc);
                 else
                     rc = 1;
-                if (rc == 0)
+                if (connection_was_established(rc, started_at, ended_at))
                     connected_once = 1;
+                write_rshell_runtime_status(transport, connected_once ? "disconnected" : "connect-failed",
+                    initial_attempt + 1, reconnect_attempt, connected_once,
+                    rc, connected_once ? "session-disconnected" : "connect-failed");
                 if (!connected_once) {
-                    if (!should_retry_after_attempt(initial_attempt))
+                    if (!should_retry_after_attempt(initial_attempt)) {
+                        write_rshell_runtime_status(transport, "exited",
+                            initial_attempt + 1, reconnect_attempt, connected_once,
+                            rc, "initial-retry-limit");
                         return rc;
+                    }
                     sleep((unsigned int)retry_delay_for_attempt(initial_attempt));
                     initial_attempt++;
                     continue;
                 }
-                if (!should_reconnect_after_success(reconnect_attempt))
+                if (!should_reconnect_after_success(reconnect_attempt)) {
+                    write_rshell_runtime_status(transport, "exited",
+                        initial_attempt + 1, reconnect_attempt, connected_once,
+                        rc, policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "policy-single-complete" : "post-disconnect-retry-limit");
                     return rc;
+                }
                 sleep((unsigned int)retry_delay_for_attempt(reconnect_attempt));
                 reconnect_attempt++;
             }
