@@ -4,6 +4,9 @@ set -eu
 
 menu=${1:-scripts/menuconfig}
 pkg=${2:-scripts/package-target}
+tmp=${TMPDIR:-local/tmp}/busierbox-validation-matrix-$$
+mkdir -p "$tmp"
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 [ -f "$menu" ] || { printf '%s\n' "validation-matrix: missing $menu" >&2; exit 1; }
 
@@ -33,10 +36,120 @@ require 'invalid retry values' 'BB_RSHELL_RETRY_COUNT|BB_RSHELL_RETRY_INTERVAL_S
 require 'invalid run mode' 'BB_RSHELL_RUN_MODE'
 require 'invalid shell provider' 'BB_RSHELL_SHELL_PROVIDER'
 require 'invalid retry backoff' 'BB_RSHELL_RETRY_BACKOFF'
+require 'invalid rshell transport' 'BB_RSHELL_TRANSPORT'
+
+grep -q 'validate_build_config' "$pkg" || {
+    printf '%s\n' "validation-matrix: package-target must validate configs outside menuconfig" >&2
+    exit 1
+}
+for pattern in \
+    'zero-arg mode is.*rshell.*transport=none' \
+    'builtin plaintext is not implemented' \
+    'core-only runtime cannot stage heavy tools' \
+    'transport=socat but socat is not in heavy tools' \
+    'transport=ssh but dropbear is not in heavy tools' \
+    'BB_RSHELL_RETRY_COUNT must be an integer' \
+    'invalid rshell run mode' \
+    'invalid shell provider' \
+    'authkeys mode.*writes outside the runtime root'
+do
+    grep -q "$pattern" "$pkg" || {
+        printf '%s\n' "validation-matrix: package-target missing hard error text matching $pattern" >&2
+        exit 1
+    }
+done
 
 grep -q 'TARGET_STATUS.*blank' "$pkg" || {
     printf '%s\n' "validation-matrix: package-target must reject blank default target" >&2
     exit 1
 }
+
+write_case_config() {
+    out=$1
+    shift
+    {
+        printf '%s\n' 'BB_PAYLOAD_PRESET="default"'
+        printf '%s\n' 'BB_RUNTIME_MODE="extract"'
+        printf '%s\n' 'BB_RUNTIME_ALLOW_EXTERNAL_WRITES="no"'
+        printf '%s\n' 'BB_ZERO_ARG_MODE="help"'
+        printf '%s\n' 'BB_RSHELL_TRANSPORT="none"'
+        printf '%s\n' 'BB_RSHELL_ENCRYPTION="tls"'
+        printf '%s\n' 'BB_RSHELL_ALLOW_PLAINTEXT="no"'
+        printf '%s\n' 'BB_RSHELL_AUTHKEYS_MODE="disabled"'
+        printf '%s\n' 'BB_RSHELL_RUN_MODE="auto"'
+        printf '%s\n' 'BB_RSHELL_SHELL_PROVIDER="auto"'
+        printf '%s\n' 'BB_RSHELL_RETRY_COUNT="1"'
+        printf '%s\n' 'BB_RSHELL_RETRY_INTERVAL_SEC="5"'
+        printf '%s\n' 'BB_RSHELL_RETRY_JITTER_PCT="20"'
+        printf '%s\n' 'BB_RSHELL_RETRY_BACKOFF="none"'
+        printf '%s\n' 'BB_RSHELL_RETRY_MAX_INTERVAL_SEC="300"'
+        printf '%s\n' 'BB_DOTFILES_ENABLE="no"'
+        printf '%s\n' 'BB_USER_OVERLAY_ENABLE="no"'
+        printf '%s\n' 'BB_HEAVY_TOOLS=""'
+        while [ $# -gt 0 ]; do
+            printf '%s\n' "$1"
+            shift
+        done
+    } >"$out"
+}
+
+expect_package_invalid() {
+    name=$1
+    pattern=$2
+    shift 2
+    cfg="$tmp/$name.conf"
+    write_case_config "$cfg" "$@"
+    if BUSIERBOX_CONFIG="$cfg" "$pkg" native >"$tmp/$name.out" 2>"$tmp/$name.err"; then
+        printf '%s\n' "validation-matrix: package-target accepted invalid case $name" >&2
+        exit 1
+    fi
+    grep -q 'package-target: invalid configuration:' "$tmp/$name.err" || {
+        printf '%s\n' "validation-matrix: $name did not fail during package config validation" >&2
+        cat "$tmp/$name.err" >&2
+        exit 1
+    }
+    grep -q "$pattern" "$tmp/$name.err" || {
+        printf '%s\n' "validation-matrix: $name missing expected error $pattern" >&2
+        cat "$tmp/$name.err" >&2
+        exit 1
+    }
+}
+
+expect_package_invalid rshell-none 'zero-arg mode is.*rshell' \
+    'BB_ZERO_ARG_MODE="rshell"'
+expect_package_invalid builtin-plaintext 'builtin plaintext is not implemented' \
+    'BB_RSHELL_TRANSPORT="builtin"' \
+    'BB_RSHELL_ENCRYPTION="none"' \
+    'BB_RSHELL_ALLOW_PLAINTEXT="yes"'
+expect_package_invalid core-heavy 'core-only runtime cannot stage heavy tools' \
+    'BB_RUNTIME_MODE="core-only"' \
+    'BB_HEAVY_TOOLS="tmux"'
+expect_package_invalid core-socat 'core-only + transport=socat' \
+    'BB_RUNTIME_MODE="core-only"' \
+    'BB_RSHELL_TRANSPORT="socat"'
+expect_package_invalid custom-zero-empty 'zero-arg custom mode requires' \
+    'BB_ZERO_ARG_MODE="custom"'
+expect_package_invalid root-copy-no-external 'authkeys mode root-copy writes outside' \
+    'BB_RSHELL_AUTHKEYS_MODE="root-copy"'
+expect_package_invalid socat-missing 'transport=socat but socat is not in heavy tools' \
+    'BB_RSHELL_TRANSPORT="socat"'
+expect_package_invalid ssh-missing 'transport=ssh but dropbear is not in heavy tools' \
+    'BB_RSHELL_TRANSPORT="ssh"'
+expect_package_invalid invalid-retry 'BB_RSHELL_RETRY_COUNT must be an integer' \
+    'BB_RSHELL_RETRY_COUNT="abc"'
+expect_package_invalid invalid-run-mode 'invalid rshell run mode' \
+    'BB_RSHELL_RUN_MODE="sideways"'
+expect_package_invalid invalid-shell-provider 'invalid shell provider' \
+    'BB_RSHELL_SHELL_PROVIDER="fish"'
+expect_package_invalid invalid-runtime 'invalid runtime mode' \
+    'BB_RUNTIME_MODE="forever"'
+expect_package_invalid invalid-transport 'invalid rshell transport' \
+    'BB_RSHELL_TRANSPORT="wireguard"'
+
+if "$pkg" default >"$tmp/default-target.out" 2>"$tmp/default-target.err"; then
+    printf '%s\n' "validation-matrix: package-target accepted blank default target" >&2
+    exit 1
+fi
+grep -q 'blank target configuration' "$tmp/default-target.err"
 
 printf '%s\n' "validation-matrix ok"

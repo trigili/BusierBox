@@ -26,8 +26,9 @@ die() {
 
 for _name in PAYLOAD_FORMAT BB_BUILD_FULL BB_BUILD_INTERNAL_CORE \
     BUSIERBOX_BUILD_TIMESTAMP BUSIERBOX_GIT_COMMIT \
-    BB_TARGET_PRESET BB_PAYLOAD_PRESET \
-    BB_RUNTIME_MODE BB_RUNTIME_ROOT BB_RUNTIME_ALLOW_FALLBACK_ROOT BB_RUNTIME_FALLBACK_ROOT \
+    BB_TARGET_PRESET BB_PAYLOAD_PRESET BB_HEAVY_TOOLS \
+    BB_RUNTIME_MODE BB_RUNTIME_ALLOW_EXTERNAL_WRITES \
+    BB_RUNTIME_ROOT BB_RUNTIME_ALLOW_FALLBACK_ROOT BB_RUNTIME_FALLBACK_ROOT \
     BB_ZERO_ARG_MODE BB_ZERO_ARG_LOG_MODE BB_ZERO_ARG_CUSTOM_COMMAND \
     BB_RSHELL_TRANSPORT BB_RSHELL_MODE BB_RSHELL_ENCRYPTION BB_RSHELL_ALLOW_PLAINTEXT \
     BB_RSHELL_AUTHKEYS_MODE BB_RSHELL_RUN_MODE BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING \
@@ -46,6 +47,7 @@ for _name in PAYLOAD_FORMAT BB_BUILD_FULL BB_BUILD_INTERNAL_CORE \
     BB_DOTFILE_TMUX_MODE BB_DOTFILE_TMUX_USER_FILE \
     BB_DOTFILE_GDB_MODE BB_DOTFILE_GDB_USER_FILE \
     BB_DOTFILE_PROFILE_MODE BB_DOTFILE_PROFILE_USER_FILE \
+    BB_USER_OVERLAY_ENABLE BB_USER_OVERLAY_ROOT BB_USER_OVERLAY_ALLOW_OVERRIDE \
     BB_GDBSERVER_PROVIDER BB_GDBSERVER_USER_PATH BB_DOOM_WAD_PATH; do
     capture_env_override "$_name"
 done
@@ -67,8 +69,9 @@ fi
 
 for _name in PAYLOAD_FORMAT BB_BUILD_FULL BB_BUILD_INTERNAL_CORE \
     BUSIERBOX_BUILD_TIMESTAMP BUSIERBOX_GIT_COMMIT \
-    BB_TARGET_PRESET BB_PAYLOAD_PRESET \
-    BB_RUNTIME_MODE BB_RUNTIME_ROOT BB_RUNTIME_ALLOW_FALLBACK_ROOT BB_RUNTIME_FALLBACK_ROOT \
+    BB_TARGET_PRESET BB_PAYLOAD_PRESET BB_HEAVY_TOOLS \
+    BB_RUNTIME_MODE BB_RUNTIME_ALLOW_EXTERNAL_WRITES \
+    BB_RUNTIME_ROOT BB_RUNTIME_ALLOW_FALLBACK_ROOT BB_RUNTIME_FALLBACK_ROOT \
     BB_ZERO_ARG_MODE BB_ZERO_ARG_LOG_MODE BB_ZERO_ARG_CUSTOM_COMMAND \
     BB_RSHELL_TRANSPORT BB_RSHELL_MODE BB_RSHELL_ENCRYPTION BB_RSHELL_ALLOW_PLAINTEXT \
     BB_RSHELL_AUTHKEYS_MODE BB_RSHELL_RUN_MODE BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING \
@@ -87,6 +90,7 @@ for _name in PAYLOAD_FORMAT BB_BUILD_FULL BB_BUILD_INTERNAL_CORE \
     BB_DOTFILE_TMUX_MODE BB_DOTFILE_TMUX_USER_FILE \
     BB_DOTFILE_GDB_MODE BB_DOTFILE_GDB_USER_FILE \
     BB_DOTFILE_PROFILE_MODE BB_DOTFILE_PROFILE_USER_FILE \
+    BB_USER_OVERLAY_ENABLE BB_USER_OVERLAY_ROOT BB_USER_OVERLAY_ALLOW_OVERRIDE \
     BB_GDBSERVER_PROVIDER BB_GDBSERVER_USER_PATH BB_DOOM_WAD_PATH; do
     restore_env_override "$_name"
 done
@@ -95,10 +99,12 @@ unset _name
 # env > config file BB_PAYLOAD_FORMAT > default
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-${BB_PAYLOAD_FORMAT:-tgz}}
 BB_PAYLOAD_PRESET=${BB_PAYLOAD_PRESET:-default}
+BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
 
 BB_BUILD_FULL=${BB_BUILD_FULL:-yes}
 BB_BUILD_INTERNAL_CORE=${BB_BUILD_INTERNAL_CORE:-no}
 BB_RUNTIME_MODE=${BB_RUNTIME_MODE:-extract}
+BB_RUNTIME_ALLOW_EXTERNAL_WRITES=${BB_RUNTIME_ALLOW_EXTERNAL_WRITES:-no}
 BB_RUNTIME_ROOT=${BB_RUNTIME_ROOT:-./.busierbox}
 BB_RUNTIME_ALLOW_FALLBACK_ROOT=${BB_RUNTIME_ALLOW_FALLBACK_ROOT:-no}
 BB_RUNTIME_FALLBACK_ROOT=${BB_RUNTIME_FALLBACK_ROOT:-/tmp/.busierbox}
@@ -150,6 +156,9 @@ BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-default}
 BB_DOTFILE_GDB_USER_FILE=${BB_DOTFILE_GDB_USER_FILE:-}
 BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-default}
 BB_DOTFILE_PROFILE_USER_FILE=${BB_DOTFILE_PROFILE_USER_FILE:-}
+BB_USER_OVERLAY_ENABLE=${BB_USER_OVERLAY_ENABLE:-no}
+BB_USER_OVERLAY_ROOT=${BB_USER_OVERLAY_ROOT:-./overlay}
+BB_USER_OVERLAY_ALLOW_OVERRIDE=${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}
 BB_GDBSERVER_PROVIDER=${BB_GDBSERVER_PROVIDER:-auto}
 BB_GDBSERVER_USER_PATH=${BB_GDBSERVER_USER_PATH:-}
 BB_DOOM_WAD_PATH=${BB_DOOM_WAD_PATH:-}
@@ -199,6 +208,151 @@ bool01() {
     esac
 }
 
+has_item() {
+    case " ${1:-} " in
+        *" $2 "*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+is_int_value() {
+    case "${1:-}" in
+        -[0-9]*|[0-9]*)
+            case "${1#-}" in
+                *[!0-9]*|"") return 1 ;;
+                *) return 0 ;;
+            esac
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+is_uint_value() {
+    case "${1:-}" in
+        *[!0-9]*|"") return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+validate_build_config() {
+    errors=
+
+    case "$BB_RUNTIME_MODE" in
+        extract|core-only|no-residue) ;;
+        *) errors="$errors
+- invalid runtime mode: $BB_RUNTIME_MODE." ;;
+    esac
+
+    case "$BB_ZERO_ARG_MODE" in
+        help|survey|rshell|custom|command) ;;
+        *) errors="$errors
+- invalid zero-arg mode: $BB_ZERO_ARG_MODE." ;;
+    esac
+
+    case "$BB_RSHELL_TRANSPORT" in
+        none|builtin|socat|ssh) ;;
+        *) errors="$errors
+- invalid rshell transport: $BB_RSHELL_TRANSPORT." ;;
+    esac
+
+    if [ "$BB_RUNTIME_MODE" = core-only ]; then
+        case "$BB_RSHELL_TRANSPORT" in
+            ssh|socat) errors="$errors
+- core-only + transport=$BB_RSHELL_TRANSPORT: staged tools unavailable in core-only mode." ;;
+        esac
+        [ -z "${BB_HEAVY_TOOLS:-}" ] || errors="$errors
+- core-only runtime cannot stage heavy tools. Clear BB_HEAVY_TOOLS or change runtime mode."
+        [ "$BB_DOTFILES_ENABLE" != yes ] || errors="$errors
+- core-only runtime cannot stage per-app dotfiles. Set BB_DOTFILES_ENABLE=no."
+        [ "${BB_USER_OVERLAY_ENABLE:-no}" != yes ] || errors="$errors
+- core-only runtime cannot stage a user overlay. Set BB_USER_OVERLAY_ENABLE=no."
+    fi
+
+    if [ "$BB_ZERO_ARG_MODE" = rshell ] && [ "$BB_RSHELL_TRANSPORT" = none ]; then
+        errors="$errors
+- zero-arg mode is 'rshell' but reverse shell is disabled (transport=none)."
+    fi
+    if [ "$BB_ZERO_ARG_MODE" = rshell ] && [ "$BB_RSHELL_TRANSPORT" != none ] && [ -z "${BB_OPERATOR_SERVER_HOST:-}" ]; then
+        errors="$errors
+- zero-arg rshell mode requires operator host/IP to be set."
+    fi
+    if [ "$BB_ZERO_ARG_MODE" = custom ] && [ -z "${BB_ZERO_ARG_CUSTOM_COMMAND:-}" ]; then
+        errors="$errors
+- zero-arg custom mode requires BB_ZERO_ARG_CUSTOM_COMMAND to be set."
+    fi
+
+    if [ "$BB_RSHELL_TRANSPORT" = builtin ] && [ "$BB_RSHELL_ENCRYPTION" = none ]; then
+        errors="$errors
+- builtin plaintext is not implemented. Use encryption=tls or a different transport."
+    elif [ "$BB_RSHELL_ENCRYPTION" = none ] && [ "$BB_RSHELL_TRANSPORT" != none ] && [ "$BB_RSHELL_ALLOW_PLAINTEXT" != yes ]; then
+        errors="$errors
+- encryption=none requires BB_RSHELL_ALLOW_PLAINTEXT=yes."
+    fi
+
+    if [ "$BB_RSHELL_TRANSPORT" = ssh ] && [ "$BB_RUNTIME_MODE" != core-only ] && ! has_item "$BB_HEAVY_TOOLS" dropbear; then
+        errors="$errors
+- transport=ssh but dropbear is not in heavy tools."
+    fi
+    if [ "$BB_RSHELL_TRANSPORT" = socat ] && [ "$BB_RUNTIME_MODE" != core-only ] && ! has_item "$BB_HEAVY_TOOLS" socat; then
+        errors="$errors
+- transport=socat but socat is not in heavy tools."
+    fi
+
+    case "$BB_RSHELL_AUTHKEYS_MODE" in
+        root-copy|root-merge)
+            [ "$BB_RUNTIME_ALLOW_EXTERNAL_WRITES" = yes ] || errors="$errors
+- authkeys mode $BB_RSHELL_AUTHKEYS_MODE writes outside the runtime root. Set BB_RUNTIME_ALLOW_EXTERNAL_WRITES=yes or choose another authkeys mode." ;;
+        disabled|payload-home) ;;
+        *) errors="$errors
+- invalid rshell authkeys mode: $BB_RSHELL_AUTHKEYS_MODE." ;;
+    esac
+
+    case "$BB_RSHELL_RUN_MODE" in
+        foreground|background|auto) ;;
+        *) errors="$errors
+- invalid rshell run mode: $BB_RSHELL_RUN_MODE." ;;
+    esac
+
+    case "$BB_RSHELL_SHELL_PROVIDER" in
+        auto|target-sh) ;;
+        payload-busybox-sh|payload-busybox-ash)
+            [ "$BB_RUNTIME_MODE" != core-only ] || errors="$errors
+- shell provider $BB_RSHELL_SHELL_PROVIDER is invalid in core-only mode." ;;
+        payload-zsh)
+            [ "$BB_RUNTIME_MODE" != core-only ] || errors="$errors
+- shell provider payload-zsh is invalid in core-only mode."
+            has_item "$BB_HEAVY_TOOLS" zsh || errors="$errors
+- shell provider payload-zsh requires zsh in heavy tools." ;;
+        custom)
+            [ -n "${BB_RSHELL_CUSTOM_SHELL:-}" ] || errors="$errors
+- shell provider custom requires BB_RSHELL_CUSTOM_SHELL to be set." ;;
+        *) errors="$errors
+- invalid shell provider: $BB_RSHELL_SHELL_PROVIDER." ;;
+    esac
+
+    case "$BB_RSHELL_RETRY_BACKOFF" in
+        none|linear|exponential) ;;
+        *) errors="$errors
+- invalid rshell retry backoff: $BB_RSHELL_RETRY_BACKOFF." ;;
+    esac
+    is_int_value "$BB_RSHELL_RETRY_COUNT" || errors="$errors
+- BB_RSHELL_RETRY_COUNT must be an integer (-1 means retry indefinitely)."
+    is_uint_value "$BB_RSHELL_RETRY_INTERVAL_SEC" || errors="$errors
+- BB_RSHELL_RETRY_INTERVAL_SEC must be a non-negative integer."
+    is_uint_value "$BB_RSHELL_RETRY_JITTER_PCT" || errors="$errors
+- BB_RSHELL_RETRY_JITTER_PCT must be a non-negative integer."
+    is_uint_value "$BB_RSHELL_RETRY_MAX_INTERVAL_SEC" || errors="$errors
+- BB_RSHELL_RETRY_MAX_INTERVAL_SEC must be a non-negative integer."
+
+    if [ -n "$errors" ]; then
+        printf '%s\n' "package-target: invalid configuration:" >&2
+        printf '%s\n' "$errors" >&2
+        exit 1
+    fi
+}
+
+validate_build_config
+
 if [ "$target" = --config ] || [ "$target" = config ]; then
     resolved=$(scripts/resolve-target --config 2>&1) || die "$resolved"
 else
@@ -241,6 +395,7 @@ if [ "$target" = native ]; then
         BB_TARGET_ARCH="$TARGET_ARCH" \
         BB_TARGET_LIBC="$TARGET_LIBC" \
         BB_RUNTIME_MODE="$BB_RUNTIME_MODE" \
+        BB_HEAVY_TOOLS="$BB_HEAVY_TOOLS" \
         BB_DOTFILES_ENABLE="$BB_DOTFILES_ENABLE" \
         BB_DOTFILE_ZSH_MODE="$BB_DOTFILE_ZSH_MODE" \
         BB_DOTFILE_ZSH_USER_FILE="$BB_DOTFILE_ZSH_USER_FILE" \
@@ -255,6 +410,9 @@ if [ "$target" = native ]; then
         BB_GDBSERVER_PROVIDER="$BB_GDBSERVER_PROVIDER" \
         BB_GDBSERVER_USER_PATH="$BB_GDBSERVER_USER_PATH" \
         BB_DOOM_WAD_PATH="$BB_DOOM_WAD_PATH" \
+        BB_USER_OVERLAY_ENABLE="$BB_USER_OVERLAY_ENABLE" \
+        BB_USER_OVERLAY_ROOT="$BB_USER_OVERLAY_ROOT" \
+        BB_USER_OVERLAY_ALLOW_OVERRIDE="$BB_USER_OVERLAY_ALLOW_OVERRIDE" \
         scripts/build-payload
     copy_payload_artifacts
     OUT="$full_core" ARTIFACT_TIER=full ADVERTISE_PAYLOAD_TOOLS=1 \
@@ -309,9 +467,9 @@ if [ "$target" = native ]; then
         BB_DOTFILE_TMUX_MODE="$BB_DOTFILE_TMUX_MODE" \
         BB_DOTFILE_GDB_MODE="$BB_DOTFILE_GDB_MODE" \
         BB_DOTFILE_PROFILE_MODE="$BB_DOTFILE_PROFILE_MODE" \
-        BB_USER_OVERLAY_ENABLE="${BB_USER_OVERLAY_ENABLE:-no}" \
-        BB_USER_OVERLAY_ROOT="${BB_USER_OVERLAY_ROOT:-./overlay}" \
-        BB_USER_OVERLAY_ALLOW_OVERRIDE="${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}" \
+        BB_USER_OVERLAY_ENABLE="$BB_USER_OVERLAY_ENABLE" \
+        BB_USER_OVERLAY_ROOT="$BB_USER_OVERLAY_ROOT" \
+        BB_USER_OVERLAY_ALLOW_OVERRIDE="$BB_USER_OVERLAY_ALLOW_OVERRIDE" \
         BB_GDBSERVER_PROVIDER="$BB_GDBSERVER_PROVIDER" \
         BB_GDBSERVER_USER_PATH="$BB_GDBSERVER_USER_PATH" \
         scripts/build-native
@@ -329,6 +487,7 @@ else
     [ -n "$TARGET_BUILDROOT_DEFCONFIG" ] && [ -f "$TARGET_BUILDROOT_DEFCONFIG" ] || die "generated Buildroot defconfig missing for $target"
     TARGET="$target" TARGET_PROFILE_FILE="$TARGET_PROFILE_FILE" TARGET_BUILDROOT_DEFCONFIG="$TARGET_BUILDROOT_DEFCONFIG" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" BUILDROOT_OUTPUT_BASE="$BUILDROOT_OUTPUT_BASE" \
         BB_RUNTIME_MODE="$BB_RUNTIME_MODE" \
+        BB_HEAVY_TOOLS="$BB_HEAVY_TOOLS" \
         BB_OPERATOR_DBCLIENT_IDENTITY_FILE="${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-}" \
         BB_GDBSERVER_PROVIDER="$BB_GDBSERVER_PROVIDER" \
         BB_GDBSERVER_USER_PATH="$BB_GDBSERVER_USER_PATH" \
@@ -344,6 +503,9 @@ else
         BB_DOTFILE_GDB_USER_FILE="$BB_DOTFILE_GDB_USER_FILE" \
         BB_DOTFILE_PROFILE_MODE="$BB_DOTFILE_PROFILE_MODE" \
         BB_DOTFILE_PROFILE_USER_FILE="$BB_DOTFILE_PROFILE_USER_FILE" \
+        BB_USER_OVERLAY_ENABLE="$BB_USER_OVERLAY_ENABLE" \
+        BB_USER_OVERLAY_ROOT="$BB_USER_OVERLAY_ROOT" \
+        BB_USER_OVERLAY_ALLOW_OVERRIDE="$BB_USER_OVERLAY_ALLOW_OVERRIDE" \
         scripts/buildroot-build-payload
     copy_payload_artifacts
     cross_cc=$(find_cross_cc || true)
