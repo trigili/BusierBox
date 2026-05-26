@@ -14,6 +14,8 @@ int bb_config_trailer_present(void);
 int bb_config_trailer_valid(void);
 int bb_config_trailer_override_count(void);
 const char *bb_config_trailer_error(void);
+const char *bb_config_trailer_encoding(void);
+const char *bb_config_effective_source(void);
 size_t bb_config_file_trailer_span(const char *path);
 void bb_config_print_compiled_json(FILE *out, void (*json_string)(FILE *, const char *));
 void bb_config_print_effective_json(FILE *out, void (*json_string)(FILE *, const char *));

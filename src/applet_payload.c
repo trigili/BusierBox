@@ -3238,9 +3238,10 @@ int applet_recovery_main(int argc, char **argv)
 
 static void plan_print_config_source_text(void)
 {
-    printf("effective_config_source=%s\n", bb_config_trailer_valid() && bb_config_trailer_override_count() > 0 ? "trailer" : "compiled");
+    printf("effective_config_source=%s\n", bb_config_effective_source());
     printf("trailer_present=%s\n", bb_config_trailer_present() ? "yes" : "no");
     printf("trailer_valid=%s\n", bb_config_trailer_valid() ? "yes" : "no");
+    printf("trailer_encoding=%s\n", bb_config_trailer_encoding());
     if (bb_config_trailer_present() && !bb_config_trailer_valid())
         printf("trailer_status=%s\n", bb_config_trailer_error());
 }
@@ -3248,10 +3249,12 @@ static void plan_print_config_source_text(void)
 static void plan_print_config_source_json(void)
 {
     fputs(",\"config\":{\"effective_config_source\":", stdout);
-    json_string_payload(stdout, bb_config_trailer_valid() && bb_config_trailer_override_count() > 0 ? "trailer" : "compiled");
+    json_string_payload(stdout, bb_config_effective_source());
     printf(",\"trailer_present\":%s,\"trailer_valid\":%s",
            bb_config_trailer_present() ? "true" : "false",
            bb_config_trailer_valid() ? "true" : "false");
+    fputs(",\"trailer_encoding\":", stdout);
+    json_string_payload(stdout, bb_config_trailer_encoding());
     if (bb_config_trailer_present() && !bb_config_trailer_valid()) {
         fputs(",\"trailer_status\":", stdout);
         json_string_payload(stdout, bb_config_trailer_error());
@@ -4229,8 +4232,10 @@ int applet_config_info_main(int argc, char **argv)
     print_autoexec_config();
     printf("trailer_override_present=%s\n", bb_config_trailer_present() ? "yes" : "no");
     printf("trailer_override_valid=%s\n", bb_config_trailer_valid() ? "yes" : "no");
+    printf("trailer_override_encoding=%s\n", bb_config_trailer_encoding());
     printf("trailer_override_count=%d\n", bb_config_trailer_override_count());
     printf("trailer_override_status=%s\n", bb_config_trailer_error());
+    printf("effective_config_source=%s\n", bb_config_effective_source());
     printf("compiled_zero_arg_mode=%s\n", bb_config_compiled("BB_ZERO_ARG_MODE"));
     printf("compiled_rshell_transport=%s\n", bb_config_compiled("BB_RSHELL_TRANSPORT"));
     printf("compiled_rshell_operator_host=%s\n", bb_config_compiled("BB_OPERATOR_SERVER_HOST"));

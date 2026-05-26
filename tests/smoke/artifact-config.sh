@@ -23,6 +23,11 @@ scripts/artifact-config show "$work/busierbox" >"$work/show.none"
 grep -q '^trailer_present=no$' "$work/show.none"
 "$work/busierbox" config-info >"$work/config.none"
 grep -q '^trailer_override_present=no$' "$work/config.none"
+"$work/busierbox" runtime-config >"$work/runtime.none"
+grep -q '^effective_config_source=compiled$' "$work/runtime.none"
+grep -q '^trailer_present=no$' "$work/runtime.none"
+"$work/busierbox" runtime-config --json >"$work/runtime.none.json"
+python3 -m json.tool "$work/runtime.none.json" >/dev/null
 
 scripts/artifact-config set "$work/busierbox" \
     BB_OPERATOR_SERVER_HOST=198.51.100.7 \
@@ -36,13 +41,38 @@ grep -q '^BB_OPERATOR_SERVER_HOST=198.51.100.7$' "$work/show.set"
 "$work/busierbox" config-info >"$work/config.set"
 grep -q '^trailer_override_present=yes$' "$work/config.set"
 grep -q '^trailer_override_valid=yes$' "$work/config.set"
+grep -q '^trailer_override_encoding=plain$' "$work/config.set"
+grep -q '^effective_config_source=trailer$' "$work/config.set"
 grep -q '^effective_rshell_operator_host=198.51.100.7$' "$work/config.set"
+"$work/busierbox" runtime-config >"$work/runtime.set"
+grep -q '^effective_config_source=trailer$' "$work/runtime.set"
+grep -q '^trailer_encoding=plain$' "$work/runtime.set"
+grep -q '^effective_BB_OPERATOR_SERVER_HOST=198.51.100.7$' "$work/runtime.set"
+"$work/busierbox" runtime-config --json >"$work/runtime.set.json"
+python3 - "$work/runtime.set.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert r["effective_config_source"] == "trailer"
+assert r["trailer_override"]["present"] is True
+assert r["trailer_override"]["valid"] is True
+assert r["trailer_override"]["encoding"] == "plain"
+assert r["effective_config"]["BB_OPERATOR_SERVER_HOST"] == "198.51.100.7"
+PY
+BB_OPERATOR_SERVER_HOST=203.0.113.9 "$work/busierbox" runtime-config --json >"$work/runtime.env.json"
+python3 - "$work/runtime.env.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert r["effective_config_source"] == "env"
+assert r["environment_override_count"] >= 1
+assert r["effective_config"]["BB_OPERATOR_SERVER_HOST"] == "203.0.113.9"
+PY
 "$work/busierbox" manifest --json >"$work/manifest.set.json"
 python3 - "$work/manifest.set.json" <<'PY'
 import json, sys
 m = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert m["trailer_override"]["present"] is True
 assert m["trailer_override"]["valid"] is True
+assert m["trailer_override"]["encoding"] == "plain"
 assert m["compiled_config"]["BB_OPERATOR_SERVER_HOST"] != "198.51.100.7"
 assert m["effective_config"]["BB_OPERATOR_SERVER_HOST"] == "198.51.100.7"
 PY
@@ -70,7 +100,19 @@ fi
 "$work/busierbox-bad" config-info >"$work/config.bad"
 grep -q '^trailer_override_present=yes$' "$work/config.bad"
 grep -q '^trailer_override_valid=no$' "$work/config.bad"
-grep -q '^effective_rshell_operator_host=$' "$work/config.bad"
+grep -q '^effective_config_source=compiled$' "$work/config.bad"
+if grep -q '^effective_rshell_operator_host=198.51.100.7$' "$work/config.bad"; then
+    printf '%s\n' "artifact-config smoke: invalid trailer override was applied" >&2
+    exit 1
+fi
+"$work/busierbox-bad" runtime-config --json >"$work/runtime.bad.json"
+python3 - "$work/runtime.bad.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert r["effective_config_source"] == "compiled"
+assert r["trailer_override"]["present"] is True
+assert r["trailer_override"]["valid"] is False
+PY
 
 if scripts/artifact-config set "$work/busierbox" BB_TARGET_ARCH=mipsel >"$work/unknown.out" 2>&1; then
     printf '%s\n' "artifact-config smoke: forbidden target key was accepted" >&2
@@ -96,5 +138,13 @@ cp "$artifact" "$work/busierbox-xor"
 BB_TRAILER_OBFUSCATION=xor scripts/artifact-config set "$work/busierbox-xor" BB_OPERATOR_SERVER_HOST=192.0.2.44 >"$work/xor.out"
 grep -q 'not encryption' "$work/xor.out"
 "$work/busierbox-xor" config-info | grep -q '^effective_rshell_operator_host=192.0.2.44$'
+"$work/busierbox-xor" runtime-config --json >"$work/runtime.xor.json"
+python3 - "$work/runtime.xor.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert r["effective_config_source"] == "trailer"
+assert r["trailer_override"]["encoding"] == "xor"
+assert r["effective_config"]["BB_OPERATOR_SERVER_HOST"] == "192.0.2.44"
+PY
 
 printf '%s\n' "artifact-config ok"

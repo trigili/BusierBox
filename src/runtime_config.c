@@ -7,6 +7,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "applets.h"
+#include "json_helpers.h"
 #include "runtime_config.h"
 #include "sha256.h"
 
@@ -158,6 +160,7 @@ static int trailer_present;
 static int trailer_valid;
 static int override_count;
 static char trailer_error[160] = "not loaded";
+static char trailer_encoding[16] = "none";
 
 static int hexval(int c)
 {
@@ -282,6 +285,7 @@ static void load_config(void)
     trailer_present = 0;
     trailer_valid = 0;
     override_count = 0;
+    snprintf(trailer_encoding, sizeof(trailer_encoding), "none");
     set_error("absent");
 
     if (self_path(path, sizeof(path)) != 0)
@@ -289,6 +293,7 @@ static void load_config(void)
     if (!bb_config_file_trailer_span(path))
         return;
     trailer_present = 1;
+    snprintf(trailer_encoding, sizeof(trailer_encoding), "unknown");
     set_error("invalid");
     fp = fopen(path, "rb");
     if (!fp)
@@ -306,6 +311,7 @@ static void load_config(void)
     line = strtok_r(meta, "\n", &save);
     if (!line || strcmp(line, BB_CONFIG_TRAILER_MAGIC))
         return;
+    snprintf(trailer_encoding, sizeof(trailer_encoding), "%s", encoding);
     while ((line = strtok_r(NULL, "\n", &save)) != NULL) {
         char *eq;
         if (!strcmp(line, "ENDMETA")) {
@@ -325,6 +331,7 @@ static void load_config(void)
         else if (!strcmp(line, "key_hex"))
             snprintf(key_hex, sizeof(key_hex), "%s", eq);
     }
+    snprintf(trailer_encoding, sizeof(trailer_encoding), "%s", encoding);
     if (!payload_start || payload_size == 0 || payload_size >= BB_CONFIG_TRAILER_SIZE || strlen(sha) != 64)
         return;
     if ((size_t)(payload_start - (char *)raw) + payload_size > BB_CONFIG_TRAILER_SIZE)
@@ -403,6 +410,34 @@ const char *bb_config_trailer_error(void)
     return trailer_error;
 }
 
+const char *bb_config_trailer_encoding(void)
+{
+    load_config();
+    return trailer_encoding;
+}
+
+static int env_override_count(void)
+{
+    size_t i;
+    int count = 0;
+    for (i = 0; i < sizeof(cfg) / sizeof(cfg[0]); i++) {
+        const char *env = getenv(cfg[i].key);
+        if (env && *env)
+            count++;
+    }
+    return count;
+}
+
+const char *bb_config_effective_source(void)
+{
+    load_config();
+    if (env_override_count() > 0)
+        return "env";
+    if (trailer_valid && override_count > 0)
+        return "trailer";
+    return "compiled";
+}
+
 static void print_config_object(FILE *out, void (*json_string)(FILE *, const char *), int effective)
 {
     size_t i;
@@ -429,10 +464,57 @@ void bb_config_print_effective_json(FILE *out, void (*json_string)(FILE *, const
 
 void bb_config_print_trailer_json(FILE *out, void (*json_string)(FILE *, const char *))
 {
-    fprintf(out, "{\"present\":%s,\"valid\":%s,\"override_count\":%d,\"status\":",
+    fprintf(out, "{\"present\":%s,\"valid\":%s,\"encoding\":",
             bb_config_trailer_present() ? "true" : "false",
-            bb_config_trailer_valid() ? "true" : "false",
-            bb_config_trailer_override_count());
+            bb_config_trailer_valid() ? "true" : "false");
+    json_string(out, bb_config_trailer_encoding());
+    fprintf(out, ",\"override_count\":%d,\"status\":", bb_config_trailer_override_count());
     json_string(out, bb_config_trailer_error());
     fputc('}', out);
+}
+
+int applet_runtime_config_main(int argc, char **argv)
+{
+    int json = 0;
+    int i;
+    size_t j;
+
+    if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
+        puts("usage: busierbox runtime-config [--json]");
+        puts("Print compiled, trailer, environment, and effective runtime configuration.");
+        return 0;
+    }
+    for (i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--json"))
+            json = 1;
+        else {
+            fprintf(stderr, "runtime-config: unknown option %s\n", argv[i]);
+            return 2;
+        }
+    }
+    if (json) {
+        fputs("{\"schema\":1,\"effective_config_source\":", stdout);
+        bb_json_string(stdout, bb_config_effective_source());
+        fputs(",\"trailer_override\":", stdout);
+        bb_config_print_trailer_json(stdout, bb_json_string);
+        fprintf(stdout, ",\"environment_override_count\":%d", env_override_count());
+        fputs(",\"compiled_config\":", stdout);
+        bb_config_print_compiled_json(stdout, bb_json_string);
+        fputs(",\"effective_config\":", stdout);
+        bb_config_print_effective_json(stdout, bb_json_string);
+        fputs("}\n", stdout);
+        return 0;
+    }
+    printf("effective_config_source=%s\n", bb_config_effective_source());
+    printf("trailer_present=%s\n", bb_config_trailer_present() ? "yes" : "no");
+    printf("trailer_valid=%s\n", bb_config_trailer_valid() ? "yes" : "no");
+    printf("trailer_encoding=%s\n", bb_config_trailer_encoding());
+    printf("trailer_override_count=%d\n", bb_config_trailer_override_count());
+    printf("trailer_status=%s\n", bb_config_trailer_error());
+    printf("environment_override_count=%d\n", env_override_count());
+    for (j = 0; j < sizeof(cfg) / sizeof(cfg[0]); j++) {
+        printf("compiled_%s=%s\n", cfg[j].key, cfg[j].compiled);
+        printf("effective_%s=%s\n", cfg[j].key, bb_config_get(cfg[j].key));
+    }
+    return 0;
 }
