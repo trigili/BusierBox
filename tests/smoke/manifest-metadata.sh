@@ -73,8 +73,11 @@ if not isinstance(manifest["compiled_config"], dict):
     raise SystemExit("manifest-metadata: compiled_config must be an object")
 if not isinstance(manifest["effective_config"], dict):
     raise SystemExit("manifest-metadata: effective_config must be an object")
-    if not isinstance(manifest["trailer_override"], dict):
-        raise SystemExit("manifest-metadata: trailer_override must be an object")
+if not isinstance(manifest["trailer_override"], dict):
+    raise SystemExit("manifest-metadata: trailer_override must be an object")
+native_features = manifest.get("native_features") or {}
+if native_features.get("persistence") is not True or native_features.get("recovery_alias") is not True:
+    raise SystemExit("manifest-metadata: recovery native feature flags missing")
 payload_tools = manifest.get("payload_tools") or {}
 for key in ("requested_payload_tools", "missing_payload_tools", "missing_payload_tool_reasons"):
     if key in payload_tools:

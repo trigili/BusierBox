@@ -352,7 +352,7 @@ static void write_manifest_json(FILE *out, int include_missing)
     bb_config_print_effective_json(out, json_string_payload);
     fprintf(out, ",\"trailer_override\":");
     bb_config_print_trailer_json(out, json_string_payload);
-    fprintf(out, ",\"native_features\":{\"survey\":%s,\"doctor\":%s,\"extract\":%s,\"config_info\":%s",
+    fprintf(out, ",\"native_features\":{\"survey\":%s,\"doctor\":%s,\"extract\":%s,\"config_info\":%s,\"persistence\":true,\"recovery_alias\":true",
 #if BB_ENABLE_SURVEY
            "true",
 #else

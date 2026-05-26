@@ -1386,6 +1386,7 @@ def artifact_summary(release_dir, rec, include_missing=False):
         "runtime_mode": rec.get("runtime_mode") or runtime.get("mode"),
         "noresidue_level": noresidue_level,
         "noresidue_policy": noresidue_policy_summary(runtime.get("mode"), noresidue_level),
+        "recovery_workflows": recovery_workflows_summary(native_features),
         "reverse_access": {
             "transport": rshell.get("transport"),
             "session_policy": rshell.get("session_policy"),
@@ -1423,6 +1424,38 @@ def artifact_summary(release_dir, rec, include_missing=False):
         summary["missing_tool_reasons"] = payload_tools.get("missing_payload_tool_reasons") or (payload_manifest or {}).get("missing_payload_tool_reasons") or {}
         summary["build_missing"] = rec.get("build_missing_path")
     return summary
+
+
+def recovery_workflows_summary(native_features):
+    available = bool(native_features.get("persistence"))
+    alias_available = bool(native_features.get("recovery_alias"))
+    actions = []
+    if available:
+        actions = [
+            "status-only",
+            "rshell",
+            "evidence-push",
+            "evidence-then-rshell",
+            "dmesg-push",
+            "command",
+            "script",
+        ]
+    return {
+        "available": available,
+        "primary_command": "persistence" if available else "",
+        "deprecated_alias": "recovery" if alias_available else "",
+        "actions": actions,
+        "evidence_actions": [a for a in actions if a in ("evidence-push", "evidence-then-rshell", "dmesg-push")],
+        "default_action": "status-only" if available else "",
+        "dry_run_supported": available,
+        "uninstall_supported": available,
+        "requires_apply": True,
+        "real_root_requires_external_apply": True,
+        "visible_reversible_ledgered": True,
+        "stealth": False,
+        "self_reinstall": False,
+        "factory_reset_survival_claim": False,
+    }
 
 
 def noresidue_policy_summary(runtime_mode, level):
@@ -1482,6 +1515,7 @@ def manifest_text_for_tuple(tuple_info, records, include_missing=False):
             f"  runtime_mode={summary.get('runtime_mode') or rec.get('runtime_mode') or ''}",
             f"  noresidue_level={summary.get('noresidue_level') or ''}",
             "  noresidue_policy=" + json.dumps(summary.get("noresidue_policy") or {}, sort_keys=True),
+            "  recovery_workflows=" + json.dumps(summary.get("recovery_workflows") or {}, sort_keys=True),
             f"  size={rec.get('size', '')}",
             f"  sha256={rec.get('sha256', '')}",
             f"  config={rec.get('config', '')}",
