@@ -71,7 +71,8 @@ def main():
     if "file-service" not in combined or "--file-service" not in combined:
         print("busierbox-server help missing receive-only file service", file=sys.stderr)
         return 1
-    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--list-staged", "--status", "--stop", "--json-status"):
+    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--list-staged", "--status", "--stop", "--json-status",
+                 "--queue-command", "--list-command-queue", "--clear-command-queue"):
         if word not in combined:
             print(f"busierbox-server help missing operator workbench flag: {word}", file=sys.stderr)
             return 1
@@ -150,6 +151,56 @@ def main():
         if "Generating" not in combined and "Generated" not in combined and "generating" not in combined:
             print("Server did not report TLS cert generation:", file=sys.stderr)
             print(combined, file=sys.stderr)
+            return 1
+
+        queue_file = Path(tmp) / "operator-session" / "command-queue.json"
+        queued = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--queue-command", "busierbox reality-test --json",
+            "--queue-timeout", "9",
+            "--queue-max-output", "1234",
+        )
+        if queued.returncode != 0 or "execution_supported=no" not in queued.stdout:
+            print("operator command queue entry was not recorded safely", file=sys.stderr)
+            print(queued.stdout, file=sys.stderr)
+            print(queued.stderr, file=sys.stderr)
+            return 1
+        queue_doc = json.loads(queue_file.read_text(encoding="utf-8"))
+        if (len(queue_doc.get("commands", [])) != 1 or
+                queue_doc["commands"][0].get("command") != "busierbox reality-test --json" or
+                queue_doc["commands"][0].get("execution_supported") is not False or
+                queue_doc["commands"][0].get("delivery_supported") is not False):
+            print("operator command queue JSON missing non-exec safety fields", file=sys.stderr)
+            return 1
+        queue_list = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--json-command-queue",
+        )
+        queue_status = json.loads(queue_list.stdout)
+        if queue_status["command_queue"]["queued_count"] != 1:
+            print("json command queue listing missing queued entry", file=sys.stderr)
+            return 1
+        queue_status_doc = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--json-status",
+        )
+        if json.loads(queue_status_doc.stdout)["command_queue"]["queued_count"] != 1:
+            print("server json status missing command queue summary", file=sys.stderr)
+            return 1
+        cleared = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--clear-command-queue",
+        )
+        if cleared.returncode != 0 or "cleared 1 command queue entry" not in cleared.stdout:
+            print("operator command queue clear failed", file=sys.stderr)
             return 1
 
         # Test: cert already present → server does not regenerate (no generation message)

@@ -47,6 +47,7 @@ DEFAULT_CONFIG = Path("local/server-config.json")
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
 DEFAULT_STATE_FILE = DEFAULT_OPERATOR_SESSION_DIR / "server-state.json"
 DEFAULT_STAGED_FILE = DEFAULT_OPERATOR_SESSION_DIR / "staged-files.json"
+DEFAULT_COMMAND_QUEUE_FILE = DEFAULT_OPERATOR_SESSION_DIR / "command-queue.json"
 DEFAULTS = {
     "transport": "ssh",
     "encryption": "tls",
@@ -67,6 +68,7 @@ DEFAULTS = {
     "operator_session_dir": str(DEFAULT_OPERATOR_SESSION_DIR),
     "server_state": str(DEFAULT_STATE_FILE),
     "staged_files": str(DEFAULT_STAGED_FILE),
+    "command_queue_file": str(DEFAULT_COMMAND_QUEUE_FILE),
 }
 
 
@@ -139,6 +141,10 @@ def staged_file_path(cfg):
     return Path(str(cfg.get("staged_files") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "staged-files.json"))
 
 
+def command_queue_path(cfg):
+    return Path(str(cfg.get("command_queue_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "command-queue.json"))
+
+
 def state_file_path(cfg):
     return Path(str(cfg.get("server_state") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "server-state.json"))
 
@@ -151,6 +157,86 @@ def load_staged(cfg):
         data["staged"] = {}
     data.setdefault("schema", 1)
     return data
+
+
+def load_command_queue(cfg):
+    data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
+    if not isinstance(data, dict):
+        data = {"schema": 1, "commands": []}
+    if not isinstance(data.get("commands"), list):
+        data["commands"] = []
+    data.setdefault("schema", 1)
+    return data
+
+
+def save_command_queue(cfg, data):
+    data.setdefault("schema", 1)
+    if not isinstance(data.get("commands"), list):
+        data["commands"] = []
+    atomic_write_json(command_queue_path(cfg), data)
+
+
+def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
+    text = str(command or "").strip()
+    if not text:
+        raise ValueError("command queue entry must not be empty")
+    data = load_command_queue(cfg)
+    now = utc_now()
+    digest = hashlib.sha256(f"{now}\0{text}\0{os.getpid()}".encode("utf-8")).hexdigest()[:16]
+    rec = {
+        "id": f"cq-{digest}",
+        "created_at": now,
+        "status": "queued",
+        "command": text,
+        "timeout_sec": int(timeout_sec) if timeout_sec is not None else 30,
+        "max_output_bytes": int(max_output_bytes) if max_output_bytes is not None else 65536,
+        "execution_supported": False,
+        "delivery_supported": False,
+        "safety_boundary": "operator queue record only; target execution is disabled unless future explicit command-queue execution is implemented and enabled",
+    }
+    data["commands"].append(rec)
+    save_command_queue(cfg, data)
+    append_event(cfg, "command-queue", "command_queue_queued", details={"id": rec["id"], "status": rec["status"]})
+    return rec
+
+
+def clear_command_queue(cfg):
+    data = load_command_queue(cfg)
+    count = len(data.get("commands", []))
+    data["commands"] = []
+    save_command_queue(cfg, data)
+    append_event(cfg, "command-queue", "command_queue_cleared", details={"count": count})
+    return count
+
+
+def command_queue_summary(cfg):
+    data = load_command_queue(cfg)
+    commands = data.get("commands", [])
+    queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
+    return {
+        "path": str(command_queue_path(cfg)),
+        "commands": commands,
+        "queued_count": len(queued),
+        "total_count": len(commands),
+        "execution_supported": False,
+        "delivery_supported": False,
+        "safety_boundary": "explicit operator queue records only; no default target execution or hidden control channel",
+    }
+
+
+def print_command_queue(cfg, json_output=False):
+    summary = command_queue_summary(cfg)
+    if json_output:
+        print(json.dumps({"schema": 1, "command_queue": summary}, indent=2, sort_keys=True))
+        return
+    if not summary["commands"]:
+        print("No queued commands.")
+        return
+    print(f"Command queue: {summary['path']}")
+    for rec in summary["commands"]:
+        print(f"{rec.get('id', '')}\t{rec.get('status', '')}\tcreated={rec.get('created_at', '')}")
+        print(f"  command: {rec.get('command', '')}")
+        print(f"  timeout={rec.get('timeout_sec', '')} max_output={rec.get('max_output_bytes', '')} execution_supported=no")
 
 
 def reject_traversal_request_name(name):
@@ -1833,6 +1919,7 @@ def status_document(cfg):
         "schema": 1,
         "state_file": str(state_file_path(cfg)),
         "staged_files": str(staged_file_path(cfg)),
+        "command_queue_file": str(command_queue_path(cfg)),
         "session_root": str(cfg.get("session_root", "local/sessions")),
         "services": service_status_rows(cfg),
         "local_ips": ips,
@@ -1843,6 +1930,7 @@ def status_document(cfg):
         "sessions": recent_session_records(cfg),
         "events": event_tail(cfg),
         "release": release_context(),
+        "command_queue": command_queue_summary(cfg),
     }
 
 
@@ -1866,6 +1954,7 @@ def print_status(cfg, json_output=False):
     print("BusierBox server status")
     print(f"  state_file: {doc['state_file']}")
     print(f"  staged_files: {doc['staged_files']}")
+    print(f"  command_queue_file: {doc['command_queue_file']}")
     print(f"  session_root: {doc['session_root']}")
     print("")
     print("Services:")
@@ -2015,6 +2104,13 @@ def print_workbench(cfg):
     print("Generated target commands:")
     for cmd in snap["target_commands"]:
         print(f"  {cmd}")
+    print("")
+    print("Command queue:")
+    queue = snap["command_queue"]
+    print(f"  path: {queue.get('path', '')}")
+    print(f"  queued: {queue.get('queued_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
+    for rec in (queue.get("commands") or [])[:8]:
+        print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
     print("")
     print("Event log:")
     if snap["events"]:
@@ -2474,6 +2570,11 @@ File staging:
   --stage-release-artifact by-tuple/.../bin/busierbox-target-full
   --transport file-service --list-staged
 
+Command queue:
+  --queue-command 'busierbox reality-test --json'
+  --list-command-queue
+  --clear-command-queue
+
 Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
 """,
     )
@@ -2511,6 +2612,20 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="operator workbench state JSON path")
     parser.add_argument("--staged-file",
                         help="operator staged-files JSON path")
+    parser.add_argument("--command-queue-file",
+                        help="operator command queue JSON path")
+    parser.add_argument("--queue-command",
+                        help="record an explicit operator command queue entry; this server does not deliver or execute it")
+    parser.add_argument("--queue-timeout", type=int,
+                        help="timeout metadata for --queue-command, in seconds")
+    parser.add_argument("--queue-max-output", type=int,
+                        help="max output metadata for --queue-command, in bytes")
+    parser.add_argument("--list-command-queue", action="store_true",
+                        help="list explicit operator command queue entries")
+    parser.add_argument("--json-command-queue", action="store_true",
+                        help="print command queue entries as JSON")
+    parser.add_argument("--clear-command-queue", action="store_true",
+                        help="clear explicit operator command queue entries")
     parser.add_argument("--listen-host", help="listener bind address")
     parser.add_argument("--ssh-port", type=int, help="SSH reverse-forward listener port")
     parser.add_argument("--shell-port", type=int,
@@ -2558,6 +2673,27 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["server_state"] = args.state_file
     if args.staged_file:
         cfg["staged_files"] = args.staged_file
+    if args.command_queue_file:
+        cfg["command_queue_file"] = args.command_queue_file
+
+    try:
+        if args.clear_command_queue:
+            count = clear_command_queue(cfg)
+            print(f"cleared {count} command queue entr{'y' if count == 1 else 'ies'}")
+            if not (args.queue_command or args.list_command_queue or args.json_command_queue):
+                return 0
+        if args.queue_command:
+            rec = queue_command(cfg, args.queue_command, timeout_sec=args.queue_timeout, max_output_bytes=args.queue_max_output)
+            print(f"queued {rec['id']}: {rec['command']}")
+            print("execution_supported=no delivery_supported=no")
+            if not (args.list_command_queue or args.json_command_queue):
+                return 0
+        if args.list_command_queue or args.json_command_queue:
+            print_command_queue(cfg, json_output=args.json_command_queue)
+            return 0
+    except ValueError as exc:
+        print(f"busierbox-server: {exc}", file=sys.stderr)
+        return 2
 
     if args.status or args.json_status:
         return print_status(cfg, json_output=args.json_status)

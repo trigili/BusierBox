@@ -193,6 +193,11 @@ for operator inspection. Staging a file or release artifact only prepares an
 explicit target-side `busierbox fetch` command; it does not execute commands on
 the target.
 
+The optional command queue remains a separate advanced feature. Operator-side
+queue entries can be recorded with `scripts/busierbox-server --queue-command`
+and inspected in server status, but current queue tooling does not deliver or
+execute queued commands by default.
+
 Reverse access is explicit and operator-controlled. BusierBox does not install persistence, daemonize by default, hide process names, delete logs, or repeatedly beacon in the background. The `rshell` applet is also available as an explicit command:
 
 ```sh
