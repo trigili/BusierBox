@@ -24,6 +24,7 @@ scripts/artifact-config set "$work/busierbox" \
 "$work/busierbox" plan clean --json >"$work/clean.json"
 "$work/busierbox" plan recovery install --method openwrt-procd --action rshell --json >"$work/recovery.json"
 "$work/busierbox" plan recovery install --method cron-reboot --action command --json -- 'busierbox rshell start' >"$work/recovery-command.json"
+"$work/busierbox" plan recovery install --method cron-reboot --action command --json -- busierbox rshell start >"$work/recovery-command-argv.json"
 
 for json in "$work"/*.json; do
     python3 -m json.tool "$json" >/dev/null
@@ -40,6 +41,7 @@ rshell = json.loads((root / "rshell.json").read_text())
 clean = json.loads((root / "clean.json").read_text())
 recovery = json.loads((root / "recovery.json").read_text())
 command = json.loads((root / "recovery-command.json").read_text())
+command_argv = json.loads((root / "recovery-command-argv.json").read_text())
 
 assert extract["command"] == "extract"
 assert extract["runtime_root"].endswith("/runtime")
@@ -68,6 +70,8 @@ assert recovery["generated_command"].endswith("rshell start")
 assert command["action"] == "command"
 assert command["binary_path"].endswith("/usr/bin/busierbox_recovery")
 assert command["generated_command"] == "busierbox rshell start"
+assert command_argv["action"] == "command"
+assert command_argv["generated_command"] == "busierbox rshell start"
 PY
 
 "$work/busierbox" plan extract >"$work/extract.txt"

@@ -252,7 +252,9 @@ static int plan_recovery_install(int argc, char **argv, int json)
     int i;
     const struct plan_recovery_method *m;
     char hook[PATH_MAX], bin[PATH_MAX], generated[PATH_MAX * 2];
+    char command_buf[PATH_MAX * 2];
 
+    command_buf[0] = '\0';
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "install")) {
             i++;
@@ -275,8 +277,14 @@ static int plan_recovery_install(int argc, char **argv, int json)
         else if (!strcmp(argv[i], "--file") && i + 1 < argc)
             script_file = argv[++i];
         else if (!strcmp(argv[i], "--")) {
-            if (i + 1 < argc)
-                command = argv[i + 1];
+            int j;
+            command_buf[0] = '\0';
+            for (j = i + 1; j < argc; j++) {
+                if (command_buf[0])
+                    strncat(command_buf, " ", sizeof(command_buf) - strlen(command_buf) - 1);
+                strncat(command_buf, argv[j], sizeof(command_buf) - strlen(command_buf) - 1);
+            }
+            command = command_buf;
             break;
         } else {
             fprintf(stderr, "plan: unknown or incomplete recovery option %s\n", argv[i]);
