@@ -524,9 +524,15 @@ def main():
             "--staged-file", str(lifecycle_staged),
             "--json-status",
         )
-        rows_after = {row["name"]: row for row in json.loads(status_after.stdout)["services"]}
+        status_after_doc = json.loads(status_after.stdout)
+        rows_after = {row["name"]: row for row in status_after_doc["services"]}
         if rows_after["file-service"]["actual"] == "listening":
             print("file-service port still listening after --stop", file=sys.stderr)
+            return 1
+        if (not rows_after["file-service"].get("process_log", "").endswith("file-service-workbench.log") or
+                not rows_after["file-service"].get("session_log")):
+            print("stopped status lost service log context", file=sys.stderr)
+            print(status_after.stdout, file=sys.stderr)
             return 1
         rebind = subprocess.Popen(
             [

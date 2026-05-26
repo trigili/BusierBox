@@ -556,6 +556,9 @@ def update_server_state(cfg, action, status="configured", extra=None):
     data.setdefault("schema", 1)
     data.setdefault("services", {})
     data.setdefault("sessions", [])
+    previous = data.get("services", {}).get(action, {})
+    if not isinstance(previous, dict):
+        previous = {}
     service = {
         "status": status,
         "listen_host": str(cfg.get("listen_host", "")),
@@ -568,6 +571,9 @@ def update_server_state(cfg, action, status="configured", extra=None):
         "state_file": str(state_file_path(cfg)),
         "updated_at": utc_now(),
     }
+    for key in ("managed_by", "process_log", "session_log", "staged_file"):
+        if previous.get(key):
+            service[key] = previous[key]
     if cfg.get("_managed_by"):
         service["managed_by"] = str(cfg.get("_managed_by"))
     if cfg.get("_process_log"):
