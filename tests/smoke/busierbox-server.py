@@ -326,6 +326,7 @@ def main():
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         event_log_path = Path(paths["event_log"])
+        previous_invalid = int(event_stats.get("invalid_count", 0))
         with event_log_path.open("a", encoding="utf-8") as fh:
             fh.write("not-json\n")
         invalid_event_status = run(
@@ -339,10 +340,11 @@ def main():
             item for item in invalid_event_doc.get("warnings", [])
             if item.get("type") == "invalid_event_log"
         ]
-        if (invalid_event_doc.get("summary", {}).get("event_invalid_count") != 1 or
+        expected_invalid = previous_invalid + 1
+        if (invalid_event_doc.get("summary", {}).get("event_invalid_count") != expected_invalid or
                 not invalid_event_warnings or
                 invalid_event_warnings[-1].get("path") != str(event_log_path) or
-                invalid_event_warnings[-1].get("invalid_count") != 1):
+                invalid_event_warnings[-1].get("invalid_count") != expected_invalid):
             print("server json status missing invalid event log warning", file=sys.stderr)
             print(invalid_event_status.stdout, file=sys.stderr)
             return 1
@@ -352,7 +354,7 @@ def main():
             "--command-queue-file", str(queue_file),
             "--status",
         )
-        if "event log contains 1 invalid JSONL record" not in invalid_event_text.stdout:
+        if f"event log contains {expected_invalid} invalid JSONL record" not in invalid_event_text.stdout:
             print("text --status missing invalid event log warning", file=sys.stderr)
             print(invalid_event_text.stdout, file=sys.stderr)
             return 1
@@ -623,6 +625,23 @@ def main():
             return 1
         if not state_after_bind["services"]["file-service"].get("owners"):
             print("bind failure did not record possible listener owners", file=sys.stderr)
+            return 1
+        bind_fail_status = run(
+            "scripts/busierbox-server", "--config", str(bind_fail_cfg),
+            "--state-file", str(bind_fail_state),
+            "--staged-file", str(lifecycle_staged),
+            "--json-status",
+        )
+        bind_fail_doc = json.loads(bind_fail_status.stdout)
+        bind_fail_warnings = [
+            item for item in bind_fail_doc.get("warnings", [])
+            if item.get("type") == "service_error" and item.get("service") == "file-service"
+        ]
+        if (not bind_fail_warnings or
+                not bind_fail_warnings[-1].get("error") or
+                not bind_fail_warnings[-1].get("owners")):
+            print("bind failure status warning missing error/owner context", file=sys.stderr)
+            print(bind_fail_status.stdout, file=sys.stderr)
             return 1
         bind_events_path = Path(tmp) / "operator-session" / "events.jsonl"
         bind_events = [json.loads(line) for line in bind_events_path.read_text(encoding="utf-8").splitlines()]

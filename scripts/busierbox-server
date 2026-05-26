@@ -2485,6 +2485,8 @@ def status_summary_and_warnings(services):
             "listener_pids": row.get("listener_pids") or [],
             "process_log": row.get("process_log", ""),
             "session_log": row.get("session_log", ""),
+            "error": row.get("error", ""),
+            "owners": row.get("owners") or [],
         }
 
     for row in services:
