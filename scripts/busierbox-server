@@ -2531,15 +2531,29 @@ def stop_recorded_service(cfg, service):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     rec = (state.get("services") or {}).get(service, {})
     pid = rec.get("pid")
-    if pid:
-        try:
-            os.kill(int(pid), 15)
-            print(f"stopped {service}: pid={pid}")
-        except OSError as exc:
-            print(f"{service}: unable to stop pid {pid}: {exc}", file=sys.stderr)
-    else:
+    if not pid:
         print(f"{service}: no recorded pid")
-    mark_service_stopped(cfg, service)
+        mark_service_stopped(cfg, service)
+        append_event(cfg, service, "service_stop", details={"reason": "no-pid", "via": "workbench-stop"})
+        return
+    if not pid_alive(pid):
+        print(f"{service}: stale pid {pid}; marked stopped")
+        mark_service_stopped(cfg, service)
+        append_event(cfg, service, "service_stop", details={"pid": pid, "reason": "stale-pid", "via": "workbench-stop"})
+        return
+    if not pid_is_managed_server(pid):
+        print(f"{service}: skipped pid {pid}; not clearly a managed busierbox-server process")
+        append_event(cfg, service, "service_stop_skipped", details={"pid": pid, "reason": "unmanaged-pid", "via": "workbench-stop"})
+        return
+    try:
+        append_event(cfg, service, "shutdown", details={"pid": pid, "reason": "SIGTERM", "via": "workbench-stop"})
+        os.kill(int(pid), signal.SIGTERM)
+        print(f"stopped {service}: pid={pid}")
+        mark_service_stopped(cfg, service)
+        append_event(cfg, service, "service_stop", details={"pid": pid, "via": "workbench-stop"})
+    except OSError as exc:
+        mark_service_error(cfg, service, exc)
+        print(f"{service}: unable to stop pid {pid}: {exc}", file=sys.stderr)
 
 
 def run_line_tui(cfg):

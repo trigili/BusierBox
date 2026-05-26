@@ -128,6 +128,13 @@ def main():
     if 'name="busierbox-reverse-forward"' not in src or "join(timeout=2.0)" not in src:
         print("busierbox-server: reverse-forward listener thread is not explicitly owned/joined", file=sys.stderr)
         return 1
+    stop_helper = src[src.find("def stop_recorded_service"):src.find("def run_line_tui")]
+    if ("pid_is_managed_server(pid)" not in stop_helper or
+            "service_stop_skipped" not in stop_helper or
+            "unmanaged-pid" not in stop_helper or
+            "workbench-stop" not in stop_helper):
+        print("busierbox-server: workbench stop path lacks managed-PID safety guard", file=sys.stderr)
+        return 1
 
     with tempfile.TemporaryDirectory() as tmp:
         cert_path = Path(tmp) / "shell-server.crt"
