@@ -113,6 +113,7 @@ smoke-test:
 	@tests/smoke/dotfiles-by-app.sh
 	@tests/smoke/zsh-dotfiles.sh
 	@tests/smoke/runtime-modes.sh
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/clean-json.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 clean json smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/recovery.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 recovery smoke unavailable"; fi
 	@tests/smoke/rshell-lifecycle.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/busierbox-server.py; else printf '%s\n' "skip: python3 server smoke unavailable"; fi

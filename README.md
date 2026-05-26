@@ -10,7 +10,7 @@ BusierBox is not a BusyBox replacement and is not a BusyBox fork. BusierBox mana
 - 🧰 One artifact, many tools: the supervisor dispatches BusyBox applets and staged heavy tools from a reproducible payload.
 - 🧪 Bring-up loop: `scripts/busierbox-bringup` can survey a target, generate a conservative config, rebuild, and optionally run integration checks.
 - 🧾 Explainable artifacts: `busierbox manifest --json` and `payload/manifest.json` show what was built, staged, missing, and validated.
-- 🧹 Cleanup visibility: `busierbox cleanup-ledger --json` and `busierbox clean --dry-run` show BusierBox-controlled runtime paths before removal.
+- 🧹 Cleanup visibility: `busierbox cleanup-ledger --json` and `busierbox clean --dry-run --json` show BusierBox-controlled runtime paths before removal.
 - 🔒 Safe defaults: no external writes and no network autorun unless explicitly configured.
 
 Typical workflow:

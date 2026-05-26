@@ -23,6 +23,7 @@ Preview cleanup:
 
 ```sh
 busierbox clean --dry-run
+busierbox clean --dry-run --json
 busierbox rshell cleanup --dry-run
 ```
 
@@ -30,6 +31,7 @@ Apply runtime cleanup:
 
 ```sh
 busierbox clean --ledger
+busierbox clean --ledger --json
 ```
 
 External cleanup is opt-in only:
