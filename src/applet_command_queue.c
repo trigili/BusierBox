@@ -48,6 +48,7 @@ static const char *mode_status(const char *mode, int enabled, const char *operat
 static void print_json(const char *mode, int dry_run, const char *operator_host)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
+    int arbitrary_allowed = !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
     fputs("{\"schema\":1,\"command\":\"command-queue\",\"mode\":", stdout);
     bb_json_string(stdout, mode);
     printf(",\"enabled\":%s", enabled ? "true" : "false");
@@ -77,10 +78,13 @@ static void print_json(const char *mode, int dry_run, const char *operator_host)
     bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     fputs(",\"allow_arbitrary\":", stdout);
     bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf(",\"arbitrary_execution_allowed\":%s", arbitrary_allowed ? "true" : "false");
     fputs(",\"execution_supported\":false", stdout);
+    fputs(",\"executes_commands\":false", stdout);
     fputs(",\"delivery_supported\":false", stdout);
     fputs(",\"result_upload_supported\":false", stdout);
     fputs(",\"poll_transport_supported\":false", stdout);
+    fputs(",\"active_control_channel\":false", stdout);
     fputs(",\"status\":", stdout);
     bb_json_string(stdout, mode_status(mode, enabled, operator_host));
     fputs(",\"safety_boundary\":\"target polling is explicit and dry-run only in this build; no command delivery or execution is implemented\"", stdout);
@@ -90,6 +94,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host)
 static void print_text(const char *mode, int dry_run, const char *operator_host)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
+    int arbitrary_allowed = !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
     printf("command_queue_mode=%s\n", mode);
     printf("command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
     printf("command_queue_dry_run=%s\n", dry_run ? "yes" : "no");
@@ -107,10 +112,13 @@ static void print_text(const char *mode, int dry_run, const char *operator_host)
     printf("command_queue_token_source=%s\n", BB_COMMAND_QUEUE_TOKEN_SOURCE);
     printf("command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf("command_queue_arbitrary_execution_allowed=%s\n", arbitrary_allowed ? "yes" : "no");
     puts("command_queue_execution_supported=no");
+    puts("command_queue_executes_commands=no");
     puts("command_queue_delivery_supported=no");
     puts("command_queue_result_upload_supported=no");
     puts("command_queue_poll_transport_supported=no");
+    puts("command_queue_active_control_channel=no");
     printf("command_queue_status=%s\n", mode_status(mode, enabled, operator_host));
     puts("command_queue_safety_boundary=explicit target polling dry-run only; queued command delivery/execution is not implemented");
 }
