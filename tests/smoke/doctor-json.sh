@@ -15,7 +15,7 @@ import sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-for key in ["schema", "embedded_payload", "extracted_payload", "payload_manifest", "manifest_summary", "rshell_readiness", "environment", "host", "artifact"]:
+for key in ["schema", "embedded_payload", "extracted_payload", "payload_manifest", "manifest_summary", "rshell_readiness", "runtime_config", "cleanup_ledger", "environment", "host", "artifact"]:
     if key not in data:
         raise SystemExit(f"missing doctor key: {key}")
 if "present" not in data["embedded_payload"]:
@@ -30,6 +30,12 @@ for key in ["enabled", "transport", "operator_host_set", "server_listener", "con
         raise SystemExit(f"doctor rshell readiness missing {key}")
 if not isinstance(data["rshell_readiness"]["warnings"], list):
     raise SystemExit("doctor rshell warnings must be a list")
+if data["runtime_config"].get("effective_config_source") not in {"compiled", "trailer", "env"}:
+    raise SystemExit("doctor runtime config source missing")
+if "trailer_override" not in data["runtime_config"]:
+    raise SystemExit("doctor runtime trailer state missing")
+if "path" not in data["cleanup_ledger"] or "entry_count" not in data["cleanup_ledger"]:
+    raise SystemExit("doctor cleanup ledger state missing")
 PY
 
 (
@@ -53,6 +59,10 @@ if not data["payload_manifest"].get("found"):
     raise SystemExit("doctor did not report payload manifest")
 if not data["manifest_summary"].get("payload_manifest_found"):
     raise SystemExit("doctor manifest summary did not report payload manifest")
+if not data["cleanup_ledger"].get("present"):
+    raise SystemExit("doctor did not report cleanup ledger presence after extract")
+if data["cleanup_ledger"].get("entry_count", 0) < 1:
+    raise SystemExit("doctor cleanup ledger entry count did not increase")
 PY
 )
 

@@ -3937,6 +3937,42 @@ static void print_doctor_rshell_readiness_json(FILE *out)
     fprintf(out, "]}");
 }
 
+static int cleanup_ledger_entry_count(const char *path)
+{
+    FILE *fp = fopen(path, "r");
+    char line[1024];
+    int count = 0;
+
+    if (!fp)
+        return 0;
+    while (fgets(line, sizeof(line), fp)) {
+        if (line[strspn(line, " \t\r\n")] != '\0')
+            count++;
+    }
+    fclose(fp);
+    return count;
+}
+
+static void print_doctor_runtime_config_json(FILE *out)
+{
+    fprintf(out, ",\"runtime_config\":{\"effective_config_source\":");
+    json_string_payload(out, bb_config_effective_source());
+    fprintf(out, ",\"trailer_override\":");
+    bb_config_print_trailer_json(out, json_string_payload);
+    fprintf(out, "}");
+}
+
+static void print_doctor_cleanup_ledger_json(FILE *out)
+{
+    char path[PATH_MAX];
+    bb_ledger_path(path, sizeof(path));
+    fprintf(out, ",\"cleanup_ledger\":{\"path\":");
+    json_string_payload(out, path);
+    fprintf(out, ",\"present\":%s,\"entry_count\":%d}",
+            path_exists(path) ? "true" : "false",
+            cleanup_ledger_entry_count(path));
+}
+
 int applet_doctor_main(int argc, char **argv)
 {
     struct embedded_payload ep;
@@ -4025,6 +4061,8 @@ int applet_doctor_main(int argc, char **argv)
             printf("}");
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
             print_doctor_rshell_readiness_json(stdout);
+            print_doctor_runtime_config_json(stdout);
+            print_doctor_cleanup_ledger_json(stdout);
             printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s",
                    path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
                    getenv("HOME") && *getenv("HOME") ? "true" : "false",
@@ -4084,6 +4122,8 @@ int applet_doctor_main(int argc, char **argv)
                    manifest ? "true" : "false", applet_count);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
             print_doctor_rshell_readiness_json(stdout);
+            print_doctor_runtime_config_json(stdout);
+            print_doctor_cleanup_ledger_json(stdout);
             printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s}",
                    path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
                    getenv("HOME") && *getenv("HOME") ? "true" : "false",
