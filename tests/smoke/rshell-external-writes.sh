@@ -2,7 +2,7 @@
 # Source-level regression checks for rshell external filesystem writes.
 set -eu
 
-src=${1:-src/busierbox.c}
+src=${1:-src/applet_rshell.c}
 menu=${2:-scripts/menuconfig}
 payload=${3:-src/applet_clean.c}
 

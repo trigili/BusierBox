@@ -1,17 +1,23 @@
 #!/bin/sh
-# Verify rshell PID-based stop/start/restart lifecycle in busierbox.c source.
+# Verify rshell PID-based stop/start/restart lifecycle in split sources.
 # These are source-level checks; full integration requires a running target.
 set -eu
 
-src=${1:-src/busierbox.c}
+src=${1:-src/applet_rshell.c}
+autorun_src=${2:-src/busierbox.c}
+all_src="$src $autorun_src"
 
 [ -f "$src" ] || {
     printf '%s\n' "rshell-lifecycle: missing $src" >&2
     exit 1
 }
+[ -f "$autorun_src" ] || {
+    printf '%s\n' "rshell-lifecycle: missing $autorun_src" >&2
+    exit 1
+}
 
 # stop must read PID files and send SIGTERM — not pkill -f
-if grep -q 'pkill.*-f.*dropbear\|pkill.*-f.*dbclient' "$src"; then
+if grep -q 'pkill.*-f.*dropbear\|pkill.*-f.*dbclient' $all_src; then
     printf '%s\n' "rshell-lifecycle: stop still uses pkill -f dropbear/dbclient" >&2
     exit 1
 fi
@@ -49,19 +55,19 @@ grep -q 'rshell\.status' "$src"
 grep -q 'bb_ledger_record("write".*rshell status' "$src"
 grep -q 'bb_ledger_record("write".*rshell pid' "$src"
 grep -q 'bb_ledger_record("write".*rshell log' "$src"
-grep -q 'bb_ledger_record("write".*autorun lock' "$src"
-grep -q 'bb_ledger_record("write".*autorun status' "$src"
+grep -q 'bb_ledger_record("write".*autorun lock' "$autorun_src"
+grep -q 'bb_ledger_record("write".*autorun status' "$autorun_src"
 
 # BB_ZERO_ARG_LOG_MODE=none redirects to /dev/null
 grep -q 'BB_ZERO_ARG_LOG_MODE.*none\|none.*BB_ZERO_ARG_LOG_MODE' "$src"
 grep -q '/dev/null' "$src"
 
 # autorun guard path uses runtime root, not /tmp
-if grep 'BB_AUTORUN_GUARD_PATH' "$src" | grep -q '"/tmp/busierbox-autorun"'; then
+if grep 'BB_AUTORUN_GUARD_PATH' $all_src | grep -q '"/tmp/busierbox-autorun"'; then
     printf '%s\n' "rshell-lifecycle: BB_AUTORUN_GUARD_PATH default still uses /tmp/busierbox-autorun" >&2
     exit 1
 fi
-grep -q 'BB_RUNTIME_ROOT.*run\|BB_AUTORUN_GUARD_PATH.*run' "$src"
+grep -q 'BB_RUNTIME_ROOT.*run\|BB_AUTORUN_GUARD_PATH.*run' $all_src
 
 if [ -f src/rshell_tls.c ]; then
     if grep -q 'wolfSSL_get_error(ssl, 0)' src/rshell_tls.c; then
