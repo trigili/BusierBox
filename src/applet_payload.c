@@ -2391,6 +2391,103 @@ static int json_array_count_field(const char *json, const char *key)
     return count;
 }
 
+static const char *json_field_value(const char *json, const char *key)
+{
+    char needle[96];
+    const char *p;
+
+    snprintf(needle, sizeof(needle), "\"%s\"", key);
+    p = strstr(json, needle);
+    if (!p)
+        return NULL;
+    p = strchr(p, ':');
+    if (!p)
+        return NULL;
+    p++;
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
+        p++;
+    return p;
+}
+
+static const char *json_raw_value_end(const char *p)
+{
+    const char *q;
+    int depth = 0, in_string = 0, escaped = 0;
+
+    if (!p || !*p)
+        return NULL;
+    if (*p == '[' || *p == '{') {
+        for (q = p; *q; q++) {
+            if (in_string) {
+                if (escaped)
+                    escaped = 0;
+                else if (*q == '\\')
+                    escaped = 1;
+                else if (*q == '"')
+                    in_string = 0;
+                continue;
+            }
+            if (*q == '"') {
+                in_string = 1;
+                continue;
+            }
+            if (*q == '[' || *q == '{') {
+                depth++;
+                continue;
+            }
+            if (*q == ']' || *q == '}') {
+                depth--;
+                if (depth == 0)
+                    return q + 1;
+            }
+        }
+        return NULL;
+    }
+    if (*p == '"') {
+        for (q = p + 1; *q; q++) {
+            if (escaped)
+                escaped = 0;
+            else if (*q == '\\')
+                escaped = 1;
+            else if (*q == '"')
+                return q + 1;
+        }
+        return NULL;
+    }
+    for (q = p; *q && *q != ',' && *q != '}' && *q != ']' &&
+                *q != '\r' && *q != '\n'; q++)
+        ;
+    while (q > p && (q[-1] == ' ' || q[-1] == '\t'))
+        q--;
+    return q;
+}
+
+static int json_write_raw_field_or(FILE *out, const char *json, const char *key, const char *fallback)
+{
+    const char *p = json ? json_field_value(json, key) : NULL;
+    const char *end = json_raw_value_end(p);
+
+    if (!p || !end || end <= p) {
+        fputs(fallback, out);
+        return 0;
+    }
+    fwrite(p, 1, (size_t)(end - p), out);
+    return 1;
+}
+
+static void json_write_string_array(FILE *out, const char *const *items)
+{
+    int i;
+
+    fputc('[', out);
+    for (i = 0; items[i]; i++) {
+        if (i)
+            fputc(',', out);
+        json_string_payload(out, items[i]);
+    }
+    fputc(']', out);
+}
+
 static int path_entry_count(const char *path, const char *entry)
 {
     char *dup, *save = NULL, *p;
@@ -2741,6 +2838,46 @@ static void print_doctor_payload_runtime_health_json(FILE *out, int have_payload
     fprintf(out, "}");
 }
 
+static void print_doctor_payload_inventory_json(FILE *out, const char *manifest)
+{
+    fprintf(out, ",\"payload_inventory\":{\"manifest_found\":%s", manifest ? "true" : "false");
+    fprintf(out, ",\"requested_payload_tools\":");
+    if (manifest)
+        json_write_raw_field_or(out, manifest, "requested_payload_tools", "[]");
+    else
+        json_write_string_array(out, heavy_tools);
+    fprintf(out, ",\"built_payload_tools\":");
+    json_write_raw_field_or(out, manifest, "built_payload_tools", "[]");
+    fprintf(out, ",\"staged_payload_tools\":");
+    json_write_raw_field_or(out, manifest, "staged_payload_tools", "[]");
+    fprintf(out, ",\"missing_payload_tools\":");
+    json_write_raw_field_or(out, manifest, "missing_payload_tools", "[]");
+    fprintf(out, ",\"missing_payload_tool_reasons\":");
+    json_write_raw_field_or(out, manifest, "missing_payload_tool_reasons", "{}");
+    fprintf(out, ",\"overlay_enabled\":");
+    json_write_raw_field_or(out, manifest, "overlay_enabled", !strcmp(BB_USER_OVERLAY_ENABLE, "yes") ? "true" : "false");
+    fprintf(out, ",\"overlay_root\":");
+    if (manifest)
+        json_write_raw_field_or(out, manifest, "overlay_root", "null");
+    else
+        json_string_payload(out, BB_USER_OVERLAY_ROOT);
+    fprintf(out, ",\"overlay_applied_paths\":");
+    json_write_raw_field_or(out, manifest, "overlay_applied_paths", "[]");
+    fprintf(out, ",\"overlay_files\":");
+    json_write_raw_field_or(out, manifest, "overlay_files", "[]");
+    fprintf(out, ",\"overlay_tools\":");
+    json_write_raw_field_or(out, manifest, "overlay_tools", "[]");
+    fprintf(out, ",\"overlay_warnings\":");
+    json_write_raw_field_or(out, manifest, "overlay_warnings", "[]");
+    fprintf(out, ",\"user_provided_tools\":");
+    json_write_raw_field_or(out, manifest, "user_provided_tools", "[]");
+    fprintf(out, ",\"included_shared_libs\":");
+    json_write_raw_field_or(out, manifest, "included_shared_libs", "[]");
+    fprintf(out, ",\"applet_symlink_skips\":");
+    json_write_raw_field_or(out, manifest, "applet_symlink_skips", "[]");
+    fprintf(out, "}");
+}
+
 int applet_doctor_main(int argc, char **argv)
 {
     struct embedded_payload ep;
@@ -2829,6 +2966,7 @@ int applet_doctor_main(int argc, char **argv)
                 printf(",\"overlay_enabled\":%s", !strcmp(json_bool_value(manifest, "overlay_enabled"), "yes") ? "true" : "false");
             }
             printf("}");
+            print_doctor_payload_inventory_json(stdout, manifest);
             print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
             print_doctor_rshell_readiness_json(stdout);
@@ -2893,6 +3031,7 @@ int applet_doctor_main(int argc, char **argv)
             print_doctor_extraction_runtime_json(stdout, 1);
             printf(",\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d}",
                    manifest ? "true" : "false", applet_count);
+            print_doctor_payload_inventory_json(stdout, manifest);
             print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
             print_doctor_rshell_readiness_json(stdout);

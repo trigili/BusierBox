@@ -15,7 +15,7 @@ import sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-for key in ["schema", "embedded_payload", "extracted_payload", "extraction_runtime", "payload_manifest", "payload_runtime_health", "manifest_summary", "rshell_readiness", "runtime_config", "cleanup_ledger", "environment", "host", "artifact"]:
+for key in ["schema", "embedded_payload", "extracted_payload", "extraction_runtime", "payload_manifest", "payload_inventory", "payload_runtime_health", "manifest_summary", "rshell_readiness", "runtime_config", "cleanup_ledger", "environment", "host", "artifact"]:
     if key not in data:
         raise SystemExit(f"missing doctor key: {key}")
 if "present" not in data["embedded_payload"]:
@@ -33,6 +33,15 @@ for root in data["extraction_runtime"]["roots"]:
             raise SystemExit(f"doctor extraction root missing {key}")
 if "present" not in data["payload_runtime_health"]:
     raise SystemExit("doctor payload runtime health presence missing")
+inventory = data["payload_inventory"]
+for key in ["manifest_found", "requested_payload_tools", "built_payload_tools", "staged_payload_tools", "missing_payload_tools", "missing_payload_tool_reasons", "overlay_enabled", "overlay_root", "overlay_applied_paths", "overlay_files", "overlay_tools", "overlay_warnings", "user_provided_tools", "included_shared_libs", "applet_symlink_skips"]:
+    if key not in inventory:
+        raise SystemExit(f"doctor payload inventory missing {key}")
+for key in ["requested_payload_tools", "built_payload_tools", "staged_payload_tools", "missing_payload_tools", "overlay_applied_paths", "overlay_files", "overlay_tools", "overlay_warnings", "user_provided_tools", "included_shared_libs", "applet_symlink_skips"]:
+    if not isinstance(inventory[key], list):
+        raise SystemExit(f"doctor payload inventory {key} must be a list")
+if not isinstance(inventory["missing_payload_tool_reasons"], dict):
+    raise SystemExit("doctor payload inventory missing reasons must be an object")
 for key in ["target_preset", "payload_preset", "runtime_mode", "zero_arg_mode"]:
     if key not in data["manifest_summary"]:
         raise SystemExit(f"doctor manifest summary missing {key}")
@@ -72,6 +81,14 @@ if data["extracted_payload"].get("extraction_mode") != "full":
     raise SystemExit("doctor did not report full extraction mode")
 if not data["payload_manifest"].get("found"):
     raise SystemExit("doctor did not report payload manifest")
+inventory = data.get("payload_inventory", {})
+if not inventory.get("manifest_found"):
+    raise SystemExit("doctor payload inventory did not report manifest")
+for key in ["requested_payload_tools", "built_payload_tools", "staged_payload_tools", "missing_payload_tools", "overlay_files", "overlay_tools", "overlay_warnings", "user_provided_tools", "included_shared_libs"]:
+    if not isinstance(inventory.get(key), list):
+        raise SystemExit(f"doctor payload inventory {key} missing or not a list")
+if not isinstance(inventory.get("missing_payload_tool_reasons"), dict):
+    raise SystemExit("doctor payload inventory missing reasons is not an object")
 health = data.get("payload_runtime_health", {})
 if not health.get("present"):
     raise SystemExit("doctor did not report payload runtime health")
