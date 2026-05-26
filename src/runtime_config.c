@@ -239,6 +239,35 @@ static void set_error(const char *s)
     snprintf(trailer_error, sizeof(trailer_error), "%s", s);
 }
 
+static int secret_like_value(const char *value)
+{
+    char upper[256];
+    size_t i;
+    const char *markers[] = {
+        "-----BEGIN OPENSSH PRIVATE KEY-----",
+        "-----BEGIN RSA PRIVATE KEY-----",
+        "-----BEGIN DSA PRIVATE KEY-----",
+        "-----BEGIN EC PRIVATE KEY-----",
+        "-----BEGIN PRIVATE KEY-----",
+        "PASSWORD=",
+        "PASSWD=",
+        "TOKEN=",
+        "PRIVATE_KEY=",
+        NULL
+    };
+    if (!value)
+        return 0;
+    for (i = 0; i + 1 < sizeof(upper) && value[i]; i++) {
+        unsigned char c = (unsigned char)value[i];
+        upper[i] = (char)((c >= 'a' && c <= 'z') ? c - ('a' - 'A') : c);
+    }
+    upper[i] = '\0';
+    for (i = 0; markers[i]; i++)
+        if (strstr(upper, markers[i]))
+            return 1;
+    return 0;
+}
+
 static int parse_kv_payload(char *payload)
 {
     char *line, *save = NULL;
@@ -256,6 +285,8 @@ static int parse_kv_payload(char *payload)
         ent = find_entry(line);
         if (!ent)
             continue;
+        if (secret_like_value(eq))
+            return -1;
         snprintf(ent->value, sizeof(ent->value), "%s", eq);
         ent->has_override = 1;
         count++;
@@ -389,6 +420,11 @@ static void load_config(void)
         return;
     }
     override_count = parse_kv_payload((char *)payload);
+    if (override_count < 0) {
+        override_count = 0;
+        set_error("secret-like trailer value");
+        return;
+    }
     trailer_valid = 1;
     set_error("ok");
 }

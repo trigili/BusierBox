@@ -92,8 +92,26 @@ def parse_kv(text, reject_unknown=True):
             if reject_unknown:
                 die(f"key is not trailer-overridable: {key}")
             continue
+        reject_secret_like_value(key, val)
         vals[key] = val
     return vals
+
+
+def reject_secret_like_value(key, val):
+    upper = val.upper()
+    secret_markers = (
+        "-----BEGIN OPENSSH PRIVATE KEY-----",
+        "-----BEGIN RSA PRIVATE KEY-----",
+        "-----BEGIN DSA PRIVATE KEY-----",
+        "-----BEGIN EC PRIVATE KEY-----",
+        "-----BEGIN PRIVATE KEY-----",
+        "PASSWORD=",
+        "PASSWD=",
+        "TOKEN=",
+        "PRIVATE_KEY=",
+    )
+    if any(marker in upper for marker in secret_markers):
+        die(f"refusing secret-like trailer value for {key}")
 
 
 def decode_trailer(data, reject_unknown=False):

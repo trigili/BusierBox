@@ -357,6 +357,48 @@ if scripts/artifact-config set "$work/busierbox" BB_TARGET_ARCH=mipsel >"$work/u
 fi
 grep -q 'not trailer-overridable' "$work/unknown.out"
 
+if scripts/artifact-config set "$work/busierbox" 'BB_ZERO_ARG_CUSTOM_COMMAND=TOKEN=abc123' >"$work/secret.out" 2>&1; then
+    printf '%s\n' "artifact-config smoke: secret-like trailer value was accepted" >&2
+    exit 1
+fi
+grep -q 'refusing secret-like trailer value' "$work/secret.out"
+
+cp "$artifact" "$work/busierbox-secret-runtime"
+python3 - "$work/busierbox-secret-runtime" <<'PY'
+import hashlib, pathlib, sys
+MAGIC = b"BBXCONFIGv1"
+TRAILER_SIZE = 4096
+p = pathlib.Path(sys.argv[1])
+payload = b"BB_ZERO_ARG_CUSTOM_COMMAND=echo TOKEN=abc123\n"
+sha = hashlib.sha256(payload).hexdigest()
+meta_prefix = (
+    MAGIC.decode() + "\n"
+    "version=1\n"
+    "encoding=plain\n"
+    f"size={len(payload)}\n"
+    f"sha256={sha}\n"
+    "key_hex=\n"
+)
+offset = 0
+while True:
+    next_offset = len((meta_prefix + f"payload_offset={offset}\nENDMETA\n").encode("ascii"))
+    if next_offset == offset:
+        break
+    offset = next_offset
+trailer = (meta_prefix + f"payload_offset={offset}\nENDMETA\n").encode("ascii") + payload
+p.write_bytes(p.read_bytes() + trailer + b"\0" * (TRAILER_SIZE - len(trailer)))
+PY
+"$work/busierbox-secret-runtime" runtime-config --json >"$work/runtime.secret.json"
+python3 - "$work/runtime.secret.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert r["effective_config_source"] == "compiled"
+assert r["trailer_override"]["present"] is True
+assert r["trailer_override"]["valid"] is False
+assert r["trailer_override"]["status"] == "secret-like trailer value"
+assert r["effective_config"]["BB_ZERO_ARG_CUSTOM_COMMAND"] == ""
+PY
+
 scripts/artifact-config set "$work/busierbox" BB_OPERATOR_SERVER_HOST=203.0.113.8 >/dev/null
 test "$(wc -c <"$work/busierbox" | tr -d ' ')" -eq $((base_size + 4096))
 scripts/artifact-config export "$work/busierbox" >"$work/export.env"

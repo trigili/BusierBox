@@ -37,3 +37,6 @@ ASCII-safe hex so trailer inspection never depends on raw binary payload bytes.
 XOR obfuscation is only casual string hiding. It is not encryption, does not
 protect secrets, and must not be used for private keys, passwords, or
 credentials.
+`scripts/artifact-config` and the runtime reject obvious secret-like trailer
+values such as private-key PEM headers and `PASSWORD=`, `TOKEN=`, or
+`PRIVATE_KEY=` assignments; keep credentials outside override trailers.
