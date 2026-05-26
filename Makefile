@@ -7,7 +7,7 @@ CFLAGS ?= -Os -Wall -Wextra -std=c99
 CPPFLAGS ?=
 LDFLAGS ?=
 
-SRC := src/busierbox.c src/payload_runtime.c src/applet_extract.c src/applet_list.c src/applet_manifest.c src/applet_doctor.c src/applet_config_info.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/applet_fetch.c src/applet_rshell.c src/applet_upload.c src/ledger.c src/runtime_paths.c src/runtime_probe.c src/json_helpers.c src/payload_extract.c src/payload_dispatch.c src/trailer_config.c src/runtime_config.c src/sha256.c
+SRC := src/busierbox.c src/payload_runtime.c src/applet_extract.c src/applet_list.c src/applet_manifest.c src/applet_doctor.c src/applet_reality_test.c src/applet_config_info.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/applet_fetch.c src/applet_rshell.c src/applet_upload.c src/ledger.c src/runtime_paths.c src/runtime_probe.c src/json_helpers.c src/payload_extract.c src/payload_dispatch.c src/trailer_config.c src/runtime_config.c src/sha256.c
 
 .PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release verify-artifact check-buildroot-tool-mappings target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-glinet test-all
 
@@ -130,6 +130,7 @@ smoke-test:
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/manifest-metadata.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 manifest metadata smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/support-token.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 support token smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/doctor-json.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 doctor json smoke unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/reality-test.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 reality-test smoke unavailable"; fi
 	@tests/smoke/core-extraction.sh dist/busierbox-native-full
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full cleanup-ledger --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 cleanup ledger json validation unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full rshell status --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 rshell status json validation unavailable"; fi

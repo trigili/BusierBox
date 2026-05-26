@@ -67,6 +67,7 @@ const struct bb_applet bb_applets[] = {
 #if BB_ENABLE_DOCTOR
     {"doctor", applet_doctor_main, "inspect embedded and extracted payload health"},
 #endif
+    {"reality-test", applet_reality_test_main, "actively test target runtime capabilities"},
 #if BB_ENABLE_FETCH_FULL
     {"fetch", applet_fetch_main, "fetch an operator-staged file"},
     {"fetch-full", applet_fetch_full_main, "download a full BusierBox artifact"},

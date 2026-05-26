@@ -4,8 +4,15 @@ BusierBox has two survey paths:
 
 - `busierbox survey --json` runs the native supervisor probe.
 - `busierbox survey --shell-script` prints a portable `/bin/sh` probe that can run on targets where a native artifact is not ready yet.
+- `busierbox reality-test --json` actively checks runtime behavior such as
+  writing/executing under the runtime root, forking, spawning `/bin/sh`, opening
+  pipes/PTYs, reading `/proc` and `/sys`, binding localhost, and reaching a
+  configured operator endpoint.
 
 The shell survey exists because a working native BusierBox binary only proves the artifact is close enough to execute. The next question is operational: where can BusierBox safely write, whether `/tmp` is executable, which tools already exist, what libc/kernel hints are visible, and whether a no-extraction workflow is safer.
+`reality-test` complements that passive survey with active checks. It reports
+operator upload/fetch checks as skipped unless those side-effecting services are
+explicitly configured for the run.
 
 The generated shell probe is POSIX-ish and avoids required Python, Perl, awk,
 sed, grep, or coreutils dependencies. It uses common target commands only when
@@ -42,6 +49,7 @@ busierbox survey --json --shell-probe
 busierbox survey --shell-script
 BUSIERBOX_SURVEY_PROBE_DIR=/tmp/bbx-probe /bin/sh ./busierbox-survey.sh
 busierbox survey --write-shell-script /tmp/busierbox-survey.sh
+busierbox reality-test --json
 scripts/config-from-survey --format shell survey.json
 scripts/config-from-survey --format json survey.json
 scripts/config-from-survey --write-config local/recommended.conf survey.json
