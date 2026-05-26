@@ -189,6 +189,23 @@
       "display_path": "generic-archs/mips/mipsel-linux-2.6-uclibc-legacy"
     },
     {
+      "preset_name": "mipsel-linux-4.x-musl",
+      "description": "Generic MIPS little-endian Linux 4.x musl",
+      "arch": "mipsel",
+      "endian": "little",
+      "cpu": "mips32r2-24kc",
+      "abi": "default",
+      "libc": "musl",
+      "kernel_floor": "4.x",
+      "static_policy": "static-preferred",
+      "payload_tier": "core",
+      "qemu_user": "qemu-mipsel-static",
+      "support_status": "supported",
+      "notes": "Generic tuple-generated Buildroot backend for modern MIPS little-endian musl systems. Use glinet-mt7621-openwrt-musl for the GL.iNet-specific profile.",
+      "category": "generic-archs/mips",
+      "display_path": "generic-archs/mips/mipsel-linux-4.x-musl"
+    },
+    {
       "preset_name": "armv7-linux-3.x-musl",
       "description": "ARMv7 Linux 3.x musl hard-float",
       "arch": "armv7",

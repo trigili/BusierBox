@@ -77,10 +77,12 @@ first=$(printf '%s\n' "$list" | sed -n '1p' | cut -f1)
 second=$(printf '%s\n' "$list" | sed -n '2p' | cut -f1)
 [ "$first" = default ] || { printf '%s\n' "default preset is not first in --list" >&2; exit 1; }
 [ "$second" = native ] || { printf '%s\n' "native preset is not second in --list" >&2; exit 1; }
+printf '%s\n' "$list" | awk -F '\t' '$1 == "mipsel-linux-4.x-musl" && $2 == "supported" { found=1 } END { exit found ? 0 : 1 }'
 
 tree=$(scripts/resolve-target --list-tree)
 printf '%s\n' "$tree" | grep '^\[specific-targets/legacy-routers\]$' >/dev/null
 printf '%s\n' "$tree" | grep '  asus-rt-n16-uclibc' >/dev/null
+printf '%s\n' "$tree" | grep '  mipsel-linux-4.x-musl' >/dev/null
 printf '%s\n' "$tree" | grep '^\[generic-archs/arm\]$' >/dev/null
 printf '%s\n' "$tree" | grep '  armv7-linux-3.x-musl' >/dev/null
 
