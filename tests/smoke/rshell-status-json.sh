@@ -38,6 +38,8 @@ for key in [
     "target_dropbear",
     "authkeys_mode",
     "shell_provider",
+    "retry",
+    "runtime_config",
     "zero_arg_autorun",
     "guard_path",
     "pids",
@@ -54,6 +56,8 @@ for key in [
 
 if data["guard_path"] != sys.argv[2]:
     raise SystemExit("guard path mismatch")
+if data["state"] != "running":
+    raise SystemExit("recorded state missing")
 if data["pids"].get("rshell") != "1234":
     raise SystemExit("rshell pid missing")
 if data["pids"].get("dropbear") != "2345":
@@ -72,6 +76,13 @@ if not data["operator_shell_port"]:
     raise SystemExit("operator shell port missing")
 if not data["remote_forward_port"]:
     raise SystemExit("remote forward port missing")
+for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec"]:
+    if key not in data["retry"]:
+        raise SystemExit(f"retry field missing: {key}")
+if data["runtime_config"].get("effective_config_source") not in {"compiled", "trailer", "env"}:
+    raise SystemExit("runtime config source missing")
+if "trailer_override" not in data["runtime_config"]:
+    raise SystemExit("trailer override usage missing")
 if ":" not in data["target_dropbear"]:
     raise SystemExit("target dropbear endpoint missing")
 if f"--ssh-port {data['operator_ssh_port']}" not in data["server_listener"]:

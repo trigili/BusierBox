@@ -714,6 +714,7 @@ int applet_rshell_main(int argc, char **argv)
             FILE *fp = fopen(status_path, "r");
             char line[512], key[128], val[384];
             char rshell_pid[64] = "", dropbear_pid[64] = "", dbclient_pid[64] = "", socat_pid[64] = "";
+            char state[64] = "";
             char started_at[64] = "", last_exit_reason[256] = "";
             char target_dropbear[128], server_listener[256], connect_hint[256];
             int first = 1;
@@ -729,7 +730,9 @@ int applet_rshell_main(int argc, char **argv)
                 *eq++ = '\0';
                 line[strcspn(line, "\r\n")] = '\0';
                 eq[strcspn(eq, "\r\n")] = '\0';
-                if (!strcmp(line, "rshell_pid") || !strcmp(line, "pid"))
+                if (!strcmp(line, "state"))
+                    snprintf(state, sizeof(state), "%s", eq);
+                else if (!strcmp(line, "rshell_pid") || !strcmp(line, "pid"))
                     snprintf(rshell_pid, sizeof(rshell_pid), "%s", eq);
                 else if (!strcmp(line, "dropbear_pid"))
                     snprintf(dropbear_pid, sizeof(dropbear_pid), "%s", eq);
@@ -747,7 +750,7 @@ int applet_rshell_main(int argc, char **argv)
                 fp = fopen(status_path, "r");
             }
             printf("{\"schema\":1,\"state\":");
-            json_string_main(stdout, fp ? "active" : "inactive");
+            json_string_main(stdout, fp ? (state[0] ? state : "active") : "inactive");
             printf(",\"transport\":");
             json_string_main(stdout, transport);
             printf(",\"encryption\":");
@@ -768,6 +771,22 @@ int applet_rshell_main(int argc, char **argv)
             json_string_main(stdout, BB_RSHELL_AUTHKEYS_MODE);
             printf(",\"shell_provider\":");
             json_string_main(stdout, BB_RSHELL_SHELL_PROVIDER);
+            printf(",\"retry\":{\"count\":");
+            json_string_main(stdout, BB_RSHELL_RETRY_COUNT);
+            printf(",\"interval_sec\":");
+            json_string_main(stdout, BB_RSHELL_RETRY_INTERVAL_SEC);
+            printf(",\"jitter_pct\":");
+            json_string_main(stdout, BB_RSHELL_RETRY_JITTER_PCT);
+            printf(",\"backoff\":");
+            json_string_main(stdout, BB_RSHELL_RETRY_BACKOFF);
+            printf(",\"max_interval_sec\":");
+            json_string_main(stdout, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+            printf("}");
+            printf(",\"runtime_config\":{\"effective_config_source\":");
+            json_string_main(stdout, bb_config_effective_source());
+            printf(",\"trailer_override\":");
+            bb_config_print_trailer_json(stdout, json_string_main);
+            printf("}");
             printf(",\"zero_arg_autorun\":%s", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "true" : "false");
             printf(",\"guard_path\":");
             json_string_main(stdout, guard);
