@@ -30,8 +30,9 @@ architecture, libc, kernel floor, static policy, compiled feature flags, heavy
 tool selection, dotfiles, and overlay contents are intentionally rejected.
 
 The trailer is fixed-size and appended at EOF with `BBXCONFIGv1` magic, version,
-encoding, payload offset/size, SHA-256 of the decoded `KEY=VALUE` payload, and
-optional XOR metadata.
+encoding, payload format, payload offset/size, SHA-256 of the decoded
+`KEY=VALUE` payload, and optional XOR metadata. XOR payload bytes are stored as
+ASCII-safe hex so trailer inspection never depends on raw binary payload bytes.
 
 XOR obfuscation is only casual string hiding. It is not encryption, does not
 protect secrets, and must not be used for private keys, passwords, or

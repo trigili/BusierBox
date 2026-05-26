@@ -267,14 +267,15 @@ static void load_config(void)
 {
     char path[PATH_MAX];
     unsigned char raw[BB_CONFIG_TRAILER_SIZE + 1];
+    unsigned char payload[BB_CONFIG_TRAILER_SIZE + 1];
     char meta[BB_CONFIG_TRAILER_SIZE + 1];
     char *raw_text = (char *)raw;
     char *line, *save = NULL, *payload_start = NULL;
-    char version[16] = "", encoding[16] = "plain", sha[65] = "", key_hex[129] = "";
+    char version[16] = "", encoding[16] = "plain", payload_format[16] = "raw", sha[65] = "", key_hex[129] = "";
     unsigned long payload_size = 0;
     unsigned char key[64], hash[32];
     char got[65];
-    size_t key_len = 0;
+    size_t key_len = 0, payload_len = 0;
     FILE *fp;
     long fsize;
     size_t i;
@@ -326,6 +327,8 @@ static void load_config(void)
             snprintf(version, sizeof(version), "%s", eq);
         else if (!strcmp(line, "encoding"))
             snprintf(encoding, sizeof(encoding), "%s", eq);
+        else if (!strcmp(line, "payload_format"))
+            snprintf(payload_format, sizeof(payload_format), "%s", eq);
         else if (!strcmp(line, "size"))
             payload_size = strtoul(eq, NULL, 10);
         else if (!strcmp(line, "sha256"))
@@ -346,22 +349,35 @@ static void load_config(void)
         set_error("payload bounds invalid");
         return;
     }
+    if (!strcmp(payload_format, "hex")) {
+        if (hex_to_bytes(payload_start, payload, sizeof(payload) - 1, &payload_len) != 0 ||
+            payload_len == 0 || payload_size != strlen(payload_start)) {
+            set_error("invalid hex payload");
+            return;
+        }
+    } else if (!strcmp(payload_format, "raw")) {
+        memcpy(payload, payload_start, payload_size);
+        payload_len = payload_size;
+    } else {
+        set_error("unsupported payload format");
+        return;
+    }
     if (!strcmp(encoding, "xor")) {
         if (hex_to_bytes(key_hex, key, sizeof(key), &key_len) != 0) {
             set_error("invalid xor key");
             return;
         }
-        for (i = 0; i < payload_size; i++)
-            payload_start[i] = (char)((unsigned char)payload_start[i] ^ key[i % key_len]);
+        for (i = 0; i < payload_len; i++)
+            payload[i] = (unsigned char)(payload[i] ^ key[i % key_len]);
     } else if (strcmp(encoding, "plain")) {
         set_error("unsupported encoding");
         return;
     }
-    payload_start[payload_size] = '\0';
+    payload[payload_len] = '\0';
     {
         bb_sha256_ctx ctx;
         bb_sha256_init(&ctx);
-        bb_sha256_update(&ctx, (const unsigned char *)payload_start, payload_size);
+        bb_sha256_update(&ctx, payload, payload_len);
         bb_sha256_final(&ctx, hash);
     }
     bb_sha256_hex(hash, got);
@@ -369,7 +385,7 @@ static void load_config(void)
         set_error("checksum mismatch");
         return;
     }
-    override_count = parse_kv_payload(payload_start);
+    override_count = parse_kv_payload((char *)payload);
     trailer_valid = 1;
     set_error("ok");
 }

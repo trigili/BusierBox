@@ -130,6 +130,14 @@ def decode_trailer(data, reject_unknown=False):
     if size <= 0 or offset <= 0 or offset + size > len(raw):
         return {"present": True, "valid": False, "status": "payload bounds invalid", "values": {}, "meta": meta}
     payload = bytearray(raw[offset : offset + size])
+    payload_format = meta.get("payload_format", "raw")
+    if payload_format == "hex":
+        try:
+            payload = bytearray(bytes.fromhex(payload.decode("ascii")))
+        except (UnicodeDecodeError, ValueError):
+            return {"present": True, "valid": False, "status": "invalid hex payload", "values": {}, "meta": meta}
+    elif payload_format != "raw":
+        return {"present": True, "valid": False, "status": f"unsupported payload format {payload_format}", "values": {}, "meta": meta}
     encoding = meta.get("encoding", "plain")
     if encoding == "xor":
         try:
@@ -201,11 +209,18 @@ def build_trailer(values, mode="none", key_hex=""):
         key = bytes.fromhex(key_hex)
         for i in range(len(encoded)):
             encoded[i] ^= key[i % len(key)]
+    trailer_payload = bytes(encoded)
+    payload_format = "raw"
+    if encoding == "xor":
+        # Keep the fixed-size trailer ASCII-safe; raw XOR can contain NUL bytes.
+        trailer_payload = bytes(encoded).hex().encode("ascii")
+        payload_format = "hex"
     meta_prefix = (
         f"{MAGIC.decode()}\n"
         "version=1\n"
         f"encoding={encoding}\n"
-        f"size={len(encoded)}\n"
+        f"payload_format={payload_format}\n"
+        f"size={len(trailer_payload)}\n"
         f"sha256={sha}\n"
         f"key_hex={key_hex if encoding == 'xor' else ''}\n"
     )
@@ -216,7 +231,7 @@ def build_trailer(values, mode="none", key_hex=""):
             break
         offset = next_offset
     meta = meta_prefix + f"payload_offset={offset}\nENDMETA\n"
-    trailer = meta.encode("ascii") + bytes(encoded)
+    trailer = meta.encode("ascii") + trailer_payload
     if len(trailer) > TRAILER_SIZE:
         die("override trailer too large")
     return trailer + b"\0" * (TRAILER_SIZE - len(trailer))
