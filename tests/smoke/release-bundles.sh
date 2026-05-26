@@ -8,6 +8,31 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 scripts/make-release --name smoke --targets native --payload-presets default --dry-run >"$work/dry-run.out"
 grep -q 'would build target=native payload=default format=tgz' "$work/dry-run.out"
+grep -q '^layout=symlink$' "$work/dry-run.out"
+scripts/make-release --name smoke --targets native --payload-presets default --copy-layout --dry-run >"$work/dry-run-copy.out"
+grep -q '^layout=copy$' "$work/dry-run-copy.out"
+python3 - <<'PY'
+import importlib.machinery
+import sys
+
+sys.path.insert(0, "scripts")
+mod = importlib.machinery.SourceFileLoader("make_release", "scripts/make-release").load_module()
+resolved = {
+    "TARGET_NAME": "mipsel-linux-4.x-musl",
+    "TARGET_ARCH": "mipsel",
+    "TARGET_LIBC": "musl",
+    "TARGET_KERNEL_FLOOR": "4.x",
+    "TARGET_CPU": "mips32r2-24kc",
+    "TARGET_ABI": "default",
+}
+tuple_info = mod.tuple_metadata(resolved)
+if tuple_info["path"] != "by-tuple/mipsel/musl/4.x/mips32r2-24kc":
+    raise SystemExit(f"tuple path mismatch: {tuple_info['path']}")
+aliases = mod.target_aliases({"target": "glinet-mt7621-openwrt-musl"}, resolved)
+for alias in ("glinet-mt7621-openwrt-musl", "mipsel-linux-4.x-musl", "glinet-mt7621", "glinet-mt1300"):
+    if alias not in aliases:
+        raise SystemExit(f"missing device alias {alias}")
+PY
 scripts/make-release --name reverse-smoke --targets native --payload-presets survey-core --reverse-access-profiles builtin,ssh,socat --dry-run >"$work/reverse-dry-run.out"
 grep -q 'would build target=native payload=survey-core format=tgz' "$work/reverse-dry-run.out"
 grep -q 'would build target=native payload=builtin-core-shell format=tgz' "$work/reverse-dry-run.out"
@@ -118,6 +143,20 @@ scripts/make-release \
     --out-dir "$work/release" >"$work/release.out"
 
 test -x "$work/release/bin/busierbox-native-default-full"
+test -d "$work/release/by-tuple/native/host/host/host"
+test -x "$work/release/by-tuple/native/host/host/host/bin/busierbox-native-default-full"
+test -L "$work/release/by-tuple/native/host/host/host/bin/busierbox-native-default-full"
+test -f "$work/release/by-tuple/native/host/host/host/README.txt"
+test -f "$work/release/by-tuple/native/host/host/host/MANIFEST.txt"
+test -f "$work/release/by-tuple/native/host/host/host/MANIFEST.json"
+test -f "$work/release/by-tuple/native/host/host/host/configs/native-default.conf"
+test -f "$work/release/by-tuple/native/host/host/host/manifests/busierbox-native-default-full.manifest.json"
+test -f "$work/release/by-tuple/native/host/host/host/manifests/busierbox-native-default-full.payload-manifest.json"
+test -d "$work/release/devices/native"
+test -L "$work/release/devices/native/artifacts"
+test -f "$work/release/devices/native/target.json"
+test -f "$work/release/devices/native/README.txt"
+test -f "$work/release/devices/native/notes.md"
 test -x "$work/release/scripts/artifact-config"
 test -x "$work/release/scripts/configure-artifact"
 test -x "$work/release/scripts/configure-all"
@@ -144,6 +183,27 @@ import json
 import sys
 
 data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+layout = data.get("layout", {})
+if layout.get("mode") != "symlink":
+    raise SystemExit("expected default symlink layout")
+tuples = layout.get("tuples", {})
+native_tuple = tuples.get("by-tuple/native/host/host/host")
+if not native_tuple:
+    raise SystemExit("missing native tuple layout metadata")
+if native_tuple.get("manifest") != "by-tuple/native/host/host/host/MANIFEST.json":
+    raise SystemExit("native tuple manifest metadata mismatch")
+devices = layout.get("devices", {})
+if devices.get("native", {}).get("tuple_path") != "by-tuple/native/host/host/host":
+    raise SystemExit("native device alias mismatch")
+artifact = data["artifacts"][0]
+if artifact.get("tuple_path") != "by-tuple/native/host/host/host":
+    raise SystemExit("artifact tuple path missing")
+if artifact.get("tuple_artifact") != "by-tuple/native/host/host/host/bin/busierbox-native-default-full":
+    raise SystemExit("artifact tuple artifact missing")
+summary = artifact.get("tuple_summary") or {}
+for key in ("payload_manifest", "native_applets", "busybox_applets", "core_extraction_behavior", "trailer_overridable_fields"):
+    if key not in summary:
+        raise SystemExit(f"tuple summary missing {key}")
 host = data.get("build_host", {})
 for key in ("system", "machine", "python_version"):
     if not host.get(key):
@@ -161,6 +221,26 @@ for name in ("buildroot", "miniz", "doom-ascii"):
         raise SystemExit(f"missing source lock entry: {name}")
     if not sources[name].get("version") or not sources[name].get("sha256"):
         raise SystemExit(f"incomplete source lock entry: {name}")
+PY
+
+python3 - "$work/release/by-tuple/native/host/host/host/MANIFEST.json" "$work/release/by-tuple/native/host/host/host/MANIFEST.txt" <<'PY'
+import json
+import sys
+
+manifest = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if manifest.get("tuple", {}).get("path") != "by-tuple/native/host/host/host":
+    raise SystemExit("tuple manifest path mismatch")
+artifacts = manifest.get("artifacts", [])
+if len(artifacts) != 1:
+    raise SystemExit("tuple manifest artifact count mismatch")
+summary = artifacts[0]
+for key in ("payload_preset", "runtime_mode", "payload_manifest", "native_applets", "busybox_applets", "heavy_tools", "missing_tools", "sha256", "config"):
+    if key not in summary:
+        raise SystemExit(f"tuple artifact summary missing {key}")
+text = open(sys.argv[2], "r", encoding="utf-8").read()
+for needle in ("Payload variants:", "payload_manifest=", "busybox_applets=", "core_extraction=", "trailer_overridable_fields=", "reverse_access_defaults="):
+    if needle not in text:
+        raise SystemExit(f"tuple MANIFEST.txt missing {needle}")
 PY
 
 scripts/make-release \
@@ -190,6 +270,56 @@ for key in ("payload_preset", "format", "config", "artifact", "trailer_support")
     if not failure.get(key):
         raise SystemExit(f"failure missing {key}")
 PY
+
+scripts/make-release \
+    --name copy-layout \
+    --targets native \
+    --payload-presets default \
+    --skip-build \
+    --copy-layout \
+    --out-dir "$work/copy-release" >"$work/copy-release.out"
+test -x "$work/copy-release/by-tuple/native/host/host/host/bin/busierbox-native-default-full"
+test ! -L "$work/copy-release/by-tuple/native/host/host/host/bin/busierbox-native-default-full"
+test -d "$work/copy-release/devices/native/artifacts"
+python3 - "$work/copy-release/release.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if data.get("layout", {}).get("mode") != "copy":
+    raise SystemExit("copy layout metadata mismatch")
+PY
+
+if [ -f dist/busierbox-mipsel-linux-4.x-musl-full ]; then
+    scripts/make-release \
+        --name glinet-layout \
+        --targets glinet-mt7621-openwrt-musl \
+        --payload-presets default \
+        --skip-build \
+        --out-dir "$work/glinet-release" >"$work/glinet-release.out"
+    test -d "$work/glinet-release/by-tuple/mipsel/musl/4.x/mips32r2-24kc"
+    test -L "$work/glinet-release/devices/glinet-mt1300/artifacts"
+    test -f "$work/glinet-release/by-tuple/mipsel/musl/4.x/mips32r2-24kc/manifests/busierbox-mipsel-linux-4.x-musl-default-full.payload-manifest.json"
+    python3 - "$work/glinet-release/release.json" "$work/glinet-release/by-tuple/mipsel/musl/4.x/mips32r2-24kc/MANIFEST.json" <<'PY'
+import json
+import sys
+
+release = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if release.get("layout", {}).get("devices", {}).get("glinet-mt1300", {}).get("tuple_path") != "by-tuple/mipsel/musl/4.x/mips32r2-24kc":
+    raise SystemExit("glinet device alias tuple mismatch")
+artifact = release["artifacts"][0]
+if artifact.get("build_status") != "copied":
+    raise SystemExit("glinet skip-build artifact was not copied")
+summary = artifact.get("tuple_summary") or {}
+if not summary.get("busybox_applets"):
+    raise SystemExit("glinet tuple summary lacks static BusyBox applets")
+if not summary.get("payload_manifest"):
+    raise SystemExit("glinet tuple summary lacks payload manifest")
+manifest = json.load(open(sys.argv[2], "r", encoding="utf-8"))
+if not manifest.get("artifacts", [{}])[0].get("busybox_applets"):
+    raise SystemExit("glinet tuple manifest lacks static BusyBox applets")
+PY
+fi
 
 if scripts/make-release \
     --name strict-failure \

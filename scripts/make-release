@@ -4,6 +4,7 @@
 import argparse
 import datetime as dt
 import hashlib
+import io
 import json
 import os
 import pathlib
@@ -19,6 +20,10 @@ import busierbox_matrix as matrix
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
+PAYLOAD_MAGIC = b"BBXPAYLOADv1"
+PAYLOAD_TRAILER_SIZE = 512
+CONFIG_MAGIC = b"BBXCONFIGv1"
+CONFIG_TRAILER_SIZE = 4096
 REVERSE_ACCESS_PROFILES = {
     "builtin": "builtin-core-shell",
     "builtin-core-shell": "builtin-core-shell",
@@ -182,6 +187,77 @@ def config_suffix(job):
 
 def safe_stem(value):
     return "".join(ch if ch.isalnum() or ch in "._-" else "-" for ch in value).strip("-") or "item"
+
+
+def tuple_component(value, fallback="unknown"):
+    return safe_stem(str(value or fallback).replace("/", "-"))
+
+
+def tuple_discriminator(resolved):
+    cpu = resolved.get("TARGET_CPU") or ""
+    abi = resolved.get("TARGET_ABI") or ""
+    if cpu and cpu not in {"generic", "host"}:
+        return cpu
+    if abi and abi not in {"default", "hardfloat"}:
+        return abi
+    return cpu or abi or "default"
+
+
+def tuple_metadata(resolved):
+    arch = resolved.get("TARGET_ARCH") or "unknown"
+    libc = resolved.get("TARGET_LIBC") or "unknown"
+    kernel = resolved.get("TARGET_KERNEL_FLOOR") or "unknown"
+    discriminator = tuple_discriminator(resolved)
+    rel = "/".join([
+        "by-tuple",
+        tuple_component(arch),
+        tuple_component(libc),
+        tuple_component(kernel),
+        tuple_component(discriminator),
+    ])
+    return {
+        "arch": arch,
+        "libc": libc,
+        "kernel_floor": kernel,
+        "cpu": resolved.get("TARGET_CPU") or "",
+        "abi": resolved.get("TARGET_ABI") or "",
+        "endian": resolved.get("TARGET_ENDIAN") or "",
+        "static_policy": resolved.get("TARGET_STATIC_POLICY") or "",
+        "payload_tier": resolved.get("TARGET_PAYLOAD_TIER") or "",
+        "qemu_user": resolved.get("TARGET_QEMU_USER") or "",
+        "path": rel,
+    }
+
+
+def path_to(from_dir, target):
+    return os.path.relpath(target, start=from_dir)
+
+
+def place_entry(src, dest, mode):
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists() or dest.is_symlink():
+        if dest.is_dir() and not dest.is_symlink():
+            shutil.rmtree(dest)
+        else:
+            dest.unlink()
+    if mode == "copy":
+        shutil.copy2(src, dest)
+    else:
+        dest.symlink_to(path_to(dest.parent, src))
+
+
+def target_aliases(job, resolved):
+    aliases = []
+    target = job.get("target") or ""
+    resolved_target = resolved.get("TARGET_NAME") or ""
+    for alias in (target, resolved_target):
+        if alias and alias not in aliases:
+            aliases.append(alias)
+    if target.startswith("glinet-mt7621"):
+        for alias in ("glinet-mt7621", "glinet-mt1300"):
+            if alias not in aliases:
+                aliases.append(alias)
+    return aliases
 
 
 def write_config(path, job, base_config=None):
@@ -511,9 +587,252 @@ def source_lock_metadata():
     return info
 
 
+def read_json_file(path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def embedded_payload_manifest(path):
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    if len(data) >= CONFIG_TRAILER_SIZE and data[-CONFIG_TRAILER_SIZE:].startswith(CONFIG_MAGIC):
+        data = data[:-CONFIG_TRAILER_SIZE]
+    if len(data) < PAYLOAD_TRAILER_SIZE:
+        return None
+    trailer = data[-PAYLOAD_TRAILER_SIZE:].split(b"\0", 1)[0].decode("ascii", "replace")
+    lines = trailer.splitlines()
+    if not lines or lines[0].encode() != PAYLOAD_MAGIC:
+        return None
+    meta = {}
+    for line in lines[1:]:
+        if line == "END":
+            break
+        if "=" in line:
+            key, value = line.split("=", 1)
+            meta[key] = value
+    try:
+        offset = int(meta.get("offset", "0"))
+        size = int(meta.get("size", "0"))
+    except ValueError:
+        return None
+    if offset <= 0 or size <= 0 or offset + size > len(data) - PAYLOAD_TRAILER_SIZE:
+        return None
+    try:
+        with tarfile.open(fileobj=io.BytesIO(data[offset : offset + size]), mode="r:*") as tf:
+            member = tf.extractfile("payload/manifest.json")
+            return json.load(member) if member else None
+    except (OSError, tarfile.TarError, json.JSONDecodeError):
+        return None
+
+
+def artifact_summary(release_dir, rec):
+    manifest = read_json_file(release_dir / rec.get("manifest_path", "")) if rec.get("manifest_path") else None
+    payload_manifest = read_json_file(release_dir / rec.get("payload_manifest_path", "")) if rec.get("payload_manifest_path") else None
+    payload_tools = (manifest or {}).get("payload_tools") or {}
+    native_features = (manifest or {}).get("native_features") or {}
+    runtime = (manifest or {}).get("runtime") or {}
+    rshell = (manifest or {}).get("rshell") or {}
+    trailer_keys = sorted(((manifest or {}).get("effective_config") or {}).keys())
+    heavy = payload_tools.get("heavy_tools") or payload_tools.get("staged_payload_tools") or (payload_manifest or {}).get("staged_payload_tools") or []
+    missing = payload_tools.get("missing_payload_tools") or (payload_manifest or {}).get("missing_payload_tools") or []
+    missing_reasons = payload_tools.get("missing_payload_tool_reasons") or (payload_manifest or {}).get("missing_payload_tool_reasons") or {}
+    busybox = payload_tools.get("busybox_applets") or (payload_manifest or {}).get("busybox_applets") or []
+    native = [key for key, value in sorted(native_features.items()) if value is True]
+    return {
+        "artifact": rec.get("artifact"),
+        "target": (payload_manifest or {}).get("target") or rec.get("resolved_target") or rec.get("target"),
+        "payload_manifest": rec.get("payload_manifest_path"),
+        "payload_preset": rec.get("payload_preset"),
+        "runtime_mode": rec.get("runtime_mode") or runtime.get("mode"),
+        "reverse_access": {
+            "transport": rshell.get("transport"),
+            "operator_host": rshell.get("operator_host"),
+            "operator_shell_port": rshell.get("operator_shell_port"),
+            "operator_ssh_port": rshell.get("operator_ssh_port"),
+            "remote_forward_port": rshell.get("remote_forward_port"),
+        },
+        "native_applets": native,
+        "busybox_applets": busybox,
+        "core_extraction_behavior": "BusyBox applet dispatch extracts a core payload subset; heavy tools upgrade to full extraction.",
+        "heavy_tools": heavy,
+        "missing_tools": missing,
+        "missing_tool_reasons": missing_reasons,
+        "trailer_overridable_fields": trailer_keys,
+        "size": rec.get("size"),
+        "sha256": rec.get("sha256"),
+        "config": rec.get("config"),
+        "manifest": rec.get("manifest_path"),
+        "config_info": rec.get("config_info_path"),
+    }
+
+
+def manifest_text_for_tuple(tuple_info, records):
+    lines = [
+        "BusierBox compatibility tuple",
+        f"tuple_path={tuple_info['path']}",
+        f"arch={tuple_info.get('arch', '')}",
+        f"libc={tuple_info.get('libc', '')}",
+        f"kernel_floor={tuple_info.get('kernel_floor', '')}",
+        f"cpu={tuple_info.get('cpu', '')}",
+        f"abi={tuple_info.get('abi', '')}",
+        f"endian={tuple_info.get('endian', '')}",
+        f"static_policy={tuple_info.get('static_policy', '')}",
+        "",
+        "Payload variants:",
+    ]
+    for rec in records:
+        summary = rec.get("tuple_summary") or {}
+        lines.extend([
+            f"- {rec.get('payload_preset')} -> {rec.get('tuple_artifact', rec.get('artifact', ''))}",
+            f"  status={rec.get('build_status', '')}",
+            f"  runtime_mode={summary.get('runtime_mode') or rec.get('runtime_mode') or ''}",
+            f"  size={rec.get('size', '')}",
+            f"  sha256={rec.get('sha256', '')}",
+            f"  config={rec.get('config', '')}",
+            f"  manifest={rec.get('tuple_manifest', rec.get('manifest_path') or '')}",
+            f"  payload_manifest={rec.get('tuple_payload_manifest', rec.get('payload_manifest_path') or '')}",
+            f"  native_applets={', '.join(summary.get('native_applets') or [])}",
+            f"  busybox_applets={', '.join(summary.get('busybox_applets') or [])}",
+            f"  core_extraction={summary.get('core_extraction_behavior', '')}",
+            f"  heavy_tools={', '.join(summary.get('heavy_tools') or [])}",
+            f"  missing_tools={', '.join(summary.get('missing_tools') or [])}",
+        ])
+        reasons = summary.get("missing_tool_reasons") or {}
+        if reasons:
+            lines.append("  missing_tool_reasons=" + json.dumps(reasons, sort_keys=True))
+        reverse = summary.get("reverse_access") or {}
+        lines.append("  reverse_access_defaults=" + json.dumps(reverse, sort_keys=True))
+        lines.append("  trailer_overridable_fields=" + ", ".join(summary.get("trailer_overridable_fields") or []))
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_tuple_layout(release_dir, records, layout_mode):
+    tuples = {}
+    devices = {}
+
+    for rec in records:
+        if rec.get("build_status") == "failed" or not rec.get("artifact"):
+            continue
+        tuple_info = rec.get("tuple") or {}
+        tuple_path = tuple_info.get("path")
+        if not tuple_path:
+            continue
+        tuple_dir = release_dir / tuple_path
+        tuple_dir.mkdir(parents=True, exist_ok=True)
+        for sub in ("bin", "configs", "manifests"):
+            (tuple_dir / sub).mkdir(exist_ok=True)
+
+        flat_artifact = release_dir / rec["artifact"]
+        flat_config = release_dir / rec["config"]
+        tuple_artifact = tuple_dir / "bin" / pathlib.Path(rec["artifact"]).name
+        tuple_config = tuple_dir / "configs" / pathlib.Path(rec["config"]).name
+        place_entry(flat_artifact, tuple_artifact, layout_mode)
+        place_entry(flat_config, tuple_config, layout_mode)
+        rec["tuple_path"] = tuple_path
+        rec["tuple_artifact"] = tuple_artifact.relative_to(release_dir).as_posix()
+        rec["tuple_config"] = tuple_config.relative_to(release_dir).as_posix()
+
+        if rec.get("manifest_path"):
+            flat_manifest = release_dir / rec["manifest_path"]
+            tuple_manifest = tuple_dir / "manifests" / flat_manifest.name
+            place_entry(flat_manifest, tuple_manifest, layout_mode)
+            rec["tuple_manifest"] = tuple_manifest.relative_to(release_dir).as_posix()
+        if rec.get("payload_manifest_path"):
+            flat_payload_manifest = release_dir / rec["payload_manifest_path"]
+            tuple_payload_manifest = tuple_dir / "manifests" / flat_payload_manifest.name
+            place_entry(flat_payload_manifest, tuple_payload_manifest, layout_mode)
+            rec["tuple_payload_manifest"] = tuple_payload_manifest.relative_to(release_dir).as_posix()
+        if rec.get("config_info_path"):
+            flat_config_info = release_dir / rec["config_info_path"]
+            tuple_config_info = tuple_dir / "manifests" / flat_config_info.name
+            place_entry(flat_config_info, tuple_config_info, layout_mode)
+            rec["tuple_config_info"] = tuple_config_info.relative_to(release_dir).as_posix()
+
+        rec["tuple_summary"] = artifact_summary(release_dir, rec)
+        bucket = tuples.setdefault(tuple_path, {"tuple": tuple_info, "artifacts": []})
+        bucket["artifacts"].append(rec)
+
+        for alias in rec.get("device_aliases") or []:
+            devices.setdefault(alias, {"alias": alias, "tuple_path": tuple_path, "artifacts": []})
+            devices[alias]["artifacts"].append(rec.get("tuple_artifact") or rec.get("artifact"))
+
+    for tuple_path, item in sorted(tuples.items()):
+        tuple_dir = release_dir / tuple_path
+        manifest = {
+            "schema": 1,
+            "tuple": item["tuple"],
+            "artifacts": [rec.get("tuple_summary") for rec in item["artifacts"]],
+        }
+        (tuple_dir / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        (tuple_dir / "MANIFEST.txt").write_text(manifest_text_for_tuple(item["tuple"], item["artifacts"]), encoding="utf-8")
+        (tuple_dir / "README.txt").write_text(
+            f"BusierBox artifacts for compatibility tuple {tuple_path}.\n"
+            "Use this tuple when the target arch/libc/kernel floor match, regardless of device name.\n"
+            "The flat top-level bin/, configs/, and manifests/ paths are kept for scripts.\n",
+            encoding="utf-8",
+        )
+
+    devices_dir = release_dir / "devices"
+    for alias, item in sorted(devices.items()):
+        device_dir = devices_dir / safe_stem(alias)
+        device_dir.mkdir(parents=True, exist_ok=True)
+        target_json = {
+            "schema": 1,
+            "alias": alias,
+            "tuple_path": item["tuple_path"],
+            "artifacts": item["artifacts"],
+        }
+        (device_dir / "target.json").write_text(json.dumps(target_json, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        (device_dir / "README.txt").write_text(
+            f"{alias}\n\nThis device/exemplar alias maps to `{item['tuple_path']}`.\n",
+            encoding="utf-8",
+        )
+        (device_dir / "notes.md").write_text(
+            f"# {alias}\n\nUse the canonical compatibility tuple at `{item['tuple_path']}`.\n",
+            encoding="utf-8",
+        )
+        artifacts_link = device_dir / "artifacts"
+        if artifacts_link.exists() or artifacts_link.is_symlink():
+            if artifacts_link.is_dir() and not artifacts_link.is_symlink():
+                shutil.rmtree(artifacts_link)
+            else:
+                artifacts_link.unlink()
+        if layout_mode == "copy":
+            shutil.copytree(release_dir / item["tuple_path"], artifacts_link, symlinks=True)
+        else:
+            artifacts_link.symlink_to(path_to(device_dir, release_dir / item["tuple_path"]))
+
+    return {
+        "mode": layout_mode,
+        "tuples": {
+            key: {
+                "tuple": value["tuple"],
+                "artifacts": [rec.get("artifact") for rec in value["artifacts"]],
+                "tuple_artifacts": [rec.get("tuple_artifact") for rec in value["artifacts"]],
+                "manifest": f"{key}/MANIFEST.json",
+            }
+            for key, value in sorted(tuples.items())
+        },
+        "devices": {
+            key: {
+                "path": f"devices/{safe_stem(key)}",
+                "tuple_path": value["tuple_path"],
+                "artifacts": value["artifacts"],
+            }
+            for key, value in sorted(devices.items())
+        },
+    }
+
+
 def build_or_copy(job, config, release_dir, args, dry_run=False):
     resolved = resolve_job(job, config, dry_run=dry_run)
     resolved_target = resolved.get("TARGET_NAME") or job["target"]
+    tuple_info = tuple_metadata(resolved)
     runtime_suffix = f"-{safe_stem(job['runtime_mode'])}" if job.get("runtime_mode") else ""
     config_stem = f"{safe_stem(job['target'])}-{safe_stem(job['payload'])}{config_suffix(job)}{runtime_suffix}"
     stem = f"busierbox-{safe_stem(resolved_target)}-{safe_stem(job['payload'])}{config_suffix(job)}{runtime_suffix}-full"
@@ -528,6 +847,9 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
         "reverse_access_profiles": job.get("reverse_access_profiles", []),
         "config": f"configs/{config_stem}.conf",
         "artifact": f"bin/{stem}",
+        "tuple": tuple_info,
+        "tuple_path": tuple_info["path"],
+        "device_aliases": target_aliases(job, resolved),
         "build_status": "dry-run" if dry_run else "pending",
         "trailer_support": "artifact-config bundled",
     }
@@ -561,13 +883,18 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
     rec.update({"build_status": "built" if not args.skip_build else "copied", "sha256": digest, "size": dest.stat().st_size})
 
     manifest = release_dir / "manifests" / f"{stem}.manifest.json"
+    payload_manifest_path = release_dir / "manifests" / f"{stem}.payload-manifest.json"
     config_info = release_dir / "manifests" / f"{stem}.config-info.txt"
     inspect_txt = release_dir / "manifests" / f"{stem}.inspect.txt"
     run_capture([str(ROOT / "scripts" / "inspect-artifact"), str(dest)], inspect_txt)
-    if os.access(dest, os.X_OK):
+    payload_manifest = embedded_payload_manifest(dest)
+    if payload_manifest:
+        payload_manifest_path.write_text(json.dumps(payload_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if resolved.get("TARGET_ARCH") == "native" and os.access(dest, os.X_OK):
         run_capture([str(dest), "manifest", "--json"], manifest)
         run_capture([str(dest), "config-info"], config_info)
     rec["manifest_path"] = f"manifests/{manifest.name}" if manifest.exists() and manifest.stat().st_size else None
+    rec["payload_manifest_path"] = f"manifests/{payload_manifest_path.name}" if payload_manifest_path.exists() and payload_manifest_path.stat().st_size else None
     rec["config_info_path"] = f"manifests/{config_info.name}" if config_info.exists() and config_info.stat().st_size else None
     return rec
 
@@ -612,6 +939,10 @@ def main(argv=None):
     parser.add_argument("--include-sources-manifest", action="store_true")
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--symlink-layout", dest="layout_mode", action="store_const", const="symlink", default="symlink",
+                        help="populate by-tuple/devices layout with symlinks to flat files (default)")
+    parser.add_argument("--copy-layout", dest="layout_mode", action="store_const", const="copy",
+                        help="populate by-tuple/devices layout with copied files for portability")
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--out-dir")
@@ -631,6 +962,7 @@ def main(argv=None):
         if release_version:
             print(f"version={release_version}")
         print(f"release_dir={release_dir}")
+        print(f"layout={args.layout_mode}")
         for job in jobs:
             runtime = f" runtime={job['runtime_mode']}" if job.get("runtime_mode") else ""
             config = f" config={job['config_source']}" if job.get("config_source") else ""
@@ -657,6 +989,8 @@ def main(argv=None):
         if args.fail_fast and rec.get("build_status") == "failed":
             break
 
+    layout = write_tuple_layout(release_dir, records, args.layout_mode)
+
     release = {
         "schema_version": SCHEMA_VERSION,
         "release_name": release_name,
@@ -679,6 +1013,7 @@ def main(argv=None):
         },
         "include_sources_manifest": include_sources_manifest,
         "skip_build": bool(args.skip_build),
+        "layout": layout,
         "artifacts": records,
         "failures": [rec for rec in records if rec.get("build_status") == "failed"],
         "trailer_support_status": "bundled artifact-config helpers; XOR is not encryption",
