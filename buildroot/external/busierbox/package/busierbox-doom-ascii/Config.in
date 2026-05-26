@@ -2,8 +2,8 @@ config BR2_PACKAGE_BUSIERBOX_DOOM_ASCII
 	bool "busierbox doom-ascii"
 	depends on BR2_USE_MMU
 	help
-	  Build doom-ascii, a doomgeneric-based terminal Doom port, for the
-	  BusierBox optional doom payload tool.
+	  Build doom-ascii, a doomgeneric-based terminal Doom port, as the
+	  static BusierBox optional doom payload engine.
 
 	  The engine is installed as /usr/bin/doom. Game data is not included;
 	  stage a legally usable WAD separately.

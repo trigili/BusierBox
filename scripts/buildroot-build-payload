@@ -195,19 +195,17 @@ stage_doom_wad() {
 }
 
 write_doom_launcher() {
-    [ -x runtime/payload/bin/prboom ] || [ -x runtime/payload/bin/doom-ascii ] || return 1
+    [ -x runtime/payload/bin/doom-ascii ] || return 1
     cat >runtime/payload/bin/doom <<'EOF'
 #!/bin/sh
 PAYLOAD_DIR=${BUSIERBOX_PAYLOAD_DIR:-}
 if [ -z "$PAYLOAD_DIR" ]; then
     PAYLOAD_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 1
 fi
-engine=prboom
-[ -x "$PAYLOAD_DIR/bin/doom-ascii" ] && engine=doom-ascii
 for wad in "$PAYLOAD_DIR/share/games/doom"/*.wad "$PAYLOAD_DIR/share/games/doom"/*.WAD; do
-    [ -f "$wad" ] && exec "$PAYLOAD_DIR/bin/$engine" -iwad "$wad" "$@"
+    [ -f "$wad" ] && exec "$PAYLOAD_DIR/bin/doom-ascii" -iwad "$wad" "$@"
 done
-exec "$PAYLOAD_DIR/bin/$engine" "$@"
+exec "$PAYLOAD_DIR/bin/doom-ascii" "$@"
 EOF
     chmod 0755 runtime/payload/bin/doom
     printf '%s\n' doom >>runtime/payload/staged-tools.txt
@@ -780,10 +778,8 @@ if tool_requested doom; then
             cp "$out_dir/target/usr/share/busierbox/doom/.default.cfg" runtime/payload/bin/.default.cfg
         fi
         write_doom_launcher || printf '%s\n' "buildroot-build-payload: requested doom but launcher could not be written" >&2
-    elif stage_first_found_as doom prboom usr/games/prboom usr/bin/prboom bin/prboom; then
-        write_doom_launcher || printf '%s\n' "buildroot-build-payload: requested doom but launcher could not be written" >&2
     else
-        stage_first_found doom usr/bin/doom bin/doom usr/games/doom usr/bin/chocolate-doom bin/chocolate-doom usr/games/chocolate-doom || printf '%s\n' "buildroot-build-payload: requested doom but no built binary was found" >&2
+        die "requested doom but the static doom-ascii engine was not found in the Buildroot target output"
     fi
 fi
 
