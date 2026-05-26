@@ -50,6 +50,7 @@ Operator queue inspection:
 scripts/busierbox-server --queue-command 'busierbox reality-test --json'
 scripts/busierbox-server --list-command-queue
 scripts/busierbox-server --json-command-queue
+scripts/busierbox-server --record-command-result cq-id --result-json result.json
 scripts/busierbox-server --clear-command-queue
 ```
 
@@ -58,3 +59,7 @@ maximum output metadata, status, and explicit `execution_supported=false` /
 `delivery_supported=false` fields. They are operator-visible records only until
 a later explicitly enabled command-queue transport and target execution policy
 are implemented.
+
+`--record-command-result` attaches a structured JSON result object to an
+existing queued command and logs `command_result_received`. This is still
+operator-side bookkeeping; it does not poll, deliver, or execute commands.

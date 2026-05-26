@@ -72,7 +72,8 @@ def main():
         print("busierbox-server help missing receive-only file service", file=sys.stderr)
         return 1
     for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--list-staged", "--status", "--stop", "--json-status",
-                 "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file"):
+                 "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
+                 "--record-command-result", "--result-json"):
         if word not in combined:
             print(f"busierbox-server help missing operator workbench flag: {word}", file=sys.stderr)
             return 1
@@ -205,13 +206,42 @@ def main():
         if queue_status["command_queue"]["queued_count"] != 1:
             print("json command queue listing missing queued entry", file=sys.stderr)
             return 1
+        command_id = queue_status["command_queue"]["commands"][0]["id"]
+        result_json = Path(tmp) / "command-result.json"
+        result_json.write_text(json.dumps({
+            "schema": 1,
+            "command_id": command_id,
+            "status": "completed",
+            "exit_code": 0,
+            "stdout_bytes": 12,
+            "stderr_bytes": 0,
+        }) + "\n", encoding="utf-8")
+        recorded_result = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--record-command-result", command_id,
+            "--result-json", str(result_json),
+        )
+        if recorded_result.returncode != 0 or "recorded result" not in recorded_result.stdout:
+            print("operator command queue result was not recorded", file=sys.stderr)
+            print(recorded_result.stdout, file=sys.stderr)
+            print(recorded_result.stderr, file=sys.stderr)
+            return 1
+        queue_after_result = json.loads(queue_file.read_text(encoding="utf-8"))
+        command_after_result = queue_after_result["commands"][0]
+        if (command_after_result.get("status") != "result-received" or
+                command_after_result.get("result", {}).get("exit_code") != 0 or
+                not command_after_result.get("result_received_at")):
+            print("operator command queue result metadata missing", file=sys.stderr)
+            return 1
         queue_status_doc = run(
             "scripts/busierbox-server",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--json-status",
         )
-        if json.loads(queue_status_doc.stdout)["command_queue"]["queued_count"] != 1:
+        if json.loads(queue_status_doc.stdout)["command_queue"]["result_count"] != 1:
             print("server json status missing command queue summary", file=sys.stderr)
             return 1
         queue_status_text = run(
@@ -222,6 +252,8 @@ def main():
         )
         if ("Command queue:" not in queue_status_text.stdout or
                 "busierbox reality-test --json" not in queue_status_text.stdout or
+                "result-received" not in queue_status_text.stdout or
+                "command_result_received" not in queue_status_text.stdout or
                 "Event log:" not in queue_status_text.stdout):
             print("text --status missing command queue/event sections", file=sys.stderr)
             print(queue_status_text.stdout, file=sys.stderr)

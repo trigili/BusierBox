@@ -215,14 +215,50 @@ def clear_command_queue(cfg):
     return count
 
 
+def record_command_result(cfg, command_id, result_path):
+    data = load_command_queue(cfg)
+    path = Path(result_path).expanduser()
+    if not path.is_file():
+        raise ValueError(f"command result JSON does not exist: {path}")
+    try:
+        result = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"command result JSON is invalid: {exc}") from exc
+    if not isinstance(result, dict):
+        raise ValueError("command result JSON must be an object")
+    commands = data.get("commands", [])
+    for rec in commands:
+        if isinstance(rec, dict) and rec.get("id") == command_id:
+            rec["status"] = "result-received"
+            rec["result_received_at"] = utc_now()
+            rec["result"] = result
+            rec["result_source_path"] = str(path)
+            save_command_queue(cfg, data)
+            append_event(
+                cfg,
+                "command-queue",
+                "command_result_received",
+                details={
+                    "id": command_id,
+                    "result_source_path": str(path),
+                    "status": result.get("status", ""),
+                    "exit_code": result.get("exit_code", ""),
+                },
+            )
+            return rec
+    raise ValueError(f"command queue id not found: {command_id}")
+
+
 def command_queue_summary(cfg):
     data = load_command_queue(cfg)
     commands = data.get("commands", [])
     queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
+    result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
     return {
         "path": str(command_queue_path(cfg)),
         "commands": commands,
         "queued_count": len(queued),
+        "result_count": result_count,
         "total_count": len(commands),
         "execution_supported": False,
         "delivery_supported": False,
@@ -243,6 +279,8 @@ def print_command_queue(cfg, json_output=False):
         print(f"{rec.get('id', '')}\t{rec.get('status', '')}\tcreated={rec.get('created_at', '')}")
         print(f"  command: {rec.get('command', '')}")
         print(f"  timeout={rec.get('timeout_sec', '')} max_output={rec.get('max_output_bytes', '')} execution_supported=no")
+        if rec.get("result_received_at"):
+            print(f"  result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
 
 
 def reject_traversal_request_name(name):
@@ -2058,9 +2096,11 @@ def print_status(cfg, json_output=False):
     print("Command queue:")
     queue = doc["command_queue"]
     print(f"  path: {queue.get('path', '')}")
-    print(f"  queued: {queue.get('queued_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
+    print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
+        if rec.get("result_received_at"):
+            print(f"    result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
     print("")
     print("Event log:")
     if doc["events"]:
@@ -2187,9 +2227,11 @@ def print_workbench(cfg):
     print("Command queue:")
     queue = snap["command_queue"]
     print(f"  path: {queue.get('path', '')}")
-    print(f"  queued: {queue.get('queued_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
+    print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
+        if rec.get("result_received_at"):
+            print(f"    result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
     print("")
     print("Event log:")
     if snap["events"]:
@@ -2680,6 +2722,7 @@ File staging:
 Command queue:
   --queue-command 'busierbox reality-test --json'
   --list-command-queue
+  --record-command-result cq-id --result-json result.json
   --clear-command-queue
 
 Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
@@ -2735,6 +2778,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="list explicit operator command queue entries")
     parser.add_argument("--json-command-queue", action="store_true",
                         help="print command queue entries as JSON")
+    parser.add_argument("--record-command-result",
+                        help="record structured JSON result metadata for a queued command id")
+    parser.add_argument("--result-json",
+                        help="JSON object to attach with --record-command-result")
     parser.add_argument("--clear-command-queue", action="store_true",
                         help="clear explicit operator command queue entries")
     parser.add_argument("--listen-host", help="listener bind address")
@@ -2810,6 +2857,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             rec = queue_command(cfg, args.queue_command, timeout_sec=args.queue_timeout, max_output_bytes=args.queue_max_output)
             print(f"queued {rec['id']}: {rec['command']}")
             print("execution_supported=no delivery_supported=no")
+            if not (args.list_command_queue or args.json_command_queue):
+                return 0
+        if args.record_command_result:
+            if not args.result_json:
+                raise ValueError("--record-command-result requires --result-json")
+            rec = record_command_result(cfg, args.record_command_result, args.result_json)
+            print(f"recorded result for {rec['id']}: status={rec.get('result', {}).get('status', '')}")
             if not (args.list_command_queue or args.json_command_queue):
                 return 0
         if args.list_command_queue or args.json_command_queue:
