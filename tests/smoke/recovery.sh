@@ -133,12 +133,30 @@ PY
 "$bb" persistence uninstall --method cron-reboot --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 
 printf '%s\n' '#!/bin/sh' 'echo recovery-script' >"$tmp/script.sh"
+"$bb" persistence install --method rc-local --action script --file "$tmp/script.sh" --dry-run --root "$tmp/root" --name bbx_recovery >"$tmp/script-dry-run"
+grep -q "Would copy script: $tmp/root/usr/bin/bbx_recovery.recovery.sh from $tmp/script.sh" "$tmp/script-dry-run"
+grep -q 'Generated command: /usr/bin/bbx_recovery.recovery.sh' "$tmp/script-dry-run"
 "$bb" persistence install --method rc-local --action script --file "$tmp/script.sh" --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 test -x "$tmp/root/usr/bin/bbx_recovery.recovery.sh"
 grep -q 'action=script' "$tmp/root/etc/rc.local"
 grep -q '/usr/bin/bbx_recovery.recovery.sh' "$tmp/root/etc/rc.local"
 "$bb" persistence status --root "$tmp/root" --name bbx_recovery >"$tmp/script-status"
 grep -q 'installed_action=script' "$tmp/script-status"
+grep -q "installed_script=$tmp/root/usr/bin/bbx_recovery.recovery.sh" "$tmp/script-status"
+grep -q 'installed_script_present=yes' "$tmp/script-status"
+"$bb" persistence status --json --root "$tmp/root" --name bbx_recovery >"$tmp/script-status.json"
+python3 -m json.tool "$tmp/script-status.json" >/dev/null
+python3 - <<'PY' "$tmp/script-status.json" "$tmp/root"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+root = sys.argv[2]
+item = next(item for item in data["installations"] if item["method"] == "rc-local")
+assert item["action"] == "script"
+assert item["generated_command"] == "/usr/bin/bbx_recovery.recovery.sh"
+assert item["script_path"] == f"{root}/usr/bin/bbx_recovery.recovery.sh"
+assert item["script_present"] is True
+assert item["binary_present"] is True
+PY
 "$bb" cleanup-ledger --json | python3 -m json.tool >"$tmp/script-ledger.json"
 python3 - <<'PY' "$tmp/script-ledger.json"
 import json, sys

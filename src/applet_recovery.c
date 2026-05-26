@@ -672,6 +672,8 @@ int applet_recovery_main(int argc, char **argv)
                     printf("installed_hook_present=%s\n", path_exists(path) ? "yes" : "no");
                     printf("installed_binary=%s\n", bin);
                     printf("installed_binary_present=%s\n", path_exists(bin) ? "yes" : "no");
+                    printf("installed_script=%s\n", script);
+                    printf("installed_script_present=%s\n", path_exists(script) ? "yes" : "no");
                     printf("installed_action=%s\n", action[0] ? action : "unknown");
                     if (generated[0])
                         printf("installed_command=%s\n", generated);
