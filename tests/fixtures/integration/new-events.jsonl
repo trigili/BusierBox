@@ -1,0 +1,3 @@
+{"details":{"port":22204,"tls":true},"event":"service_start","id":"evt-fixture-1","level":"info","remote":"","schema":1,"service":"file-service","session":"","session_path":"","ts":"2026-05-26T12:00:00Z"}
+{"details":{"filename":"evidence.txt","size":12},"event":"upload_complete","id":"evt-fixture-2","level":"info","remote":"192.0.2.10:40100","schema":1,"service":"file-service","session":"20260526-file-service","session_path":"local/sessions/20260526-file-service","ts":"2026-05-26T12:00:02Z"}
+{"details":{"reason":"SIGTERM"},"event":"shutdown","id":"evt-fixture-3","level":"info","remote":"","schema":1,"service":"file-service","session":"","session_path":"","ts":"2026-05-26T12:00:05Z"}

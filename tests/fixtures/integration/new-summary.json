@@ -4,6 +4,7 @@
   "operator_host": "127.0.0.1",
   "target_preset": "glinet-mt7621-openwrt-musl",
   "log_dir": "local/integration-runs/new",
+  "event_log": "new-events.jsonl",
   "cases": [
     {
       "case": "survey-core",

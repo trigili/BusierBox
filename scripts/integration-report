@@ -25,6 +25,83 @@ def load_summary(ref):
     return path, data
 
 
+def resolve_existing_path(summary_path, value):
+    if not value:
+        return None
+    path = pathlib.Path(str(value))
+    candidates = [path]
+    if not path.is_absolute():
+        candidates.append(summary_path.parent / path)
+        candidates.append(ROOT / path)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def event_log_ref(data):
+    for key in ("event_log", "operator_event_log", "events_jsonl"):
+        if data.get(key):
+            return data.get(key)
+    status = data.get("operator_status") or {}
+    if isinstance(status, dict):
+        return status.get("event_log")
+    return None
+
+
+def load_event_summary(summary_path, data, limit=8):
+    ref = event_log_ref(data)
+    path = resolve_existing_path(summary_path, ref)
+    if not path:
+        return {}
+    counts = {}
+    services = {}
+    recent = []
+    total = 0
+    with path.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            total += 1
+            event_name = str(event.get("event", "unknown") or "unknown")
+            service = str(event.get("service", "unknown") or "unknown")
+            counts[event_name] = counts.get(event_name, 0) + 1
+            services[service] = services.get(service, 0) + 1
+            recent.append({
+                "ts": event.get("ts", ""),
+                "level": event.get("level", ""),
+                "service": service,
+                "event": event_name,
+                "session": event.get("session", ""),
+                "remote": event.get("remote", ""),
+                "details": event.get("details", {}),
+            })
+            if len(recent) > limit:
+                recent = recent[-limit:]
+    return {
+        "path": str(path),
+        "total_count": total,
+        "event_counts": counts,
+        "service_counts": services,
+        "recent": recent,
+    }
+
+
+def report_document(path, data):
+    doc = dict(data)
+    events = load_event_summary(path, data)
+    if events:
+        doc["operator_events"] = events
+    return doc
+
+
 def case_reason(case):
     return case.get("reason") or case.get("error") or case.get("cleanup_error") or ""
 
@@ -92,6 +169,17 @@ def print_table(path, data):
     print(f"host={data.get('host', '')}")
     print(f"log_dir={data.get('log_dir', '')}")
     print(f"counts=pass:{counts.get('pass', 0)} fail:{counts.get('fail', 0)} skip:{counts.get('skip', 0)}")
+    events = load_event_summary(path, data)
+    if events:
+        counts_text = " ".join(
+            f"{name}:{count}" for name, count in sorted(events.get("event_counts", {}).items())
+        )
+        print(f"event_log={events.get('path', '')}")
+        print(f"event_counts={counts_text}")
+        if events.get("recent"):
+            print("recent_events:")
+            for event in events["recent"]:
+                print(f"  {event.get('ts', '')} {event.get('level', '')} {event.get('service', '')}:{event.get('event', '')}")
     if failures:
         print("failure_reasons:")
         for item in failures:
@@ -130,7 +218,7 @@ def main():
 
     path, data = load_summary(args.summary)
     if args.json:
-        print(json.dumps(data, indent=2, sort_keys=True))
+        print(json.dumps(report_document(path, data), indent=2, sort_keys=True))
     else:
         print_table(path, data)
     return 0
