@@ -298,14 +298,24 @@ VERIFY=1 make package TARGET=native
 
 `scripts/inspect-artifact` parses the embedded payload trailer and manifest without executing the target binary, then validates manifest consistency, applet symlink records, staged heavy tools, overlay records, missing-tool reasons, placeholder scripts, and tmux terminfo. `scripts/verify-artifact` performs the same static checks and also executes the artifact when native or when qemu-user is available; otherwise it performs non-execution inspection and skips execution clearly. Verification copies only the self-extracting artifact to a temp directory, runs `list`, `config-info`, `doctor`, repeated `extract`, `sh`, duplicate-PATH checks, zsh/tmux/nc probes when staged, and help probes for advertised payload commands.
 
-Release staging groundwork is intentionally single-target for now:
+For a quick single-artifact release, use the Make target:
 
 ```sh
 make release
 make release TARGET=glinet-mt7621-openwrt-musl BB_RELEASE_NAME=dev-glinet
 ```
 
-The release target packages and verifies the selected artifact, then stages it under `dist/releases/<name>/` with checksums, payload archives when present, and an inspector manifest under `dist/releases/<name>/manifests/`. Future release matrix work can build on the same artifact layout without changing normal `make package` behavior.
+The `make release` target packages and verifies the selected artifact, then stages it under `dist/releases/<name>/` with checksums, payload archives when present, and an inspector manifest under `dist/releases/<name>/manifests/`.
+
+For reusable multi-target bundles with generated configs, trailer-configuration helpers, matrix metadata, and a tarball, use:
+
+```sh
+scripts/make-release --name lab-router-pack --targets glinet-mt7621-openwrt-musl,mipsel-linux-4.x-musl --payload-presets survey-core,ssh-operator
+scripts/make-release --name lab-router-pack --matrix release/matrices/iot-lab.json
+scripts/make-release --name lab-router-pack --dry-run
+```
+
+See `docs/release-bundles.md` for the bundle layout and post-build trailer configuration helpers.
 
 Validate Buildroot heavy-tool mappings against the checked-out Buildroot tree:
 
