@@ -8,20 +8,11 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "effective_config.h"
 #include "json_helpers.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
-#endif
-
-#ifndef BB_RUNTIME_ROOT
-#define BB_RUNTIME_ROOT "./.busierbox"
-#endif
-#ifndef BB_RUNTIME_ALLOW_FALLBACK_ROOT
-#define BB_RUNTIME_ALLOW_FALLBACK_ROOT "no"
-#endif
-#ifndef BB_RUNTIME_FALLBACK_ROOT
-#define BB_RUNTIME_FALLBACK_ROOT "/tmp/.busierbox"
 #endif
 
 static int is_help(int argc, char **argv)

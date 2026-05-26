@@ -8,19 +8,12 @@
 #include <time.h>
 
 #include "applets.h"
+#include "effective_config.h"
 #include "json_helpers.h"
-#include "runtime_config.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
-
-#ifndef BB_RUNTIME_ROOT
-#define BB_RUNTIME_ROOT "./.busierbox"
-#endif
-
-#undef BB_RUNTIME_ROOT
-#define BB_RUNTIME_ROOT bb_config_get("BB_RUNTIME_ROOT")
 
 const char *bb_ledger_path(char *out, size_t outsz)
 {

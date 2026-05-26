@@ -10,8 +10,8 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "effective_config.h"
 #include "payload_runtime.h"
-#include "runtime_config.h"
 #include "sha256.h"
 
 #ifndef PATH_MAX
@@ -21,22 +21,6 @@
 #ifndef BUSIERBOX_PAYLOAD_VERSION
 #define BUSIERBOX_PAYLOAD_VERSION "dev"
 #endif
-#ifndef BB_RUNTIME_MODE
-#define BB_RUNTIME_MODE "extract"
-#endif
-#ifndef BB_RUNTIME_ROOT
-#define BB_RUNTIME_ROOT "./.busierbox"
-#endif
-#ifndef BB_RUNTIME_ALLOW_FALLBACK_ROOT
-#define BB_RUNTIME_ALLOW_FALLBACK_ROOT "no"
-#endif
-
-#undef BB_RUNTIME_MODE
-#undef BB_RUNTIME_ROOT
-#undef BB_RUNTIME_ALLOW_FALLBACK_ROOT
-#define BB_RUNTIME_MODE bb_config_get("BB_RUNTIME_MODE")
-#define BB_RUNTIME_ROOT bb_config_get("BB_RUNTIME_ROOT")
-#define BB_RUNTIME_ALLOW_FALLBACK_ROOT bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT")
 
 #define BBX_TRAILER_SIZE 512
 #define BBX_MAGIC "BBXPAYLOADv1"
