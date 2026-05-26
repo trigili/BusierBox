@@ -23,6 +23,17 @@
             ],
             "license": "Unlicense",
             "homepage": "https://github.com/richgel999/miniz"
+        },
+        {
+            "name": "doom-ascii",
+            "version": "0.3.1",
+            "filename": "doom-ascii-0.3.1.tar.gz",
+            "sha256": "7ade3d78d9403542cf53b3ed3a1575751c815d4b7ff3f1fb364aa1ee664807f0",
+            "urls": [
+                "https://github.com/wojciech-graj/doom-ascii/archive/refs/tags/0.3.1.tar.gz"
+            ],
+            "license": "GPL-2.0-or-later",
+            "homepage": "https://github.com/wojciech-graj/doom-ascii"
         }
     ]
 }

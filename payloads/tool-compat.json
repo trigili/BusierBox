@@ -633,10 +633,15 @@
       "notes": "Partition editors are explicitly dangerous and should never be default-selected."
     },
     "doom": {
-      "providers": ["buildroot", "local-dropin", "overlay", "host-native"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay",
+        "host-native"
+      ],
       "classification": "optional runtime with user-provided WAD data",
-      "expected_payload_size": "large plus WAD size",
-      "static_constraints": "Buildroot target builds use prboom because chocolate-doom excludes BR2_STATIC_LIBS. User/provider binaries must match the target architecture and libc.",
+      "expected_payload_size": "small engine plus user-staged WAD data",
+      "static_constraints": "Buildroot provider builds doom-ascii statically; user/provider binaries must match the target architecture and libc.",
       "requires_devpts": false,
       "requires_pty": false,
       "requires_ptrace": false,
@@ -652,7 +657,7 @@
       ],
       "unsupported_libcs": [],
       "known_provider_issues": [],
-      "notes": "Classic Doom-compatible runtime. Target builds compile the prboom engine through Buildroot and stage only the user-provided WAD from BB_DOOM_WAD_PATH; BusierBox does not download game data."
+      "notes": "Classic Doom-compatible terminal runtime. Target builds compile doom-ascii through Buildroot and stage only the user-provided WAD from BB_DOOM_WAD_PATH; BusierBox does not download game data."
     }
   }
 }

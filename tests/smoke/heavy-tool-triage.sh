@@ -16,7 +16,7 @@ grep -q 'BB_DOOM_USER_PATH' configs/busierbox.conf.example
 grep -q 'BB_DOOM_WAD_PATH' configs/busierbox.conf.example
 
 scripts/check-buildroot-tool-mappings --tools "nmap nmap-ncat openssl fd zoxide psmisc mtd-utils ubi-utils i2c-tools spi-tools mmc-utils e2fsprogs parted gdb gef-pwndbg radare2 rizin gcore tshark doom" >/dev/null
-scripts/check-buildroot-tool-mappings --tools doom | grep -q 'BR2_PACKAGE_PRBOOM'
+scripts/check-buildroot-tool-mappings --tools doom | grep -q 'BR2_PACKAGE_BUSIERBOX_DOOM_ASCII'
 
 tmp_root=${TMPDIR:-local/tmp}
 mkdir -p "$tmp_root"
@@ -41,7 +41,7 @@ BB_DOTFILES_ENABLE="no"
 EOF
 
 BUSIERBOX_CONFIG="$work/doom.conf" scripts/gen-buildroot-defconfig mipsel-linux-2.6-uclibc-legacy >/dev/null
-grep -q '^BR2_PACKAGE_PRBOOM=y$' buildroot/generated-configs/mipsel-linux-2.6-uclibc_defconfig
+grep -q '^BR2_PACKAGE_BUSIERBOX_DOOM_ASCII=y$' buildroot/generated-configs/mipsel-linux-2.6-uclibc_defconfig
 
 if [ -x runtime/payload/bin/busybox ]; then
     BUSIERBOX_CONFIG="$work/doom.conf" scripts/build-payload >/dev/null

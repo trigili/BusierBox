@@ -1874,7 +1874,7 @@ configure_heavy_tool_category() {
         misc)
             _category_tools="doom"
             dialog --title "Payload / Heavy tools / Misc" \
-                --checklist "Select optional runtimes. Doom builds a static-friendly prboom engine; you provide legal WAD data." 12 86 4 \
+                --checklist "Select optional runtimes. Doom builds a static doom-ascii engine; you provide legal WAD data." 12 86 4 \
                 "doom" "Classic Doom runtime [WAD path]" "$(heavy_tool_status doom)" \
                 2>"$temp_out" || return 0
             ;;
@@ -1949,10 +1949,10 @@ configure_heavy_tool_category() {
     _selected=$(cat "$temp_out" | tr -d '"')
     if has_item "$_selected" doom && ! has_item "$BB_HEAVY_TOOLS" doom; then
         dialog --title "Doom WAD path" \
-            --inputbox "doom selected.\n\nBuildroot targets use prboom for the engine. Enter the local path to a legally usable .wad file; BusierBox will stage it into the payload but will not fetch game data." \
+            --inputbox "doom selected.\n\nBuildroot targets use doom-ascii for the engine. Enter the local path to a legally usable .wad file; BusierBox will stage it into the payload but will not fetch game data." \
             13 82 "$BB_DOOM_WAD_PATH" 2>"$temp_out" && BB_DOOM_WAD_PATH=$(cat "$temp_out")
         dialog --title "doom note" \
-            --msgbox "doom selected.\n\nBusierBox can build the engine through Buildroot's prboom package. Game data is never downloaded; set BB_DOOM_WAD_PATH to the local .wad file to stage." \
+            --msgbox "doom selected.\n\nBusierBox can build the engine through its static Buildroot doom-ascii package. Game data is never downloaded; set BB_DOOM_WAD_PATH to the local .wad file to stage." \
             11 76
     fi
     _new=

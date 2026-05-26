@@ -195,17 +195,19 @@ stage_doom_wad() {
 }
 
 write_doom_launcher() {
-    [ -x runtime/payload/bin/prboom ] || return 1
+    [ -x runtime/payload/bin/prboom ] || [ -x runtime/payload/bin/doom-ascii ] || return 1
     cat >runtime/payload/bin/doom <<'EOF'
 #!/bin/sh
 PAYLOAD_DIR=${BUSIERBOX_PAYLOAD_DIR:-}
 if [ -z "$PAYLOAD_DIR" ]; then
     PAYLOAD_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 1
 fi
+engine=prboom
+[ -x "$PAYLOAD_DIR/bin/doom-ascii" ] && engine=doom-ascii
 for wad in "$PAYLOAD_DIR/share/games/doom"/*.wad "$PAYLOAD_DIR/share/games/doom"/*.WAD; do
-    [ -f "$wad" ] && exec "$PAYLOAD_DIR/bin/prboom" -iwad "$wad" "$@"
+    [ -f "$wad" ] && exec "$PAYLOAD_DIR/bin/$engine" -iwad "$wad" "$@"
 done
-exec "$PAYLOAD_DIR/bin/prboom" "$@"
+exec "$PAYLOAD_DIR/bin/$engine" "$@"
 EOF
     chmod 0755 runtime/payload/bin/doom
     printf '%s\n' doom >>runtime/payload/staged-tools.txt
@@ -747,7 +749,14 @@ if tool_requested parted; then
 fi
 if tool_requested doom; then
     stage_doom_wad
-    if stage_first_found_as doom prboom usr/games/prboom usr/bin/prboom bin/prboom; then
+    if stage_first_found_as doom doom-ascii usr/bin/doom bin/doom usr/games/doom; then
+        if [ -f "$out_dir/target/usr/share/busierbox/doom/.default.cfg" ]; then
+            mkdir -p runtime/payload/share/doom
+            cp "$out_dir/target/usr/share/busierbox/doom/.default.cfg" runtime/payload/share/doom/.default.cfg
+            cp "$out_dir/target/usr/share/busierbox/doom/.default.cfg" runtime/payload/bin/.default.cfg
+        fi
+        write_doom_launcher || printf '%s\n' "buildroot-build-payload: requested doom but launcher could not be written" >&2
+    elif stage_first_found_as doom prboom usr/games/prboom usr/bin/prboom bin/prboom; then
         write_doom_launcher || printf '%s\n' "buildroot-build-payload: requested doom but launcher could not be written" >&2
     else
         stage_first_found doom usr/bin/doom bin/doom usr/games/doom usr/bin/chocolate-doom bin/chocolate-doom usr/games/chocolate-doom || printf '%s\n' "buildroot-build-payload: requested doom but no built binary was found" >&2
