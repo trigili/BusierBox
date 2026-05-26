@@ -435,25 +435,6 @@ struct embedded_payload {
     unsigned long long compressed_size;
 };
 
-static int mkdir_p(const char *path, mode_t mode)
-{
-    char tmp[PATH_MAX];
-    char *p;
-
-    snprintf(tmp, sizeof(tmp), "%s", path);
-    for (p = tmp + 1; *p; p++) {
-        if (*p == '/') {
-            *p = '\0';
-            if (mkdir(tmp, mode) != 0 && errno != EEXIST)
-                return -1;
-            *p = '/';
-        }
-    }
-    if (mkdir(tmp, mode) != 0 && errno != EEXIST)
-        return -1;
-    return 0;
-}
-
 #define json_string_payload bb_json_string
 
 static int path_exists(const char *path)
@@ -795,7 +776,7 @@ static int choose_extract_root(char *out, size_t outsz)
         if (!roots[i] || !roots[i][0])
             continue;
         snprintf(path, sizeof(path), "%s", roots[i]);
-        if (mkdir_p(path, 0700) != 0)
+        if (bb_mkdir_p(path, 0700) != 0)
             continue;
         bb_ledger_record("mkdir", path, "runtime", "runtime root");
         if (access(path, W_OK | X_OK) != 0)
@@ -1057,13 +1038,13 @@ static int tar_extract_stream(struct payload_stream *s, const char *root, int co
             if (core_only && strcmp(name, "payload") && strcmp(name, "payload/bin") &&
                 strcmp(name, "payload/share") && strcmp(name, "payload/share/busierbox"))
                 continue;
-            if (mkdir_p(full, (mode_t)mode) != 0)
+            if (bb_mkdir_p(full, (mode_t)mode) != 0)
                 return -1;
         } else if (type == '0') {
             char *slash = strrchr(full, '/');
             if (slash) {
                 *slash = '\0';
-                if (mkdir_p(full, 0700) != 0)
+                if (bb_mkdir_p(full, 0700) != 0)
                     return -1;
                 *slash = '/';
             }
@@ -1213,7 +1194,7 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
         }
     }
     bb_rm_rf(tmp);
-    if (mkdir_p(tmp, 0700) != 0) {
+    if (bb_mkdir_p(tmp, 0700) != 0) {
         rmdir(lock);
         return -1;
     }
@@ -1294,7 +1275,7 @@ static int extract_archive_file_to_root(const char *archive, const char *root, i
         snprintf(final, sizeof(final), "%s/payload", root);
         snprintf(extracted, sizeof(extracted), "%s/payload", tmp);
         bb_rm_rf(tmp);
-        if (mkdir_p(tmp, 0700) == 0)
+        if (bb_mkdir_p(tmp, 0700) == 0)
             rc = tar_extract_stream(&s, tmp, core_only);
         else
             rc = -1;

@@ -68,27 +68,6 @@ static int path_exists(const char *path)
     return access(path, F_OK) == 0;
 }
 
-static int mkdir_p(const char *path, mode_t mode)
-{
-    char tmp[PATH_MAX];
-    char *p;
-
-    if (!path || !*path)
-        return -1;
-    snprintf(tmp, sizeof(tmp), "%s", path);
-    for (p = tmp + 1; *p; p++) {
-        if (*p == '/') {
-            *p = '\0';
-            if (mkdir(tmp, mode) != 0 && errno != EEXIST)
-                return -1;
-            *p = '/';
-        }
-    }
-    if (mkdir(tmp, mode) != 0 && errno != EEXIST)
-        return -1;
-    return 0;
-}
-
 static const char *payload_base_name(const char *path)
 {
     const char *slash;
@@ -553,7 +532,7 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
         printf("%s: uninstalled method=%s name=%s\n", applet, method, name);
         return 0;
     }
-    if (mkdir_p(bindir, 0755) != 0) {
+    if (bb_mkdir_p(bindir, 0755) != 0) {
         fprintf(stderr, "%s: cannot create %s: %s\n", applet, bindir, strerror(errno));
         return 1;
     }
@@ -575,7 +554,7 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
         slash = strrchr(hookdir, '/');
         if (slash) {
             *slash = '\0';
-            mkdir_p(hookdir, 0755);
+            bb_mkdir_p(hookdir, 0755);
         }
     }
     backup[0] = '\0';

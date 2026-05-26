@@ -16,6 +16,32 @@
 #endif
 
 /*
+ * Minimal mkdir -p used for runtime-owned directories.  Existing directories
+ * are accepted; callers still choose the permission mode appropriate for the
+ * root they are creating.
+ */
+int bb_mkdir_p(const char *path, mode_t mode)
+{
+    char tmp[PATH_MAX];
+    char *p;
+
+    if (!path || !*path)
+        return -1;
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    for (p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            if (mkdir(tmp, mode) != 0 && errno != EEXIST)
+                return -1;
+            *p = '/';
+        }
+    }
+    if (mkdir(tmp, mode) != 0 && errno != EEXIST)
+        return -1;
+    return 0;
+}
+
+/*
  * Shared runtime-tree remover.  Callers are responsible for proving ownership
  * of the root they pass in; this helper intentionally performs only recursive
  * deletion mechanics and treats already-missing paths as clean.

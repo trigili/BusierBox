@@ -255,26 +255,6 @@ int bb_dispatch(const char *name, int argc, char **argv)
     return -1;
 }
 
-static int mkdir_p(const char *path)
-{
-    char tmp[PATH_MAX];
-    char *p;
-    if (!path || !*path)
-        return -1;
-    snprintf(tmp, sizeof(tmp), "%s", path);
-    for (p = tmp + 1; *p; p++) {
-        if (*p == '/') {
-            *p = '\0';
-            if (mkdir(tmp, 0700) != 0 && errno != EEXIST)
-                return -1;
-            *p = '/';
-        }
-    }
-    if (mkdir(tmp, 0700) != 0 && errno != EEXIST)
-        return -1;
-    return 0;
-}
-
 static int read_lock_pid(const char *lock_path, long *pid, char *mode, size_t modesz)
 {
     FILE *fp = fopen(lock_path, "r");
@@ -344,7 +324,7 @@ static int acquire_autorun_guard(const char *mode)
     if (!yes_value(BB_AUTORUN_GUARD_ENABLE) || !guard_needed(mode) ||
         !strcmp(BB_AUTORUN_REENTRY_ACTION, "bootstrap-again"))
         return 1;
-    if (mkdir_p(guard_path) != 0) {
+    if (bb_mkdir_p(guard_path, 0700) != 0) {
         fprintf(stderr, "autorun: unable to create guard path %s: %s\n", guard_path, strerror(errno));
         return 0;
     }
@@ -555,7 +535,7 @@ static void write_rshell_background_status(const char *transport, pid_t pid)
 
     if (!yes_value(BB_AUTORUN_GUARD_ENABLE))
         return;
-    mkdir_p(guard);
+    bb_mkdir_p(guard, 0700);
     bb_ledger_record("mkdir", guard, "runtime", "rshell guard path");
 
     snprintf(path, sizeof(path), "%s/rshell.pid", guard);
@@ -611,7 +591,7 @@ static int maybe_background_rshell(const char *transport)
         const char *guard = autorun_guard_path();
         char log_path[PATH_MAX];
         int logfd;
-        mkdir_p(guard);
+        bb_mkdir_p(guard, 0700);
         bb_ledger_record("mkdir", guard, "runtime", "rshell guard path");
         snprintf(log_path, sizeof(log_path), "%s/rshell.log", guard);
         logfd = open(log_path, O_CREAT | O_APPEND | O_WRONLY, 0600);
@@ -1140,7 +1120,7 @@ int applet_rshell_main(int argc, char **argv)
     {
         char _log_dir[PATH_MAX];
         snprintf(_log_dir, sizeof(_log_dir), "%s", autorun_guard_path());
-        mkdir_p(_log_dir);
+        bb_mkdir_p(_log_dir, 0700);
         strcat(cmd, "set -eu; ");
         strcat(cmd, "mkdir -p ");
         shquote_append(cmd, sizeof(cmd), _log_dir);
@@ -1254,7 +1234,7 @@ int applet_rshell_main(int argc, char **argv)
             char path[PATH_MAX];
             int lfd;
             time_t now = time(NULL);
-            mkdir_p(gp);
+            bb_mkdir_p(gp, 0700);
 
             /* Individual PID files for clean stop/kill */
             if (dropbear_pid > 0) {

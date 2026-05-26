@@ -22,25 +22,6 @@
 #undef BB_RUNTIME_ROOT
 #define BB_RUNTIME_ROOT bb_config_get("BB_RUNTIME_ROOT")
 
-static int ledger_mkdir_p(const char *path, mode_t mode)
-{
-    char tmp[PATH_MAX];
-    char *p;
-
-    snprintf(tmp, sizeof(tmp), "%s", path);
-    for (p = tmp + 1; *p; p++) {
-        if (*p == '/') {
-            *p = '\0';
-            if (mkdir(tmp, mode) != 0 && errno != EEXIST)
-                return -1;
-            *p = '/';
-        }
-    }
-    if (mkdir(tmp, mode) != 0 && errno != EEXIST)
-        return -1;
-    return 0;
-}
-
 const char *bb_ledger_path(char *out, size_t outsz)
 {
     snprintf(out, outsz, "%s/run/cleanup-ledger.jsonl", BB_RUNTIME_ROOT);
@@ -54,7 +35,7 @@ void bb_ledger_record(const char *op, const char *path, const char *scope, const
     time_t now = time(NULL);
 
     snprintf(run_dir, sizeof(run_dir), "%s/run", BB_RUNTIME_ROOT);
-    if (ledger_mkdir_p(run_dir, 0700) != 0)
+    if (bb_mkdir_p(run_dir, 0700) != 0)
         return;
     fp = fopen(bb_ledger_path(ledger, sizeof(ledger)), "a");
     if (!fp)

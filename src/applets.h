@@ -2,6 +2,7 @@
 #define BUSIERBOX_APPLETS_H
 
 #include <stddef.h>
+#include <sys/stat.h>
 
 struct bb_applet {
     const char *name;
@@ -19,6 +20,7 @@ int bb_dev_payload_archive_available(void);
 const char *bb_ledger_path(char *out, size_t outsz);
 void bb_ledger_record(const char *op, const char *path, const char *scope, const char *detail);
 int bb_rm_rf(const char *path);
+int bb_mkdir_p(const char *path, mode_t mode);
 char *bb_read_text_file(const char *path, size_t max_bytes);
 int bb_clean_external_from_ledger(void);
 void bb_set_argv0(const char *argv0);

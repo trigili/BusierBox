@@ -237,27 +237,6 @@ static int manifest_is_help(int argc, char **argv)
     return argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"));
 }
 
-static int manifest_mkdir_p(const char *path, mode_t mode)
-{
-    char tmp[PATH_MAX];
-    char *p;
-
-    if (!path || !*path)
-        return -1;
-    snprintf(tmp, sizeof(tmp), "%s", path);
-    for (p = tmp + 1; *p; p++) {
-        if (*p == '/') {
-            *p = '\0';
-            if (mkdir(tmp, mode) != 0 && errno != EEXIST)
-                return -1;
-            *p = '/';
-        }
-    }
-    if (mkdir(tmp, mode) != 0 && errno != EEXIST)
-        return -1;
-    return 0;
-}
-
 typedef int (*manifest_capture_writer)(FILE *out, void *ctx);
 
 static FILE *manifest_temp_stream(void)
@@ -271,7 +250,7 @@ static FILE *manifest_temp_stream(void)
 
         if (!roots[i][0])
             continue;
-        if (strcmp(roots[i], ".") && manifest_mkdir_p(roots[i], 0700) != 0)
+        if (strcmp(roots[i], ".") && bb_mkdir_p(roots[i], 0700) != 0)
             continue;
         snprintf(path, sizeof(path), "%s/.busierbox-capture.%ld.XXXXXX", roots[i], (long)getpid());
         fd = mkstemp(path);
@@ -628,7 +607,7 @@ void bb_write_artifact_manifest_file(const char *root)
     FILE *fp;
 
     snprintf(dir, sizeof(dir), "%s/manifest", root);
-    if (manifest_mkdir_p(dir, 0700) != 0)
+    if (bb_mkdir_p(dir, 0700) != 0)
         return;
     snprintf(path, sizeof(path), "%s/artifact.json", dir);
     snprintf(tmp, sizeof(tmp), "%s/artifact.json.tmp.%ld", dir, (long)getpid());
