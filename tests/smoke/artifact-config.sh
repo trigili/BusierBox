@@ -201,6 +201,50 @@ assert r["trailer_override"]["valid"] is False
 assert r["trailer_override"]["status"] == "payload bounds invalid"
 PY
 
+cp "$work/busierbox" "$work/busierbox-bad-offset"
+python3 - "$work/busierbox-bad-offset" <<'PY'
+import hashlib, pathlib, sys
+MAGIC = b"BBXCONFIGv1"
+TRAILER_SIZE = 4096
+p = pathlib.Path(sys.argv[1])
+payload = b"BB_OPERATOR_SERVER_HOST=192.0.2.77\n"
+sha = hashlib.sha256(payload).hexdigest()
+meta_prefix = (
+    MAGIC.decode() + "\n"
+    "version=1\n"
+    "encoding=plain\n"
+    f"size={len(payload)}\n"
+    f"sha256={sha}\n"
+    "key_hex=\n"
+)
+offset = 0
+while True:
+    next_offset = len((meta_prefix + f"payload_offset={offset}\nENDMETA\n").encode("ascii"))
+    if next_offset == offset:
+        break
+    offset = next_offset
+bad_offset = TRAILER_SIZE - len(payload) + 1
+trailer = (meta_prefix + f"payload_offset={bad_offset}\nENDMETA\n").encode("ascii") + payload
+if len(trailer) > TRAILER_SIZE:
+    raise SystemExit("trailer too large")
+data = p.read_bytes()
+p.write_bytes(data[:-TRAILER_SIZE] + trailer + b"\0" * (TRAILER_SIZE - len(trailer)))
+PY
+if scripts/artifact-config show "$work/busierbox-bad-offset" >"$work/show.bad-offset" 2>&1; then
+    printf '%s\n' "artifact-config smoke: invalid payload offset trailer unexpectedly passed" >&2
+    exit 1
+fi
+grep -q '^trailer_status=payload bounds invalid$' "$work/show.bad-offset"
+"$work/busierbox-bad-offset" runtime-config --json >"$work/runtime.bad-offset.json"
+python3 - "$work/runtime.bad-offset.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert r["effective_config_source"] == "compiled"
+assert r["trailer_override"]["present"] is True
+assert r["trailer_override"]["valid"] is False
+assert r["trailer_override"]["status"] == "payload bounds invalid"
+PY
+
 cp "$artifact" "$work/busierbox-unknown-runtime"
 python3 - "$work/busierbox-unknown-runtime" <<'PY'
 import hashlib, pathlib, sys

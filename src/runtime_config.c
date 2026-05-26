@@ -272,7 +272,7 @@ static void load_config(void)
     char *raw_text = (char *)raw;
     char *line, *save = NULL, *payload_start = NULL;
     char version[16] = "", encoding[16] = "plain", payload_format[16] = "raw", sha[65] = "", key_hex[129] = "";
-    unsigned long payload_size = 0;
+    unsigned long payload_size = 0, payload_offset = 0;
     unsigned char key[64], hash[32];
     char got[65];
     size_t key_len = 0, payload_len = 0;
@@ -331,6 +331,8 @@ static void load_config(void)
             snprintf(payload_format, sizeof(payload_format), "%s", eq);
         else if (!strcmp(line, "size"))
             payload_size = strtoul(eq, NULL, 10);
+        else if (!strcmp(line, "payload_offset"))
+            payload_offset = strtoul(eq, NULL, 10);
         else if (!strcmp(line, "sha256"))
             snprintf(sha, sizeof(sha), "%s", eq);
         else if (!strcmp(line, "key_hex"))
@@ -345,7 +347,8 @@ static void load_config(void)
         set_error("payload bounds invalid");
         return;
     }
-    if ((size_t)(payload_start - (char *)raw) + payload_size > BB_CONFIG_TRAILER_SIZE) {
+    if (payload_offset != (unsigned long)(payload_start - (char *)raw) ||
+        payload_offset + payload_size > BB_CONFIG_TRAILER_SIZE) {
         set_error("payload bounds invalid");
         return;
     }
