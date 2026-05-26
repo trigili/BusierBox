@@ -24,6 +24,9 @@ scripts/artifact-config set "$work/busierbox" \
 "$work/busierbox" plan rshell --json >"$work/rshell.json"
 "$work/busierbox" plan clean --json >"$work/clean.json"
 "$work/busierbox" plan recovery install --method openwrt-procd --action rshell --json >"$work/recovery.json"
+"$work/busierbox" plan recovery install --method rc-local --action evidence-push --root "$work/root" --name bbx_recovery --json >"$work/recovery-evidence.json"
+"$work/busierbox" plan recovery install --method rc-local --action evidence-then-rshell --root "$work/root" --name bbx_recovery --json >"$work/recovery-evidence-rshell.json"
+"$work/busierbox" plan recovery install --method rc-local --action dmesg-push --root "$work/root" --name bbx_recovery --json >"$work/recovery-dmesg.json"
 "$work/busierbox" plan recovery install --method cron-reboot --action command --json -- 'busierbox rshell start' >"$work/recovery-command.json"
 "$work/busierbox" plan recovery install --method cron-reboot --action command --json -- busierbox rshell start >"$work/recovery-command-argv.json"
 printf '%s\n' '#!/bin/sh' 'echo recovery-script' >"$work/recover.sh"
@@ -43,6 +46,9 @@ extract = json.loads((root / "extract.json").read_text())
 rshell = json.loads((root / "rshell.json").read_text())
 clean = json.loads((root / "clean.json").read_text())
 recovery = json.loads((root / "recovery.json").read_text())
+evidence = json.loads((root / "recovery-evidence.json").read_text())
+evidence_rshell = json.loads((root / "recovery-evidence-rshell.json").read_text())
+dmesg = json.loads((root / "recovery-dmesg.json").read_text())
 command = json.loads((root / "recovery-command.json").read_text())
 command_argv = json.loads((root / "recovery-command-argv.json").read_text())
 script = json.loads((root / "recovery-script.json").read_text())
@@ -72,6 +78,22 @@ assert recovery["binary_path"].endswith("/usr/bin/busierbox_recovery")
 assert recovery["generated_command"] == "/usr/bin/busierbox_recovery rshell start"
 assert recovery["generated_command"].endswith("rshell start")
 
+assert evidence["action"] == "evidence-push"
+assert evidence["requires_external_writes"] is False
+assert evidence["generated_command"] == "/usr/bin/bbx_recovery evidence push --quiet"
+assert evidence["would_connect"] == ["192.0.2.77"]
+
+assert evidence_rshell["action"] == "evidence-then-rshell"
+assert "evidence push --quiet" in evidence_rshell["generated_command"]
+assert evidence_rshell["generated_command"].endswith("rshell start")
+assert evidence_rshell["would_connect"] == ["192.0.2.77"]
+
+assert dmesg["action"] == "dmesg-push"
+assert 'dmesg >"$bbx_dmesg"' in dmesg["generated_command"]
+assert "--dest bbx_recovery-dmesg.txt" in dmesg["generated_command"]
+assert 'rm -f "$bbx_dmesg"' in dmesg["generated_command"]
+assert dmesg["would_connect"] == ["192.0.2.77"]
+
 assert command["action"] == "command"
 assert command["binary_path"].endswith("/usr/bin/busierbox_recovery")
 assert command["generated_command"] == "busierbox rshell start"
@@ -93,5 +115,9 @@ grep -q '^effective_config_source=trailer$' "$work/extract.txt"
 grep -q "^script_source_path=$work/recover.sh$" "$work/recovery-script.txt"
 grep -q "^script_dest_path=$work/root/usr/bin/bbx_recovery.recovery.sh$" "$work/recovery-script.txt"
 grep -q "  $work/root/usr/bin/bbx_recovery.recovery.sh" "$work/recovery-script.txt"
+"$work/busierbox" plan recovery install --method rc-local --action dmesg-push --root "$work/root" --name bbx_recovery >"$work/recovery-dmesg.txt"
+grep -q '^action=dmesg-push$' "$work/recovery-dmesg.txt"
+grep -q 'dmesg >"$bbx_dmesg"' "$work/recovery-dmesg.txt"
+grep -q -- '--dest bbx_recovery-dmesg.txt' "$work/recovery-dmesg.txt"
 
 printf '%s\n' "plan-json ok"

@@ -348,7 +348,9 @@ static int plan_recovery_install(int argc, char **argv, int json)
         fprintf(stderr, "plan: unsupported recovery method %s\n", method);
         return 2;
     }
-    if (strcmp(action, "rshell") && strcmp(action, "command") && strcmp(action, "script") && strcmp(action, "status-only")) {
+    if (strcmp(action, "rshell") && strcmp(action, "command") && strcmp(action, "script") &&
+        strcmp(action, "status-only") && strcmp(action, "evidence-push") &&
+        strcmp(action, "evidence-then-rshell") && strcmp(action, "dmesg-push")) {
         fprintf(stderr, "plan: unsupported recovery action %s\n", action);
         return 2;
     }
@@ -370,6 +372,12 @@ static int plan_recovery_install(int argc, char **argv, int json)
     }
     if (!strcmp(action, "rshell"))
         snprintf(generated, sizeof(generated), "/usr/bin/%s rshell start", name);
+    else if (!strcmp(action, "evidence-push"))
+        snprintf(generated, sizeof(generated), "/usr/bin/%s evidence push --quiet", name);
+    else if (!strcmp(action, "evidence-then-rshell"))
+        snprintf(generated, sizeof(generated), "/usr/bin/%s evidence push --quiet && /usr/bin/%s rshell start", name, name);
+    else if (!strcmp(action, "dmesg-push"))
+        snprintf(generated, sizeof(generated), "bbx_dmesg_dir=%s/run; mkdir -p \"$bbx_dmesg_dir\" 2>/dev/null || bbx_dmesg_dir=.; bbx_dmesg=\"$bbx_dmesg_dir/%s-dmesg.txt\"; dmesg >\"$bbx_dmesg\" 2>&1; /usr/bin/%s evidence push \"$bbx_dmesg\" --dest %s-dmesg.txt --quiet; rm -f \"$bbx_dmesg\"", BB_RUNTIME_ROOT, name, name, name);
     else if (!strcmp(action, "command"))
         snprintf(generated, sizeof(generated), "%s", command);
     else if (!strcmp(action, "script"))
@@ -389,7 +397,8 @@ static int plan_recovery_install(int argc, char **argv, int json)
         fputs("],\"would_remove\":[],\"would_start\":[", stdout);
         bb_json_string(stdout, generated);
         fputs("],\"would_connect\":[", stdout);
-        if (!strcmp(action, "rshell"))
+        if (!strcmp(action, "rshell") || !strcmp(action, "evidence-push") ||
+            !strcmp(action, "evidence-then-rshell") || !strcmp(action, "dmesg-push"))
             bb_json_string(stdout, BB_OPERATOR_SERVER_HOST);
         fputs("],\"requires_external_writes\":", stdout);
         printf("%s", !strcmp(root, "/") ? "true" : "false");
