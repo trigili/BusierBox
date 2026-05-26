@@ -154,6 +154,74 @@ for name in ("buildroot", "miniz", "doom-ascii"):
 PY
 
 scripts/make-release \
+    --name failure-smoke \
+    --targets native,armv7-linux-3.x-musl \
+    --payload-presets default \
+    --skip-build \
+    --out-dir "$work/failure-release" >"$work/failure-release.out"
+test -x "$work/failure-release/bin/busierbox-native-default-full"
+python3 - "$work/failure-release/release.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+artifacts = data.get("artifacts", [])
+failures = data.get("failures", [])
+if len(artifacts) != 2:
+    raise SystemExit("expected copied and failed artifacts")
+if len(failures) != 1:
+    raise SystemExit("expected one failure")
+failure = failures[0]
+if failure.get("target") != "armv7-linux-3.x-musl":
+    raise SystemExit("failure target mismatch")
+if "missing artifact" not in failure.get("reason", ""):
+    raise SystemExit("failure reason missing")
+for key in ("payload_preset", "format", "config", "artifact", "trailer_support"):
+    if not failure.get(key):
+        raise SystemExit(f"failure missing {key}")
+PY
+
+if scripts/make-release \
+    --name strict-failure \
+    --targets native,armv7-linux-3.x-musl \
+    --payload-presets default \
+    --skip-build \
+    --strict \
+    --out-dir "$work/strict-failure" >"$work/strict-failure.out" 2>"$work/strict-failure.err"; then
+    printf '%s\n' "expected strict release failure to exit nonzero" >&2
+    exit 1
+fi
+python3 - "$work/strict-failure/release.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if len(data.get("failures", [])) != 1:
+    raise SystemExit("strict release did not record failure")
+PY
+
+scripts/make-release \
+    --name fail-fast \
+    --targets armv7-linux-3.x-musl,native \
+    --payload-presets default \
+    --skip-build \
+    --fail-fast \
+    --out-dir "$work/fail-fast-release" >"$work/fail-fast-release.out"
+python3 - "$work/fail-fast-release/release.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+artifacts = data.get("artifacts", [])
+if len(artifacts) != 1:
+    raise SystemExit("fail-fast should stop after first failure")
+if artifacts[0].get("target") != "armv7-linux-3.x-musl":
+    raise SystemExit("fail-fast first target mismatch")
+if artifacts[0].get("build_status") != "failed":
+    raise SystemExit("fail-fast first artifact did not fail")
+PY
+
+scripts/make-release \
     --name iot-metadata \
     --matrix release/matrices/iot-lab.json \
     --targets native \

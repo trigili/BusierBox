@@ -569,6 +569,24 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
     return rec
 
 
+def failed_record(job, config, reason):
+    runtime_suffix = f"-{safe_stem(job['runtime_mode'])}" if job.get("runtime_mode") else ""
+    config_stem = f"{safe_stem(job['target'])}-{safe_stem(job['payload'])}{config_suffix(job)}{runtime_suffix}"
+    return {
+        "name": job["name"],
+        "target": job["target"],
+        "resolved_target": job["target"],
+        "payload_preset": job["payload"],
+        "format": job["format"],
+        "runtime_mode": job.get("runtime_mode"),
+        "base_config": job.get("config_source"),
+        "reverse_access_profiles": job.get("reverse_access_profiles", []),
+        "config": f"configs/{config_stem}.conf",
+        "build_status": "failed",
+        "reason": reason,
+    }
+
+
 def print_summary(records, release_dir, tarball=None):
     print(f"{'Status':<10} {'Target':<34} {'Payload':<20} Artifact")
     for rec in records:
@@ -631,14 +649,7 @@ def main(argv=None):
         try:
             rec = build_or_copy(job, config, release_dir, args)
         except Exception as exc:
-            rec = {
-                "name": job["name"],
-                "target": job["target"],
-                "payload_preset": job["payload"],
-                "format": job["format"],
-                "build_status": "failed",
-                "reason": str(exc),
-            }
+            rec = failed_record(job, config, str(exc))
         records.append(rec)
         if args.fail_fast and rec.get("build_status") == "failed":
             break
