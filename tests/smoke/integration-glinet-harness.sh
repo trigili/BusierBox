@@ -28,6 +28,31 @@ scripts/busierbox-bringup --host root@192.0.2.1 --recommend-only --survey-json t
 bringup_out=$(scripts/busierbox-bringup --host root@192.0.2.1 --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --target-preset glinet-mt7621-openwrt-musl)
 recommended_conf=$(printf '%s\n' "$bringup_out" | sed -n 's/^bringup: recommended config: //p')
 grep -q '^BB_TARGET_PRESET=glinet-mt7621-openwrt-musl$' "$recommended_conf"
+rm -f local/presets/targets/smoke-bringup.json
+bringup_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --write-target-preset smoke-bringup --stage-recommended-artifact --operator-host 198.51.100.9 --configure-trailer --json)
+printf '%s\n' "$bringup_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["status"] == "pass"; assert d["recommended_target_preset"].endswith("smoke-bringup.json"); assert d["staged_fetch_command"]; assert "./busierbox reality-test --json" in d["next_target_commands"]'
+test -f local/presets/targets/smoke-bringup.json
+rm -f local/presets/targets/smoke-bringup.json
+release_tmp=$(mktemp -d "${TMPDIR:-/tmp}/busierbox-bringup-release.XXXXXX")
+mkdir -p "$release_tmp/scripts" "$release_tmp/bin"
+printf '%s\n' "fake artifact" >"$release_tmp/bin/busierbox-mipsel-full"
+cat >"$release_tmp/scripts/release-find" <<'PY'
+#!/usr/bin/env python3
+import json
+import pathlib
+import sys
+root = pathlib.Path(__file__).resolve().parents[1]
+if "--json" not in sys.argv or "--survey-json" not in sys.argv:
+    raise SystemExit(2)
+print(json.dumps({
+    "selected": {"artifact_path": str(root / "bin" / "busierbox-mipsel-full")},
+    "compatibility": {"label": "likely", "reasons": ["arch exact", "libc inferred musl"]},
+}))
+PY
+chmod +x "$release_tmp/scripts/release-find"
+release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --release-dir "$release_tmp" --configure-trailer --json)
+printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["compatibility"]["label"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert "artifact-config set" in d["generated_trailer_override_command"]'
+rm -rf "$release_tmp"
 grep -q 'BUSIERBOX_CONFIG="$recommended" make package' scripts/busierbox-bringup
 grep -q 'Bringup is a guided onboarding flow' README.md
 grep -q 'docs/bringup.md' README.md

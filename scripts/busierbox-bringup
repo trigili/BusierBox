@@ -3,7 +3,7 @@ set -eu
 
 usage() {
     cat >&2 <<'EOF'
-usage: scripts/busierbox-bringup --host USER@HOST [options]
+usage: scripts/busierbox-bringup [--host USER@HOST] [options]
 
 Guided target bring-up flow. It builds or reuses a conservative survey
 artifact, copies it to the target, captures survey/config-info output, converts
@@ -15,7 +15,9 @@ What it does:
   - builds a survey artifact unless --survey-json is supplied
   - transfers only to /tmp/busierbox-bringup-<timestamp>/ on the target
   - runs ./busierbox survey --json and ./busierbox config-info
+  - runs ./busierbox reality-test --json when the artifact supports it
   - writes recommended.conf, recommendation.json, and summary.json
+  - can generate a local target preset and select a compatible release artifact
   - optionally runs one integration case when --run-integration is set
 
 What it does not do:
@@ -29,6 +31,12 @@ Options:
   --survey-only               stop after survey and recommendation
   --recommend-only            use --survey-json or captured survey; do not build final artifact
   --survey-json PATH          use an existing survey JSON instead of touching target
+  --write-target-preset NAME  write local/presets/targets/NAME.json from survey
+  --release-dir DIR           choose a compatible artifact from a release bundle
+  --configure-trailer         print artifact-config command for operator overrides
+  --stage-recommended-artifact
+                              stage selected/recommended artifact for target fetch
+  --json                      print summary JSON to stdout
   --payload-preset NAME       preset for initial survey artifact; default survey-core
   --target-preset NAME        target preset to build; default native
   --run-integration CASE      run one scripts/integration-glinet case after build
@@ -39,7 +47,9 @@ Options:
 Examples:
   scripts/busierbox-bringup --host root@192.168.8.1 --operator-host auto
   scripts/busierbox-bringup --host root@192.168.8.1 --survey-only
-  scripts/busierbox-bringup --host root@192.0.2.1 --recommend-only --survey-json survey.json
+  scripts/busierbox-bringup --recommend-only --survey-json survey.json
+  scripts/busierbox-bringup --recommend-only --survey-json survey.json --write-target-preset lab-router
+  scripts/busierbox-bringup --recommend-only --survey-json survey.json --release-dir dist/releases/smoke --json
 
 Use scripts/integration-glinet for repeatable validation runs. Bringup is a
 guided onboarding flow; integration-glinet is the regression harness.
@@ -56,7 +66,21 @@ run_integration=
 dry_run=no
 keep_remote=no
 survey_input=
+write_target_preset=
+release_dir=
+configure_trailer=no
+stage_recommended_artifact=no
+json_output=no
 remote_touched=no
+target_preset_path=
+release_find_json=
+selected_artifact=
+compatibility_label=
+compatibility_reasons_json='[]'
+trailer_command=
+staged_fetch_command=
+staged_request_name=
+recommended_artifact=
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -68,6 +92,13 @@ while [ "$#" -gt 0 ]; do
         --recommend-only) recommend_only=yes; shift ;;
         --survey-json) survey_input=$2; shift 2 ;;
         --survey-json=*) survey_input=${1#--survey-json=}; shift ;;
+        --write-target-preset) write_target_preset=$2; shift 2 ;;
+        --write-target-preset=*) write_target_preset=${1#--write-target-preset=}; shift ;;
+        --release-dir) release_dir=$2; shift 2 ;;
+        --release-dir=*) release_dir=${1#--release-dir=}; shift ;;
+        --configure-trailer) configure_trailer=yes; shift ;;
+        --stage-recommended-artifact) stage_recommended_artifact=yes; shift ;;
+        --json) json_output=yes; shift ;;
         --payload-preset) payload_preset=$2; shift 2 ;;
         --payload-preset=*) payload_preset=${1#--payload-preset=}; shift ;;
         --target-preset) target_preset=$2; shift 2 ;;
@@ -81,7 +112,14 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-[ -n "$host" ] || { usage; exit 2; }
+[ -n "$host" ] || {
+    if [ -n "$survey_input" ] || [ "$dry_run" = yes ]; then
+        host="USER@TARGET"
+    else
+        usage
+        exit 2
+    fi
+}
 
 ts=$(date -u +%Y%m%d-%H%M%S)
 run_dir="local/bringup-runs/$ts"
@@ -92,30 +130,212 @@ summary="$run_dir/summary.json"
 config="$run_dir/survey-core.conf"
 survey="$run_dir/survey.json"
 recommended="$run_dir/recommended.conf"
-
-json_string() {
-    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
-}
+reality="$run_dir/reality-test.json"
 
 write_summary() {
     status=$1
     reason=${2:-}
-    {
-        printf '{\n'
-        printf '  "schema": 1,\n'
-        printf '  "status": "%s",\n' "$(json_string "$status")"
-        printf '  "host": "%s",\n' "$(json_string "$host")"
-        printf '  "run_dir": "%s",\n' "$(json_string "$run_dir")"
-        printf '  "remote_dir": "%s",\n' "$(json_string "$remote_dir")"
-        printf '  "payload_preset": "%s",\n' "$(json_string "$payload_preset")"
-        printf '  "target_preset": "%s",\n' "$(json_string "$target_preset")"
-        printf '  "operator_host": "%s",\n' "$(json_string "$operator_host")"
-        printf '  "survey_json": "%s",\n' "$(json_string "$survey")"
-        printf '  "recommendation_json": "%s",\n' "$(json_string "$run_dir/recommendation.json")"
-        printf '  "recommended_config": "%s"' "$(json_string "$recommended")"
-        [ -z "$reason" ] || printf ',\n  "reason": "%s"' "$(json_string "$reason")"
-        printf '\n}\n'
-    } >"$summary"
+    SUMMARY_PATH="$summary" \
+    STATUS="$status" \
+    REASON="$reason" \
+    HOST="$host" \
+    RUN_DIR="$run_dir" \
+    REMOTE_DIR="$remote_dir" \
+    PAYLOAD_PRESET="$payload_preset" \
+    TARGET_PRESET="$target_preset" \
+    OPERATOR_HOST="$operator_host" \
+    SURVEY_JSON="$survey" \
+    REALITY_JSON="$reality" \
+    RECOMMENDATION_JSON="$run_dir/recommendation.json" \
+    RECOMMENDED_CONFIG="$recommended" \
+    TARGET_PRESET_PATH="$target_preset_path" \
+    RELEASE_DIR="$release_dir" \
+    RELEASE_FIND_JSON="$release_find_json" \
+    SELECTED_ARTIFACT="$selected_artifact" \
+    COMPATIBILITY_LABEL="$compatibility_label" \
+    COMPATIBILITY_REASONS_JSON="$compatibility_reasons_json" \
+    TRAILER_COMMAND="$trailer_command" \
+    STAGED_FETCH_COMMAND="$staged_fetch_command" \
+    STAGED_REQUEST_NAME="$staged_request_name" \
+    RECOMMENDED_ARTIFACT="$recommended_artifact" \
+    python3 - <<'PY'
+import json
+import os
+
+def env(name):
+    return os.environ.get(name, "")
+
+def maybe_file(path):
+    return path if path and os.path.exists(path) else ""
+
+def split_lines(text):
+    return [line for line in text.splitlines() if line]
+
+try:
+    reasons = json.loads(env("COMPATIBILITY_REASONS_JSON") or "[]")
+    if not isinstance(reasons, list):
+        reasons = [reasons]
+except Exception:
+    reasons = split_lines(env("COMPATIBILITY_REASONS_JSON"))
+
+host = env("HOST")
+operator_host = env("OPERATOR_HOST")
+next_operator = [
+    "scripts/busierbox-server --transport file-service",
+]
+if env("TRAILER_COMMAND"):
+    next_operator.append(env("TRAILER_COMMAND"))
+
+next_target = [
+    "./busierbox survey --json",
+    "./busierbox reality-test --json",
+]
+if env("STAGED_FETCH_COMMAND"):
+    next_target.append(env("STAGED_FETCH_COMMAND"))
+
+doc = {
+    "schema": 1,
+    "status": env("STATUS"),
+    "host": host,
+    "run_dir": env("RUN_DIR"),
+    "remote_dir": env("REMOTE_DIR"),
+    "payload_preset": env("PAYLOAD_PRESET"),
+    "target_preset": env("TARGET_PRESET"),
+    "operator_host": operator_host,
+    "survey_json": env("SURVEY_JSON"),
+    "reality_json": maybe_file(env("REALITY_JSON")),
+    "recommendation_json": env("RECOMMENDATION_JSON"),
+    "recommended_config": env("RECOMMENDED_CONFIG"),
+    "recommended_target_preset": env("TARGET_PRESET_PATH"),
+    "release_dir": env("RELEASE_DIR"),
+    "release_find_json": maybe_file(env("RELEASE_FIND_JSON")),
+    "selected_artifact": env("SELECTED_ARTIFACT"),
+    "compatibility": {
+        "label": env("COMPATIBILITY_LABEL"),
+        "reasons": reasons,
+    },
+    "generated_trailer_override_command": env("TRAILER_COMMAND"),
+    "staged_request_name": env("STAGED_REQUEST_NAME"),
+    "staged_fetch_command": env("STAGED_FETCH_COMMAND"),
+    "next_operator_commands": next_operator,
+    "next_target_commands": next_target,
+}
+if env("REASON"):
+    doc["reason"] = env("REASON")
+path = env("SUMMARY_PATH")
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(doc, fh, indent=2, sort_keys=True)
+    fh.write("\n")
+PY
+    if [ "$json_output" = yes ]; then
+        cat "$summary"
+    fi
+}
+
+shell_quote() {
+    printf "%s" "$1" | sed "s/'/'\\\\''/g; s/^/'/; s/$/'/"
+}
+
+remote_quote() {
+    printf "%s" "$1" | sed "s/'/'\\\\''/g"
+}
+
+extract_release_selection() {
+    RELEASE_FIND_JSON="$release_find_json" python3 - <<'PY'
+import json
+import os
+
+path = os.environ["RELEASE_FIND_JSON"]
+with open(path, "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+def first_string(*values):
+    for value in values:
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+artifact = first_string(
+    data.get("artifact"),
+    data.get("artifact_path"),
+    data.get("path"),
+    data.get("file"),
+)
+selected = data.get("selected")
+if isinstance(selected, dict):
+    artifact = artifact or first_string(
+        selected.get("artifact"),
+        selected.get("artifact_path"),
+        selected.get("path"),
+        selected.get("file"),
+    )
+
+compat = data.get("compatibility")
+label = ""
+reasons = []
+if isinstance(compat, dict):
+    label = first_string(compat.get("label"), compat.get("score"), compat.get("status"))
+    raw = compat.get("reasons", [])
+    reasons = raw if isinstance(raw, list) else [raw]
+elif isinstance(compat, str):
+    label = compat
+if not label:
+    label = first_string(data.get("compatibility_label"), data.get("score"), data.get("label"))
+if not reasons:
+    raw = data.get("reasons", [])
+    reasons = raw if isinstance(raw, list) else [raw]
+
+import shlex
+
+values = {
+    "selected_artifact": artifact,
+    "compatibility_label": label,
+    "compatibility_reasons_json": json.dumps([str(x) for x in reasons if x not in (None, "")]),
+}
+for key, value in values.items():
+    print(f"{key}={shlex.quote(str(value))}")
+PY
+}
+
+choose_release_artifact() {
+    [ -n "$release_dir" ] || return 0
+    release_find_json="$run_dir/release-find.json"
+    if scripts/release-find --release-dir "$release_dir" --survey-json "$survey" --json >"$release_find_json" 2>"$run_dir/release-find.err"; then
+        eval "$(extract_release_selection)"
+    else
+        write_summary fail "release artifact selection failed"
+        printf '%s\n' "bringup: release artifact selection failed; see $run_dir/release-find.err" >&2
+        exit 1
+    fi
+}
+
+generate_trailer_command() {
+    [ "$configure_trailer" = yes ] || return 0
+    artifact_for_trailer=${selected_artifact:-$recommended_artifact}
+    [ -n "$artifact_for_trailer" ] || return 0
+    host_for_trailer=$operator_host
+    [ "$host_for_trailer" = auto ] && host_for_trailer=OPERATOR_IP
+    trailer_command="scripts/artifact-config set $(shell_quote "$artifact_for_trailer") BB_OPERATOR_SERVER_HOST=$(shell_quote "$host_for_trailer") BB_OPERATOR_FILE_SERVICE_ENABLE=yes BB_OPERATOR_FILE_SERVICE_PORT=22204"
+}
+
+stage_artifact_for_fetch() {
+    [ "$stage_recommended_artifact" = yes ] || return 0
+    artifact_to_stage=${selected_artifact:-$recommended_artifact}
+    [ -n "$artifact_to_stage" ] || artifact_to_stage=$recommended
+    [ -n "$artifact_to_stage" ] || return 0
+    [ -f "$artifact_to_stage" ] || {
+        write_summary fail "artifact selected for staging is missing"
+        printf '%s\n' "bringup: artifact selected for staging is missing: $artifact_to_stage" >&2
+        exit 1
+    }
+    staged_request_name=$(basename "$artifact_to_stage")
+    scripts/busierbox-server --serve-file "$artifact_to_stage" --as "$staged_request_name" --list-staged >"$run_dir/staged-artifact.out" 2>"$run_dir/staged-artifact.err" || {
+        write_summary fail "artifact staging failed"
+        printf '%s\n' "bringup: artifact staging failed; see $run_dir/staged-artifact.err" >&2
+        exit 1
+    }
+    staged_fetch_command=$(sed -n 's/^  //p; /^busierbox fetch /p' "$run_dir/staged-artifact.out" | sed -n '1p')
+    [ -n "$staged_fetch_command" ] || staged_fetch_command="busierbox fetch $staged_request_name --host OPERATOR_IP --port 22204"
 }
 
 cat "presets/payload/$payload_preset.conf" >"$config"
@@ -126,10 +346,13 @@ cat "presets/payload/$payload_preset.conf" >"$config"
 } >>"$config"
 
 if [ "$dry_run" = yes ]; then
+    generate_trailer_command
     write_summary dry-run
-    printf '%s\n' "bringup dry-run: would build $target_preset with $config"
-    printf '%s\n' "bringup dry-run: would transfer to $host:$remote_dir"
-    printf '%s\n' "bringup dry-run: summary at $summary"
+    if [ "$json_output" != yes ]; then
+        printf '%s\n' "bringup dry-run: would build $target_preset with $config"
+        printf '%s\n' "bringup dry-run: would transfer to $host:$remote_dir"
+        printf '%s\n' "bringup dry-run: summary at $summary"
+    fi
     exit 0
 fi
 
@@ -145,20 +368,21 @@ if [ ! -f "$survey" ]; then
     }
     artifact="dist/busierbox-$target_preset-full"
     [ -f "$artifact" ] || artifact="dist/busierbox-native-full"
-    ssh "$host" "rm -rf $(printf '%s' "$remote_dir" | sed \"s/'/'\\\\''/g\"); mkdir -p $(printf '%s' "$remote_dir" | sed \"s/'/'\\\\''/g\")" >"$run_dir/ssh.log" 2>&1 || {
+    ssh "$host" "rm -rf '$(remote_quote "$remote_dir")'; mkdir -p '$(remote_quote "$remote_dir")'" >"$run_dir/ssh.log" 2>&1 || {
         write_summary fail "target unreachable"
         printf '%s\n' "bringup: target unreachable or remote dir unavailable" >&2
         exit 1
     }
     remote_touched=yes
     scp -O -q "$artifact" "$host:$remote_dir/busierbox" >>"$run_dir/ssh.log" 2>&1
-    ssh "$host" "cd $(printf '%s' "$remote_dir" | sed \"s/'/'\\\\''/g\") && chmod +x ./busierbox && ./busierbox survey --json > survey.json && ./busierbox config-info > config-info.out" >>"$run_dir/ssh.log" 2>&1 || {
+    ssh "$host" "cd '$(remote_quote "$remote_dir")' && chmod +x ./busierbox && ./busierbox survey --json > survey.json && ./busierbox config-info > config-info.out && if ./busierbox reality-test --help >/dev/null 2>&1; then ./busierbox reality-test --json > reality-test.json || true; fi" >>"$run_dir/ssh.log" 2>&1 || {
         write_summary fail "survey artifact could not run"
         printf '%s\n' "bringup: survey artifact could not run; likely arch/libc mismatch" >&2
         exit 1
     }
     scp -O -q "$host:$remote_dir/survey.json" "$survey" >>"$run_dir/ssh.log" 2>&1
     scp -O -q "$host:$remote_dir/config-info.out" "$run_dir/config-info.out" >>"$run_dir/ssh.log" 2>&1 || true
+    scp -O -q "$host:$remote_dir/reality-test.json" "$reality" >>"$run_dir/ssh.log" 2>&1 || true
 fi
 
 if [ -f "$survey" ]; then
@@ -175,14 +399,34 @@ else
     exit 1
 fi
 
+if [ -n "$write_target_preset" ]; then
+    scripts/preset-from-survey --survey "$survey" --name "$write_target_preset" --write-local --overwrite >"$run_dir/target-preset.log" 2>&1 || {
+        write_summary fail "target preset generation failed"
+        printf '%s\n' "bringup: target preset generation failed; see $run_dir/target-preset.log" >&2
+        exit 1
+    }
+    target_preset_path="local/presets/targets/$write_target_preset.json"
+fi
+
+choose_release_artifact
+generate_trailer_command
+stage_artifact_for_fetch
+
 if [ "$survey_only" = yes ] || [ "$recommend_only" = yes ]; then
     if [ "$remote_touched" = yes ] && [ "$keep_remote" != yes ]; then
-        ssh "$host" "rm -rf $(printf '%s' "$remote_dir" | sed \"s/'/'\\\\''/g\")" >>"$run_dir/ssh.log" 2>&1 || true
+        ssh "$host" "rm -rf '$(remote_quote "$remote_dir")'" >>"$run_dir/ssh.log" 2>&1 || true
     fi
     write_summary pass
-    printf '%s\n' "bringup: survey and recommendation written under $run_dir"
-    printf '%s\n' "bringup: recommended config: $recommended"
-    printf '%s\n' "bringup: recommendation JSON: $run_dir/recommendation.json"
+    if [ "$json_output" != yes ]; then
+        printf '%s\n' "bringup: survey and recommendation written under $run_dir"
+        printf '%s\n' "bringup: recommended config: $recommended"
+        printf '%s\n' "bringup: recommendation JSON: $run_dir/recommendation.json"
+        [ -n "$target_preset_path" ] && printf '%s\n' "bringup: recommended target preset: $target_preset_path"
+        [ -n "$compatibility_label" ] && printf '%s\n' "bringup: compatibility: $compatibility_label"
+        [ -n "$selected_artifact" ] && printf '%s\n' "bringup: selected artifact: $selected_artifact"
+        [ -n "$trailer_command" ] && printf '%s\n' "bringup: trailer command: $trailer_command"
+        [ -n "$staged_fetch_command" ] && printf '%s\n' "bringup: staged fetch command: $staged_fetch_command"
+    fi
     exit 0
 fi
 
@@ -191,6 +435,10 @@ env BUSIERBOX_CONFIG="$recommended" make package >"$run_dir/recommended-build.lo
     printf '%s\n' "bringup: recommended artifact build failed; see $run_dir/recommended-build.log" >&2
     exit 1
 }
+recommended_artifact="dist/busierbox-$target_preset-full"
+[ -f "$recommended_artifact" ] || recommended_artifact="dist/busierbox-native-full"
+generate_trailer_command
+stage_artifact_for_fetch
 
 if [ -n "$run_integration" ]; then
     scripts/integration-glinet --host "$host" --target-preset "$target_preset" --case "$run_integration" >>"$run_dir/integration.log" 2>&1 || {
@@ -200,7 +448,14 @@ if [ -n "$run_integration" ]; then
 fi
 
 if [ "$remote_touched" = yes ] && [ "$keep_remote" != yes ]; then
-    ssh "$host" "rm -rf $(printf '%s' "$remote_dir" | sed \"s/'/'\\\\''/g\")" >>"$run_dir/ssh.log" 2>&1 || true
+    ssh "$host" "rm -rf '$(remote_quote "$remote_dir")'" >>"$run_dir/ssh.log" 2>&1 || true
 fi
 write_summary pass
-printf '%s\n' "bringup: complete; summary at $summary"
+if [ "$json_output" != yes ]; then
+    printf '%s\n' "bringup: complete; summary at $summary"
+    [ -n "$target_preset_path" ] && printf '%s\n' "bringup: recommended target preset: $target_preset_path"
+    [ -n "$compatibility_label" ] && printf '%s\n' "bringup: compatibility: $compatibility_label"
+    [ -n "$selected_artifact" ] && printf '%s\n' "bringup: selected artifact: $selected_artifact"
+    [ -n "$trailer_command" ] && printf '%s\n' "bringup: trailer command: $trailer_command"
+    [ -n "$staged_fetch_command" ] && printf '%s\n' "bringup: staged fetch command: $staged_fetch_command"
+fi

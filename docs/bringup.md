@@ -15,9 +15,16 @@ harness for known cases.
 - Builds a conservative survey artifact unless `--survey-json` is supplied.
 - Copies that artifact to `/tmp/busierbox-bringup-<timestamp>/` on the target.
 - Runs `./busierbox survey --json` and `./busierbox config-info`.
+- Runs `./busierbox reality-test --json` when the survey artifact includes the
+  applet.
 - Runs `scripts/config-from-survey`.
 - Writes `survey.json`, `recommendation.json`, `recommended.conf`, logs, and
   `summary.json`.
+- Can write a local generated target preset from the survey.
+- Can ask a release bundle to select a compatible artifact and report the
+  compatibility label/reasons.
+- Can print the exact trailer override, operator, target, and staged fetch
+  commands to run next.
 - Builds the recommended artifact unless stopped with `--survey-only` or
   `--recommend-only`.
 - Optionally runs one integration case with `--run-integration CASE`.
@@ -49,10 +56,42 @@ Generate a recommendation from an existing survey without touching a target:
 
 ```sh
 scripts/busierbox-bringup \
-  --host root@192.0.2.1 \
   --recommend-only \
   --survey-json local/survey.json \
   --target-preset glinet-mt7621-openwrt-musl
+```
+
+Generate a reusable local target preset from a survey:
+
+```sh
+scripts/busierbox-bringup \
+  --recommend-only \
+  --survey-json local/survey.json \
+  --write-target-preset lab-router \
+  --json
+```
+
+Select a compatible artifact from a release bundle and print the trailer
+override command without executing it:
+
+```sh
+scripts/busierbox-bringup \
+  --recommend-only \
+  --survey-json local/survey.json \
+  --release-dir dist/releases/smoke \
+  --operator-host 192.0.2.10 \
+  --configure-trailer
+```
+
+Stage the selected release artifact, or `recommended.conf` when no artifact is
+available yet, for explicit target-side fetch:
+
+```sh
+scripts/busierbox-bringup \
+  --recommend-only \
+  --survey-json local/survey.json \
+  --release-dir dist/releases/smoke \
+  --stage-recommended-artifact
 ```
 
 Preview the local plan only:
@@ -79,6 +118,7 @@ local/bringup-runs/<timestamp>/
   build.log
   ssh.log
   survey.json
+  reality-test.json
   config-info.out
   recommendation.json
   recommended.conf
@@ -87,7 +127,9 @@ local/bringup-runs/<timestamp>/
 ```
 
 `summary.json` records the run status, local run directory, remote directory,
-host, target preset, payload preset, and paths to the generated recommendation.
+host, target preset, payload preset, generated target preset path, release
+selection, compatibility label/reasons, generated trailer command, staged fetch
+command, next operator commands, and next target commands.
 
 ## Safety Defaults
 
@@ -95,6 +137,10 @@ The initial survey artifact uses the selected payload preset, defaults to
 `survey-core`, forces `BB_RUNTIME_ALLOW_EXTERNAL_WRITES="no"`, and keeps
 `BB_ZERO_ARG_MODE="help"`. `scripts/config-from-survey` remains conservative:
 it does not enable external writes or network autorun unless explicitly asked.
+`--configure-trailer` prints an `scripts/artifact-config set ...` command; it
+does not run target-side code. `--stage-recommended-artifact` updates the
+operator staged-files index so the target can explicitly run `busierbox fetch`;
+it does not start the file-service listener by itself.
 
 Use `--keep-remote` only when debugging. Otherwise the remote temp directory is
 removed after the survey capture.
