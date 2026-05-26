@@ -71,7 +71,7 @@ def main():
     if "file-service" not in combined or "--file-service" not in combined:
         print("busierbox-server help missing receive-only file service", file=sys.stderr)
         return 1
-    for word in ("--tui", "--serve-file", "--serve-dir", "--list-staged", "--status", "--stop", "--json-status"):
+    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--list-staged", "--status", "--stop", "--json-status"):
         if word not in combined:
             print(f"busierbox-server help missing operator workbench flag: {word}", file=sys.stderr)
             return 1
@@ -487,8 +487,52 @@ def main():
         release_dir = Path(tmp) / "release"
         (release_dir / "bin").mkdir(parents=True)
         (release_dir / "scripts").mkdir()
-        (release_dir / "release.json").write_text('{"schema":1}\n', encoding="utf-8")
         (release_dir / "bin" / "busierbox-test").write_text("artifact\n", encoding="utf-8")
+        (release_dir / "release.json").write_text(json.dumps({
+            "schema": 1,
+            "release_name": "operator-smoke",
+            "layout": {
+                "devices": {
+                    "lab-router": {
+                        "tuple_path": "by-tuple/native/host/host/host",
+                        "artifacts": ["by-tuple/native/host/host/host/bin/busierbox-test"],
+                    }
+                },
+                "tuples": {
+                    "by-tuple/native/host/host/host": {
+                        "tuple": {"arch": "native", "libc": "host", "kernel_floor": "host"},
+                        "artifacts": ["by-tuple/native/host/host/host/bin/busierbox-test"],
+                    }
+                },
+            },
+        }) + "\n", encoding="utf-8")
+        (release_dir / "release-index.json").write_text(json.dumps({
+            "schema": 1,
+            "release_name": "operator-smoke",
+            "devices": {
+                "lab-router": {
+                    "tuple_path": "by-tuple/native/host/host/host",
+                    "artifacts": ["by-tuple/native/host/host/host/bin/busierbox-test"],
+                }
+            },
+            "tuples": {
+                "by-tuple/native/host/host/host": {
+                    "tuple": {"arch": "native", "libc": "host", "kernel_floor": "host"},
+                    "artifacts": ["by-tuple/native/host/host/host/bin/busierbox-test"],
+                }
+            },
+            "artifacts": [
+                {
+                    "artifact": "bin/busierbox-test",
+                    "tuple_artifact": "bin/busierbox-test",
+                    "tuple_path": "by-tuple/native/host/host/host",
+                    "payload_preset": "default",
+                    "sha256": "abc123",
+                    "tools": ["sh"],
+                    "compatibility": {"label": "exact", "reasons": ["fixture"]},
+                }
+            ],
+        }) + "\n", encoding="utf-8")
         release_view = subprocess.run(
             [
                 str(server),
@@ -501,9 +545,52 @@ def main():
             text=True,
             capture_output=True,
         )
-        if "Release:" not in release_view.stdout or "busierbox-test" not in release_view.stdout:
+        if ("Release artifact browser" not in release_view.stdout or
+                "busierbox-test" not in release_view.stdout or
+                "Release devices" not in release_view.stdout or
+                "lab-router" not in release_view.stdout or
+                "--stage-release-artifact" not in release_view.stdout):
             print("workbench did not show release artifact paths", file=sys.stderr)
             print(release_view.stdout, file=sys.stderr)
+            return 1
+        release_status = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--json-status",
+            ],
+            cwd=release_dir,
+            text=True,
+            capture_output=True,
+        )
+        release_doc = json.loads(release_status.stdout)
+        rel = release_doc.get("release") or {}
+        if (rel.get("release_name") != "operator-smoke" or
+                not rel.get("artifacts") or
+                rel.get("devices", [{}])[0].get("name") != "lab-router" or
+                rel.get("tuples", [{}])[0].get("path") != "by-tuple/native/host/host/host"):
+            print("json status missing release browser metadata", file=sys.stderr)
+            print(release_status.stdout, file=sys.stderr)
+            return 1
+        staged_release = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--stage-release-artifact", "busierbox-test",
+                "--list-staged",
+            ],
+            cwd=release_dir,
+            text=True,
+            capture_output=True,
+        )
+        if staged_release.returncode != 0 or "busierbox fetch busierbox-test" not in staged_release.stdout:
+            print("--stage-release-artifact did not stage release artifact", file=sys.stderr)
+            print(staged_release.stdout, file=sys.stderr)
+            print(staged_release.stderr, file=sys.stderr)
             return 1
 
         bad_stage = run(

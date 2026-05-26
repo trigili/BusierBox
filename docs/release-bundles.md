@@ -229,6 +229,18 @@ scripts/busierbox-server --file-service --file-port 22204
 ./busierbox evidence push
 ```
 
+When launched from a release bundle, the operator workbench and JSON status can
+also browse release artifacts, device aliases, and tuple directories:
+
+```sh
+scripts/busierbox-server --tui
+scripts/busierbox-server --json-status
+scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host/bin/busierbox-native-default-full --list-staged
+```
+
+`--stage-release-artifact` stages the selected artifact for explicit
+target-side `busierbox fetch`; it does not push the artifact or run it.
+
 Inspect and clean BusierBox-controlled runtime state:
 
 ```sh

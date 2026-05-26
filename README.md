@@ -185,6 +185,12 @@ scripts/busierbox-server --transport ssh
 ssh -p 2200 root@127.0.0.1
 ```
 
+Run `scripts/busierbox-server --tui` for the operator workbench. It can inspect
+services, recent sessions, received uploads, staged fetch files, and release
+bundle artifacts/devices/tuples when launched from a release directory. Staging
+a file or release artifact only prepares an explicit target-side `busierbox
+fetch` command; it does not execute commands on the target.
+
 Reverse access is explicit and operator-controlled. BusierBox does not install persistence, daemonize by default, hide process names, delete logs, or repeatedly beacon in the background. The `rshell` applet is also available as an explicit command:
 
 ```sh

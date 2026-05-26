@@ -244,9 +244,84 @@ def release_context():
         for root_name in ("bin", "dist"):
             root = here / root_name
             if root.is_dir():
-                artifacts.extend(str(path) for path in sorted(root.iterdir()) if path.is_file())
-        return {"release_dir": str(here), "release_json": str(release_json), "artifacts": artifacts}
+                for path in sorted(root.iterdir()):
+                    if path.is_file():
+                        artifacts.append({
+                            "name": path.name,
+                            "path": str(path),
+                            "request_name": path.name,
+                            "size": path.stat().st_size,
+                            "source": root_name,
+                        })
+        index = read_json_file(here / "release-index.json", {})
+        release = read_json_file(release_json, {})
+        if isinstance(index, dict):
+            for row in index.get("artifacts") or []:
+                artifact = row.get("tuple_artifact") or row.get("artifact")
+                if not artifact:
+                    continue
+                path = here / artifact
+                rec = {
+                    "name": Path(artifact).name,
+                    "path": str(path),
+                    "request_name": Path(artifact).name,
+                    "size": path.stat().st_size if path.is_file() else row.get("size", 0),
+                    "source": "release-index",
+                    "release_path": artifact,
+                    "tuple_path": row.get("tuple_path", ""),
+                    "payload_preset": row.get("payload_preset", ""),
+                    "sha256": row.get("sha256", ""),
+                    "tools": row.get("tools") or [],
+                    "compatibility": row.get("compatibility") or {},
+                }
+                existing_paths = [item.get("path") for item in artifacts]
+                if rec["path"] in existing_paths:
+                    artifacts[existing_paths.index(rec["path"])].update(rec)
+                else:
+                    artifacts.append(rec)
+        devices = []
+        tuples = []
+        layout = release.get("layout") if isinstance(release, dict) else {}
+        if isinstance(index, dict):
+            devices_source = index.get("devices") or (layout or {}).get("devices") or {}
+            tuples_source = index.get("tuples") or (layout or {}).get("tuples") or {}
+        else:
+            devices_source = (layout or {}).get("devices") or {}
+            tuples_source = (layout or {}).get("tuples") or {}
+        for name, rec in sorted((devices_source or {}).items()):
+            if isinstance(rec, dict):
+                devices.append({"name": name, "tuple_path": rec.get("tuple_path", ""), "artifacts": rec.get("artifacts") or []})
+        for name, rec in sorted((tuples_source or {}).items()):
+            if isinstance(rec, dict):
+                tuples.append({"path": name, "tuple": rec.get("tuple") or {}, "artifacts": rec.get("artifacts") or []})
+        return {
+            "release_dir": str(here),
+            "release_json": str(release_json),
+            "release_index": str(here / "release-index.json") if (here / "release-index.json").is_file() else "",
+            "release_name": release.get("release_name", "") if isinstance(release, dict) else "",
+            "artifacts": artifacts,
+            "devices": devices,
+            "tuples": tuples,
+        }
     return {}
+
+
+def stage_release_artifact(cfg, artifact_name):
+    rel = release_context()
+    if not rel:
+        raise ValueError("not running inside a release bundle")
+    matches = []
+    for rec in rel.get("artifacts") or []:
+        path = Path(str(rec.get("path", "")))
+        if artifact_name in {rec.get("name"), rec.get("release_path"), str(path)}:
+            matches.append(rec)
+    if not matches:
+        raise ValueError(f"release artifact not found: {artifact_name}")
+    if len(matches) > 1:
+        raise ValueError(f"release artifact is ambiguous: {artifact_name}")
+    rec = matches[0]
+    request = rec.get("request_name") or Path(str(rec.get("path"))).name
+    return stage_file(cfg, rec["path"], request)
 
 
 def render_fetch_command(request_name, cfg, host=None, force=False):
@@ -1764,6 +1839,17 @@ def print_status(cfg, json_output=False):
             print(f"  {meta.get('filename', '')} size={meta.get('size', '')} metadata={meta.get('_metadata_path', '')}")
     else:
         print("  none")
+    if doc["release"]:
+        print("")
+        print("Release browser:")
+        print(f"  release_dir: {doc['release'].get('release_dir', '')}")
+        print(f"  release_name: {doc['release'].get('release_name', '')}")
+        for artifact in doc["release"].get("artifacts", [])[:12]:
+            print(f"  artifact {artifact.get('name', '')} tuple={artifact.get('tuple_path', '')} preset={artifact.get('payload_preset', '')}")
+        for device in doc["release"].get("devices", [])[:8]:
+            print(f"  device {device.get('name', '')} -> {device.get('tuple_path', '')}")
+        for item in doc["release"].get("tuples", [])[:8]:
+            print(f"  tuple {item.get('path', '')}")
     return 0
 
 
@@ -1878,14 +1964,22 @@ def print_workbench(cfg):
     rel = release_context()
     if rel:
         print("")
-        print("Release:")
-        for key, value in sorted(rel.items()):
-            if isinstance(value, list):
-                print(f"  {key}:")
-                for item in value:
-                    print(f"    {item}")
-            else:
-                print(f"  {key}: {value}")
+        print("Release artifact browser:")
+        print(f"  release_dir: {rel.get('release_dir', '')}")
+        print(f"  release_name: {rel.get('release_name', '')}")
+        if rel.get("artifacts"):
+            for artifact in rel["artifacts"][:12]:
+                sha = str(artifact.get("sha256", ""))[:12]
+                print(f"  artifact {artifact.get('name', '')} size={artifact.get('size', '')} sha256={sha} tuple={artifact.get('tuple_path', '')} preset={artifact.get('payload_preset', '')}")
+                print(f"    stage: scripts/busierbox-server --stage-release-artifact {shquote(artifact.get('release_path') or artifact.get('name', ''))}")
+        else:
+            print("  artifacts: none")
+        print("Release devices:")
+        for device in rel.get("devices", [])[:12] or [{"name": "none", "tuple_path": ""}]:
+            print(f"  {device.get('name', '')} -> {device.get('tuple_path', '')}")
+        print("Release tuples:")
+        for item in rel.get("tuples", [])[:12] or [{"path": "none"}]:
+            print(f"  {item.get('path', '')}")
 
 
 def start_service_process(cfg, service, argv_extra=None):
@@ -2008,6 +2102,22 @@ def run_curses_tui(cfg):
                 f"{s.get('service', '')} {Path(s.get('path', '')).name} exit={s.get('exit_reason', '') or '-'}"
                 for s in snap["sessions"]
             ] or ["none"]
+            release = snap.get("release") or {}
+            release_artifacts = release.get("artifacts") or []
+            release_devices = release.get("devices") or []
+            release_tuples = release.get("tuples") or []
+            release_lines = [
+                f"{a.get('name', '')} {a.get('payload_preset', '')} {a.get('tuple_path', '')}"
+                for a in release_artifacts[:10]
+            ] or ["none"]
+            device_tuple_lines = [
+                f"dev {d.get('name', '')} -> {d.get('tuple_path', '')}"
+                for d in release_devices[:5]
+            ] + [
+                f"tuple {t.get('path', '')}"
+                for t in release_tuples[:5]
+            ]
+            device_tuple_lines = device_tuple_lines or ["none"]
             event_lines = [
                 f"{e.get('ts', '')} {e.get('service', '')}:{e.get('event', '')}"
                 for e in snap["events"][-8:]
@@ -2047,6 +2157,24 @@ def run_curses_tui(cfg):
                     f"staged: {rec.get('staged_at', '')}",
                     render_fetch_command(name, cfg, host=snap["selected_local_ip"]),
                 ]
+            elif pane == 6 and release_artifacts:
+                rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
+                detail_lines = [
+                    f"release: {release.get('release_name', '')}",
+                    f"artifact: {rec.get('name', '')}",
+                    f"path: {rec.get('path', '')}",
+                    f"tuple: {rec.get('tuple_path', '')}",
+                    f"payload: {rec.get('payload_preset', '')}",
+                    f"sha256: {rec.get('sha256', '')}",
+                    "enter/s stages for fetch",
+                ]
+            elif pane == 7:
+                detail_lines = [
+                    f"release: {release.get('release_name', '')}",
+                    f"index: {release.get('release_index', '')}",
+                    f"devices: {len(release_devices)}",
+                    f"tuples: {len(release_tuples)}",
+                ]
             else:
                 detail_lines = [
                     f"state: {state_file_path(cfg)}",
@@ -2068,8 +2196,10 @@ def run_curses_tui(cfg):
             draw_list(stdscr, "Recent Uploads", upload_lines, lower_y, third + 1, 7, third, pane == 2)
             draw_list(stdscr, "Recent Sessions", session_lines, lower_y, (third + 1) * 2, 7, width - ((third + 1) * 2), pane == 3)
             events_y = min(height - 8, lower_y + 8)
-            draw_list(stdscr, "Event Log", event_lines, events_y, 0, height - events_y - 1, width // 2, pane == 4)
-            draw_list(stdscr, "Generated Target Commands", command_lines, events_y, width // 2 + 1, height - events_y - 1, width - width // 2 - 1, pane == 5)
+            draw_list(stdscr, "Event Log", event_lines, events_y, 0, height - events_y - 1, width // 4, pane == 4)
+            draw_list(stdscr, "Generated Target Commands", command_lines, events_y, width // 4 + 1, height - events_y - 1, width // 4, pane == 5)
+            draw_list(stdscr, "Release Artifacts", release_lines, events_y, (width // 4 + 1) * 2, height - events_y - 1, width // 4, pane == 6)
+            draw_list(stdscr, "Devices / Tuples", device_tuple_lines, events_y, (width // 4 + 1) * 3, height - events_y - 1, width - ((width // 4 + 1) * 3), pane == 7)
             key = stdscr.getch()
             if key in (ord("q"), ord("Q")):
                 return 0
@@ -2078,20 +2208,27 @@ def run_curses_tui(cfg):
             elif key in (curses.KEY_UP, ord("k")):
                 selected = max(0, selected - 1)
             elif key == ord("\t"):
-                pane = (pane + 1) % 6
+                pane = (pane + 1) % 8
                 selected = 0
             elif key == curses.KEY_BTAB:
-                pane = (pane - 1) % 6
+                pane = (pane - 1) % 8
                 selected = 0
             elif key in (ord("1"), ord("2"), ord("3"), ord("4")):
                 service = {ord("1"): "ssh", ord("2"): "tls-shell", ord("3"): "plain-shell", ord("4"): "file-service"}[key]
                 start_service_process(cfg, service)
-            elif key in (10, 13) and pane == 0 and services:
-                service = services[min(selected, len(services) - 1)]["name"]
-                if services[min(selected, len(services) - 1)]["actual"] == "listening":
-                    stop_recorded_service(cfg, service)
-                else:
-                    start_service_process(cfg, service)
+            elif key in (10, 13):
+                if pane == 0 and services:
+                    service = services[min(selected, len(services) - 1)]["name"]
+                    if services[min(selected, len(services) - 1)]["actual"] == "listening":
+                        stop_recorded_service(cfg, service)
+                    else:
+                        start_service_process(cfg, service)
+                elif pane == 6 and release_artifacts:
+                    rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
+                    try:
+                        stage_file(cfg, rec.get("path", ""), rec.get("request_name") or rec.get("name", ""))
+                    except ValueError:
+                        pass
             elif key == ord("5"):
                 curses.echo()
                 safe_add(stdscr, height - 2, 0, "service> ")
@@ -2099,6 +2236,12 @@ def run_curses_tui(cfg):
                 curses.noecho()
                 if service:
                     stop_recorded_service(cfg, service)
+            elif key in (ord("6"), ord("s")) and pane == 6 and release_artifacts:
+                rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
+                try:
+                    stage_file(cfg, rec.get("path", ""), rec.get("request_name") or rec.get("name", ""))
+                except ValueError:
+                    pass
             elif key in (ord("6"), ord("s")):
                 curses.echo()
                 safe_add(stdscr, height - 3, 0, "local file> ")
@@ -2121,7 +2264,7 @@ def run_curses_tui(cfg):
             elif key in (ord("c"), ord("C")):
                 safe_add(stdscr, height - 2, 0, "Commands are shown in the lower-right pane. Press any key.")
                 stdscr.getch()
-            max_items = len(services) if pane == 0 else len(staged_names) if pane == 1 else 1
+            max_items = len(services) if pane == 0 else len(staged_names) if pane == 1 else len(release_artifacts) if pane == 6 else 1
             selected = min(max(0, selected), max(0, max_items - 1))
         return 0
 
@@ -2187,6 +2330,7 @@ Transport modes:
 File staging:
   --transport file-service --serve-file ./tool --as /tmp/tool
   --transport file-service --serve-dir local/operator-files
+  --stage-release-artifact by-tuple/.../bin/busierbox-target-full
   --transport file-service --list-staged
 
 Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
@@ -2216,6 +2360,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="target request name for --serve-file, for example /tmp/myfile")
     parser.add_argument("--serve-dir",
                         help="stage direct child files from a local directory for explicit target fetch")
+    parser.add_argument("--stage-release-artifact",
+                        help="stage an artifact from the current release bundle for explicit target fetch")
     parser.add_argument("--list-staged", action="store_true",
                         help="list operator-staged target fetch files and commands")
     parser.add_argument("--unstage",
@@ -2298,6 +2444,11 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             for rec in records:
                 print(f"staged {rec['request_name']} <- {rec['source_path']}")
                 print(render_fetch_command(rec["request_name"], cfg))
+            action = "file-service"
+        if args.stage_release_artifact:
+            rec = stage_release_artifact(cfg, args.stage_release_artifact)
+            print(f"staged {rec['request_name']} <- {rec['source_path']}")
+            print(render_fetch_command(rec["request_name"], cfg))
             action = "file-service"
         if args.unstage:
             existed = unstage_file(cfg, args.unstage)
