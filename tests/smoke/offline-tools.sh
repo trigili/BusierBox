@@ -73,6 +73,37 @@ scripts/check-offline-readiness \
     --matrix "$tmp/matrix.json" >"$tmp/readiness-matrix.out"
 grep -q 'offline-readiness ok' "$tmp/readiness-matrix.out"
 
+cat >"$tmp/payload-presets-matrix.json" <<'EOF'
+{
+  "targets": ["native"],
+  "payload_presets": ["survey-core", "ssh-operator"],
+  "formats": ["tgz"]
+}
+EOF
+scripts/mirror-sources \
+    --matrix "$tmp/payload-presets-matrix.json" \
+    --source-only \
+    --out "$tmp/payload-presets-mirror" \
+    --dry-run >"$tmp/payload-presets-mirror-plan.json"
+python3 - "$tmp/payload-presets-mirror-plan.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+jobs = [
+    item.get("job", {})
+    for item in data.get("source_plans", [])
+]
+payloads = {job.get("payload") for job in jobs}
+if {"survey-core", "ssh-operator"} - payloads:
+    raise SystemExit(f"payload_presets matrix did not expand: {payloads!r}")
+PY
+scripts/check-offline-readiness \
+    --mirror "$tmp/ready" \
+    --manifest "$tmp/sources.lock.json" \
+    --matrix "$tmp/payload-presets-matrix.json" >"$tmp/readiness-payload-presets.out"
+grep -q 'offline-readiness ok' "$tmp/readiness-payload-presets.out"
+
 if scripts/check-offline-readiness \
     --mirror "$tmp/ready" \
     --manifest "$tmp/sources.lock.json" \

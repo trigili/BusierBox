@@ -150,7 +150,7 @@ def main():
     parser.add_argument("--list-payloads", action="store_true")
     parser.add_argument("--targets", help="comma-separated targets, or all")
     parser.add_argument("--payloads", help="comma-separated payload presets, or all")
-    parser.add_argument("--formats", default="tgz", help="comma-separated formats; default tgz")
+    parser.add_argument("--formats", help="comma-separated formats; default tgz or matrix formats")
     parser.add_argument("--matrix", help="matrix JSON file")
     parser.add_argument("--jobs", type=int, default=1, help="accepted for CLI compatibility; builds are serialized")
     parser.add_argument("--fail-fast", action="store_true")

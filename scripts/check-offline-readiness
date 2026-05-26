@@ -152,7 +152,7 @@ def main():
     parser.add_argument("--matrix")
     parser.add_argument("--targets")
     parser.add_argument("--payloads")
-    parser.add_argument("--formats", default="tgz")
+    parser.add_argument("--formats")
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()

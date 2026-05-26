@@ -72,6 +72,33 @@ PY
 grep -q '^BB_ZERO_ARG_MODE=help$' "$tmp/matrix-run/configs/native-ssh-operator-tgz.conf"
 
 scripts/build-matrix \
+    --matrix release/matrices/iot-lab.json \
+    --dry-run \
+    --run-dir "$tmp/iot-run" >"$tmp/iot-run.out"
+python3 - "$tmp/iot-run/summary.json" release/matrices/iot-lab.json <<'PY'
+import json
+import sys
+
+summary = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+matrix = json.load(open(sys.argv[2], "r", encoding="utf-8"))
+expected = {
+    (target, payload, fmt)
+    for target in matrix["targets"]
+    for payload in matrix["payload_presets"]
+    for fmt in matrix["formats"]
+}
+actual = {
+    (job["target"], job["payload"], job["format"])
+    for job in summary.get("jobs", [])
+}
+missing = expected - actual
+if missing:
+    raise SystemExit(f"missing iot-lab jobs: {sorted(missing)!r}")
+if len(actual) != len(expected):
+    raise SystemExit(f"unexpected iot-lab job count: {len(actual)} != {len(expected)}")
+PY
+
+scripts/build-matrix \
     --matrix "$tmp/matrix.json" \
     --offline \
     --mirror-dir "$tmp/source-mirror" \

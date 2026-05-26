@@ -50,7 +50,7 @@ def load_matrix(path):
 def expand_jobs(args):
     matrix = load_matrix(args.matrix) if getattr(args, "matrix", None) else {}
     targets = csv_items(getattr(args, "targets", None)) or matrix.get("targets") or ["native"]
-    payloads = csv_items(getattr(args, "payloads", None)) or matrix.get("payloads") or ["default"]
+    payloads = csv_items(getattr(args, "payloads", None)) or matrix.get("payload_presets") or matrix.get("payloads") or ["default"]
     formats = csv_items(getattr(args, "formats", None)) or matrix.get("formats") or ["tgz"]
     if targets == ["all"]:
         targets = list_targets()
@@ -72,7 +72,7 @@ def expand_jobs(args):
     variants = matrix.get("variants") or {}
     for name, data in sorted(variants.items()):
         v_targets = data.get("targets") or ([data.get("target")] if data.get("target") else targets)
-        v_payloads = data.get("payloads") or ([data.get("payload_preset") or data.get("payload")] if (data.get("payload_preset") or data.get("payload")) else payloads)
+        v_payloads = data.get("payload_presets") or data.get("payloads") or ([data.get("payload_preset") or data.get("payload")] if (data.get("payload_preset") or data.get("payload")) else payloads)
         v_formats = data.get("formats") or ([data.get("format")] if data.get("format") else formats)
         for target in v_targets:
             for payload in v_payloads:
@@ -102,7 +102,7 @@ def write_config(path, target, payload, fmt, variant=None):
         f"PAYLOAD_FORMAT={shell_quote(fmt)}",
     ]
     for key, value in sorted(variant.items()):
-        if key in {"target", "targets", "payload", "payloads", "payload_preset", "format", "formats"}:
+        if key in {"target", "targets", "payload", "payloads", "payload_preset", "payload_presets", "format", "formats"}:
             continue
         if isinstance(value, bool):
             value = "yes" if value else "no"
@@ -148,5 +148,6 @@ def matrix_identity(args):
         "matrix": getattr(args, "matrix", None),
         "targets": getattr(args, "targets", None),
         "payloads": getattr(args, "payloads", None),
+        "payload_presets": getattr(args, "payload_presets", None),
         "formats": getattr(args, "formats", None),
     }
