@@ -245,6 +245,66 @@ assert r["trailer_override"]["valid"] is False
 assert r["trailer_override"]["status"] == "payload bounds invalid"
 PY
 
+cp "$work/busierbox" "$work/busierbox-bad-encoding"
+python3 - "$work/busierbox-bad-encoding" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+b = bytearray(p.read_bytes())
+start = len(b) - 4096
+needle = b"encoding=plain\n"
+pos = b.find(needle, start)
+if pos < 0:
+    raise SystemExit("encoding metadata not found")
+b[pos:pos + len(needle)] = b"encoding=rot13\n"
+p.write_bytes(b)
+PY
+if scripts/artifact-config show "$work/busierbox-bad-encoding" >"$work/show.bad-encoding" 2>&1; then
+    printf '%s\n' "artifact-config smoke: unsupported encoding trailer unexpectedly passed" >&2
+    exit 1
+fi
+grep -q '^trailer_status=unsupported encoding rot13$' "$work/show.bad-encoding"
+"$work/busierbox-bad-encoding" runtime-config --json >"$work/runtime.bad-encoding.json"
+python3 - "$work/runtime.bad-encoding.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert r["effective_config_source"] == "compiled"
+assert r["trailer_override"]["present"] is True
+assert r["trailer_override"]["valid"] is False
+assert r["trailer_override"]["encoding"] == "rot13"
+assert r["trailer_override"]["status"] == "unsupported encoding"
+PY
+
+cp "$artifact" "$work/busierbox-bad-xor-key"
+BB_TRAILER_OBFUSCATION=xor scripts/artifact-config set "$work/busierbox-bad-xor-key" BB_OPERATOR_SERVER_HOST=192.0.2.45 >/dev/null
+python3 - "$work/busierbox-bad-xor-key" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+b = bytearray(p.read_bytes())
+start = len(b) - 4096
+needle = b"key_hex="
+pos = b.find(needle, start)
+if pos < 0:
+    raise SystemExit("xor key metadata not found")
+pos += len(needle)
+b[pos:pos + 2] = b"zz"
+p.write_bytes(b)
+PY
+if scripts/artifact-config show "$work/busierbox-bad-xor-key" >"$work/show.bad-xor-key" 2>&1; then
+    printf '%s\n' "artifact-config smoke: invalid xor key trailer unexpectedly passed" >&2
+    exit 1
+fi
+grep -q '^trailer_status=invalid xor key$' "$work/show.bad-xor-key"
+"$work/busierbox-bad-xor-key" runtime-config --json >"$work/runtime.bad-xor-key.json"
+python3 - "$work/runtime.bad-xor-key.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert r["effective_config_source"] == "compiled"
+assert r["trailer_override"]["present"] is True
+assert r["trailer_override"]["valid"] is False
+assert r["trailer_override"]["encoding"] == "xor"
+assert r["trailer_override"]["status"] == "invalid xor key"
+PY
+
 cp "$artifact" "$work/busierbox-unknown-runtime"
 python3 - "$work/busierbox-unknown-runtime" <<'PY'
 import hashlib, pathlib, sys
