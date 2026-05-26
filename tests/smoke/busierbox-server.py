@@ -257,7 +257,11 @@ def main():
                 paths.get("staged_files") != queue_status_json.get("staged_files") or
                 paths.get("command_queue_file") != str(queue_file) or
                 not paths.get("event_log") or
-                not paths.get("operator_session_dir")):
+                not paths.get("operator_session_dir") or
+                paths.get("tls_cert") != queue_status_json.get("tls_cert") or
+                paths.get("tls_key") != queue_status_json.get("tls_key") or
+                paths.get("tls_cert") != str(cert_path) or
+                paths.get("tls_key") != str(key_path)):
             print("server json status missing stable generated_at/paths API fields", file=sys.stderr)
             return 1
         if queue_status_json["summary"].get("service_count") != 4:

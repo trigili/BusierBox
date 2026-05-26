@@ -2164,6 +2164,8 @@ def status_document(cfg):
         "command_copy_file": str(command_copy_path(cfg)),
         "event_log": str(event_log_path),
         "session_root": session_root,
+        "tls_cert": str(cfg.get("tls_cert", "")),
+        "tls_key": str(cfg.get("tls_key", "")),
         "paths": {
             "operator_session_dir": str(operator_dir),
             "state_file": str(state_file_path(cfg)),
@@ -2172,6 +2174,8 @@ def status_document(cfg):
             "command_copy_file": str(command_copy_path(cfg)),
             "event_log": str(event_log_path),
             "session_root": session_root,
+            "tls_cert": str(cfg.get("tls_cert", "")),
+            "tls_key": str(cfg.get("tls_key", "")),
         },
         "services": services,
         "summary": summary,
