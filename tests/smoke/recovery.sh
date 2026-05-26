@@ -59,6 +59,10 @@ grep -q 'persistence status' "$tmp/root/etc/rc.local"
 ls "$tmp/root/etc"/rc.local.busierbox.bak.* >/dev/null
 "$bb" persistence status --root "$tmp/root" --name bbx_recovery >"$tmp/status"
 grep -q 'installed_method=rc-local' "$tmp/status"
+grep -q 'installed_kind=rc.local marked block' "$tmp/status"
+grep -q "installed_binary=$tmp/root/usr/bin/bbx_recovery" "$tmp/status"
+grep -q 'installed_binary_present=yes' "$tmp/status"
+grep -q 'installed_requires_external_write=yes' "$tmp/status"
 grep -q 'installed_action=status-only' "$tmp/status"
 "$bb" persistence status --json --root "$tmp/root" --name bbx_recovery >"$tmp/status.json"
 python3 -m json.tool "$tmp/status.json" >/dev/null
@@ -66,7 +70,14 @@ python3 - <<'PY' "$tmp/status.json"
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 assert data["installed"] is True
-assert any(item["method"] == "rc-local" and item["action"] == "status-only" for item in data["installations"])
+item = next(item for item in data["installations"] if item["method"] == "rc-local")
+assert item["action"] == "status-only"
+assert item["kind"] == "rc.local marked block"
+assert item["hook_present"] is True
+assert item["binary_present"] is True
+assert item["script_present"] is False
+assert item["requires_external_write"] == "yes"
+assert item["survives_reboot"] == "yes"
 PY
 "$bb" cleanup-ledger --json | python3 -m json.tool >"$tmp/ledger.json"
 python3 - <<'PY' "$tmp/ledger.json"

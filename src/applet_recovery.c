@@ -643,21 +643,40 @@ int applet_recovery_main(int argc, char **argv)
             fputs(",\"installations\":[", stdout);
         }
         for (j = 0; j < sizeof(recovery_methods) / sizeof(recovery_methods[0]); j++) {
-            char action[64], generated[PATH_MAX * 2], path[PATH_MAX];
+            char action[64], generated[PATH_MAX * 2], path[PATH_MAX], bin[PATH_MAX], script[PATH_MAX];
             if (recovery_status_one(root, &recovery_methods[j], name, action, sizeof(action), generated, sizeof(generated))) {
                 recovery_join(path, sizeof(path), root, recovery_methods[j].path);
+                recovery_bin_path(bin, sizeof(bin), root, name);
+                recovery_script_path(script, sizeof(script), root, name);
                 if (json) {
                     printf("%s{\"method\":", found ? "," : "");
                     bb_json_string(stdout, recovery_methods[j].name);
+                    fputs(",\"kind\":", stdout); bb_json_string(stdout, recovery_methods[j].kind);
                     fputs(",\"path\":", stdout); bb_json_string(stdout, path);
+                    fputs(",\"hook_present\":", stdout); fputs(path_exists(path) ? "true" : "false", stdout);
+                    fputs(",\"binary_path\":", stdout); bb_json_string(stdout, bin);
+                    fputs(",\"binary_present\":", stdout); fputs(path_exists(bin) ? "true" : "false", stdout);
+                    fputs(",\"script_path\":", stdout); bb_json_string(stdout, script);
+                    fputs(",\"script_present\":", stdout); fputs(path_exists(script) ? "true" : "false", stdout);
                     fputs(",\"action\":", stdout); bb_json_string(stdout, action[0] ? action : "unknown");
                     fputs(",\"generated_command\":", stdout); bb_json_string(stdout, generated);
+                    fputs(",\"survives_reboot\":", stdout); bb_json_string(stdout, recovery_methods[j].survives_reboot);
+                    fputs(",\"intrusiveness\":", stdout); bb_json_string(stdout, recovery_methods[j].intrusiveness);
+                    fputs(",\"reversibility\":", stdout); bb_json_string(stdout, recovery_methods[j].reversibility);
+                    fputs(",\"requires_external_write\":", stdout); bb_json_string(stdout, recovery_methods[j].requires_external_write);
                     fputc('}', stdout);
                 } else {
                     printf("installed_method=%s\n", recovery_methods[j].name);
+                    printf("installed_kind=%s\n", recovery_methods[j].kind);
+                    printf("installed_path=%s\n", path);
+                    printf("installed_hook_present=%s\n", path_exists(path) ? "yes" : "no");
+                    printf("installed_binary=%s\n", bin);
+                    printf("installed_binary_present=%s\n", path_exists(bin) ? "yes" : "no");
                     printf("installed_action=%s\n", action[0] ? action : "unknown");
                     if (generated[0])
                         printf("installed_command=%s\n", generated);
+                    printf("installed_survives_reboot=%s\n", recovery_methods[j].survives_reboot);
+                    printf("installed_requires_external_write=%s\n", recovery_methods[j].requires_external_write);
                 }
                 found = 1;
             }
