@@ -28,6 +28,6 @@ Implemented provider hooks:
 - `scripts/check-buildroot-tool-mappings` validates Buildroot symbols for supported target-payload tools and reports tools that require a target-compatible drop-in/user/overlay binary without failing non-strict checks.
 - `scripts/gen-buildroot-defconfig` emits Buildroot package symbols for supported wishlist payloads.
 - `scripts/menuconfig` exposes a clearly labeled dangerous storage/flash diagnostics category; none of those tools are selected by default presets.
-- `doom` uses the BusierBox Buildroot `doom-ascii` package for static target builds. Set `BB_DOOM_WAD_PATH` to a local legally usable `.wad`; BusierBox stages that file but never fetches game data. `BB_DOOM_USER_PATH` remains a native/local override for legacy engine drop-ins.
+- `doom` uses the BusierBox Buildroot `doom-ascii` package for static target builds. Set `BB_DOOM_WAD_PATH` to a local legally usable `.wad`; BusierBox records that path in the generated target profile and stages the file, but never fetches game data. `BB_DOOM_USER_PATH` remains a native/local override for legacy engine drop-ins only.
 
 Provider-only tools such as full `gdb`, GEF/pwndbg, radare2/rizin, `gcore`, and `tshark` remain explicit local-dropin/overlay choices until a target tuple has validated package support.

@@ -657,7 +657,7 @@
       ],
       "unsupported_libcs": [],
       "known_provider_issues": [],
-      "notes": "Classic Doom-compatible terminal runtime. Target builds compile doom-ascii through Buildroot and stage only the user-provided WAD from BB_DOOM_WAD_PATH; BusierBox does not download game data."
+      "notes": "Classic Doom-compatible terminal runtime. Target builds compile doom-ascii statically through Buildroot and stage only the user-provided WAD from BB_DOOM_WAD_PATH; BusierBox does not download game data."
     }
   }
 }

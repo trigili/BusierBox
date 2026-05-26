@@ -448,6 +448,7 @@ BB_BUSYBOX_GROUPS=$(profile_value BUSYBOX_GROUPS 2>/dev/null || true)
 pre_excluded=$(profile_value EXCLUDED_TOOLS 2>/dev/null || true)
 GDBSERVER_PROVIDER=$(profile_value GDBSERVER_PROVIDER 2>/dev/null || true)
 GDBSERVER_USER_PATH=$(profile_value GDBSERVER_USER_PATH 2>/dev/null || true)
+BB_DOOM_WAD_PATH=${BB_DOOM_WAD_PATH:-$(profile_value DOOM_WAD_PATH 2>/dev/null || true)}
 TARGET_STATIC_POLICY=$(profile_value STATIC_POLICY 2>/dev/null || true)
 BB_USER_OVERLAY_ENABLE=$(profile_value USER_OVERLAY_ENABLE 2>/dev/null || true)
 BB_USER_OVERLAY_ROOT=$(profile_value USER_OVERLAY_ROOT 2>/dev/null || true)
@@ -455,6 +456,12 @@ BB_USER_OVERLAY_ALLOW_OVERRIDE=$(profile_value USER_OVERLAY_ALLOW_OVERRIDE 2>/de
 GDBSERVER_PROVIDER=${GDBSERVER_PROVIDER:-auto}
 BB_USER_OVERLAY_ENABLE=${BB_USER_OVERLAY_ENABLE:-no}
 BB_USER_OVERLAY_ALLOW_OVERRIDE=${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}
+BB_DOOM_WAD_PATH=${BB_DOOM_WAD_PATH:-}
+
+if tool_requested doom; then
+    [ -n "$BB_DOOM_WAD_PATH" ] || die "doom selected but BB_DOOM_WAD_PATH is empty; provide a local legally usable .wad file"
+    [ -f "$BB_DOOM_WAD_PATH" ] || die "BB_DOOM_WAD_PATH not found: $BB_DOOM_WAD_PATH"
+fi
 
 ensure_buildroot
 if [ "$PREPARE_ONLY" -eq 1 ]; then

@@ -31,6 +31,15 @@ chmod 0755 "$work/doom"
 printf '%s\n' "fake wad" >"$work/doom.wad"
 cat >"$work/doom.conf" <<EOF
 BB_HEAVY_TOOLS="doom"
+BB_DOOM_WAD_PATH="$work/doom.wad"
+BB_USER_OVERLAY_ENABLE="no"
+BB_USER_OVERLAY_ROOT="./overlay"
+BB_USER_OVERLAY_ALLOW_OVERRIDE="no"
+BB_RUNTIME_MODE="extract"
+BB_DOTFILES_ENABLE="no"
+EOF
+cat >"$work/doom-native.conf" <<EOF
+BB_HEAVY_TOOLS="doom"
 BB_DOOM_USER_PATH="$work/doom"
 BB_DOOM_WAD_PATH="$work/doom.wad"
 BB_USER_OVERLAY_ENABLE="no"
@@ -42,6 +51,7 @@ EOF
 
 BUSIERBOX_CONFIG="$work/doom.conf" scripts/gen-buildroot-defconfig mipsel-linux-2.6-uclibc-legacy >/dev/null
 grep -q '^BR2_PACKAGE_BUSIERBOX_DOOM_ASCII=y$' buildroot/generated-configs/mipsel-linux-2.6-uclibc_defconfig
+grep -q "^DOOM_WAD_PATH := $work/doom.wad$" payloads/generated-profiles/mipsel-linux-2.6-uclibc.mk
 
 cat >"$work/nmap.conf" <<'EOF'
 BB_HEAVY_TOOLS="nmap nmap-ncat"
@@ -57,7 +67,7 @@ grep -q '^BR2_PACKAGE_NMAP=y$' buildroot/generated-configs/mipsel-linux-4.x-musl
 grep -q '^BR2_PACKAGE_NMAP_NCAT=y$' buildroot/generated-configs/mipsel-linux-4.x-musl_defconfig
 
 if [ -x runtime/payload/bin/busybox ] && runtime/payload/bin/busybox --list >/dev/null 2>&1; then
-    BUSIERBOX_CONFIG="$work/doom.conf" scripts/build-payload >/dev/null
+    BUSIERBOX_CONFIG="$work/doom-native.conf" scripts/build-payload >/dev/null
     test -x runtime/payload/bin/doom
     test -f runtime/payload/share/games/doom/doom.wad
     grep -qx doom runtime/payload/staged-tools.txt
