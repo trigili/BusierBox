@@ -1,6 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -418,7 +417,6 @@ static int is_help(int argc, char **argv)
     return argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"));
 }
 
-int bb_rm_rf(const char *path);
 static char *read_text_file(const char *path, size_t max_bytes);
 static const char *saved_argv0;
 
@@ -1487,6 +1485,11 @@ static void cleanup_no_residue_root(const char *root, const char *detail)
 {
     if (!root || !root[0])
         return;
+    /*
+     * no-residue cleanup owns only BusierBox runtime roots.  Refuse any other
+     * path before calling the shared recursive remover so interrupted payload
+     * commands cannot turn a stale or malformed payload path into broad deletion.
+     */
     if (strcmp(root, BB_RUNTIME_ROOT) && strcmp(root, BB_RUNTIME_FALLBACK_ROOT))
         return;
     bb_ledger_record("remove", root, "runtime", detail);
@@ -1810,33 +1813,6 @@ int applet_extract_main(int argc, char **argv)
     bb_write_artifact_manifest_file(root);
     printf("payload: extracted %s\n", payload);
     return 0;
-}
-
-int bb_rm_rf(const char *path)
-{
-    struct stat st;
-
-    if (lstat(path, &st) != 0)
-        return errno == ENOENT ? 0 : -1;
-    if (S_ISDIR(st.st_mode)) {
-        DIR *d = opendir(path);
-        struct dirent *de;
-        if (!d)
-            return -1;
-        while ((de = readdir(d)) != NULL) {
-            char child[PATH_MAX];
-            if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
-                continue;
-            snprintf(child, sizeof(child), "%s/%s", path, de->d_name);
-            if (bb_rm_rf(child) != 0) {
-                closedir(d);
-                return -1;
-            }
-        }
-        closedir(d);
-        return rmdir(path);
-    }
-    return unlink(path);
 }
 
 static char *read_text_file(const char *path, size_t max_bytes)
