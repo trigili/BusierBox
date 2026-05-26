@@ -550,6 +550,99 @@ void bb_config_print_runtime_summary_json(FILE *out, void (*json_string)(FILE *,
     fputc('}', out);
 }
 
+static void rshell_server_listener(char *out, size_t outsz)
+{
+    const char *transport = bb_config_get("BB_RSHELL_TRANSPORT");
+    const char *encryption = bb_config_get("BB_RSHELL_ENCRYPTION");
+    const char *shell_port = bb_config_get("BB_RSHELL_SOCAT_PORT");
+    const char *ssh_port = bb_config_get("BB_OPERATOR_SERVER_SSH_PORT");
+
+    if (!strcmp(transport, "ssh"))
+        snprintf(out, outsz, "scripts/busierbox-server --transport ssh --ssh-port %s", ssh_port);
+    else if (!strcmp(encryption, "none"))
+        snprintf(out, outsz, "scripts/busierbox-server --transport plain-shell --shell-port %s", shell_port);
+    else
+        snprintf(out, outsz, "scripts/busierbox-server --transport tls-shell --shell-port %s", shell_port);
+}
+
+static void rshell_connect_hint(char *out, size_t outsz)
+{
+    const char *transport = bb_config_get("BB_RSHELL_TRANSPORT");
+    const char *remote_forward_port = bb_config_get("BB_OPERATOR_REMOTE_FORWARD_PORT");
+
+    if (!strcmp(transport, "ssh"))
+        snprintf(out, outsz, "ssh -p %s root@127.0.0.1", remote_forward_port);
+    else if (!strcmp(transport, "none"))
+        snprintf(out, outsz, "reverse access disabled");
+    else
+        snprintf(out, outsz, "shell stream is attached by scripts/busierbox-server");
+}
+
+void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *, const char *))
+{
+    const char *transport = bb_config_get("BB_RSHELL_TRANSPORT");
+    const char *encryption = bb_config_get("BB_RSHELL_ENCRYPTION");
+    const char *run_mode = bb_config_get("BB_RSHELL_RUN_MODE");
+    const char *zero_arg_mode = bb_config_get("BB_ZERO_ARG_MODE");
+    const char *operator_host = bb_config_get("BB_OPERATOR_SERVER_HOST");
+    const char *shell_port = bb_config_get("BB_RSHELL_SOCAT_PORT");
+    const char *ssh_port = bb_config_get("BB_OPERATOR_SERVER_SSH_PORT");
+    const char *remote_forward_port = bb_config_get("BB_OPERATOR_REMOTE_FORWARD_PORT");
+    const char *target_bind_host = bb_config_get("BB_OPERATOR_TARGET_BIND_HOST");
+    const char *target_dropbear_port = bb_config_get("BB_OPERATOR_TARGET_DROPBEAR_PORT");
+    char server[256], hint[256], target_dropbear[256];
+    int warning_count = 0;
+
+    rshell_server_listener(server, sizeof(server));
+    rshell_connect_hint(hint, sizeof(hint));
+    snprintf(target_dropbear, sizeof(target_dropbear), "%s:%s", target_bind_host, target_dropbear_port);
+
+    fprintf(out, "{\"enabled\":%s", strcmp(transport, "none") ? "true" : "false");
+    fprintf(out, ",\"transport\":");
+    json_string(out, transport);
+    fprintf(out, ",\"encryption\":");
+    json_string(out, encryption);
+    fprintf(out, ",\"run_mode\":");
+    json_string(out, run_mode);
+    fprintf(out, ",\"zero_arg_autorun\":%s", !strcmp(zero_arg_mode, "rshell") ? "true" : "false");
+    fprintf(out, ",\"operator_host_set\":%s", operator_host[0] ? "true" : "false");
+    fprintf(out, ",\"operator_host\":");
+    json_string(out, operator_host);
+    fprintf(out, ",\"operator_shell_port\":");
+    json_string(out, shell_port);
+    fprintf(out, ",\"operator_ssh_port\":");
+    json_string(out, ssh_port);
+    fprintf(out, ",\"remote_forward_port\":");
+    json_string(out, remote_forward_port);
+    fprintf(out, ",\"target_dropbear\":");
+    json_string(out, target_dropbear);
+    fprintf(out, ",\"server_listener\":");
+    json_string(out, server);
+    fprintf(out, ",\"connect_hint\":");
+    json_string(out, hint);
+    fprintf(out, ",\"warnings\":[");
+    if (!strcmp(transport, "none")) {
+        json_string(out, "reverse access disabled");
+        warning_count++;
+    }
+    if (strcmp(transport, "none") && !operator_host[0]) {
+        if (warning_count++)
+            fputc(',', out);
+        json_string(out, "operator host is not configured");
+    }
+    if (strcmp(transport, "none") && strcmp(zero_arg_mode, "rshell")) {
+        if (warning_count++)
+            fputc(',', out);
+        json_string(out, "zero-arg execution will not start reverse access");
+    }
+    if (strcmp(transport, "ssh") && !strcmp(encryption, "none")) {
+        if (warning_count++)
+            fputc(',', out);
+        json_string(out, "plaintext shell transport is insecure/debug-only");
+    }
+    fprintf(out, "]}");
+}
+
 int applet_runtime_config_main(int argc, char **argv)
 {
     int json = 0;

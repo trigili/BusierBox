@@ -1081,26 +1081,6 @@ int applet_extract_main(int argc, char **argv)
     return 0;
 }
 
-static void doctor_rshell_server_listener(char *out, size_t outsz)
-{
-    if (!strcmp(BB_RSHELL_TRANSPORT, "ssh"))
-        snprintf(out, outsz, "scripts/busierbox-server --transport ssh --ssh-port %s", BB_OPERATOR_SERVER_SSH_PORT);
-    else if (!strcmp(BB_RSHELL_ENCRYPTION, "none"))
-        snprintf(out, outsz, "scripts/busierbox-server --transport plain-shell --shell-port %s", BB_RSHELL_SOCAT_PORT);
-    else
-        snprintf(out, outsz, "scripts/busierbox-server --transport tls-shell --shell-port %s", BB_RSHELL_SOCAT_PORT);
-}
-
-static void doctor_rshell_connect_hint(char *out, size_t outsz)
-{
-    if (!strcmp(BB_RSHELL_TRANSPORT, "ssh"))
-        snprintf(out, outsz, "ssh -p %s root@127.0.0.1", BB_OPERATOR_REMOTE_FORWARD_PORT);
-    else if (!strcmp(BB_RSHELL_TRANSPORT, "none"))
-        snprintf(out, outsz, "reverse access disabled");
-    else
-        snprintf(out, outsz, "shell stream is attached by scripts/busierbox-server");
-}
-
 static void print_doctor_manifest_summary_json(FILE *out, int payload_manifest_found, int applet_count)
 {
     int heavy_count = 0;
@@ -1122,63 +1102,6 @@ static void print_doctor_manifest_summary_json(FILE *out, int payload_manifest_f
     fprintf(out, ",\"payload_manifest_found\":%s", payload_manifest_found ? "true" : "false");
     fprintf(out, ",\"busybox_applets_count\":%d,\"configured_heavy_tools_count\":%d}",
             applet_count, heavy_count);
-}
-
-static void print_doctor_rshell_readiness_json(FILE *out)
-{
-    char server[256], hint[256];
-    int warning_count = 0;
-    doctor_rshell_server_listener(server, sizeof(server));
-    doctor_rshell_connect_hint(hint, sizeof(hint));
-
-    fprintf(out, ",\"rshell_readiness\":{\"enabled\":%s", strcmp(BB_RSHELL_TRANSPORT, "none") ? "true" : "false");
-    fprintf(out, ",\"transport\":");
-    json_string_payload(out, BB_RSHELL_TRANSPORT);
-    fprintf(out, ",\"encryption\":");
-    json_string_payload(out, BB_RSHELL_ENCRYPTION);
-    fprintf(out, ",\"run_mode\":");
-    json_string_payload(out, BB_RSHELL_RUN_MODE);
-    fprintf(out, ",\"zero_arg_autorun\":%s", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "true" : "false");
-    fprintf(out, ",\"operator_host_set\":%s", BB_OPERATOR_SERVER_HOST[0] ? "true" : "false");
-    fprintf(out, ",\"operator_host\":");
-    json_string_payload(out, BB_OPERATOR_SERVER_HOST);
-    fprintf(out, ",\"operator_shell_port\":");
-    json_string_payload(out, BB_RSHELL_SOCAT_PORT);
-    fprintf(out, ",\"operator_ssh_port\":");
-    json_string_payload(out, BB_OPERATOR_SERVER_SSH_PORT);
-    fprintf(out, ",\"remote_forward_port\":");
-    json_string_payload(out, BB_OPERATOR_REMOTE_FORWARD_PORT);
-    {
-        char target_dropbear[256];
-        snprintf(target_dropbear, sizeof(target_dropbear), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
-        fprintf(out, ",\"target_dropbear\":");
-        json_string_payload(out, target_dropbear);
-    }
-    fprintf(out, ",\"server_listener\":");
-    json_string_payload(out, server);
-    fprintf(out, ",\"connect_hint\":");
-    json_string_payload(out, hint);
-    fprintf(out, ",\"warnings\":[");
-    if (!strcmp(BB_RSHELL_TRANSPORT, "none")) {
-        json_string_payload(out, "reverse access disabled");
-        warning_count++;
-    }
-    if (strcmp(BB_RSHELL_TRANSPORT, "none") && !BB_OPERATOR_SERVER_HOST[0]) {
-        if (warning_count++)
-            fputc(',', out);
-        json_string_payload(out, "operator host is not configured");
-    }
-    if (strcmp(BB_RSHELL_TRANSPORT, "none") && strcmp(BB_ZERO_ARG_MODE, "rshell")) {
-        if (warning_count++)
-            fputc(',', out);
-        json_string_payload(out, "zero-arg execution will not start reverse access");
-    }
-    if (strcmp(BB_RSHELL_TRANSPORT, "ssh") && !strcmp(BB_RSHELL_ENCRYPTION, "none")) {
-        if (warning_count++)
-            fputc(',', out);
-        json_string_payload(out, "plaintext shell transport is insecure/debug-only");
-    }
-    fprintf(out, "]}");
 }
 
 static void print_doctor_payload_runtime_health_json(FILE *out, int have_payload, const char *payload)
@@ -1347,7 +1270,8 @@ int applet_doctor_main(int argc, char **argv)
             print_doctor_payload_inventory_json(stdout, manifest);
             print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
-            print_doctor_rshell_readiness_json(stdout);
+            printf(",\"rshell_readiness\":");
+            bb_config_print_rshell_readiness_json(stdout, json_string_payload);
             printf(",\"runtime_config\":");
             bb_config_print_runtime_summary_json(stdout, json_string_payload);
             printf(",\"cleanup_ledger\":");
@@ -1415,7 +1339,8 @@ int applet_doctor_main(int argc, char **argv)
             print_doctor_payload_inventory_json(stdout, manifest);
             print_doctor_payload_runtime_health_json(stdout, have_payload, payload);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
-            print_doctor_rshell_readiness_json(stdout);
+            printf(",\"rshell_readiness\":");
+            bb_config_print_rshell_readiness_json(stdout, json_string_payload);
             printf(",\"runtime_config\":");
             bb_config_print_runtime_summary_json(stdout, json_string_payload);
             printf(",\"cleanup_ledger\":");

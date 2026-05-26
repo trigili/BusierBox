@@ -21,5 +21,6 @@ void bb_config_print_compiled_json(FILE *out, void (*json_string)(FILE *, const 
 void bb_config_print_effective_json(FILE *out, void (*json_string)(FILE *, const char *));
 void bb_config_print_trailer_json(FILE *out, void (*json_string)(FILE *, const char *));
 void bb_config_print_runtime_summary_json(FILE *out, void (*json_string)(FILE *, const char *));
+void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *, const char *));
 
 #endif
