@@ -529,6 +529,29 @@ def main():
         if stale_doc.get("summary", {}).get("stale_count", 0) < 1 or not stale_warnings:
             print("--json-status did not expose structured stale-state warning", file=sys.stderr)
             return 1
+        stale_stop = run(
+            "scripts/busierbox-server", "--config", str(lifecycle_cfg),
+            "--state-file", str(lifecycle_state),
+            "--staged-file", str(lifecycle_staged),
+            "--stop",
+        )
+        if stale_stop.returncode != 0 or "stale pid 999999; marked stopped" not in stale_stop.stdout:
+            print("--stop did not clean stale PID records", file=sys.stderr)
+            print(stale_stop.stdout, file=sys.stderr)
+            print(stale_stop.stderr, file=sys.stderr)
+            return 1
+        events_after_stale_stop = [
+            json.loads(line) for line in lifecycle_events_path.read_text(encoding="utf-8").splitlines()
+        ]
+        stale_cleanup_events = [
+            event for event in events_after_stale_stop
+            if event.get("service") == "file-service"
+            and event.get("event") == "service_stop"
+            and event.get("details", {}).get("reason") == "stale-pid"
+        ]
+        if not stale_cleanup_events:
+            print("--stop did not log stale PID cleanup event", file=sys.stderr)
+            return 1
 
         upload_port = free_port()
         upload_cfg = Path(tmp) / "server-config-upload.json"

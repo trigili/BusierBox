@@ -2258,11 +2258,13 @@ def stop_managed_services(cfg):
             continue
         if not pid:
             mark_service_stopped(cfg, name)
+            append_event(cfg, name, "service_stop", details={"reason": "no-pid", "via": "server-stop"})
             print(f"{name}: no pid recorded; marked stopped")
             skipped += 1
             continue
         if not pid_alive(pid):
             mark_service_stopped(cfg, name)
+            append_event(cfg, name, "service_stop", details={"pid": pid, "reason": "stale-pid", "via": "server-stop"})
             print(f"{name}: stale pid {pid}; marked stopped")
             skipped += 1
             continue
