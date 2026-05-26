@@ -71,6 +71,7 @@ def label_rank(row):
 
 def print_text(row, index):
     info = tuple_info(row, index)
+    compatibility = row.get("compatibility") or {}
     print(f"recommended_artifact={row.get('artifact_path') or ''}")
     print(f"release_name={row.get('release_name') or ''}")
     print(f"release_dir={row.get('release_dir') or ''}")
@@ -83,7 +84,11 @@ def print_text(row, index):
     print(f"cpu={info.get('cpu') or ''}")
     print(f"abi={info.get('abi') or ''}")
     print(f"payload_preset={row.get('payload_preset') or ''}")
-    print(f"compatibility={((row.get('compatibility') or {}).get('label') or '')}")
+    print(f"compatibility={compatibility.get('label') or ''}")
+    for reason in compatibility.get("reasons") or []:
+        print(f"compatibility_reason={reason}")
+    if compatibility.get("note"):
+        print(f"compatibility_note={compatibility.get('note')}")
     print(f"dedupe_count={len((index.get('dedupe', {}).get(row.get('sha256') or '', {}) or {}).get('artifacts') or [])}")
     print("features=" + " ".join(row.get("features") or []))
 

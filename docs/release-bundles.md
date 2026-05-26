@@ -158,7 +158,9 @@ and indexes tuple, device, tool, payload preset, and feature keys. It does not
 download or rebuild anything. `--recommendation-json` returns the selected
 artifact plus active filters, match count, index counts, and the selection
 policy used to prefer lower-risk compatibility labels and newer release
-metadata.
+metadata. Plain text output also prints `compatibility_reason=` lines so an
+operator can see why the selected artifact was considered exact, likely,
+heuristic, unsafe, or incompatible without parsing JSON.
 
 ## Operator Examples
 

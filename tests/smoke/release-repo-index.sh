@@ -116,6 +116,8 @@ test -f "$tmp/repo-index.json"
 scripts/find-artifact --index "$tmp/repo-index.json" --device glinet-mt1300 --tool tcpdump >"$tmp/find-device.out"
 grep -q '^release_name=one$' "$tmp/find-device.out"
 grep -q '^payload_preset=survey-core$' "$tmp/find-device.out"
+grep -q '^compatibility=exact$' "$tmp/find-device.out"
+grep -q '^compatibility_reason=fixture$' "$tmp/find-device.out"
 grep -q '^dedupe_count=2$' "$tmp/find-device.out"
 scripts/find-artifact --index "$tmp/repo-index.json" --payload-preset ssh-operator --feature reverse-ssh --json >"$tmp/find-json.out"
 python3 - "$tmp/find-json.out" <<'PY'
