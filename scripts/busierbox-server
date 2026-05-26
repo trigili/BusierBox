@@ -1773,9 +1773,11 @@ def raw_service_snapshot(cfg):
     services = {}
     for name in ("ssh", "tls-shell", "plain-shell", "file-service"):
         port = service_port(cfg, name)
+        listener_pids = port_listener_pids(port)
         services[name] = {
             "port": port,
-            "listening": port_listening(str(cfg.get("listen_host", "127.0.0.1")), port),
+            "listening": bool(listener_pids) or port_listening(str(cfg.get("listen_host", "127.0.0.1")), port),
+            "listener_pids": listener_pids,
             "state": (state.get("services") or {}).get(name, {}),
         }
     return {"state": state, "staged": load_staged(cfg).get("staged", {}), "services": services}
@@ -1810,6 +1812,11 @@ def service_status_rows(cfg):
             "configured": rec.get("status", "unknown"),
             "pid": pid or "",
             "pid_alive": pid_alive(pid) if pid else False,
+            "listener_pids": info.get("listener_pids", []),
+            "listener_processes": [
+                {"pid": listener_pid, "cmdline": pid_cmdline(listener_pid)}
+                for listener_pid in info.get("listener_pids", [])
+            ],
             "stale": stale,
             "error": rec.get("error", ""),
             "owners": rec.get("owners", []),
@@ -1866,6 +1873,12 @@ def print_status(cfg, json_output=False):
         stale = " stale-state" if row["stale"] else ""
         pid = f" pid={row['pid']}" if row["pid"] else ""
         print(f"  {row['name']:12s} port={row['port']} configured={row['configured']} actual={row['actual']}{pid}{stale}")
+        if row["listener_processes"]:
+            for owner in row["listener_processes"]:
+                print(f"    listener_pid={owner['pid']} {owner.get('cmdline', '')}")
+        if row["owners"]:
+            for owner in row["owners"]:
+                print(f"    recorded_owner_pid={owner.get('pid', '')} {owner.get('cmdline', '')}")
         if row["error"]:
             print(f"    error: {row['error']}")
         if row["process_log"]:

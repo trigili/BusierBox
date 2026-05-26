@@ -234,6 +234,10 @@ def main():
             print("status missing file-service pid", file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
+        if not rows["file-service"].get("listener_pids") or not rows["file-service"].get("listener_processes"):
+            print("status missing actual listener pid/process details", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
         stop = run(
             "scripts/busierbox-server", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
@@ -317,6 +321,9 @@ def main():
         state_after_bind = json.loads(bind_fail_state.read_text(encoding="utf-8"))
         if state_after_bind["services"]["file-service"].get("status") != "error":
             print("bind failure did not mark service error", file=sys.stderr)
+            return 1
+        if not state_after_bind["services"]["file-service"].get("owners"):
+            print("bind failure did not record possible listener owners", file=sys.stderr)
             return 1
 
         state_after_bind["services"]["file-service"].update({"status": "listening", "pid": 999999, "updated_at": "stale"})
