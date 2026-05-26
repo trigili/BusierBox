@@ -264,6 +264,14 @@ tail; `event_log_stats` reports the event log path, total valid event count,
 tail count, invalid JSONL line count, and tail limit so API consumers can tell
 whether there is more history to page or inspect from disk.
 
+Structured `warnings` use stable `type` values such as `service_error`,
+`stale_state`, `unexpected_listener`, `unmanaged_recorded_pid`, and
+`invalid_event_log`. Service-related warnings include the configured and actual
+states, port, PID, PID ownership evidence, listener PIDs, possible bind owners,
+error text, and process/session log paths when those fields are available. This
+lets a TUI, future web UI, or automation client show actionable cleanup guidance
+without scraping the human-readable `--status` output.
+
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it does not push the artifact or run it. In the
 curses workbench, `v` opens the selected local metadata/log/artifact path in the
