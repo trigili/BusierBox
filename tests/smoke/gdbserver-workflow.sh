@@ -33,6 +33,15 @@ test -x "$work/tools/native/bin/gdbserver"
 test -f "$work/tools/native/bin/metadata.json"
 grep -q '^sha256=' "$work/install.out"
 python3 -m json.tool "$work/tools/native/bin/metadata.json" >/dev/null
+if command -v ls >/dev/null 2>&1; then
+    if scripts/tools/install-dropin-gdbserver --source "$(command -v ls)" --arch mipsel --libc musl --dest-root "$work/tools-strict" --strict >"$work/install-strict.out" 2>"$work/install-strict.err"; then
+        printf '%s\n' "gdbserver-workflow: strict install accepted mismatched host binary" >&2
+        exit 1
+    fi
+    grep -q 'arch mismatch expected=mipsel' "$work/install-strict.out"
+    test ! -e "$work/tools-strict/mipsel-musl/bin/gdbserver"
+    test ! -e "$work/tools-strict/mipsel-musl/bin/metadata.json"
+fi
 scripts/tools/dropin-tool-status --tool gdbserver --target native --arch native --libc host --dest-root "$work/tools" >"$work/status.out"
 grep -q 'Overall: found' "$work/status.out"
 grep -q 'metadata_sha256=' "$work/status.out"

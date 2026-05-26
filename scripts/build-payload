@@ -186,7 +186,7 @@ stage_dropin_tool() {
     _path=$(dropin_tool_path "$_tool" 2>/dev/null || true)
     [ -n "$_path" ] || return 1
     if scripts/tools/check-dropin-tool --tool "$_tool" --path "$_path" \
-            --target "$BB_TARGET_NAME" --arch "$BB_TARGET_ARCH" --libc "$BB_TARGET_LIBC" >/dev/null; then
+            --target "$BB_TARGET_NAME" --arch "$BB_TARGET_ARCH" --libc "$BB_TARGET_LIBC" --strict >/dev/null; then
         stage_real_tool "$_tool" "$_path" "$_tool" || return 1
         printf '%s\n' "$_tool" >>runtime/payload/user-provided-tools.txt
         printf '%s\n' "build-payload: staged $_tool from local drop-in $_path"

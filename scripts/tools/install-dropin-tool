@@ -10,6 +10,7 @@ Options:
   --arch ARCH
   --libc LIBC
   --dest-root DIR      default: local/tools
+  --strict             fail installation on detected arch/endian mismatch
 EOF
 }
 
@@ -19,6 +20,7 @@ target=
 arch=
 libc=
 dest_root=local/tools
+strict=0
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -34,6 +36,7 @@ while [ "$#" -gt 0 ]; do
         --libc=*) libc=${1#--libc=}; shift ;;
         --dest-root) dest_root=$2; shift 2 ;;
         --dest-root=*) dest_root=${1#--dest-root=}; shift ;;
+        --strict) strict=1; shift ;;
         --help|-h) usage; exit 0 ;;
         *) usage; exit 2 ;;
     esac
@@ -65,7 +68,16 @@ set -- --tool "$tool" --path "$dest"
 [ -z "$target" ] || set -- "$@" --target "$target"
 [ -z "$arch" ] || set -- "$@" --arch "$arch"
 [ -z "$libc" ] || set -- "$@" --libc "$libc"
-check_out=$(scripts/tools/check-dropin-tool "$@" --metadata-out "$dest_dir/metadata.json" || true)
+if [ "$strict" -eq 1 ]; then
+    check_out=$(scripts/tools/check-dropin-tool "$@" --strict --metadata-out "$dest_dir/metadata.json") || {
+        rc=$?
+        rm -f "$dest" "$dest_dir/metadata.json"
+        printf '%s\n' "$check_out"
+        exit "$rc"
+    }
+else
+    check_out=$(scripts/tools/check-dropin-tool "$@" --metadata-out "$dest_dir/metadata.json" || true)
+fi
 sha=$(printf '%s\n' "$check_out" | sed -n 's/^sha256=//p' | sed -n '1p')
 printf 'installed=%s\n' "$dest"
 printf 'metadata=%s\n' "$dest_dir/metadata.json"

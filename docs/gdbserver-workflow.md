@@ -18,7 +18,7 @@ local/tools/generic/<arch>/bin/gdbserver
 Install a binary:
 
 ```sh
-scripts/tools/install-dropin-gdbserver --source ./gdbserver --target mipsel-linux-4.x-musl
+scripts/tools/install-dropin-gdbserver --source ./gdbserver --target mipsel-linux-4.x-musl --strict
 ```
 
 Check a binary:
@@ -29,7 +29,9 @@ scripts/tools/check-dropin-tool --tool gdbserver --path local/tools/mipsel-linux
 
 The checker prints executable, ELF, dynamic-linker, warning, and `sha256`
 metadata. Add `--metadata-out local/tools/mipsel-linux-4.x-musl/bin/metadata.json`
-to write the same inspection result as JSON without installing the file.
+to write the same inspection result as JSON without installing the file. Use
+`--strict` when installing or checking a final drop-in so detected
+architecture/endian mismatches fail instead of becoming payload content.
 
 Set `BB_GDBSERVER_PROVIDER="local-dropin"` or leave it as `auto`.
 
