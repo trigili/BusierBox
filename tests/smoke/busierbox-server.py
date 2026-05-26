@@ -950,6 +950,8 @@ def main():
                 "compatibility_reason: fixture" not in release_view.stdout or
                 "Release devices" not in release_view.stdout or
                 "lab-router" not in release_view.stdout or
+                "artifacts=1" not in release_view.stdout or
+                "artifact_path:" not in release_view.stdout or
                 "--stage-release-artifact" not in release_view.stdout):
             print("workbench did not show release artifact paths", file=sys.stderr)
             print(release_view.stdout, file=sys.stderr)
@@ -971,8 +973,15 @@ def main():
         if (rel.get("release_name") != "operator-smoke" or
                 not rel.get("artifacts") or
                 rel.get("devices", [{}])[0].get("name") != "lab-router" or
+                rel.get("devices", [{}])[0].get("artifact_count") != 1 or
+                not rel.get("devices", [{}])[0].get("artifact_paths", [""])[0].endswith("bin/busierbox-test") or
                 rel.get("tuples", [{}])[0].get("path") != "by-tuple/native/host/host/host"):
             print("json status missing release browser metadata", file=sys.stderr)
+            print(release_status.stdout, file=sys.stderr)
+            return 1
+        if (rel.get("tuples", [{}])[0].get("artifact_count") != 1 or
+                not rel.get("tuples", [{}])[0].get("artifact_paths", [""])[0].endswith("bin/busierbox-test")):
+            print("json status missing release tuple artifact metadata", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
         release_summary = release_doc.get("summary") or {}

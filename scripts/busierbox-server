@@ -485,12 +485,30 @@ def release_context():
         else:
             devices_source = (layout or {}).get("devices") or {}
             tuples_source = (layout or {}).get("tuples") or {}
+        def enrich_release_artifact_refs(names):
+            refs = [str(item) for item in (names or []) if str(item)]
+            return {
+                "artifacts": refs,
+                "artifact_count": len(refs),
+                "artifact_names": [Path(item).name for item in refs],
+                "artifact_paths": [str(here / item) for item in refs],
+            }
         for name, rec in sorted((devices_source or {}).items()):
             if isinstance(rec, dict):
-                devices.append({"name": name, "tuple_path": rec.get("tuple_path", ""), "artifacts": rec.get("artifacts") or []})
+                row = {"name": name, "tuple_path": rec.get("tuple_path", "")}
+                row.update(enrich_release_artifact_refs(rec.get("artifacts") or []))
+                device_dir = here / "devices" / name
+                if device_dir.exists():
+                    row["path"] = str(device_dir)
+                devices.append(row)
         for name, rec in sorted((tuples_source or {}).items()):
             if isinstance(rec, dict):
-                tuples.append({"path": name, "tuple": rec.get("tuple") or {}, "artifacts": rec.get("artifacts") or []})
+                row = {"path": name, "tuple": rec.get("tuple") or {}}
+                row.update(enrich_release_artifact_refs(rec.get("artifacts") or []))
+                tuple_dir = here / name
+                if tuple_dir.exists():
+                    row["filesystem_path"] = str(tuple_dir)
+                tuples.append(row)
         return {
             "release_dir": str(here),
             "release_json": str(release_json),
@@ -2447,9 +2465,13 @@ def print_status(cfg, json_output=False):
             for line in artifact_compatibility_lines(artifact):
                 print(f"    {line}")
         for device in doc["release"].get("devices", [])[:8]:
-            print(f"  device {device.get('name', '')} -> {device.get('tuple_path', '')}")
+            print(f"  device {device.get('name', '')} -> {device.get('tuple_path', '')} artifacts={device.get('artifact_count', len(device.get('artifacts') or []))}")
+            for path in (device.get("artifact_paths") or [])[:3]:
+                print(f"    artifact_path: {path}")
         for item in doc["release"].get("tuples", [])[:8]:
-            print(f"  tuple {item.get('path', '')}")
+            print(f"  tuple {item.get('path', '')} artifacts={item.get('artifact_count', len(item.get('artifacts') or []))}")
+            for path in (item.get("artifact_paths") or [])[:3]:
+                print(f"    artifact_path: {path}")
     return 0
 
 
@@ -2610,10 +2632,14 @@ def print_workbench(cfg):
             print("  artifacts: none")
         print("Release devices:")
         for device in rel.get("devices", [])[:12] or [{"name": "none", "tuple_path": ""}]:
-            print(f"  {device.get('name', '')} -> {device.get('tuple_path', '')}")
+            print(f"  {device.get('name', '')} -> {device.get('tuple_path', '')} artifacts={device.get('artifact_count', len(device.get('artifacts') or []))}")
+            for path in (device.get("artifact_paths") or [])[:3]:
+                print(f"    artifact_path: {path}")
         print("Release tuples:")
         for item in rel.get("tuples", [])[:12] or [{"path": "none"}]:
-            print(f"  {item.get('path', '')}")
+            print(f"  {item.get('path', '')} artifacts={item.get('artifact_count', len(item.get('artifacts') or []))}")
+            for path in (item.get("artifact_paths") or [])[:3]:
+                print(f"    artifact_path: {path}")
 
 
 def start_service_process(cfg, service, argv_extra=None):
@@ -2770,7 +2796,8 @@ def run_curses_tui(cfg):
         if pane == 7:
             combined = [{"path": release.get("release_index", "")}] + release_devices + release_tuples
             rec = combined[min(selected, len(combined) - 1)] if combined else {}
-            return rec.get("path") or rec.get("release_index") or release.get("release_json", "")
+            artifact_paths = rec.get("artifact_paths") or []
+            return rec.get("filesystem_path") or rec.get("path") or (artifact_paths[0] if artifact_paths else "") or rec.get("release_index") or release.get("release_json", "")
         return ""
 
     def draw(stdscr):
@@ -2801,10 +2828,10 @@ def run_curses_tui(cfg):
             device_tuple_lines = [
                 f"{'>' if pane == 7 and selected == 0 else ' '} index {Path(release.get('release_index', '')).name if release.get('release_index') else '-'}"
             ] + [
-                f"{'>' if pane == 7 and idx == selected else ' '} dev {d.get('name', '')} -> {d.get('tuple_path', '')}"
+                f"{'>' if pane == 7 and idx == selected else ' '} dev {d.get('name', '')} -> {d.get('tuple_path', '')} artifacts={d.get('artifact_count', len(d.get('artifacts') or []))}"
                 for idx, d in enumerate(release_devices[:5], 1)
             ] + [
-                f"{'>' if pane == 7 and idx == selected else ' '} tuple {t.get('path', '')}"
+                f"{'>' if pane == 7 and idx == selected else ' '} tuple {t.get('path', '')} artifacts={t.get('artifact_count', len(t.get('artifacts') or []))}"
                 for idx, t in enumerate(release_tuples[:5], 1 + len(release_devices[:5]))
             ]
             device_tuple_lines = device_tuple_lines or ["none"]
@@ -2889,13 +2916,18 @@ def run_curses_tui(cfg):
                     "v opens artifact in pager",
                 ])
             elif pane == 7:
+                combined = [{"path": release.get("release_index", "")}] + release_devices + release_tuples
+                rec = combined[min(selected, len(combined) - 1)] if combined else {}
                 detail_lines = [
                     f"release: {release.get('release_name', '')}",
                     f"index: {release.get('release_index', '')}",
                     f"devices: {len(release_devices)}",
                     f"tuples: {len(release_tuples)}",
+                    f"selected_artifacts: {rec.get('artifact_count', len(rec.get('artifacts') or []))}",
                     "v opens release index in pager",
                 ]
+                for path in (rec.get("artifact_paths") or [])[:6]:
+                    detail_lines.append(f"artifact_path: {path}")
             elif pane == 5 and snap["target_commands"]:
                 command = snap["target_commands"][min(selected, len(snap["target_commands"]) - 1)]
                 detail_lines = [
