@@ -1795,213 +1795,6 @@ int applet_extract_main(int argc, char **argv)
     return 0;
 }
 
-static int json_array_summary(const char *json, const char *key, FILE *out)
-{
-    char needle[96];
-    const char *p, *end;
-    int count = 0, first = 1;
-    snprintf(needle, sizeof(needle), "\"%s\"", key);
-    p = strstr(json, needle);
-    if (!p)
-        return 0;
-    p = strchr(p, '[');
-    if (!p)
-        return 0;
-    end = strchr(p, ']');
-    if (!end)
-        return 0;
-    fputc('[', out);
-    while (p < end) {
-        const char *q = strchr(p, '"');
-        const char *r;
-        if (!q || q >= end)
-            break;
-        r = strchr(q + 1, '"');
-        if (!r || r > end)
-            break;
-        if (!first)
-            fputc(',', out);
-        fwrite(q + 1, 1, (size_t)(r - q - 1), out);
-        first = 0;
-        count++;
-        p = r + 1;
-    }
-    fputc(']', out);
-    return count;
-}
-
-static const char *json_bool_value(const char *json, const char *key)
-{
-    char needle[96];
-    const char *p;
-    snprintf(needle, sizeof(needle), "\"%s\"", key);
-    p = strstr(json, needle);
-    if (!p)
-        return "unknown";
-    p = strchr(p, ':');
-    if (!p)
-        return "unknown";
-    p++;
-    while (*p == ' ' || *p == '\t' || *p == '\n')
-        p++;
-    if (!strncmp(p, "true", 4))
-        return "yes";
-    if (!strncmp(p, "false", 5))
-        return "no";
-    return "unknown";
-}
-
-static int json_object_summary(const char *json, const char *key, FILE *out)
-{
-    char needle[96];
-    const char *p, *end;
-    int count = 0, first = 1;
-    snprintf(needle, sizeof(needle), "\"%s\"", key);
-    p = strstr(json, needle);
-    if (!p)
-        return 0;
-    p = strchr(p, '{');
-    if (!p)
-        return 0;
-    end = strchr(p, '}');
-    if (!end)
-        return 0;
-    fputc('{', out);
-    while (p < end) {
-        const char *q = strchr(p, '"');
-        const char *r, *v, *w;
-        if (!q || q >= end)
-            break;
-        r = strchr(q + 1, '"');
-        if (!r || r >= end)
-            break;
-        v = strchr(r + 1, '"');
-        if (!v || v >= end)
-            break;
-        w = strchr(v + 1, '"');
-        if (!w || w >= end)
-            break;
-        if (!first)
-            fputc(',', out);
-        fwrite(q + 1, 1, (size_t)(r - q - 1), out);
-        fputc('=', out);
-        fwrite(v + 1, 1, (size_t)(w - v - 1), out);
-        first = 0;
-        count++;
-        p = w + 1;
-    }
-    fputc('}', out);
-    return count;
-}
-
-static int json_array_count_field(const char *json, const char *key)
-{
-    FILE *out = fopen("/dev/null", "w");
-    int count;
-    if (!out)
-        return 0;
-    count = json_array_summary(json, key, out);
-    fclose(out);
-    return count;
-}
-
-static const char *json_field_value(const char *json, const char *key)
-{
-    char needle[96];
-    const char *p;
-
-    snprintf(needle, sizeof(needle), "\"%s\"", key);
-    p = strstr(json, needle);
-    if (!p)
-        return NULL;
-    p = strchr(p, ':');
-    if (!p)
-        return NULL;
-    p++;
-    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
-        p++;
-    return p;
-}
-
-static const char *json_raw_value_end(const char *p)
-{
-    const char *q;
-    int depth = 0, in_string = 0, escaped = 0;
-
-    if (!p || !*p)
-        return NULL;
-    if (*p == '[' || *p == '{') {
-        for (q = p; *q; q++) {
-            if (in_string) {
-                if (escaped)
-                    escaped = 0;
-                else if (*q == '\\')
-                    escaped = 1;
-                else if (*q == '"')
-                    in_string = 0;
-                continue;
-            }
-            if (*q == '"') {
-                in_string = 1;
-                continue;
-            }
-            if (*q == '[' || *q == '{') {
-                depth++;
-                continue;
-            }
-            if (*q == ']' || *q == '}') {
-                depth--;
-                if (depth == 0)
-                    return q + 1;
-            }
-        }
-        return NULL;
-    }
-    if (*p == '"') {
-        for (q = p + 1; *q; q++) {
-            if (escaped)
-                escaped = 0;
-            else if (*q == '\\')
-                escaped = 1;
-            else if (*q == '"')
-                return q + 1;
-        }
-        return NULL;
-    }
-    for (q = p; *q && *q != ',' && *q != '}' && *q != ']' &&
-                *q != '\r' && *q != '\n'; q++)
-        ;
-    while (q > p && (q[-1] == ' ' || q[-1] == '\t'))
-        q--;
-    return q;
-}
-
-static int json_write_raw_field_or(FILE *out, const char *json, const char *key, const char *fallback)
-{
-    const char *p = json ? json_field_value(json, key) : NULL;
-    const char *end = json_raw_value_end(p);
-
-    if (!p || !end || end <= p) {
-        fputs(fallback, out);
-        return 0;
-    }
-    fwrite(p, 1, (size_t)(end - p), out);
-    return 1;
-}
-
-static void json_write_string_array(FILE *out, const char *const *items)
-{
-    int i;
-
-    fputc('[', out);
-    for (i = 0; items[i]; i++) {
-        if (i)
-            fputc(',', out);
-        json_string_payload(out, items[i]);
-    }
-    fputc(']', out);
-}
-
 static int path_entry_count(const char *path, const char *entry)
 {
     char *dup, *save = NULL, *p;
@@ -2357,38 +2150,38 @@ static void print_doctor_payload_inventory_json(FILE *out, const char *manifest)
     fprintf(out, ",\"payload_inventory\":{\"manifest_found\":%s", manifest ? "true" : "false");
     fprintf(out, ",\"requested_payload_tools\":");
     if (manifest)
-        json_write_raw_field_or(out, manifest, "requested_payload_tools", "[]");
+        bb_json_write_raw_field_or(out, manifest, "requested_payload_tools", "[]");
     else
-        json_write_string_array(out, heavy_tools);
+        bb_json_write_string_array(out, heavy_tools);
     fprintf(out, ",\"built_payload_tools\":");
-    json_write_raw_field_or(out, manifest, "built_payload_tools", "[]");
+    bb_json_write_raw_field_or(out, manifest, "built_payload_tools", "[]");
     fprintf(out, ",\"staged_payload_tools\":");
-    json_write_raw_field_or(out, manifest, "staged_payload_tools", "[]");
+    bb_json_write_raw_field_or(out, manifest, "staged_payload_tools", "[]");
     fprintf(out, ",\"missing_payload_tools\":");
-    json_write_raw_field_or(out, manifest, "missing_payload_tools", "[]");
+    bb_json_write_raw_field_or(out, manifest, "missing_payload_tools", "[]");
     fprintf(out, ",\"missing_payload_tool_reasons\":");
-    json_write_raw_field_or(out, manifest, "missing_payload_tool_reasons", "{}");
+    bb_json_write_raw_field_or(out, manifest, "missing_payload_tool_reasons", "{}");
     fprintf(out, ",\"overlay_enabled\":");
-    json_write_raw_field_or(out, manifest, "overlay_enabled", !strcmp(BB_USER_OVERLAY_ENABLE, "yes") ? "true" : "false");
+    bb_json_write_raw_field_or(out, manifest, "overlay_enabled", !strcmp(BB_USER_OVERLAY_ENABLE, "yes") ? "true" : "false");
     fprintf(out, ",\"overlay_root\":");
     if (manifest)
-        json_write_raw_field_or(out, manifest, "overlay_root", "null");
+        bb_json_write_raw_field_or(out, manifest, "overlay_root", "null");
     else
         json_string_payload(out, BB_USER_OVERLAY_ROOT);
     fprintf(out, ",\"overlay_applied_paths\":");
-    json_write_raw_field_or(out, manifest, "overlay_applied_paths", "[]");
+    bb_json_write_raw_field_or(out, manifest, "overlay_applied_paths", "[]");
     fprintf(out, ",\"overlay_files\":");
-    json_write_raw_field_or(out, manifest, "overlay_files", "[]");
+    bb_json_write_raw_field_or(out, manifest, "overlay_files", "[]");
     fprintf(out, ",\"overlay_tools\":");
-    json_write_raw_field_or(out, manifest, "overlay_tools", "[]");
+    bb_json_write_raw_field_or(out, manifest, "overlay_tools", "[]");
     fprintf(out, ",\"overlay_warnings\":");
-    json_write_raw_field_or(out, manifest, "overlay_warnings", "[]");
+    bb_json_write_raw_field_or(out, manifest, "overlay_warnings", "[]");
     fprintf(out, ",\"user_provided_tools\":");
-    json_write_raw_field_or(out, manifest, "user_provided_tools", "[]");
+    bb_json_write_raw_field_or(out, manifest, "user_provided_tools", "[]");
     fprintf(out, ",\"included_shared_libs\":");
-    json_write_raw_field_or(out, manifest, "included_shared_libs", "[]");
+    bb_json_write_raw_field_or(out, manifest, "included_shared_libs", "[]");
     fprintf(out, ",\"applet_symlink_skips\":");
-    json_write_raw_field_or(out, manifest, "applet_symlink_skips", "[]");
+    bb_json_write_raw_field_or(out, manifest, "applet_symlink_skips", "[]");
     fprintf(out, "}");
 }
 
@@ -2446,7 +2239,7 @@ int applet_doctor_main(int argc, char **argv)
                     snprintf(root, sizeof(root), "%s", BB_RUNTIME_FALLBACK_ROOT);
             }
             if (manifest)
-                applet_count = json_array_count_field(manifest, "busybox_applets");
+                applet_count = bb_json_array_count_field(manifest, "busybox_applets");
             else {
                 for (i = 0; busybox_tools[i]; i++)
                     applet_count++;
@@ -2477,7 +2270,7 @@ int applet_doctor_main(int argc, char **argv)
             printf(",\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d",
                    manifest ? "true" : "false", applet_count);
             if (manifest) {
-                printf(",\"overlay_enabled\":%s", !strcmp(json_bool_value(manifest, "overlay_enabled"), "yes") ? "true" : "false");
+                printf(",\"overlay_enabled\":%s", !strcmp(bb_json_bool_value(manifest, "overlay_enabled"), "yes") ? "true" : "false");
             }
             printf("}");
             print_doctor_payload_inventory_json(stdout, manifest);
@@ -2525,7 +2318,7 @@ int applet_doctor_main(int argc, char **argv)
                     manifest = bb_read_text_file(manifest_path, 1024 * 1024);
             }
             if (manifest)
-                applet_count = json_array_count_field(manifest, "busybox_applets");
+                applet_count = bb_json_array_count_field(manifest, "busybox_applets");
             else {
                 for (i = 0; busybox_tools[i]; i++)
                     applet_count++;
@@ -2597,27 +2390,27 @@ int applet_doctor_main(int argc, char **argv)
 
     if (manifest) {
         printf("busybox_applets=");
-        applet_count = json_array_summary(manifest, "busybox_applets", stdout);
+        applet_count = bb_json_array_summary(manifest, "busybox_applets", stdout);
         printf("\n");
         printf("busybox_applets_count=%d\n", applet_count);
         printf("staged_tools=");
-        json_array_summary(manifest, "staged_payload_tools", stdout);
+        bb_json_array_summary(manifest, "staged_payload_tools", stdout);
         printf("\n");
         printf("missing_tools=");
-        json_array_summary(manifest, "missing_payload_tools", stdout);
+        bb_json_array_summary(manifest, "missing_payload_tools", stdout);
         printf("\n");
         printf("missing_tool_reasons=");
-        json_object_summary(manifest, "missing_payload_tool_reasons", stdout);
+        bb_json_object_summary(manifest, "missing_payload_tool_reasons", stdout);
         printf("\n");
-        printf("overlay_enabled=%s\n", json_bool_value(manifest, "overlay_enabled"));
+        printf("overlay_enabled=%s\n", bb_json_bool_value(manifest, "overlay_enabled"));
         printf("overlay_tools=");
-        json_array_summary(manifest, "overlay_tools", stdout);
+        bb_json_array_summary(manifest, "overlay_tools", stdout);
         printf("\n");
         printf("overlay_files=");
-        json_array_summary(manifest, "overlay_files", stdout);
+        bb_json_array_summary(manifest, "overlay_files", stdout);
         printf("\n");
         printf("overlay_warnings=");
-        json_array_summary(manifest, "overlay_warnings", stdout);
+        bb_json_array_summary(manifest, "overlay_warnings", stdout);
         printf("\n");
         free(manifest);
     } else {
