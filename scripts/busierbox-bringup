@@ -399,11 +399,21 @@ fi
 
 if [ -f "$survey" ]; then
     if [ "$target_preset" = native ]; then
-        scripts/config-from-survey --format shell --write-config "$recommended" "$survey"
-        scripts/config-from-survey --format json "$survey" >"$run_dir/recommendation.json"
+        if [ -f "$reality" ]; then
+            scripts/config-from-survey --reality-json "$reality" --format shell --write-config "$recommended" "$survey"
+            scripts/config-from-survey --reality-json "$reality" --format json "$survey" >"$run_dir/recommendation.json"
+        else
+            scripts/config-from-survey --format shell --write-config "$recommended" "$survey"
+            scripts/config-from-survey --format json "$survey" >"$run_dir/recommendation.json"
+        fi
     else
-        scripts/config-from-survey --target-preset "$target_preset" --format shell --write-config "$recommended" "$survey"
-        scripts/config-from-survey --target-preset "$target_preset" --format json "$survey" >"$run_dir/recommendation.json"
+        if [ -f "$reality" ]; then
+            scripts/config-from-survey --reality-json "$reality" --target-preset "$target_preset" --format shell --write-config "$recommended" "$survey"
+            scripts/config-from-survey --reality-json "$reality" --target-preset "$target_preset" --format json "$survey" >"$run_dir/recommendation.json"
+        else
+            scripts/config-from-survey --target-preset "$target_preset" --format shell --write-config "$recommended" "$survey"
+            scripts/config-from-survey --target-preset "$target_preset" --format json "$survey" >"$run_dir/recommendation.json"
+        fi
     fi
 else
     write_summary fail "survey json missing"

@@ -10,6 +10,7 @@ Options:
   --write-config PATH
   --prefer-rshell builtin|socat|ssh|none|auto
   --prefer-runtime core-only|extract|no-residue|auto
+  --reality-json PATH
   --allow-network-autorun
   --allow-external-writes
   --target-preset auto|NAME
@@ -21,6 +22,7 @@ format=shell
 write_config=
 prefer_rshell=auto
 prefer_runtime=auto
+reality_json=
 allow_network_autorun=no
 allow_external_writes=no
 target_preset=auto
@@ -62,6 +64,15 @@ while [ "$#" -gt 0 ]; do
             ;;
         --prefer-runtime=*)
             prefer_runtime=${1#--prefer-runtime=}
+            shift
+            ;;
+        --reality-json)
+            [ "$#" -gt 1 ] || { usage; exit 2; }
+            reality_json=$2
+            shift 2
+            ;;
+        --reality-json=*)
+            reality_json=${1#--reality-json=}
             shift
             ;;
         --allow-network-autorun)
@@ -107,17 +118,22 @@ done
 [ "$#" -eq 1 ] || { usage; exit 2; }
 survey=$1
 
-python3 - "$survey" "$format" "$write_config" "$prefer_rshell" "$prefer_runtime" \
+python3 - "$survey" "$format" "$write_config" "$prefer_rshell" "$prefer_runtime" "$reality_json" \
     "$allow_network_autorun" "$allow_external_writes" "$target_preset" "$payload_preset" <<'PY'
 import json
 import pathlib
 import shlex
 import sys
 
-survey_path, fmt, write_config, prefer_rshell, prefer_runtime, allow_network_autorun, allow_external_writes, target_preset_opt, payload_preset_opt = sys.argv[1:]
+survey_path, fmt, write_config, prefer_rshell, prefer_runtime, reality_json, allow_network_autorun, allow_external_writes, target_preset_opt, payload_preset_opt = sys.argv[1:]
 
 with open(survey_path, "r", encoding="utf-8") as fh:
     data = json.load(fh)
+
+reality = None
+if reality_json:
+    with open(reality_json, "r", encoding="utf-8") as fh:
+        reality = json.load(fh)
 
 def first(*values, default="unknown"):
     for value in values:
@@ -144,6 +160,35 @@ def boolish(value):
 
 def yesno(value):
     return "yes" if boolish(value) else "no"
+
+def reality_checks():
+    if not isinstance(reality, dict):
+        return {}
+    checks = reality.get("checks")
+    if not isinstance(checks, list):
+        return {}
+    return {item.get("name"): item for item in checks if isinstance(item, dict)}
+
+reality_by_name = reality_checks()
+
+def reality_check(name):
+    return reality_by_name.get(name) or {}
+
+def reality_failed(name):
+    item = reality_check(name)
+    if not item or item.get("skipped"):
+        return False
+    if item.get("status") == "fail":
+        return True
+    if "ok" in item and item.get("ok") is False:
+        return True
+    if "available" in item and item.get("available") is False:
+        return True
+    return False
+
+def reality_detected(name):
+    item = reality_check(name)
+    return boolish(item.get("detected")) if item else False
 
 def kernel_floor(release):
     release = str(release or "unknown")
@@ -257,12 +302,45 @@ if low_disk or not cwd_write:
 if noexec_tmp:
     warnings.append("/tmp appears noexec; avoid extracting there")
 
+if reality_by_name:
+    if reality_failed("runtime_root_writable"):
+        payload_possible = False
+        warnings.append("reality-test could not write the runtime root; prefer core-only")
+    if reality_failed("temporary_file"):
+        payload_possible = False
+        warnings.append("reality-test could not create a temporary file; prefer core-only")
+    if reality_failed("runtime_root_executable"):
+        payload_possible = False
+        noexec_tmp = noexec_tmp or reality_detected("tmp_noexec")
+        warnings.append("reality-test could not execute from the runtime root; prefer core-only")
+    if reality_failed("extract_core_payload"):
+        payload_possible = False
+        warnings.append("reality-test could not extract the core payload; prefer core-only")
+    if reality_failed("exec_payload_busybox"):
+        payload_possible = False
+        warnings.append("reality-test could not execute payload BusyBox; prefer core-only")
+    if reality_failed("spawn_sh"):
+        warnings.append("reality-test could not spawn /bin/sh; avoid shell-oriented payload assumptions")
+    if reality_failed("pty"):
+        warnings.append("reality-test could not open a PTY; interactive tools may be degraded")
+    if reality_detected("tmp_noexec"):
+        noexec_tmp = True
+        warnings.append("reality-test detected /tmp noexec; avoid extracting there")
+    if reality_detected("rootfs_read_only"):
+        warnings.append("reality-test detected read-only rootfs; avoid external writes")
+    if reality_detected("procfs_partial"):
+        warnings.append("reality-test detected partial/broken procfs; survey facts may be incomplete")
+    if reality_failed("ptrace"):
+        warnings.append("reality-test could not use ptrace; avoid gdbserver unless target policy is fixed")
+    if reality_failed("dmesg_readable"):
+        warnings.append("reality-test could not read dmesg; crash evidence may be limited")
+
 if prefer_runtime != "auto":
     runtime_mode = prefer_runtime
-elif useful(recs.get("runtime_mode_recommendation")):
-    runtime_mode = useful(recs.get("runtime_mode_recommendation"))
 elif not payload_possible or low_disk:
     runtime_mode = "core-only"
+elif useful(recs.get("runtime_mode_recommendation")):
+    runtime_mode = useful(recs.get("runtime_mode_recommendation"))
 elif not cwd_write and tmp_write:
     runtime_mode = "no-residue"
 else:
@@ -332,6 +410,18 @@ result = {
         "endianness": endian,
         "payload_possible": payload_possible,
         "recommended_extract_dir": extract_dir,
+        "reality": {
+            "source": str(reality_json) if reality_json else "",
+            "checks_seen": sorted(reality_by_name.keys()),
+            "runtime_root_writable": reality_check("runtime_root_writable").get("status", ""),
+            "runtime_root_executable": reality_check("runtime_root_executable").get("status", ""),
+            "temporary_file": reality_check("temporary_file").get("status", ""),
+            "extract_core_payload": reality_check("extract_core_payload").get("status", ""),
+            "exec_payload_busybox": reality_check("exec_payload_busybox").get("status", ""),
+            "tmp_noexec_detected": reality_detected("tmp_noexec"),
+            "rootfs_read_only_detected": reality_detected("rootfs_read_only"),
+            "procfs_partial_detected": reality_detected("procfs_partial"),
+        } if reality_json else {},
     },
 }
 

@@ -66,6 +66,7 @@ busierbox survey --write-shell-script /tmp/busierbox-survey.sh
 busierbox reality-test --json
 scripts/config-from-survey --format shell survey.json
 scripts/config-from-survey --format json survey.json
+scripts/config-from-survey --format json --reality-json reality.json survey.json
 scripts/config-from-survey --write-config local/recommended.conf survey.json
 scripts/preset-from-survey --survey survey.json --name glinet-mt1300-lab
 scripts/preset-from-survey --survey survey.json --name glinet-mt1300-lab --write-local
@@ -73,6 +74,9 @@ scripts/release-find --release-dir dist/releases/lab --survey-json survey.json -
 ```
 
 `scripts/config-from-survey` is conservative. It emits comments for uncertainty, avoids external writes unless `--allow-external-writes` is set, and keeps `BB_ZERO_ARG_MODE="help"` unless `--allow-network-autorun` is explicitly requested.
+When `--reality-json` is supplied, failed active runtime checks can downgrade
+payload recommendations to `core-only` and add explicit warnings for noexec
+temporary storage, read-only root filesystems, broken procfs, or missing ptrace.
 
 Release bundle `release-find` can combine passive survey facts with
 `reality-test` results and report `exact`, `likely`, `heuristic`, `unsafe`, or
