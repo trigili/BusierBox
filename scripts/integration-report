@@ -26,7 +26,44 @@ def load_summary(ref):
 
 
 def case_reason(case):
-    return case.get("reason") or case.get("error") or ""
+    return case.get("reason") or case.get("error") or case.get("cleanup_error") or ""
+
+
+def normalize_status(value):
+    if value is True:
+        return "pass"
+    if value is False:
+        return "fail"
+    if value is None:
+        return ""
+    text = str(value).strip().lower()
+    if text in ("ok", "success", "succeeded", "passed"):
+        return "pass"
+    if text in ("error", "failed"):
+        return "fail"
+    return text
+
+
+def phase_status(case, phase):
+    phases = case.get("phases") or {}
+    value = phases.get(phase)
+    if isinstance(value, dict):
+        value = value.get("status") or value.get("result")
+    if value is None:
+        value = case.get(f"{phase}_status")
+    return normalize_status(value) or "-"
+
+
+def case_duration(case):
+    for key in ("duration_sec", "duration", "elapsed_sec"):
+        value = case.get(key)
+        if isinstance(value, (int, float)):
+            return f"{value:.3f}s"
+    timing = case.get("timing") or {}
+    value = timing.get("duration_sec")
+    if isinstance(value, (int, float)):
+        return f"{value:.3f}s"
+    return ""
 
 
 def case_counts(cases):
@@ -60,12 +97,26 @@ def print_table(path, data):
         for item in failures:
             print(f"  {item.get('case', '')}: {item.get('status', '')}: {item.get('reason', '')}")
     print("")
-    print(f"{'Case':<24} {'Status':<8} {'Artifact Size':>13} {'SHA256':<12} Log")
+    print(
+        f"{'Case':<24} {'Build':<8} {'Transfer':<8} {'Run':<8} "
+        f"{'Validation':<10} {'Cleanup':<8} {'Status':<8} {'Duration':>10} "
+        f"{'Artifact Size':>13} {'SHA256':<12} Log"
+    )
     for case in cases:
         sha = case.get("artifact_sha256") or ""
         size = case.get("artifact_size") or case.get("size") or ""
         log_dir = case.get("case_dir") or case.get("log_dir") or data.get("log_dir", "")
-        print(f"{case.get('case',''):<24} {case.get('status',''):<8} {str(size):>13} {sha[:12]:<12} {log_dir}")
+        print(
+            f"{case.get('case',''):<24} "
+            f"{phase_status(case, 'build'):<8} "
+            f"{phase_status(case, 'transfer'):<8} "
+            f"{phase_status(case, 'run'):<8} "
+            f"{phase_status(case, 'validation'):<10} "
+            f"{phase_status(case, 'cleanup'):<8} "
+            f"{case.get('status',''):<8} "
+            f"{case_duration(case):>10} "
+            f"{str(size):>13} {sha[:12]:<12} {log_dir}"
+        )
         reason = case_reason(case)
         if reason:
             print(f"  reason: {reason}")

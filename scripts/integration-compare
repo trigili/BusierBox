@@ -23,6 +23,48 @@ def size_delta(old, new):
     return ""
 
 
+def duration_value(case):
+    for key in ("duration_sec", "duration", "elapsed_sec"):
+        value = case.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    timing = case.get("timing") or {}
+    value = timing.get("duration_sec")
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def duration_delta(old, new):
+    old_duration = duration_value(old)
+    new_duration = duration_value(new)
+    if old_duration is None or new_duration is None:
+        return ""
+    return round(new_duration - old_duration, 3)
+
+
+def classify_change(name, before, after, status_before, status_after, sha_before, sha_after, delta, ddelta):
+    if not before:
+        if status_after == "fail":
+            return "new_failure"
+        return "new_case"
+    if not after:
+        return "removed"
+    if status_before != "fail" and status_after == "fail":
+        return "regression"
+    if status_before == "fail" and status_after != "fail":
+        return "fixed"
+    if status_before != status_after:
+        return "status_changed"
+    if sha_before != sha_after:
+        return "artifact_changed"
+    if delta not in ("", 0):
+        return "size_changed"
+    if ddelta not in ("", 0):
+        return "duration_changed"
+    return "unchanged"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("old_summary")
@@ -43,14 +85,20 @@ def main():
         sha_before = before.get("artifact_sha256", "")
         sha_after = after.get("artifact_sha256", "")
         delta = size_delta(before, after)
-        changed = status_before != status_after or sha_before != sha_after or delta not in ("", 0)
+        ddelta = duration_delta(before, after)
+        classification = classify_change(
+            name, before, after, status_before, status_after, sha_before, sha_after, delta, ddelta
+        )
+        changed = classification != "unchanged"
         changes.append({
             "case": name,
+            "classification": classification,
             "old_status": status_before,
             "new_status": status_after,
             "old_sha256": sha_before,
             "new_sha256": sha_after,
             "artifact_size_delta": delta,
+            "duration_delta_sec": ddelta,
             "changed": changed,
             "new_reason": after.get("reason") or after.get("error") or "",
         })
@@ -59,6 +107,9 @@ def main():
         "schema": 1,
         "old_status": old.get("status"),
         "new_status": new.get("status"),
+        "regressions": [c for c in changes if c["classification"] == "regression"],
+        "new_failures": [c for c in changes if c["classification"] == "new_failure"],
+        "fixed": [c for c in changes if c["classification"] == "fixed"],
         "changes": changes,
     }
     if args.json:
@@ -66,20 +117,27 @@ def main():
     else:
         print(f"old_status={result['old_status']}")
         print(f"new_status={result['new_status']}")
-        print(f"{'Case':<24} {'Old':<8} {'New':<8} {'Size Delta':>10} Notes")
+        print(
+            f"{'Case':<24} {'Old':<8} {'New':<8} {'Class':<16} "
+            f"{'Size Delta':>10} {'Duration':>10} Notes"
+        )
         for change in changes:
-            note = ""
-            if change["old_status"] != change["new_status"]:
-                note = "status changed"
-            elif change["old_sha256"] != change["new_sha256"]:
-                note = "artifact changed"
-            elif change["artifact_size_delta"]:
-                note = "size changed"
+            notes = []
+            if change["classification"] in ("regression", "new_failure", "fixed", "status_changed"):
+                notes.append(change["classification"].replace("_", " "))
+            if change["old_sha256"] != change["new_sha256"]:
+                notes.append("artifact changed")
+            if change["artifact_size_delta"] not in ("", 0):
+                notes.append("size changed")
+            if change["duration_delta_sec"] not in ("", 0):
+                notes.append("duration changed")
             if change["new_reason"]:
-                note = f"{note}; {change['new_reason']}" if note else change["new_reason"]
+                notes.append(change["new_reason"])
+            note = "; ".join(notes)
             print(
                 f"{change['case']:<24} {change['old_status']:<8} {change['new_status']:<8} "
-                f"{str(change['artifact_size_delta']):>10} {note}"
+                f"{change['classification']:<16} {str(change['artifact_size_delta']):>10} "
+                f"{str(change['duration_delta_sec']):>10} {note}"
             )
     return 0
 

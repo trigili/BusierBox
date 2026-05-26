@@ -8,13 +8,28 @@
     {
       "case": "survey-core",
       "status": "pass",
+      "phases": {
+        "build": "pass",
+        "transfer": "pass",
+        "run": "pass",
+        "validation": "pass",
+        "cleanup": "pass"
+      },
       "artifact": "dist/busierbox-mipsel-linux-4.x-musl-full",
       "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "artifact_size": 100
+      "artifact_size": 100,
+      "duration_sec": 10.0
     },
     {
       "case": "builtin-core-shell",
       "status": "skip",
+      "phases": {
+        "build": "skip",
+        "transfer": "skip",
+        "run": "skip",
+        "validation": "skip",
+        "cleanup": "pass"
+      },
       "reason": "target unavailable"
     }
   ]

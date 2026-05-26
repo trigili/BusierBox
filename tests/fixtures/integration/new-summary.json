@@ -8,19 +8,43 @@
     {
       "case": "survey-core",
       "status": "pass",
+      "phases": {
+        "build": "pass",
+        "transfer": "pass",
+        "run": "pass",
+        "validation": "pass",
+        "cleanup": "pass"
+      },
       "artifact": "dist/busierbox-mipsel-linux-4.x-musl-full",
       "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "artifact_size": 120
+      "artifact_size": 120,
+      "duration_sec": 13.25
     },
     {
       "case": "builtin-core-shell",
       "status": "fail",
+      "phases": {
+        "build": "pass",
+        "transfer": "pass",
+        "run": "fail",
+        "validation": "pending",
+        "cleanup": "pass"
+      },
+      "duration_sec": 7.5,
       "error": "listener timeout"
     },
     {
       "case": "ssh-operator",
       "status": "pass",
-      "artifact_size": 130
+      "phases": {
+        "build": "pass",
+        "transfer": "pass",
+        "run": "pass",
+        "validation": "pass",
+        "cleanup": "pass"
+      },
+      "artifact_size": 130,
+      "duration_sec": 9.0
     }
   ]
 }

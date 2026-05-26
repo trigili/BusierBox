@@ -296,6 +296,10 @@ def summarize_cases(cases):
     return counts, failures
 
 
+def mark_phase(result, phase, status):
+    result.setdefault("phases", {})[phase] = status
+
+
 def capture_busierbox_outputs(host, remote_dir, case_dir):
     commands = [
         ("manifest-json.log", "./busierbox manifest --json"),
@@ -597,7 +601,15 @@ def run_case(case, args, run_dir, operator_host):
         "status": "fail",
         "logs": str(case_dir),
         "remote_dir": remote_dir,
+        "phases": {
+            "build": "pending",
+            "transfer": "pending",
+            "run": "pending",
+            "validation": "pending",
+            "cleanup": "pending",
+        },
     }
+    started = time.monotonic()
     try:
         config = write_case_config(case_dir, case, operator_host, args)
         result["config"] = str(config)
@@ -605,8 +617,11 @@ def run_case(case, args, run_dir, operator_host):
         artifact = apply_case_artifact_overrides(case, artifact, case_dir)
         result["artifact"] = str(artifact)
         result["artifact_sha256"] = sha256(artifact)
+        result["artifact_size"] = artifact.stat().st_size
+        mark_phase(result, "build", "pass")
         prepare_remote(args.host, remote_dir, artifact, case_dir)
         collect_target_facts(args.host, remote_dir, case_dir)
+        mark_phase(result, "transfer", "pass")
         CASE_FUNCS[case]({
             "host": args.host,
             "remote_dir": remote_dir,
@@ -614,17 +629,36 @@ def run_case(case, args, run_dir, operator_host):
             "args": args,
             "operator_host": operator_host,
         })
+        mark_phase(result, "run", "pass")
         capture_busierbox_outputs(args.host, remote_dir, case_dir)
+        mark_phase(result, "validation", "pass")
         result["status"] = "pass"
     except SkipCase as exc:
         result["status"] = "skip"
         result["reason"] = str(exc)
+        for phase, status in result["phases"].items():
+            if status == "pending":
+                mark_phase(result, phase, "skip")
         log(f"{case}: SKIP: {exc}")
     except Exception as exc:
         result["error"] = str(exc)
+        for phase, status in result["phases"].items():
+            if status == "pending":
+                mark_phase(result, phase, "fail")
+                break
         log(f"{case}: FAIL: {exc}")
     finally:
-        cleanup_remote(args.host, remote_dir, case_dir, args.keep_remote)
+        try:
+            cleanup_remote(args.host, remote_dir, case_dir, args.keep_remote)
+            mark_phase(result, "cleanup", "pass")
+        except Exception as exc:
+            mark_phase(result, "cleanup", "fail")
+            result["cleanup_error"] = str(exc)
+            if result["status"] == "pass":
+                result["status"] = "fail"
+                result["error"] = str(exc)
+            log(f"{case}: cleanup failed: {exc}")
+        result["duration_sec"] = round(time.monotonic() - started, 3)
     return result
 
 

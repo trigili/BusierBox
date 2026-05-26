@@ -133,9 +133,28 @@ machine-readable result is:
 local/integration-runs/<timestamp>/summary.json
 ```
 
-The summary records `pass`, `fail`, or `skip` per case, artifact path and hash,
-remote workdir, local log directory, aggregate status counts, and
-`failure_reasons` entries with the case, status, reason, and log path.
+The summary records `pass`, `fail`, or `skip` per case, artifact path, artifact
+hash, artifact size, duration, remote workdir, local log directory, aggregate
+status counts, and `failure_reasons` entries with the case, status, reason, and
+log path.
+
+Each case also records normalized phase status in `phases`:
+
+```json
+{
+  "build": "pass",
+  "transfer": "pass",
+  "run": "pass",
+  "validation": "pass",
+  "cleanup": "pass"
+}
+```
+
+The allowed phase values are `pass`, `fail`, `skip`, and `pending`. `build`
+covers config generation and artifact packaging, `transfer` covers remote
+staging and target fact capture, `run` covers the case-specific target workflow,
+`validation` covers post-case BusierBox JSON/log captures, and `cleanup` covers
+remote teardown.
 
 Render the latest run:
 
@@ -152,9 +171,16 @@ scripts/integration-compare \
   local/integration-runs/<new>/summary.json
 ```
 
-The report tool prints a compact case table with status, artifact size/hash, log
-path, and failure reason. The compare tool highlights status changes, artifact
-hash changes, and artifact size deltas.
+The report tool prints a compact case table with build, transfer, run,
+validation, cleanup, final status, duration, artifact size/hash, log path, and
+failure reason. The compare tool classifies regressions, new failures, fixed
+cases, new or removed cases, artifact hash changes, artifact size deltas, and
+duration deltas when both summaries include timing data.
+
+When a release bundle is produced as part of an integration run, run the
+generated `scripts/release-self-test` inside that bundle before copying
+artifacts to the target. That keeps release-helper, checksum, tuple-layout, and
+manifest problems visible before target execution starts.
 
 Remote workdirs default to `/tmp/busierbox-itest-<timestamp>-<case>` and are
 removed after each case unless `--keep-remote` is passed.
