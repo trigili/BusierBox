@@ -325,6 +325,37 @@ def main():
             print("server json status missing event log total/tail stats", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
+        event_log_path = Path(paths["event_log"])
+        with event_log_path.open("a", encoding="utf-8") as fh:
+            fh.write("not-json\n")
+        invalid_event_status = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--json-status",
+        )
+        invalid_event_doc = json.loads(invalid_event_status.stdout)
+        invalid_event_warnings = [
+            item for item in invalid_event_doc.get("warnings", [])
+            if item.get("type") == "invalid_event_log"
+        ]
+        if (invalid_event_doc.get("summary", {}).get("event_invalid_count") != 1 or
+                not invalid_event_warnings or
+                invalid_event_warnings[-1].get("path") != str(event_log_path) or
+                invalid_event_warnings[-1].get("invalid_count") != 1):
+            print("server json status missing invalid event log warning", file=sys.stderr)
+            print(invalid_event_status.stdout, file=sys.stderr)
+            return 1
+        invalid_event_text = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--status",
+        )
+        if "event log contains 1 invalid JSONL record" not in invalid_event_text.stdout:
+            print("text --status missing invalid event log warning", file=sys.stderr)
+            print(invalid_event_text.stdout, file=sys.stderr)
+            return 1
         api_status_doc = run(
             "scripts/busierbox-server",
             "--config", str(cfg),

@@ -2536,6 +2536,14 @@ def status_document(cfg):
     command_queue = command_queue_summary(cfg)
     release = release_context()
     summary, warnings = status_summary_and_warnings(services)
+    if event_stats["invalid_count"]:
+        warnings.append({
+            "type": "invalid_event_log",
+            "path": event_stats["path"],
+            "invalid_count": event_stats["invalid_count"],
+            "message": "operator event log contains invalid JSONL records",
+            "suggested_action": "inspect or archive the event log before relying on event history",
+        })
     summary.update({
         "staged_count": len(staged),
         "upload_count": len(uploads),
@@ -2655,6 +2663,13 @@ def print_status(cfg, json_output=False):
             print("")
             print("Warnings:")
         print("  recorded live PID without ownership evidence detected; --stop will skip it")
+    if doc["summary"].get("event_invalid_count", 0):
+        if (not any(row["stale"] for row in doc["services"]) and
+                not any(row["actual"] == "listening" and row["configured"] not in ("listening", "starting") for row in doc["services"]) and
+                not any(row["pid"] and row.get("pid_alive") and not row.get("pid_managed") for row in doc["services"])):
+            print("")
+            print("Warnings:")
+        print(f"  event log contains {doc['summary'].get('event_invalid_count', 0)} invalid JSONL record(s); inspect {doc['event_log']}")
     print("")
     print("Recent sessions:")
     if doc["sessions"]:
