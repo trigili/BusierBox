@@ -88,6 +88,30 @@ def selected_jobs(args, data):
     return jobs
 
 
+def validate_selected_jobs(jobs):
+    errors = []
+    seen_payloads = set()
+    seen_targets = set()
+
+    for job in jobs:
+        payload = job["payload"]
+        if payload not in seen_payloads:
+            seen_payloads.add(payload)
+            if not (matrix.PAYLOAD_PRESETS / f"{payload}.conf").exists():
+                errors.append(f"missing payload preset {payload}")
+
+        target = job["target"]
+        if target not in seen_targets:
+            seen_targets.add(target)
+            try:
+                matrix.resolve_target(target)
+            except RuntimeError as exc:
+                errors.append(f"unresolved target {target}: {exc}")
+
+    if errors:
+        die("invalid release selection:\n  " + "\n  ".join(errors))
+
+
 def safe_stem(value):
     return "".join(ch if ch.isalnum() or ch in "._-" else "-" for ch in value).strip("-") or "item"
 
@@ -489,7 +513,7 @@ def main(argv=None):
     parser.add_argument("--name", required=True)
     parser.add_argument("--targets")
     parser.add_argument("--payload-presets")
-    parser.add_argument("--formats", default="tgz")
+    parser.add_argument("--formats")
     parser.add_argument("--runtime-modes")
     parser.add_argument("--reverse-access-profiles", help="accepted for release metadata; profile expansion is not enabled yet")
     parser.add_argument("--config")
@@ -507,6 +531,7 @@ def main(argv=None):
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
     release_dir = pathlib.Path(args.out_dir) if args.out_dir else ROOT / "dist" / "releases" / f"{safe_stem(args.name)}-{stamp}"
     jobs = selected_jobs(args, data)
+    validate_selected_jobs(jobs)
     if args.dry_run:
         print(f"release={release_name}")
         print(f"release_dir={release_dir}")

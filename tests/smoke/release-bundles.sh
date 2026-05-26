@@ -9,6 +9,46 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 scripts/make-release --name smoke --targets native --payload-presets default --dry-run >"$work/dry-run.out"
 grep -q 'would build target=native payload=default format=tgz' "$work/dry-run.out"
 
+scripts/make-release --name matrix-smoke --matrix release/matrices/iot-lab.json --dry-run >"$work/matrix-dry-run.out"
+python3 - "$work/matrix-dry-run.out" release/matrices/iot-lab.json <<'PY'
+import json
+import sys
+
+dry_run = open(sys.argv[1], "r", encoding="utf-8").read()
+matrix = json.load(open(sys.argv[2], "r", encoding="utf-8"))
+for target in matrix["targets"]:
+    for payload in matrix["payload_presets"]:
+        expected = f"would build target={target} payload={payload} format=tgz"
+        if expected not in dry_run:
+            raise SystemExit(f"missing dry-run job: {expected}")
+PY
+
+cat >"$work/bad-target.json" <<'JSON'
+{
+  "name": "bad-target",
+  "targets": ["no-such-target"],
+  "payload_presets": ["default"]
+}
+JSON
+if scripts/make-release --name bad --matrix "$work/bad-target.json" --dry-run >"$work/bad-target.out" 2>"$work/bad-target.err"; then
+    printf '%s\n' "expected bad target matrix to fail" >&2
+    exit 1
+fi
+grep -q 'unresolved target no-such-target' "$work/bad-target.err"
+
+cat >"$work/bad-payload.json" <<'JSON'
+{
+  "name": "bad-payload",
+  "targets": ["native"],
+  "payload_presets": ["no-such-payload"]
+}
+JSON
+if scripts/make-release --name bad --matrix "$work/bad-payload.json" --dry-run >"$work/bad-payload.out" 2>"$work/bad-payload.err"; then
+    printf '%s\n' "expected bad payload matrix to fail" >&2
+    exit 1
+fi
+grep -q 'missing payload preset no-such-payload' "$work/bad-payload.err"
+
 if [ ! -x dist/busierbox-native-full ]; then
     BUSIERBOX_CONFIG=presets/payload/default.conf BB_BUSYBOX_GROUPS="shell fileops disk process network text system" make package-native >/dev/null
 fi
