@@ -388,7 +388,7 @@ Doctor also reports payload identity/staleness, applet symlink count, overlay st
 
 `scripts/make-release` builds reusable multi-target release bundles under `dist/releases/`. Bundles include artifacts, generated configs, manifests, checksum files, copied trailer-configuration helpers, and docs for post-build operator overrides. See `docs/release-bundles.md`.
 
-`./busierbox persistence --survey` and `./busierbox persistence --plan` enumerate authorized lab persistence/recovery options without changing the target. Installation requires an explicit method plus `--dry-run` or `--external --apply`, and writes are recorded in the cleanup ledger. `./busierbox recovery` remains as a deprecated compatibility alias.
+`./busierbox persistence --survey` and `./busierbox persistence --plan` enumerate authorized lab persistence/recovery options without changing the target. Installation requires an explicit method/action plus `--dry-run` or `--external --apply`, and writes are recorded in the cleanup ledger with visible action metadata. `./busierbox recovery` remains as a deprecated compatibility alias.
 
 ## Tiers
 

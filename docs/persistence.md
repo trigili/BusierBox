@@ -19,19 +19,35 @@ scripts, SysV/rcS, systemd units, cron `@reboot`, at jobs, `rc.local`,
 hotplug.d, and shell profile hooks. Each method reports its target path,
 intrusiveness, reversibility, and whether the hook is present.
 
-Installation requires `--method` and either `--dry-run` or `--apply`:
+Installation requires `--method` and either `--dry-run` or `--apply`.
+The default action is `status-only`, which installs a visible no-op health
+check. Explicit recovery actions are also available:
 
 ```sh
 busierbox persistence install --method rc-local --name busierbox_recovery --dry-run
+busierbox persistence install --method openwrt-procd --action rshell --external --apply
+busierbox persistence install --method cron-reboot --action command -- 'busierbox rshell start'
+busierbox persistence install --method rc-local --action script --file ./recover.sh --external --apply
 busierbox persistence install --method rc-local --name busierbox_recovery --external --apply
 busierbox persistence status --name busierbox_recovery
+busierbox persistence status --json --name busierbox_recovery
 busierbox persistence uninstall --method rc-local --name busierbox_recovery --external --apply
 ```
+
+Actions:
+
+- `status-only`: run `busierbox persistence status`; this is the conservative default.
+- `rshell`: run `busierbox rshell start` with the artifact's effective runtime config.
+- `command`: run the explicit command provided after `--`.
+- `script`: copy `--file` to `/usr/bin/<name>.recovery.sh` and run it from the hook.
 
 Real-root changes require `--external --apply`. Fake-root tests can use
 `--root local/fake-root` without `--external`. Created or modified paths are
 recorded in the cleanup ledger. Existing hook files are backed up before a
-marked BusierBox block is appended.
+marked BusierBox block is appended. Hook blocks include action metadata and the
+generated command between `BEGIN BUSIERBOX RECOVERY` and `END BUSIERBOX
+RECOVERY` markers. Uninstall removes only those marked blocks and staged
+BusierBox files.
 
 `busierbox recovery` remains as a deprecated compatibility alias. Internal hook
 markers still use `BUSIERBOX RECOVERY` so older cleanup/status checks keep

@@ -2570,6 +2570,33 @@ static void recovery_bin_path(char *out, size_t outsz, const char *root, const c
     recovery_join(out, outsz, root, rel);
 }
 
+static void recovery_script_path(char *out, size_t outsz, const char *root, const char *name)
+{
+    char rel[PATH_MAX];
+    snprintf(rel, sizeof(rel), "usr/bin/%s.recovery.sh", name);
+    recovery_join(out, outsz, root, rel);
+}
+
+static void fprint_shell_quoted(FILE *fp, const char *s)
+{
+    fputc('\'', fp);
+    for (; s && *s; s++) {
+        if (*s == '\'')
+            fputs("'\\''", fp);
+        else
+            fputc(*s, fp);
+    }
+    fputc('\'', fp);
+}
+
+static int file_is_empty_or_missing(const char *path)
+{
+    struct stat st;
+    if (stat(path, &st) != 0)
+        return errno == ENOENT ? 1 : 0;
+    return st.st_size == 0;
+}
+
 static int copy_self_to(const char *dst)
 {
     char src[PATH_MAX];
@@ -2642,19 +2669,38 @@ static int backup_existing_file(const char *path, char *backup, size_t backupsz)
     return 1;
 }
 
-static int append_recovery_block(const char *path, const char *method, const char *name)
+static int append_recovery_block(const char *path, const char *method, const char *name,
+                                 const char *action, const char *command)
 {
     FILE *fp = fopen(path, "a");
     if (!fp)
         return -1;
+    if (file_is_empty_or_missing(path)) {
+        if (!strcmp(method, "openwrt-procd"))
+            fputs("#!/bin/sh /etc/rc.common\nSTART=99\n\n", fp);
+        else if (!strcmp(method, "sysv-init") || !strcmp(method, "rc-local") || !strcmp(method, "hotplug-iface") || !strcmp(method, "profile"))
+            fputs("#!/bin/sh\n", fp);
+    }
     fprintf(fp, "\n# BEGIN BUSIERBOX RECOVERY %s\n", name);
-    fprintf(fp, "# method=%s; authorized lab persistence/recovery hook\n", method);
-    if (!strcmp(method, "cron-reboot"))
-        fprintf(fp, "@reboot /usr/bin/%s persistence status >/dev/null 2>&1\n", name);
+    fprintf(fp, "# method=%s; action=%s; authorized lab persistence/recovery hook\n", method, action);
+    fprintf(fp, "# generated_command=%s\n", command);
+    if (!strcmp(method, "cron-reboot")) {
+        fputs("@reboot /bin/sh -c ", fp);
+        fprint_shell_quoted(fp, command);
+        fputs(" >/dev/null 2>&1\n", fp);
+    }
     else if (!strcmp(method, "systemd-unit")) {
-        fprintf(fp, "[Unit]\nDescription=BusierBox authorized lab persistence check\n[Service]\nType=oneshot\nExecStart=/usr/bin/%s persistence status\n[Install]\nWantedBy=multi-user.target\n", name);
+        fputs("[Unit]\nDescription=BusierBox authorized lab recovery action\n[Service]\nType=oneshot\nExecStart=/bin/sh -c ", fp);
+        fprint_shell_quoted(fp, command);
+        fputs("\n[Install]\nWantedBy=multi-user.target\n", fp);
+    } else if (!strcmp(method, "openwrt-procd")) {
+        fputs("start_service() {\n    /bin/sh -c ", fp);
+        fprint_shell_quoted(fp, command);
+        fputs(" >/dev/null 2>&1 &\n}\n", fp);
     } else {
-        fprintf(fp, "/usr/bin/%s persistence status >/dev/null 2>&1 || true\n", name);
+        fputs("/bin/sh -c ", fp);
+        fprint_shell_quoted(fp, command);
+        fputs(" >/dev/null 2>&1 || true\n", fp);
     }
     fprintf(fp, "# END BUSIERBOX RECOVERY %s\n", name);
     return fclose(fp);
@@ -2705,17 +2751,52 @@ static int remove_recovery_block(const char *path, const char *name)
     return 0;
 }
 
-static int recovery_status_one(const char *root, const struct recovery_method *m, const char *name)
+static int recovery_status_one(const char *root, const struct recovery_method *m, const char *name,
+                               char *action, size_t actionsz,
+                               char *command, size_t commandsz)
 {
     char path[PATH_MAX];
     char marker[256];
     char *text;
+    char *begin, *end, *line;
     recovery_join(path, sizeof(path), root, m->path);
     snprintf(marker, sizeof(marker), "BEGIN BUSIERBOX RECOVERY %s", name);
     text = read_text_file(path, 1024 * 1024);
     if (!text)
         return 0;
-    if (strstr(text, marker)) {
+    begin = strstr(text, marker);
+    if (begin) {
+        end = strstr(begin, "END BUSIERBOX RECOVERY");
+        if (action && actionsz)
+            action[0] = '\0';
+        if (command && commandsz)
+            command[0] = '\0';
+        line = begin;
+        while (line && (!end || line < end)) {
+            char *next = strchr(line, '\n');
+            if (next)
+                *next = '\0';
+            if (action && actionsz) {
+                char *p = strstr(line, "action=");
+                if (p) {
+                    char *q;
+                    p += 7;
+                    q = strchr(p, ';');
+                    if (!q)
+                        q = p + strcspn(p, " \t\r\n");
+                    snprintf(action, actionsz, "%.*s", (int)(q - p), p);
+                }
+            }
+            if (command && commandsz) {
+                const char *p = strstr(line, "# generated_command=");
+                if (p)
+                    snprintf(command, commandsz, "%s", p + 20);
+            }
+            if (!next)
+                break;
+            *next = '\n';
+            line = next + 1;
+        }
         free(text);
         return 1;
     }
@@ -2796,13 +2877,17 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
 {
     const char *root = "/";
     const char *method = NULL;
+    const char *action = "status-only";
     const char *name = BB_RECOVERY_BINARY_NAME;
+    const char *script_file = NULL;
     int dry_run = 0, apply = 0, external = 0;
     const struct recovery_method *m;
-    char hook[PATH_MAX], bin[PATH_MAX], bindir[PATH_MAX], backup[PATH_MAX];
+    char hook[PATH_MAX], bin[PATH_MAX], script_dst[PATH_MAX], bindir[PATH_MAX], backup[PATH_MAX];
+    char generated[PATH_MAX * 2];
     int backup_status;
     int i;
 
+    generated[0] = '\0';
     for (i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--dry-run"))
             dry_run = 1;
@@ -2814,8 +2899,22 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
             root = argv[++i];
         else if (!strcmp(argv[i], "--method") && i + 1 < argc)
             method = argv[++i];
+        else if (!strcmp(argv[i], "--action") && i + 1 < argc)
+            action = argv[++i];
         else if (!strcmp(argv[i], "--name") && i + 1 < argc)
             name = argv[++i];
+        else if (!strcmp(argv[i], "--file") && i + 1 < argc)
+            script_file = argv[++i];
+        else if (!strcmp(argv[i], "--")) {
+            int j;
+            generated[0] = '\0';
+            for (j = i + 1; j < argc; j++) {
+                if (generated[0])
+                    strncat(generated, " ", sizeof(generated) - strlen(generated) - 1);
+                strncat(generated, argv[j], sizeof(generated) - strlen(generated) - 1);
+            }
+            break;
+        }
         else {
             fprintf(stderr, "%s: unknown or incomplete option %s\n", applet, argv[i]);
             return 2;
@@ -2830,8 +2929,29 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
         fprintf(stderr, "%s: unsupported method %s\n", applet, method);
         return 2;
     }
+    if (strcmp(action, "rshell") && strcmp(action, "command") && strcmp(action, "script") && strcmp(action, "status-only")) {
+        fprintf(stderr, "%s: unsupported recovery action %s\n", applet, action);
+        return 2;
+    }
     recovery_join(hook, sizeof(hook), root, m->path);
     recovery_bin_path(bin, sizeof(bin), root, name);
+    recovery_script_path(script_dst, sizeof(script_dst), root, name);
+    if (!strcmp(action, "rshell"))
+        snprintf(generated, sizeof(generated), "/usr/bin/%s rshell start", name);
+    else if (!strcmp(action, "script")) {
+        if (!script_file || !*script_file) {
+            fprintf(stderr, "%s: recovery action script requires --file FILE\n", applet);
+            return 2;
+        }
+        snprintf(generated, sizeof(generated), "/usr/bin/%s.recovery.sh", name);
+    } else if (!strcmp(action, "command")) {
+        if (!generated[0]) {
+            fprintf(stderr, "%s: recovery action command requires -- COMMAND\n", applet);
+            return 2;
+        }
+    } else {
+        snprintf(generated, sizeof(generated), "/usr/bin/%s persistence status", name);
+    }
     snprintf(bindir, sizeof(bindir), "%s", bin);
     {
         char *slash = strrchr(bindir, '/');
@@ -2848,7 +2968,11 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     }
     if (dry_run) {
         printf("Would %s persistence method=%s name=%s root=%s\n", uninstall ? "uninstall" : "install", method, name, root);
+        printf("Action: %s\n", action);
+        printf("Generated command: %s\n", generated);
         printf("Would %s binary: %s\n", uninstall ? "remove" : "copy self to", bin);
+        if (!strcmp(action, "script"))
+            printf("Would %s script: %s from %s\n", uninstall ? "remove" : "copy", script_dst, script_file);
         printf("Would %s hook: %s\n", uninstall ? "remove marked block/file" : "write marked hook", hook);
         if (!uninstall && path_exists(hook))
             printf("Would backup existing hook before modification: %s.busierbox.bak.<timestamp>\n", hook);
@@ -2857,8 +2981,10 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     if (uninstall) {
         ledger_record("remove", hook, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery uninstall hook");
         ledger_record("remove", bin, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery uninstall binary");
+        ledger_record("remove", script_dst, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery uninstall script");
         remove_recovery_block(hook, name);
         unlink(bin);
+        unlink(script_dst);
         printf("%s: uninstalled method=%s name=%s\n", applet, method, name);
         return 0;
     }
@@ -2869,6 +2995,13 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     if (copy_self_to(bin) != 0) {
         fprintf(stderr, "%s: cannot copy binary to %s: %s\n", applet, bin, strerror(errno));
         return 1;
+    }
+    if (!strcmp(action, "script")) {
+        if (copy_file_path(script_file, script_dst) != 0) {
+            fprintf(stderr, "%s: cannot copy script %s to %s: %s\n", applet, script_file, script_dst, strerror(errno));
+            return 1;
+        }
+        chmod(script_dst, 0755);
     }
     {
         char hookdir[PATH_MAX];
@@ -2888,14 +3021,23 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     }
     if (backup_status > 0)
         ledger_record("backup", backup, !strcmp(root, "/") ? "external" : "recovery-fakeroot", hook);
-    if (append_recovery_block(hook, method, name) != 0) {
+    if (append_recovery_block(hook, method, name, action, generated) != 0) {
         fprintf(stderr, "%s: cannot write hook %s: %s\n", applet, hook, strerror(errno));
         return 1;
     }
     chmod(hook, 0755);
-    ledger_record("write", bin, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery binary");
-    ledger_record("modify", hook, !strcmp(root, "/") ? "external" : "recovery-fakeroot", backup_status > 0 ? backup : "recovery marked hook");
-    printf("%s: installed method=%s name=%s\n", applet, method, name);
+    {
+        char detail[PATH_MAX * 2];
+        snprintf(detail, sizeof(detail), "recovery binary action=%s", action);
+        ledger_record("write", bin, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
+        if (!strcmp(action, "script")) {
+            snprintf(detail, sizeof(detail), "recovery script action=%s source=%s", action, script_file);
+            ledger_record("write", script_dst, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
+        }
+        snprintf(detail, sizeof(detail), "recovery marked hook action=%s command=%s backup=%s", action, generated, backup_status > 0 ? backup : "none");
+        ledger_record("modify", hook, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
+    }
+    printf("%s: installed method=%s name=%s action=%s\n", applet, method, name, action);
     return 0;
 }
 
@@ -2912,8 +3054,8 @@ int applet_recovery_main(int argc, char **argv)
         if (!strcmp(applet, "recovery"))
             puts("recovery is a deprecated compatibility alias for persistence.");
         puts("usage: busierbox persistence --survey|--plan [--json] [--root ROOT]");
-        puts("       busierbox persistence status [--root ROOT] [--name NAME]");
-        puts("       busierbox persistence install --method METHOD --dry-run|--apply [--external] [--root ROOT] [--name NAME]");
+        puts("       busierbox persistence status [--json] [--root ROOT] [--name NAME]");
+        puts("       busierbox persistence install --method METHOD [--action rshell|command|script|status-only] --dry-run|--apply [--external] [--root ROOT] [--name NAME] [--file SCRIPT] [-- COMMAND]");
         puts("       busierbox persistence uninstall --method METHOD --dry-run|--apply [--external] [--root ROOT] [--name NAME]");
         puts("Persistence is authorized lab persistence/recovery only. Survey and plan never modify the target.");
         puts("Install and uninstall require an explicit method plus --dry-run or --apply; real-root writes require --external --apply.");
@@ -2949,14 +3091,38 @@ int applet_recovery_main(int argc, char **argv)
     if (!strcmp(cmd, "status")) {
         size_t j;
         int found = 0;
+        if (json) {
+            printf("{\"schema\":1,\"root\":");
+            json_string_payload(stdout, root);
+            fputs(",\"name\":", stdout);
+            json_string_payload(stdout, name);
+            fputs(",\"installations\":[", stdout);
+        }
         for (j = 0; j < sizeof(recovery_methods) / sizeof(recovery_methods[0]); j++) {
-            if (recovery_status_one(root, &recovery_methods[j], name)) {
-                printf("installed_method=%s\n", recovery_methods[j].name);
+            char action[64], generated[PATH_MAX * 2], path[PATH_MAX];
+            if (recovery_status_one(root, &recovery_methods[j], name, action, sizeof(action), generated, sizeof(generated))) {
+                recovery_join(path, sizeof(path), root, recovery_methods[j].path);
+                if (json) {
+                    printf("%s{\"method\":", found ? "," : "");
+                    json_string_payload(stdout, recovery_methods[j].name);
+                    fputs(",\"path\":", stdout); json_string_payload(stdout, path);
+                    fputs(",\"action\":", stdout); json_string_payload(stdout, action[0] ? action : "unknown");
+                    fputs(",\"generated_command\":", stdout); json_string_payload(stdout, generated);
+                    fputc('}', stdout);
+                } else {
+                    printf("installed_method=%s\n", recovery_methods[j].name);
+                    printf("installed_action=%s\n", action[0] ? action : "unknown");
+                    if (generated[0])
+                        printf("installed_command=%s\n", generated);
+                }
                 found = 1;
             }
         }
-        if (!found)
+        if (json) {
+            printf("],\"installed\":%s}\n", found ? "true" : "false");
+        } else if (!found) {
             puts("installed=no");
+        }
         return 0;
     }
     fprintf(stderr, "%s: unknown command %s\n", applet, cmd);
@@ -3201,7 +3367,7 @@ static int plan_recovery_install(int argc, char **argv, int json)
     else if (!strcmp(action, "command"))
         snprintf(generated, sizeof(generated), "%s", command);
     else if (!strcmp(action, "script"))
-        snprintf(generated, sizeof(generated), "/usr/bin/%s recovery-script %s", name, script_file);
+        snprintf(generated, sizeof(generated), "/usr/bin/%s.recovery.sh", name);
     else
         snprintf(generated, sizeof(generated), "/usr/bin/%s persistence status", name);
 

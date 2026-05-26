@@ -41,6 +41,8 @@ mkdir -p "$tmp/root/etc"
 printf '%s\n' '# existing rc.local' >"$tmp/root/etc/rc.local"
 "$bb" persistence install --method rc-local --dry-run --root "$tmp/root" --name bbx_recovery >"$tmp/dry-run"
 grep -q 'Would install persistence method=rc-local' "$tmp/dry-run"
+grep -q 'Action: status-only' "$tmp/dry-run"
+grep -q 'Generated command: /usr/bin/bbx_recovery persistence status' "$tmp/dry-run"
 grep -q 'Would backup existing hook' "$tmp/dry-run"
 
 if "$bb" persistence install --method rc-local --root "$tmp/root" --name bbx_recovery 2>"$tmp/err"; then
@@ -52,10 +54,20 @@ grep -q 'require --apply' "$tmp/err"
 "$bb" persistence install --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 test -x "$tmp/root/usr/bin/bbx_recovery"
 grep -q 'BEGIN BUSIERBOX RECOVERY bbx_recovery' "$tmp/root/etc/rc.local"
+grep -q 'action=status-only' "$tmp/root/etc/rc.local"
 grep -q 'persistence status' "$tmp/root/etc/rc.local"
 ls "$tmp/root/etc"/rc.local.busierbox.bak.* >/dev/null
 "$bb" persistence status --root "$tmp/root" --name bbx_recovery >"$tmp/status"
 grep -q 'installed_method=rc-local' "$tmp/status"
+grep -q 'installed_action=status-only' "$tmp/status"
+"$bb" persistence status --json --root "$tmp/root" --name bbx_recovery >"$tmp/status.json"
+python3 -m json.tool "$tmp/status.json" >/dev/null
+python3 - <<'PY' "$tmp/status.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data["installed"] is True
+assert any(item["method"] == "rc-local" and item["action"] == "status-only" for item in data["installations"])
+PY
 "$tmp/root/usr/bin/bbx_recovery" persistence status --root "$tmp/root" --name bbx_recovery >"$tmp/copied-status"
 grep -q 'installed_method=rc-local' "$tmp/copied-status"
 "$tmp/root/usr/bin/bbx_recovery" recovery status --root "$tmp/root" --name bbx_recovery >"$tmp/copied-recovery-status"
@@ -71,5 +83,28 @@ if grep -q 'BEGIN BUSIERBOX RECOVERY bbx_recovery' "$tmp/root/etc/rc.local"; the
     exit 1
 fi
 grep -q '# existing rc.local' "$tmp/root/etc/rc.local"
+
+mkdir -p "$tmp/root/etc/crontabs"
+"$bb" persistence install --method cron-reboot --action command --apply --root "$tmp/root" --name bbx_recovery -- 'busierbox rshell start' >/dev/null
+grep -q 'action=command' "$tmp/root/etc/crontabs/root"
+grep -q 'busierbox rshell start' "$tmp/root/etc/crontabs/root"
+"$bb" persistence status --json --root "$tmp/root" --name bbx_recovery >"$tmp/cron-status.json"
+python3 - <<'PY' "$tmp/cron-status.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data["installed"] is True
+assert any(item["method"] == "cron-reboot" and item["action"] == "command" and item["generated_command"] == "busierbox rshell start" for item in data["installations"])
+PY
+"$bb" persistence uninstall --method cron-reboot --apply --root "$tmp/root" --name bbx_recovery >/dev/null
+
+printf '%s\n' '#!/bin/sh' 'echo recovery-script' >"$tmp/script.sh"
+"$bb" persistence install --method rc-local --action script --file "$tmp/script.sh" --apply --root "$tmp/root" --name bbx_recovery >/dev/null
+test -x "$tmp/root/usr/bin/bbx_recovery.recovery.sh"
+grep -q 'action=script' "$tmp/root/etc/rc.local"
+grep -q '/usr/bin/bbx_recovery.recovery.sh' "$tmp/root/etc/rc.local"
+"$bb" persistence status --root "$tmp/root" --name bbx_recovery >"$tmp/script-status"
+grep -q 'installed_action=script' "$tmp/script-status"
+"$bb" persistence uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
+test ! -e "$tmp/root/usr/bin/bbx_recovery.recovery.sh"
 
 printf '%s\n' "recovery ok"
