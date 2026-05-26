@@ -9,6 +9,9 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 scripts/make-release --name smoke --targets native --payload-presets default --dry-run >"$work/dry-run.out"
 grep -q 'would build target=native payload=default format=tgz' "$work/dry-run.out"
 grep -q '^layout=symlink$' "$work/dry-run.out"
+scripts/make-release --name format-smoke --targets native --payload-presets default --formats tgz,tar --dry-run >"$work/format-dry-run.out"
+grep -q 'would build target=native payload=default format=tgz' "$work/format-dry-run.out"
+grep -q 'would build target=native payload=default format=tar' "$work/format-dry-run.out"
 scripts/make-release --name smoke --targets native --payload-presets default --copy-layout --dry-run >"$work/dry-run-copy.out"
 grep -q '^layout=copy$' "$work/dry-run-copy.out"
 python3 - <<'PY'
@@ -344,7 +347,7 @@ if [ -f dist/busierbox-mipsel-linux-4.x-musl-full ]; then
         --out-dir "$work/glinet-release" >"$work/glinet-release.out"
     test -d "$work/glinet-release/by-tuple/mipsel/musl/4.x/mips32r2-24kc"
     test -L "$work/glinet-release/devices/glinet-mt1300/artifacts"
-    test -f "$work/glinet-release/by-tuple/mipsel/musl/4.x/mips32r2-24kc/manifests/busierbox-mipsel-linux-4.x-musl-default-full.payload-manifest.json"
+    test -f "$work/glinet-release/by-tuple/mipsel/musl/4.x/mips32r2-24kc/manifests/busierbox-glinet-mt7621-openwrt-musl-default-full.payload-manifest.json"
     python3 - "$work/glinet-release/release.json" "$work/glinet-release/by-tuple/mipsel/musl/4.x/mips32r2-24kc/MANIFEST.json" <<'PY'
 import json
 import sys
@@ -508,6 +511,39 @@ if len(artifacts) != 2:
 for item in artifacts:
     if not item.get("base_config"):
         raise SystemExit("artifact missing base_config")
+PY
+
+scripts/make-release \
+    --name format-smoke \
+    --targets native \
+    --payload-presets default \
+    --formats tgz,tar \
+    --skip-build \
+    --out-dir "$work/format-release" >"$work/format-release.out"
+test -x "$work/format-release/bin/busierbox-native-default-full"
+test -x "$work/format-release/bin/busierbox-native-default-tar-full"
+test -f "$work/format-release/configs/native-default.conf"
+test -f "$work/format-release/configs/native-default-tar.conf"
+python3 - "$work/format-release/release.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+artifacts = data.get("artifacts", [])
+paths = [item.get("artifact") for item in artifacts]
+configs = [item.get("config") for item in artifacts]
+if len(artifacts) != 2:
+    raise SystemExit("expected two format artifacts")
+if len(paths) != len(set(paths)):
+    raise SystemExit(f"duplicate artifact paths: {paths}")
+if len(configs) != len(set(configs)):
+    raise SystemExit(f"duplicate config paths: {configs}")
+expected = {
+    "bin/busierbox-native-default-full",
+    "bin/busierbox-native-default-tar-full",
+}
+if set(paths) != expected:
+    raise SystemExit(f"format artifact names mismatch: {paths}")
 PY
 
 (

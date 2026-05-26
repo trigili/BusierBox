@@ -149,6 +149,7 @@ def validate_selected_jobs(jobs):
     seen_payloads = set()
     seen_targets = set()
     seen_configs = set()
+    resolved_targets = {}
 
     for job in jobs:
         payload = job["payload"]
@@ -161,7 +162,7 @@ def validate_selected_jobs(jobs):
         if target not in seen_targets:
             seen_targets.add(target)
             try:
-                matrix.resolve_target(target)
+                resolved_targets[target] = matrix.resolve_target(target)
             except RuntimeError as exc:
                 errors.append(f"unresolved target {target}: {exc}")
 
@@ -170,6 +171,22 @@ def validate_selected_jobs(jobs):
             seen_configs.add(config_source)
             if not pathlib.Path(config_source).is_file():
                 errors.append(f"missing config {config_source}")
+
+    seen_outputs = {}
+    for job in jobs:
+        resolved = resolved_targets.get(job["target"]) or {}
+        resolved_target = resolved.get("TARGET_NAME") or job["target"]
+        config_stem, artifact_stem = job_stems(job, resolved_target)
+        for label, relpath in (
+            ("config", f"configs/{config_stem}.conf"),
+            ("artifact", f"bin/{artifact_stem}"),
+            ("log", f"logs/{artifact_stem}.log"),
+        ):
+            other = seen_outputs.get(relpath)
+            if other and other != job["name"]:
+                errors.append(f"release {label} path collision: {relpath} from {other} and {job['name']}")
+            else:
+                seen_outputs[relpath] = job["name"]
 
     if errors:
         die("invalid release selection:\n  " + "\n  ".join(errors))
@@ -187,6 +204,24 @@ def config_suffix(job):
 
 def safe_stem(value):
     return "".join(ch if ch.isalnum() or ch in "._-" else "-" for ch in value).strip("-") or "item"
+
+
+def format_suffix(job):
+    fmt = job.get("format") or "tgz"
+    return "" if fmt == "tgz" else f"-{safe_stem(fmt)}"
+
+
+def runtime_suffix(job):
+    return f"-{safe_stem(job['runtime_mode'])}" if job.get("runtime_mode") else ""
+
+
+def job_stems(job, resolved_target=None):
+    resolved_target = resolved_target or job["target"]
+    artifact_target = resolved_target if job["target"] in ("--config", "config") else job["target"]
+    suffix = f"{config_suffix(job)}{format_suffix(job)}{runtime_suffix(job)}"
+    config_stem = f"{safe_stem(job['target'])}-{safe_stem(job['payload'])}{suffix}"
+    artifact_stem = f"busierbox-{safe_stem(artifact_target)}-{safe_stem(job['payload'])}{suffix}-full"
+    return config_stem, artifact_stem
 
 
 def tuple_component(value, fallback="unknown"):
@@ -1175,9 +1210,7 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
     resolved = resolve_job(job, config, dry_run=dry_run)
     resolved_target = resolved.get("TARGET_NAME") or job["target"]
     tuple_info = tuple_metadata(resolved)
-    runtime_suffix = f"-{safe_stem(job['runtime_mode'])}" if job.get("runtime_mode") else ""
-    config_stem = f"{safe_stem(job['target'])}-{safe_stem(job['payload'])}{config_suffix(job)}{runtime_suffix}"
-    stem = f"busierbox-{safe_stem(resolved_target)}-{safe_stem(job['payload'])}{config_suffix(job)}{runtime_suffix}-full"
+    config_stem, stem = job_stems(job, resolved_target)
     rec = {
         "name": job["name"],
         "target": job["target"],
@@ -1246,8 +1279,7 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
 
 
 def failed_record(job, config, reason):
-    runtime_suffix = f"-{safe_stem(job['runtime_mode'])}" if job.get("runtime_mode") else ""
-    config_stem = f"{safe_stem(job['target'])}-{safe_stem(job['payload'])}{config_suffix(job)}{runtime_suffix}"
+    config_stem, _stem = job_stems(job, job["target"])
     return {
         "name": job["name"],
         "target": job["target"],
@@ -1325,8 +1357,7 @@ def main(argv=None):
     records = []
     git_commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, stdout=subprocess.PIPE, check=False).stdout.strip()
     for job in jobs:
-        runtime_suffix = f"-{safe_stem(job['runtime_mode'])}" if job.get("runtime_mode") else ""
-        config_stem = f"{safe_stem(job['target'])}-{safe_stem(job['payload'])}{config_suffix(job)}{runtime_suffix}"
+        config_stem, _stem = job_stems(job)
         config = release_dir / "configs" / f"{config_stem}.conf"
         write_config(config, job, base_config=job.get("config_source"))
         try:
