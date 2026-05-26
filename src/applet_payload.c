@@ -832,17 +832,22 @@ static int enough_space(const char *archive, const char *root)
     return free_bytes > need_bytes;
 }
 
+static unsigned long long extract_required_bytes(unsigned long long payload_size)
+{
+    unsigned long long need = payload_size * 4ULL;
+    if (need < 8ULL * 1024ULL * 1024ULL)
+        need = 8ULL * 1024ULL * 1024ULL;
+    return need;
+}
+
 static int enough_space_size(unsigned long long size, const char *root)
 {
     struct statvfs v;
-    unsigned long long free_bytes, need_bytes;
+    unsigned long long free_bytes;
     if (statvfs(root, &v) != 0)
         return 1;
     free_bytes = (unsigned long long)v.f_bavail * (unsigned long long)v.f_frsize;
-    need_bytes = size * 4ULL;
-    if (need_bytes < 8ULL * 1024ULL * 1024ULL)
-        need_bytes = 8ULL * 1024ULL * 1024ULL;
-    return free_bytes > need_bytes;
+    return free_bytes > extract_required_bytes(size);
 }
 
 struct payload_stream {
@@ -3800,6 +3805,73 @@ static unsigned long long statvfs_available_bytes(const char *path)
     return (unsigned long long)v.f_bavail * (unsigned long long)v.f_frsize;
 }
 
+static int extract_root_currently_usable(const char *path)
+{
+    if (!path || !path[0] || !path_exists(path))
+        return 0;
+    if (access(path, W_OK | X_OK) != 0)
+        return 0;
+    return !dir_is_noexec(path);
+}
+
+static void print_extract_root_probe_json(FILE *out, const char *role, const char *path,
+                                          unsigned long long payload_size, int selected)
+{
+    int configured = path && path[0];
+    int exists = configured && path_exists(path);
+    int writable = exists && access(path, W_OK) == 0;
+    int executable = exists && access(path, X_OK) == 0;
+    int noexec = exists && dir_is_noexec(path);
+
+    fprintf(out, "{\"role\":");
+    json_string_payload(out, role);
+    fprintf(out, ",\"configured\":%s,\"path\":", configured ? "true" : "false");
+    if (configured)
+        json_string_payload(out, path);
+    else
+        fputs("null", out);
+    fprintf(out, ",\"exists\":%s,\"writable\":%s,\"executable\":%s,\"noexec\":%s",
+            exists ? "true" : "false",
+            writable ? "true" : "false",
+            executable ? "true" : "false",
+            noexec ? "true" : "false");
+    fprintf(out, ",\"available_bytes\":%llu,\"free_space_ok\":%s,\"selected\":%s}",
+            exists ? statvfs_available_bytes(path) : 0ULL,
+            exists && enough_space_size(payload_size, path) ? "true" : "false",
+            selected ? "true" : "false");
+}
+
+static void print_doctor_extraction_runtime_json(FILE *out, unsigned long long payload_size)
+{
+    const char *selected = NULL;
+    int fallback_enabled = !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes");
+
+    if (extract_root_currently_usable(BB_RUNTIME_ROOT))
+        selected = BB_RUNTIME_ROOT;
+    else if (fallback_enabled && extract_root_currently_usable(BB_RUNTIME_FALLBACK_ROOT))
+        selected = BB_RUNTIME_FALLBACK_ROOT;
+
+    fprintf(out, ",\"extraction_runtime\":{\"runtime_root\":");
+    json_string_payload(out, BB_RUNTIME_ROOT);
+    fprintf(out, ",\"fallback_root\":");
+    json_string_payload(out, BB_RUNTIME_FALLBACK_ROOT);
+    fprintf(out, ",\"fallback_enabled\":%s,\"required_bytes\":%llu,\"writable_executable\":%s,\"selected_root\":",
+            fallback_enabled ? "true" : "false",
+            extract_required_bytes(payload_size),
+            selected ? "true" : "false");
+    if (selected)
+        json_string_payload(out, selected);
+    else
+        fputs("null", out);
+    fprintf(out, ",\"roots\":[");
+    print_extract_root_probe_json(out, "runtime", BB_RUNTIME_ROOT, payload_size,
+                                  selected && !strcmp(selected, BB_RUNTIME_ROOT));
+    fputc(',', out);
+    print_extract_root_probe_json(out, "fallback", BB_RUNTIME_FALLBACK_ROOT, payload_size,
+                                  selected && !strcmp(selected, BB_RUNTIME_FALLBACK_ROOT));
+    fprintf(out, "]}");
+}
+
 static unsigned long long mem_available_kb(void)
 {
     FILE *fp = fopen("/proc/meminfo", "r");
@@ -4053,7 +4125,9 @@ int applet_doctor_main(int argc, char **argv)
                 printf(",\"candidate_extract_root\":");
                 json_string_payload(stdout, root);
             }
-            printf("},\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d",
+            printf("}");
+            print_doctor_extraction_runtime_json(stdout, ep.size);
+            printf(",\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d",
                    manifest ? "true" : "false", applet_count);
             if (manifest) {
                 printf(",\"overlay_enabled\":%s", !strcmp(json_bool_value(manifest, "overlay_enabled"), "yes") ? "true" : "false");
@@ -4118,7 +4192,9 @@ int applet_doctor_main(int argc, char **argv)
                 printf(",\"busybox_present\":%s", executable_file(busybox) ? "true" : "false");
                 printf(",\"manifest_found\":%s", path_exists(manifest_path) ? "true" : "false");
             }
-            printf("},\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d}",
+            printf("}");
+            print_doctor_extraction_runtime_json(stdout, 1);
+            printf(",\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d}",
                    manifest ? "true" : "false", applet_count);
             print_doctor_manifest_summary_json(stdout, manifest != NULL, applet_count);
             print_doctor_rshell_readiness_json(stdout);
