@@ -141,5 +141,7 @@ assert doc["selected"]["release_name"] == "two"
 assert doc["index"]["deduplicated_artifact_count"] == 1
 assert "newest release_mtime" in doc["selection_policy"]
 PY
+grep -q -- '--recommendation-json' docs/release-bundles.md
+grep -q 'policy used to prefer lower-risk compatibility labels' docs/release-bundles.md
 
 printf '%s\n' "release-repo-index ok"

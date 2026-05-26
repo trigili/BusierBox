@@ -149,12 +149,16 @@ scripts/index-release-repo dist/releases --write local/release-repo-index.json
 scripts/find-artifact --index local/release-repo-index.json --device glinet-mt1300
 scripts/find-artifact --index local/release-repo-index.json --tool tcpdump --payload-preset survey-core
 scripts/find-artifact --index local/release-repo-index.json --feature reverse-ssh --json
+scripts/find-artifact --index local/release-repo-index.json --device glinet-mt1300 --recommendation-json
 ```
 
 The repository index reuses each bundle's `release-index.json`, records the
 release name and directory for every artifact, deduplicates artifacts by sha256,
 and indexes tuple, device, tool, payload preset, and feature keys. It does not
-download or rebuild anything.
+download or rebuild anything. `--recommendation-json` returns the selected
+artifact plus active filters, match count, index counts, and the selection
+policy used to prefer lower-risk compatibility labels and newer release
+metadata.
 
 ## Operator Examples
 
