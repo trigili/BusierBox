@@ -79,7 +79,7 @@ fi
 : "${BB_USER_OVERLAY_ALLOW_OVERRIDE:=no}"
 : "${BB_GDBSERVER_PROVIDER:=auto}"
 
-src="src/busierbox.c src/applet_payload.c src/applet_extract.c src/applet_list.c src/applet_manifest.c src/applet_doctor.c src/applet_config_info.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/applet_fetch.c src/ledger.c src/runtime_paths.c src/runtime_probe.c src/json_helpers.c src/payload_extract.c src/payload_dispatch.c src/runtime_config.c src/sha256.c"
+src="src/busierbox.c src/payload_runtime.c src/applet_extract.c src/applet_list.c src/applet_manifest.c src/applet_doctor.c src/applet_config_info.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/applet_fetch.c src/ledger.c src/runtime_paths.c src/runtime_probe.c src/json_helpers.c src/payload_extract.c src/payload_dispatch.c src/runtime_config.c src/sha256.c"
 miniz_src="third_party/miniz/miniz.c"
 miniz_cflags="-Os -std=c99 -Ithird_party/miniz"
 tmp="${OUT}.$$.tmp"
