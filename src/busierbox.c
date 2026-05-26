@@ -220,6 +220,7 @@ const struct bb_applet bb_applets[] = {
     {"persistence", applet_recovery_main, "survey and manage explicit persistence hooks"},
     {"recovery", applet_recovery_main, "deprecated alias for persistence"},
     {"rshell", applet_rshell_main, "start configured reverse shell transport"},
+    {"plan", applet_plan_main, "preview filesystem, process, and network impact"},
 };
 
 const unsigned int bb_applet_count = sizeof(bb_applets) / sizeof(bb_applets[0]);

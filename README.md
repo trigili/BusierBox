@@ -380,6 +380,8 @@ When launching payload tools BusierBox sets:
 
 Doctor also reports payload identity/staleness, applet symlink count, overlay status and warnings, missing-tool reasons, terminfo availability, zsh presence, PATH duplicate hints, extraction free space, available memory, default-route presence, and recommendations for common tmux/dropbear/terminfo failures.
 
+`./busierbox plan` and `./busierbox plan --json` preview the operator-visible impact of extraction, reverse shell startup, cleanup, and recovery install actions without modifying the target. See `docs/plan-mode.md`.
+
 `./busierbox config-info` reports the BusierBox build, extraction status, payload directory, payload hash, BusyBox dispatch status, post-build runtime override trailer status, and the payload manifest summary when available. `./busierbox manifest --json` includes compiled config, effective config, and trailer override metadata. `./busierbox config-export --json` and `./busierbox doctor --support-token` provide rebuild-oriented metadata that can be converted back into a starter config with `scripts/config-from-manifest` or `scripts/config-from-support-token`.
 
 `scripts/artifact-config` can inspect, set, import, export, and clear optional runtime override trailers on existing artifacts. Overrides are limited to selected runtime/operator keys such as reverse-access host/ports, transport, run mode, retry settings, zero-arg mode, and log verbosity. They do not change target tuple, compiled features, payload tools, dotfiles, or overlay contents. Optional XOR obfuscation is not encryption and must not be used for credentials or private keys.
