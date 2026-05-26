@@ -340,9 +340,14 @@ Workflow documentation:
 - [GL.iNet integration](docs/integration-glinet.md)
 - [Build matrix](docs/build-matrix.md)
 - [Offline / enclave builds](docs/offline-enclave.md)
+- [Plan mode](docs/plan-mode.md)
+- [Cleanup ledger and no-residue](docs/cleanup-ledger.md)
 - [Persistence](docs/persistence.md)
 - [Manifest and support token](docs/manifest.md)
 - [Artifact runtime overrides](docs/artifact-runtime-overrides.md)
+- [gdbserver workflow](docs/gdbserver-workflow.md)
+- [Release bundles](docs/release-bundles.md)
+- [Heavy tool triage](docs/heavy-tools-triage.md)
 
 The build attempts static linking for BusierBox and BusyBox. If a payload tool cannot be built fully static, the intended fallback is to bundle its required shared libraries in `runtime/payload/lib` and set `LD_LIBRARY_PATH` when dispatching payload tools. The build should print warnings rather than silently producing a broken payload.
 

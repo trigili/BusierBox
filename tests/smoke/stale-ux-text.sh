@@ -27,4 +27,17 @@ if grep -v '^tests/smoke/busierbox-server.py:' "$tmp" |
     exit 1
 fi
 
+for doc in \
+    docs/plan-mode.md \
+    docs/cleanup-ledger.md \
+    docs/gdbserver-workflow.md \
+    docs/release-bundles.md \
+    docs/heavy-tools-triage.md
+do
+    grep -q "$doc" README.md || {
+        printf '%s\n' "stale-ux-text: README missing workflow doc link $doc" >&2
+        exit 1
+    }
+done
+
 printf '%s\n' "stale-ux-text ok"
