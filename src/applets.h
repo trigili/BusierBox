@@ -22,6 +22,10 @@ void bb_ledger_record(const char *op, const char *path, const char *scope, const
 int bb_rm_rf(const char *path);
 int bb_mkdir_p(const char *path, mode_t mode);
 char *bb_read_text_file(const char *path, size_t max_bytes);
+int bb_path_exists(const char *path);
+int bb_executable_file(const char *path);
+int bb_dir_is_noexec(const char *path);
+unsigned long long bb_path_available_bytes(const char *path);
 int bb_path_entry_count(const char *path, const char *entry);
 int bb_path_has_duplicate_entries(const char *path);
 const char *bb_ptrace_probe_status(void);

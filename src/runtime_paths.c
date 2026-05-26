@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 
 #include "applets.h"
@@ -106,6 +107,52 @@ char *bb_read_text_file(const char *path, size_t max_bytes)
     fclose(fp);
     buf[n] = '\0';
     return buf;
+}
+
+int bb_path_exists(const char *path)
+{
+    return access(path, F_OK) == 0;
+}
+
+int bb_executable_file(const char *path)
+{
+    return access(path, X_OK) == 0;
+}
+
+int bb_dir_is_noexec(const char *path)
+{
+    FILE *fp = fopen("/proc/mounts", "r");
+    char line[512], best[PATH_MAX] = "", best_opts[256] = "";
+    size_t best_len = 0;
+
+    if (!fp)
+        return 0;
+    while (fgets(line, sizeof(line), fp)) {
+        char src[160], dst[PATH_MAX], type[64], opts[256];
+        size_t len;
+        (void)src;
+        (void)type;
+        if (sscanf(line, "%159s %4095s %63s %255s", src, dst, type, opts) != 4)
+            continue;
+        len = strlen(dst);
+        if ((!strcmp(dst, "/") || !strncmp(path, dst, len)) && len >= best_len) {
+            snprintf(best, sizeof(best), "%s", dst);
+            snprintf(best_opts, sizeof(best_opts), "%s", opts);
+            best_len = len;
+        }
+    }
+    fclose(fp);
+    (void)best;
+    return strstr(best_opts, "noexec") != NULL;
+}
+
+unsigned long long bb_path_available_bytes(const char *path)
+{
+    struct statvfs v;
+
+    if (statvfs(path, &v) != 0)
+        return 0;
+    return (unsigned long long)v.f_bavail * (unsigned long long)v.f_frsize;
 }
 
 int bb_path_entry_count(const char *path, const char *entry)

@@ -436,16 +436,6 @@ struct embedded_payload {
 
 #define json_string_payload bb_json_string
 
-static int path_exists(const char *path)
-{
-    return access(path, F_OK) == 0;
-}
-
-static int executable_file(const char *path)
-{
-    return access(path, X_OK) == 0;
-}
-
 static int read_exe_dir(char *out, size_t outsz)
 {
     ssize_t n = readlink("/proc/self/exe", out, outsz - 1);
@@ -589,7 +579,7 @@ static int payload_valid(const char *payload)
 
     snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
     snprintf(version, sizeof(version), "%s/VERSION", payload);
-    if (!executable_file(busybox))
+    if (!bb_executable_file(busybox))
         return 0;
     if (read_first_line(version, found, sizeof(found)) != 0)
         return 0;
@@ -704,60 +694,33 @@ static int archive_path(char *out, size_t outsz)
 
     if (read_exe_dir(exe_dir, sizeof(exe_dir)) == 0) {
         snprintf(path, sizeof(path), "%s/payload.tar", exe_dir);
-        if (path_exists(path)) {
+        if (bb_path_exists(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
         }
         snprintf(path, sizeof(path), "%s/payload.tar.gz", exe_dir);
-        if (path_exists(path)) {
+        if (bb_path_exists(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
         }
     }
-    if (path_exists("dist/payload.tar")) {
+    if (bb_path_exists("dist/payload.tar")) {
         snprintf(out, outsz, "%s", "dist/payload.tar");
         return 0;
     }
-    if (path_exists("dist/payload.tar.gz")) {
+    if (bb_path_exists("dist/payload.tar.gz")) {
         snprintf(out, outsz, "%s", "dist/payload.tar.gz");
         return 0;
     }
-    if (path_exists("payload.tar")) {
+    if (bb_path_exists("payload.tar")) {
         snprintf(out, outsz, "%s", "payload.tar");
         return 0;
     }
-    if (path_exists("payload.tar.gz")) {
+    if (bb_path_exists("payload.tar.gz")) {
         snprintf(out, outsz, "%s", "payload.tar.gz");
         return 0;
     }
     return -1;
-}
-
-static int dir_is_noexec(const char *path)
-{
-    FILE *fp = fopen("/proc/mounts", "r");
-    char line[512], best[PATH_MAX] = "", best_opts[256] = "";
-    size_t best_len = 0;
-
-    if (!fp)
-        return 0;
-    while (fgets(line, sizeof(line), fp)) {
-        char src[160], dst[PATH_MAX], type[64], opts[256];
-        size_t len;
-        (void)src;
-        (void)type;
-        if (sscanf(line, "%159s %4095s %63s %255s", src, dst, type, opts) != 4)
-            continue;
-        len = strlen(dst);
-        if ((!strcmp(dst, "/") || !strncmp(path, dst, len)) && len >= best_len) {
-            snprintf(best, sizeof(best), "%s", dst);
-            snprintf(best_opts, sizeof(best_opts), "%s", opts);
-            best_len = len;
-        }
-    }
-    fclose(fp);
-    (void)best;
-    return strstr(best_opts, "noexec") != NULL;
 }
 
 static int choose_extract_root(char *out, size_t outsz)
@@ -780,7 +743,7 @@ static int choose_extract_root(char *out, size_t outsz)
         bb_ledger_record("mkdir", path, "runtime", "runtime root");
         if (access(path, W_OK | X_OK) != 0)
             continue;
-        if (dir_is_noexec(path))
+        if (bb_dir_is_noexec(path))
             continue;
         snprintf(out, outsz, "%s", path);
         return 0;
@@ -1416,13 +1379,13 @@ static void set_payload_env(const char *payload)
     if (!getenv("TERM"))
         setenv("TERM", "xterm-256color", 1);
     snprintf(lib, sizeof(lib), "%s/home", payload);
-    if (path_exists(lib))
+    if (bb_path_exists(lib))
         setenv("ZDOTDIR", lib, 1);
     snprintf(lib, sizeof(lib), "%s/lib", payload);
-    if (path_exists(lib))
+    if (bb_path_exists(lib))
         setenv("LD_LIBRARY_PATH", lib, 1);
     snprintf(lib, sizeof(lib), "%s/share/terminfo", payload);
-    if (path_exists(lib)) {
+    if (bb_path_exists(lib)) {
         const char *old_ti = getenv("TERMINFO_DIRS");
         if (old_ti && *old_ti) {
             char ti_path[PATH_MAX * 2];
@@ -1794,31 +1757,23 @@ int applet_extract_main(int argc, char **argv)
     return 0;
 }
 
-static unsigned long long statvfs_available_bytes(const char *path)
-{
-    struct statvfs v;
-    if (statvfs(path, &v) != 0)
-        return 0;
-    return (unsigned long long)v.f_bavail * (unsigned long long)v.f_frsize;
-}
-
 static int extract_root_currently_usable(const char *path)
 {
-    if (!path || !path[0] || !path_exists(path))
+    if (!path || !path[0] || !bb_path_exists(path))
         return 0;
     if (access(path, W_OK | X_OK) != 0)
         return 0;
-    return !dir_is_noexec(path);
+    return !bb_dir_is_noexec(path);
 }
 
 static void print_extract_root_probe_json(FILE *out, const char *role, const char *path,
                                           unsigned long long payload_size, int selected)
 {
     int configured = path && path[0];
-    int exists = configured && path_exists(path);
+    int exists = configured && bb_path_exists(path);
     int writable = exists && access(path, W_OK) == 0;
     int executable = exists && access(path, X_OK) == 0;
-    int noexec = exists && dir_is_noexec(path);
+    int noexec = exists && bb_dir_is_noexec(path);
 
     fprintf(out, "{\"role\":");
     json_string_payload(out, role);
@@ -1833,7 +1788,7 @@ static void print_extract_root_probe_json(FILE *out, const char *role, const cha
             executable ? "true" : "false",
             noexec ? "true" : "false");
     fprintf(out, ",\"available_bytes\":%llu,\"free_space_ok\":%s,\"selected\":%s}",
-            exists ? statvfs_available_bytes(path) : 0ULL,
+            exists ? bb_path_available_bytes(path) : 0ULL,
             exists && enough_space_size(payload_size, path) ? "true" : "false",
             selected ? "true" : "false");
 }
@@ -2001,7 +1956,7 @@ static void print_doctor_cleanup_ledger_json(FILE *out)
     fprintf(out, ",\"cleanup_ledger\":{\"path\":");
     json_string_payload(out, path);
     fprintf(out, ",\"present\":%s,\"entry_count\":%d}",
-            path_exists(path) ? "true" : "false",
+            bb_path_exists(path) ? "true" : "false",
             cleanup_ledger_entry_count(path));
 }
 
@@ -2026,15 +1981,15 @@ static void print_doctor_payload_runtime_health_json(FILE *out, int have_payload
 
     fprintf(out, ",\"dir\":");
     json_string_payload(out, payload);
-    fprintf(out, ",\"busybox_executable\":%s", executable_file(busybox) ? "true" : "false");
+    fprintf(out, ",\"busybox_executable\":%s", bb_executable_file(busybox) ? "true" : "false");
     fprintf(out, ",\"applet_symlink_count\":");
     if (symlink_count[0])
         json_string_payload(out, symlink_count);
     else
         fprintf(out, "null");
-    fprintf(out, ",\"terminfo_present\":%s", path_exists(terminfo) ? "true" : "false");
-    fprintf(out, ",\"tmux_terminfo_present\":%s", path_exists(tmux_ti) ? "true" : "false");
-    fprintf(out, ",\"zsh_present\":%s", executable_file(zsh_path) ? "true" : "false");
+    fprintf(out, ",\"terminfo_present\":%s", bb_path_exists(terminfo) ? "true" : "false");
+    fprintf(out, ",\"tmux_terminfo_present\":%s", bb_path_exists(tmux_ti) ? "true" : "false");
+    fprintf(out, ",\"zsh_present\":%s", bb_executable_file(zsh_path) ? "true" : "false");
     fprintf(out, ",\"payload_bin_path_count\":%d", bb_path_entry_count(getenv("PATH"), bin_dir));
     fprintf(out, "}");
 }
@@ -2122,14 +2077,14 @@ int applet_doctor_main(int argc, char **argv)
             if (have_payload) {
                 snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
                 snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", payload);
-                if (path_exists(manifest_path))
+                if (bb_path_exists(manifest_path))
                     manifest = bb_read_text_file(manifest_path, 1024 * 1024);
             } else {
                 root[0] = '\0';
-                if (BB_RUNTIME_ROOT[0] && access(BB_RUNTIME_ROOT, W_OK | X_OK) == 0 && !dir_is_noexec(BB_RUNTIME_ROOT))
+                if (BB_RUNTIME_ROOT[0] && access(BB_RUNTIME_ROOT, W_OK | X_OK) == 0 && !bb_dir_is_noexec(BB_RUNTIME_ROOT))
                     snprintf(root, sizeof(root), "%s", BB_RUNTIME_ROOT);
                 else if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && BB_RUNTIME_FALLBACK_ROOT[0] &&
-                         access(BB_RUNTIME_FALLBACK_ROOT, W_OK | X_OK) == 0 && !dir_is_noexec(BB_RUNTIME_FALLBACK_ROOT))
+                         access(BB_RUNTIME_FALLBACK_ROOT, W_OK | X_OK) == 0 && !bb_dir_is_noexec(BB_RUNTIME_FALLBACK_ROOT))
                     snprintf(root, sizeof(root), "%s", BB_RUNTIME_FALLBACK_ROOT);
             }
             if (manifest)
@@ -2152,8 +2107,8 @@ int applet_doctor_main(int argc, char **argv)
                 json_string_payload(stdout, payload);
                 printf(",\"extraction_mode\":");
                 json_string_payload(stdout, payload_extraction_mode(payload, mode, sizeof(mode)));
-                printf(",\"busybox_present\":%s", executable_file(busybox) ? "true" : "false");
-                printf(",\"manifest_found\":%s", path_exists(manifest_path) ? "true" : "false");
+                printf(",\"busybox_present\":%s", bb_executable_file(busybox) ? "true" : "false");
+                printf(",\"manifest_found\":%s", bb_path_exists(manifest_path) ? "true" : "false");
                 printf(",\"identity_match\":%s", payload_id_matches(&ep, payload) ? "true" : "false");
             } else if (root[0]) {
                 printf(",\"candidate_extract_root\":");
@@ -2183,7 +2138,7 @@ int applet_doctor_main(int argc, char **argv)
                 printf(",\"payload_bin_path_count\":%d", bb_path_entry_count(getenv("PATH"), bin_dir));
             }
             printf("},\"host\":{\"mem_available_kb\":%llu,\"devpts_available\":%s,\"ptrace_probe\":",
-                   bb_mem_available_kb(), path_exists("/dev/pts") ? "true" : "false");
+                   bb_mem_available_kb(), bb_path_exists("/dev/pts") ? "true" : "false");
             json_string_payload(stdout, bb_ptrace_probe_status());
             printf(",\"default_route_present\":%s}", bb_has_default_route() ? "true" : "false");
             printf(",\"artifact\":{\"tier\":");
@@ -2208,7 +2163,7 @@ int applet_doctor_main(int argc, char **argv)
             if (have_payload) {
                 snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
                 snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", payload);
-                if (path_exists(manifest_path))
+                if (bb_path_exists(manifest_path))
                     manifest = bb_read_text_file(manifest_path, 1024 * 1024);
             }
             if (manifest)
@@ -2225,8 +2180,8 @@ int applet_doctor_main(int argc, char **argv)
                 json_string_payload(stdout, payload);
                 printf(",\"extraction_mode\":");
                 json_string_payload(stdout, payload_extraction_mode(payload, mode, sizeof(mode)));
-                printf(",\"busybox_present\":%s", executable_file(busybox) ? "true" : "false");
-                printf(",\"manifest_found\":%s", path_exists(manifest_path) ? "true" : "false");
+                printf(",\"busybox_present\":%s", bb_executable_file(busybox) ? "true" : "false");
+                printf(",\"manifest_found\":%s", bb_path_exists(manifest_path) ? "true" : "false");
             }
             printf("}");
             print_doctor_extraction_runtime_json(stdout, 1);
@@ -2243,7 +2198,7 @@ int applet_doctor_main(int argc, char **argv)
                    getenv("HOME") && *getenv("HOME") ? "true" : "false",
                    getenv("SHELL") && *getenv("SHELL") ? "true" : "false");
             printf(",\"host\":{\"mem_available_kb\":%llu,\"devpts_available\":%s,\"ptrace_probe\":",
-                   bb_mem_available_kb(), path_exists("/dev/pts") ? "true" : "false");
+                   bb_mem_available_kb(), bb_path_exists("/dev/pts") ? "true" : "false");
             json_string_payload(stdout, bb_ptrace_probe_status());
             printf(",\"default_route_present\":%s}", bb_has_default_route() ? "true" : "false");
             printf(",\"artifact\":{\"tier\":");
@@ -2273,12 +2228,12 @@ int applet_doctor_main(int argc, char **argv)
 
     if (have_payload) {
         snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
-        printf("busybox_present=%s\n", executable_file(busybox) ? "yes" : "no");
+        printf("busybox_present=%s\n", bb_executable_file(busybox) ? "yes" : "no");
         snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", payload);
-        printf("payload_manifest_found=%s\n", path_exists(manifest_path) ? "yes" : "no");
+        printf("payload_manifest_found=%s\n", bb_path_exists(manifest_path) ? "yes" : "no");
         if (ep.present)
             printf("payload_identity_match=%s\n", payload_id_matches(&ep, payload) ? "yes" : "no (stale or different binary)");
-        if (path_exists(manifest_path))
+        if (bb_path_exists(manifest_path))
             manifest = bb_read_text_file(manifest_path, 1024 * 1024);
     }
 
@@ -2324,10 +2279,10 @@ int applet_doctor_main(int argc, char **argv)
         printf("applet_symlink_count=%s\n", symlink_count);
         snprintf(terminfo, sizeof(terminfo), "%s/share/terminfo", payload);
         snprintf(tmux_ti, sizeof(tmux_ti), "%s/share/terminfo/t/tmux", payload);
-        printf("terminfo_present=%s\n", path_exists(terminfo) ? "yes" : "no");
-        printf("tmux_terminfo_present=%s\n", path_exists(tmux_ti) ? "yes" : "no");
+        printf("terminfo_present=%s\n", bb_path_exists(terminfo) ? "yes" : "no");
+        printf("tmux_terminfo_present=%s\n", bb_path_exists(tmux_ti) ? "yes" : "no");
         snprintf(zsh_path, sizeof(zsh_path), "%s/bin/zsh", payload);
-        printf("zsh_present=%s\n", executable_file(zsh_path) ? "yes" : "no");
+        printf("zsh_present=%s\n", bb_executable_file(zsh_path) ? "yes" : "no");
         snprintf(bin_dir, sizeof(bin_dir), "%s/bin", payload);
         printf("payload_bin_path_count=%d\n", bb_path_entry_count(getenv("PATH"), bin_dir));
     }
@@ -2338,24 +2293,24 @@ int applet_doctor_main(int argc, char **argv)
     if (choose_extract_root(root, sizeof(root)) == 0) {
         printf("extract_root_writable_executable=yes\n");
         printf("extract_root=%s\n", root);
-        printf("extract_root_noexec=%s\n", dir_is_noexec(root) ? "yes" : "no");
+        printf("extract_root_noexec=%s\n", bb_dir_is_noexec(root) ? "yes" : "no");
         printf("extract_root_free_space_ok=%s\n", enough_space_size(ep.present ? ep.size : 1, root) ? "yes" : "no");
-        printf("extract_root_available_bytes=%llu\n", statvfs_available_bytes(root));
+        printf("extract_root_available_bytes=%llu\n", bb_path_available_bytes(root));
     } else {
         puts("extract_root_writable_executable=no");
     }
     printf("mem_available_kb=%llu\n", bb_mem_available_kb());
-    printf("devpts_available=%s\n", path_exists("/dev/pts") ? "yes" : "no");
+    printf("devpts_available=%s\n", bb_path_exists("/dev/pts") ? "yes" : "no");
     printf("ptrace_probe=%s\n", bb_ptrace_probe_status());
     printf("default_route_present=%s\n", bb_has_default_route() ? "yes" : "no");
-    if (!path_exists("/dev/pts"))
+    if (!bb_path_exists("/dev/pts"))
         puts("recommendation=mount devpts for tmux/dropbear interactive sessions");
     printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
     print_autoexec_config();
     if (have_payload) {
         char ti[PATH_MAX];
         snprintf(ti, sizeof(ti), "%s/share/terminfo", payload);
-        if (!path_exists(ti))
+        if (!bb_path_exists(ti))
             puts("recommendation=stage terminfo when using tmux/screen/htop");
     }
     return 0;
@@ -2426,9 +2381,9 @@ int applet_config_info_main(int argc, char **argv)
     if (have_payload) {
         char busybox[PATH_MAX];
         snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
-        printf("busybox_present=%s\n", executable_file(busybox) ? "yes" : "no");
+        printf("busybox_present=%s\n", bb_executable_file(busybox) ? "yes" : "no");
         snprintf(manifest, sizeof(manifest), "%s/manifest.json", payload);
-        if (path_exists(manifest)) {
+        if (bb_path_exists(manifest)) {
             FILE *fp = fopen(manifest, "r");
             char line[256];
             printf("payload_manifest=%s\n", manifest);
