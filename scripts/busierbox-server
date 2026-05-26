@@ -166,6 +166,12 @@ class ServiceManager:
         self.child_processes = []
         self._lock = threading.Lock()
 
+    def register_thread(self, thread):
+        with self._lock:
+            if thread not in self.service_threads:
+                self.service_threads.append(thread)
+        return thread
+
     def register_socket(self, sock):
         with self._lock:
             if sock not in self.sockets:
@@ -192,6 +198,22 @@ class ServiceManager:
             except ValueError:
                 pass
 
+    def register_child_process(self, proc):
+        with self._lock:
+            if proc not in self.child_processes:
+                self.child_processes.append(proc)
+        return proc
+
+    def start_child_process(self, cmd, **kwargs):
+        return self.register_child_process(subprocess.Popen(cmd, **kwargs))
+
+    def unregister_child_process(self, proc):
+        with self._lock:
+            try:
+                self.child_processes.remove(proc)
+            except ValueError:
+                pass
+
     def shutdown(self):
         self.shutdown_event.set()
         for transport in list(self.transports):
@@ -203,6 +225,22 @@ class ServiceManager:
             try:
                 sock.close()
             except OSError:
+                pass
+        for proc in list(self.child_processes):
+            if proc.poll() is not None:
+                self.unregister_child_process(proc)
+                continue
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+        current = threading.current_thread()
+        for thread in list(self.service_threads):
+            if thread is current or not thread.is_alive():
+                continue
+            try:
+                thread.join(timeout=2.0)
+            except RuntimeError:
                 pass
 
 
@@ -1068,6 +1106,14 @@ def unregister_transport(transport):
     SERVICE_MANAGER.unregister_transport(transport)
 
 
+def register_thread(thread):
+    return SERVICE_MANAGER.register_thread(thread)
+
+
+def start_child_process(cmd, **kwargs):
+    return SERVICE_MANAGER.start_child_process(cmd, **kwargs)
+
+
 def close_registered_resources():
     SERVICE_MANAGER.shutdown()
 
@@ -1460,7 +1506,7 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
                 except OSError:
                     pass
 
-        self._listener_thread = threading.Thread(target=run, name="busierbox-reverse-forward")
+        self._listener_thread = register_thread(threading.Thread(target=run, name="busierbox-reverse-forward"))
         self._listener_thread.start()
 
 
@@ -2813,7 +2859,7 @@ def start_service_process(cfg, service, argv_extra=None):
     log_root.mkdir(parents=True, exist_ok=True)
     log_path = log_root / f"operator-{service}-{int(time.time())}.log"
     with log_path.open("ab") as log:
-        proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        proc = start_child_process(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     update_server_state(cfg, service, "starting", {"pid": proc.pid, "managed_by": os.getpid(), "process_log": str(log_path)})
     append_event(cfg, service, "service_start_requested", details={"pid": proc.pid, "process_log": str(log_path), "managed_by": os.getpid()})
     print(f"started {service}: pid={proc.pid} log={log_path}")

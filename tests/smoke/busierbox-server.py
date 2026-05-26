@@ -129,13 +129,17 @@ def main():
         print("busierbox-server: reverse-forward listener thread is not explicitly owned/joined", file=sys.stderr)
         return 1
     for word in ("class ServiceManager", "SERVICE_MANAGER = ServiceManager()", "register_transport",
-                 "SERVICE_MANAGER.register_socket", "SERVICE_MANAGER.shutdown()", "class EventLog",
-                 "class Service", "class Session"):
+                 "SERVICE_MANAGER.register_socket", "SERVICE_MANAGER.shutdown()", "register_thread",
+                 "start_child_process", "register_child_process", "class EventLog", "class Service",
+                 "class Session"):
         if word not in src:
             print(f"busierbox-server: service/session manager primitive missing: {word}", file=sys.stderr)
             return 1
     if "OWNED_TRANSPORTS.append(transport)" in src:
         print("busierbox-server: transport ownership bypasses ServiceManager", file=sys.stderr)
+        return 1
+    if "proc = subprocess.Popen(cmd" in src:
+        print("busierbox-server: workbench child process bypasses ServiceManager", file=sys.stderr)
         return 1
     stop_helper = src[src.find("def stop_recorded_service"):src.find("def run_line_tui")]
     if ("managed_server_evidence(pid, cfg=cfg, rec=rec)" not in stop_helper or
