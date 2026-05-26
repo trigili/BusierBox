@@ -5,99 +5,16 @@
 #include <string.h>
 
 #include "applets.h"
+#include "effective_config.h"
 #include "json_helpers.h"
-#include "runtime_config.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
 
-#ifndef BB_RUNTIME_ROOT
-#define BB_RUNTIME_ROOT "./.busierbox"
-#endif
-#ifndef BB_RUNTIME_ALLOW_FALLBACK_ROOT
-#define BB_RUNTIME_ALLOW_FALLBACK_ROOT "no"
-#endif
-#ifndef BB_RUNTIME_FALLBACK_ROOT
-#define BB_RUNTIME_FALLBACK_ROOT "/tmp/.busierbox"
-#endif
-#ifndef BB_RUNTIME_MODE
-#define BB_RUNTIME_MODE "extract"
-#endif
-#ifndef BB_AUTORUN_GUARD_PATH
-#define BB_AUTORUN_GUARD_PATH "./.busierbox/run"
-#endif
-#ifndef BB_RSHELL_TRANSPORT
-#define BB_RSHELL_TRANSPORT "none"
-#endif
-#ifndef BB_RSHELL_ENCRYPTION
-#define BB_RSHELL_ENCRYPTION "none"
-#endif
-#ifndef BB_RSHELL_RUN_MODE
-#define BB_RSHELL_RUN_MODE "auto"
-#endif
-#ifndef BB_RSHELL_SHELL_PROVIDER
-#define BB_RSHELL_SHELL_PROVIDER "auto"
-#endif
-#ifndef BB_RSHELL_SOCAT_PORT
-#define BB_RSHELL_SOCAT_PORT "22203"
-#endif
-#ifndef BB_ZERO_ARG_MODE
-#define BB_ZERO_ARG_MODE "help"
-#endif
-#ifndef BB_OPERATOR_SERVER_HOST
-#define BB_OPERATOR_SERVER_HOST ""
-#endif
-#ifndef BB_OPERATOR_SERVER_USER
-#define BB_OPERATOR_SERVER_USER "operator"
-#endif
-#ifndef BB_OPERATOR_SERVER_SSH_PORT
-#define BB_OPERATOR_SERVER_SSH_PORT "22"
-#endif
-#ifndef BB_OPERATOR_TARGET_BIND_HOST
-#define BB_OPERATOR_TARGET_BIND_HOST "127.0.0.1"
-#endif
-#ifndef BB_OPERATOR_REMOTE_FORWARD_PORT
-#define BB_OPERATOR_REMOTE_FORWARD_PORT "2200"
-#endif
 #ifndef BB_RECOVERY_BINARY_NAME
 #define BB_RECOVERY_BINARY_NAME "busierbox_recovery"
 #endif
-
-/* Plan output must reflect the same compiled < trailer < env config resolution
- * used by runtime dispatch. Build-time macros above are only fallback defaults. */
-#undef BB_RUNTIME_ROOT
-#undef BB_RUNTIME_ALLOW_FALLBACK_ROOT
-#undef BB_RUNTIME_FALLBACK_ROOT
-#undef BB_RUNTIME_MODE
-#undef BB_AUTORUN_GUARD_PATH
-#undef BB_RSHELL_TRANSPORT
-#undef BB_RSHELL_ENCRYPTION
-#undef BB_RSHELL_RUN_MODE
-#undef BB_RSHELL_SHELL_PROVIDER
-#undef BB_RSHELL_SOCAT_PORT
-#undef BB_ZERO_ARG_MODE
-#undef BB_OPERATOR_SERVER_HOST
-#undef BB_OPERATOR_SERVER_USER
-#undef BB_OPERATOR_SERVER_SSH_PORT
-#undef BB_OPERATOR_TARGET_BIND_HOST
-#undef BB_OPERATOR_REMOTE_FORWARD_PORT
-#define BB_RUNTIME_ROOT bb_config_get("BB_RUNTIME_ROOT")
-#define BB_RUNTIME_ALLOW_FALLBACK_ROOT bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT")
-#define BB_RUNTIME_FALLBACK_ROOT bb_config_get("BB_RUNTIME_FALLBACK_ROOT")
-#define BB_RUNTIME_MODE bb_config_get("BB_RUNTIME_MODE")
-#define BB_AUTORUN_GUARD_PATH bb_config_get("BB_AUTORUN_GUARD_PATH")
-#define BB_RSHELL_TRANSPORT bb_config_get("BB_RSHELL_TRANSPORT")
-#define BB_RSHELL_ENCRYPTION bb_config_get("BB_RSHELL_ENCRYPTION")
-#define BB_RSHELL_RUN_MODE bb_config_get("BB_RSHELL_RUN_MODE")
-#define BB_RSHELL_SHELL_PROVIDER bb_config_get("BB_RSHELL_SHELL_PROVIDER")
-#define BB_RSHELL_SOCAT_PORT bb_config_get("BB_RSHELL_SOCAT_PORT")
-#define BB_ZERO_ARG_MODE bb_config_get("BB_ZERO_ARG_MODE")
-#define BB_OPERATOR_SERVER_HOST bb_config_get("BB_OPERATOR_SERVER_HOST")
-#define BB_OPERATOR_SERVER_USER bb_config_get("BB_OPERATOR_SERVER_USER")
-#define BB_OPERATOR_SERVER_SSH_PORT bb_config_get("BB_OPERATOR_SERVER_SSH_PORT")
-#define BB_OPERATOR_TARGET_BIND_HOST bb_config_get("BB_OPERATOR_TARGET_BIND_HOST")
-#define BB_OPERATOR_REMOTE_FORWARD_PORT bb_config_get("BB_OPERATOR_REMOTE_FORWARD_PORT")
 
 static int is_help(int argc, char **argv)
 {
