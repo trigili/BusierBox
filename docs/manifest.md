@@ -28,6 +28,13 @@ payload also carries `payload/manifest.json`, produced during packaging. That
 payload manifest records requested tools, staged tools, missing tools, overlay
 metadata, gdbserver provider state, BusyBox applets, and payload hashes.
 
+Runtime extraction state is intentionally reported by runtime diagnostics rather
+than the compiled manifest. `busierbox config-info` and `busierbox doctor
+--json` report `payload_extraction_mode` / `extraction_mode` as `core` or
+`full`. BusyBox applet dispatch may create a core payload containing
+`payload/bin/busybox` and metadata only; `busierbox extract` and heavy-tool
+dispatch upgrade that runtime root to full before use.
+
 Integration runs capture manifest output next to the case logs so each validation run can be tied back to the artifact and preset that produced it.
 
 Post-build runtime override trailers are edited with

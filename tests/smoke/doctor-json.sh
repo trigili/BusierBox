@@ -47,6 +47,8 @@ if not data["extracted_payload"]["present"]:
     raise SystemExit("doctor did not report extracted payload")
 if not data["extracted_payload"].get("busybox_present"):
     raise SystemExit("doctor did not report payload busybox")
+if data["extracted_payload"].get("extraction_mode") != "full":
+    raise SystemExit("doctor did not report full extraction mode")
 if not data["payload_manifest"].get("found"):
     raise SystemExit("doctor did not report payload manifest")
 if not data["manifest_summary"].get("payload_manifest_found"):

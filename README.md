@@ -348,7 +348,7 @@ Repair a constrained shell environment:
 eval "$(./busierbox envfix)"
 ```
 
-Extract the payload:
+Extract the full payload:
 
 ```sh
 ./busierbox extract
@@ -361,9 +361,11 @@ Extraction searches writable executable runtime locations:
 - `/var/tmp/busierbox-$uid`
 - `/dev/shm/busierbox-$uid`
 
-It avoids visible `noexec` mounts when `/proc/mounts` is readable, writes a payload `VERSION`, and reuses an existing payload when the version matches. `./busierbox clean` removes the local `./.busierbox` extraction.
+It avoids visible `noexec` mounts when `/proc/mounts` is readable, writes a payload `VERSION`, and reuses an existing full payload when the version matches. `./busierbox clean` removes the local `./.busierbox` extraction.
 
 Extraction uses a lock directory, unpacks into a temporary directory, validates the result, and then atomically renames it into place. Interrupted extractions clean up their temporary directory where practical.
+
+BusyBox applet dispatch uses a smaller core extraction when possible. For example, `./busierbox cp --help` only needs `payload/bin/busybox` plus payload metadata, so BusierBox extracts a `core` payload subset and writes `payload/.busierbox-extract-mode`. `./busierbox extract` and heavy tools upgrade that same runtime root to `full` before use. Legacy payload extractions without this marker are treated as full.
 
 When launching payload tools BusierBox sets:
 
@@ -376,13 +378,13 @@ When launching payload tools BusierBox sets:
 
 `./busierbox list --plain` prints script-friendly command rows such as `busybox sh` and `tool strace`. `./busierbox list --json` prints the compiled native, BusyBox, and staged-tool command lists.
 
-`./busierbox doctor` and `./busierbox doctor --json` report embedded payload presence, format, size, hash status, extraction status, payload directory, manifest presence, BusyBox presence, BusyBox applet count, staged tools, missing requested tools, candidate extraction health, `/dev/pts`, and a conservative ptrace status.
+`./busierbox doctor` and `./busierbox doctor --json` report embedded payload presence, format, size, hash status, extraction status and mode, payload directory, manifest presence, BusyBox presence, BusyBox applet count, staged tools, missing requested tools, candidate extraction health, `/dev/pts`, and a conservative ptrace status.
 
 Doctor also reports payload identity/staleness, applet symlink count, overlay status and warnings, missing-tool reasons, terminfo availability, zsh presence, PATH duplicate hints, extraction free space, available memory, default-route presence, and recommendations for common tmux/dropbear/terminfo failures.
 
 `./busierbox plan` and `./busierbox plan --json` preview the operator-visible impact of extraction, reverse shell startup, cleanup, and recovery install actions without modifying the target. See `docs/plan-mode.md`.
 
-`./busierbox config-info` reports the BusierBox build, extraction status, payload directory, payload hash, BusyBox dispatch status, post-build runtime override trailer status, and the payload manifest summary when available. `./busierbox manifest --json` includes compiled config, effective config, and trailer override metadata. `./busierbox config-export --json` and `./busierbox doctor --support-token` provide rebuild-oriented metadata that can be converted back into a starter config with `scripts/config-from-manifest` or `scripts/config-from-support-token`.
+`./busierbox config-info` reports the BusierBox build, extraction status, extraction mode, payload directory, payload hash, BusyBox dispatch status, post-build runtime override trailer status, and the payload manifest summary when available. `./busierbox manifest --json` includes compiled config, effective config, and trailer override metadata. `./busierbox config-export --json` and `./busierbox doctor --support-token` provide rebuild-oriented metadata that can be converted back into a starter config with `scripts/config-from-manifest` or `scripts/config-from-support-token`.
 
 `scripts/artifact-config` can inspect, set, import, export, and clear optional runtime override trailers on existing artifacts. Overrides are limited to selected runtime/operator keys such as reverse-access host/ports, transport, run mode, retry settings, zero-arg mode, and log verbosity. They do not change target tuple, compiled features, payload tools, dotfiles, or overlay contents. Optional XOR obfuscation is not encryption and must not be used for credentials or private keys.
 

@@ -284,6 +284,7 @@
 #define BBX_TRAILER_SIZE 512
 #define BBX_MAGIC "BBXPAYLOADv1"
 #define BBX_PAYLOAD_ID_FILE ".busierbox-payload-id"
+#define BBX_PAYLOAD_MODE_FILE ".busierbox-extract-mode"
 
 static const char *busybox_tools[] = {
 #include "bbx_busybox_applets.h"
@@ -684,6 +685,47 @@ static int payload_valid(const char *payload)
     return strcmp(found, BUSIERBOX_PAYLOAD_VERSION) == 0;
 }
 
+static void payload_mode_path(char *out, size_t outsz, const char *payload)
+{
+    snprintf(out, outsz, "%s/%s", payload, BBX_PAYLOAD_MODE_FILE);
+}
+
+static int payload_is_full(const char *payload)
+{
+    char path[PATH_MAX], mode[32];
+    payload_mode_path(path, sizeof(path), payload);
+    if (read_first_line(path, mode, sizeof(mode)) != 0)
+        return 1; /* Legacy extractions were always full. */
+    return !strcmp(mode, "full");
+}
+
+static const char *payload_extraction_mode(const char *payload, char *out, size_t outsz)
+{
+    char path[PATH_MAX], mode[32];
+    payload_mode_path(path, sizeof(path), payload);
+    if (read_first_line(path, mode, sizeof(mode)) != 0) {
+        snprintf(out, outsz, "full");
+        return out; /* Legacy extractions predate the marker and were full. */
+    }
+    if (!strcmp(mode, "core") || !strcmp(mode, "full"))
+        snprintf(out, outsz, "%s", mode);
+    else
+        snprintf(out, outsz, "unknown");
+    return out;
+}
+
+static void write_payload_mode(const char *payload, const char *mode)
+{
+    char path[PATH_MAX];
+    FILE *fp;
+    payload_mode_path(path, sizeof(path), payload);
+    fp = fopen(path, "w");
+    if (!fp)
+        return;
+    fprintf(fp, "%s\n", mode);
+    fclose(fp);
+}
+
 static int yes_str(const char *s)
 {
     return s && (!strcmp(s, "yes") || !strcmp(s, "1") || !strcmp(s, "true"));
@@ -1020,7 +1062,33 @@ static int safe_member_path(const char *name)
     return 1;
 }
 
-static int tar_extract_stream(struct payload_stream *s, const char *root)
+static int core_payload_member(const char *name)
+{
+    return !strcmp(name, "payload/bin/busybox") ||
+           !strcmp(name, "payload/VERSION") ||
+           !strcmp(name, "payload/manifest.json") ||
+           !strcmp(name, "payload/busybox-applets.txt") ||
+           !strcmp(name, "payload/staged-tools.txt") ||
+           !strcmp(name, "payload/built-tools.txt") ||
+           !strcmp(name, "payload/requested-tools.txt") ||
+           !strcmp(name, "payload/missing-tools.txt") ||
+           !strcmp(name, "payload/share/busierbox/missing-tools.txt") ||
+           !strcmp(name, "payload/share/busierbox/applet-symlink-count.txt");
+}
+
+static int stream_skip(struct payload_stream *s, unsigned long long n)
+{
+    unsigned char buf[8192];
+    while (n) {
+        size_t chunk = n > sizeof(buf) ? sizeof(buf) : (size_t)n;
+        if (stream_read(s, buf, chunk) != 0)
+            return -1;
+        n -= chunk;
+    }
+    return 0;
+}
+
+static int tar_extract_stream(struct payload_stream *s, const char *root, int core_only)
 {
     unsigned char hdr[512], buf[8192];
     int zero_blocks = 0;
@@ -1058,7 +1126,16 @@ static int tar_extract_stream(struct payload_stream *s, const char *root)
         mode &= 0777;
         type = hdr[156] ? hdr[156] : '0';
         snprintf(full, sizeof(full), "%s/%s", root, name);
+        if (core_only && type != '5' && !core_payload_member(name)) {
+            pad = (512 - (size % 512)) % 512;
+            if (stream_skip(s, size + pad) != 0)
+                return -1;
+            continue;
+        }
         if (type == '5') {
+            if (core_only && strcmp(name, "payload") && strcmp(name, "payload/bin") &&
+                strcmp(name, "payload/share") && strcmp(name, "payload/share/busierbox"))
+                continue;
             if (mkdir_p(full, (mode_t)mode) != 0)
                 return -1;
         } else if (type == '0') {
@@ -1084,6 +1161,8 @@ static int tar_extract_stream(struct payload_stream *s, const char *root)
             close(fd);
             chmod(full, (mode_t)mode);
         } else if (type == '2') {
+            if (core_only && !core_payload_member(name))
+                continue;
             snprintf(linkname, sizeof(linkname), "%.*s", 100, (char *)hdr + 157);
             if (!safe_member_path(linkname))
                 return -1;
@@ -1184,7 +1263,7 @@ static int payload_id_matches(const struct embedded_payload *ep, const char *pay
            strcmp(found_format, ep->format) == 0;
 }
 
-static int extract_embedded_to_root(const struct embedded_payload *ep, const char *root)
+static int extract_embedded_to_root(const struct embedded_payload *ep, const char *root, int core_only)
 {
     char lock[PATH_MAX], tmp[PATH_MAX], final[PATH_MAX], extracted[PATH_MAX];
     FILE *fp;
@@ -1205,7 +1284,7 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
         if (errno != EEXIST)
             return -1;
         sleep(1);
-        if (payload_valid(final))
+        if (payload_valid(final) && (core_only || payload_is_full(final)))
             return 0;
         if (++waits > 30) {
             rmdir(lock);
@@ -1237,7 +1316,7 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
     else
         rc = stream_init_tgz(&s, fp, ep->size);
     if (rc == 0)
-        rc = tar_extract_stream(&s, tmp);
+        rc = tar_extract_stream(&s, tmp, core_only);
     stream_end(&s);
     fclose(fp);
     if (rc != 0) {
@@ -1259,12 +1338,13 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
     rm_rf(tmp);
     rmdir(lock);
     write_payload_id(ep, final);
-    ledger_record("extract", root, "payload", "embedded payload extracted");
+    write_payload_mode(final, core_only ? "core" : "full");
+    ledger_record("extract", root, "payload", core_only ? "embedded core payload extracted" : "embedded payload extracted");
     ledger_record("write", final, "payload", "payload root");
     return 0;
 }
 
-static int extract_archive_file_to_root(const char *archive, const char *root)
+static int extract_archive_file_to_root(const char *archive, const char *root, int core_only)
 {
     struct embedded_payload ep;
     FILE *fp;
@@ -1294,14 +1374,15 @@ static int extract_archive_file_to_root(const char *archive, const char *root)
         snprintf(extracted, sizeof(extracted), "%s/payload", tmp);
         rm_rf(tmp);
         if (mkdir_p(tmp, 0700) == 0)
-            rc = tar_extract_stream(&s, tmp);
+            rc = tar_extract_stream(&s, tmp, core_only);
         else
             rc = -1;
         if (rc == 0 && payload_valid(extracted)) {
             rm_rf(final);
             rc = rename(extracted, final);
             if (rc == 0) {
-                ledger_record("extract", root, "payload", "archive payload extracted");
+                write_payload_mode(final, core_only ? "core" : "full");
+                ledger_record("extract", root, "payload", core_only ? "archive core payload extracted" : "archive payload extracted");
                 ledger_record("write", final, "payload", "payload root");
             }
         } else {
@@ -1314,7 +1395,7 @@ static int extract_archive_file_to_root(const char *archive, const char *root)
     return rc;
 }
 
-static int ensure_payload(char *payload, size_t payloadsz)
+static int ensure_payload_mode(char *payload, size_t payloadsz, int require_full)
 {
     char archive[PATH_MAX], root[PATH_MAX];
     struct embedded_payload ep;
@@ -1328,6 +1409,10 @@ static int ensure_payload(char *payload, size_t payloadsz)
             fprintf(stderr, "busierbox: extracted payload is from a different binary; re-extracting...\n");
             rm_rf(payload);
             /* fall through to extract */
+        } else if (require_full && !payload_is_full(payload)) {
+            fprintf(stderr, "busierbox: upgrading core payload extraction to full payload...\n");
+            rm_rf(payload);
+            /* fall through to extract */
         } else {
             return 0;
         }
@@ -1335,18 +1420,23 @@ static int ensure_payload(char *payload, size_t payloadsz)
     if (choose_extract_root(root, sizeof(root)) != 0)
         return -1;
     if (have_ep) {
-        if (extract_embedded_to_root(&ep, root) != 0)
+        if (extract_embedded_to_root(&ep, root, !require_full) != 0)
             return -1;
     } else {
         if (archive_path(archive, sizeof(archive)) != 0)
             return -1;
         fprintf(stderr, "busierbox: warning: using dev-only external payload archive fallback: %s\n", archive);
-        if (extract_archive_file_to_root(archive, root) != 0)
+        if (extract_archive_file_to_root(archive, root, !require_full) != 0)
             return -1;
     }
     write_artifact_manifest_file(root);
     snprintf(payload, payloadsz, "%s/payload", root);
-    return payload_valid(payload) ? 0 : -1;
+    return payload_valid(payload) && (!require_full || payload_is_full(payload)) ? 0 : -1;
+}
+
+static int ensure_payload(char *payload, size_t payloadsz)
+{
+    return ensure_payload_mode(payload, payloadsz, 1);
 }
 
 int bb_ensure_payload_dir(char *payload, size_t payloadsz)
@@ -1642,7 +1732,7 @@ int bb_exec_payload_applet(const char *name, int argc, char **argv)
         return 127;
     }
 
-    if (ensure_payload(payload, sizeof(payload)) != 0) {
+    if (ensure_payload_mode(payload, sizeof(payload), is_heavy_tool(name)) != 0) {
         fprintf(stderr, "busierbox: payload unavailable; run 'busierbox extract' after creating dist/payload.tar.gz\n");
         return 127;
     }
@@ -2139,7 +2229,7 @@ int applet_extract_main(int argc, char **argv)
             rm_rf(old_payload);
         }
     }
-    if (!force && candidate_payload(payload, sizeof(payload)) == 0) {
+    if (!force && candidate_payload(payload, sizeof(payload)) == 0 && payload_is_full(payload)) {
         printf("payload: reuse %s\n", payload);
         return 0;
     }
@@ -2148,7 +2238,7 @@ int applet_extract_main(int argc, char **argv)
         return 1;
     }
     if (get_embedded_payload(&ep) == 0) {
-        if (extract_embedded_to_root(&ep, root) != 0) {
+        if (extract_embedded_to_root(&ep, root, 0) != 0) {
             fprintf(stderr, "extract: embedded payload extraction failed\n");
             return 1;
         }
@@ -2158,7 +2248,7 @@ int applet_extract_main(int argc, char **argv)
             return 1;
         }
         fprintf(stderr, "extract: warning: using dev-only external payload archive fallback: %s\n", archive);
-        if (extract_archive_file_to_root(archive, root) != 0) {
+        if (extract_archive_file_to_root(archive, root, 0) != 0) {
             fprintf(stderr, "extract: archive extraction failed for %s\n", archive);
             return 1;
         }
@@ -3895,8 +3985,11 @@ int applet_doctor_main(int argc, char **argv)
             printf(",\"hash_ok\":%s}", hash_ok ? "true" : "false");
             printf(",\"extracted_payload\":{\"present\":%s", have_payload ? "true" : "false");
             if (have_payload) {
+                char mode[32];
                 printf(",\"dir\":");
                 json_string_payload(stdout, payload);
+                printf(",\"extraction_mode\":");
+                json_string_payload(stdout, payload_extraction_mode(payload, mode, sizeof(mode)));
                 printf(",\"busybox_present\":%s", executable_file(busybox) ? "true" : "false");
                 printf(",\"manifest_found\":%s", path_exists(manifest_path) ? "true" : "false");
                 printf(",\"identity_match\":%s", payload_id_matches(&ep, payload) ? "true" : "false");
@@ -3959,8 +4052,11 @@ int applet_doctor_main(int argc, char **argv)
             printf("{\"schema\":1,\"embedded_payload\":{\"present\":false},\"extracted_payload\":{\"present\":%s",
                    have_payload ? "true" : "false");
             if (have_payload) {
+                char mode[32];
                 printf(",\"dir\":");
                 json_string_payload(stdout, payload);
+                printf(",\"extraction_mode\":");
+                json_string_payload(stdout, payload_extraction_mode(payload, mode, sizeof(mode)));
                 printf(",\"busybox_present\":%s", executable_file(busybox) ? "true" : "false");
                 printf(",\"manifest_found\":%s", path_exists(manifest_path) ? "true" : "false");
             }
@@ -3990,9 +4086,11 @@ int applet_doctor_main(int argc, char **argv)
     }
 
     if (candidate_payload(payload, sizeof(payload)) == 0) {
+        char mode[32];
         have_payload = 1;
         printf("extracted_payload=yes\n");
         printf("payload_dir=%s\n", payload);
+        printf("payload_extraction_mode=%s\n", payload_extraction_mode(payload, mode, sizeof(mode)));
     } else {
         puts("extracted_payload=no");
         if (choose_extract_root(root, sizeof(root)) == 0)
@@ -4137,6 +4235,10 @@ int applet_config_info_main(int argc, char **argv)
         printf("%s%s", i ? " " : "", bb_applets[i].name);
     printf("\n");
     printf("payload_present=%s\n", have_payload ? payload : "no");
+    if (have_payload) {
+        char mode[32];
+        printf("payload_extraction_mode=%s\n", payload_extraction_mode(payload, mode, sizeof(mode)));
+    }
     printf("payload_tools_present=");
     if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
         for (i = 0; heavy_tools[i]; i++)
