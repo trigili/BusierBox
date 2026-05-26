@@ -19,6 +19,14 @@ import busierbox_matrix as matrix
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
+REVERSE_ACCESS_PROFILES = {
+    "builtin": "builtin-core-shell",
+    "builtin-core-shell": "builtin-core-shell",
+    "socat": "socat-rescue",
+    "socat-rescue": "socat-rescue",
+    "ssh": "ssh-operator",
+    "ssh-operator": "ssh-operator",
+}
 
 
 def die(msg, code=1):
@@ -57,9 +65,41 @@ def matrix_list(args, data, key, fallback):
     return csv_items(cli) or data.get(key) or data.get(key.replace("_", "s")) or fallback
 
 
+def ordered_unique(items):
+    out = []
+    seen = set()
+    for item in items:
+        if item not in seen:
+            out.append(item)
+            seen.add(item)
+    return out
+
+
+def selected_reverse_access_profiles(args, data):
+    return csv_items(args.reverse_access_profiles) or data.get("reverse_access_profiles") or []
+
+
+def payloads_for_reverse_access_profiles(profiles):
+    payloads = []
+    unknown = []
+    for profile in profiles:
+        if profile == "all":
+            payloads.extend(REVERSE_ACCESS_PROFILES.values())
+        elif profile in REVERSE_ACCESS_PROFILES:
+            payloads.append(REVERSE_ACCESS_PROFILES[profile])
+        else:
+            unknown.append(profile)
+    if unknown:
+        die("invalid reverse access profile(s): " + ", ".join(unknown))
+    return ordered_unique(payloads)
+
+
 def selected_jobs(args, data):
     targets = csv_items(args.targets) or data.get("targets") or ["native"]
-    payloads = csv_items(args.payload_presets) or data.get("payload_presets") or data.get("payloads") or ["default"]
+    profiles = selected_reverse_access_profiles(args, data)
+    profile_payloads = payloads_for_reverse_access_profiles(profiles)
+    configured_payloads = csv_items(args.payload_presets) or data.get("payload_presets") or data.get("payloads")
+    payloads = ordered_unique((configured_payloads or ["default"]) + profile_payloads)
     formats = csv_items(args.formats) or data.get("formats") or ["tgz"]
     runtime_modes = csv_items(args.runtime_modes) or data.get("runtime_modes") or [None]
     config_sources = [args.config] if args.config else data.get("configs") or [None]
@@ -87,6 +127,7 @@ def selected_jobs(args, data):
                                 "format": fmt,
                                 "runtime_mode": runtime_mode,
                                 "config_source": config_source,
+                                "reverse_access_profiles": profiles,
                                 "variant": {},
                             }
                         )
@@ -476,6 +517,7 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
         "format": job["format"],
         "runtime_mode": job.get("runtime_mode"),
         "base_config": job.get("config_source"),
+        "reverse_access_profiles": job.get("reverse_access_profiles", []),
         "config": f"configs/{config_stem}.conf",
         "artifact": f"bin/{stem}",
         "build_status": "dry-run" if dry_run else "pending",
@@ -538,7 +580,7 @@ def main(argv=None):
     parser.add_argument("--payload-presets")
     parser.add_argument("--formats")
     parser.add_argument("--runtime-modes")
-    parser.add_argument("--reverse-access-profiles", help="accepted for release metadata; profile expansion is not enabled yet")
+    parser.add_argument("--reverse-access-profiles", help="comma-separated profiles to add: builtin, ssh, socat, or all")
     parser.add_argument("--config")
     parser.add_argument("--matrix")
     parser.add_argument("--include-sources-manifest", action="store_true")
@@ -605,7 +647,7 @@ def main(argv=None):
             "configs": [job.get("config_source") for job in jobs if job.get("config_source")],
             "formats": [job["format"] for job in jobs],
             "runtime_modes": [job.get("runtime_mode") for job in jobs if job.get("runtime_mode")],
-            "reverse_access_profiles": csv_items(args.reverse_access_profiles),
+            "reverse_access_profiles": selected_reverse_access_profiles(args, data),
         },
         "include_sources_manifest": bool(args.include_sources_manifest),
         "skip_build": bool(args.skip_build),

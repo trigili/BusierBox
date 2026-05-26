@@ -8,6 +8,7 @@ Examples:
 ```sh
 scripts/make-release --name lab-router-pack
 scripts/make-release --name lab-router-pack --targets glinet-mt7621-openwrt-musl,mipsel-linux-4.x-musl --payload-presets survey-core,ssh-operator
+scripts/make-release --name lab-router-pack --reverse-access-profiles builtin,ssh
 scripts/make-release --name lab-router-pack --matrix release/matrices/iot-lab.json
 scripts/make-release --name lab-router-pack --dry-run
 ```
@@ -26,6 +27,11 @@ Matrix files can include a `configs` list. Each listed config is used as a
 base config for every selected target/payload/format combination, and
 `scripts/make-release` writes generated per-combination configs under
 `configs/` without modifying the source config.
+
+Reverse-access profiles are explicit opt-in selectors for existing payload
+presets: `builtin` maps to `builtin-core-shell`, `ssh` maps to `ssh-operator`,
+and `socat` maps to `socat-rescue`. They can be supplied with
+`--reverse-access-profiles` or as `reverse_access_profiles` in a matrix file.
 
 Trailer configuration after packaging:
 

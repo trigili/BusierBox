@@ -8,6 +8,16 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 scripts/make-release --name smoke --targets native --payload-presets default --dry-run >"$work/dry-run.out"
 grep -q 'would build target=native payload=default format=tgz' "$work/dry-run.out"
+scripts/make-release --name reverse-smoke --targets native --payload-presets survey-core --reverse-access-profiles builtin,ssh,socat --dry-run >"$work/reverse-dry-run.out"
+grep -q 'would build target=native payload=survey-core format=tgz' "$work/reverse-dry-run.out"
+grep -q 'would build target=native payload=builtin-core-shell format=tgz' "$work/reverse-dry-run.out"
+grep -q 'would build target=native payload=ssh-operator format=tgz' "$work/reverse-dry-run.out"
+grep -q 'would build target=native payload=socat-rescue format=tgz' "$work/reverse-dry-run.out"
+if scripts/make-release --name bad-reverse --targets native --reverse-access-profiles no-such-profile --dry-run >"$work/bad-reverse.out" 2>"$work/bad-reverse.err"; then
+    printf '%s\n' "expected bad reverse profile to fail" >&2
+    exit 1
+fi
+grep -q 'invalid reverse access profile(s): no-such-profile' "$work/bad-reverse.err"
 
 scripts/make-release --name matrix-smoke --matrix release/matrices/iot-lab.json --dry-run >"$work/matrix-dry-run.out"
 python3 - "$work/matrix-dry-run.out" release/matrices/iot-lab.json <<'PY'
@@ -83,6 +93,18 @@ if scripts/make-release --name bad --matrix "$work/bad-config.json" --dry-run >"
 fi
 grep -q "missing config $work/no-such.conf" "$work/bad-config.err"
 
+cat >"$work/reverse-matrix.json" <<'JSON'
+{
+  "name": "reverse-matrix",
+  "targets": ["native"],
+  "payload_presets": ["survey-core"],
+  "reverse_access_profiles": ["ssh"]
+}
+JSON
+scripts/make-release --name reverse-matrix --matrix "$work/reverse-matrix.json" --dry-run >"$work/reverse-matrix.out"
+grep -q 'would build target=native payload=survey-core format=tgz' "$work/reverse-matrix.out"
+grep -q 'would build target=native payload=ssh-operator format=tgz' "$work/reverse-matrix.out"
+
 if [ ! -x dist/busierbox-native-full ]; then
     BUSIERBOX_CONFIG=presets/payload/default.conf BB_BUSYBOX_GROUPS="shell fileops disk process network text system" make package-native >/dev/null
 fi
@@ -128,6 +150,29 @@ for name in ("buildroot", "miniz", "doom-ascii"):
         raise SystemExit(f"missing source lock entry: {name}")
     if not sources[name].get("version") or not sources[name].get("sha256"):
         raise SystemExit(f"incomplete source lock entry: {name}")
+PY
+
+scripts/make-release \
+    --name reverse-smoke \
+    --matrix "$work/reverse-matrix.json" \
+    --skip-build \
+    --out-dir "$work/reverse-release" >"$work/reverse-release.out"
+test -x "$work/reverse-release/bin/busierbox-native-survey-core-full"
+test -x "$work/reverse-release/bin/busierbox-native-ssh-operator-full"
+python3 - "$work/reverse-release/release.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+profiles = data.get("matrix", {}).get("reverse_access_profiles")
+if profiles != ["ssh"]:
+    raise SystemExit(f"reverse profile metadata mismatch: {profiles!r}")
+payloads = {item.get("payload_preset") for item in data.get("artifacts", [])}
+if {"survey-core", "ssh-operator"} - payloads:
+    raise SystemExit(f"missing reverse profile payloads: {payloads!r}")
+for item in data.get("artifacts", []):
+    if item.get("reverse_access_profiles") != ["ssh"]:
+        raise SystemExit("artifact missing reverse profile metadata")
 PY
 
 scripts/make-release \
