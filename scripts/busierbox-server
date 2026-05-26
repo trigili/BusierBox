@@ -2468,6 +2468,15 @@ def status_summary_and_warnings(services):
     for row in services:
         if row.get("actual") == "listening":
             summary["listening_count"] += 1
+            if row.get("configured") not in ("listening", "starting"):
+                warnings.append({
+                    "type": "unexpected_listener",
+                    "service": row.get("name", ""),
+                    "port": row.get("port", 0),
+                    "listener_pids": row.get("listener_pids") or [],
+                    "message": "actual listener was found but configured state does not say the service is listening",
+                    "suggested_action": "inspect the listener PID and run scripts/busierbox-server --stop if it is managed",
+                })
         if row.get("configured") == "listening":
             summary["configured_listening_count"] += 1
         if row.get("configured") == "error" or row.get("error"):
@@ -2624,8 +2633,13 @@ def print_status(cfg, json_output=False):
         print("")
         print("Warnings:")
         print("  stale state detected; run scripts/busierbox-server --stop to clean managed records")
-    if any(row["pid"] and row.get("pid_alive") and not row.get("pid_managed") for row in doc["services"]):
+    if any(row["actual"] == "listening" and row["configured"] not in ("listening", "starting") for row in doc["services"]):
         if not any(row["stale"] for row in doc["services"]):
+            print("")
+            print("Warnings:")
+        print("  actual listener detected while configured state is not listening; inspect listener PID ownership")
+    if any(row["pid"] and row.get("pid_alive") and not row.get("pid_managed") for row in doc["services"]):
+        if not any(row["stale"] for row in doc["services"]) and not any(row["actual"] == "listening" and row["configured"] not in ("listening", "starting") for row in doc["services"]):
             print("")
             print("Warnings:")
         print("  recorded live PID without ownership evidence detected; --stop will skip it")

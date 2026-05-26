@@ -600,6 +600,49 @@ def main():
             print("bind_error event missing failed port", file=sys.stderr)
             return 1
 
+        unexpected_state = {
+            "schema": 1,
+            "services": {
+                "file-service": {
+                    "status": "stopped",
+                    "pid": "",
+                    "listen_host": "127.0.0.1",
+                    "file_service_port": bind_fail_port,
+                    "updated_at": "unexpected-listener",
+                }
+            },
+            "sessions": [],
+        }
+        bind_fail_state.write_text(json.dumps(unexpected_state, indent=2) + "\n", encoding="utf-8")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as blocker:
+            blocker.bind(("127.0.0.1", bind_fail_port))
+            blocker.listen(1)
+            unexpected_status = run(
+                "scripts/busierbox-server", "--config", str(bind_fail_cfg),
+                "--state-file", str(bind_fail_state),
+                "--staged-file", str(lifecycle_staged),
+                "--status",
+            )
+            if "actual listener detected while configured state is not listening" not in unexpected_status.stdout:
+                print("--status did not warn on unexpected actual listener", file=sys.stderr)
+                print(unexpected_status.stdout, file=sys.stderr)
+                return 1
+            unexpected_json = run(
+                "scripts/busierbox-server", "--config", str(bind_fail_cfg),
+                "--state-file", str(bind_fail_state),
+                "--staged-file", str(lifecycle_staged),
+                "--json-status",
+            )
+            unexpected_doc = json.loads(unexpected_json.stdout)
+            unexpected_warnings = [
+                item for item in unexpected_doc.get("warnings", [])
+                if item.get("type") == "unexpected_listener" and item.get("service") == "file-service"
+            ]
+            if not unexpected_warnings or not unexpected_warnings[-1].get("listener_pids"):
+                print("--json-status did not expose structured unexpected listener warning", file=sys.stderr)
+                print(unexpected_json.stdout, file=sys.stderr)
+                return 1
+
         state_after_bind["services"]["file-service"].update({"status": "listening", "pid": 999999, "updated_at": "stale"})
         lifecycle_state.write_text(json.dumps(state_after_bind, indent=2) + "\n", encoding="utf-8")
         stale = run(
