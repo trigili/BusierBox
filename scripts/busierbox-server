@@ -208,6 +208,25 @@ def load_staged(cfg):
     return data
 
 
+def enriched_staged_records(cfg, staged=None):
+    staged = staged if staged is not None else load_staged(cfg).get("staged", {})
+    host = (local_ips() or ["OPERATOR_IP"])[0]
+    out = {}
+    for name, rec in sorted((staged or {}).items()):
+        if not isinstance(rec, dict):
+            continue
+        item = dict(rec)
+        request = item.get("request_name") or name
+        source_path = item.get("source_path", "")
+        item["request_name"] = request
+        item["fetch_command"] = render_fetch_command(request, cfg, host=host)
+        item["fetch_command_force"] = render_fetch_command(request, cfg, host=host, force=True)
+        item["source_exists"] = Path(str(source_path)).is_file() if source_path else False
+        item["source_path"] = str(source_path)
+        out[name] = item
+    return out
+
+
 def load_command_queue(cfg):
     data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
     if not isinstance(data, dict):
@@ -2319,7 +2338,8 @@ def status_summary_and_warnings(services):
 
 
 def status_document(cfg):
-    staged = load_staged(cfg).get("staged", {})
+    staged_raw = load_staged(cfg).get("staged", {})
+    staged = enriched_staged_records(cfg, staged_raw)
     ips = local_ips()
     operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
     event_log_path = operator_dir / "events.jsonl"
@@ -2374,7 +2394,7 @@ def status_document(cfg):
         "warnings": warnings,
         "local_ips": ips,
         "selected_local_ip": (ips or ["OPERATOR_IP"])[0],
-        "target_commands": generated_target_commands(cfg, staged),
+        "target_commands": generated_target_commands(cfg, staged_raw),
         "staged": staged,
         "uploads": uploads,
         "sessions": sessions,
@@ -2596,7 +2616,7 @@ def print_workbench(cfg):
             rec = snap["staged"][name]
             sha = str(rec.get("sha256", ""))[:12]
             print(f"  {name} <- {rec.get('source_path', '')} size={rec.get('size', '')} sha256={sha} staged={rec.get('staged_at', '')}")
-            print(f"    {render_fetch_command(name, cfg)}")
+            print(f"    {rec.get('fetch_command') or render_fetch_command(name, cfg)}")
     else:
         print("  none")
     print("")
@@ -2910,7 +2930,9 @@ def run_curses_tui(cfg):
                     f"size: {rec.get('size', '')}",
                     f"sha256: {rec.get('sha256', '')}",
                     f"staged: {rec.get('staged_at', '')}",
-                    render_fetch_command(name, cfg, host=snap["selected_local_ip"]),
+                    f"source_exists: {rec.get('source_exists', False)}",
+                    rec.get("fetch_command") or render_fetch_command(name, cfg, host=snap["selected_local_ip"]),
+                    rec.get("fetch_command_force") or render_fetch_command(name, cfg, host=snap["selected_local_ip"], force=True),
                     "v opens source in pager",
                 ]
             elif pane == 2 and snap["uploads"]:

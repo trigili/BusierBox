@@ -1093,7 +1093,12 @@ def main():
             "--json-status",
         )
         status_doc = json.loads(status_enriched.stdout)
-        if ("/tmp/myfile" not in status_doc.get("staged", {}) or
+        staged_status = status_doc.get("staged", {}).get("/tmp/myfile", {})
+        if (not staged_status or
+                staged_status.get("request_name") != "/tmp/myfile" or
+                "fetch /tmp/myfile" not in staged_status.get("fetch_command", "") or
+                "--force" not in staged_status.get("fetch_command_force", "") or
+                staged_status.get("source_exists") is not True or
                 not any("fetch /tmp/myfile" in cmd for cmd in status_doc.get("target_commands", [])) or
                 "selected_local_ip" not in status_doc or
                 not isinstance(status_doc.get("events"), list)):
