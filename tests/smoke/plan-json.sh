@@ -61,9 +61,12 @@ assert recovery["command"] == "recovery install"
 assert recovery["method"] == "openwrt-procd"
 assert recovery["action"] == "rshell"
 assert recovery["requires_external_writes"] is True
+assert recovery["binary_path"].endswith("/usr/bin/busierbox_recovery")
+assert recovery["generated_command"] == "/usr/bin/busierbox_recovery rshell start"
 assert recovery["generated_command"].endswith("rshell start")
 
 assert command["action"] == "command"
+assert command["binary_path"].endswith("/usr/bin/busierbox_recovery")
 assert command["generated_command"] == "busierbox rshell start"
 PY
 
