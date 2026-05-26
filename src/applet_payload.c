@@ -559,20 +559,6 @@ static int get_embedded_payload(struct embedded_payload *ep)
     return 0;
 }
 
-static int read_first_line(const char *path, char *out, size_t outsz)
-{
-    FILE *fp = fopen(path, "r");
-    if (!fp)
-        return -1;
-    if (!fgets(out, (int)outsz, fp)) {
-        fclose(fp);
-        return -1;
-    }
-    out[strcspn(out, "\r\n")] = '\0';
-    fclose(fp);
-    return 0;
-}
-
 static int payload_valid(const char *payload)
 {
     char busybox[PATH_MAX], version[PATH_MAX], found[128];
@@ -581,7 +567,7 @@ static int payload_valid(const char *payload)
     snprintf(version, sizeof(version), "%s/VERSION", payload);
     if (!bb_executable_file(busybox))
         return 0;
-    if (read_first_line(version, found, sizeof(found)) != 0)
+    if (bb_read_first_line(version, found, sizeof(found)) != 0)
         return 0;
     return strcmp(found, BUSIERBOX_PAYLOAD_VERSION) == 0;
 }
@@ -595,7 +581,7 @@ static int payload_is_full(const char *payload)
 {
     char path[PATH_MAX], mode[32];
     payload_mode_path(path, sizeof(path), payload);
-    if (read_first_line(path, mode, sizeof(mode)) != 0)
+    if (bb_read_first_line(path, mode, sizeof(mode)) != 0)
         return 1; /* Legacy extractions were always full. */
     return !strcmp(mode, "full");
 }
@@ -604,7 +590,7 @@ static const char *payload_extraction_mode(const char *payload, char *out, size_
 {
     char path[PATH_MAX], mode[32];
     payload_mode_path(path, sizeof(path), payload);
-    if (read_first_line(path, mode, sizeof(mode)) != 0) {
+    if (bb_read_first_line(path, mode, sizeof(mode)) != 0) {
         snprintf(out, outsz, "full");
         return out; /* Legacy extractions predate the marker and were full. */
     }
@@ -1973,7 +1959,7 @@ static void print_doctor_payload_runtime_health_json(FILE *out, int have_payload
     snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
     snprintf(symlink_count_path, sizeof(symlink_count_path),
              "%s/share/busierbox/applet-symlink-count.txt", payload);
-    read_first_line(symlink_count_path, symlink_count, sizeof(symlink_count));
+    bb_read_first_line(symlink_count_path, symlink_count, sizeof(symlink_count));
     snprintf(terminfo, sizeof(terminfo), "%s/share/terminfo", payload);
     snprintf(tmux_ti, sizeof(tmux_ti), "%s/share/terminfo/t/tmux", payload);
     snprintf(zsh_path, sizeof(zsh_path), "%s/bin/zsh", payload);
@@ -2275,7 +2261,7 @@ int applet_doctor_main(int argc, char **argv)
         char bin_dir[PATH_MAX];
         snprintf(symlink_count_path, sizeof(symlink_count_path),
                  "%s/share/busierbox/applet-symlink-count.txt", payload);
-        read_first_line(symlink_count_path, symlink_count, sizeof(symlink_count));
+        bb_read_first_line(symlink_count_path, symlink_count, sizeof(symlink_count));
         printf("applet_symlink_count=%s\n", symlink_count);
         snprintf(terminfo, sizeof(terminfo), "%s/share/terminfo", payload);
         snprintf(tmux_ti, sizeof(tmux_ti), "%s/share/terminfo/t/tmux", payload);
@@ -2358,7 +2344,7 @@ int applet_config_info_main(int argc, char **argv)
     printf("gdbserver_provider=%s\n", BB_GDBSERVER_PROVIDER);
     if (read_exe_dir(exe_dir, sizeof(exe_dir)) == 0) {
         snprintf(hash_path, sizeof(hash_path), "%s/payload.tar.gz.sha256", exe_dir);
-        read_first_line(hash_path, hash, sizeof(hash));
+        bb_read_first_line(hash_path, hash, sizeof(hash));
     }
     printf("payload_archive_hash=%s\n", hash);
     printf("native_applets=");

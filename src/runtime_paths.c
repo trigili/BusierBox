@@ -109,6 +109,21 @@ char *bb_read_text_file(const char *path, size_t max_bytes)
     return buf;
 }
 
+int bb_read_first_line(const char *path, char *out, size_t outsz)
+{
+    FILE *fp = fopen(path, "r");
+
+    if (!fp)
+        return -1;
+    if (!fgets(out, (int)outsz, fp)) {
+        fclose(fp);
+        return -1;
+    }
+    out[strcspn(out, "\r\n")] = '\0';
+    fclose(fp);
+    return 0;
+}
+
 int bb_path_exists(const char *path)
 {
     return access(path, F_OK) == 0;
