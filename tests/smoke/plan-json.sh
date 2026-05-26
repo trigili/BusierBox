@@ -25,6 +25,8 @@ scripts/artifact-config set "$work/busierbox" \
 "$work/busierbox" plan recovery install --method openwrt-procd --action rshell --json >"$work/recovery.json"
 "$work/busierbox" plan recovery install --method cron-reboot --action command --json -- 'busierbox rshell start' >"$work/recovery-command.json"
 "$work/busierbox" plan recovery install --method cron-reboot --action command --json -- busierbox rshell start >"$work/recovery-command-argv.json"
+printf '%s\n' '#!/bin/sh' 'echo recovery-script' >"$work/recover.sh"
+"$work/busierbox" plan recovery install --method rc-local --action script --file "$work/recover.sh" --root "$work/root" --name bbx_recovery --json >"$work/recovery-script.json"
 
 for json in "$work"/*.json; do
     python3 -m json.tool "$json" >/dev/null
@@ -42,6 +44,7 @@ clean = json.loads((root / "clean.json").read_text())
 recovery = json.loads((root / "recovery.json").read_text())
 command = json.loads((root / "recovery-command.json").read_text())
 command_argv = json.loads((root / "recovery-command-argv.json").read_text())
+script = json.loads((root / "recovery-script.json").read_text())
 
 assert extract["command"] == "extract"
 assert extract["runtime_root"].endswith("/runtime")
@@ -72,10 +75,21 @@ assert command["binary_path"].endswith("/usr/bin/busierbox_recovery")
 assert command["generated_command"] == "busierbox rshell start"
 assert command_argv["action"] == "command"
 assert command_argv["generated_command"] == "busierbox rshell start"
+
+assert script["action"] == "script"
+assert script["requires_external_writes"] is False
+assert script["script_source_path"].endswith("/recover.sh")
+assert script["script_dest_path"].endswith("/root/usr/bin/bbx_recovery.recovery.sh")
+assert script["generated_command"] == "/usr/bin/bbx_recovery.recovery.sh"
+assert any(path.endswith("/root/usr/bin/bbx_recovery.recovery.sh") for path in script["would_create"])
 PY
 
 "$work/busierbox" plan extract >"$work/extract.txt"
 grep -q '^Plan: extract$' "$work/extract.txt"
 grep -q '^effective_config_source=trailer$' "$work/extract.txt"
+"$work/busierbox" plan recovery install --method rc-local --action script --file "$work/recover.sh" --root "$work/root" --name bbx_recovery >"$work/recovery-script.txt"
+grep -q "^script_source_path=$work/recover.sh$" "$work/recovery-script.txt"
+grep -q "^script_dest_path=$work/root/usr/bin/bbx_recovery.recovery.sh$" "$work/recovery-script.txt"
+grep -q "  $work/root/usr/bin/bbx_recovery.recovery.sh" "$work/recovery-script.txt"
 
 printf '%s\n' "plan-json ok"

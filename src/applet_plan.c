@@ -251,7 +251,7 @@ static int plan_recovery_install(int argc, char **argv, int json)
     int external = 0;
     int i;
     const struct plan_recovery_method *m;
-    char hook[PATH_MAX], bin[PATH_MAX], generated[PATH_MAX * 2];
+    char hook[PATH_MAX], bin[PATH_MAX], script_dst[PATH_MAX], generated[PATH_MAX * 2];
     char command_buf[PATH_MAX * 2];
 
     command_buf[0] = '\0';
@@ -314,6 +314,12 @@ static int plan_recovery_install(int argc, char **argv, int json)
     }
     plan_recovery_join(hook, sizeof(hook), root, m->path);
     plan_recovery_bin_path(bin, sizeof(bin), root, name);
+    script_dst[0] = '\0';
+    if (!strcmp(action, "script")) {
+        char rel[PATH_MAX];
+        snprintf(rel, sizeof(rel), "usr/bin/%s.recovery.sh", name);
+        plan_recovery_join(script_dst, sizeof(script_dst), root, rel);
+    }
     if (!strcmp(action, "rshell"))
         snprintf(generated, sizeof(generated), "/usr/bin/%s rshell start", name);
     else if (!strcmp(action, "command"))
@@ -326,6 +332,10 @@ static int plan_recovery_install(int argc, char **argv, int json)
     if (json) {
         fputs("{\"schema\":1,\"command\":\"recovery install\",\"would_create\":[", stdout);
         bb_json_string(stdout, bin);
+        if (script_dst[0]) {
+            fputc(',', stdout);
+            bb_json_string(stdout, script_dst);
+        }
         fputs("],\"would_modify\":[", stdout);
         bb_json_string(stdout, hook);
         fputs("],\"would_remove\":[],\"would_start\":[", stdout);
@@ -340,6 +350,10 @@ static int plan_recovery_install(int argc, char **argv, int json)
         fputs(",\"action\":", stdout); bb_json_string(stdout, action);
         fputs(",\"hook_path\":", stdout); bb_json_string(stdout, hook);
         fputs(",\"binary_path\":", stdout); bb_json_string(stdout, bin);
+        if (script_dst[0]) {
+            fputs(",\"script_source_path\":", stdout); bb_json_string(stdout, script_file);
+            fputs(",\"script_dest_path\":", stdout); bb_json_string(stdout, script_dst);
+        }
         fputs(",\"generated_command\":", stdout); bb_json_string(stdout, generated);
         printf(",\"external_flag_supplied\":%s", external ? "true" : "false");
         plan_print_config_source_json();
@@ -354,11 +368,17 @@ static int plan_recovery_install(int argc, char **argv, int json)
     printf("action=%s\n", action);
     printf("hook_path=%s\n", hook);
     printf("binary_path=%s\n", bin);
+    if (script_dst[0]) {
+        printf("script_source_path=%s\n", script_file);
+        printf("script_dest_path=%s\n", script_dst);
+    }
     printf("generated_command=%s\n", generated);
     printf("requires_external_writes=%s\n", !strcmp(root, "/") ? "yes" : "no");
     printf("external_flag_supplied=%s\n", external ? "yes" : "no");
     puts("would_create:");
     printf("  %s\n", bin);
+    if (script_dst[0])
+        printf("  %s\n", script_dst);
     puts("would_modify:");
     printf("  %s\n", hook);
     puts("would_start:");
