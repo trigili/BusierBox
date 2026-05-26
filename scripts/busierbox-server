@@ -503,6 +503,19 @@ def release_context():
     return {}
 
 
+def artifact_compatibility_lines(artifact):
+    compatibility = artifact.get("compatibility") or {}
+    label = compatibility.get("label") or ""
+    lines = []
+    if label:
+        lines.append(f"compatibility: {label}")
+    for reason in compatibility.get("reasons") or []:
+        lines.append(f"compatibility_reason: {reason}")
+    if compatibility.get("note"):
+        lines.append(f"compatibility_note: {compatibility.get('note')}")
+    return lines
+
+
 def stage_release_artifact(cfg, artifact_name):
     rel = release_context()
     if not rel:
@@ -2428,7 +2441,11 @@ def print_status(cfg, json_output=False):
         print(f"  release_dir: {doc['release'].get('release_dir', '')}")
         print(f"  release_name: {doc['release'].get('release_name', '')}")
         for artifact in doc["release"].get("artifacts", [])[:12]:
-            print(f"  artifact {artifact.get('name', '')} tuple={artifact.get('tuple_path', '')} preset={artifact.get('payload_preset', '')}")
+            compat = (artifact.get("compatibility") or {}).get("label") or ""
+            suffix = f" compatibility={compat}" if compat else ""
+            print(f"  artifact {artifact.get('name', '')} tuple={artifact.get('tuple_path', '')} preset={artifact.get('payload_preset', '')}{suffix}")
+            for line in artifact_compatibility_lines(artifact):
+                print(f"    {line}")
         for device in doc["release"].get("devices", [])[:8]:
             print(f"  device {device.get('name', '')} -> {device.get('tuple_path', '')}")
         for item in doc["release"].get("tuples", [])[:8]:
@@ -2583,7 +2600,11 @@ def print_workbench(cfg):
         if rel.get("artifacts"):
             for artifact in rel["artifacts"][:12]:
                 sha = str(artifact.get("sha256", ""))[:12]
-                print(f"  artifact {artifact.get('name', '')} size={artifact.get('size', '')} sha256={sha} tuple={artifact.get('tuple_path', '')} preset={artifact.get('payload_preset', '')}")
+                compat = (artifact.get("compatibility") or {}).get("label") or ""
+                suffix = f" compatibility={compat}" if compat else ""
+                print(f"  artifact {artifact.get('name', '')} size={artifact.get('size', '')} sha256={sha} tuple={artifact.get('tuple_path', '')} preset={artifact.get('payload_preset', '')}{suffix}")
+                for line in artifact_compatibility_lines(artifact):
+                    print(f"    {line}")
                 print(f"    stage: scripts/busierbox-server --stage-release-artifact {shquote(artifact.get('release_path') or artifact.get('name', ''))}")
         else:
             print("  artifacts: none")
@@ -2861,9 +2882,12 @@ def run_curses_tui(cfg):
                     f"tuple: {rec.get('tuple_path', '')}",
                     f"payload: {rec.get('payload_preset', '')}",
                     f"sha256: {rec.get('sha256', '')}",
+                ]
+                detail_lines.extend(artifact_compatibility_lines(rec))
+                detail_lines.extend([
                     "enter/s stages for fetch",
                     "v opens artifact in pager",
-                ]
+                ])
             elif pane == 7:
                 detail_lines = [
                     f"release: {release.get('release_name', '')}",

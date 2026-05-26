@@ -946,6 +946,8 @@ def main():
         )
         if ("Release artifact browser" not in release_view.stdout or
                 "busierbox-test" not in release_view.stdout or
+                "compatibility=exact" not in release_view.stdout or
+                "compatibility_reason: fixture" not in release_view.stdout or
                 "Release devices" not in release_view.stdout or
                 "lab-router" not in release_view.stdout or
                 "--stage-release-artifact" not in release_view.stdout):
