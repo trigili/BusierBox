@@ -10,7 +10,7 @@ The test harness is layered so developers can get useful signal without propriet
 
 `make test-qemu-system` boots locally supplied Buildroot/OpenWrt-style QEMU environments when enabled in `tests/matrix/environments.example.json`. All entries are disabled by default and no kernel/rootfs images are committed. Missing QEMU binaries, kernels, rootfses, or BusierBox binaries are reported as `SKIP`.
 
-`tests/smoke/qemu-matrix.sh` is the cheap metadata gate for the QEMU layer. It validates that the committed qemu-user matrix keeps host, x86, ARM, AArch64, little-endian MIPS, big-endian MIPS, musl, uClibc, and old/current kernel-floor coverage, and that the qemu-system example matrix keeps representative disabled environments with complete boot metadata.
+`tests/smoke/qemu-matrix.sh` is the cheap metadata gate for the QEMU layer. It validates that the committed qemu-user matrix keeps host, x86, ARM, AArch64, little-endian MIPS, big-endian MIPS, musl, uClibc, and old/current kernel-floor coverage, and that the qemu-system example matrix keeps representative disabled environments with boot metadata plus architecture, libc, endian, and kernel-floor coverage.
 
 `make test-glinet` runs the real-device GL.iNet MT7621 integration harness against `root@192.168.8.1` by default. It builds the configured artifact unless `SKIP_BUILD=1`, serves it over a temporary local HTTP server, downloads it on the router, runs extraction and doctor checks, validates PATH and BusyBox applet symlinks, and checks staged tools such as zsh, tmux, curl, and strace when present.
 

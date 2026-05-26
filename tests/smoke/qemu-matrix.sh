@@ -80,9 +80,17 @@ for entry in target_entries:
         require(qemu.startswith("qemu-"), name + " missing qemu-user interpreter")
 
 system_arches = {entry.get("arch") for entry in system_entries}
-required_system_arches = {"x86_64", "aarch64", "armv7", "armv5", "mipsel"}
+required_system_arches = {"x86_64", "aarch64", "armv7", "armv5", "mipsel", "mips"}
 missing_system_arches = sorted(required_system_arches - system_arches)
 require(not missing_system_arches, "system matrix missing arch coverage: " + ", ".join(missing_system_arches))
+
+system_kernel_floors = {entry.get("kernel_floor") for entry in system_entries}
+missing_system_floors = sorted({"current", "2.6", "3.x", "4.x"} - system_kernel_floors)
+require(not missing_system_floors, "system matrix missing kernel floor coverage: " + ", ".join(missing_system_floors))
+
+system_libcs = {entry.get("libc_family") for entry in system_entries}
+missing_system_libcs = sorted({"musl", "uclibc"} - system_libcs)
+require(not missing_system_libcs, "system matrix missing libc coverage: " + ", ".join(missing_system_libcs))
 
 system_names = set()
 for entry in system_entries:
@@ -98,6 +106,8 @@ for entry in system_entries:
         "qemu_machine",
         "qemu_cpu",
         "append_args",
+        "kernel_floor",
+        "libc_family",
     ):
         require(entry.get(field), name + " missing " + field)
     require(entry.get("enabled") is False, name + " must stay disabled in the example matrix")

@@ -4,6 +4,8 @@
     {
       "name": "openwrt-mipsel-minimal",
       "arch": "mipsel",
+      "kernel_floor": "2.6",
+      "libc_family": "uclibc",
       "kernel_path": "tests/qemu-system/rootfs/openwrt-mipsel/vmlinux",
       "rootfs_path": "tests/qemu-system/rootfs/openwrt-mipsel/rootfs.ext4",
       "busierbox_path": "dist/busierbox-mipsel-linux-2.6-uclibc-full",
@@ -17,6 +19,8 @@
     {
       "name": "openwrt-armv7-minimal",
       "arch": "armv7",
+      "kernel_floor": "3.x",
+      "libc_family": "musl",
       "kernel_path": "tests/qemu-system/rootfs/openwrt-armv7/zImage",
       "rootfs_path": "tests/qemu-system/rootfs/openwrt-armv7/rootfs.ext4",
       "busierbox_path": "dist/busierbox-armv7-linux-3.x-musl-full",
@@ -30,6 +34,8 @@
     {
       "name": "buildroot-mipsel-minimal",
       "arch": "mipsel",
+      "kernel_floor": "2.6",
+      "libc_family": "uclibc",
       "kernel_path": "tests/qemu-system/rootfs/buildroot-mipsel/vmlinux",
       "rootfs_path": "tests/qemu-system/rootfs/buildroot-mipsel/rootfs.ext2",
       "busierbox_path": "dist/busierbox-mipsel-linux-2.6-uclibc-full",
@@ -41,8 +47,25 @@
       "notes": "Suggested minimal Buildroot mipsel target."
     },
     {
+      "name": "buildroot-mips-minimal",
+      "arch": "mips",
+      "kernel_floor": "2.6",
+      "libc_family": "uclibc",
+      "kernel_path": "tests/qemu-system/rootfs/buildroot-mips/vmlinux",
+      "rootfs_path": "tests/qemu-system/rootfs/buildroot-mips/rootfs.ext2",
+      "busierbox_path": "dist/busierbox-mips-linux-2.6-uclibc-full",
+      "qemu_binary": "qemu-system-mips",
+      "qemu_machine": "malta",
+      "qemu_cpu": "24Kc",
+      "append_args": "console=ttyS0 root=/dev/vda rw panic=-1",
+      "enabled": false,
+      "notes": "Suggested big-endian MIPS Buildroot target for endian coverage."
+    },
+    {
       "name": "buildroot-armv5-minimal",
       "arch": "armv5",
+      "kernel_floor": "2.6",
+      "libc_family": "uclibc",
       "kernel_path": "tests/qemu-system/rootfs/buildroot-armv5/zImage",
       "rootfs_path": "tests/qemu-system/rootfs/buildroot-armv5/rootfs.ext2",
       "busierbox_path": "dist/busierbox-armv5-linux-2.6-uclibc-eabi-full",
@@ -56,6 +79,8 @@
     {
       "name": "buildroot-aarch64-minimal",
       "arch": "aarch64",
+      "kernel_floor": "4.x",
+      "libc_family": "musl",
       "kernel_path": "tests/qemu-system/rootfs/buildroot-aarch64/Image",
       "rootfs_path": "tests/qemu-system/rootfs/buildroot-aarch64/rootfs.ext2",
       "busierbox_path": "dist/busierbox-aarch64-linux-4.x-musl-full",
@@ -69,6 +94,8 @@
     {
       "name": "buildroot-x86_64-minimal",
       "arch": "x86_64",
+      "kernel_floor": "current",
+      "libc_family": "musl",
       "kernel_path": "tests/qemu-system/rootfs/buildroot-x86_64/bzImage",
       "rootfs_path": "tests/qemu-system/rootfs/buildroot-x86_64/rootfs.ext2",
       "busierbox_path": "dist/busierbox-native-full",
