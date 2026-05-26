@@ -71,7 +71,7 @@ def main():
     if "file-service" not in combined or "--file-service" not in combined:
         print("busierbox-server help missing receive-only file service", file=sys.stderr)
         return 1
-    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--list-staged", "--status", "--stop", "--json-status",
+    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--list-staged", "--status", "--stop", "--json-status", "--api-status",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json"):
         if word not in combined:
@@ -243,6 +243,17 @@ def main():
         )
         if json.loads(queue_status_doc.stdout)["command_queue"]["result_count"] != 1:
             print("server json status missing command queue summary", file=sys.stderr)
+            return 1
+        api_status_doc = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--api-status",
+        )
+        if api_status_doc.returncode != 0 or json.loads(api_status_doc.stdout)["schema"] != 1:
+            print("--api-status did not return status JSON", file=sys.stderr)
+            print(api_status_doc.stdout, file=sys.stderr)
+            print(api_status_doc.stderr, file=sys.stderr)
             return 1
         queue_status_text = run(
             "scripts/busierbox-server",

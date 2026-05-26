@@ -235,6 +235,7 @@ also browse release artifacts, device aliases, and tuple directories:
 ```sh
 scripts/busierbox-server --tui
 scripts/busierbox-server --json-status
+scripts/busierbox-server --api-status
 scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host/bin/busierbox-native-default-full --list-staged
 ```
 

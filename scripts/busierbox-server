@@ -2756,6 +2756,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="show managed service state, actual listeners, sessions, uploads, and stale warnings")
     parser.add_argument("--json-status", action="store_true",
                         help="print --status information as JSON")
+    parser.add_argument("--api-status", action="store_true",
+                        help="alias for --json-status for future frontend/API consumers")
     parser.add_argument("--stop", action="store_true",
                         help="stop known managed listeners from server-state PID records")
     parser.add_argument("--serve-file",
@@ -2885,8 +2887,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         print(f"busierbox-server: {exc}", file=sys.stderr)
         return 2
 
-    if args.status or args.json_status:
-        return print_status(cfg, json_output=args.json_status)
+    if args.status or args.json_status or args.api_status:
+        return print_status(cfg, json_output=args.json_status or args.api_status)
     if args.stop:
         return stop_managed_services(cfg)
 
