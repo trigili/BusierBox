@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ptrace.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
@@ -1795,38 +1794,6 @@ int applet_extract_main(int argc, char **argv)
     return 0;
 }
 
-static const char *ptrace_probe_status(void)
-{
-    pid_t child, r;
-    int status;
-
-    child = fork();
-    if (child < 0)
-        return "fork-failed";
-    if (child == 0) {
-        if (ptrace(PTRACE_TRACEME, 0, NULL, NULL) < 0)
-            _exit(2);
-        raise(SIGSTOP);
-        _exit(0);
-    }
-    r = waitpid(child, &status, 0);
-    if (r != child) {
-        kill(child, SIGKILL);
-        waitpid(child, NULL, 0);
-        return "unknown";
-    }
-    if (WIFSTOPPED(status) && WSTOPSIG(status) == SIGSTOP) {
-        ptrace(PTRACE_CONT, child, NULL, 0);
-        waitpid(child, &status, 0);
-        return "basic-ok";
-    }
-    if (WIFEXITED(status) && WEXITSTATUS(status) == 2)
-        return "denied";
-    kill(child, SIGKILL);
-    waitpid(child, NULL, 0);
-    return "unknown";
-}
-
 static unsigned long long statvfs_available_bytes(const char *path)
 {
     struct statvfs v;
@@ -1900,43 +1867,6 @@ static void print_doctor_extraction_runtime_json(FILE *out, unsigned long long p
     print_extract_root_probe_json(out, "fallback", BB_RUNTIME_FALLBACK_ROOT, payload_size,
                                   selected && !strcmp(selected, BB_RUNTIME_FALLBACK_ROOT));
     fprintf(out, "]}");
-}
-
-static unsigned long long mem_available_kb(void)
-{
-    FILE *fp = fopen("/proc/meminfo", "r");
-    char key[64], unit[32];
-    unsigned long long val;
-    if (!fp)
-        return 0;
-    while (fscanf(fp, "%63s %llu %31s\n", key, &val, unit) == 3) {
-        if (!strcmp(key, "MemAvailable:")) {
-            fclose(fp);
-            return val;
-        }
-    }
-    fclose(fp);
-    return 0;
-}
-
-static int has_default_route(void)
-{
-    FILE *fp = fopen("/proc/net/route", "r");
-    char line[256], iface[64], dest[64];
-    if (!fp)
-        return 0;
-    if (!fgets(line, sizeof(line), fp)) {
-        fclose(fp);
-        return 0;
-    }
-    while (fgets(line, sizeof(line), fp)) {
-        if (sscanf(line, "%63s %63s", iface, dest) == 2 && !strcmp(dest, "00000000")) {
-            fclose(fp);
-            return 1;
-        }
-    }
-    fclose(fp);
-    return 0;
 }
 
 static void doctor_rshell_server_listener(char *out, size_t outsz)
@@ -2253,9 +2183,9 @@ int applet_doctor_main(int argc, char **argv)
                 printf(",\"payload_bin_path_count\":%d", bb_path_entry_count(getenv("PATH"), bin_dir));
             }
             printf("},\"host\":{\"mem_available_kb\":%llu,\"devpts_available\":%s,\"ptrace_probe\":",
-                   mem_available_kb(), path_exists("/dev/pts") ? "true" : "false");
-            json_string_payload(stdout, ptrace_probe_status());
-            printf(",\"default_route_present\":%s}", has_default_route() ? "true" : "false");
+                   bb_mem_available_kb(), path_exists("/dev/pts") ? "true" : "false");
+            json_string_payload(stdout, bb_ptrace_probe_status());
+            printf(",\"default_route_present\":%s}", bb_has_default_route() ? "true" : "false");
             printf(",\"artifact\":{\"tier\":");
             json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
             printf(",\"runtime_mode\":");
@@ -2313,9 +2243,9 @@ int applet_doctor_main(int argc, char **argv)
                    getenv("HOME") && *getenv("HOME") ? "true" : "false",
                    getenv("SHELL") && *getenv("SHELL") ? "true" : "false");
             printf(",\"host\":{\"mem_available_kb\":%llu,\"devpts_available\":%s,\"ptrace_probe\":",
-                   mem_available_kb(), path_exists("/dev/pts") ? "true" : "false");
-            json_string_payload(stdout, ptrace_probe_status());
-            printf(",\"default_route_present\":%s}", has_default_route() ? "true" : "false");
+                   bb_mem_available_kb(), path_exists("/dev/pts") ? "true" : "false");
+            json_string_payload(stdout, bb_ptrace_probe_status());
+            printf(",\"default_route_present\":%s}", bb_has_default_route() ? "true" : "false");
             printf(",\"artifact\":{\"tier\":");
             json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
             printf(",\"runtime_mode\":");
@@ -2414,10 +2344,10 @@ int applet_doctor_main(int argc, char **argv)
     } else {
         puts("extract_root_writable_executable=no");
     }
-    printf("mem_available_kb=%llu\n", mem_available_kb());
+    printf("mem_available_kb=%llu\n", bb_mem_available_kb());
     printf("devpts_available=%s\n", path_exists("/dev/pts") ? "yes" : "no");
-    printf("ptrace_probe=%s\n", ptrace_probe_status());
-    printf("default_route_present=%s\n", has_default_route() ? "yes" : "no");
+    printf("ptrace_probe=%s\n", bb_ptrace_probe_status());
+    printf("default_route_present=%s\n", bb_has_default_route() ? "yes" : "no");
     if (!path_exists("/dev/pts"))
         puts("recommendation=mount devpts for tmux/dropbear interactive sessions");
     printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
