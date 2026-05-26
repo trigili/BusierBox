@@ -226,6 +226,34 @@ def main():
                 queue_doc["commands"][0].get("delivery_supported") is not False):
             print("operator command queue JSON missing non-exec safety fields", file=sys.stderr)
             return 1
+        bad_queue_timeout = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--queue-command", "busierbox survey",
+            "--queue-timeout", "0",
+        )
+        if bad_queue_timeout.returncode == 0 or "timeout must be a positive integer" not in bad_queue_timeout.stderr:
+            print("operator command queue accepted invalid timeout", file=sys.stderr)
+            print(bad_queue_timeout.stdout, file=sys.stderr)
+            print(bad_queue_timeout.stderr, file=sys.stderr)
+            return 1
+        bad_queue_output = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--queue-command", "busierbox survey",
+            "--queue-max-output", "0",
+        )
+        if bad_queue_output.returncode == 0 or "max output must be a positive integer" not in bad_queue_output.stderr:
+            print("operator command queue accepted invalid max output", file=sys.stderr)
+            print(bad_queue_output.stdout, file=sys.stderr)
+            print(bad_queue_output.stderr, file=sys.stderr)
+            return 1
+        queue_doc_after_bad = json.loads(queue_file.read_text(encoding="utf-8"))
+        if len(queue_doc_after_bad.get("commands", [])) != 1:
+            print("invalid command queue entries were persisted", file=sys.stderr)
+            return 1
         queue_list = run(
             "scripts/busierbox-server",
             "--config", str(cfg),

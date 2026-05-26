@@ -383,6 +383,12 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
     text = str(command or "").strip()
     if not text:
         raise ValueError("command queue entry must not be empty")
+    timeout_value = int(timeout_sec) if timeout_sec is not None else 30
+    max_output_value = int(max_output_bytes) if max_output_bytes is not None else 65536
+    if timeout_value <= 0:
+        raise ValueError("command queue timeout must be a positive integer")
+    if max_output_value <= 0:
+        raise ValueError("command queue max output must be a positive integer")
     data = load_command_queue(cfg)
     now = utc_now()
     digest = hashlib.sha256(f"{now}\0{text}\0{os.getpid()}".encode("utf-8")).hexdigest()[:16]
@@ -391,8 +397,8 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
         "created_at": now,
         "status": "queued",
         "command": text,
-        "timeout_sec": int(timeout_sec) if timeout_sec is not None else 30,
-        "max_output_bytes": int(max_output_bytes) if max_output_bytes is not None else 65536,
+        "timeout_sec": timeout_value,
+        "max_output_bytes": max_output_value,
         "execution_supported": False,
         "delivery_supported": False,
         "safety_boundary": "operator queue record only; target execution is disabled unless future explicit command-queue execution is implemented and enabled",
