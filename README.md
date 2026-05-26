@@ -4,6 +4,12 @@ BusierBox is a reproducible embedded Linux debug-toolkit builder and runtime lau
 
 BusierBox is not a BusyBox replacement and is not a BusyBox fork. BusierBox manages survey, environment repair, payload extraction, and dispatch. BusyBox provides standard Unix utilities such as `sh`, `cp`, `dd`, `mount`, `ps`, `nc`, and `tar`.
 
+BusierBox's own code and project-maintained scripts are licensed under
+GPL-2.0-or-later. Release artifacts can include separately licensed upstream
+payload/build components such as BusyBox, Buildroot, doom-ascii, and miniz; see
+[docs/licensing.md](docs/licensing.md) for the compatibility notes and source
+license inventory.
+
 ## Why It Is Handy
 
 - 🧭 Survey first: `busierbox survey --json` and the portable shell probe collect target facts without assuming Python or a full userspace.
@@ -370,6 +376,7 @@ Workflow documentation:
 - [gdbserver workflow](docs/gdbserver-workflow.md)
 - [Release bundles](docs/release-bundles.md)
 - [Heavy tool triage](docs/heavy-tools-triage.md)
+- [Licensing](docs/licensing.md)
 
 The build attempts static linking for BusierBox and BusyBox. If a payload tool cannot be built fully static, the intended fallback is to bundle its required shared libraries in `runtime/payload/lib` and set `LD_LIBRARY_PATH` when dispatching payload tools. The build should print warnings rather than silently producing a broken payload.
 

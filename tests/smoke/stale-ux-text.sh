@@ -32,7 +32,8 @@ for doc in \
     docs/cleanup-ledger.md \
     docs/gdbserver-workflow.md \
     docs/release-bundles.md \
-    docs/heavy-tools-triage.md
+    docs/heavy-tools-triage.md \
+    docs/licensing.md
 do
     grep -q "$doc" README.md || {
         printf '%s\n' "stale-ux-text: README missing workflow doc link $doc" >&2
