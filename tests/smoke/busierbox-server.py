@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import signal
 import socket
 import ssl
 import subprocess
@@ -630,6 +631,81 @@ def main():
         ]
         if not stale_cleanup_events:
             print("--stop did not log stale PID cleanup event", file=sys.stderr)
+            return 1
+
+        sigint_port = free_port()
+        sigint_cfg = Path(tmp) / "server-config-sigint.json"
+        sigint_state = Path(tmp) / "operator-session" / "sigint-state.json"
+        sigint_staged = Path(tmp) / "operator-session" / "sigint-staged.json"
+        sigint_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "file_service_port": sigint_port,
+            "session_root": str(Path(tmp) / "sessions-sigint"),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+            "file_service_tls": "no",
+            "operator_session_dir": str(Path(tmp) / "operator-session"),
+        }), encoding="utf-8")
+        sigint_proc = subprocess.Popen(
+            [
+                str(server), "--config", str(sigint_cfg),
+                "--state-file", str(sigint_state),
+                "--staged-file", str(sigint_staged),
+                "--transport", "file-service",
+                "--file-service-tls", "no",
+                "--timeout", "30",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            sigint_status = run(
+                "scripts/busierbox-server", "--config", str(sigint_cfg),
+                "--state-file", str(sigint_state),
+                "--staged-file", str(sigint_staged),
+                "--json-status",
+            )
+            if sigint_status.returncode == 0:
+                rows = {row["name"]: row for row in json.loads(sigint_status.stdout)["services"]}
+                if rows["file-service"]["actual"] == "listening":
+                    break
+            time.sleep(0.05)
+        else:
+            print("SIGINT lifecycle file-service did not reach listening state", file=sys.stderr)
+            sigint_proc.terminate()
+            sigint_proc.communicate(timeout=2)
+            return 1
+        sigint_proc.send_signal(signal.SIGINT)
+        sigint_stdout, sigint_stderr = sigint_proc.communicate(timeout=5)
+        sigint_combined = sigint_stdout + sigint_stderr
+        if sigint_proc.returncode not in (0, 130) or "Traceback" in sigint_combined:
+            print("SIGINT foreground listener did not exit cleanly", file=sys.stderr)
+            print(sigint_combined, file=sys.stderr)
+            return 1
+        sigint_after = run(
+            "scripts/busierbox-server", "--config", str(sigint_cfg),
+            "--state-file", str(sigint_state),
+            "--staged-file", str(sigint_staged),
+            "--json-status",
+        )
+        sigint_rows = {row["name"]: row for row in json.loads(sigint_after.stdout)["services"]}
+        if sigint_rows["file-service"]["actual"] == "listening" or sigint_rows["file-service"]["configured"] != "stopped":
+            print("SIGINT foreground listener did not stop and release its port", file=sys.stderr)
+            print(sigint_after.stdout, file=sys.stderr)
+            return 1
+        sigint_events_path = Path(tmp) / "operator-session" / "events.jsonl"
+        sigint_events = [json.loads(line) for line in sigint_events_path.read_text(encoding="utf-8").splitlines()]
+        sigint_shutdowns = [
+            event for event in sigint_events
+            if event.get("service") == "file-service"
+            and event.get("event") == "shutdown"
+            and event.get("details", {}).get("reason") == "SIGINT"
+        ]
+        if not sigint_shutdowns:
+            print("SIGINT foreground listener did not record structured shutdown event", file=sys.stderr)
             return 1
 
         unmanaged_state = {

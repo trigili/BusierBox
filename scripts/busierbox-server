@@ -2188,6 +2188,7 @@ def serve_file_service(cfg, timeout, max_sessions=0):
             except OSError:
                 pass
         if bound:
+            record_shutdown_event(cfg, service, session=log_dir)
             mark_service_stopped(cfg, service)
             finish_session_record(cfg, service, log_dir)
             append_event(cfg, service, "service_stop", session=str(log_dir))
