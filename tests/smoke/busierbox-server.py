@@ -410,6 +410,8 @@ def main():
                 "--staged-file", str(lifecycle_staged),
                 "--transport", "file-service",
                 "--file-service-tls", "no",
+                "--managed-by", "workbench-smoke",
+                "--process-log", str(Path(tmp) / "operator-session" / "file-service-workbench.log"),
                 "--timeout", "30",
             ],
             cwd=ROOT,
@@ -444,6 +446,14 @@ def main():
         rows = {row["name"]: row for row in status_doc["services"]}
         if not rows["file-service"].get("pid"):
             print("status missing file-service pid", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        state_doc = json.loads(lifecycle_state.read_text(encoding="utf-8"))
+        state_service = state_doc.get("services", {}).get("file-service", {})
+        if (state_service.get("managed_by") != "workbench-smoke" or
+                not state_service.get("process_log", "").endswith("file-service-workbench.log")):
+            print("listening child state did not preserve workbench ownership metadata", file=sys.stderr)
+            print(json.dumps(state_service, indent=2), file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
         if not rows["file-service"].get("listener_pids") or not rows["file-service"].get("listener_processes"):

@@ -568,6 +568,10 @@ def update_server_state(cfg, action, status="configured", extra=None):
         "state_file": str(state_file_path(cfg)),
         "updated_at": utc_now(),
     }
+    if cfg.get("_managed_by"):
+        service["managed_by"] = str(cfg.get("_managed_by"))
+    if cfg.get("_process_log"):
+        service["process_log"] = str(cfg.get("_process_log"))
     if extra:
         service.update(extra)
     data["services"][action] = service
@@ -2885,6 +2889,7 @@ def start_service_process(cfg, service, argv_extra=None):
     log_root = Path(str(cfg.get("session_root", "local/sessions")))
     log_root.mkdir(parents=True, exist_ok=True)
     log_path = log_root / f"operator-{service}-{int(time.time())}.log"
+    cmd.extend(["--managed-by", str(os.getpid()), "--process-log", str(log_path)])
     with log_path.open("ab") as log:
         proc = start_child_process(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     update_server_state(cfg, service, "starting", {"pid": proc.pid, "managed_by": os.getpid(), "process_log": str(log_path)})
@@ -3465,6 +3470,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="literal text that must appear in captured shell output")
     parser.add_argument("--session-timeout", type=float, default=30,
                         help="seconds to allow a scripted shell session; 0 disables the limit")
+    parser.add_argument("--managed-by", help=argparse.SUPPRESS)
+    parser.add_argument("--process-log", help=argparse.SUPPRESS)
     args = parser.parse_args(raw_argv)
 
     cfg = load_config(args.config)
@@ -3490,6 +3497,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["command_queue_file"] = args.command_queue_file
     if args.command_copy_file:
         cfg["command_copy_file"] = args.command_copy_file
+    if args.managed_by:
+        cfg["_managed_by"] = args.managed_by
+    if args.process_log:
+        cfg["_process_log"] = args.process_log
 
     try:
         if args.copy_target_command:
