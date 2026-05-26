@@ -27,6 +27,10 @@ Check a binary:
 scripts/tools/check-dropin-tool --tool gdbserver --path local/tools/mipsel-linux-4.x-musl/bin/gdbserver --arch mipsel --libc musl
 ```
 
+The checker prints executable, ELF, dynamic-linker, warning, and `sha256`
+metadata. Add `--metadata-out local/tools/mipsel-linux-4.x-musl/bin/metadata.json`
+to write the same inspection result as JSON without installing the file.
+
 Set `BB_GDBSERVER_PROVIDER="local-dropin"` or leave it as `auto`.
 
 ## Operator Workspace

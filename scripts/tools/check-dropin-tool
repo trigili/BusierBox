@@ -10,6 +10,7 @@ Options:
   --arch ARCH
   --libc LIBC
   --endian little|big|auto
+  --metadata-out PATH
   --strict
 EOF
 }
@@ -20,6 +21,7 @@ target=
 arch=
 libc=
 endian=auto
+metadata_out=
 strict=0
 
 while [ "$#" -gt 0 ]; do
@@ -36,6 +38,8 @@ while [ "$#" -gt 0 ]; do
         --libc=*) libc=${1#--libc=}; shift ;;
         --endian) endian=$2; shift 2 ;;
         --endian=*) endian=${1#--endian=}; shift ;;
+        --metadata-out) metadata_out=$2; shift 2 ;;
+        --metadata-out=*) metadata_out=${1#--metadata-out=}; shift ;;
         --strict) strict=1; shift ;;
         --help|-h) usage; exit 0 ;;
         *) usage; exit 2 ;;
@@ -69,6 +73,13 @@ detected_arch=unknown
 detected_endian=unknown
 dynamic=unknown
 interpreter=
+sha=unknown
+
+if command -v sha256sum >/dev/null 2>&1; then
+    sha=$(sha256sum "$path" | awk '{print $1}')
+elif command -v shasum >/dev/null 2>&1; then
+    sha=$(shasum -a 256 "$path" | awk '{print $1}')
+fi
 
 case "$file_out $readelf_h" in
     *MIPS*) detected_arch=mips ;;
@@ -108,9 +119,12 @@ if [ "$strict" -eq 1 ] && [ -n "$warn" ]; then
     fatal=$warn
 fi
 
-printf 'status=%s\n' "$([ -n "$fatal" ] && printf incompatible || printf ok)"
+status=$([ -n "$fatal" ] && printf incompatible || printf ok)
+
+printf 'status=%s\n' "$status"
 printf 'tool=%s\n' "$tool"
 printf 'path=%s\n' "$path"
+printf 'sha256=%s\n' "$sha"
 printf 'target=%s\n' "$target"
 printf 'expected_arch=%s\n' "$arch"
 printf 'expected_libc=%s\n' "$libc"
@@ -119,5 +133,58 @@ printf 'detected_endian=%s\n' "$detected_endian"
 printf 'dynamic=%s\n' "$dynamic"
 printf 'interpreter=%s\n' "$interpreter"
 printf 'warning=%s\n' "$warn"
+
+if [ -n "$metadata_out" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$metadata_out" "$status" "$tool" "$path" "$sha" "$target" "$arch" "$libc" "$endian" "$detected_arch" "$detected_endian" "$dynamic" "$interpreter" "$warn" "$file_out" "$readelf_h" <<'PY'
+import json
+import pathlib
+import sys
+
+(
+    out,
+    status,
+    tool,
+    path,
+    sha,
+    target,
+    arch,
+    libc,
+    endian,
+    detected_arch,
+    detected_endian,
+    dynamic,
+    interpreter,
+    warning,
+    file_out,
+    readelf_header,
+) = sys.argv[1:]
+
+data = {
+    "status": status,
+    "tool": tool,
+    "path": path,
+    "sha256": sha,
+    "target": target,
+    "expected_arch": arch,
+    "expected_libc": libc,
+    "expected_endian": endian,
+    "detected_arch": detected_arch,
+    "detected_endian": detected_endian,
+    "dynamic": dynamic,
+    "interpreter": interpreter,
+    "warning": warning,
+    "file": file_out,
+    "readelf_header": readelf_header,
+}
+dest = pathlib.Path(out)
+dest.parent.mkdir(parents=True, exist_ok=True)
+dest.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+    else
+        printf '%s\n' "check-dropin-tool: python3 unavailable; cannot write metadata $metadata_out" >&2
+    fi
+fi
+
 [ -z "$fatal" ] || exit 1
 exit 0

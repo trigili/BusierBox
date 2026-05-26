@@ -13,14 +13,30 @@ printf '%s\n' "fake gdbserver"
 EOF
 chmod 0755 "$fake"
 
-scripts/tools/check-dropin-tool --tool gdbserver --path "$fake" --target native --arch native --libc host >/dev/null
+scripts/tools/check-dropin-tool --tool gdbserver --path "$fake" --target native --arch native --libc host --metadata-out "$work/check-metadata.json" >"$work/check.out"
+grep -q '^sha256=' "$work/check.out"
+python3 -m json.tool "$work/check-metadata.json" >/dev/null
+python3 - "$work/check-metadata.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if data.get("tool") != "gdbserver":
+    raise SystemExit("metadata tool mismatch")
+if len(data.get("sha256", "")) != 64:
+    raise SystemExit("metadata sha256 missing")
+if data.get("status") != "ok":
+    raise SystemExit("metadata status mismatch")
+PY
 scripts/tools/install-dropin-gdbserver --source "$fake" --target native --dest-root "$work/tools" >"$work/install.out"
 test -x "$work/tools/native/bin/gdbserver"
 test -f "$work/tools/native/bin/metadata.json"
+grep -q '^sha256=' "$work/install.out"
 python3 -m json.tool "$work/tools/native/bin/metadata.json" >/dev/null
 scripts/tools/dropin-tool-status --tool gdbserver --target native --arch native --libc host --dest-root "$work/tools" >"$work/status.out"
 grep -q 'Overall: found' "$work/status.out"
 grep -q 'metadata_sha256=' "$work/status.out"
+grep -q '    sha256=' "$work/status.out"
 grep -q 'detected_arch=' "$work/status.out"
 
 scripts/tools/install-dropin-tool --tool gdb --source "$fake" --arch mipsel --libc musl --dest-root "$work/tools" >"$work/install-gdb.out"

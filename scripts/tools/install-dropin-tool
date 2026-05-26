@@ -60,43 +60,13 @@ cp "$source" "$dest"
 chmod 0755 "$dest"
 
 sha=unknown
-if command -v sha256sum >/dev/null 2>&1; then
-    sha=$(sha256sum "$dest" | awk '{print $1}')
-elif command -v shasum >/dev/null 2>&1; then
-    sha=$(shasum -a 256 "$dest" | awk '{print $1}')
-fi
-file_out=
-if command -v file >/dev/null 2>&1; then
-    file_out=$(file "$dest" 2>/dev/null || true)
-fi
-readelf_out=
-if command -v readelf >/dev/null 2>&1; then
-    readelf_out=$(readelf -h "$dest" 2>/dev/null | sed -n '1,20p' || true)
-fi
-
-python3 - "$dest_dir/metadata.json" "$tool" "$dest" "$sha" "$target" "$arch" "$libc" "$file_out" "$readelf_out" <<'PY'
-import json
-import pathlib
-import sys
-
-out, tool, dest, sha, target, arch, libc, file_out, readelf_out = sys.argv[1:]
-data = {
-    "tool": tool,
-    "path": dest,
-    "sha256": sha,
-    "target": target,
-    "arch": arch,
-    "libc": libc,
-    "file": file_out,
-    "readelf_header": readelf_out,
-}
-pathlib.Path(out).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-PY
 
 set -- --tool "$tool" --path "$dest"
 [ -z "$target" ] || set -- "$@" --target "$target"
 [ -z "$arch" ] || set -- "$@" --arch "$arch"
 [ -z "$libc" ] || set -- "$@" --libc "$libc"
-scripts/tools/check-dropin-tool "$@" >/dev/null || true
+check_out=$(scripts/tools/check-dropin-tool "$@" --metadata-out "$dest_dir/metadata.json" || true)
+sha=$(printf '%s\n' "$check_out" | sed -n 's/^sha256=//p' | sed -n '1p')
 printf 'installed=%s\n' "$dest"
 printf 'metadata=%s\n' "$dest_dir/metadata.json"
+printf 'sha256=%s\n' "$sha"
