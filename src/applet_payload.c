@@ -1081,64 +1081,6 @@ int applet_extract_main(int argc, char **argv)
     return 0;
 }
 
-static void print_extract_root_probe_json(FILE *out, const char *role, const char *path,
-                                          unsigned long long payload_size, int selected)
-{
-    int configured = path && path[0];
-    int exists = configured && bb_path_exists(path);
-    int writable = exists && access(path, W_OK) == 0;
-    int executable = exists && access(path, X_OK) == 0;
-    int noexec = exists && bb_dir_is_noexec(path);
-
-    fprintf(out, "{\"role\":");
-    json_string_payload(out, role);
-    fprintf(out, ",\"configured\":%s,\"path\":", configured ? "true" : "false");
-    if (configured)
-        json_string_payload(out, path);
-    else
-        fputs("null", out);
-    fprintf(out, ",\"exists\":%s,\"writable\":%s,\"executable\":%s,\"noexec\":%s",
-            exists ? "true" : "false",
-            writable ? "true" : "false",
-            executable ? "true" : "false",
-            noexec ? "true" : "false");
-    fprintf(out, ",\"available_bytes\":%llu,\"free_space_ok\":%s,\"selected\":%s}",
-            exists ? bb_path_available_bytes(path) : 0ULL,
-            exists && bb_enough_space_for_extract(payload_size, path) ? "true" : "false",
-            selected ? "true" : "false");
-}
-
-static void print_doctor_extraction_runtime_json(FILE *out, unsigned long long payload_size)
-{
-    const char *selected = NULL;
-    int fallback_enabled = !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes");
-
-    if (bb_extract_root_usable(BB_RUNTIME_ROOT))
-        selected = BB_RUNTIME_ROOT;
-    else if (fallback_enabled && bb_extract_root_usable(BB_RUNTIME_FALLBACK_ROOT))
-        selected = BB_RUNTIME_FALLBACK_ROOT;
-
-    fprintf(out, ",\"extraction_runtime\":{\"runtime_root\":");
-    json_string_payload(out, BB_RUNTIME_ROOT);
-    fprintf(out, ",\"fallback_root\":");
-    json_string_payload(out, BB_RUNTIME_FALLBACK_ROOT);
-    fprintf(out, ",\"fallback_enabled\":%s,\"required_bytes\":%llu,\"writable_executable\":%s,\"selected_root\":",
-            fallback_enabled ? "true" : "false",
-            bb_extract_required_bytes(payload_size),
-            selected ? "true" : "false");
-    if (selected)
-        json_string_payload(out, selected);
-    else
-        fputs("null", out);
-    fprintf(out, ",\"roots\":[");
-    print_extract_root_probe_json(out, "runtime", BB_RUNTIME_ROOT, payload_size,
-                                  selected && !strcmp(selected, BB_RUNTIME_ROOT));
-    fputc(',', out);
-    print_extract_root_probe_json(out, "fallback", BB_RUNTIME_FALLBACK_ROOT, payload_size,
-                                  selected && !strcmp(selected, BB_RUNTIME_FALLBACK_ROOT));
-    fprintf(out, "]}");
-}
-
 static void doctor_rshell_server_listener(char *out, size_t outsz)
 {
     if (!strcmp(BB_RSHELL_TRANSPORT, "ssh"))
@@ -1405,7 +1347,8 @@ int applet_doctor_main(int argc, char **argv)
                 json_string_payload(stdout, root);
             }
             printf("}");
-            print_doctor_extraction_runtime_json(stdout, ep.size);
+            printf(",\"extraction_runtime\":");
+            bb_print_extraction_runtime_json(stdout, ep.size, json_string_payload);
             printf(",\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d",
                    manifest ? "true" : "false", applet_count);
             if (manifest) {
@@ -1475,7 +1418,8 @@ int applet_doctor_main(int argc, char **argv)
                 printf(",\"manifest_found\":%s", bb_path_exists(manifest_path) ? "true" : "false");
             }
             printf("}");
-            print_doctor_extraction_runtime_json(stdout, 1);
+            printf(",\"extraction_runtime\":");
+            bb_print_extraction_runtime_json(stdout, 1, json_string_payload);
             printf(",\"payload_manifest\":{\"found\":%s,\"busybox_applets_count\":%d}",
                    manifest ? "true" : "false", applet_count);
             print_doctor_payload_inventory_json(stdout, manifest);

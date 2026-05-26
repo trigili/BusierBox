@@ -271,3 +271,66 @@ int bb_choose_extract_root(char *out, size_t outsz)
     }
     return -1;
 }
+
+static void print_extract_root_probe_json(FILE *out, const char *role, const char *path,
+                                          unsigned long long payload_size, int selected,
+                                          void (*json_string)(FILE *, const char *))
+{
+    int configured = path && path[0];
+    int exists = configured && bb_path_exists(path);
+    int writable = exists && access(path, W_OK) == 0;
+    int executable = exists && access(path, X_OK) == 0;
+    int noexec = exists && bb_dir_is_noexec(path);
+
+    fprintf(out, "{\"role\":");
+    json_string(out, role);
+    fprintf(out, ",\"configured\":%s,\"path\":", configured ? "true" : "false");
+    if (configured)
+        json_string(out, path);
+    else
+        fputs("null", out);
+    fprintf(out, ",\"exists\":%s,\"writable\":%s,\"executable\":%s,\"noexec\":%s",
+            exists ? "true" : "false",
+            writable ? "true" : "false",
+            executable ? "true" : "false",
+            noexec ? "true" : "false");
+    fprintf(out, ",\"available_bytes\":%llu,\"free_space_ok\":%s,\"selected\":%s}",
+            exists ? bb_path_available_bytes(path) : 0ULL,
+            exists && bb_enough_space_for_extract(payload_size, path) ? "true" : "false",
+            selected ? "true" : "false");
+}
+
+void bb_print_extraction_runtime_json(FILE *out, unsigned long long payload_size,
+                                      void (*json_string)(FILE *, const char *))
+{
+    const char *runtime_root = bb_config_get("BB_RUNTIME_ROOT");
+    const char *fallback_root = bb_config_get("BB_RUNTIME_FALLBACK_ROOT");
+    const char *fallback_enabled_value = bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT");
+    const char *selected = NULL;
+    int fallback_enabled = fallback_enabled_value && !strcmp(fallback_enabled_value, "yes");
+
+    if (bb_extract_root_usable(runtime_root))
+        selected = runtime_root;
+    else if (fallback_enabled && bb_extract_root_usable(fallback_root))
+        selected = fallback_root;
+
+    fprintf(out, "{\"runtime_root\":");
+    json_string(out, runtime_root ? runtime_root : "");
+    fprintf(out, ",\"fallback_root\":");
+    json_string(out, fallback_root ? fallback_root : "");
+    fprintf(out, ",\"fallback_enabled\":%s,\"required_bytes\":%llu,\"writable_executable\":%s,\"selected_root\":",
+            fallback_enabled ? "true" : "false",
+            bb_extract_required_bytes(payload_size),
+            selected ? "true" : "false");
+    if (selected)
+        json_string(out, selected);
+    else
+        fputs("null", out);
+    fprintf(out, ",\"roots\":[");
+    print_extract_root_probe_json(out, "runtime", runtime_root, payload_size,
+                                  selected && runtime_root && !strcmp(selected, runtime_root), json_string);
+    fputc(',', out);
+    print_extract_root_probe_json(out, "fallback", fallback_root, payload_size,
+                                  selected && fallback_root && !strcmp(selected, fallback_root), json_string);
+    fprintf(out, "]}");
+}
