@@ -4,7 +4,7 @@ set -eu
 
 src=${1:-src/busierbox.c}
 menu=${2:-scripts/menuconfig}
-payload=${3:-src/applet_payload.c}
+payload=${3:-src/applet_clean.c}
 
 [ -f "$src" ] || {
     printf '%s\n' "rshell-external-writes: missing $src" >&2
