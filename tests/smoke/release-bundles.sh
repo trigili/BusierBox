@@ -233,6 +233,9 @@ summary = artifact.get("tuple_summary") or {}
 for key in ("payload_manifest", "native_applets", "busybox_applets", "core_extraction_behavior", "trailer_overridable_fields"):
     if key not in summary:
         raise SystemExit(f"tuple summary missing {key}")
+compat = summary.get("compatibility") or {}
+if compat.get("label") != "exact":
+    raise SystemExit(f"tuple summary compatibility missing/exact mismatch: {compat!r}")
 if "missing_tools" in summary or "missing_tool_reasons" in summary:
     raise SystemExit("tuple summary should default to positive inventory only")
 host = data.get("build_host", {})
@@ -268,12 +271,16 @@ summary = artifacts[0]
 for key in ("payload_preset", "runtime_mode", "payload_manifest", "native_applets", "busybox_applets", "heavy_tools", "sha256", "config"):
     if key not in summary:
         raise SystemExit(f"tuple artifact summary missing {key}")
+if (summary.get("compatibility") or {}).get("label") != "exact":
+    raise SystemExit("tuple artifact compatibility baseline missing")
 if "missing_tools" in summary or "missing_tool_reasons" in summary:
     raise SystemExit("tuple manifest should default to positive inventory only")
 text = open(sys.argv[2], "r", encoding="utf-8").read()
 for needle in (
+    "compatibility_baseline=exact",
     "Payload variants:",
     "payload_manifest=",
+    "compatibility=exact",
     "busybox_applets=",
     "core_extraction=",
     "trailer_overridable_fields=",
@@ -297,6 +304,7 @@ scripts/release-index --release-dir "$work/release" >/dev/null
 scripts/release-find --release-dir "$work/release" --arch native --libc host --kernel host --payload-preset default >"$work/release-find.wrapper.out"
 cmp "$work/release-find.out" "$work/release-find.wrapper.out"
 grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/busierbox-native-default-full$' "$work/release-find.out"
+grep -q '^compatibility=exact$' "$work/release-find.out"
 "$work/release/scripts/release-find" --device native --json >"$work/release-find.json"
 python3 -m json.tool "$work/release-find.json" >/dev/null
 python3 - "$work/release/release-index.json" <<'PY'
@@ -309,9 +317,53 @@ if row.get("tuple", {}).get("path") != row.get("tuple_path"):
     raise SystemExit("release-index tuple path drift")
 if row.get("tuple", {}).get("path_components", {}).get("discriminator") != "host":
     raise SystemExit("release-index tuple components missing")
+if (row.get("compatibility") or {}).get("label") != "exact":
+    raise SystemExit("release-index compatibility baseline missing")
 if sorted(index.get("tuples", {})) != ["by-tuple/native/host/host/host"]:
     raise SystemExit("release-index tuple keys mismatch")
 PY
+cat >"$work/survey-mipsel.json" <<'JSON'
+{
+  "schema": 2,
+  "arch": "mipsel",
+  "endianness": "little",
+  "kernel": "4.14.221",
+  "recommendations": {
+    "target_arch_guess": "mipsel",
+    "endian_guess": "little",
+    "kernel_floor_guess": "4.x",
+    "libc_guess": "musl"
+  },
+  "dirs": [
+    {"path": "/tmp", "writable": true, "executable": false, "noexec": true, "free_bytes": 1048576}
+  ]
+}
+JSON
+"$work/release/scripts/release-find" --survey-json "$work/survey-mipsel.json" --json >"$work/release-find-survey.json"
+python3 - "$work/release-find-survey.json" <<'PY'
+import json
+import sys
+
+row = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+compat = row.get("compatibility") or {}
+if compat.get("label") != "incompatible":
+    raise SystemExit(f"expected incompatible native artifact for mipsel survey, got {compat!r}")
+reasons = "\n".join(compat.get("reasons") or [])
+if "arch mismatch" not in reasons or "/tmp noexec" not in reasons:
+    raise SystemExit(f"survey compatibility reasons missing: {reasons}")
+PY
+cat >"$work/reality-unsafe.json" <<'JSON'
+{
+  "schema": 1,
+  "checks": [
+    {"name": "runtime_root_executable", "status": "fail", "ok": false, "detail": "permission denied"},
+    {"name": "temporary_file", "status": "pass", "ok": true, "detail": "ok"}
+  ]
+}
+JSON
+"$work/release/scripts/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-unsafe.json" >"$work/release-find-reality.out"
+grep -q '^compatibility=unsafe$' "$work/release-find-reality.out"
+grep -q '^compatibility_reason=runtime root execution failed in reality-test$' "$work/release-find-reality.out"
 "$work/release/scripts/release-self-test" >/dev/null
 scripts/release-self-test --release-dir "$work/release" >/dev/null
 

@@ -590,6 +590,11 @@ def write_release_helpers(script_dir):
                     "size": rec.get("size"),
                     "tools": present_tools,
                     "trailer_support": rec.get("trailer_support"),
+                    "compatibility": summary.get("compatibility") or {
+                        "schema": 1,
+                        "label": "exact",
+                        "reasons": [f"tuple_path={rec.get('tuple_path') or ''}"],
+                    },
                 }
                 artifacts.append(row)
                 preset = row.get("payload_preset")
@@ -673,6 +678,11 @@ def write_release_helpers(script_dir):
                         "manifest": rec.get("manifest_path") or rec.get("payload_manifest_path"),
                         "payload_manifest": rec.get("payload_manifest_path"),
                         "tools": ((rec.get("tuple_summary") or {}).get("busybox_applets") or []) + ((rec.get("tuple_summary") or {}).get("heavy_tools") or []),
+                        "compatibility": (rec.get("tuple_summary") or {}).get("compatibility") or {
+                            "schema": 1,
+                            "label": "exact",
+                            "reasons": [f"tuple_path={rec.get('tuple_path') or ''}"],
+                        },
                     }
                     for rec in release.get("artifacts", [])
                     if rec.get("build_status") != "failed"
@@ -694,14 +704,207 @@ def write_release_helpers(script_dir):
                 return False
             return True
 
+        def useful(value):
+            if value in (None, "", "unknown", "auto"):
+                return ""
+            return str(value)
+
+        def arch_norm(machine):
+            machine = str(machine or "unknown").lower()
+            table = {
+                "mips": "mips",
+                "mips64": "mips",
+                "mipsel": "mipsel",
+                "mips64el": "mipsel",
+                "armv7l": "armv7",
+                "armv6l": "armv7",
+                "aarch64": "aarch64",
+                "x86_64": "x86_64",
+                "amd64": "x86_64",
+                "i386": "i386",
+                "i486": "i386",
+                "i586": "i386",
+                "i686": "i386",
+            }
+            return table.get(machine, machine or "")
+
+        def kernel_floor(release):
+            release = str(release or "")
+            parts = release.split(".", 2)
+            if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+                major = int(parts[0])
+                minor = int(parts[1])
+                if major < 3:
+                    return f"{major}.{minor}"
+                if major == 3:
+                    return "3.x"
+                if major == 4:
+                    return "4.x"
+                return "current"
+            return ""
+
+        def kernel_rank(value):
+            table = {"2.4": 24, "2.6": 26, "3.x": 30, "4.x": 40, "current": 90, "host": 100}
+            return table.get(str(value or ""), 0)
+
+        def boolish(value):
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                return value.lower() in {"1", "yes", "true", "ok", "pass", "basic-ok", "present"}
+            return bool(value)
+
+        def survey_facts(path):
+            if not path:
+                return {}
+            data = load(pathlib.Path(path))
+            recs = data.get("recommendations") or {}
+            uname = data.get("uname") or {}
+            facts = {
+                "arch": useful(recs.get("target_arch_guess")) or arch_norm(data.get("arch") or uname.get("machine")),
+                "endian": useful(recs.get("endian_guess")) or useful(data.get("endianness")),
+                "libc": useful(recs.get("libc_guess")) or useful(data.get("libc")),
+                "kernel_floor": useful(recs.get("kernel_floor_guess")) or kernel_floor(data.get("kernel") or uname.get("release")),
+                "cpu": useful(recs.get("target_cpu_guess")),
+                "abi": useful(recs.get("target_abi_guess")),
+            }
+            for name in ("dirs", "writable_dirs"):
+                for entry in data.get(name) or []:
+                    if isinstance(entry, dict) and entry.get("path") == "/tmp":
+                        facts["tmp_noexec"] = boolish(entry.get("noexec"))
+                        facts["tmp_writable"] = boolish(entry.get("writable"))
+            if boolish(recs.get("low_disk")):
+                facts["low_storage"] = True
+            if boolish(recs.get("noexec_tmp")):
+                facts["tmp_noexec"] = True
+            if recs.get("recommended_extract_dir") == "none":
+                facts["payload_possible"] = False
+            return {key: value for key, value in facts.items() if value not in (None, "")}
+
+        def reality_facts(path):
+            if not path:
+                return {}
+            data = load(pathlib.Path(path))
+            facts = {}
+            checks = data.get("checks") or []
+            for check in checks:
+                if not isinstance(check, dict):
+                    continue
+                name = check.get("name")
+                ok = boolish(check.get("ok")) or check.get("status") == "pass"
+                detail = str(check.get("detail") or "").lower()
+                if name == "tmp_noexec":
+                    facts["tmp_noexec"] = ok
+                elif name == "rootfs_read_only":
+                    facts["rootfs_read_only"] = ok
+                elif name == "runtime_root_executable" and not ok:
+                    facts["runtime_exec_blocked"] = True
+                elif name == "extract_core_payload" and not ok:
+                    facts["payload_possible"] = False
+                elif name == "procfs_partial" and not ok:
+                    facts["procfs_partial"] = True
+                elif name == "temporary_file" and not ok:
+                    facts["runtime_write_blocked"] = True
+                if "low storage" in detail:
+                    facts["low_storage"] = True
+            return facts
+
+        def degrade(label, new_label):
+            order = ["exact", "likely", "heuristic", "unsafe", "incompatible"]
+            return new_label if order.index(new_label) > order.index(label) else label
+
+        def score_candidate(index, row, args):
+            tuple_info = (
+                (index.get("tuples", {}).get(row.get("tuple_path") or "", {}) or {}).get("tuple")
+                or row.get("tuple")
+                or {}
+            )
+            facts = {}
+            facts.update(survey_facts(args.survey_json))
+            facts.update(reality_facts(args.reality_json))
+            for key, value in (("arch", args.arch), ("libc", args.libc), ("kernel_floor", args.kernel), ("endian", args.endian), ("cpu", args.cpu), ("abi", args.abi)):
+                if useful(value):
+                    facts[key] = value
+
+            label = "exact" if facts else ((row.get("compatibility") or {}).get("label") or "exact")
+            reasons = []
+            exact_factors = 0
+            checked_factors = 0
+            for key in ("arch", "endian", "libc", "cpu", "abi"):
+                expected = useful(tuple_info.get(key))
+                actual = useful(facts.get(key))
+                if not expected or not actual or expected in {"auto", "host"} or actual in {"auto", "host"}:
+                    if expected and not actual and key in {"arch", "endian", "libc"}:
+                        label = degrade(label, "heuristic")
+                        reasons.append(f"{key} unknown for target; artifact expects {expected}")
+                    continue
+                checked_factors += 1
+                if actual == expected:
+                    exact_factors += 1
+                    reasons.append(f"{key} exact: {actual}")
+                else:
+                    label = degrade(label, "incompatible" if key in {"arch", "endian"} else "unsafe")
+                    reasons.append(f"{key} mismatch: target {actual}, artifact {expected}")
+
+            expected_kernel = useful(tuple_info.get("kernel_floor"))
+            actual_kernel = useful(facts.get("kernel_floor"))
+            if expected_kernel and actual_kernel and expected_kernel not in {"host"} and actual_kernel not in {"host"}:
+                checked_factors += 1
+                if kernel_rank(actual_kernel) >= kernel_rank(expected_kernel):
+                    exact_factors += 1 if actual_kernel == expected_kernel else 0
+                    reasons.append(f"kernel floor compatible: target {actual_kernel}, artifact {expected_kernel}")
+                    if actual_kernel != expected_kernel:
+                        label = degrade(label, "likely")
+                else:
+                    label = degrade(label, "incompatible")
+                    reasons.append(f"kernel floor too old: target {actual_kernel}, artifact {expected_kernel}")
+            elif expected_kernel and not actual_kernel:
+                label = degrade(label, "heuristic")
+                reasons.append(f"kernel floor unknown; artifact expects {expected_kernel}")
+
+            if checked_factors and exact_factors < checked_factors and label == "exact":
+                label = "likely"
+            if facts.get("tmp_noexec"):
+                label = degrade(label, "likely")
+                reasons.append("/tmp noexec: avoid /tmp extraction")
+            if facts.get("rootfs_read_only"):
+                label = degrade(label, "likely")
+                reasons.append("rootfs read-only: prefer runtime root or core-only modes")
+            if facts.get("runtime_exec_blocked"):
+                label = degrade(label, "unsafe")
+                reasons.append("runtime root execution failed in reality-test")
+            if facts.get("runtime_write_blocked"):
+                label = degrade(label, "unsafe")
+                reasons.append("runtime file creation failed in reality-test")
+            if facts.get("payload_possible") is False:
+                label = degrade(label, "unsafe")
+                reasons.append("payload extraction was not proven possible")
+            if facts.get("low_storage"):
+                label = degrade(label, "likely")
+                reasons.append("storage low: prefer core-only or smaller payload preset")
+            if facts.get("procfs_partial"):
+                label = degrade(label, "heuristic")
+                reasons.append("procfs partial/broken: static survey evidence may be incomplete")
+            if not reasons:
+                reasons.append(f"artifact tuple baseline: {row.get('tuple_path') or 'unknown'}")
+            return {"schema": 1, "label": label, "reasons": reasons, "facts": facts}
+
+        def score_rank(label):
+            return {"exact": 0, "likely": 1, "heuristic": 2, "unsafe": 3, "incompatible": 4}.get(label, 5)
+
         parser = argparse.ArgumentParser(description="Find BusierBox release artifacts by tuple, device, feature, tool, or preset.")
         parser.add_argument("--arch")
+        parser.add_argument("--endian")
         parser.add_argument("--libc")
         parser.add_argument("--kernel")
+        parser.add_argument("--cpu")
+        parser.add_argument("--abi")
         parser.add_argument("--device")
         parser.add_argument("--feature")
         parser.add_argument("--tool")
         parser.add_argument("--payload-preset")
+        parser.add_argument("--survey-json", help="score candidates against survey --json output")
+        parser.add_argument("--reality-json", help="score candidates against reality-test --json output")
         parser.add_argument("--json", action="store_true")
         args = parser.parse_args()
 
@@ -726,6 +929,9 @@ def write_release_helpers(script_dir):
         candidates = [row for row in candidates if tuple_match(index, row, args)]
         if not candidates:
             raise SystemExit("release-find: no matching artifact")
+        for candidate in candidates:
+            candidate["compatibility"] = score_candidate(index, candidate, args)
+        candidates.sort(key=lambda item: (score_rank((item.get("compatibility") or {}).get("label")), item.get("payload_preset") or "", item.get("artifact") or ""))
         row = candidates[0]
         if args.json:
             print(json.dumps(row, indent=2, sort_keys=True))
@@ -736,6 +942,9 @@ def write_release_helpers(script_dir):
         print(f"payload_preset={row.get('payload_preset')}")
         print(f"runtime_mode={row.get('runtime_mode') or ''}")
         print(f"reverse_access_default={(row.get('reverse_access') or {}).get('transport') or ''}")
+        print(f"compatibility={(row.get('compatibility') or {}).get('label') or ''}")
+        for reason in (row.get("compatibility") or {}).get("reasons") or []:
+            print(f"compatibility_reason={reason}")
         print(f"manifest={row.get('manifest') or ''}")
         print(f"first_command=./{pathlib.Path(artifact).name} survey --json")
         ''',
@@ -1183,12 +1392,27 @@ def artifact_summary(release_dir, rec, include_missing=False):
         "config": rec.get("config"),
         "manifest": rec.get("manifest_path"),
         "config_info": rec.get("config_info_path"),
+        "compatibility": compatibility_baseline(rec.get("tuple") or {}),
     }
     if include_missing:
         summary["missing_tools"] = payload_tools.get("missing_payload_tools") or (payload_manifest or {}).get("missing_payload_tools") or []
         summary["missing_tool_reasons"] = payload_tools.get("missing_payload_tool_reasons") or (payload_manifest or {}).get("missing_payload_tool_reasons") or {}
         summary["build_missing"] = rec.get("build_missing_path")
     return summary
+
+
+def compatibility_baseline(tuple_info):
+    reasons = []
+    for key in ("arch", "endian", "libc", "kernel_floor", "cpu", "abi", "static_policy"):
+        value = tuple_info.get(key)
+        if value:
+            reasons.append(f"{key}={value}")
+    return {
+        "schema": 1,
+        "label": "exact",
+        "reasons": reasons,
+        "note": "Baseline tuple metadata for this artifact; use release-find with survey/reality JSON for target-specific scoring.",
+    }
 
 
 def manifest_text_for_tuple(tuple_info, records, include_missing=False):
@@ -1202,6 +1426,7 @@ def manifest_text_for_tuple(tuple_info, records, include_missing=False):
         f"abi={tuple_info.get('abi', '')}",
         f"endian={tuple_info.get('endian', '')}",
         f"static_policy={tuple_info.get('static_policy', '')}",
+        "compatibility_baseline=exact",
         "",
         "Payload variants:",
     ]
@@ -1216,6 +1441,7 @@ def manifest_text_for_tuple(tuple_info, records, include_missing=False):
             f"  config={rec.get('config', '')}",
             f"  manifest={rec.get('tuple_manifest', rec.get('manifest_path') or '')}",
             f"  payload_manifest={rec.get('tuple_payload_manifest', rec.get('payload_manifest_path') or '')}",
+            f"  compatibility={((summary.get('compatibility') or {}).get('label') or 'exact')}",
             f"  native_applets={', '.join(summary.get('native_applets') or [])}",
             f"  busybox_applets={', '.join(summary.get('busybox_applets') or [])}",
             f"  core_extraction={summary.get('core_extraction_behavior', '')}",

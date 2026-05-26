@@ -116,7 +116,18 @@ scripts/release-find --device glinet-mt1300
 scripts/release-find --arch mipsel --libc musl --kernel 4.x
 scripts/release-find --tool tcpdump
 scripts/release-find --payload-preset survey-core
+scripts/release-find --survey-json survey.json
+scripts/release-find --survey-json survey.json --reality-json reality.json --json
 ```
+
+`release-find` reports a compatibility label and reasons for the selected
+artifact. Labels are `exact`, `likely`, `heuristic`, `unsafe`, and
+`incompatible`. Tuple/device arguments produce exact tuple matching; survey and
+reality-test JSON add target-specific scoring for arch, endian, libc, kernel
+floor, CPU/ABI hints, `/tmp` noexec, read-only rootfs, low storage, failed
+runtime execution, failed payload extraction, and partial procfs evidence.
+`release-index.json` and tuple `MANIFEST.json` include baseline compatibility
+metadata for every artifact.
 
 From a source checkout, the top-level helpers can target a bundle explicitly:
 

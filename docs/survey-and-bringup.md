@@ -55,9 +55,14 @@ scripts/config-from-survey --format json survey.json
 scripts/config-from-survey --write-config local/recommended.conf survey.json
 scripts/preset-from-survey --survey survey.json --name glinet-mt1300-lab
 scripts/preset-from-survey --survey survey.json --name glinet-mt1300-lab --write-local
+scripts/release-find --release-dir dist/releases/lab --survey-json survey.json --reality-json reality.json
 ```
 
 `scripts/config-from-survey` is conservative. It emits comments for uncertainty, avoids external writes unless `--allow-external-writes` is set, and keeps `BB_ZERO_ARG_MODE="help"` unless `--allow-network-autorun` is explicitly requested.
+
+Release bundle `release-find` can combine passive survey facts with
+`reality-test` results and report `exact`, `likely`, `heuristic`, `unsafe`, or
+`incompatible` compatibility reasons before you choose a larger payload.
 
 `scripts/preset-from-survey` writes reusable target compatibility presets under
 `local/presets/targets/`. Those generated presets intentionally contain only
