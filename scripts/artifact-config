@@ -125,6 +125,8 @@ def decode_trailer(data, reject_unknown=False):
         offset = int(meta.get("payload_offset", "0"))
     except ValueError:
         return {"present": True, "valid": False, "status": "non-integer size/offset", "values": {}, "meta": meta}
+    if meta.get("version") != "1":
+        return {"present": True, "valid": False, "status": "unsupported version", "values": {}, "meta": meta}
     if size <= 0 or offset <= 0 or offset + size > len(raw):
         return {"present": True, "valid": False, "status": "payload bounds invalid", "values": {}, "meta": meta}
     payload = bytearray(raw[offset : offset + size])

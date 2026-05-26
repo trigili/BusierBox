@@ -270,7 +270,7 @@ static void load_config(void)
     char meta[BB_CONFIG_TRAILER_SIZE + 1];
     char *raw_text = (char *)raw;
     char *line, *save = NULL, *payload_start = NULL;
-    char encoding[16] = "plain", sha[65] = "", key_hex[129] = "";
+    char version[16] = "", encoding[16] = "plain", sha[65] = "", key_hex[129] = "";
     unsigned long payload_size = 0;
     unsigned char key[64], hash[32];
     char got[65];
@@ -322,7 +322,9 @@ static void load_config(void)
         if (!eq)
             continue;
         *eq++ = '\0';
-        if (!strcmp(line, "encoding"))
+        if (!strcmp(line, "version"))
+            snprintf(version, sizeof(version), "%s", eq);
+        else if (!strcmp(line, "encoding"))
             snprintf(encoding, sizeof(encoding), "%s", eq);
         else if (!strcmp(line, "size"))
             payload_size = strtoul(eq, NULL, 10);
@@ -332,16 +334,27 @@ static void load_config(void)
             snprintf(key_hex, sizeof(key_hex), "%s", eq);
     }
     snprintf(trailer_encoding, sizeof(trailer_encoding), "%s", encoding);
-    if (!payload_start || payload_size == 0 || payload_size >= BB_CONFIG_TRAILER_SIZE || strlen(sha) != 64)
+    if (strcmp(version, "1")) {
+        set_error("unsupported version");
         return;
-    if ((size_t)(payload_start - (char *)raw) + payload_size > BB_CONFIG_TRAILER_SIZE)
+    }
+    if (!payload_start || payload_size == 0 || payload_size >= BB_CONFIG_TRAILER_SIZE || strlen(sha) != 64) {
+        set_error("payload bounds invalid");
         return;
+    }
+    if ((size_t)(payload_start - (char *)raw) + payload_size > BB_CONFIG_TRAILER_SIZE) {
+        set_error("payload bounds invalid");
+        return;
+    }
     if (!strcmp(encoding, "xor")) {
-        if (hex_to_bytes(key_hex, key, sizeof(key), &key_len) != 0)
+        if (hex_to_bytes(key_hex, key, sizeof(key), &key_len) != 0) {
+            set_error("invalid xor key");
             return;
+        }
         for (i = 0; i < payload_size; i++)
             payload_start[i] = (char)((unsigned char)payload_start[i] ^ key[i % key_len]);
     } else if (strcmp(encoding, "plain")) {
+        set_error("unsupported encoding");
         return;
     }
     payload_start[payload_size] = '\0';
