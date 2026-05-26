@@ -111,6 +111,15 @@
 #ifndef BB_OPERATOR_KNOWN_HOSTS_POLICY
 #define BB_OPERATOR_KNOWN_HOSTS_POLICY "off"
 #endif
+#ifndef BB_OPERATOR_FILE_SERVICE_ENABLE
+#define BB_OPERATOR_FILE_SERVICE_ENABLE "no"
+#endif
+#ifndef BB_OPERATOR_FILE_SERVICE_PORT
+#define BB_OPERATOR_FILE_SERVICE_PORT "22204"
+#endif
+#ifndef BB_OPERATOR_FILE_SERVICE_TLS
+#define BB_OPERATOR_FILE_SERVICE_TLS "yes"
+#endif
 #ifndef BB_BUILTIN_TLS_ENABLE
 #define BB_BUILTIN_TLS_ENABLE "no"
 #endif
@@ -157,6 +166,9 @@ static struct cfg_entry cfg[] = {
     {"BB_OPERATOR_TARGET_BIND_HOST", BB_OPERATOR_TARGET_BIND_HOST, "", 0},
     {"BB_OPERATOR_TARGET_DROPBEAR_PORT", BB_OPERATOR_TARGET_DROPBEAR_PORT, "", 0},
     {"BB_OPERATOR_KNOWN_HOSTS_POLICY", BB_OPERATOR_KNOWN_HOSTS_POLICY, "", 0},
+    {"BB_OPERATOR_FILE_SERVICE_ENABLE", BB_OPERATOR_FILE_SERVICE_ENABLE, "", 0},
+    {"BB_OPERATOR_FILE_SERVICE_PORT", BB_OPERATOR_FILE_SERVICE_PORT, "", 0},
+    {"BB_OPERATOR_FILE_SERVICE_TLS", BB_OPERATOR_FILE_SERVICE_TLS, "", 0},
 };
 
 static int loaded;
@@ -462,6 +474,9 @@ void bb_print_autoexec_config(void)
     printf("builtin_tls_enabled=%s\n", BB_BUILTIN_TLS_ENABLE);
     printf("rshell_operator_host=%s\n", bb_config_get("BB_OPERATOR_SERVER_HOST"));
     printf("rshell_target_dropbear_port=%s\n", bb_config_get("BB_OPERATOR_TARGET_DROPBEAR_PORT"));
+    printf("operator_file_service_enable=%s\n", bb_config_get("BB_OPERATOR_FILE_SERVICE_ENABLE"));
+    printf("operator_file_service_port=%s\n", bb_config_get("BB_OPERATOR_FILE_SERVICE_PORT"));
+    printf("operator_file_service_tls=%s\n", bb_config_get("BB_OPERATOR_FILE_SERVICE_TLS"));
     printf("autorun_guard_enabled=%s\n", bb_config_get("BB_AUTORUN_GUARD_ENABLE"));
     printf("autorun_guard_path=%s\n", bb_config_get("BB_AUTORUN_GUARD_PATH"));
     printf("autorun_reentry_action=%s\n", bb_config_get("BB_AUTORUN_REENTRY_ACTION"));

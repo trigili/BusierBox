@@ -302,6 +302,13 @@ static void write_manifest_json(FILE *out, int include_missing)
     fprintf(out, ",\"max_interval_sec\":");
     json_string_payload(out, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
     fprintf(out, "}");
+    fprintf(out, "},\"operator_services\":{\"file_service\":{\"enabled\":");
+    json_string_payload(out, BB_OPERATOR_FILE_SERVICE_ENABLE);
+    fprintf(out, ",\"port\":");
+    json_string_payload(out, BB_OPERATOR_FILE_SERVICE_PORT);
+    fprintf(out, ",\"tls\":");
+    json_string_payload(out, BB_OPERATOR_FILE_SERVICE_TLS);
+    fprintf(out, ",\"target_initiated\":true,\"receive_only\":true}");
     fprintf(out, "},\"dotfiles\":{\"enabled\":");
     json_string_payload(out, BB_DOTFILES_ENABLE);
     fprintf(out, ",\"zsh\":");
@@ -529,8 +536,46 @@ int applet_manifest_main(int argc, char **argv)
 
     if (manifest_is_help(argc, argv)) {
         puts("usage: busierbox manifest [--json|--base64] [--include-missing]");
+        puts("       busierbox manifest push [--host HOST] [--port PORT] [--tls yes|no]");
         puts("Print artifact and preset metadata embedded in this BusierBox binary.");
         return 0;
+    }
+    if (argc > 1 && !strcmp(argv[1], "push")) {
+        const char *roots[] = { BB_RUNTIME_ROOT, ".", "/tmp", NULL };
+        char path[PATH_MAX];
+        int r, rc;
+        if (argc > 2 && (!strcmp(argv[2], "--help") || !strcmp(argv[2], "-h"))) {
+            puts("usage: busierbox manifest push [--host HOST] [--port PORT] [--tls yes|no]");
+            puts("Generate manifest JSON and upload it to the receive-only operator file service.");
+            return 0;
+        }
+        for (r = 0; roots[r]; r++) {
+            int fd;
+            if (roots[r][0] && strcmp(roots[r], "."))
+                bb_mkdir_p(roots[r], 0700);
+            snprintf(path, sizeof(path), "%s/.busierbox-manifest.%ld.XXXXXX", roots[r], (long)getpid());
+            fd = mkstemp(path);
+            if (fd < 0)
+                continue;
+            {
+                FILE *fp = fdopen(fd, "w");
+                if (!fp) {
+                    close(fd);
+                    unlink(path);
+                    continue;
+                }
+                write_manifest_json(fp, include_missing);
+                if (fclose(fp) != 0) {
+                    unlink(path);
+                    continue;
+                }
+            }
+            rc = bb_operator_upload_file(path, "busierbox-manifest.json", "manifest", argc - 2, argv + 2);
+            unlink(path);
+            return rc;
+        }
+        fputs("manifest: unable to create temporary manifest JSON\n", stderr);
+        return 1;
     }
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--json"))

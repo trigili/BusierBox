@@ -100,6 +100,7 @@ for key in (
     "BB_ZERO_ARG_MODE",
     "BB_RSHELL_TRANSPORT",
     "BB_OPERATOR_SERVER_HOST",
+    "BB_OPERATOR_FILE_SERVICE_PORT",
 ):
     if key not in manifest["compiled_config"]:
         raise SystemExit(f"manifest-metadata: compiled_config missing {key}")
@@ -122,6 +123,14 @@ checks = [
 for got, want, name in checks:
     if got != want:
         raise SystemExit(f"manifest-metadata: {name} mismatch: manifest={got!r} config-info={want!r}")
+
+file_service = manifest.get("operator_services", {}).get("file_service", {})
+if file_service.get("port") != manifest["effective_config"]["BB_OPERATOR_FILE_SERVICE_PORT"]:
+    raise SystemExit("manifest-metadata: file service port does not match effective config")
+if file_service.get("tls") != manifest["effective_config"]["BB_OPERATOR_FILE_SERVICE_TLS"]:
+    raise SystemExit("manifest-metadata: file service tls does not match effective config")
+if file_service.get("target_initiated") is not True or file_service.get("receive_only") is not True:
+    raise SystemExit("manifest-metadata: file service safety metadata missing")
 
 retry = manifest["rshell"]["retry"]
 for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec"]:

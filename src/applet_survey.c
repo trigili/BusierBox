@@ -532,8 +532,50 @@ int applet_survey_main(int argc, char **argv)
 
     if (is_help(argc, argv)) {
         puts("usage: busierbox survey [--json] [--shell-probe] [--shell-script] [--write-shell-script PATH]");
+        puts("       busierbox survey push [--host HOST] [--port PORT] [--tls yes|no]");
         puts("Print embedded Linux target triage.");
         return 0;
+    }
+    if (argc > 1 && !strcmp(argv[1], "push")) {
+        const char *roots[] = { ".", "/tmp", NULL };
+        char path[PATH_MAX];
+        int r;
+        if (argc > 2 && (!strcmp(argv[2], "--help") || !strcmp(argv[2], "-h"))) {
+            puts("usage: busierbox survey push [--host HOST] [--port PORT] [--tls yes|no]");
+            puts("Generate survey JSON and upload it to the receive-only operator file service.");
+            return 0;
+        }
+        for (r = 0; roots[r]; r++) {
+            int fd, saved, rc;
+            char *survey_argv[] = { "survey", "--json", NULL };
+            snprintf(path, sizeof(path), "%s/.busierbox-survey.%ld.XXXXXX", roots[r], (long)getpid());
+            fd = mkstemp(path);
+            if (fd < 0)
+                continue;
+            fflush(stdout);
+            saved = dup(STDOUT_FILENO);
+            if (saved < 0 || dup2(fd, STDOUT_FILENO) < 0) {
+                if (saved >= 0)
+                    close(saved);
+                close(fd);
+                unlink(path);
+                continue;
+            }
+            rc = applet_survey_main(2, survey_argv);
+            fflush(stdout);
+            dup2(saved, STDOUT_FILENO);
+            close(saved);
+            close(fd);
+            if (rc != 0) {
+                unlink(path);
+                return rc;
+            }
+            rc = bb_operator_upload_file(path, "busierbox-survey.json", "survey", argc - 2, argv + 2);
+            unlink(path);
+            return rc;
+        }
+        fputs("survey: unable to create temporary survey JSON\n", stderr);
+        return 1;
     }
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--json")) {

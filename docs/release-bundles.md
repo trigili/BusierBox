@@ -182,6 +182,11 @@ not send artifacts, execute commands, or provide callback RPC.
 
 ```sh
 scripts/busierbox-server --file-service --file-port 22204
+./busierbox put /tmp/evidence.txt
+./busierbox survey push
+./busierbox manifest push
+./busierbox config-push
+./busierbox evidence push
 ```
 
 Inspect and clean BusierBox-controlled runtime state:

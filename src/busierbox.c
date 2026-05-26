@@ -75,6 +75,10 @@ const struct bb_applet bb_applets[] = {
     {"recovery", applet_recovery_main, "deprecated alias for persistence"},
     {"rshell", applet_rshell_main, "start configured reverse shell transport"},
     {"plan", applet_plan_main, "preview filesystem, process, and network impact"},
+    {"put", applet_upload_main, "upload a target file to the receive-only operator service"},
+    {"upload", applet_upload_main, "alias for put"},
+    {"config-push", applet_upload_main, "upload effective runtime config to the operator service"},
+    {"evidence", applet_upload_main, "upload operator evidence to the receive-only service"},
 };
 
 const unsigned int bb_applet_count = sizeof(bb_applets) / sizeof(bb_applets[0]);

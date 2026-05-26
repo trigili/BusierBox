@@ -866,6 +866,12 @@ def write_release_quickstart(path, name):
                scripts/busierbox-server --transport ssh --ssh-port 22202
                scripts/busierbox-server --file-service --file-port 22204
 
+               ./busierbox put /tmp/evidence.txt
+               ./busierbox survey push
+               ./busierbox manifest push
+               ./busierbox config-push
+               ./busierbox evidence push
+
                The bundled server catches target-initiated reverse access and
                receive-only file uploads. It is not an artifact sender, target
                command executor, or callback RPC server.

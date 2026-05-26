@@ -7,7 +7,7 @@ CFLAGS ?= -Os -Wall -Wextra -std=c99
 CPPFLAGS ?=
 LDFLAGS ?=
 
-SRC := src/busierbox.c src/payload_runtime.c src/applet_extract.c src/applet_list.c src/applet_manifest.c src/applet_doctor.c src/applet_config_info.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/applet_fetch.c src/applet_rshell.c src/ledger.c src/runtime_paths.c src/runtime_probe.c src/json_helpers.c src/payload_extract.c src/payload_dispatch.c src/trailer_config.c src/runtime_config.c src/sha256.c
+SRC := src/busierbox.c src/payload_runtime.c src/applet_extract.c src/applet_list.c src/applet_manifest.c src/applet_doctor.c src/applet_config_info.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/applet_fetch.c src/applet_rshell.c src/applet_upload.c src/ledger.c src/runtime_paths.c src/runtime_probe.c src/json_helpers.c src/payload_extract.c src/payload_dispatch.c src/trailer_config.c src/runtime_config.c src/sha256.c
 
 .PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release verify-artifact check-buildroot-tool-mappings target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-glinet test-all
 
@@ -120,6 +120,7 @@ smoke-test:
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/recovery.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 recovery smoke unavailable"; fi
 	@tests/smoke/rshell-lifecycle.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/busierbox-server.py; else printf '%s\n' "skip: python3 server smoke unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then python3 tests/smoke/operator-upload.py dist/busierbox-native-full; else printf '%s\n' "skip: python3 operator upload smoke unavailable"; fi
 	@tests/smoke/zero-arg-autorun.sh dist/busierbox-native-full
 	@./dist/busierbox-native-full list >/dev/null
 	@if command -v python3 >/dev/null 2>&1; then ./dist/busierbox-native-full survey --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 json validation unavailable"; fi
