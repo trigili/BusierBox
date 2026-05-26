@@ -19,7 +19,7 @@ Each release contains:
 - `manifests/`: artifact manifest/config-info output when available.
 - `scripts/`: copied `artifact-config` plus wrapper helpers.
 - `docs/`: release and runtime override notes.
-- `release.json`: build status, commit, selected matrix, artifact paths, checksums, and failures.
+- `release.json`: build status, commit, safe build-host metadata, source-lock summary, selected matrix, artifact paths, checksums, and failures.
 - `SHA256SUMS.original`: pristine bundle checksums.
 
 Trailer configuration after packaging:

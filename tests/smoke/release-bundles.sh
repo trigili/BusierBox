@@ -32,6 +32,29 @@ test -f "$work/release.tar.gz"
 python3 -m json.tool "$work/release/release.json" >/dev/null
 grep -q '"release_name": "smoke"' "$work/release/release.json"
 grep -q '"build_status": "copied"' "$work/release/release.json"
+python3 - "$work/release/release.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+host = data.get("build_host", {})
+for key in ("system", "machine", "python_version"):
+    if not host.get(key):
+        raise SystemExit(f"missing build_host.{key}")
+lock = data.get("source_lock", {})
+if not lock.get("present"):
+    raise SystemExit("source_lock metadata missing")
+if lock.get("path") != "manifests/sources.lock.json":
+    raise SystemExit("source_lock path mismatch")
+if len(lock.get("sha256", "")) != 64:
+    raise SystemExit("source_lock sha256 missing")
+sources = {item.get("name"): item for item in lock.get("sources", [])}
+for name in ("buildroot", "miniz", "doom-ascii"):
+    if name not in sources:
+        raise SystemExit(f"missing source lock entry: {name}")
+    if not sources[name].get("version") or not sources[name].get("sha256"):
+        raise SystemExit(f"incomplete source lock entry: {name}")
+PY
 
 (
     cd "$work/release"

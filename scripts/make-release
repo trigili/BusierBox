@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import pathlib
+import platform
 import shutil
 import subprocess
 import sys
@@ -377,6 +378,44 @@ def make_tarball(release_dir):
     return tar_path
 
 
+def safe_build_host_metadata():
+    return {
+        "system": platform.system(),
+        "machine": platform.machine(),
+        "python_version": platform.python_version(),
+    }
+
+
+def source_lock_metadata():
+    path = ROOT / "manifests" / "sources.lock.json"
+    if not path.exists():
+        return {"present": False}
+    info = {
+        "present": True,
+        "path": "manifests/sources.lock.json",
+        "sha256": sha256_file(path),
+        "sources": [],
+    }
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        info["error"] = f"invalid json: {exc}"
+        return info
+    info["schema"] = data.get("schema")
+    for source in data.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        info["sources"].append(
+            {
+                "name": source.get("name"),
+                "version": source.get("version"),
+                "filename": source.get("filename"),
+                "sha256": source.get("sha256"),
+            }
+        )
+    return info
+
+
 def build_or_copy(job, config, release_dir, args, dry_run=False):
     resolved = resolve_job(job, config, dry_run=dry_run)
     resolved_target = resolved.get("TARGET_NAME") or job["target"]
@@ -508,6 +547,8 @@ def main(argv=None):
         "release_name": release_name,
         "timestamp": stamp,
         "git_commit": git_commit,
+        "build_host": safe_build_host_metadata(),
+        "source_lock": source_lock_metadata(),
         "matrix": {
             "path": args.matrix,
             "targets": [job["target"] for job in jobs],
