@@ -192,7 +192,7 @@ needs_cxx=0
 for tool in $BB_HEAVY_TOOLS; do
     is_pre_excluded "$tool" && continue
     case "$tool" in
-        gdbserver|mosh-client|ripgrep) needs_cxx=1 ;;
+        gdbserver|mosh-client|nmap|nmap-ncat|ripgrep) needs_cxx=1 ;;
     esac
 done
 

@@ -43,7 +43,20 @@ EOF
 BUSIERBOX_CONFIG="$work/doom.conf" scripts/gen-buildroot-defconfig mipsel-linux-2.6-uclibc-legacy >/dev/null
 grep -q '^BR2_PACKAGE_BUSIERBOX_DOOM_ASCII=y$' buildroot/generated-configs/mipsel-linux-2.6-uclibc_defconfig
 
-if [ -x runtime/payload/bin/busybox ]; then
+cat >"$work/nmap.conf" <<'EOF'
+BB_HEAVY_TOOLS="nmap nmap-ncat"
+BB_USER_OVERLAY_ENABLE="no"
+BB_USER_OVERLAY_ROOT="./overlay"
+BB_USER_OVERLAY_ALLOW_OVERRIDE="no"
+BB_RUNTIME_MODE="extract"
+BB_DOTFILES_ENABLE="no"
+EOF
+BUSIERBOX_CONFIG="$work/nmap.conf" scripts/gen-buildroot-defconfig glinet-mt7621-openwrt-musl >/dev/null
+grep -q '^BR2_TOOLCHAIN_BUILDROOT_CXX=y$' buildroot/generated-configs/mipsel-linux-4.x-musl_defconfig
+grep -q '^BR2_PACKAGE_NMAP=y$' buildroot/generated-configs/mipsel-linux-4.x-musl_defconfig
+grep -q '^BR2_PACKAGE_NMAP_NCAT=y$' buildroot/generated-configs/mipsel-linux-4.x-musl_defconfig
+
+if [ -x runtime/payload/bin/busybox ] && runtime/payload/bin/busybox --list >/dev/null 2>&1; then
     BUSIERBOX_CONFIG="$work/doom.conf" scripts/build-payload >/dev/null
     test -x runtime/payload/bin/doom
     test -f runtime/payload/share/games/doom/doom.wad
@@ -61,7 +74,7 @@ assert "doom" in m["user_provided_tools"]
 assert "doom" not in m["missing_payload_tools"]
 PY
 else
-    printf '%s\n' "skip: runtime/payload/bin/busybox missing; package-native first for doom provider smoke"
+    printf '%s\n' "skip: host-runnable runtime/payload/bin/busybox missing; package-native first for doom provider smoke"
 fi
 
 printf '%s\n' "heavy-tool-triage ok"
