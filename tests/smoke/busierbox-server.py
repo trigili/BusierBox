@@ -310,6 +310,29 @@ def main():
             print(queue_list.stdout, file=sys.stderr)
             return 1
         command_id = queue_status["command_queue"]["commands"][0]["id"]
+        mismatched_result_json = Path(tmp) / "command-result-mismatch.json"
+        mismatched_result_json.write_text(json.dumps({
+            "schema": 1,
+            "command_id": "cq-wrong",
+            "status": "completed",
+            "exit_code": 0,
+        }) + "\n", encoding="utf-8")
+        mismatched_result = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--record-command-result", command_id,
+            "--result-json", str(mismatched_result_json),
+        )
+        if mismatched_result.returncode == 0 or "command result id mismatch" not in mismatched_result.stderr:
+            print("operator command queue accepted mismatched result id", file=sys.stderr)
+            print(mismatched_result.stdout, file=sys.stderr)
+            print(mismatched_result.stderr, file=sys.stderr)
+            return 1
+        queue_after_mismatch = json.loads(queue_file.read_text(encoding="utf-8"))
+        if queue_after_mismatch["commands"][0].get("status") != "queued":
+            print("mismatched command result changed queue state", file=sys.stderr)
+            return 1
         result_json = Path(tmp) / "command-result.json"
         result_json.write_text(json.dumps({
             "schema": 1,

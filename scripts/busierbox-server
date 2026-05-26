@@ -429,6 +429,9 @@ def record_command_result(cfg, command_id, result_path):
         raise ValueError(f"command result JSON is invalid: {exc}") from exc
     if not isinstance(result, dict):
         raise ValueError("command result JSON must be an object")
+    result_command_id = str(result.get("command_id", "")).strip()
+    if result_command_id and result_command_id != str(command_id):
+        raise ValueError(f"command result id mismatch: expected {command_id}, got {result_command_id}")
     commands = data.get("commands", [])
     for rec in commands:
         if isinstance(rec, dict) and rec.get("id") == command_id:
