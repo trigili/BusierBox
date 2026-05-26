@@ -485,44 +485,6 @@ static void json_string_payload(FILE *out, const char *s)
     fputc('"', out);
 }
 
-static const char *ledger_path(char *out, size_t outsz)
-{
-    snprintf(out, outsz, "%s/run/cleanup-ledger.jsonl", BB_RUNTIME_ROOT);
-    return out;
-}
-
-static void ledger_record(const char *op, const char *path, const char *scope, const char *detail)
-{
-    char run_dir[PATH_MAX], ledger[PATH_MAX];
-    FILE *fp;
-    time_t now = time(NULL);
-
-    snprintf(run_dir, sizeof(run_dir), "%s/run", BB_RUNTIME_ROOT);
-    if (mkdir_p(run_dir, 0700) != 0)
-        return;
-    fp = fopen(ledger_path(ledger, sizeof(ledger)), "a");
-    if (!fp)
-        return;
-    fputs("{\"op\":", fp);
-    json_string_payload(fp, op);
-    fputs(",\"path\":", fp);
-    json_string_payload(fp, path);
-    fputs(",\"scope\":", fp);
-    json_string_payload(fp, scope ? scope : "runtime");
-    fprintf(fp, ",\"ts\":%ld", (long)now);
-    if (detail && *detail) {
-        fputs(",\"detail\":", fp);
-        json_string_payload(fp, detail);
-    }
-    fputs("}\n", fp);
-    fclose(fp);
-}
-
-void bb_ledger_record(const char *op, const char *path, const char *scope, const char *detail)
-{
-    ledger_record(op, path, scope, detail);
-}
-
 static int path_exists(const char *path)
 {
     return access(path, F_OK) == 0;
@@ -866,7 +828,7 @@ static int choose_extract_root(char *out, size_t outsz)
         snprintf(path, sizeof(path), "%s", roots[i]);
         if (mkdir_p(path, 0700) != 0)
             continue;
-        ledger_record("mkdir", path, "runtime", "runtime root");
+        bb_ledger_record("mkdir", path, "runtime", "runtime root");
         if (access(path, W_OK | X_OK) != 0)
             continue;
         if (dir_is_noexec(path))
@@ -1339,8 +1301,8 @@ static int extract_embedded_to_root(const struct embedded_payload *ep, const cha
     rmdir(lock);
     write_payload_id(ep, final);
     write_payload_mode(final, core_only ? "core" : "full");
-    ledger_record("extract", root, "payload", core_only ? "embedded core payload extracted" : "embedded payload extracted");
-    ledger_record("write", final, "payload", "payload root");
+    bb_ledger_record("extract", root, "payload", core_only ? "embedded core payload extracted" : "embedded payload extracted");
+    bb_ledger_record("write", final, "payload", "payload root");
     return 0;
 }
 
@@ -1382,8 +1344,8 @@ static int extract_archive_file_to_root(const char *archive, const char *root, i
             rc = rename(extracted, final);
             if (rc == 0) {
                 write_payload_mode(final, core_only ? "core" : "full");
-                ledger_record("extract", root, "payload", core_only ? "archive core payload extracted" : "archive payload extracted");
-                ledger_record("write", final, "payload", "payload root");
+                bb_ledger_record("extract", root, "payload", core_only ? "archive core payload extracted" : "archive payload extracted");
+                bb_ledger_record("write", final, "payload", "payload root");
             }
         } else {
             rc = -1;
@@ -1548,7 +1510,7 @@ static void cleanup_no_residue_root(const char *root, const char *detail)
         return;
     if (strcmp(root, BB_RUNTIME_ROOT) && strcmp(root, BB_RUNTIME_FALLBACK_ROOT))
         return;
-    ledger_record("remove", root, "runtime", detail);
+    bb_ledger_record("remove", root, "runtime", detail);
     rm_rf(root);
 }
 
@@ -2110,7 +2072,7 @@ static void write_artifact_manifest_file(const char *root)
         unlink(tmp);
         return;
     }
-    ledger_record("write", path, "runtime", "artifact manifest");
+    bb_ledger_record("write", path, "runtime", "artifact manifest");
 }
 
 int applet_manifest_main(int argc, char **argv)
@@ -2293,7 +2255,7 @@ static int rm_rf(const char *path)
 static void print_ledger_human(void)
 {
     char path[PATH_MAX], line[1024];
-    FILE *fp = fopen(ledger_path(path, sizeof(path)), "r");
+    FILE *fp = fopen(bb_ledger_path(path, sizeof(path)), "r");
     if (!fp) {
         printf("cleanup-ledger: no ledger at %s\n", path);
         return;
@@ -2306,7 +2268,7 @@ static void print_ledger_human(void)
 static int print_clean_dry_run(int include_external)
 {
     char path[PATH_MAX], line[1024];
-    FILE *fp = fopen(ledger_path(path, sizeof(path)), "r");
+    FILE *fp = fopen(bb_ledger_path(path, sizeof(path)), "r");
 
     printf("Would remove:\n");
     printf("  %s\n", BB_RUNTIME_ROOT);
@@ -2430,7 +2392,7 @@ static int remove_rshell_marked_block(const char *path)
 static int clean_external_from_ledger(void)
 {
     char ledger[PATH_MAX], line[2048];
-    FILE *fp = fopen(ledger_path(ledger, sizeof(ledger)), "r");
+    FILE *fp = fopen(bb_ledger_path(ledger, sizeof(ledger)), "r");
     int failures = 0;
 
     if (!fp)
@@ -2499,7 +2461,7 @@ int applet_cleanup_ledger_main(int argc, char **argv)
         if (!strcmp(argv[i], "--json"))
             json = 1;
 
-    fp = fopen(ledger_path(path, sizeof(path)), "r");
+    fp = fopen(bb_ledger_path(path, sizeof(path)), "r");
     if (!json) {
         print_ledger_human();
         return 0;
@@ -2555,11 +2517,11 @@ int applet_clean_main(int argc, char **argv)
     if (external && apply && clean_external_from_ledger() != 0)
         return 1;
     if (ledger) {
-        ledger_record("remove", BB_RUNTIME_ROOT, "runtime", "clean --ledger");
+        bb_ledger_record("remove", BB_RUNTIME_ROOT, "runtime", "clean --ledger");
         if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
             BB_RUNTIME_FALLBACK_ROOT[0] &&
             strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT))
-            ledger_record("remove", BB_RUNTIME_FALLBACK_ROOT, "runtime", "clean --ledger fallback root");
+            bb_ledger_record("remove", BB_RUNTIME_FALLBACK_ROOT, "runtime", "clean --ledger fallback root");
     }
     if (remove_runtime_root_checked(BB_RUNTIME_ROOT) != 0) {
         fprintf(stderr, "clean: %s\n", strerror(errno));
@@ -3069,9 +3031,9 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
         return 0;
     }
     if (uninstall) {
-        ledger_record("remove", hook, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery uninstall hook");
-        ledger_record("remove", bin, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery uninstall binary");
-        ledger_record("remove", script_dst, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery uninstall script");
+        bb_ledger_record("remove", hook, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery uninstall hook");
+        bb_ledger_record("remove", bin, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery uninstall binary");
+        bb_ledger_record("remove", script_dst, !strcmp(root, "/") ? "external" : "recovery-fakeroot", "recovery uninstall script");
         remove_recovery_block(hook, name);
         unlink(bin);
         unlink(script_dst);
@@ -3110,7 +3072,7 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
         return 1;
     }
     if (backup_status > 0)
-        ledger_record("backup", backup, !strcmp(root, "/") ? "external" : "recovery-fakeroot", hook);
+        bb_ledger_record("backup", backup, !strcmp(root, "/") ? "external" : "recovery-fakeroot", hook);
     if (append_recovery_block(hook, method, name, action, generated) != 0) {
         fprintf(stderr, "%s: cannot write hook %s: %s\n", applet, hook, strerror(errno));
         return 1;
@@ -3119,13 +3081,13 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     {
         char detail[PATH_MAX * 2];
         snprintf(detail, sizeof(detail), "recovery binary action=%s", action);
-        ledger_record("write", bin, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
+        bb_ledger_record("write", bin, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
         if (!strcmp(action, "script")) {
             snprintf(detail, sizeof(detail), "recovery script action=%s source=%s", action, script_file);
-            ledger_record("write", script_dst, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
+            bb_ledger_record("write", script_dst, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
         }
         snprintf(detail, sizeof(detail), "recovery marked hook action=%s command=%s backup=%s", action, generated, backup_status > 0 ? backup : "none");
-        ledger_record("modify", hook, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
+        bb_ledger_record("modify", hook, !strcmp(root, "/") ? "external" : "recovery-fakeroot", detail);
     }
     printf("%s: installed method=%s name=%s action=%s\n", applet, method, name, action);
     return 0;
@@ -3267,7 +3229,7 @@ static void plan_print_extract(int json)
         printf(",\"fallback_enabled\":%s", !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "true" : "false");
         fputs(",\"cleanup_ledger_path\":", stdout); {
             char ledger[PATH_MAX];
-            json_string_payload(stdout, ledger_path(ledger, sizeof(ledger)));
+            json_string_payload(stdout, bb_ledger_path(ledger, sizeof(ledger)));
         }
         printf(",\"payload_already_available\":%s,\"embedded_payload_available\":%s,\"dev_archive_available\":%s",
                have_payload ? "true" : "false", have_embedded ? "true" : "false", have_archive ? "true" : "false");
@@ -3281,7 +3243,7 @@ static void plan_print_extract(int json)
     printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
     printf("fallback_root=%s\n", BB_RUNTIME_FALLBACK_ROOT);
     printf("fallback_enabled=%s\n", !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "yes" : "no");
-    printf("cleanup_ledger_path=%s\n", ledger_path(ledger, sizeof(ledger)));
+    printf("cleanup_ledger_path=%s\n", bb_ledger_path(ledger, sizeof(ledger)));
     printf("payload_already_available=%s\n", have_payload ? "yes" : "no");
     printf("embedded_payload_available=%s\n", have_embedded ? "yes" : "no");
     printf("dev_archive_available=%s\n", have_archive ? "yes" : "no");
@@ -3304,14 +3266,14 @@ static void plan_print_clean(int json)
             json_string_payload(stdout, BB_RUNTIME_FALLBACK_ROOT);
         }
         fputs("],\"would_start\":[],\"would_connect\":[],\"requires_external_writes\":false", stdout);
-        fputs(",\"cleanup_ledger_path\":", stdout); json_string_payload(stdout, ledger_path(ledger, sizeof(ledger)));
+        fputs(",\"cleanup_ledger_path\":", stdout); json_string_payload(stdout, bb_ledger_path(ledger, sizeof(ledger)));
         plan_print_config_source_json();
         puts("}");
         return;
     }
     puts("Plan: clean");
     plan_print_config_source_text();
-    printf("cleanup_ledger_path=%s\n", ledger_path(ledger, sizeof(ledger)));
+    printf("cleanup_ledger_path=%s\n", bb_ledger_path(ledger, sizeof(ledger)));
     puts("would_remove:");
     printf("  %s\n", BB_RUNTIME_ROOT);
     if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && BB_RUNTIME_FALLBACK_ROOT[0] && strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT))
