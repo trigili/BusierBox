@@ -100,10 +100,6 @@
 #define BB_GDBSERVER_PROVIDER "auto"
 #endif
 
-#ifdef BUSIERBOX_NO_OPEN_MEMSTREAM
-#error "BusierBox manifest/config export requires open_memstream on this build; add a growable-buffer fallback before using this libc."
-#endif
-
 #ifndef BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS
 #define BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS 0
 #endif

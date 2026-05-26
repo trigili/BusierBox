@@ -258,6 +258,103 @@ static int manifest_mkdir_p(const char *path, mode_t mode)
     return 0;
 }
 
+typedef int (*manifest_capture_writer)(FILE *out, void *ctx);
+
+static FILE *manifest_temp_stream(void)
+{
+    const char *roots[] = { BB_RUNTIME_ROOT, ".", "/tmp", NULL };
+    char path[PATH_MAX];
+    int i;
+
+    for (i = 0; roots[i]; i++) {
+        int fd;
+
+        if (!roots[i][0])
+            continue;
+        if (strcmp(roots[i], ".") && manifest_mkdir_p(roots[i], 0700) != 0)
+            continue;
+        snprintf(path, sizeof(path), "%s/.busierbox-capture.%ld.XXXXXX", roots[i], (long)getpid());
+        fd = mkstemp(path);
+        if (fd < 0)
+            continue;
+        unlink(path);
+        {
+            FILE *fp = fdopen(fd, "w+");
+            if (fp)
+                return fp;
+        }
+        close(fd);
+    }
+    return NULL;
+}
+
+static char *read_temp_stream(FILE *fp, size_t *len_out)
+{
+    long end;
+    size_t len;
+    char *buf;
+
+    if (fflush(fp) != 0 || fseek(fp, 0, SEEK_END) != 0)
+        return NULL;
+    end = ftell(fp);
+    if (end < 0 || fseek(fp, 0, SEEK_SET) != 0)
+        return NULL;
+    len = (size_t)end;
+    buf = malloc(len + 1);
+    if (!buf)
+        return NULL;
+    if (len && fread(buf, 1, len, fp) != len) {
+        free(buf);
+        return NULL;
+    }
+    buf[len] = '\0';
+    if (len_out)
+        *len_out = len;
+    return buf;
+}
+
+static char *capture_json_alloc(manifest_capture_writer writer, void *ctx, size_t *len_out)
+{
+    char *buf = NULL;
+    size_t len = 0;
+    FILE *fp;
+
+#ifndef BUSIERBOX_NO_OPEN_MEMSTREAM
+    fp = open_memstream(&buf, &len);
+    if (!fp)
+        return NULL;
+    if (writer(fp, ctx) != 0) {
+        fclose(fp);
+        free(buf);
+        return NULL;
+    }
+    if (fclose(fp) != 0) {
+        free(buf);
+        return NULL;
+    }
+#else
+    fp = manifest_temp_stream();
+    if (!fp)
+        return NULL;
+    if (writer(fp, ctx) != 0) {
+        fclose(fp);
+        return NULL;
+    }
+    buf = read_temp_stream(fp, &len);
+    if (fclose(fp) != 0) {
+        free(buf);
+        return NULL;
+    }
+    if (!buf)
+        return NULL;
+#endif
+    if (len && buf[len - 1] == '\n')
+        buf[--len] = '\0';
+    if (len_out)
+        *len_out = len;
+    return buf;
+}
+
 static void write_manifest_json(FILE *out)
 {
     int i;
@@ -428,24 +525,16 @@ static int base64_write_bytes(const unsigned char *data, size_t len)
     return ferror(stdout) ? 1 : 0;
 }
 
+static int write_manifest_json_capture(FILE *out, void *ctx)
+{
+    (void)ctx;
+    write_manifest_json(out);
+    return ferror(out) ? -1 : 0;
+}
+
 static char *manifest_json_alloc(size_t *len_out)
 {
-    char *buf = NULL;
-    size_t len = 0;
-    FILE *fp = open_memstream(&buf, &len);
-
-    if (!fp)
-        return NULL;
-    write_manifest_json(fp);
-    if (fclose(fp) != 0) {
-        free(buf);
-        return NULL;
-    }
-    if (len && buf[len - 1] == '\n')
-        buf[--len] = '\0';
-    if (len_out)
-        *len_out = len;
-    return buf;
+    return capture_json_alloc(write_manifest_json_capture, NULL, len_out);
 }
 
 static int print_manifest_base64(void)
@@ -474,23 +563,15 @@ static int write_config_export_json(FILE *out)
     return ferror(out) ? -1 : 0;
 }
 
+static int write_config_export_json_capture(FILE *out, void *ctx)
+{
+    (void)ctx;
+    return write_config_export_json(out);
+}
+
 static char *config_export_json_alloc(size_t *len_out)
 {
-    char *buf = NULL;
-    size_t len = 0;
-    FILE *fp = open_memstream(&buf, &len);
-
-    if (!fp)
-        return NULL;
-    if (write_config_export_json(fp) != 0 || fclose(fp) != 0) {
-        free(buf);
-        return NULL;
-    }
-    if (len && buf[len - 1] == '\n')
-        buf[--len] = '\0';
-    if (len_out)
-        *len_out = len;
-    return buf;
+    return capture_json_alloc(write_config_export_json_capture, NULL, len_out);
 }
 
 static int print_config_export_base64(void)
@@ -508,34 +589,35 @@ static int print_config_export_base64(void)
     return rc;
 }
 
+static int write_support_token_json_capture(FILE *out, void *ctx)
+{
+    const char *manifest = ctx;
+
+    fprintf(out, "{\"schema\":1,\"kind\":\"busierbox-support-token\",");
+    fprintf(out, "\"warning\":\"operator host and ports may be embedded; private key material is not included\",");
+    fprintf(out, "\"manifest\":%s}", manifest);
+    return ferror(out) ? -1 : 0;
+}
+
 int bb_print_support_token(void)
 {
     char *manifest = manifest_json_alloc(NULL);
     char *token = NULL;
     size_t token_len = 0;
-    FILE *fp;
     int rc;
 
     if (!manifest) {
         fputs("doctor: cannot allocate manifest buffer\n", stderr);
         return 1;
     }
-    fp = open_memstream(&token, &token_len);
-    if (!fp) {
+    token = capture_json_alloc(write_support_token_json_capture, manifest, &token_len);
+    if (!token) {
         free(manifest);
-        fputs("doctor: cannot allocate support token buffer\n", stderr);
-        return 1;
-    }
-    fprintf(fp, "{\"schema\":1,\"kind\":\"busierbox-support-token\",");
-    fprintf(fp, "\"warning\":\"operator host and ports may be embedded; private key material is not included\",");
-    fprintf(fp, "\"manifest\":%s}", manifest);
-    free(manifest);
-    if (fclose(fp) != 0) {
-        free(token);
         fputs("doctor: cannot finalize support token\n", stderr);
         return 1;
     }
     rc = base64_write_bytes((const unsigned char *)token, token_len);
+    free(manifest);
     free(token);
     return rc;
 }
