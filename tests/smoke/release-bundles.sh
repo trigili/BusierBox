@@ -49,6 +49,40 @@ if scripts/make-release --name bad --matrix "$work/bad-payload.json" --dry-run >
 fi
 grep -q 'missing payload preset no-such-payload' "$work/bad-payload.err"
 
+cat >"$work/base-a.conf" <<'EOF'
+BB_ZERO_ARG_MODE="help"
+BB_RUNTIME_MODE="extract"
+EOF
+cat >"$work/base-b.conf" <<'EOF'
+BB_ZERO_ARG_MODE="help"
+BB_RUNTIME_MODE="core-only"
+EOF
+cat >"$work/config-matrix.json" <<EOF
+{
+  "name": "config-matrix",
+  "targets": ["native"],
+  "payload_presets": ["default"],
+  "configs": ["$work/base-a.conf", "$work/base-b.conf"]
+}
+EOF
+scripts/make-release --name config-matrix --matrix "$work/config-matrix.json" --dry-run >"$work/config-matrix.out"
+grep -q "would build target=native payload=default format=tgz config=$work/base-a.conf" "$work/config-matrix.out"
+grep -q "would build target=native payload=default format=tgz config=$work/base-b.conf" "$work/config-matrix.out"
+
+cat >"$work/bad-config.json" <<EOF
+{
+  "name": "bad-config",
+  "targets": ["native"],
+  "payload_presets": ["default"],
+  "configs": ["$work/no-such.conf"]
+}
+EOF
+if scripts/make-release --name bad --matrix "$work/bad-config.json" --dry-run >"$work/bad-config.out" 2>"$work/bad-config.err"; then
+    printf '%s\n' "expected bad config matrix to fail" >&2
+    exit 1
+fi
+grep -q "missing config $work/no-such.conf" "$work/bad-config.err"
+
 if [ ! -x dist/busierbox-native-full ]; then
     BUSIERBOX_CONFIG=presets/payload/default.conf BB_BUSYBOX_GROUPS="shell fileops disk process network text system" make package-native >/dev/null
 fi
@@ -94,6 +128,34 @@ for name in ("buildroot", "miniz", "doom-ascii"):
         raise SystemExit(f"missing source lock entry: {name}")
     if not sources[name].get("version") or not sources[name].get("sha256"):
         raise SystemExit(f"incomplete source lock entry: {name}")
+PY
+
+scripts/make-release \
+    --name config-smoke \
+    --matrix "$work/config-matrix.json" \
+    --skip-build \
+    --out-dir "$work/config-release" >"$work/config-release.out"
+test -x "$work/config-release/bin/busierbox-native-default-base-a-full"
+test -x "$work/config-release/bin/busierbox-native-default-base-b-full"
+test -f "$work/config-release/configs/native-default-base-a.conf"
+test -f "$work/config-release/configs/native-default-base-b.conf"
+grep -q '^BB_RUNTIME_MODE="extract"$' "$work/config-release/configs/native-default-base-a.conf"
+grep -q '^BB_RUNTIME_MODE="core-only"$' "$work/config-release/configs/native-default-base-b.conf"
+python3 - "$work/config-release/release.json" "$work/base-a.conf" "$work/base-b.conf" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+configs = data.get("matrix", {}).get("configs", [])
+for expected in sys.argv[2:]:
+    if expected not in configs:
+        raise SystemExit(f"missing matrix config: {expected}")
+artifacts = data.get("artifacts", [])
+if len(artifacts) != 2:
+    raise SystemExit("expected two config matrix artifacts")
+for item in artifacts:
+    if not item.get("base_config"):
+        raise SystemExit("artifact missing base_config")
 PY
 
 (

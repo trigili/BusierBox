@@ -22,6 +22,11 @@ Each release contains:
 - `release.json`: build status, commit, safe build-host metadata, source-lock summary, selected matrix, artifact paths, checksums, and failures.
 - `SHA256SUMS.original`: pristine bundle checksums.
 
+Matrix files can include a `configs` list. Each listed config is used as a
+base config for every selected target/payload/format combination, and
+`scripts/make-release` writes generated per-combination configs under
+`configs/` without modifying the source config.
+
 Trailer configuration after packaging:
 
 ```sh

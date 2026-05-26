@@ -62,6 +62,7 @@ def selected_jobs(args, data):
     payloads = csv_items(args.payload_presets) or data.get("payload_presets") or data.get("payloads") or ["default"]
     formats = csv_items(args.formats) or data.get("formats") or ["tgz"]
     runtime_modes = csv_items(args.runtime_modes) or data.get("runtime_modes") or [None]
+    config_sources = [args.config] if args.config else data.get("configs") or [None]
     if targets == ["all"]:
         targets = matrix.list_targets()
     if payloads == ["all"]:
@@ -72,19 +73,23 @@ def selected_jobs(args, data):
         for payload in payloads:
             for fmt in formats:
                 for runtime_mode in runtime_modes:
-                    name = f"{target}-{payload}-{fmt}"
-                    if runtime_mode:
-                        name = f"{name}-{runtime_mode}"
-                    jobs.append(
-                        {
-                            "name": name,
-                            "target": target,
-                            "payload": payload,
-                            "format": fmt,
-                            "runtime_mode": runtime_mode,
-                            "variant": {},
-                        }
-                    )
+                    for config_source in config_sources:
+                        config_label = pathlib.Path(config_source).stem if config_source else None
+                        config_suffix = f"-{config_label}" if config_label else ""
+                        name = f"{target}-{payload}{config_suffix}-{fmt}"
+                        if runtime_mode:
+                            name = f"{name}-{runtime_mode}"
+                        jobs.append(
+                            {
+                                "name": name,
+                                "target": target,
+                                "payload": payload,
+                                "format": fmt,
+                                "runtime_mode": runtime_mode,
+                                "config_source": config_source,
+                                "variant": {},
+                            }
+                        )
     return jobs
 
 
@@ -92,6 +97,7 @@ def validate_selected_jobs(jobs):
     errors = []
     seen_payloads = set()
     seen_targets = set()
+    seen_configs = set()
 
     for job in jobs:
         payload = job["payload"]
@@ -108,8 +114,24 @@ def validate_selected_jobs(jobs):
             except RuntimeError as exc:
                 errors.append(f"unresolved target {target}: {exc}")
 
+        config_source = job.get("config_source")
+        if config_source and config_source not in seen_configs:
+            seen_configs.add(config_source)
+            if not pathlib.Path(config_source).is_file():
+                errors.append(f"missing config {config_source}")
+
     if errors:
         die("invalid release selection:\n  " + "\n  ".join(errors))
+
+
+def config_label(job):
+    source = job.get("config_source")
+    return safe_stem(pathlib.Path(source).stem) if source else ""
+
+
+def config_suffix(job):
+    label = config_label(job)
+    return f"-{label}" if label else ""
 
 
 def safe_stem(value):
@@ -444,8 +466,8 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
     resolved = resolve_job(job, config, dry_run=dry_run)
     resolved_target = resolved.get("TARGET_NAME") or job["target"]
     runtime_suffix = f"-{safe_stem(job['runtime_mode'])}" if job.get("runtime_mode") else ""
-    config_stem = f"{safe_stem(job['target'])}-{safe_stem(job['payload'])}{runtime_suffix}"
-    stem = f"busierbox-{safe_stem(resolved_target)}-{safe_stem(job['payload'])}{runtime_suffix}-full"
+    config_stem = f"{safe_stem(job['target'])}-{safe_stem(job['payload'])}{config_suffix(job)}{runtime_suffix}"
+    stem = f"busierbox-{safe_stem(resolved_target)}-{safe_stem(job['payload'])}{config_suffix(job)}{runtime_suffix}-full"
     rec = {
         "name": job["name"],
         "target": job["target"],
@@ -453,6 +475,7 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
         "payload_preset": job["payload"],
         "format": job["format"],
         "runtime_mode": job.get("runtime_mode"),
+        "base_config": job.get("config_source"),
         "config": f"configs/{config_stem}.conf",
         "artifact": f"bin/{stem}",
         "build_status": "dry-run" if dry_run else "pending",
@@ -537,7 +560,8 @@ def main(argv=None):
         print(f"release_dir={release_dir}")
         for job in jobs:
             runtime = f" runtime={job['runtime_mode']}" if job.get("runtime_mode") else ""
-            print(f"would build target={job['target']} payload={job['payload']} format={job['format']}{runtime}")
+            config = f" config={job['config_source']}" if job.get("config_source") else ""
+            print(f"would build target={job['target']} payload={job['payload']} format={job['format']}{runtime}{config}")
         return 0
 
     for sub in ("bin", "configs", "manifests", "logs", "scripts", "docs"):
@@ -549,9 +573,9 @@ def main(argv=None):
     git_commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, stdout=subprocess.PIPE, check=False).stdout.strip()
     for job in jobs:
         runtime_suffix = f"-{safe_stem(job['runtime_mode'])}" if job.get("runtime_mode") else ""
-        config_stem = f"{safe_stem(job['target'])}-{safe_stem(job['payload'])}{runtime_suffix}"
+        config_stem = f"{safe_stem(job['target'])}-{safe_stem(job['payload'])}{config_suffix(job)}{runtime_suffix}"
         config = release_dir / "configs" / f"{config_stem}.conf"
-        write_config(config, job, base_config=args.config)
+        write_config(config, job, base_config=job.get("config_source"))
         try:
             rec = build_or_copy(job, config, release_dir, args)
         except Exception as exc:
@@ -578,6 +602,7 @@ def main(argv=None):
             "path": args.matrix,
             "targets": [job["target"] for job in jobs],
             "payload_presets": [job["payload"] for job in jobs],
+            "configs": [job.get("config_source") for job in jobs if job.get("config_source")],
             "formats": [job["format"] for job in jobs],
             "runtime_modes": [job.get("runtime_mode") for job in jobs if job.get("runtime_mode")],
             "reverse_access_profiles": csv_items(args.reverse_access_profiles),
