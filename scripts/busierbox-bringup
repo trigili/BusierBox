@@ -197,6 +197,40 @@ next_target = [
 if env("STAGED_FETCH_COMMAND"):
     next_target.append(env("STAGED_FETCH_COMMAND"))
 
+recommendation_summary = {}
+recommendation_path = env("RECOMMENDATION_JSON")
+if recommendation_path and os.path.exists(recommendation_path):
+    try:
+        with open(recommendation_path, "r", encoding="utf-8") as fh:
+            recommendation_doc = json.load(fh)
+        recs = recommendation_doc.get("recommendations") or {}
+        facts = recommendation_doc.get("facts") or {}
+        recommendation_summary = {
+            "warnings": recommendation_doc.get("warnings") or [],
+            "facts": {
+                "arch": facts.get("arch", ""),
+                "libc": facts.get("libc", ""),
+                "kernel_floor": facts.get("kernel_floor", ""),
+                "endianness": facts.get("endianness", ""),
+                "payload_possible": facts.get("payload_possible", ""),
+                "recommended_extract_dir": facts.get("recommended_extract_dir", ""),
+                "reality": facts.get("reality") or {},
+            },
+            "config": {
+                key: recs.get(key, "")
+                for key in (
+                    "BB_TARGET_PRESET",
+                    "BB_PAYLOAD_PRESET",
+                    "BB_RUNTIME_MODE",
+                    "BB_RUNTIME_ROOT",
+                    "BB_RSHELL_TRANSPORT",
+                    "BB_ZERO_ARG_MODE",
+                )
+            },
+        }
+    except Exception as exc:
+        recommendation_summary = {"warning": f"could not parse recommendation JSON: {exc}"}
+
 doc = {
     "schema": 1,
     "status": env("STATUS"),
@@ -210,6 +244,7 @@ doc = {
     "reality_json": maybe_file(env("REALITY_JSON")),
     "recommendation_json": env("RECOMMENDATION_JSON"),
     "recommended_config": env("RECOMMENDED_CONFIG"),
+    "recommendation": recommendation_summary,
     "recommended_target_preset": env("TARGET_PRESET_PATH"),
     "release_dir": env("RELEASE_DIR"),
     "release_find_json": maybe_file(env("RELEASE_FIND_JSON")),
@@ -304,17 +339,22 @@ PY
 choose_release_artifact() {
     [ -n "$release_dir" ] || return 0
     release_find_json="$run_dir/release-find.json"
-    reality_args=
     if [ -f "$reality" ]; then
-        reality_args="--reality-json $(shell_quote "$reality")"
-    fi
-    # shellcheck disable=SC2086 # reality_args is assembled from fixed flags plus shell-quoted path.
-    if scripts/release-find --release-dir "$release_dir" --survey-json "$survey" $reality_args --json >"$release_find_json" 2>"$run_dir/release-find.err"; then
-        eval "$(extract_release_selection)"
+        if scripts/release-find --release-dir "$release_dir" --survey-json "$survey" --reality-json "$reality" --json >"$release_find_json" 2>"$run_dir/release-find.err"; then
+            eval "$(extract_release_selection)"
+        else
+            write_summary fail "release artifact selection failed"
+            printf '%s\n' "bringup: release artifact selection failed; see $run_dir/release-find.err" >&2
+            exit 1
+        fi
     else
-        write_summary fail "release artifact selection failed"
-        printf '%s\n' "bringup: release artifact selection failed; see $run_dir/release-find.err" >&2
-        exit 1
+        if scripts/release-find --release-dir "$release_dir" --survey-json "$survey" --json >"$release_find_json" 2>"$run_dir/release-find.err"; then
+            eval "$(extract_release_selection)"
+        else
+            write_summary fail "release artifact selection failed"
+            printf '%s\n' "bringup: release artifact selection failed; see $run_dir/release-find.err" >&2
+            exit 1
+        fi
     fi
 }
 

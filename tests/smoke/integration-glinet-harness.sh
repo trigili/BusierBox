@@ -54,10 +54,13 @@ print(json.dumps({
 PY
 chmod +x "$release_tmp/scripts/release-find"
 cat >"$release_tmp/reality.json" <<'JSON'
-{"schema":1,"checks":[{"name":"runtime_root_executable","status":"pass","ok":true,"available":true,"detail":"ok"}]}
+{"schema":1,"checks":[
+  {"name":"runtime_root_executable","type":"capability","status":"pass","ok":true,"available":true,"skipped":false,"detail":"ok"},
+  {"name":"tmp_noexec","type":"constraint","status":"pass","ok":true,"detected":true,"skipped":false,"detail":"detected"}
+]}
 JSON
 release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --reality-json "$release_tmp/reality.json" --release-dir "$release_tmp" --configure-trailer --json)
-printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["compatibility"]["label"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert d["reality_json"]; assert "artifact-config set" in d["generated_trailer_override_command"]'
+printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["compatibility"]["label"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert d["reality_json"]; assert "artifact-config set" in d["generated_trailer_override_command"]; assert d["recommendation"]["config"]["BB_RUNTIME_MODE"] == "extract"; assert d["recommendation"]["facts"]["reality"]["tmp_noexec_detected"] is True; assert any("reality-test detected /tmp noexec" in w for w in d["recommendation"]["warnings"])'
 rm -rf "$release_tmp"
 grep -q 'BUSIERBOX_CONFIG="$recommended" make package' scripts/busierbox-bringup
 grep -q 'Bringup is a guided onboarding flow' README.md
