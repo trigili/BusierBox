@@ -1,7 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <errno.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +9,7 @@
 #include "applets.h"
 #include "json_helpers.h"
 #include "runtime_config.h"
-#include "sha256.h"
+#include "trailer_config.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -165,36 +164,6 @@ static int override_count;
 static char trailer_error[160] = "not loaded";
 static char trailer_encoding[16] = "none";
 
-static int hexval(int c)
-{
-    if (c >= '0' && c <= '9')
-        return c - '0';
-    if (c >= 'a' && c <= 'f')
-        return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F')
-        return c - 'A' + 10;
-    return -1;
-}
-
-static int hex_to_bytes(const char *hex, unsigned char *out, size_t outsz, size_t *len_out)
-{
-    size_t i, n;
-    if (!hex)
-        return -1;
-    n = strlen(hex);
-    if (!n || (n % 2) || n / 2 > outsz)
-        return -1;
-    for (i = 0; i < n; i += 2) {
-        int hi = hexval((unsigned char)hex[i]);
-        int lo = hexval((unsigned char)hex[i + 1]);
-        if (hi < 0 || lo < 0)
-            return -1;
-        out[i / 2] = (unsigned char)((hi << 4) | lo);
-    }
-    *len_out = n / 2;
-    return 0;
-}
-
 static struct cfg_entry *find_entry(const char *key)
 {
     size_t i;
@@ -211,30 +180,6 @@ static int self_path(char *out, size_t outsz)
         return -1;
     out[n] = '\0';
     return 0;
-}
-
-size_t bb_config_file_trailer_span(const char *path)
-{
-    FILE *fp;
-    long fsize;
-    char magic[sizeof(BB_CONFIG_TRAILER_MAGIC)];
-    size_t magic_len = strlen(BB_CONFIG_TRAILER_MAGIC);
-    if (!path)
-        return 0;
-    fp = fopen(path, "rb");
-    if (!fp)
-        return 0;
-    if (fseek(fp, 0, SEEK_END) != 0 || (fsize = ftell(fp)) < (long)BB_CONFIG_TRAILER_SIZE) {
-        fclose(fp);
-        return 0;
-    }
-    if (fseek(fp, fsize - BB_CONFIG_TRAILER_SIZE, SEEK_SET) != 0 ||
-        fread(magic, 1, magic_len, fp) != magic_len) {
-        fclose(fp);
-        return 0;
-    }
-    fclose(fp);
-    return memcmp(magic, BB_CONFIG_TRAILER_MAGIC, magic_len) == 0 ? BB_CONFIG_TRAILER_SIZE : 0;
 }
 
 static void set_error(const char *s)
@@ -300,19 +245,7 @@ static int parse_kv_payload(char *payload)
 static void load_config(void)
 {
     char path[PATH_MAX];
-    unsigned char raw[BB_CONFIG_TRAILER_SIZE + 1];
-    unsigned char payload[BB_CONFIG_TRAILER_SIZE + 1];
-    char meta[BB_CONFIG_TRAILER_SIZE + 1];
-    char *raw_text = (char *)raw;
-    char *line, *save = NULL, *payload_start = NULL;
-    char version[16] = "", encoding[16] = "plain", payload_format[16] = "raw", sha[65] = "", key_hex[129] = "";
-    unsigned long payload_size = 0, payload_offset = 0;
-    unsigned char key[64], hash[32];
-    char got[65];
-    size_t key_len = 0, payload_len = 0;
-    FILE *fp;
-    long fsize;
-    size_t i;
+    struct bb_config_trailer trailer;
 
     if (loaded)
         return;
@@ -325,110 +258,20 @@ static void load_config(void)
 
     if (self_path(path, sizeof(path)) != 0)
         return;
-    if (!bb_config_file_trailer_span(path))
+    bb_config_read_trailer_file(path, &trailer);
+    trailer_present = trailer.present;
+    trailer_valid = trailer.valid;
+    snprintf(trailer_encoding, sizeof(trailer_encoding), "%s", trailer.encoding);
+    set_error(trailer.error);
+    if (!trailer.present || !trailer.valid)
         return;
-    trailer_present = 1;
-    snprintf(trailer_encoding, sizeof(trailer_encoding), "unknown");
-    set_error("invalid");
-    fp = fopen(path, "rb");
-    if (!fp)
-        return;
-    if (fseek(fp, 0, SEEK_END) != 0 || (fsize = ftell(fp)) < (long)BB_CONFIG_TRAILER_SIZE ||
-        fseek(fp, fsize - BB_CONFIG_TRAILER_SIZE, SEEK_SET) != 0 ||
-        fread(raw, 1, BB_CONFIG_TRAILER_SIZE, fp) != BB_CONFIG_TRAILER_SIZE) {
-        fclose(fp);
-        return;
-    }
-    fclose(fp);
-    raw[BB_CONFIG_TRAILER_SIZE] = '\0';
-    memcpy(meta, raw, BB_CONFIG_TRAILER_SIZE + 1);
-
-    line = strtok_r(meta, "\n", &save);
-    if (!line || strcmp(line, BB_CONFIG_TRAILER_MAGIC))
-        return;
-    snprintf(trailer_encoding, sizeof(trailer_encoding), "%s", encoding);
-    while ((line = strtok_r(NULL, "\n", &save)) != NULL) {
-        char *eq;
-        if (!strcmp(line, "ENDMETA")) {
-            payload_start = raw_text + (line + strlen(line) + 1 - meta);
-            break;
-        }
-        eq = strchr(line, '=');
-        if (!eq)
-            continue;
-        *eq++ = '\0';
-        if (!strcmp(line, "version"))
-            snprintf(version, sizeof(version), "%s", eq);
-        else if (!strcmp(line, "encoding"))
-            snprintf(encoding, sizeof(encoding), "%s", eq);
-        else if (!strcmp(line, "payload_format"))
-            snprintf(payload_format, sizeof(payload_format), "%s", eq);
-        else if (!strcmp(line, "size"))
-            payload_size = strtoul(eq, NULL, 10);
-        else if (!strcmp(line, "payload_offset"))
-            payload_offset = strtoul(eq, NULL, 10);
-        else if (!strcmp(line, "sha256"))
-            snprintf(sha, sizeof(sha), "%s", eq);
-        else if (!strcmp(line, "key_hex"))
-            snprintf(key_hex, sizeof(key_hex), "%s", eq);
-    }
-    snprintf(trailer_encoding, sizeof(trailer_encoding), "%s", encoding);
-    if (strcmp(version, "1")) {
-        set_error("unsupported version");
-        return;
-    }
-    if (!payload_start || payload_size == 0 || payload_size >= BB_CONFIG_TRAILER_SIZE || strlen(sha) != 64) {
-        set_error("payload bounds invalid");
-        return;
-    }
-    if (payload_offset != (unsigned long)(payload_start - (char *)raw) ||
-        payload_offset + payload_size > BB_CONFIG_TRAILER_SIZE) {
-        set_error("payload bounds invalid");
-        return;
-    }
-    if (!strcmp(payload_format, "hex")) {
-        if (hex_to_bytes(payload_start, payload, sizeof(payload) - 1, &payload_len) != 0 ||
-            payload_len == 0 || payload_size != strlen(payload_start)) {
-            set_error("invalid hex payload");
-            return;
-        }
-    } else if (!strcmp(payload_format, "raw")) {
-        memcpy(payload, payload_start, payload_size);
-        payload_len = payload_size;
-    } else {
-        set_error("unsupported payload format");
-        return;
-    }
-    if (!strcmp(encoding, "xor")) {
-        if (hex_to_bytes(key_hex, key, sizeof(key), &key_len) != 0) {
-            set_error("invalid xor key");
-            return;
-        }
-        for (i = 0; i < payload_len; i++)
-            payload[i] = (unsigned char)(payload[i] ^ key[i % key_len]);
-    } else if (strcmp(encoding, "plain")) {
-        set_error("unsupported encoding");
-        return;
-    }
-    payload[payload_len] = '\0';
-    {
-        bb_sha256_ctx ctx;
-        bb_sha256_init(&ctx);
-        bb_sha256_update(&ctx, payload, payload_len);
-        bb_sha256_final(&ctx, hash);
-    }
-    bb_sha256_hex(hash, got);
-    if (strcmp(got, sha)) {
-        set_error("checksum mismatch");
-        return;
-    }
-    override_count = parse_kv_payload((char *)payload);
+    override_count = parse_kv_payload(trailer.payload);
     if (override_count < 0) {
         override_count = 0;
+        trailer_valid = 0;
         set_error("secret-like trailer value");
         return;
     }
-    trailer_valid = 1;
     set_error("ok");
 }
 
@@ -448,6 +291,11 @@ const char *bb_config_get(const char *key)
     struct cfg_entry *ent;
     const char *env;
     load_config();
+    /*
+     * Runtime configuration precedence is intentionally narrow and visible:
+     * compiled defaults are the baseline, a valid trailer may override only
+     * cfg[] keys, and environment variables win for operator-side debugging.
+     */
     env = getenv(key);
     if (env && *env)
         return env;

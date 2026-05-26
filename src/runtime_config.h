@@ -4,8 +4,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#define BB_CONFIG_TRAILER_SIZE 4096
-#define BB_CONFIG_TRAILER_MAGIC "BBXCONFIGv1"
+#include "trailer_config.h"
 
 const char *bb_config_get(const char *key);
 const char *bb_config_compiled(const char *key);
