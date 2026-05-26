@@ -89,25 +89,6 @@ static int mkdir_p(const char *path, mode_t mode)
     return 0;
 }
 
-static char *read_text_file(const char *path, size_t max)
-{
-    FILE *fp = fopen(path, "rb");
-    char *buf;
-    size_t n;
-
-    if (!fp)
-        return NULL;
-    buf = (char *)malloc(max + 1);
-    if (!buf) {
-        fclose(fp);
-        return NULL;
-    }
-    n = fread(buf, 1, max, fp);
-    buf[n] = '\0';
-    fclose(fp);
-    return buf;
-}
-
 static const char *payload_base_name(const char *path)
 {
     const char *slash;
@@ -345,7 +326,7 @@ static int recovery_status_one(const char *root, const struct recovery_method *m
     char *begin, *end, *line;
     recovery_join(path, sizeof(path), root, m->path);
     snprintf(marker, sizeof(marker), "BEGIN BUSIERBOX RECOVERY %s", name);
-    text = read_text_file(path, 1024 * 1024);
+    text = bb_read_text_file(path, 1024 * 1024);
     if (!text)
         return 0;
     begin = strstr(text, marker);

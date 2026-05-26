@@ -19,6 +19,7 @@ int bb_dev_payload_archive_available(void);
 const char *bb_ledger_path(char *out, size_t outsz);
 void bb_ledger_record(const char *op, const char *path, const char *scope, const char *detail);
 int bb_rm_rf(const char *path);
+char *bb_read_text_file(const char *path, size_t max_bytes);
 int bb_clean_external_from_ledger(void);
 void bb_set_argv0(const char *argv0);
 void bb_print_applet_list(FILE *out);
