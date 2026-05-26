@@ -1795,42 +1795,6 @@ int applet_extract_main(int argc, char **argv)
     return 0;
 }
 
-static int path_entry_count(const char *path, const char *entry)
-{
-    char *dup, *save = NULL, *p;
-    int count = 0;
-    if (!path || !entry || !*entry)
-        return 0;
-    dup = strdup(path);
-    if (!dup)
-        return 0;
-    for (p = strtok_r(dup, ":", &save); p; p = strtok_r(NULL, ":", &save)) {
-        if (!strcmp(*p ? p : ".", entry))
-            count++;
-    }
-    free(dup);
-    return count;
-}
-
-static int path_has_duplicate_entries(const char *path)
-{
-    char *outer, *save = NULL, *p;
-    int dup = 0;
-    if (!path)
-        return 0;
-    outer = strdup(path);
-    if (!outer)
-        return 0;
-    for (p = strtok_r(outer, ":", &save); p; p = strtok_r(NULL, ":", &save)) {
-        if (path_entry_count(path, *p ? p : ".") > 1) {
-            dup = 1;
-            break;
-        }
-    }
-    free(outer);
-    return dup;
-}
-
 static const char *ptrace_probe_status(void)
 {
     pid_t child, r;
@@ -2141,7 +2105,7 @@ static void print_doctor_payload_runtime_health_json(FILE *out, int have_payload
     fprintf(out, ",\"terminfo_present\":%s", path_exists(terminfo) ? "true" : "false");
     fprintf(out, ",\"tmux_terminfo_present\":%s", path_exists(tmux_ti) ? "true" : "false");
     fprintf(out, ",\"zsh_present\":%s", executable_file(zsh_path) ? "true" : "false");
-    fprintf(out, ",\"payload_bin_path_count\":%d", path_entry_count(getenv("PATH"), bin_dir));
+    fprintf(out, ",\"payload_bin_path_count\":%d", bb_path_entry_count(getenv("PATH"), bin_dir));
     fprintf(out, "}");
 }
 
@@ -2280,13 +2244,13 @@ int applet_doctor_main(int argc, char **argv)
             print_doctor_runtime_config_json(stdout);
             print_doctor_cleanup_ledger_json(stdout);
             printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s",
-                   path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
+                   bb_path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
                    getenv("HOME") && *getenv("HOME") ? "true" : "false",
                    getenv("SHELL") && *getenv("SHELL") ? "true" : "false");
             if (have_payload) {
                 char bin_dir[PATH_MAX];
                 snprintf(bin_dir, sizeof(bin_dir), "%s/bin", payload);
-                printf(",\"payload_bin_path_count\":%d", path_entry_count(getenv("PATH"), bin_dir));
+                printf(",\"payload_bin_path_count\":%d", bb_path_entry_count(getenv("PATH"), bin_dir));
             }
             printf("},\"host\":{\"mem_available_kb\":%llu,\"devpts_available\":%s,\"ptrace_probe\":",
                    mem_available_kb(), path_exists("/dev/pts") ? "true" : "false");
@@ -2345,7 +2309,7 @@ int applet_doctor_main(int argc, char **argv)
             print_doctor_runtime_config_json(stdout);
             print_doctor_cleanup_ledger_json(stdout);
             printf(",\"environment\":{\"path_has_duplicates\":%s,\"home_set\":%s,\"shell_set\":%s}",
-                   path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
+                   bb_path_has_duplicate_entries(getenv("PATH")) ? "true" : "false",
                    getenv("HOME") && *getenv("HOME") ? "true" : "false",
                    getenv("SHELL") && *getenv("SHELL") ? "true" : "false");
             printf(",\"host\":{\"mem_available_kb\":%llu,\"devpts_available\":%s,\"ptrace_probe\":",
@@ -2435,9 +2399,9 @@ int applet_doctor_main(int argc, char **argv)
         snprintf(zsh_path, sizeof(zsh_path), "%s/bin/zsh", payload);
         printf("zsh_present=%s\n", executable_file(zsh_path) ? "yes" : "no");
         snprintf(bin_dir, sizeof(bin_dir), "%s/bin", payload);
-        printf("payload_bin_path_count=%d\n", path_entry_count(getenv("PATH"), bin_dir));
+        printf("payload_bin_path_count=%d\n", bb_path_entry_count(getenv("PATH"), bin_dir));
     }
-    printf("path_has_duplicates=%s\n", path_has_duplicate_entries(getenv("PATH")) ? "yes" : "no");
+    printf("path_has_duplicates=%s\n", bb_path_has_duplicate_entries(getenv("PATH")) ? "yes" : "no");
     printf("home_set=%s\n", getenv("HOME") && *getenv("HOME") ? "yes" : "no");
     printf("shell_set=%s\n", getenv("SHELL") && *getenv("SHELL") ? "yes" : "no");
 

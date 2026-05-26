@@ -107,3 +107,41 @@ char *bb_read_text_file(const char *path, size_t max_bytes)
     buf[n] = '\0';
     return buf;
 }
+
+int bb_path_entry_count(const char *path, const char *entry)
+{
+    char *dup, *save = NULL, *p;
+    int count = 0;
+
+    if (!path || !entry || !*entry)
+        return 0;
+    dup = strdup(path);
+    if (!dup)
+        return 0;
+    for (p = strtok_r(dup, ":", &save); p; p = strtok_r(NULL, ":", &save)) {
+        if (!strcmp(*p ? p : ".", entry))
+            count++;
+    }
+    free(dup);
+    return count;
+}
+
+int bb_path_has_duplicate_entries(const char *path)
+{
+    char *outer, *save = NULL, *p;
+    int dup = 0;
+
+    if (!path)
+        return 0;
+    outer = strdup(path);
+    if (!outer)
+        return 0;
+    for (p = strtok_r(outer, ":", &save); p; p = strtok_r(NULL, ":", &save)) {
+        if (bb_path_entry_count(path, *p ? p : ".") > 1) {
+            dup = 1;
+            break;
+        }
+    }
+    free(outer);
+    return dup;
+}

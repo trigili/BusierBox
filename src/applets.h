@@ -22,6 +22,8 @@ void bb_ledger_record(const char *op, const char *path, const char *scope, const
 int bb_rm_rf(const char *path);
 int bb_mkdir_p(const char *path, mode_t mode);
 char *bb_read_text_file(const char *path, size_t max_bytes);
+int bb_path_entry_count(const char *path, const char *entry);
+int bb_path_has_duplicate_entries(const char *path);
 int bb_clean_external_from_ledger(void);
 void bb_set_argv0(const char *argv0);
 void bb_print_applet_list(FILE *out);
