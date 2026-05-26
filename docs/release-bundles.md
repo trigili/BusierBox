@@ -246,7 +246,9 @@ scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host
 objects for frontend and automation consumers. Stale server-state records,
 service errors, listener counts, command queue counts, and release
 artifact/device/tuple counts can be read without re-parsing the human status
-view.
+view. The same document includes `generated_at` and a `paths` object for stable
+discovery of server state, staged files, event logs, command queue records, and
+the session root.
 
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it does not push the artifact or run it. In the

@@ -251,6 +251,15 @@ def main():
         if "summary" not in queue_status_json or "warnings" not in queue_status_json:
             print("server json status missing top-level summary/warnings", file=sys.stderr)
             return 1
+        paths = queue_status_json.get("paths") or {}
+        if (not queue_status_json.get("generated_at") or
+                paths.get("state_file") != queue_status_json.get("state_file") or
+                paths.get("staged_files") != queue_status_json.get("staged_files") or
+                paths.get("command_queue_file") != str(queue_file) or
+                not paths.get("event_log") or
+                not paths.get("operator_session_dir")):
+            print("server json status missing stable generated_at/paths API fields", file=sys.stderr)
+            return 1
         if queue_status_json["summary"].get("service_count") != 4:
             print("server json status service summary is wrong", file=sys.stderr)
             return 1

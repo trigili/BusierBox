@@ -2094,6 +2094,9 @@ def status_summary_and_warnings(services):
 def status_document(cfg):
     staged = load_staged(cfg).get("staged", {})
     ips = local_ips()
+    operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
+    event_log_path = operator_dir / "events.jsonl"
+    session_root = str(cfg.get("session_root", "local/sessions"))
     services = service_status_rows(cfg)
     uploads = recent_upload_metadata(cfg)
     sessions = recent_session_records(cfg)
@@ -2115,11 +2118,23 @@ def status_document(cfg):
     })
     return {
         "schema": 1,
+        "generated_at": utc_now(),
+        "operator_session_dir": str(operator_dir),
         "state_file": str(state_file_path(cfg)),
         "staged_files": str(staged_file_path(cfg)),
         "command_queue_file": str(command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
-        "session_root": str(cfg.get("session_root", "local/sessions")),
+        "event_log": str(event_log_path),
+        "session_root": session_root,
+        "paths": {
+            "operator_session_dir": str(operator_dir),
+            "state_file": str(state_file_path(cfg)),
+            "staged_files": str(staged_file_path(cfg)),
+            "command_queue_file": str(command_queue_path(cfg)),
+            "command_copy_file": str(command_copy_path(cfg)),
+            "event_log": str(event_log_path),
+            "session_root": session_root,
+        },
         "services": services,
         "summary": summary,
         "warnings": warnings,
