@@ -129,11 +129,16 @@ def main():
         print("busierbox-server: reverse-forward listener thread is not explicitly owned/joined", file=sys.stderr)
         return 1
     stop_helper = src[src.find("def stop_recorded_service"):src.find("def run_line_tui")]
-    if ("pid_is_managed_server(pid)" not in stop_helper or
+    if ("managed_server_evidence(pid, cfg=cfg, rec=rec)" not in stop_helper or
             "service_stop_skipped" not in stop_helper or
             "unmanaged-pid" not in stop_helper or
             "workbench-stop" not in stop_helper):
         print("busierbox-server: workbench stop path lacks managed-PID safety guard", file=sys.stderr)
+        return 1
+    if ("cmdline_option_matches_path" not in src or
+            "ownership_evidence" not in src or
+            "unmanaged_recorded_pid" not in src):
+        print("busierbox-server: PID ownership evidence reporting missing", file=sys.stderr)
         return 1
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -612,6 +617,66 @@ def main():
         ]
         if not stale_cleanup_events:
             print("--stop did not log stale PID cleanup event", file=sys.stderr)
+            return 1
+
+        unmanaged_state = {
+            "schema": 1,
+            "services": {
+                "file-service": {
+                    "status": "listening",
+                    "pid": os.getpid(),
+                    "listen_host": "127.0.0.1",
+                    "file_service_port": lifecycle_port,
+                    "updated_at": "unmanaged",
+                }
+            },
+            "sessions": [],
+        }
+        lifecycle_state.write_text(json.dumps(unmanaged_state, indent=2) + "\n", encoding="utf-8")
+        unmanaged_status = run(
+            "scripts/busierbox-server", "--config", str(lifecycle_cfg),
+            "--state-file", str(lifecycle_state),
+            "--staged-file", str(lifecycle_staged),
+            "--json-status",
+        )
+        unmanaged_doc = json.loads(unmanaged_status.stdout)
+        unmanaged_rows = {row["name"]: row for row in unmanaged_doc["services"]}
+        unmanaged_warnings = [
+            item for item in unmanaged_doc.get("warnings", [])
+            if item.get("type") == "unmanaged_recorded_pid" and item.get("service") == "file-service"
+        ]
+        if (unmanaged_rows["file-service"].get("pid_managed") is not False or
+                unmanaged_rows["file-service"].get("ownership_evidence") or
+                not unmanaged_warnings):
+            print("--json-status did not expose unmanaged recorded PID warning", file=sys.stderr)
+            return 1
+        unmanaged_stop = run(
+            "scripts/busierbox-server", "--config", str(lifecycle_cfg),
+            "--state-file", str(lifecycle_state),
+            "--staged-file", str(lifecycle_staged),
+            "--stop",
+        )
+        if unmanaged_stop.returncode != 0 or "skipped pid" not in unmanaged_stop.stdout:
+            print("--stop did not skip unmanaged live PID", file=sys.stderr)
+            print(unmanaged_stop.stdout, file=sys.stderr)
+            print(unmanaged_stop.stderr, file=sys.stderr)
+            return 1
+        unmanaged_after = json.loads(lifecycle_state.read_text(encoding="utf-8"))
+        if unmanaged_after["services"]["file-service"].get("status") != "listening":
+            print("--stop changed unmanaged live PID state", file=sys.stderr)
+            return 1
+        unmanaged_events = [
+            json.loads(line) for line in lifecycle_events_path.read_text(encoding="utf-8").splitlines()
+        ]
+        unmanaged_skips = [
+            event for event in unmanaged_events
+            if event.get("service") == "file-service"
+            and event.get("event") == "service_stop_skipped"
+            and event.get("details", {}).get("reason") == "unmanaged-pid"
+            and event.get("details", {}).get("via") == "server-stop"
+        ]
+        if not unmanaged_skips:
+            print("--stop did not log unmanaged PID skip event", file=sys.stderr)
             return 1
 
         upload_port = free_port()
