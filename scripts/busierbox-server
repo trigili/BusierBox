@@ -2054,6 +2054,20 @@ def print_status(cfg, json_output=False):
             print(f"  {meta.get('filename', '')} size={meta.get('size', '')} metadata={meta.get('_metadata_path', '')}")
     else:
         print("  none")
+    print("")
+    print("Command queue:")
+    queue = doc["command_queue"]
+    print(f"  path: {queue.get('path', '')}")
+    print(f"  queued: {queue.get('queued_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
+    for rec in (queue.get("commands") or [])[:8]:
+        print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
+    print("")
+    print("Event log:")
+    if doc["events"]:
+        for event in doc["events"][-8:]:
+            print(f"  {event.get('ts', '')} {event.get('level', '')} {event.get('service', '')}:{event.get('event', '')}")
+    else:
+        print("  none")
     if doc["release"]:
         print("")
         print("Release browser:")

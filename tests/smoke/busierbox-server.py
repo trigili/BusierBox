@@ -214,6 +214,18 @@ def main():
         if json.loads(queue_status_doc.stdout)["command_queue"]["queued_count"] != 1:
             print("server json status missing command queue summary", file=sys.stderr)
             return 1
+        queue_status_text = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--status",
+        )
+        if ("Command queue:" not in queue_status_text.stdout or
+                "busierbox reality-test --json" not in queue_status_text.stdout or
+                "Event log:" not in queue_status_text.stdout):
+            print("text --status missing command queue/event sections", file=sys.stderr)
+            print(queue_status_text.stdout, file=sys.stderr)
+            return 1
         cleared = run(
             "scripts/busierbox-server",
             "--config", str(cfg),
@@ -532,6 +544,17 @@ def main():
         upload_state = json.loads((upload_operator_dir / "server-state.json").read_text(encoding="utf-8"))
         if not any(item.get("session_id") == session_doc.get("session_id") for item in upload_state.get("sessions", [])):
             print("server-state sessions missing file-service session id", file=sys.stderr)
+            return 1
+        upload_status_text = run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--status",
+        )
+        if ("Event log:" not in upload_status_text.stdout or
+                "file-service:upload_complete" not in upload_status_text.stdout or
+                "Command queue:" not in upload_status_text.stdout):
+            print("text --status missing event log or command queue section", file=sys.stderr)
+            print(upload_status_text.stdout, file=sys.stderr)
             return 1
 
         state_file = Path(tmp) / "operator-session" / "server-state.json"
