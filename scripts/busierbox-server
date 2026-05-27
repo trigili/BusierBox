@@ -819,6 +819,22 @@ def render_fetch_command(request_name, cfg, host=None, force=False):
     return " ".join(shquote(part) for part in cmd)
 
 
+def render_file_service_command(parts, cfg, host=None):
+    candidates = local_ips()
+    host = host or (candidates[0] if candidates else "OPERATOR_IP")
+    cmd = [
+        "./busierbox",
+        *parts,
+        "--host",
+        host,
+        "--port",
+        str(cfg.get("file_service_port", 22204)),
+    ]
+    if not yes(cfg.get("file_service_tls", "yes")):
+        cmd.append("--no-tls")
+    return " ".join(shquote(part) for part in cmd)
+
+
 def print_staged(cfg):
     staged = load_staged(cfg).get("staged", {})
     if not staged:
@@ -2743,7 +2759,12 @@ def generated_target_commands(cfg, staged=None):
     staged = staged if staged is not None else load_staged(cfg).get("staged", {})
     host = (local_ips() or ["OPERATOR_IP"])[0]
     commands = [
-        f"./busierbox put /etc/config/network --host {host} --port {cfg.get('file_service_port', 22204)}",
+        render_file_service_command(["put", "/etc/config/network"], cfg, host=host),
+        render_file_service_command(["survey", "push"], cfg, host=host),
+        render_file_service_command(["reality-test", "push"], cfg, host=host),
+        render_file_service_command(["manifest", "push"], cfg, host=host),
+        render_file_service_command(["config-push"], cfg, host=host),
+        render_file_service_command(["evidence", "push"], cfg, host=host),
         "./busierbox rshell start",
     ]
     for name in sorted(staged):

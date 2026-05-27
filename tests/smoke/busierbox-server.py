@@ -1317,6 +1317,18 @@ def main():
             "--json-status",
         )
         upload_doc = json.loads(upload_status_json.stdout)
+        target_commands = upload_doc.get("target_commands") or []
+        for expected_command in (
+            "./busierbox survey push",
+            "./busierbox reality-test push",
+            "./busierbox manifest push",
+            "./busierbox config-push",
+            "./busierbox evidence push",
+        ):
+            if not any(expected_command in command for command in target_commands):
+                print(f"server json status missing generated target command: {expected_command}", file=sys.stderr)
+                print(upload_status_json.stdout, file=sys.stderr)
+                return 1
         if (upload_doc.get("summary", {}).get("upload_count", 0) < 1 or
                 upload_doc.get("summary", {}).get("session_count", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_count", 0) < 1):
@@ -1384,7 +1396,9 @@ def main():
                 "uploads=1" not in uploads_view.stdout or
                 "stored_exists: True" not in uploads_view.stdout or
                 "session:" not in uploads_view.stdout or
-                "./busierbox put /etc/config/network" not in uploads_view.stdout):
+                "./busierbox put /etc/config/network" not in uploads_view.stdout or
+                "./busierbox reality-test push" not in uploads_view.stdout or
+                "./busierbox evidence push" not in uploads_view.stdout):
             print("workbench did not show received upload metadata", file=sys.stderr)
             print(uploads_view.stdout, file=sys.stderr)
             return 1
