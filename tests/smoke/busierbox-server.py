@@ -296,6 +296,55 @@ def main():
             print(path_mismatch_text.stdout, file=sys.stderr)
             return 1
 
+        invalid_state_dir = Path(tmp) / "operator-session-invalid-state"
+        invalid_state_dir.mkdir()
+        invalid_state_file = invalid_state_dir / "server-state.json"
+        invalid_staged_file = invalid_state_dir / "staged-files.json"
+        invalid_queue_file = invalid_state_dir / "command-queue.json"
+        invalid_state_file.write_text("{not-json\n", encoding="utf-8")
+        invalid_staged_file.write_text("[]\n", encoding="utf-8")
+        invalid_queue_file.write_text('{"schema":1,"commands":{}}\n', encoding="utf-8")
+        invalid_state_cfg = Path(tmp) / "server-config-invalid-state.json"
+        invalid_state_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(invalid_state_dir),
+            "server_state": str(invalid_state_file),
+            "staged_files": str(invalid_staged_file),
+            "command_queue_file": str(invalid_queue_file),
+            "session_root": str(Path(tmp) / "invalid-state-sessions"),
+        }), encoding="utf-8")
+        invalid_state_status = run(
+            "scripts/busierbox-server",
+            "--config", str(invalid_state_cfg),
+            "--json-status",
+        )
+        invalid_state_doc = json.loads(invalid_state_status.stdout)
+        invalid_warning_types = invalid_state_doc.get("summary", {}).get("warning_type_counts", {})
+        invalid_warnings_by_type = invalid_state_doc.get("warnings_by_type") or {}
+        if (invalid_state_doc.get("summary", {}).get("server_state_valid") is not False or
+                invalid_state_doc.get("summary", {}).get("staged_files_valid") is not False or
+                invalid_state_doc.get("summary", {}).get("command_queue_file_valid") is not False or
+                invalid_warning_types.get("invalid_server_state") != 1 or
+                invalid_warning_types.get("invalid_staged_files_state") != 1 or
+                invalid_warning_types.get("invalid_command_queue_state") != 1 or
+                invalid_warnings_by_type.get("invalid_server_state", [{}])[0].get("path") != str(invalid_state_file) or
+                invalid_warnings_by_type.get("invalid_staged_files_state", [{}])[0].get("path") != str(invalid_staged_file) or
+                invalid_warnings_by_type.get("invalid_command_queue_state", [{}])[0].get("path") != str(invalid_queue_file)):
+            print("server json status missing invalid operator state warnings", file=sys.stderr)
+            print(invalid_state_status.stdout, file=sys.stderr)
+            return 1
+        invalid_state_text = run(
+            "scripts/busierbox-server",
+            "--config", str(invalid_state_cfg),
+            "--status",
+        )
+        if ("server-state ledger is invalid" not in invalid_state_text.stdout or
+                "staged-files ledger is invalid" not in invalid_state_text.stdout or
+                "command queue ledger is invalid" not in invalid_state_text.stdout):
+            print("text --status missing invalid operator state warnings", file=sys.stderr)
+            print(invalid_state_text.stdout, file=sys.stderr)
+            return 1
+
         queue_file = queue_operator_dir / "command-queue.json"
         queued = run(
             "scripts/busierbox-server",

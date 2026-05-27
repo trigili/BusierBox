@@ -4084,6 +4084,21 @@ def status_document(cfg):
             "message": "operator path exists with the wrong filesystem kind",
             "suggested_action": "fix the configured path or remove the conflicting file/directory",
         })
+    state_warning_records = (
+        ("invalid_server_state", server_state, "server-state ledger is invalid"),
+        ("invalid_staged_files_state", staged_files_state, "staged-files ledger is invalid"),
+        ("invalid_command_queue_state", command_queue_state, "command queue ledger is invalid"),
+    )
+    for warning_type, rec, message in state_warning_records:
+        if not rec.get("exists") or rec.get("valid"):
+            continue
+        warnings.append({
+            "type": warning_type,
+            "path": rec.get("path", ""),
+            "error": rec.get("error", ""),
+            "message": message,
+            "suggested_action": "inspect, repair, archive, or remove the invalid operator state file",
+        })
     if event_stats["invalid_count"]:
         warnings.append({
             "type": "invalid_event_log",
@@ -4563,6 +4578,15 @@ def print_status(cfg, json_output=False):
     if doc["summary"].get("event_invalid_count", 0):
         print_warnings_header_once()
         print(f"  event log contains {doc['summary'].get('event_invalid_count', 0)} invalid JSONL record(s); inspect {doc['event_log']}")
+    invalid_state_warnings = [
+        item for item in doc.get("warnings") or []
+        if item.get("type") in ("invalid_server_state", "invalid_staged_files_state", "invalid_command_queue_state")
+    ]
+    if invalid_state_warnings:
+        print_warnings_header_once()
+        for warning in invalid_state_warnings:
+            suffix = f": {warning.get('error', '')}" if warning.get("error") else ""
+            print(f"  {warning.get('message', 'operator state file is invalid')}: {warning.get('path', '')}{suffix}")
     if not doc["command_queue"].get("policy_valid", True):
         print_warnings_header_once()
         print("  command queue policy is invalid; target polling is not configured")

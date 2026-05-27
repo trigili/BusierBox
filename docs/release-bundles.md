@@ -470,6 +470,8 @@ dashboard clients that only need compact status counters and event recency.
 
 Structured `warnings` use stable `type` values such as `service_error`,
 `stale_state`, `unexpected_listener`, `unmanaged_recorded_pid`,
+`operator_path_kind_mismatch`, `invalid_server_state`,
+`invalid_staged_files_state`, `invalid_command_queue_state`,
 `invalid_event_log`, and `invalid_command_queue_policy`. `warning_stats`
 summarizes warnings by type, service, port, recorded PID, listener PID, and
 possible owner PID. `warnings_by_type`, `warnings_by_service`,
