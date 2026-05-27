@@ -33,6 +33,11 @@ test -x "$work/tools/native/bin/gdbserver"
 test -f "$work/tools/native/bin/metadata.json"
 grep -q '^sha256=' "$work/install.out"
 python3 -m json.tool "$work/tools/native/bin/metadata.json" >/dev/null
+if scripts/tools/check-dropin-tool --tool gdbserver --path "$fake" --arch mipsel --libc musl --strict >"$work/strict-script.out" 2>"$work/strict-script.err"; then
+    printf '%s\n' "gdbserver-workflow: strict check accepted script with unknown target arch" >&2
+    exit 1
+fi
+grep -q 'unable to detect arch expected=mipsel' "$work/strict-script.out"
 if command -v ls >/dev/null 2>&1; then
     if scripts/tools/install-dropin-gdbserver --source "$(command -v ls)" --arch mipsel --libc musl --dest-root "$work/tools-strict" --strict >"$work/install-strict.out" 2>"$work/install-strict.err"; then
         printf '%s\n' "gdbserver-workflow: strict install accepted mismatched host binary" >&2

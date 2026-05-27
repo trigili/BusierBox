@@ -312,7 +312,7 @@ stage_dropin_tool() {
     _arch=$(profile_value ARCH)
     _libc=$(profile_value LIBC)
     if scripts/tools/check-dropin-tool --tool "$_tool" --path "$_path" \
-            --target "$TARGET" --arch "$_arch" --libc "$_libc" >/dev/null; then
+            --target "$TARGET" --arch "$_arch" --libc "$_libc" --strict >/dev/null; then
         stage_user_binary "$_tool" "$_path"
         printf '%s\n' "buildroot-build-payload: local drop-in provider path $_path"
         return 0

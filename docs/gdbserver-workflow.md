@@ -35,7 +35,9 @@ The checker prints executable, ELF, dynamic-linker, warning, and `sha256`
 metadata. Add `--metadata-out local/tools/mipsel-linux-4.x-musl/bin/metadata.json`
 to write the same inspection result as JSON without installing the file. Use
 `--strict` when installing or checking a final drop-in so detected
-architecture/endian mismatches fail instead of becoming payload content.
+architecture/endian mismatches fail instead of becoming payload content. For
+non-native target drop-ins, strict mode also rejects files whose architecture
+cannot be identified.
 
 Set `BB_GDBSERVER_PROVIDER="local-dropin"` or leave it as `auto`.
 

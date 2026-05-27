@@ -109,11 +109,17 @@ case "$arch:$detected_arch" in
     armv7:armv7|aarch64:aarch64|x86_64:x86_64|i386:i386) ;;
     *) warn="${warn}${warn:+; }arch mismatch expected=$arch detected=$detected_arch" ;;
 esac
+if [ "$strict" -eq 1 ] && [ -n "$arch" ] && [ "$arch" != "native" ] && [ "$detected_arch" = "unknown" ]; then
+    warn="${warn}${warn:+; }unable to detect arch expected=$arch"
+fi
 case "$endian:$detected_endian" in
     auto:*|"":*|*:unknown) ;;
     little:little|big:big) ;;
     *) warn="${warn}${warn:+; }endian mismatch expected=$endian detected=$detected_endian" ;;
 esac
+if [ "$strict" -eq 1 ] && [ "$endian" != "auto" ] && [ -n "$endian" ] && [ "$detected_endian" = "unknown" ]; then
+    warn="${warn}${warn:+; }unable to detect endian expected=$endian"
+fi
 
 if [ "$strict" -eq 1 ] && [ -n "$warn" ]; then
     fatal=$warn
