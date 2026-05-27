@@ -4295,6 +4295,15 @@ def rshell_session_policy_record(cfg):
     policy = str(cfg.get("rshell_session_policy") or cfg.get("BB_RSHELL_SESSION_POLICY") or "single")
     valid = policy in ("single", "reconnect", "persistent")
     reconnects = policy in ("reconnect", "persistent")
+    summary = {
+        "valid": valid,
+        "retry_scope": "pre-connect+post-disconnect" if reconnects else "pre-connect",
+        "stops_after_success": policy == "single",
+        "reconnects_after_disconnect": reconnects,
+        "persistent_lifecycle": policy == "persistent",
+        "fresh_session_on_reconnect": reconnects,
+        "session_resume_supported": False,
+    }
     return {
         "session_policy": policy,
         "session_policy_valid": valid,
@@ -4307,6 +4316,7 @@ def rshell_session_policy_record(cfg):
             "fresh_session_on_reconnect": reconnects,
             "session_resume_supported": False,
         },
+        "session_policy_summary": summary,
     }
 
 

@@ -583,10 +583,11 @@ int applet_rshell_main(int argc, char **argv)
             json_string_main(stdout, BB_RSHELL_RETRY_COUNT);
             printf(",\"post_disconnect_retry_count\":");
             json_string_main(stdout, policy_post_success_retry_count(effective_session_policy));
-            printf(",\"stops_after_success\":%s,\"reconnects_after_disconnect\":%s,\"persistent_lifecycle\":%s,\"session_resume_supported\":false}",
+            printf(",\"stops_after_success\":%s,\"reconnects_after_disconnect\":%s,\"persistent_lifecycle\":%s,\"fresh_session_on_reconnect\":%s,\"session_resume_supported\":false}",
                    policy_stops_after_first_success(effective_session_policy) ? "true" : "false",
                    policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false",
-                   policy_persistent_lifecycle(effective_session_policy) ? "true" : "false");
+                   policy_persistent_lifecycle(effective_session_policy) ? "true" : "false",
+                   policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false");
             printf(",\"operator_host\":");
             json_string_main(stdout, BB_OPERATOR_SERVER_HOST);
             printf(",\"operator_shell_port\":");

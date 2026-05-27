@@ -90,6 +90,10 @@ if summary.get("post_disconnect_retry_count") != data["retry"].get("post_disconn
     raise SystemExit("summary post-disconnect retry count mismatch")
 if summary.get("reconnects_after_disconnect") is not True:
     raise SystemExit("summary should report reconnect after disconnect")
+if summary.get("fresh_session_on_reconnect") is not True:
+    raise SystemExit("summary should report fresh sessions on reconnect")
+if summary.get("session_resume_supported") is not False:
+    raise SystemExit("summary should not claim session resume")
 if data["pids"].get("rshell") != "1234":
     raise SystemExit("rshell pid missing")
 if data["pids"].get("dropbear") != "2345":
@@ -202,6 +206,8 @@ if summary.get("retry_scope") != "pre-connect":
     raise SystemExit("single policy summary should only report pre-connect retry scope")
 if summary.get("stops_after_success") is not True:
     raise SystemExit("single policy summary should report stop after success")
+if summary.get("fresh_session_on_reconnect") is not False:
+    raise SystemExit("single policy summary should not report fresh reconnect sessions")
 if sem.get("session_resume_supported") is not False:
     raise SystemExit("single policy should not claim session resume")
 PY
@@ -238,6 +244,8 @@ if summary.get("retry_scope") != "pre-connect+post-disconnect":
     raise SystemExit("persistent policy summary should report pre/post retry scope")
 if summary.get("persistent_lifecycle") is not True:
     raise SystemExit("persistent policy summary should report persistent lifecycle")
+if summary.get("fresh_session_on_reconnect") is not True:
+    raise SystemExit("persistent policy summary should report fresh sessions on reconnect")
 if sem.get("session_resume_supported") is not False:
     raise SystemExit("persistent policy should not claim session resume")
 PY

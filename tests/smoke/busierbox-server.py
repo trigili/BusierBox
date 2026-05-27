@@ -1784,6 +1784,7 @@ def main():
         rshell_record = next((rec for rec in target_records if rec.get("service") == "rshell"), {})
         rshell_metadata = rshell_record.get("metadata") or {}
         rshell_semantics = rshell_metadata.get("session_semantics") or {}
+        rshell_policy_summary = rshell_metadata.get("session_policy_summary") or {}
         rshell_purpose = "start the configured reverse shell transport from the target"
         if (len(target_commands_by_service.get("file-service") or []) < 6 or
                 len(target_commands_by_side.get("target") or []) != len(target_records) or
@@ -1796,6 +1797,9 @@ def main():
                 rshell_semantics.get("reconnect_after_disconnect") is not True or
                 rshell_semantics.get("fresh_session_on_reconnect") is not True or
                 rshell_semantics.get("session_resume_supported") is not False or
+                rshell_policy_summary.get("retry_scope") != "pre-connect+post-disconnect" or
+                rshell_policy_summary.get("fresh_session_on_reconnect") is not True or
+                rshell_policy_summary.get("session_resume_supported") is not False or
                 target_summary.get("by_service", {}).get("file-service", 0) < 6 or
                 target_summary.get("by_service", {}).get("rshell") != 1):
             print("server json status missing generated command service/session-policy lookup", file=sys.stderr)
