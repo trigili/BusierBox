@@ -76,6 +76,7 @@ def load_release_index(release_dir):
             "reverse_access": summary.get("reverse_access") or {},
             "manifest": rec.get("manifest_path") or rec.get("payload_manifest_path"),
             "payload_manifest": rec.get("payload_manifest_path"),
+            "tool_provider_status": summary.get("tool_provider_status") or {},
             "config": rec.get("config"),
             "sha256": rec.get("sha256"),
             "size": rec.get("size"),
@@ -187,6 +188,8 @@ def build_repo_index(paths):
     artifacts_by_tool_payload_preset = {}
     artifacts_by_feature_payload_preset = {}
     artifacts_by_tuple_payload_preset = {}
+    artifacts_by_provider_tool = {}
+    artifacts_by_provider_status = {}
     for record in artifacts:
         sha = record.get("sha256") or ""
         release_name = record.get("release_name") or ""
@@ -210,6 +213,12 @@ def build_repo_index(paths):
             artifacts_by_feature.setdefault(feature, []).append(record)
             if payload_preset:
                 artifacts_by_feature_payload_preset.setdefault(f"{feature}:{payload_preset}", []).append(record)
+        for provider_tool, provider_status in (record.get("tool_provider_status") or {}).items():
+            if not isinstance(provider_status, dict):
+                continue
+            artifacts_by_provider_tool.setdefault(provider_tool, []).append(record)
+            overall = provider_status.get("overall") or provider_status.get("status") or "unknown"
+            artifacts_by_provider_status.setdefault(f"{provider_tool}:{overall}", []).append(record)
     return {
         "schema": 1,
         "release_count": len(release_dirs),
@@ -226,6 +235,8 @@ def build_repo_index(paths):
         "artifacts_by_tool_payload_preset": {key: artifacts_by_tool_payload_preset[key] for key in sorted(artifacts_by_tool_payload_preset)},
         "artifacts_by_feature_payload_preset": {key: artifacts_by_feature_payload_preset[key] for key in sorted(artifacts_by_feature_payload_preset)},
         "artifacts_by_tuple_payload_preset": {key: artifacts_by_tuple_payload_preset[key] for key in sorted(artifacts_by_tuple_payload_preset)},
+        "artifacts_by_provider_tool": {key: artifacts_by_provider_tool[key] for key in sorted(artifacts_by_provider_tool)},
+        "artifacts_by_provider_status": {key: artifacts_by_provider_status[key] for key in sorted(artifacts_by_provider_status)},
         "dedupe": {key: by_sha[key] for key in sorted(by_sha)},
         "devices": {key: devices[key] for key in sorted(devices)},
         "tuples": {key: tuples[key] for key in sorted(tuples)},

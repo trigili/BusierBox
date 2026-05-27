@@ -83,6 +83,7 @@ JSON
       "sha256": "$sha",
       "size": 123,
       "tools": ["sh", "$tool"],
+      "tool_provider_status": {"$tool": {"schema": 1, "overall": "found", "search_paths": []}},
       "trailer_support": true,
       "compatibility": {"schema": 1, "label": "$compatibility_label", "reasons": ["fixture"]}
     }
@@ -122,6 +123,8 @@ assert index["artifacts_by_feature"]["reverse-ssh"][0]["release_name"] in {"one"
 assert index["artifacts_by_tool_payload_preset"]["tcpdump:survey-core"][0]["release_name"] == "one"
 assert index["artifacts_by_feature_payload_preset"]["reverse-ssh:ssh-operator"][0]["release_name"] == "two"
 assert len(index["artifacts_by_tuple_payload_preset"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug"]) == 1
+assert index["artifacts_by_provider_tool"]["gdbserver"][0]["release_name"] == "three"
+assert index["artifacts_by_provider_status"]["gdbserver:found"][0]["payload_preset"] == "full-debug"
 PY
 
 scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null
@@ -132,6 +135,7 @@ grep -q '^payload_preset=survey-core$' "$tmp/find-device.out"
 grep -q '^compatibility=exact$' "$tmp/find-device.out"
 grep -q '^compatibility_reason=fixture$' "$tmp/find-device.out"
 grep -q '^dedupe_count=2$' "$tmp/find-device.out"
+grep -q '^provider_status_tcpdump=found$' "$tmp/find-device.out"
 scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --release one >"$tmp/find-tuple.out"
 grep -q '^release_name=one$' "$tmp/find-tuple.out"
 grep -q '^tuple_path=by-tuple/mipsel/musl/4.x/mips32r2-24kc$' "$tmp/find-tuple.out"
@@ -166,6 +170,8 @@ assert doc["index"]["artifacts_by_feature_count"] >= 4
 assert doc["index"]["artifacts_by_tool_payload_preset_count"] >= 4
 assert doc["index"]["artifacts_by_feature_payload_preset_count"] >= 6
 assert doc["index"]["artifacts_by_tuple_payload_preset_count"] == 3
+assert doc["index"]["artifacts_by_provider_tool_count"] == 3
+assert doc["index"]["artifacts_by_provider_status_count"] == 3
 assert doc["dedupe_count"] == 2
 assert {item["release_name"] for item in doc["dedupe_alternatives"]} == {"one", "two"}
 assert "newest release_mtime" in doc["selection_policy"]

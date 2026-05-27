@@ -172,7 +172,10 @@ that need to render details without rescanning every artifact. Composite maps
 `artifacts_by_tuple_payload_preset` let clients jump directly to combinations
 such as `tcpdump:survey-core`, `reverse-ssh:ssh-operator`, or
 `by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug` without intersecting
-separate indexes. You can search by canonical tuple path directly with
+separate indexes. Provider audit maps `artifacts_by_provider_tool` and
+`artifacts_by_provider_status` expose payload-manifest provider checks such as
+`gdbserver` or `gdbserver:found` so offline pickers can surface local drop-in
+status without opening each payload manifest. You can search by canonical tuple path directly with
 `--tuple-path` when a survey or release manifest has already resolved the
 target compatibility tuple. It does not download or rebuild anything.
 `--recommendation-json` returns the selected artifact plus active filters,
