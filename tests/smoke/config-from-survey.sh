@@ -30,7 +30,17 @@ cat >"$tmp/reality-bad-runtime.json" <<'EOF'
     {"name": "rootfs_read_only", "type": "constraint", "status": "pass", "ok": true, "detected": true, "skipped": false, "detail": "detected"},
     {"name": "procfs_partial", "type": "constraint", "status": "pass", "ok": true, "detected": true, "skipped": false, "detail": "detected"},
     {"name": "ptrace", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "not permitted"}
-  ]
+  ],
+  "summary": {
+    "operator_pass": 0,
+    "operator_fail": 0,
+    "operator_skipped": 3,
+    "constraints": {
+      "tmp_noexec": true,
+      "rootfs_read_only": true,
+      "procfs_partial": true
+    }
+  }
 }
 EOF
 scripts/config-from-survey --format shell --reality-json "$tmp/reality-bad-runtime.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality.conf"
@@ -51,6 +61,36 @@ assert facts["reality"]["runtime_root_executable"] == "fail"
 assert facts["reality"]["tmp_noexec_detected"] is True
 assert facts["reality"]["rootfs_read_only_detected"] is True
 assert facts["reality"]["procfs_partial_detected"] is True
+assert facts["reality"]["operator_skipped"] == 3
+PY
+
+cat >"$tmp/reality-summary-only.json" <<'EOF'
+{
+  "schema": 1,
+  "checks": [],
+  "summary": {
+    "operator_pass": 0,
+    "operator_fail": 0,
+    "operator_skipped": 3,
+    "constraints": {
+      "tmp_noexec": true,
+      "rootfs_read_only": true,
+      "procfs_partial": true
+    }
+  }
+}
+EOF
+scripts/config-from-survey --format json --reality-json "$tmp/reality-summary-only.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality-summary-only.out"
+python3 - "$tmp/reality-summary-only.out" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+facts = doc["facts"]["reality"]
+assert facts["tmp_noexec_detected"] is True
+assert facts["rootfs_read_only_detected"] is True
+assert facts["procfs_partial_detected"] is True
+assert facts["operator_skipped"] == 3
 PY
 
 scripts/config-from-survey --write-config "$tmp/low.conf" tests/fixtures/survey/unknown-low-disk.json

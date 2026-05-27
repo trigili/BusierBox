@@ -170,6 +170,8 @@ def reality_checks():
     return {item.get("name"): item for item in checks if isinstance(item, dict)}
 
 reality_by_name = reality_checks()
+reality_summary = reality.get("summary") if isinstance(reality, dict) and isinstance(reality.get("summary"), dict) else {}
+reality_constraints = reality_summary.get("constraints") if isinstance(reality_summary.get("constraints"), dict) else {}
 
 def reality_check(name):
     return reality_by_name.get(name) or {}
@@ -188,7 +190,11 @@ def reality_failed(name):
 
 def reality_detected(name):
     item = reality_check(name)
-    return boolish(item.get("detected")) if item else False
+    if item:
+        return boolish(item.get("detected"))
+    if name in reality_constraints:
+        return boolish(reality_constraints.get(name))
+    return False
 
 def kernel_floor(release):
     release = str(release or "unknown")
@@ -421,6 +427,9 @@ result = {
             "tmp_noexec_detected": reality_detected("tmp_noexec"),
             "rootfs_read_only_detected": reality_detected("rootfs_read_only"),
             "procfs_partial_detected": reality_detected("procfs_partial"),
+            "operator_pass": reality_summary.get("operator_pass", ""),
+            "operator_fail": reality_summary.get("operator_fail", ""),
+            "operator_skipped": reality_summary.get("operator_skipped", ""),
         } if reality_json else {},
     },
 }
