@@ -214,6 +214,43 @@ def main():
             print("generated target command copy file has wrong content", file=sys.stderr)
             return 1
 
+        isolated_operator_dir = Path(tmp) / "isolated-operator-session"
+        isolated_cfg = Path(tmp) / "server-config-isolated-operator-dir.json"
+        isolated_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(isolated_operator_dir),
+            "session_root": str(Path(tmp) / "isolated-sessions"),
+        }), encoding="utf-8")
+        isolated_status = run(
+            "scripts/busierbox-server",
+            "--config", str(isolated_cfg),
+            "--json-status",
+        )
+        isolated_doc = json.loads(isolated_status.stdout)
+        isolated_paths = isolated_doc.get("paths") or {}
+        expected_isolated = {
+            "state_file": isolated_operator_dir / "server-state.json",
+            "staged_files": isolated_operator_dir / "staged-files.json",
+            "command_queue_file": isolated_operator_dir / "command-queue.json",
+            "command_copy_file": isolated_operator_dir / "last-command.txt",
+            "event_log": isolated_operator_dir / "events.jsonl",
+        }
+        if any(isolated_paths.get(key) != str(path) for key, path in expected_isolated.items()):
+            print("operator_session_dir did not derive isolated operator paths", file=sys.stderr)
+            print(isolated_status.stdout, file=sys.stderr)
+            return 1
+        isolated_workbench = run(
+            "scripts/busierbox-server",
+            "--config", str(isolated_cfg),
+            "--tui",
+        )
+        if (str(expected_isolated["staged_files"]) not in isolated_workbench.stdout or
+                str(expected_isolated["command_queue_file"]) not in isolated_workbench.stdout or
+                str(expected_isolated["command_copy_file"]) not in isolated_workbench.stdout):
+            print("workbench did not show isolated operator paths", file=sys.stderr)
+            print(isolated_workbench.stdout, file=sys.stderr)
+            return 1
+
         queue_file = queue_operator_dir / "command-queue.json"
         queued = run(
             "scripts/busierbox-server",

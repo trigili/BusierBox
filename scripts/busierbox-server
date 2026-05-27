@@ -333,6 +333,26 @@ def state_file_path(cfg):
     return Path(str(cfg.get("server_state") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "server-state.json"))
 
 
+def apply_operator_session_path_defaults(cfg, explicit_keys):
+    operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
+    if str(operator_dir) == str(DEFAULT_OPERATOR_SESSION_DIR):
+        return cfg
+    derived_paths = {
+        "server_state": operator_dir / "server-state.json",
+        "staged_files": operator_dir / "staged-files.json",
+        "command_queue_file": operator_dir / "command-queue.json",
+        "command_copy_file": operator_dir / "last-command.txt",
+        "authorized_dbclient_pubkey": operator_dir / "id_dbclient.pub",
+        "operator_host_key": operator_dir / "operator_ssh_host_key",
+        "tls_cert": operator_dir / "shell-server.crt",
+        "tls_key": operator_dir / "shell-server.key",
+    }
+    for key, value in derived_paths.items():
+        if key not in explicit_keys:
+            cfg[key] = str(value)
+    return cfg
+
+
 def load_staged(cfg):
     data = read_json_file(staged_file_path(cfg), {"schema": 1, "staged": {}})
     if not isinstance(data, dict):
@@ -1280,6 +1300,7 @@ def record_shutdown_event(cfg, service, session=None):
 
 def load_config(path):
     cfg = dict(DEFAULTS)
+    explicit_keys = set()
     p = Path(path)
     if p.is_file():
         try:
@@ -1287,8 +1308,10 @@ def load_config(path):
             for key, value in data.items():
                 if value not in (None, ""):
                     cfg[key] = value
+                    explicit_keys.add(key)
         except (OSError, json.JSONDecodeError) as exc:
             print(f"warning: unable to read {p}: {exc}", file=sys.stderr)
+    apply_operator_session_path_defaults(cfg, explicit_keys)
     # Accept legacy field names
     if "socat_listen_port" in cfg and "shell_listen_port" not in cfg:
         cfg["shell_listen_port"] = cfg["socat_listen_port"]
