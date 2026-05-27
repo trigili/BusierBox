@@ -3768,11 +3768,20 @@ def print_workbench(cfg):
             print(f"    result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
     print("")
     print("Event log:")
+    stats = snap.get("event_log_stats") or {}
+    print(f"  path: {snap.get('event_log', '')}")
+    print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)}")
+    print(f"  services: {format_counts(stats.get('by_service') or {})}")
+    print(f"  events: {format_counts(stats.get('by_event') or {})}")
+    print(f"  levels: {format_counts(stats.get('by_level') or {})}")
     if snap["events"]:
         for event in snap["events"][-8:]:
-            print(f"  {event.get('ts', '')} {event.get('level', '')} {event.get('service', '')}:{event.get('event', '')}")
+            suffix = compact_event_details(event)
+            if suffix:
+                suffix = f" {suffix}"
+            print(f"  {event.get('ts', '')} {event.get('level', '')} {event.get('service', '')}:{event.get('event', '')}{suffix}")
     else:
-        print("  none")
+        print("  events_tail: none")
     rel = release_context()
     if rel:
         print("")

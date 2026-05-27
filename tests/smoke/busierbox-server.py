@@ -1117,7 +1117,10 @@ def main():
                 "service_error file-service" not in bind_fail_workbench.stdout or
                 "unable to bind" not in bind_fail_workbench.stdout or
                 "owner_pid=" not in bind_fail_workbench.stdout or
-                "suggested_action:" not in bind_fail_workbench.stdout):
+                "suggested_action:" not in bind_fail_workbench.stdout or
+                "bind_error=" not in bind_fail_workbench.stdout or
+                "error=" not in bind_fail_workbench.stdout or
+                "file-service:bind_error" not in bind_fail_workbench.stdout):
             print("workbench did not surface bind failure warnings", file=sys.stderr)
             print(bind_fail_workbench.stdout, file=sys.stderr)
             return 1

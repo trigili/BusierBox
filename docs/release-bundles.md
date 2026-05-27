@@ -349,9 +349,10 @@ selected local metadata/log/artifact/event-log path in the operator's pager when
 one is available, and `c` copies the selected generated target command to the
 local clipboard when possible plus
 `local/operator-session/last-command.txt`. The line-oriented fallback exposes
-the same operator path health and compact service summary so non-curses or
-non-TTY runs still show whether listener state, logs, staged files, and session
-roots are usable.
+the same operator path health, compact service summary, event aggregate counts,
+and compact event outcome details so non-curses or non-TTY runs still show
+whether listener state, logs, staged files, session roots, and recent event
+outcomes are usable.
 
 Inspect and clean BusierBox-controlled runtime state:
 
