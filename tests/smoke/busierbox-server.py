@@ -1389,6 +1389,20 @@ def main():
                 print(f"server json status missing generated target command: {expected_command}", file=sys.stderr)
                 print(upload_status_json.stdout, file=sys.stderr)
                 return 1
+        target_records = upload_doc.get("target_command_records") or []
+        if not target_records or len(target_records) != len(target_commands):
+            print("server json status missing structured target command records", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
+        if any(
+            rec.get("side") != "target" or
+            rec.get("requires_explicit_target_action") is not True or
+            rec.get("executes_operator_supplied_commands") is not False
+            for rec in target_records
+        ):
+            print("server target command records weakened the explicit-action safety boundary", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         if (upload_doc.get("summary", {}).get("upload_count", 0) < 1 or
                 upload_doc.get("summary", {}).get("session_count", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_count", 0) < 1):
@@ -1661,6 +1675,30 @@ def main():
             print("--stage-release-artifact did not stage release artifact", file=sys.stderr)
             print(staged_release.stdout, file=sys.stderr)
             print(staged_release.stderr, file=sys.stderr)
+            return 1
+        staged_status = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--json-status",
+            ],
+            cwd=release_dir,
+            text=True,
+            capture_output=True,
+        )
+        staged_doc = json.loads(staged_status.stdout)
+        fetch_records = [
+            rec for rec in staged_doc.get("target_command_records") or []
+            if rec.get("request_name") == "busierbox-test"
+        ]
+        if (not fetch_records or
+                fetch_records[0].get("source_path") != str(release_dir / "bin" / "busierbox-test") or
+                fetch_records[0].get("network") is not True or
+                fetch_records[0].get("executes_operator_supplied_commands") is not False):
+            print("json status missing structured staged fetch command metadata", file=sys.stderr)
+            print(staged_status.stdout, file=sys.stderr)
             return 1
 
         bad_stage = run(

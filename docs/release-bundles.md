@@ -266,6 +266,12 @@ a `paths` object for stable
 discovery of server state, staged files, event logs, command queue records, and
 the session root. Recent upload and staged-fetch activity is exposed through
 top-level `uploads` and `fetches` arrays plus aggregate counts in `summary`.
+Generated target commands are exposed both as legacy strings in
+`target_commands` and as structured `target_command_records` entries with
+purpose, service, side, network, explicit-target-action, and
+operator-supplied-command execution metadata. This lets future frontends show
+the same commands without guessing whether a command is a safe explicit
+fetch/upload helper or control-like behavior.
 Event log entries include stable `id`, `session`, and `session_path` fields so
 frontend and integration tooling can correlate global operator events with
 per-session logs. The `events` array is a bounded recent tail;

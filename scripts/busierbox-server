@@ -2764,6 +2764,7 @@ def status_document(cfg):
         "local_ips": ips,
         "selected_local_ip": (ips or ["OPERATOR_IP"])[0],
         "target_commands": generated_target_commands(cfg, staged_raw),
+        "target_command_records": generated_target_command_records(cfg, staged_raw),
         "staged": staged,
         "uploads": uploads,
         "fetches": fetches,
@@ -2778,20 +2779,93 @@ def status_document(cfg):
 
 
 def generated_target_commands(cfg, staged=None):
+    return [rec["command"] for rec in generated_target_command_records(cfg, staged)]
+
+
+def generated_target_command_records(cfg, staged=None):
     staged = staged if staged is not None else load_staged(cfg).get("staged", {})
     host = (local_ips() or ["OPERATOR_IP"])[0]
-    commands = [
-        render_file_service_command(["put", "/etc/config/network"], cfg, host=host),
-        render_file_service_command(["survey", "push"], cfg, host=host),
-        render_file_service_command(["reality-test", "push"], cfg, host=host),
-        render_file_service_command(["manifest", "push"], cfg, host=host),
-        render_file_service_command(["config-push"], cfg, host=host),
-        render_file_service_command(["evidence", "push"], cfg, host=host),
-        "./busierbox rshell start",
+    records = [
+        {
+            "command": render_file_service_command(["put", "/etc/config/network"], cfg, host=host),
+            "purpose": "explicitly upload a target file to the operator file service",
+            "side": "target",
+            "service": "file-service",
+            "network": True,
+            "requires_explicit_target_action": True,
+            "executes_operator_supplied_commands": False,
+        },
+        {
+            "command": render_file_service_command(["survey", "push"], cfg, host=host),
+            "purpose": "explicitly upload passive target survey evidence",
+            "side": "target",
+            "service": "file-service",
+            "network": True,
+            "requires_explicit_target_action": True,
+            "executes_operator_supplied_commands": False,
+        },
+        {
+            "command": render_file_service_command(["reality-test", "push"], cfg, host=host),
+            "purpose": "explicitly upload active target capability evidence",
+            "side": "target",
+            "service": "file-service",
+            "network": True,
+            "requires_explicit_target_action": True,
+            "executes_operator_supplied_commands": False,
+        },
+        {
+            "command": render_file_service_command(["manifest", "push"], cfg, host=host),
+            "purpose": "explicitly upload runtime manifest metadata",
+            "side": "target",
+            "service": "file-service",
+            "network": True,
+            "requires_explicit_target_action": True,
+            "executes_operator_supplied_commands": False,
+        },
+        {
+            "command": render_file_service_command(["config-push"], cfg, host=host),
+            "purpose": "explicitly upload effective runtime configuration",
+            "side": "target",
+            "service": "file-service",
+            "network": True,
+            "requires_explicit_target_action": True,
+            "executes_operator_supplied_commands": False,
+        },
+        {
+            "command": render_file_service_command(["evidence", "push"], cfg, host=host),
+            "purpose": "explicitly upload an evidence bundle",
+            "side": "target",
+            "service": "file-service",
+            "network": True,
+            "requires_explicit_target_action": True,
+            "executes_operator_supplied_commands": False,
+        },
+        {
+            "command": "./busierbox rshell start",
+            "purpose": "start the configured reverse shell transport from the target",
+            "side": "target",
+            "service": "rshell",
+            "network": True,
+            "requires_explicit_target_action": True,
+            "executes_operator_supplied_commands": False,
+        },
     ]
     for name in sorted(staged):
-        commands.append(render_fetch_command(name, cfg, host=host))
-    return commands
+        rec = staged.get(name) if isinstance(staged, dict) else {}
+        records.append({
+            "command": render_fetch_command(name, cfg, host=host),
+            "purpose": "explicitly fetch an operator-staged file",
+            "side": "target",
+            "service": "file-service",
+            "network": True,
+            "requires_explicit_target_action": True,
+            "executes_operator_supplied_commands": False,
+            "request_name": name,
+            "source_path": str((rec or {}).get("source_path", "")) if isinstance(rec, dict) else "",
+            "source_sha256": str((rec or {}).get("sha256", "")) if isinstance(rec, dict) else "",
+            "source_size": (rec or {}).get("size", "") if isinstance(rec, dict) else "",
+        })
+    return records
 
 
 def print_status(cfg, json_output=False):
