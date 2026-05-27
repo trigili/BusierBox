@@ -94,6 +94,11 @@ manifest = read_json(manifest_path)
 cfg = read_config(config_path)
 
 target_data = manifest.get("target", {})
+payload_data = manifest.get("payload", {}) if isinstance(manifest.get("payload"), dict) else {}
+provider_status = manifest.get("tool_provider_status") or payload_data.get("tool_provider_status") or {}
+gdbserver_provider_status = provider_status.get("gdbserver") if isinstance(provider_status, dict) else {}
+if not isinstance(gdbserver_provider_status, dict):
+    gdbserver_provider_status = {}
 uname = survey.get("uname", {})
 recs = survey.get("recommendations", {})
 
@@ -124,6 +129,7 @@ target_json = {
     "survey": survey_path,
     "manifest": manifest_path,
     "config": config_path,
+    "gdbserver_provider_status": gdbserver_provider_status,
 }
 (out / "target.json").write_text(json.dumps(target_json, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -150,6 +156,8 @@ lines.append(f"target remote {host}:{port}")
 readme = f"""# BusierBox GDB Workspace
 
 Target: `{target_name}`
+
+gdbserver provider status: `{gdbserver_provider_status.get('overall') or gdbserver_provider_status.get('status') or 'unknown'}`
 
 Start gdbserver on the target:
 

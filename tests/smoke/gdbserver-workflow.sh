@@ -127,6 +127,19 @@ cat >"$work/manifest.json" <<'EOF'
     "arch": "mipsel",
     "endian": "little",
     "libc": "musl"
+  },
+  "tool_provider_status": {
+    "gdbserver": {
+      "schema": 1,
+      "overall": "found",
+      "search_paths": [
+        {
+          "path": "local/tools/mipsel-linux-4.x-musl/bin/gdbserver",
+          "status": "ok",
+          "executable": true
+        }
+      ]
+    }
   }
 }
 EOF
@@ -137,6 +150,18 @@ test -f "$work/ws/connect.gdb"
 grep -q 'set architecture mips' "$work/ws/connect.gdb"
 grep -q 'set endian little' "$work/ws/connect.gdb"
 grep -q 'target remote 127.0.0.1:31337' "$work/ws/connect.gdb"
+grep -q 'gdbserver provider status: `found`' "$work/ws/README.md"
+python3 - "$work/ws/target.json" <<'PY'
+import json
+import sys
+
+target = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+status = target.get("gdbserver_provider_status") or {}
+if status.get("overall") != "found":
+    raise SystemExit("workspace target.json did not preserve gdbserver provider status")
+if status.get("search_paths", [{}])[0].get("status") != "ok":
+    raise SystemExit("workspace target.json did not preserve provider search-path status")
+PY
 
 cat >"$work/gdb.conf" <<EOF
 BB_HEAVY_TOOLS="gdbserver"
