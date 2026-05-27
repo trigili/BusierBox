@@ -480,7 +480,11 @@ summarizes warnings by type, service, port, recorded PID, listener PID, and
 possible owner PID. `warnings_by_type`, `warnings_by_service`,
 `warnings_by_port`, `warnings_by_pid`, `warnings_by_listener_pid`, and
 `warnings_by_owner_pid` provide full warning records grouped for direct
-frontend lookups. The same compact warning counters are mirrored into `summary`
+frontend lookups. Path-carrying warnings are also grouped in
+`warnings_by_path` and `warnings_by_type_path`, with matching compact counters
+in `warning_path_counts` and `warning_type_path_counts`, so browser panes can
+jump from a state file, event log, release manifest, or operator path directly
+to relevant warnings. The same compact warning counters are mirrored into `summary`
 as `warning_count`, `warning_type_counts`, `warning_service_counts`,
 `warning_port_counts`, `warning_pid_counts`, `warning_listener_pid_counts`, and
 `warning_owner_pid_counts`; summary

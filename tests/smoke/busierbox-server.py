@@ -281,7 +281,11 @@ def main():
                 not path_mismatch_warnings or
                 path_mismatch_warnings[-1].get("path_name") != "command_copy_file" or
                 path_mismatch_warnings[-1].get("path") != str(mismatched_copy_path) or
-                path_mismatch_doc.get("summary", {}).get("warning_type_counts", {}).get("operator_path_kind_mismatch") != 1):
+                path_mismatch_doc.get("summary", {}).get("warning_type_counts", {}).get("operator_path_kind_mismatch") != 1 or
+                path_mismatch_doc.get("summary", {}).get("warning_path_counts", {}).get(str(mismatched_copy_path)) != 1 or
+                path_mismatch_doc.get("summary", {}).get("warning_type_path_counts", {}).get(f"operator_path_kind_mismatch:{mismatched_copy_path}") != 1 or
+                path_mismatch_doc.get("warnings_by_path", {}).get(str(mismatched_copy_path), [{}])[-1].get("type") != "operator_path_kind_mismatch" or
+                path_mismatch_doc.get("warnings_by_type_path", {}).get(f"operator_path_kind_mismatch:{mismatched_copy_path}", [{}])[-1].get("path") != str(mismatched_copy_path)):
             print("server json status missing operator path kind mismatch warning", file=sys.stderr)
             print(path_mismatch_status.stdout, file=sys.stderr)
             return 1
@@ -320,16 +324,30 @@ def main():
         )
         invalid_state_doc = json.loads(invalid_state_status.stdout)
         invalid_warning_types = invalid_state_doc.get("summary", {}).get("warning_type_counts", {})
+        invalid_warning_paths = invalid_state_doc.get("summary", {}).get("warning_path_counts", {})
+        invalid_warning_type_paths = invalid_state_doc.get("summary", {}).get("warning_type_path_counts", {})
         invalid_warnings_by_type = invalid_state_doc.get("warnings_by_type") or {}
+        invalid_warnings_by_path = invalid_state_doc.get("warnings_by_path") or {}
+        invalid_warnings_by_type_path = invalid_state_doc.get("warnings_by_type_path") or {}
         if (invalid_state_doc.get("summary", {}).get("server_state_valid") is not False or
                 invalid_state_doc.get("summary", {}).get("staged_files_valid") is not False or
                 invalid_state_doc.get("summary", {}).get("command_queue_file_valid") is not False or
                 invalid_warning_types.get("invalid_server_state") != 1 or
                 invalid_warning_types.get("invalid_staged_files_state") != 1 or
                 invalid_warning_types.get("invalid_command_queue_state") != 1 or
+                invalid_warning_paths.get(str(invalid_state_file)) != 1 or
+                invalid_warning_paths.get(str(invalid_staged_file)) != 1 or
+                invalid_warning_paths.get(str(invalid_queue_file)) != 1 or
+                invalid_warning_type_paths.get(f"invalid_server_state:{invalid_state_file}") != 1 or
+                invalid_warning_type_paths.get(f"invalid_staged_files_state:{invalid_staged_file}") != 1 or
+                invalid_warning_type_paths.get(f"invalid_command_queue_state:{invalid_queue_file}") != 1 or
                 invalid_warnings_by_type.get("invalid_server_state", [{}])[0].get("path") != str(invalid_state_file) or
                 invalid_warnings_by_type.get("invalid_staged_files_state", [{}])[0].get("path") != str(invalid_staged_file) or
-                invalid_warnings_by_type.get("invalid_command_queue_state", [{}])[0].get("path") != str(invalid_queue_file)):
+                invalid_warnings_by_type.get("invalid_command_queue_state", [{}])[0].get("path") != str(invalid_queue_file) or
+                invalid_warnings_by_path.get(str(invalid_state_file), [{}])[0].get("type") != "invalid_server_state" or
+                invalid_warnings_by_path.get(str(invalid_staged_file), [{}])[0].get("type") != "invalid_staged_files_state" or
+                invalid_warnings_by_path.get(str(invalid_queue_file), [{}])[0].get("type") != "invalid_command_queue_state" or
+                invalid_warnings_by_type_path.get(f"invalid_server_state:{invalid_state_file}", [{}])[0].get("path") != str(invalid_state_file)):
             print("server json status missing invalid operator state warnings", file=sys.stderr)
             print(invalid_state_status.stdout, file=sys.stderr)
             return 1
@@ -2432,10 +2450,18 @@ def main():
                 invalid_release_doc.get("release") or
                 invalid_release_doc.get("summary", {}).get("release_valid") is not False or
                 invalid_release_doc.get("summary", {}).get("warning_type_counts", {}).get("invalid_release_state") != 1 or
+                invalid_release_doc.get("summary", {}).get("warning_path_counts", {}).get(str(invalid_release_dir)) != 1 or
+                invalid_release_doc.get("summary", {}).get("warning_path_counts", {}).get(str(invalid_release_dir / "release.json")) != 1 or
+                invalid_release_doc.get("summary", {}).get("warning_path_counts", {}).get(str(invalid_release_dir / "release-index.json")) != 1 or
+                invalid_release_doc.get("summary", {}).get("warning_type_path_counts", {}).get(f"invalid_release_state:{invalid_release_dir}") != 1 or
                 not invalid_release_warnings or
                 invalid_release_warnings[-1].get("path") != str(invalid_release_dir) or
                 not invalid_release_warnings[-1].get("errors") or
-                invalid_release_doc.get("warnings_by_type", {}).get("invalid_release_state", [{}])[-1].get("path") != str(invalid_release_dir)):
+                invalid_release_doc.get("warnings_by_type", {}).get("invalid_release_state", [{}])[-1].get("path") != str(invalid_release_dir) or
+                invalid_release_doc.get("warnings_by_path", {}).get(str(invalid_release_dir), [{}])[-1].get("type") != "invalid_release_state" or
+                invalid_release_doc.get("warnings_by_path", {}).get(str(invalid_release_dir / "release.json"), [{}])[-1].get("type") != "invalid_release_state" or
+                invalid_release_doc.get("warnings_by_path", {}).get(str(invalid_release_dir / "release-index.json"), [{}])[-1].get("type") != "invalid_release_state" or
+                invalid_release_doc.get("warnings_by_type_path", {}).get(f"invalid_release_state:{invalid_release_dir}", [{}])[-1].get("path") != str(invalid_release_dir)):
             print("json status did not expose invalid release bundle state", file=sys.stderr)
             print(invalid_release_status.stdout, file=sys.stderr)
             return 1

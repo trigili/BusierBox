@@ -1206,7 +1206,14 @@ def target_command_record_summary(records):
 
 
 def warning_stats(warnings):
-    by_type, by_service, by_port, by_pid, by_listener_pid, by_owner_pid = warning_record_indexes(warnings)
+    (by_type,
+     by_service,
+     by_port,
+     by_pid,
+     by_listener_pid,
+     by_owner_pid,
+     by_path,
+     by_type_path) = warning_record_indexes(warnings)
     count_records = lambda records: {key: len(value) for key, value in records.items()}
     return {
         "total_count": len(warnings or []),
@@ -1216,7 +1223,18 @@ def warning_stats(warnings):
         "by_pid": count_records(by_pid),
         "by_listener_pid": count_records(by_listener_pid),
         "by_owner_pid": count_records(by_owner_pid),
+        "by_path": count_records(by_path),
+        "by_type_path": count_records(by_type_path),
     }
+
+
+def warning_record_paths(item):
+    paths = []
+    for key in ("path", "release_json", "release_index", "process_log", "session_log"):
+        value = str((item or {}).get(key) or "")
+        if value and value not in paths:
+            paths.append(value)
+    return paths
 
 
 def warning_record_indexes(warnings):
@@ -1226,6 +1244,8 @@ def warning_record_indexes(warnings):
     by_pid = {}
     by_listener_pid = {}
     by_owner_pid = {}
+    by_path = {}
+    by_type_path = {}
     for item in warnings or []:
         if not isinstance(item, dict):
             continue
@@ -1251,7 +1271,11 @@ def warning_record_indexes(warnings):
             owner_pid = str(owner.get("pid") or "")
             if owner_pid:
                 by_owner_pid.setdefault(owner_pid, []).append(item)
-    return by_type, by_service, by_port, by_pid, by_listener_pid, by_owner_pid
+        for path in warning_record_paths(item):
+            by_path.setdefault(path, []).append(item)
+            if warning_type:
+                by_type_path.setdefault(f"{warning_type}:{path}", []).append(item)
+    return by_type, by_service, by_port, by_pid, by_listener_pid, by_owner_pid, by_path, by_type_path
 
 
 def load_command_queue(cfg):
@@ -4130,7 +4154,9 @@ def status_document(cfg):
      warnings_by_port,
      warnings_by_pid,
      warnings_by_listener_pid,
-     warnings_by_owner_pid) = warning_record_indexes(warnings)
+     warnings_by_owner_pid,
+     warnings_by_path,
+     warnings_by_type_path) = warning_record_indexes(warnings)
     warning_summary = warning_stats(warnings)
     command_queue_policy_summary = command_queue.get("policy_summary") or {}
     command_queue_mode_summary = command_queue.get("mode_summary") or {}
@@ -4180,6 +4206,8 @@ def status_document(cfg):
         "warning_pid_counts": warning_summary.get("by_pid") or {},
         "warning_listener_pid_counts": warning_summary.get("by_listener_pid") or {},
         "warning_owner_pid_counts": warning_summary.get("by_owner_pid") or {},
+        "warning_path_counts": warning_summary.get("by_path") or {},
+        "warning_type_path_counts": warning_summary.get("by_type_path") or {},
         "upload_count": len(uploads),
         "upload_total_size": record_sum_by_key(uploads, "size"),
         "upload_stored_exists_count": upload_stored_exists_count,
@@ -4315,6 +4343,8 @@ def status_document(cfg):
         "warnings_by_pid": warnings_by_pid,
         "warnings_by_listener_pid": warnings_by_listener_pid,
         "warnings_by_owner_pid": warnings_by_owner_pid,
+        "warnings_by_path": warnings_by_path,
+        "warnings_by_type_path": warnings_by_type_path,
         "warning_stats": warning_summary,
         "local_ips": ips,
         "selected_local_ip": (ips or ["OPERATOR_IP"])[0],
