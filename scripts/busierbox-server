@@ -394,6 +394,43 @@ def load_staged(cfg):
     return data
 
 
+def server_state_record(cfg):
+    path = state_file_path(cfg)
+    rec = {
+        "path": str(path),
+        "exists": False,
+        "valid": False,
+        "schema": None,
+        "services": {},
+        "sessions": [],
+        "service_count": 0,
+        "session_count": 0,
+        "error": "",
+    }
+    try:
+        rec["exists"] = path.exists()
+        if not rec["exists"]:
+            return rec
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            rec["error"] = "server-state JSON is not an object"
+            return rec
+        services = data.get("services") if isinstance(data.get("services"), dict) else {}
+        sessions = data.get("sessions") if isinstance(data.get("sessions"), list) else []
+        rec.update({
+            "valid": True,
+            "schema": data.get("schema"),
+            "services": services,
+            "sessions": sessions,
+            "service_count": len(services),
+            "session_count": len(sessions),
+            "updated_at": data.get("updated_at", ""),
+        })
+    except (OSError, json.JSONDecodeError) as exc:
+        rec["error"] = str(exc)
+    return rec
+
+
 def enriched_staged_records(cfg, staged=None):
     staged = staged if staged is not None else load_staged(cfg).get("staged", {})
     host = (local_ips() or ["OPERATOR_IP"])[0]
@@ -3381,6 +3418,7 @@ def status_document(cfg):
         "tls_cert": str(cfg.get("tls_cert", "")),
         "tls_key": str(cfg.get("tls_key", "")),
     }
+    server_state = server_state_record(cfg)
     path_status = status_path_records(paths)
     path_summary = status_path_summary(path_status)
     services_by_name = {
@@ -3428,6 +3466,10 @@ def status_document(cfg):
         "path_missing_count": path_summary.get("path_missing_count", 0),
         "path_parent_missing_count": path_summary.get("path_parent_missing_count", 0),
         "path_not_writable_count": path_summary.get("path_not_writable_count", 0),
+        "server_state_exists": bool(server_state.get("exists", False)),
+        "server_state_valid": bool(server_state.get("valid", False)),
+        "server_state_service_count": server_state.get("service_count", 0),
+        "server_state_session_count": server_state.get("session_count", 0),
         "staged_count": len(staged),
         "staged_total_size": staged_summary.get("total_size", 0),
         "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
@@ -3521,6 +3563,7 @@ def status_document(cfg):
         "tls_key": str(cfg.get("tls_key", "")),
         "paths": paths,
         "path_status": path_status,
+        "server_state": server_state,
         "services": services,
         "services_by_name": services_by_name,
         "services_by_actual": services_by_actual,

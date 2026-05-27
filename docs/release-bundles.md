@@ -276,10 +276,12 @@ includes `service_actual_counts`, `service_configured_counts`, `port_count`,
 and `port_actual_counts` for compact service and port dashboards.
 The same document includes `generated_at` and a `paths` object for stable
 discovery of server state, staged files, event logs, command queue records, and
-the session root. `path_status` mirrors those paths with existence,
-parent-existence, expected-kind, readability, and writability fields; compact
-path health counts are mirrored into `summary` as `path_status_count`,
-`path_missing_count`, `path_parent_missing_count`, and
+the session root. `server_state` exposes the managed `server-state.json` path,
+validity, service records, session records, and compact record counts for
+frontends that need the persisted manager view. `path_status` mirrors those
+paths with existence, parent-existence, expected-kind, readability, and
+writability fields; compact path health counts are mirrored into `summary` as
+`path_status_count`, `path_missing_count`, `path_parent_missing_count`, and
 `path_not_writable_count`. Staged files are exposed as the existing `staged`
 request map, an ordered `staged_records` browser list, and lookup maps
 `staged_by_request`, `staged_by_sha256`, and `staged_by_source_path`;

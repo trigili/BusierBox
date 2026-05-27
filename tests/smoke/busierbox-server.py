@@ -660,6 +660,7 @@ def main():
         path_status = queue_status_json.get("path_status") or {}
         state_path_status = path_status.get("state_file") or {}
         session_path_status = path_status.get("session_root") or {}
+        server_state = queue_status_json.get("server_state") or {}
         if (set(paths) - set(path_status) or
                 state_path_status.get("path") != queue_status_json.get("state_file") or
                 state_path_status.get("expected_kind") != "file" or
@@ -669,6 +670,15 @@ def main():
                 queue_status_json["summary"].get("path_status_count") != len(paths) or
                 queue_status_json["summary"].get("path_parent_missing_count") != 0):
             print("server json status missing operator path health records", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        if (server_state.get("path") != queue_status_json.get("state_file") or
+                server_state.get("exists") != state_path_status.get("exists") or
+                queue_status_json["summary"].get("server_state_exists") != bool(server_state.get("exists")) or
+                queue_status_json["summary"].get("server_state_valid") != bool(server_state.get("valid")) or
+                not isinstance(server_state.get("services"), dict) or
+                not isinstance(server_state.get("sessions"), list)):
+            print("server json status missing reusable server-state record", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         if (queue_status_json["summary"].get("service_count") != 4 or
@@ -936,6 +946,15 @@ def main():
         rows = {row["name"]: row for row in status_doc["services"]}
         if not rows["file-service"].get("pid"):
             print("status missing file-service pid", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        lifecycle_server_state = status_doc.get("server_state") or {}
+        if (lifecycle_server_state.get("valid") is not True or
+                lifecycle_server_state.get("service_count", 0) < 1 or
+                lifecycle_server_state.get("services", {}).get("file-service", {}).get("status") != "listening" or
+                status_doc.get("summary", {}).get("server_state_valid") is not True):
+            print("status missing live reusable server-state record", file=sys.stderr)
+            print(status.stdout, file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
         state_doc = json.loads(lifecycle_state.read_text(encoding="utf-8"))
