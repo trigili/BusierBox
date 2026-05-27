@@ -276,6 +276,28 @@ static int connect_with_timeout(const char *host, const char *port, char *detail
     return ok;
 }
 
+static void url_encode_request_name(const char *in, char *out, size_t outsz)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    size_t i = 0;
+
+    while (in && *in && i + 1 < outsz) {
+        unsigned char c = (unsigned char)*in++;
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') || c == '-' || c == '_' ||
+            c == '.' || c == '/' || c == '~') {
+            out[i++] = (char)c;
+        } else if (i + 3 < outsz) {
+            out[i++] = '%';
+            out[i++] = hex[c >> 4];
+            out[i++] = hex[c & 15];
+        } else {
+            break;
+        }
+    }
+    out[i] = '\0';
+}
+
 static void check_outbound_operator(struct check_result *r)
 {
     char detail[256];
@@ -342,7 +364,7 @@ static void check_operator_upload(struct check_result *r, const struct reality_o
 
 static void check_operator_fetch(struct check_result *r, const struct reality_opts *opts)
 {
-    char detail[256], request[512], portbuf[32], hostbuf[256];
+    char detail[256], encoded[PATH_MAX * 3], request[PATH_MAX * 4], portbuf[32], hostbuf[256];
     struct addrinfo hints, *res = NULL, *ai;
     int ok = 0;
 
@@ -360,9 +382,10 @@ static void check_operator_fetch(struct check_result *r, const struct reality_op
     }
     snprintf(portbuf, sizeof(portbuf), "%s", opts->file_port && *opts->file_port ? opts->file_port : BB_OPERATOR_FILE_SERVICE_PORT);
     snprintf(hostbuf, sizeof(hostbuf), "%s", opts->operator_host);
+    url_encode_request_name(opts->fetch_request, encoded, sizeof(encoded));
     snprintf(request, sizeof(request),
              "GET /fetch?name=%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
-             opts->fetch_request, hostbuf);
+             encoded, hostbuf);
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;

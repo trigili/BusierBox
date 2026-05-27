@@ -107,6 +107,8 @@ PY
 )
 staged="$tmp/staged-fetch.txt"
 printf '%s\n' "staged reality fetch" >"$staged"
+staged_spaced="$tmp/staged reality fetch spaced.txt"
+printf '%s\n' "staged reality fetch with spaces" >"$staged_spaced"
 operator_dir="$tmp/operator-session"
 sessions_dir="$tmp/sessions"
 cfg="$tmp/server-config.json"
@@ -123,7 +125,8 @@ scripts/busierbox-server --config "$cfg" --transport file-service --file-service
     --serve-file "$staged" --as reality-fetch.txt --timeout 10 >"$tmp/server.out" 2>"$tmp/server.err" &
 server_pid=$!
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-    if scripts/busierbox-server --config "$cfg" --json-status | grep -q "\"actual\": \"listening\""; then
+    scripts/busierbox-server --config "$cfg" --json-status >"$tmp/server-status.json"
+    if grep -q "\"actual\": \"listening\"" "$tmp/server-status.json"; then
         break
     fi
     sleep 0.1
@@ -151,6 +154,35 @@ for name in ("upload_operator", "fetch_operator"):
         raise SystemExit(f"reality-test: {name} unexpectedly skipped when explicitly enabled")
     if item.get("status") != "pass":
         raise SystemExit(f"reality-test: {name} did not pass against local operator service: {item}")
+PY
+
+scripts/busierbox-server --config "$cfg" --transport file-service --file-service-tls no \
+    --serve-file "$staged_spaced" --as "dir/reality fetch spaced.txt" --timeout 10 >"$tmp/server-spaced.out" 2>"$tmp/server-spaced.err" &
+server_pid=$!
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    scripts/busierbox-server --config "$cfg" --json-status >"$tmp/server-spaced-status.json"
+    if grep -q "\"actual\": \"listening\"" "$tmp/server-spaced-status.json"; then
+        break
+    fi
+    sleep 0.1
+done
+BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard-spaced-fetch" "$bb" reality-test --json \
+    --operator-host 127.0.0.1 --file-port "$port" --no-tls \
+    --check-fetch "dir/reality fetch spaced.txt" >"$tmp/reality-spaced-fetch.json"
+kill "$server_pid" 2>/dev/null || true
+wait "$server_pid" 2>/dev/null || true
+python3 -m json.tool "$tmp/reality-spaced-fetch.json" >/dev/null
+python3 - "$tmp/reality-spaced-fetch.json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+by_name = {item.get("name"): item for item in doc.get("checks", [])}
+item = by_name.get("fetch_operator")
+if not item or item.get("status") != "pass":
+    raise SystemExit(f"reality-test: URL-encoded fetch request did not pass: {item}")
+if doc.get("summary", {}).get("operator_pass") != 1:
+    raise SystemExit(f"reality-test: encoded fetch summary mismatch: {doc.get('summary')}")
 PY
 
 printf '%s\n' "reality-test ok"
