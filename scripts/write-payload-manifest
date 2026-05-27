@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import pathlib
 import subprocess
 import time
+
+
+def sha256_file(path):
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def read_list(path):
@@ -16,6 +25,26 @@ def read_list(path):
         if item and item not in out:
             out.append(item)
     return sorted(out)
+
+
+def read_doom_wads(payload):
+    doom_dir = payload / "share" / "games" / "doom"
+    if not doom_dir.exists():
+        return []
+    wads = []
+    for path in sorted(doom_dir.iterdir()):
+        if not path.is_file() or path.suffix.lower() != ".wad":
+            continue
+        entry = {
+            "filename": path.name,
+            "size": path.stat().st_size,
+        }
+        try:
+            entry["sha256"] = sha256_file(path)
+        except (OSError, subprocess.SubprocessError):
+            entry["sha256"] = ""
+        wads.append(entry)
+    return wads
 
 
 def read_tool_provider_status(tool, target, arch, libc):
@@ -93,6 +122,7 @@ overlay_warnings = []
 warn_file = payload / "share" / "busierbox" / "overlay-warnings.txt"
 if warn_file.exists():
     overlay_warnings = [l.strip() for l in warn_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+doom_wads = read_doom_wads(payload)
 
 tool_provider_status = {}
 if "gdbserver" in requested or "gdbserver" in staged or args.gdbserver_provider != "auto":
@@ -136,6 +166,7 @@ manifest = {
     "overlay_warnings": overlay_warnings,
     "gdbserver_provider": args.gdbserver_provider,
     "tool_provider_status": tool_provider_status,
+    "doom_wads": doom_wads,
     "applet_symlink_count": symlink_count,
     "applet_symlink_skips": symlink_skips,
     "included_shared_libs": libs,

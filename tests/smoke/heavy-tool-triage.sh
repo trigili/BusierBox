@@ -72,6 +72,42 @@ BUSIERBOX_CONFIG="$work/doom.conf" scripts/gen-buildroot-defconfig mipsel-linux-
 grep -q '^BR2_PACKAGE_BUSIERBOX_DOOM_ASCII=y$' buildroot/generated-configs/mipsel-linux-2.6-uclibc_defconfig
 grep -q "^DOOM_WAD_PATH := $work/doom.wad$" payloads/generated-profiles/mipsel-linux-2.6-uclibc.mk
 
+mkdir -p "$work/payload/share/games/doom"
+printf '%s\n' "fake wad" >"$work/payload/share/games/doom/doom.wad"
+printf '%s\n' "doom" >"$work/payload/staged-tools.txt"
+printf '%s\n' "doom" >"$work/payload/built-tools.txt"
+scripts/write-payload-manifest \
+    --target mipsel-linux-2.6-uclibc-legacy \
+    --arch mipsel \
+    --libc uclibc \
+    --kernel-floor 2.6 \
+    --busybox-version test \
+    --static-status static \
+    --payload-sha256 pending \
+    --requested-tools doom \
+    --payload-dir "$work/payload"
+python3 - "$work/payload/manifest.json" "$work" <<'PY'
+import hashlib
+import json
+import sys
+
+manifest = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+work = sys.argv[2]
+wads = manifest.get("doom_wads") or []
+if len(wads) != 1:
+    raise SystemExit("heavy-tool-triage: payload manifest did not record staged Doom WAD")
+wad = wads[0]
+if wad.get("filename") != "doom.wad":
+    raise SystemExit("heavy-tool-triage: Doom WAD manifest should record basename only")
+if work in json.dumps(wad, sort_keys=True):
+    raise SystemExit("heavy-tool-triage: Doom WAD manifest leaked local build path")
+expected = hashlib.sha256(b"fake wad\n").hexdigest()
+if wad.get("sha256") != expected:
+    raise SystemExit("heavy-tool-triage: Doom WAD manifest sha256 mismatch")
+if wad.get("size") != len(b"fake wad\n"):
+    raise SystemExit("heavy-tool-triage: Doom WAD manifest size mismatch")
+PY
+
 cat >"$work/nmap.conf" <<'EOF'
 BB_HEAVY_TOOLS="nmap nmap-ncat"
 BB_USER_OVERLAY_ENABLE="no"
