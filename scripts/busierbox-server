@@ -616,6 +616,7 @@ def session_record_indexes(records):
     by_service = {}
     by_state = {}
     by_exit_reason = {}
+    by_remote = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -623,6 +624,7 @@ def session_record_indexes(records):
         service = str(rec.get("service") or "")
         state = str(rec.get("state") or "")
         exit_reason = str(rec.get("exit_reason") or "")
+        remote = str(rec.get("remote") or "")
         if session_id_value:
             by_id[session_id_value] = rec
         if service:
@@ -631,7 +633,9 @@ def session_record_indexes(records):
             by_state.setdefault(state, []).append(rec)
         if exit_reason:
             by_exit_reason.setdefault(exit_reason, []).append(rec)
-    return by_id, by_service, by_state, by_exit_reason
+        if remote:
+            by_remote.setdefault(remote, []).append(rec)
+    return by_id, by_service, by_state, by_exit_reason, by_remote
 
 
 def event_record_indexes(records):
@@ -3167,7 +3171,7 @@ def status_document(cfg):
     uploads = recent_upload_metadata(cfg)
     fetches = recent_fetch_metadata(cfg)
     sessions = recent_session_records(cfg)
-    sessions_by_id, sessions_by_service, sessions_by_state, sessions_by_exit_reason = session_record_indexes(sessions)
+    sessions_by_id, sessions_by_service, sessions_by_state, sessions_by_exit_reason, sessions_by_remote = session_record_indexes(sessions)
     event_stats = event_log_stats(cfg)
     events = event_stats["tail"]
     events_by_service, events_by_event, events_by_level = event_record_indexes(events)
@@ -3329,6 +3333,7 @@ def status_document(cfg):
         "sessions_by_service": sessions_by_service,
         "sessions_by_state": sessions_by_state,
         "sessions_by_exit_reason": sessions_by_exit_reason,
+        "sessions_by_remote": sessions_by_remote,
         "events": events,
         "events_by_service": events_by_service,
         "events_by_event": events_by_event,

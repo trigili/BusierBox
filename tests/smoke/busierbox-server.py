@@ -1618,6 +1618,7 @@ def main():
         sessions_by_service = upload_doc.get("sessions_by_service") or {}
         sessions_by_state = upload_doc.get("sessions_by_state") or {}
         sessions_by_exit_reason = upload_doc.get("sessions_by_exit_reason") or {}
+        sessions_by_remote = upload_doc.get("sessions_by_remote") or {}
         uploaded_session_id = session_json_paths[0].parent.name
         if (sessions_by_id.get(uploaded_session_id, {}).get("metadata_path") != str(session_json_paths[0]) or
                 not sessions_by_service.get("file-service") or
@@ -1625,7 +1626,9 @@ def main():
                 not sessions_by_state.get("stopped") or
                 sessions_by_state["stopped"][0].get("session_id") != uploaded_session_id or
                 not sessions_by_exit_reason.get("clean shutdown") or
-                sessions_by_exit_reason["clean shutdown"][0].get("session_id") != uploaded_session_id):
+                sessions_by_exit_reason["clean shutdown"][0].get("session_id") != uploaded_session_id or
+                not upload_remote or
+                sessions_by_remote.get(upload_remote, [{}])[0].get("session_id") != uploaded_session_id):
             print("server json status missing session lookup indexes", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
