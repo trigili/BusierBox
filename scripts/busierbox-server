@@ -1010,6 +1010,8 @@ def command_queue_summary(cfg):
     commands_by_id = {}
     commands_by_status = {}
     status_counts = {}
+    result_status_counts = {}
+    result_exit_code_counts = {}
     latest_created_at = ""
     latest_result_received_at = ""
     for rec in commands:
@@ -1028,6 +1030,14 @@ def command_queue_summary(cfg):
             latest_created_at = created_at
         if result_received_at > latest_result_received_at:
             latest_result_received_at = result_received_at
+        result = rec.get("result") if isinstance(rec.get("result"), dict) else {}
+        result_status = str(result.get("status") or "")
+        result_exit_code = result.get("exit_code")
+        if result_status:
+            result_status_counts[result_status] = result_status_counts.get(result_status, 0) + 1
+        if result_exit_code not in (None, ""):
+            key = str(result_exit_code)
+            result_exit_code_counts[key] = result_exit_code_counts.get(key, 0) + 1
     result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
     result_exceeded_count = len([
         rec for rec in commands
@@ -1071,6 +1081,8 @@ def command_queue_summary(cfg):
         "commands_by_id": commands_by_id,
         "commands_by_status": commands_by_status,
         "status_counts": status_counts,
+        "result_status_counts": result_status_counts,
+        "result_exit_code_counts": result_exit_code_counts,
         "latest_created_at": latest_created_at,
         "latest_result_received_at": latest_result_received_at,
         "queued_count": len(queued),
@@ -3412,6 +3424,8 @@ def status_document(cfg):
         "command_queue_result_count": command_queue.get("result_count", 0),
         "command_queue_result_output_exceeded_count": command_queue.get("result_output_exceeded_count", 0),
         "command_queue_status_counts": command_queue.get("status_counts") or {},
+        "command_queue_result_status_counts": command_queue.get("result_status_counts") or {},
+        "command_queue_result_exit_code_counts": command_queue.get("result_exit_code_counts") or {},
         "command_queue_latest_created_at": command_queue.get("latest_created_at", ""),
         "command_queue_latest_result_received_at": command_queue.get("latest_result_received_at", ""),
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),

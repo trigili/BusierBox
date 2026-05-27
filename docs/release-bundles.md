@@ -335,9 +335,13 @@ future frontends show the same commands without guessing whether a command is a
 safe explicit fetch/upload helper or control-like behavior.
 Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
-`command_queue_status_counts`. It also exposes latest command-created and
-result-received timestamps, mirrored into `summary`, so dashboards can show
-queue recency without recomputing it. Compact safety booleans such as
+`command_queue_status_counts`. Recorded result status and exit-code aggregates
+are exposed as `command_queue.result_status_counts`,
+`command_queue.result_exit_code_counts`, and mirrored into `summary` as
+`command_queue_result_status_counts` and
+`command_queue_result_exit_code_counts`. It also exposes latest
+command-created and result-received timestamps, mirrored into `summary`, so
+dashboards can show queue recency without recomputing it. Compact safety booleans such as
 `command_queue_enabled`, `command_queue_configured_for_polling`,
 `command_queue_active_control_channel`, `command_queue_execution_supported`,
 `command_queue_arbitrary_policy_requested`,

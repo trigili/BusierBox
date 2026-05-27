@@ -501,6 +501,10 @@ def main():
         queue_status_json = json.loads(queue_status_doc.stdout)
         if (queue_status_json["command_queue"]["result_count"] != 1 or
                 queue_status_json["command_queue"].get("result_output_exceeded_count") != 0 or
+                queue_status_json["command_queue"].get("result_status_counts", {}).get("completed") != 1 or
+                queue_status_json["command_queue"].get("result_exit_code_counts", {}).get("0") != 1 or
+                queue_status_json.get("summary", {}).get("command_queue_result_status_counts", {}).get("completed") != 1 or
+                queue_status_json.get("summary", {}).get("command_queue_result_exit_code_counts", {}).get("0") != 1 or
                 queue_status_json["command_queue"].get("latest_created_at") != command_after_result.get("created_at") or
                 queue_status_json["command_queue"].get("latest_result_received_at") != command_after_result.get("result_received_at")):
             print("server json status missing command queue summary", file=sys.stderr)
@@ -602,6 +606,8 @@ def main():
         ).stdout)["command_queue"]
         exceeded_rec = exceeded_status["commands"][0]
         if (exceeded_status.get("result_output_exceeded_count") != 1 or
+                exceeded_status.get("result_status_counts", {}).get("completed") != 1 or
+                exceeded_status.get("result_exit_code_counts", {}).get("0") != 1 or
                 exceeded_rec.get("result_output_bytes") != 15 or
                 exceeded_rec.get("result_output_limit_bytes") != 10 or
                 exceeded_rec.get("result_output_exceeded_limit") is not True):
