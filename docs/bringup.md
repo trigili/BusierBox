@@ -137,7 +137,13 @@ with side/effect metadata, a combined `next_command_records` list,
 `next_command_records_by_side`, `next_command_records_by_service`, and
 `next_command_records_by_purpose` lookup maps, a `command_record_summary` with
 operator/target, networked target action, listener, and execution-safety counts,
-plus a `safety_boundary` object that states that bringup does not enable
+plus `run_files` and `run_file_summary` records for the local run directory,
+survey JSON, reality-test JSON, recommendation JSON, recommended config,
+generated target preset, release-find result, and selected/recommended
+artifacts. Those file records include path, expected kind, existence,
+readability, writability, and size so dashboards and audits can render a
+bringup run without separately probing the filesystem. The summary also
+includes a `safety_boundary` object that states that bringup does not enable
 network autorun, hidden control channels, command queue execution, or default
 remote command execution.
 

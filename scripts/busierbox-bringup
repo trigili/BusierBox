@@ -177,6 +177,32 @@ def env(name):
 def maybe_file(path):
     return path if path and os.path.exists(path) else ""
 
+def file_record(name, path, expected_kind="file"):
+    rec = {
+        "name": name,
+        "path": path,
+        "expected_kind": expected_kind,
+        "exists": False,
+        "is_file": False,
+        "is_dir": False,
+        "size": 0,
+        "readable": False,
+        "writable": False,
+    }
+    if not path:
+        return rec
+    rec["exists"] = os.path.exists(path)
+    rec["is_file"] = os.path.isfile(path)
+    rec["is_dir"] = os.path.isdir(path)
+    rec["readable"] = bool(rec["exists"] and os.access(path, os.R_OK))
+    rec["writable"] = bool(rec["exists"] and os.access(path, os.W_OK))
+    if rec["exists"] and rec["is_file"]:
+        try:
+            rec["size"] = os.path.getsize(path)
+        except OSError:
+            rec["size"] = 0
+    return rec
+
 def split_lines(text):
     return [line for line in text.splitlines() if line]
 
@@ -358,6 +384,26 @@ doc = {
 }
 if env("REASON"):
     doc["reason"] = env("REASON")
+run_files = {
+    "run_dir": file_record("run_dir", env("RUN_DIR"), "dir"),
+    "survey_json": file_record("survey_json", env("SURVEY_JSON")),
+    "reality_json": file_record("reality_json", env("REALITY_JSON")),
+    "recommendation_json": file_record("recommendation_json", env("RECOMMENDATION_JSON")),
+    "recommended_config": file_record("recommended_config", env("RECOMMENDED_CONFIG")),
+    "recommended_target_preset": file_record("recommended_target_preset", env("TARGET_PRESET_PATH")),
+    "release_find_json": file_record("release_find_json", env("RELEASE_FIND_JSON")),
+    "selected_artifact": file_record("selected_artifact", env("SELECTED_ARTIFACT")),
+    "recommended_artifact": file_record("recommended_artifact", env("RECOMMENDED_ARTIFACT")),
+}
+doc["run_files"] = run_files
+doc["run_file_summary"] = {
+    "total_count": len(run_files),
+    "exists_count": sum(1 for item in run_files.values() if item.get("exists")),
+    "missing_count": sum(1 for item in run_files.values() if not item.get("exists")),
+    "readable_count": sum(1 for item in run_files.values() if item.get("readable")),
+    "writable_count": sum(1 for item in run_files.values() if item.get("writable")),
+    "total_size": sum(int(item.get("size") or 0) for item in run_files.values()),
+}
 path = env("SUMMARY_PATH")
 with open(path, "w", encoding="utf-8") as fh:
     json.dump(doc, fh, indent=2, sort_keys=True)
