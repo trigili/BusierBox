@@ -403,12 +403,21 @@ static int recovery_status_one(const char *root, const struct recovery_method *m
 static int recovery_status_index_match(const char *kind, const struct recovery_method *m,
                                        const char *action, const char *value)
 {
+    char key[128];
     if (!strcmp(kind, "method"))
         return !strcmp(m->name, value);
     if (!strcmp(kind, "action"))
         return !strcmp(action, value);
     if (!strcmp(kind, "category"))
         return !strcmp(recovery_action_category(action), value);
+    if (!strcmp(kind, "method_action")) {
+        snprintf(key, sizeof(key), "%s:%s", m->name, action);
+        return !strcmp(key, value);
+    }
+    if (!strcmp(kind, "category_action")) {
+        snprintf(key, sizeof(key), "%s:%s", recovery_action_category(action), action);
+        return !strcmp(key, value);
+    }
     return 0;
 }
 
@@ -496,6 +505,40 @@ static void recovery_print_status_indexes(const char *root, const char *name)
         fputc(':', stdout);
         recovery_print_status_index_array(root, name, "category", categories[i]);
         first = 0;
+    }
+    fputs("}", stdout);
+    fputs(",\"installations_by_method_action\":{", stdout);
+    first = 1;
+    for (i = 0; i < sizeof(recovery_methods) / sizeof(recovery_methods[0]); i++) {
+        size_t a;
+        for (a = 0; actions[a]; a++) {
+            char key[128];
+            snprintf(key, sizeof(key), "%s:%s", recovery_methods[i].name, actions[a]);
+            if (!recovery_status_index_has_match(root, name, "method_action", key))
+                continue;
+            fputs(first ? "" : ",", stdout);
+            bb_json_string(stdout, key);
+            fputc(':', stdout);
+            recovery_print_status_index_array(root, name, "method_action", key);
+            first = 0;
+        }
+    }
+    fputs("}", stdout);
+    fputs(",\"installations_by_category_action\":{", stdout);
+    first = 1;
+    for (i = 0; categories[i]; i++) {
+        size_t a;
+        for (a = 0; actions[a]; a++) {
+            char key[128];
+            snprintf(key, sizeof(key), "%s:%s", categories[i], actions[a]);
+            if (!recovery_status_index_has_match(root, name, "category_action", key))
+                continue;
+            fputs(first ? "" : ",", stdout);
+            bb_json_string(stdout, key);
+            fputc(':', stdout);
+            recovery_print_status_index_array(root, name, "category_action", key);
+            first = 0;
+        }
     }
     fputs("}", stdout);
 }
@@ -814,6 +857,8 @@ int applet_recovery_main(int argc, char **argv)
         int script_action_count = 0;
         int operator_supplied_command_count = 0;
         int external_write_required_count = 0;
+        int command_queue_enabled_count = 0;
+        int hidden_control_channel_count = 0;
         if (json) {
             printf("{\"schema\":1,\"root\":");
             bb_json_string(stdout, root);
@@ -893,7 +938,7 @@ int applet_recovery_main(int argc, char **argv)
         if (json) {
             fputc(']', stdout);
             recovery_print_status_indexes(root, name);
-            printf(",\"summary\":{\"installation_count\":%d,\"evidence_action_count\":%d,\"evidence_upload_count\":%d,\"dmesg_action_count\":%d,\"rshell_action_count\":%d,\"rshell_after_evidence_count\":%d,\"command_action_count\":%d,\"script_action_count\":%d,\"operator_supplied_command_count\":%d,\"external_write_required_count\":%d},\"installed\":%s}\n",
+            printf(",\"summary\":{\"installation_count\":%d,\"evidence_action_count\":%d,\"evidence_upload_count\":%d,\"dmesg_action_count\":%d,\"rshell_action_count\":%d,\"rshell_after_evidence_count\":%d,\"command_action_count\":%d,\"script_action_count\":%d,\"operator_supplied_command_count\":%d,\"external_write_required_count\":%d,\"command_queue_enabled_count\":%d,\"hidden_control_channel_count\":%d,\"all_require_external_write\":%s,\"any_operator_supplied_command\":%s},\"installed\":%s}\n",
                    installed_count,
                    evidence_action_count,
                    evidence_upload_count,
@@ -904,6 +949,10 @@ int applet_recovery_main(int argc, char **argv)
                    script_action_count,
                    operator_supplied_command_count,
                    external_write_required_count,
+                   command_queue_enabled_count,
+                   hidden_control_channel_count,
+                   installed_count > 0 && external_write_required_count == installed_count ? "true" : "false",
+                   operator_supplied_command_count > 0 ? "true" : "false",
                    found ? "true" : "false");
         } else if (!found) {
             puts("installed=no");

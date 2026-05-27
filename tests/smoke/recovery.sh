@@ -96,6 +96,10 @@ assert summary["command_action_count"] == 0
 assert summary["script_action_count"] == 0
 assert summary["operator_supplied_command_count"] == 0
 assert summary["external_write_required_count"] == 1
+assert summary["command_queue_enabled_count"] == 0
+assert summary["hidden_control_channel_count"] == 0
+assert summary["all_require_external_write"] is True
+assert summary["any_operator_supplied_command"] is False
 safety = data["safety"]
 assert safety["visible_marked_hooks"] is True
 assert safety["uninstall_removes_marked_blocks"] is True
@@ -107,6 +111,8 @@ item = next(item for item in data["installations"] if item["method"] == "rc-loca
 assert data["installations_by_method"]["rc-local"] == [0]
 assert data["installations_by_action"]["status-only"] == [0]
 assert data["installations_by_category"]["status"] == [0]
+assert data["installations_by_method_action"]["rc-local:status-only"] == [0]
+assert data["installations_by_category_action"]["status:status-only"] == [0]
 assert item["action"] == "status-only"
 assert item["action_category"] == "status"
 assert item["uploads_evidence"] is False
@@ -172,6 +178,8 @@ item = next(item for item in data["installations"] if item["method"] == "rc-loca
 assert data["installations_by_method"]["rc-local"] == [0]
 assert data["installations_by_action"]["evidence-push"] == [0]
 assert data["installations_by_category"]["evidence"] == [0]
+assert data["installations_by_method_action"]["rc-local:evidence-push"] == [0]
+assert data["installations_by_category_action"]["evidence:evidence-push"] == [0]
 assert item["action"] == "evidence-push"
 assert item["action_category"] == "evidence"
 assert item["uploads_evidence"] is True
@@ -201,6 +209,8 @@ assert summary["rshell_after_evidence_count"] == 1
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 assert data["installations_by_action"]["evidence-then-rshell"] == [0]
 assert data["installations_by_category"]["evidence"] == [0]
+assert data["installations_by_method_action"]["rc-local:evidence-then-rshell"] == [0]
+assert data["installations_by_category_action"]["evidence:evidence-then-rshell"] == [0]
 assert item["action"] == "evidence-then-rshell"
 assert item["action_category"] == "evidence"
 assert item["uploads_evidence"] is True
@@ -230,6 +240,8 @@ assert summary["dmesg_action_count"] == 1
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 assert data["installations_by_action"]["dmesg-push"] == [0]
 assert data["installations_by_category"]["evidence"] == [0]
+assert data["installations_by_method_action"]["rc-local:dmesg-push"] == [0]
+assert data["installations_by_category_action"]["evidence:dmesg-push"] == [0]
 assert item["action"] == "dmesg-push"
 assert item["action_category"] == "evidence"
 assert item["uploads_evidence"] is True
@@ -266,6 +278,9 @@ assert summary["operator_supplied_command_count"] == 1
 assert data["installations_by_method"]["cron-reboot"] == [0]
 assert data["installations_by_action"]["command"] == [0]
 assert data["installations_by_category"]["command"] == [0]
+assert data["installations_by_method_action"]["cron-reboot:command"] == [0]
+assert data["installations_by_category_action"]["command:command"] == [0]
+assert summary["any_operator_supplied_command"] is True
 assert any(item["method"] == "cron-reboot" and item["action"] == "command" and item["action_category"] == "command" and item["executes_operator_supplied_command"] is True and item["generated_command"] == "busierbox rshell start" for item in data["installations"])
 PY
 "$bb" persistence uninstall --method cron-reboot --apply --root "$tmp/root" --name bbx_recovery >/dev/null
@@ -292,7 +307,10 @@ summary = data["summary"]
 assert summary["installation_count"] == 1
 assert summary["script_action_count"] == 1
 assert summary["operator_supplied_command_count"] == 1
+assert summary["any_operator_supplied_command"] is True
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
+assert data["installations_by_method_action"]["rc-local:script"] == [0]
+assert data["installations_by_category_action"]["script:script"] == [0]
 assert item["action"] == "script"
 assert item["action_category"] == "script"
 assert item["executes_operator_supplied_command"] is True
