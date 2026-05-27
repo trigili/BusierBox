@@ -1238,19 +1238,34 @@ def main():
         if (bind_warning_stats.get("total_count", 0) < 1 or
                 bind_warning_stats.get("by_type", {}).get("service_error", 0) < 1 or
                 bind_warning_stats.get("by_service", {}).get("file-service", 0) < 1 or
+                bind_warning_stats.get("by_port", {}).get(str(bind_fail_port), 0) < 1 or
                 bind_summary.get("warning_count", 0) < 1 or
                 bind_summary.get("warning_type_counts", {}).get("service_error", 0) < 1 or
-                bind_summary.get("warning_service_counts", {}).get("file-service", 0) < 1):
+                bind_summary.get("warning_service_counts", {}).get("file-service", 0) < 1 or
+                bind_summary.get("warning_port_counts", {}).get(str(bind_fail_port), 0) < 1):
             print("bind failure status missing warning aggregate stats", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
         warnings_by_type = bind_fail_doc.get("warnings_by_type") or {}
         warnings_by_service = bind_fail_doc.get("warnings_by_service") or {}
+        warnings_by_port = bind_fail_doc.get("warnings_by_port") or {}
         if (not warnings_by_type.get("service_error") or
                 warnings_by_type["service_error"][-1].get("service") != "file-service" or
                 not warnings_by_service.get("file-service") or
-                warnings_by_service["file-service"][-1].get("type") != "service_error"):
+                warnings_by_service["file-service"][-1].get("type") != "service_error" or
+                not warnings_by_port.get(str(bind_fail_port)) or
+                warnings_by_port[str(bind_fail_port)][-1].get("type") != "service_error"):
             print("bind failure status missing warning lookup indexes", file=sys.stderr)
+            print(bind_fail_status.stdout, file=sys.stderr)
+            return 1
+        owner_pid = str((bind_fail_warnings[-1].get("owners") or [{}])[-1].get("pid") or "")
+        warnings_by_owner_pid = bind_fail_doc.get("warnings_by_owner_pid") or {}
+        if (not owner_pid or
+                bind_warning_stats.get("by_owner_pid", {}).get(owner_pid, 0) < 1 or
+                bind_summary.get("warning_owner_pid_counts", {}).get(owner_pid, 0) < 1 or
+                not warnings_by_owner_pid.get(owner_pid) or
+                warnings_by_owner_pid[owner_pid][-1].get("service") != "file-service"):
+            print("bind failure status missing warning owner-pid index", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
         bind_fail_workbench = run(

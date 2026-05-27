@@ -1129,37 +1129,52 @@ def target_command_record_summary(records):
 
 
 def warning_stats(warnings):
-    by_type = {}
-    by_service = {}
-    for item in warnings or []:
-        if not isinstance(item, dict):
-            continue
-        warning_type = str(item.get("type") or "")
-        service = str(item.get("service") or "")
-        if warning_type:
-            by_type[warning_type] = by_type.get(warning_type, 0) + 1
-        if service:
-            by_service[service] = by_service.get(service, 0) + 1
+    by_type, by_service, by_port, by_pid, by_listener_pid, by_owner_pid = warning_record_indexes(warnings)
+    count_records = lambda records: {key: len(value) for key, value in records.items()}
     return {
         "total_count": len(warnings or []),
-        "by_type": by_type,
-        "by_service": by_service,
+        "by_type": count_records(by_type),
+        "by_service": count_records(by_service),
+        "by_port": count_records(by_port),
+        "by_pid": count_records(by_pid),
+        "by_listener_pid": count_records(by_listener_pid),
+        "by_owner_pid": count_records(by_owner_pid),
     }
 
 
 def warning_record_indexes(warnings):
     by_type = {}
     by_service = {}
+    by_port = {}
+    by_pid = {}
+    by_listener_pid = {}
+    by_owner_pid = {}
     for item in warnings or []:
         if not isinstance(item, dict):
             continue
         warning_type = str(item.get("type") or "")
         service = str(item.get("service") or "")
+        port = item.get("port")
+        pid = str(item.get("pid") or "")
         if warning_type:
             by_type.setdefault(warning_type, []).append(item)
         if service:
             by_service.setdefault(service, []).append(item)
-    return by_type, by_service
+        if port not in (None, "", 0):
+            by_port.setdefault(str(port), []).append(item)
+        if pid:
+            by_pid.setdefault(pid, []).append(item)
+        for listener_pid in item.get("listener_pids") or []:
+            listener_pid = str(listener_pid or "")
+            if listener_pid:
+                by_listener_pid.setdefault(listener_pid, []).append(item)
+        for owner in item.get("owners") or []:
+            if not isinstance(owner, dict):
+                continue
+            owner_pid = str(owner.get("pid") or "")
+            if owner_pid:
+                by_owner_pid.setdefault(owner_pid, []).append(item)
+    return by_type, by_service, by_port, by_pid, by_listener_pid, by_owner_pid
 
 
 def load_command_queue(cfg):
@@ -3822,7 +3837,12 @@ def status_document(cfg):
             "message": "command queue policy is invalid; target polling is not configured",
             "suggested_action": "fix command queue config or leave it fully disabled",
         })
-    warnings_by_type, warnings_by_service = warning_record_indexes(warnings)
+    (warnings_by_type,
+     warnings_by_service,
+     warnings_by_port,
+     warnings_by_pid,
+     warnings_by_listener_pid,
+     warnings_by_owner_pid) = warning_record_indexes(warnings)
     warning_summary = warning_stats(warnings)
     command_queue_policy_summary = command_queue.get("policy_summary") or {}
     upload_stored_exists_count, upload_stored_missing_count = record_bool_counts(uploads, "stored_exists")
@@ -3860,6 +3880,10 @@ def status_document(cfg):
         "warning_count": warning_summary.get("total_count", 0),
         "warning_type_counts": warning_summary.get("by_type") or {},
         "warning_service_counts": warning_summary.get("by_service") or {},
+        "warning_port_counts": warning_summary.get("by_port") or {},
+        "warning_pid_counts": warning_summary.get("by_pid") or {},
+        "warning_listener_pid_counts": warning_summary.get("by_listener_pid") or {},
+        "warning_owner_pid_counts": warning_summary.get("by_owner_pid") or {},
         "upload_count": len(uploads),
         "upload_total_size": record_sum_by_key(uploads, "size"),
         "upload_stored_exists_count": upload_stored_exists_count,
@@ -3973,6 +3997,10 @@ def status_document(cfg):
         "warnings": warnings,
         "warnings_by_type": warnings_by_type,
         "warnings_by_service": warnings_by_service,
+        "warnings_by_port": warnings_by_port,
+        "warnings_by_pid": warnings_by_pid,
+        "warnings_by_listener_pid": warnings_by_listener_pid,
+        "warnings_by_owner_pid": warnings_by_owner_pid,
         "warning_stats": warning_summary,
         "local_ips": ips,
         "selected_local_ip": (ips or ["OPERATOR_IP"])[0],

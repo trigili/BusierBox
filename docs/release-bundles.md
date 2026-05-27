@@ -400,10 +400,14 @@ dashboard clients that only need compact status counters and event recency.
 Structured `warnings` use stable `type` values such as `service_error`,
 `stale_state`, `unexpected_listener`, `unmanaged_recorded_pid`,
 `invalid_event_log`, and `invalid_command_queue_policy`. `warning_stats`
-summarizes warnings by type and service, while `warnings_by_type` and
-`warnings_by_service` provide full warning records grouped for direct frontend
-lookups. The same compact warning counters are mirrored into `summary` as
-`warning_count`, `warning_type_counts`, and `warning_service_counts`; summary
+summarizes warnings by type, service, port, recorded PID, listener PID, and
+possible owner PID. `warnings_by_type`, `warnings_by_service`,
+`warnings_by_port`, `warnings_by_pid`, `warnings_by_listener_pid`, and
+`warnings_by_owner_pid` provide full warning records grouped for direct
+frontend lookups. The same compact warning counters are mirrored into `summary`
+as `warning_count`, `warning_type_counts`, `warning_service_counts`,
+`warning_port_counts`, `warning_pid_counts`, `warning_listener_pid_counts`, and
+`warning_owner_pid_counts`; summary
 fields also include `command_queue_policy_valid` and
 `command_queue_policy_error_count` so clients can distinguish a disabled queue
 from an invalid policy. Service-related
