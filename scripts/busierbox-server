@@ -457,13 +457,54 @@ def record_command_result(cfg, command_id, result_path):
     raise ValueError(f"command queue id not found: {command_id}")
 
 
+def valid_yes_no(value):
+    return str(value) in ("yes", "no")
+
+
+def valid_uint_string(value):
+    text = str(value)
+    return bool(text) and text.isdigit()
+
+
+def command_queue_policy_errors(cfg):
+    errors = []
+    enabled = str(cfg.get("command_queue_enable", "no"))
+    allowed = str(cfg.get("command_queue_allowed_commands", "none"))
+    allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
+    if not valid_yes_no(enabled):
+        errors.append("invalid command queue enable value")
+    if not valid_uint_string(cfg.get("command_queue_port", "22205")):
+        errors.append("invalid command queue port")
+    if not valid_yes_no(cfg.get("command_queue_tls", "yes")):
+        errors.append("invalid command queue TLS value")
+    if not valid_yes_no(cfg.get("command_queue_require_token", "yes")):
+        errors.append("invalid command queue token requirement")
+    if str(cfg.get("command_queue_token_source", "manual")) not in ("manual", "generated"):
+        errors.append("invalid command queue token source")
+    if allowed not in ("none", "busierbox-only", "allowlist", "custom"):
+        errors.append("invalid command queue allowed commands policy")
+    if not valid_yes_no(allow_arbitrary):
+        errors.append("invalid command queue arbitrary-execution flag")
+    if enabled != "yes":
+        if allowed != "none":
+            errors.append("disabled command queue must keep allowed commands policy none")
+        if allow_arbitrary != "no":
+            errors.append("disabled command queue must not allow arbitrary execution")
+    if allow_arbitrary == "yes" and allowed != "custom":
+        errors.append("arbitrary command queue execution requires allowed commands policy custom")
+    return errors
+
+
 def command_queue_summary(cfg):
     data = load_command_queue(cfg)
     commands = data.get("commands", [])
     queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
     result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
     enabled = str(cfg.get("command_queue_enable", "no"))
+    allowed_commands = str(cfg.get("command_queue_allowed_commands", "none"))
     allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
+    policy_errors = command_queue_policy_errors(cfg)
+    policy_valid = not policy_errors
     return {
         "path": str(command_queue_path(cfg)),
         "enabled": enabled,
@@ -472,8 +513,10 @@ def command_queue_summary(cfg):
         "tls": str(cfg.get("command_queue_tls", "yes")),
         "require_token": str(cfg.get("command_queue_require_token", "yes")),
         "token_source": str(cfg.get("command_queue_token_source", "manual")),
-        "allowed_commands": str(cfg.get("command_queue_allowed_commands", "none")),
+        "allowed_commands": allowed_commands,
         "allow_arbitrary": allow_arbitrary,
+        "policy_valid": policy_valid,
+        "policy_errors": policy_errors,
         "commands": commands,
         "queued_count": len(queued),
         "result_count": result_count,
@@ -483,8 +526,8 @@ def command_queue_summary(cfg):
         "executes_commands": False,
         "operator_queue_records_only": True,
         "active_control_channel": False,
-        "configured_for_polling": enabled == "yes",
-        "arbitrary_execution_allowed": enabled == "yes" and allow_arbitrary == "yes",
+        "configured_for_polling": policy_valid and enabled == "yes",
+        "arbitrary_execution_allowed": policy_valid and enabled == "yes" and allowed_commands == "custom" and allow_arbitrary == "yes",
         "safety_boundary": "explicit operator queue records only; no default target execution or hidden control channel",
     }
 
@@ -498,11 +541,17 @@ def print_command_queue(cfg, json_output=False):
         print(f"Command queue: {summary['path']}")
         print(f"  enabled={summary['enabled']} default_enabled=no port={summary['port']} tls={summary['tls']} require_token={summary['require_token']}")
         print(f"  allowed_commands={summary['allowed_commands']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no")
+        print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
+        for error in summary["policy_errors"]:
+            print(f"  policy_error={error}")
         print("  no queued commands")
         return
     print(f"Command queue: {summary['path']}")
     print(f"  enabled={summary['enabled']} default_enabled=no port={summary['port']} tls={summary['tls']} require_token={summary['require_token']}")
     print(f"  allowed_commands={summary['allowed_commands']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no")
+    print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
+    for error in summary["policy_errors"]:
+        print(f"  policy_error={error}")
     for rec in summary["commands"]:
         print(f"{rec.get('id', '')}\t{rec.get('status', '')}\tcreated={rec.get('created_at', '')}")
         print(f"  command: {rec.get('command', '')}")
@@ -2759,6 +2808,9 @@ def print_status(cfg, json_output=False):
     print(f"  path: {queue.get('path', '')}")
     print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')}")
     print(f"  allowed_commands={queue.get('allowed_commands', '')} allow_arbitrary={queue.get('allow_arbitrary', '')} active_control_channel=no")
+    print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'}")
+    for error in queue.get("policy_errors") or []:
+        print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")

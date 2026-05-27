@@ -305,11 +305,53 @@ def main():
                 queue_summary.get("default_enabled") is not False or
                 queue_summary.get("allowed_commands") != "none" or
                 queue_summary.get("allow_arbitrary") != "no" or
+                queue_summary.get("policy_valid") is not True or
+                queue_summary.get("policy_errors") != [] or
                 queue_summary.get("executes_commands") is not False or
                 queue_summary.get("operator_queue_records_only") is not True or
                 queue_summary.get("active_control_channel") is not False):
             print("json command queue listing missing explicit safety policy", file=sys.stderr)
             print(queue_list.stdout, file=sys.stderr)
+            return 1
+        invalid_queue_cfg = Path(tmp) / "server-config-invalid-command-queue.json"
+        invalid_queue_cfg.write_text(json.dumps({
+            "operator_session_dir": str(queue_operator_dir),
+            "command_queue_file": str(queue_file),
+            "command_queue_enable": "no",
+            "command_queue_allowed_commands": "busierbox-only",
+            "command_queue_allow_arbitrary": "yes",
+        }), encoding="utf-8")
+        invalid_queue_list = run(
+            "scripts/busierbox-server",
+            "--config", str(invalid_queue_cfg),
+            "--json-command-queue",
+        )
+        if invalid_queue_list.returncode != 0:
+            print("invalid command queue policy listing failed", file=sys.stderr)
+            print(invalid_queue_list.stderr, file=sys.stderr)
+            return 1
+        invalid_queue_summary = json.loads(invalid_queue_list.stdout)["command_queue"]
+        if (invalid_queue_summary.get("policy_valid") is not False or
+                "disabled command queue must keep allowed commands policy none" not in invalid_queue_summary.get("policy_errors", []) or
+                "disabled command queue must not allow arbitrary execution" not in invalid_queue_summary.get("policy_errors", []) or
+                invalid_queue_summary.get("configured_for_polling") is not False or
+                invalid_queue_summary.get("arbitrary_execution_allowed") is not False or
+                invalid_queue_summary.get("active_control_channel") is not False or
+                invalid_queue_summary.get("executes_commands") is not False):
+            print("invalid command queue policy was not reported safely", file=sys.stderr)
+            print(invalid_queue_list.stdout, file=sys.stderr)
+            return 1
+        invalid_queue_text = run(
+            "scripts/busierbox-server",
+            "--config", str(invalid_queue_cfg),
+            "--list-command-queue",
+        )
+        if (invalid_queue_text.returncode != 0 or
+                "policy_valid=no" not in invalid_queue_text.stdout or
+                "policy_error=disabled command queue must keep allowed commands policy none" not in invalid_queue_text.stdout):
+            print("invalid command queue text listing missing policy errors", file=sys.stderr)
+            print(invalid_queue_text.stdout, file=sys.stderr)
+            print(invalid_queue_text.stderr, file=sys.stderr)
             return 1
         command_id = queue_status["command_queue"]["commands"][0]["id"]
         mismatched_result_json = Path(tmp) / "command-result-mismatch.json"
@@ -384,12 +426,27 @@ def main():
             return 1
         status_queue = queue_status_json["command_queue"]
         if (status_queue.get("enabled") != "no" or
+                status_queue.get("policy_valid") is not True or
+                status_queue.get("policy_errors") != [] or
                 status_queue.get("configured_for_polling") is not False or
                 status_queue.get("arbitrary_execution_allowed") is not False or
                 status_queue.get("active_control_channel") is not False or
                 status_queue.get("executes_commands") is not False):
             print("server json status missing command queue safety policy", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        invalid_queue_status_doc = run(
+            "scripts/busierbox-server",
+            "--config", str(invalid_queue_cfg),
+            "--json-status",
+        )
+        invalid_queue_status = json.loads(invalid_queue_status_doc.stdout)
+        invalid_status_queue = invalid_queue_status["command_queue"]
+        if (invalid_status_queue.get("policy_valid") is not False or
+                invalid_status_queue.get("configured_for_polling") is not False or
+                invalid_status_queue.get("arbitrary_execution_allowed") is not False):
+            print("server json status marked invalid command queue policy usable", file=sys.stderr)
+            print(invalid_queue_status_doc.stdout, file=sys.stderr)
             return 1
         if "summary" not in queue_status_json or "warnings" not in queue_status_json:
             print("server json status missing top-level summary/warnings", file=sys.stderr)
