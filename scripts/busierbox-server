@@ -112,16 +112,20 @@ class EventLog:
         by_service = {}
         by_event = {}
         by_level = {}
+        by_remote = {}
         for rec in records:
             service = str(rec.get("service") or "")
             event = str(rec.get("event") or "")
             level = str(rec.get("level") or "")
+            remote = str(rec.get("remote") or "")
             if service:
                 by_service[service] = by_service.get(service, 0) + 1
             if event:
                 by_event[event] = by_event.get(event, 0) + 1
             if level:
                 by_level[level] = by_level.get(level, 0) + 1
+            if remote:
+                by_remote[remote] = by_remote.get(remote, 0) + 1
         return {
             "path": str(self.path),
             "total_count": len(records),
@@ -131,6 +135,7 @@ class EventLog:
             "by_service": by_service,
             "by_event": by_event,
             "by_level": by_level,
+            "by_remote": by_remote,
             "tail": tail,
         }
 
@@ -642,19 +647,23 @@ def event_record_indexes(records):
     by_service = {}
     by_event = {}
     by_level = {}
+    by_remote = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
         service = str(rec.get("service") or "")
         event = str(rec.get("event") or "")
         level = str(rec.get("level") or "")
+        remote = str(rec.get("remote") or "")
         if service:
             by_service.setdefault(service, []).append(rec)
         if event:
             by_event.setdefault(event, []).append(rec)
         if level:
             by_level.setdefault(level, []).append(rec)
-    return by_service, by_event, by_level
+        if remote:
+            by_remote.setdefault(remote, []).append(rec)
+    return by_service, by_event, by_level, by_remote
 
 
 def format_counts(counts, limit=6):
@@ -3174,7 +3183,7 @@ def status_document(cfg):
     sessions_by_id, sessions_by_service, sessions_by_state, sessions_by_exit_reason, sessions_by_remote = session_record_indexes(sessions)
     event_stats = event_log_stats(cfg)
     events = event_stats["tail"]
-    events_by_service, events_by_event, events_by_level = event_record_indexes(events)
+    events_by_service, events_by_event, events_by_level, events_by_remote = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
     release = release_context()
     target_command_records = generated_target_command_records(cfg, staged_raw)
@@ -3263,6 +3272,7 @@ def status_document(cfg):
         "event_service_counts": event_stats.get("by_service") or {},
         "event_type_counts": event_stats.get("by_event") or {},
         "event_level_counts": event_stats.get("by_level") or {},
+        "event_remote_counts": event_stats.get("by_remote") or {},
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_result_count": command_queue.get("result_count", 0),
@@ -3338,6 +3348,7 @@ def status_document(cfg):
         "events_by_service": events_by_service,
         "events_by_event": events_by_event,
         "events_by_level": events_by_level,
+        "events_by_remote": events_by_remote,
         "event_log_stats": {
             key: value for key, value in event_stats.items() if key != "tail"
         },
@@ -3569,6 +3580,7 @@ def print_status(cfg, json_output=False):
     print(f"  services: {format_counts(stats.get('by_service') or {})}")
     print(f"  events: {format_counts(stats.get('by_event') or {})}")
     print(f"  levels: {format_counts(stats.get('by_level') or {})}")
+    print(f"  remotes: {format_counts(stats.get('by_remote') or {})}")
     if doc["events"]:
         for event in doc["events"][-8:]:
             suffix = compact_event_details(event)
@@ -3794,6 +3806,7 @@ def print_workbench(cfg):
     print(f"  services: {format_counts(stats.get('by_service') or {})}")
     print(f"  events: {format_counts(stats.get('by_event') or {})}")
     print(f"  levels: {format_counts(stats.get('by_level') or {})}")
+    print(f"  remotes: {format_counts(stats.get('by_remote') or {})}")
     if snap["events"]:
         for event in snap["events"][-8:]:
             suffix = compact_event_details(event)

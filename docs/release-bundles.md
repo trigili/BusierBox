@@ -323,11 +323,17 @@ per-session logs. File-service `connection_close` entries include the observed
 request operation, status, HTTP status, and request/file identifier when known,
 so timelines can show the final request outcome without scraping upload or fetch
 metadata separately. The `events` array is a bounded recent tail;
-`events_by_service` and `events_by_event` group those tail records for direct
-frontend lookups. `event_log_stats` reports the event log path, total valid event count, tail count, invalid JSONL line count, tail limit, and aggregate counters by service, event, and level so API consumers can tell whether there is more history to page or inspect from disk while still rendering compact diagnostics.
+`events_by_service`, `events_by_event`, `events_by_level`, and
+`events_by_remote` group those tail records for direct frontend lookups.
+`event_log_stats` reports the event log path, total valid event count, tail
+count, invalid JSONL line count, tail limit, and aggregate counters by service,
+event, level, and remote endpoint so API consumers can tell whether there is
+more history to page or inspect from disk while still rendering compact
+diagnostics.
 Those aggregate maps are also mirrored into `summary` as
-`event_service_counts`, `event_type_counts`, and `event_level_counts` for
-dashboard clients that only need compact status counters.
+`event_service_counts`, `event_type_counts`, `event_level_counts`, and
+`event_remote_counts` for dashboard clients that only need compact status
+counters.
 
 Structured `warnings` use stable `type` values such as `service_error`,
 `stale_state`, `unexpected_listener`, `unmanaged_recorded_pid`,

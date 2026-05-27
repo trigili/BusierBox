@@ -1635,12 +1635,15 @@ def main():
         upload_event_stats = upload_doc.get("event_log_stats") or {}
         if (upload_event_stats.get("total_count", 0) < len(global_events) or
                 upload_event_stats.get("tail_count") != len(upload_doc.get("events", [])) or
-                upload_doc.get("summary", {}).get("event_tail_count") != upload_event_stats.get("tail_count")):
+                upload_doc.get("summary", {}).get("event_tail_count") != upload_event_stats.get("tail_count") or
+                upload_event_stats.get("by_remote", {}).get(upload_remote, 0) < 1 or
+                upload_doc.get("summary", {}).get("event_remote_counts", {}).get(upload_remote, 0) < 1):
             print("server json status missing upload event log stats", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
-        if not (upload_doc.get("events_by_level") or {}).get("info"):
-            print("server json status missing upload event level lookup index", file=sys.stderr)
+        if (not (upload_doc.get("events_by_level") or {}).get("info") or
+                not (upload_doc.get("events_by_remote") or {}).get(upload_remote)):
+            print("server json status missing upload event lookup index", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         upload_status_text = run(
@@ -1652,6 +1655,7 @@ def main():
                 "file-service:upload_complete" not in upload_status_text.stdout or
                 "services: file-service=" not in upload_status_text.stdout or
                 "levels: info=" not in upload_status_text.stdout or
+                "remotes:" not in upload_status_text.stdout or
                 "operation=upload status=ok http=200 filename=evidence.txt" not in upload_status_text.stdout or
                 "Command queue:" not in upload_status_text.stdout or
                 "uploads=1" not in upload_status_text.stdout or
