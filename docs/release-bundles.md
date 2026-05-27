@@ -354,6 +354,8 @@ tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `artifacts_by_sha256`, `artifacts_by_payload_preset`,
 `artifacts_by_compatibility`, `artifacts_by_source`, `artifacts_by_tool`,
 `artifacts_by_feature`, `artifacts_by_provider_tool`, `artifacts_by_provider_status`,
+`artifacts_by_tool_payload_preset`, `artifacts_by_feature_payload_preset`,
+`artifacts_by_tuple_payload_preset`,
 `artifacts_by_doom_wad_filename`, `artifacts_by_doom_wad_sha256`,
 `devices_by_name`, and `tuples_by_path` lookup maps. Release artifact
 state is exposed separately as `release_state` with release directory,
@@ -368,7 +370,10 @@ as `release_artifact_total_size`, `release_artifact_compatibility_counts`,
 `release_artifact_payload_preset_counts`, `release_artifact_source_counts`,
 `release_artifact_tool_counts`, `release_artifact_feature_counts`,
 `release_artifact_provider_tool_counts`, and
-`release_artifact_provider_status_counts`. Doom WAD references are grouped by
+`release_artifact_provider_status_counts`. Composite lookup counts are
+mirrored as `release_artifact_tool_payload_preset_combo_count`,
+`release_artifact_feature_payload_preset_combo_count`, and
+`release_artifact_tuple_payload_preset_combo_count`. Doom WAD references are grouped by
 basename/hash in `release_artifact_doom_wad_filename_counts` and
 `release_artifact_doom_wad_sha256_counts`, and counted as
 `release_artifact_doom_wad_count`.

@@ -1776,6 +1776,9 @@ def release_context():
         artifacts_by_source = {}
         artifacts_by_tool = {}
         artifacts_by_feature = {}
+        artifacts_by_tool_payload_preset = {}
+        artifacts_by_feature_payload_preset = {}
+        artifacts_by_tuple_payload_preset = {}
         artifacts_by_provider_tool = {}
         artifacts_by_provider_status = {}
         artifacts_by_doom_wad_filename = {}
@@ -1811,6 +1814,8 @@ def release_context():
             if payload_preset:
                 artifacts_by_payload_preset.setdefault(payload_preset, []).append(rec)
                 artifact_payload_preset_counts[payload_preset] = artifact_payload_preset_counts.get(payload_preset, 0) + 1
+            if rec.get("tuple_path") and payload_preset:
+                artifacts_by_tuple_payload_preset.setdefault(f"{rec.get('tuple_path')}:{payload_preset}", []).append(rec)
             if source:
                 artifacts_by_source.setdefault(source, []).append(rec)
                 artifact_source_counts[source] = artifact_source_counts.get(source, 0) + 1
@@ -1822,6 +1827,8 @@ def release_context():
                 if tool_name:
                     artifacts_by_tool.setdefault(tool_name, []).append(rec)
                     artifact_tool_counts[tool_name] = artifact_tool_counts.get(tool_name, 0) + 1
+                    if payload_preset:
+                        artifacts_by_tool_payload_preset.setdefault(f"{tool_name}:{payload_preset}", []).append(rec)
             seen_features = set()
             for feature in rec.get("features") or []:
                 feature_name = str(feature)
@@ -1829,6 +1836,8 @@ def release_context():
                     seen_features.add(feature_name)
                     artifacts_by_feature.setdefault(feature_name, []).append(rec)
                     artifact_feature_counts[feature_name] = artifact_feature_counts.get(feature_name, 0) + 1
+                    if payload_preset:
+                        artifacts_by_feature_payload_preset.setdefault(f"{feature_name}:{payload_preset}", []).append(rec)
             for provider_tool, provider_status in (rec.get("tool_provider_status") or {}).items():
                 if not isinstance(provider_status, dict):
                     continue
@@ -1866,6 +1875,9 @@ def release_context():
             "artifacts_by_source": artifacts_by_source,
             "artifacts_by_tool": artifacts_by_tool,
             "artifacts_by_feature": artifacts_by_feature,
+            "artifacts_by_tool_payload_preset": artifacts_by_tool_payload_preset,
+            "artifacts_by_feature_payload_preset": artifacts_by_feature_payload_preset,
+            "artifacts_by_tuple_payload_preset": artifacts_by_tuple_payload_preset,
             "artifacts_by_provider_tool": artifacts_by_provider_tool,
             "artifacts_by_provider_status": artifacts_by_provider_status,
             "artifacts_by_doom_wad_filename": artifacts_by_doom_wad_filename,
@@ -4143,6 +4155,9 @@ def status_document(cfg):
         "release_artifact_source_counts": (release.get("artifact_stats") or {}).get("by_source") or {},
         "release_artifact_tool_counts": (release.get("artifact_stats") or {}).get("by_tool") or {},
         "release_artifact_feature_counts": (release.get("artifact_stats") or {}).get("by_feature") or {},
+        "release_artifact_tool_payload_preset_combo_count": len(release.get("artifacts_by_tool_payload_preset") or {}),
+        "release_artifact_feature_payload_preset_combo_count": len(release.get("artifacts_by_feature_payload_preset") or {}),
+        "release_artifact_tuple_payload_preset_combo_count": len(release.get("artifacts_by_tuple_payload_preset") or {}),
         "release_artifact_provider_tool_counts": (release.get("artifact_stats") or {}).get("by_provider_tool") or {},
         "release_artifact_provider_status_counts": (release.get("artifact_stats") or {}).get("by_provider_status") or {},
         "release_artifact_doom_wad_filename_counts": (release.get("artifact_stats") or {}).get("by_doom_wad_filename") or {},
