@@ -1672,6 +1672,15 @@ def main():
             print("json status missing release tuple artifact metadata", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
+        release_artifact_map = rel.get("artifacts_by_release_path") or {}
+        release_device_map = rel.get("devices_by_name") or {}
+        release_tuple_map = rel.get("tuples_by_path") or {}
+        if (release_artifact_map.get("bin/busierbox-test", {}).get("name") != "busierbox-test" or
+                release_device_map.get("lab-router", {}).get("tuple_path") != "by-tuple/native/host/host/host" or
+                release_tuple_map.get("by-tuple/native/host/host/host", {}).get("artifact_count") != 1):
+            print("json status missing release browser lookup maps", file=sys.stderr)
+            print(release_status.stdout, file=sys.stderr)
+            return 1
         release_summary = release_doc.get("summary") or {}
         if (release_summary.get("release_artifact_count", 0) < 1 or
                 release_summary.get("release_device_count") != 1 or
