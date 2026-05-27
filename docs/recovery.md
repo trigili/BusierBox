@@ -26,3 +26,6 @@ Evidence actions (`evidence-push`, `evidence-then-rshell`, and `dmesg-push`)
 are explicit crash/reboot workflows. They upload target-initiated evidence to
 the configured receive-only operator file service, remain visible in the hook
 body and status JSON, and do not add a command queue or hidden control channel.
+JSON status also exposes per-action semantics such as evidence upload, `dmesg`
+capture, `rshell` chaining, and whether the action executes an
+operator-supplied command.

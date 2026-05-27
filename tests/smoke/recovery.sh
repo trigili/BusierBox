@@ -88,8 +88,13 @@ assert data["installed"] is True
 summary = data["summary"]
 assert summary["installation_count"] == 1
 assert summary["evidence_action_count"] == 0
+assert summary["evidence_upload_count"] == 0
+assert summary["dmesg_action_count"] == 0
+assert summary["rshell_action_count"] == 0
+assert summary["rshell_after_evidence_count"] == 0
 assert summary["command_action_count"] == 0
 assert summary["script_action_count"] == 0
+assert summary["operator_supplied_command_count"] == 0
 assert summary["external_write_required_count"] == 1
 safety = data["safety"]
 assert safety["visible_marked_hooks"] is True
@@ -100,6 +105,14 @@ assert safety["self_reinstall"] is False
 assert safety["survives_factory_reset_claim"] is False
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 assert item["action"] == "status-only"
+assert item["action_category"] == "status"
+assert item["uploads_evidence"] is False
+assert item["collects_dmesg"] is False
+assert item["starts_rshell"] is False
+assert item["starts_rshell_after_evidence"] is False
+assert item["executes_operator_supplied_command"] is False
+assert item["command_queue_enabled"] is False
+assert item["hidden_control_channel"] is False
 assert item["kind"] == "rc.local marked block"
 assert item["hook_present"] is True
 assert item["binary_present"] is True
@@ -146,10 +159,20 @@ data = json.load(open(sys.argv[1], encoding="utf-8"))
 summary = data["summary"]
 assert summary["installation_count"] == 1
 assert summary["evidence_action_count"] == 1
+assert summary["evidence_upload_count"] == 1
+assert summary["dmesg_action_count"] == 0
+assert summary["rshell_action_count"] == 0
+assert summary["operator_supplied_command_count"] == 0
 assert summary["command_action_count"] == 0
 assert summary["script_action_count"] == 0
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 assert item["action"] == "evidence-push"
+assert item["action_category"] == "evidence"
+assert item["uploads_evidence"] is True
+assert item["collects_dmesg"] is False
+assert item["starts_rshell"] is False
+assert item["starts_rshell_after_evidence"] is False
+assert item["executes_operator_supplied_command"] is False
 assert item["generated_command"] == "/usr/bin/bbx_recovery evidence push --quiet"
 assert item["binary_present"] is True
 PY
@@ -161,6 +184,22 @@ grep -q '/usr/bin/bbx_recovery evidence push --quiet && /usr/bin/bbx_recovery rs
 "$bb" persistence status --root "$tmp/root" --name bbx_recovery >"$tmp/evidence-rshell-status"
 grep -q 'installed_action=evidence-then-rshell' "$tmp/evidence-rshell-status"
 grep -q 'installed_command=/usr/bin/bbx_recovery evidence push --quiet && /usr/bin/bbx_recovery rshell start' "$tmp/evidence-rshell-status"
+"$bb" persistence status --json --root "$tmp/root" --name bbx_recovery >"$tmp/evidence-rshell-status.json"
+python3 - <<'PY' "$tmp/evidence-rshell-status.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+summary = data["summary"]
+assert summary["evidence_upload_count"] == 1
+assert summary["rshell_action_count"] == 1
+assert summary["rshell_after_evidence_count"] == 1
+item = next(item for item in data["installations"] if item["method"] == "rc-local")
+assert item["action"] == "evidence-then-rshell"
+assert item["action_category"] == "evidence"
+assert item["uploads_evidence"] is True
+assert item["starts_rshell"] is True
+assert item["starts_rshell_after_evidence"] is True
+assert item["executes_operator_supplied_command"] is False
+PY
 "$bb" persistence uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 
 "$bb" persistence install --method rc-local --action dmesg-push --dry-run --root "$tmp/root" --name bbx_recovery >"$tmp/dmesg-dry-run"
@@ -178,8 +217,15 @@ data = json.load(open(sys.argv[1], encoding="utf-8"))
 summary = data["summary"]
 assert summary["installation_count"] == 1
 assert summary["evidence_action_count"] == 1
+assert summary["evidence_upload_count"] == 1
+assert summary["dmesg_action_count"] == 1
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 assert item["action"] == "dmesg-push"
+assert item["action_category"] == "evidence"
+assert item["uploads_evidence"] is True
+assert item["collects_dmesg"] is True
+assert item["starts_rshell"] is False
+assert item["executes_operator_supplied_command"] is False
 assert "bbx_dmesg_dir=" in item["generated_command"]
 assert "dmesg >\"$bbx_dmesg\"" in item["generated_command"]
 assert "--dest bbx_recovery-dmesg.txt" in item["generated_command"]
@@ -206,7 +252,8 @@ assert data["installed"] is True
 summary = data["summary"]
 assert summary["installation_count"] == 1
 assert summary["command_action_count"] == 1
-assert any(item["method"] == "cron-reboot" and item["action"] == "command" and item["generated_command"] == "busierbox rshell start" for item in data["installations"])
+assert summary["operator_supplied_command_count"] == 1
+assert any(item["method"] == "cron-reboot" and item["action"] == "command" and item["action_category"] == "command" and item["executes_operator_supplied_command"] is True and item["generated_command"] == "busierbox rshell start" for item in data["installations"])
 PY
 "$bb" persistence uninstall --method cron-reboot --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 
@@ -231,8 +278,11 @@ root = sys.argv[2]
 summary = data["summary"]
 assert summary["installation_count"] == 1
 assert summary["script_action_count"] == 1
+assert summary["operator_supplied_command_count"] == 1
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 assert item["action"] == "script"
+assert item["action_category"] == "script"
+assert item["executes_operator_supplied_command"] is True
 assert item["generated_command"] == "/usr/bin/bbx_recovery.recovery.sh"
 assert item["script_path"] == f"{root}/usr/bin/bbx_recovery.recovery.sh"
 assert item["script_present"] is True

@@ -98,6 +98,44 @@ static const struct recovery_method *find_recovery_method(const char *name)
     return NULL;
 }
 
+static const char *recovery_action_category(const char *action)
+{
+    if (!strcmp(action, "evidence-push") || !strcmp(action, "evidence-then-rshell") || !strcmp(action, "dmesg-push"))
+        return "evidence";
+    if (!strcmp(action, "rshell"))
+        return "reverse-shell";
+    if (!strcmp(action, "command"))
+        return "command";
+    if (!strcmp(action, "script"))
+        return "script";
+    return "status";
+}
+
+static int recovery_action_uploads_evidence(const char *action)
+{
+    return !strcmp(action, "evidence-push") || !strcmp(action, "evidence-then-rshell") || !strcmp(action, "dmesg-push");
+}
+
+static int recovery_action_collects_dmesg(const char *action)
+{
+    return !strcmp(action, "dmesg-push");
+}
+
+static int recovery_action_starts_rshell(const char *action)
+{
+    return !strcmp(action, "rshell") || !strcmp(action, "evidence-then-rshell");
+}
+
+static int recovery_action_starts_rshell_after_evidence(const char *action)
+{
+    return !strcmp(action, "evidence-then-rshell");
+}
+
+static int recovery_action_executes_operator_supplied_command(const char *action)
+{
+    return !strcmp(action, "command") || !strcmp(action, "script");
+}
+
 static void recovery_join(char *out, size_t outsz, const char *root, const char *rel)
 {
     if (!root || !*root || !strcmp(root, "/"))
@@ -668,8 +706,13 @@ int applet_recovery_main(int argc, char **argv)
         int found = 0;
         int installed_count = 0;
         int evidence_action_count = 0;
+        int evidence_upload_count = 0;
+        int dmesg_action_count = 0;
+        int rshell_action_count = 0;
+        int rshell_after_evidence_count = 0;
         int command_action_count = 0;
         int script_action_count = 0;
+        int operator_supplied_command_count = 0;
         int external_write_required_count = 0;
         if (json) {
             printf("{\"schema\":1,\"root\":");
@@ -696,6 +739,14 @@ int applet_recovery_main(int argc, char **argv)
                     fputs(",\"script_path\":", stdout); bb_json_string(stdout, script);
                     fputs(",\"script_present\":", stdout); fputs(path_exists(script) ? "true" : "false", stdout);
                     fputs(",\"action\":", stdout); bb_json_string(stdout, action[0] ? action : "unknown");
+                    fputs(",\"action_category\":", stdout); bb_json_string(stdout, recovery_action_category(action[0] ? action : "unknown"));
+                    fputs(",\"uploads_evidence\":", stdout); fputs(recovery_action_uploads_evidence(action) ? "true" : "false", stdout);
+                    fputs(",\"collects_dmesg\":", stdout); fputs(recovery_action_collects_dmesg(action) ? "true" : "false", stdout);
+                    fputs(",\"starts_rshell\":", stdout); fputs(recovery_action_starts_rshell(action) ? "true" : "false", stdout);
+                    fputs(",\"starts_rshell_after_evidence\":", stdout); fputs(recovery_action_starts_rshell_after_evidence(action) ? "true" : "false", stdout);
+                    fputs(",\"executes_operator_supplied_command\":", stdout); fputs(recovery_action_executes_operator_supplied_command(action) ? "true" : "false", stdout);
+                    fputs(",\"command_queue_enabled\":false", stdout);
+                    fputs(",\"hidden_control_channel\":false", stdout);
                     fputs(",\"generated_command\":", stdout); bb_json_string(stdout, generated);
                     fputs(",\"survives_reboot\":", stdout); bb_json_string(stdout, recovery_methods[j].survives_reboot);
                     fputs(",\"intrusiveness\":", stdout); bb_json_string(stdout, recovery_methods[j].intrusiveness);
@@ -720,21 +771,36 @@ int applet_recovery_main(int argc, char **argv)
                 installed_count++;
                 if (!strcmp(action, "evidence-push") || !strcmp(action, "evidence-then-rshell") || !strcmp(action, "dmesg-push"))
                     evidence_action_count++;
+                if (recovery_action_uploads_evidence(action))
+                    evidence_upload_count++;
+                if (recovery_action_collects_dmesg(action))
+                    dmesg_action_count++;
+                if (recovery_action_starts_rshell(action))
+                    rshell_action_count++;
+                if (recovery_action_starts_rshell_after_evidence(action))
+                    rshell_after_evidence_count++;
                 if (!strcmp(action, "command"))
                     command_action_count++;
                 if (!strcmp(action, "script"))
                     script_action_count++;
+                if (recovery_action_executes_operator_supplied_command(action))
+                    operator_supplied_command_count++;
                 if (!strcmp(recovery_methods[j].requires_external_write, "yes"))
                     external_write_required_count++;
                 found = 1;
             }
         }
         if (json) {
-            printf("],\"summary\":{\"installation_count\":%d,\"evidence_action_count\":%d,\"command_action_count\":%d,\"script_action_count\":%d,\"external_write_required_count\":%d},\"installed\":%s}\n",
+            printf("],\"summary\":{\"installation_count\":%d,\"evidence_action_count\":%d,\"evidence_upload_count\":%d,\"dmesg_action_count\":%d,\"rshell_action_count\":%d,\"rshell_after_evidence_count\":%d,\"command_action_count\":%d,\"script_action_count\":%d,\"operator_supplied_command_count\":%d,\"external_write_required_count\":%d},\"installed\":%s}\n",
                    installed_count,
                    evidence_action_count,
+                   evidence_upload_count,
+                   dmesg_action_count,
+                   rshell_action_count,
+                   rshell_after_evidence_count,
                    command_action_count,
                    script_action_count,
+                   operator_supplied_command_count,
                    external_write_required_count,
                    found ? "true" : "false");
         } else if (!found) {

@@ -59,6 +59,12 @@ Evidence actions are explicit crash/reboot workflows for lab targets that panic
 or reboot during testing. They do not add a hidden control channel, do not
 execute operator-supplied commands, and still require the target artifact to be
 configured with an operator host/file-service before upload can succeed.
+`persistence status --json` reports each installed action's category and
+semantics, including whether it uploads evidence, captures `dmesg`, starts
+`rshell` after evidence upload, executes an operator-supplied command, enables a
+command queue, or creates a hidden control channel. The summary mirrors compact
+counts such as evidence uploads, `dmesg` actions, `rshell` actions, and
+operator-supplied command actions for audits.
 
 `busierbox recovery` remains as a deprecated compatibility alias. Internal hook
 markers still use `BUSIERBOX RECOVERY` so older cleanup/status checks keep
