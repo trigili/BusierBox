@@ -363,7 +363,11 @@ and persistent fresh-session behavior next to the command itself.
 `target_commands_by_service`,
 `target_commands_by_request`, `target_commands_by_side`, and
 `target_commands_by_purpose` index those records for service panes, staged
-fetch rows, and command-category views. `target_command_summary` reports total,
+fetch rows, and command-category views. Composite indexes
+`target_commands_by_service_purpose` and `target_commands_by_side_purpose`
+support direct lookups such as `file-service:explicitly fetch an
+operator-staged file` or `target:start the configured reverse shell transport
+from the target` without scanning every generated command. `target_command_summary` reports total,
 network, explicit-target action, and operator-supplied-command execution
 counts, with side and purpose counts mirrored into `summary` as
 `target_command_side_counts` and `target_command_purpose_counts`. This lets

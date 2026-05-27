@@ -1737,12 +1737,17 @@ def main():
         target_commands_by_service = upload_doc.get("target_commands_by_service") or {}
         target_commands_by_side = upload_doc.get("target_commands_by_side") or {}
         target_commands_by_purpose = upload_doc.get("target_commands_by_purpose") or {}
+        target_commands_by_service_purpose = upload_doc.get("target_commands_by_service_purpose") or {}
+        target_commands_by_side_purpose = upload_doc.get("target_commands_by_side_purpose") or {}
         rshell_record = next((rec for rec in target_records if rec.get("service") == "rshell"), {})
         rshell_metadata = rshell_record.get("metadata") or {}
         rshell_semantics = rshell_metadata.get("session_semantics") or {}
+        rshell_purpose = "start the configured reverse shell transport from the target"
         if (len(target_commands_by_service.get("file-service") or []) < 6 or
                 len(target_commands_by_side.get("target") or []) != len(target_records) or
-                len(target_commands_by_purpose.get("start the configured reverse shell transport from the target") or []) != 1 or
+                len(target_commands_by_purpose.get(rshell_purpose) or []) != 1 or
+                len(target_commands_by_service_purpose.get(f"rshell:{rshell_purpose}") or []) != 1 or
+                len(target_commands_by_side_purpose.get(f"target:{rshell_purpose}") or []) != 1 or
                 not rshell_record or
                 rshell_metadata.get("session_policy") != "reconnect" or
                 rshell_metadata.get("session_policy_valid") is not True or
@@ -2253,7 +2258,9 @@ def main():
             print(staged_status.stdout, file=sys.stderr)
             return 1
         staged_commands_by_request = staged_doc.get("target_commands_by_request") or {}
-        if staged_commands_by_request.get("busierbox-test", {}).get("source_path") != str(release_dir / "bin" / "busierbox-test"):
+        staged_commands_by_service_purpose = staged_doc.get("target_commands_by_service_purpose") or {}
+        if (staged_commands_by_request.get("busierbox-test", {}).get("source_path") != str(release_dir / "bin" / "busierbox-test") or
+                staged_commands_by_service_purpose.get("file-service:explicitly fetch an operator-staged file", [{}])[0].get("request_name") != "busierbox-test"):
             print("json status missing staged fetch command request lookup", file=sys.stderr)
             print(staged_status.stdout, file=sys.stderr)
             return 1

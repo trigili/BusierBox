@@ -1075,6 +1075,8 @@ def target_command_record_indexes(records):
     by_request_name = {}
     by_side = {}
     by_purpose = {}
+    by_service_purpose = {}
+    by_side_purpose = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1090,7 +1092,11 @@ def target_command_record_indexes(records):
             by_side.setdefault(side, []).append(rec)
         if purpose:
             by_purpose.setdefault(purpose, []).append(rec)
-    return by_service, by_request_name, by_side, by_purpose
+        if service and purpose:
+            by_service_purpose.setdefault(f"{service}:{purpose}", []).append(rec)
+        if side and purpose:
+            by_side_purpose.setdefault(f"{side}:{purpose}", []).append(rec)
+    return by_service, by_request_name, by_side, by_purpose, by_service_purpose, by_side_purpose
 
 
 def target_command_record_summary(records):
@@ -3791,7 +3797,12 @@ def status_document(cfg):
     release = release_context()
     release_state = release_state_record(release)
     target_command_records = generated_target_command_records(cfg, staged_raw)
-    target_commands_by_service, target_commands_by_request, target_commands_by_side, target_commands_by_purpose = target_command_record_indexes(target_command_records)
+    (target_commands_by_service,
+     target_commands_by_request,
+     target_commands_by_side,
+     target_commands_by_purpose,
+     target_commands_by_service_purpose,
+     target_commands_by_side_purpose) = target_command_record_indexes(target_command_records)
     target_command_summary = target_command_record_summary(target_command_records)
     uploads_by_filename, uploads_by_sha256, uploads_by_source_path, uploads_by_stored_path, uploads_by_remote_addr, uploads_by_status = upload_record_indexes(uploads)
     fetches_by_request, fetches_by_sha256, fetches_by_source_path, fetches_by_status, fetches_by_http_status, fetches_by_remote_addr = fetch_record_indexes(fetches)
@@ -4031,6 +4042,8 @@ def status_document(cfg):
         "target_commands_by_request": target_commands_by_request,
         "target_commands_by_side": target_commands_by_side,
         "target_commands_by_purpose": target_commands_by_purpose,
+        "target_commands_by_service_purpose": target_commands_by_service_purpose,
+        "target_commands_by_side_purpose": target_commands_by_side_purpose,
         "staged": staged,
         "staged_records": staged_records,
         "staged_by_request": staged_by_request,
