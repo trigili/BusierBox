@@ -358,7 +358,8 @@ broken manifest". Release artifact aggregates are exposed as
 as `release_artifact_total_size`, `release_artifact_compatibility_counts`,
 `release_artifact_payload_preset_counts`, `release_artifact_source_counts`,
 `release_artifact_tool_counts`, `release_artifact_provider_tool_counts`, and
-`release_artifact_provider_status_counts`.
+`release_artifact_provider_status_counts`. Doom WAD references are counted as
+`release_artifact_doom_wad_count`.
 Device and tuple artifact reference totals are mirrored as
 `release_device_artifact_reference_count` and
 `release_tuple_artifact_reference_count`.

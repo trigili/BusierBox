@@ -2102,6 +2102,13 @@ def main():
                     "sha256": "abc123",
                     "tools": ["sh"],
                     "tool_provider_status": {"gdbserver": {"schema": 1, "overall": "found", "search_paths": []}},
+                    "doom_wads": [
+                        {
+                            "filename": "doom.wad",
+                            "size": 9,
+                            "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                        }
+                    ],
                     "compatibility": {"label": "exact", "reasons": ["fixture"]},
                 }
             ],
@@ -2123,6 +2130,7 @@ def main():
                 "compatibility=exact" not in release_view.stdout or
                 "compatibility_reason: fixture" not in release_view.stdout or
                 "provider_status_gdbserver: found" not in release_view.stdout or
+                "doom_wad: doom.wad size=9" not in release_view.stdout or
                 "Release devices" not in release_view.stdout or
                 "lab-router" not in release_view.stdout or
                 "artifacts=1" not in release_view.stdout or
@@ -2180,6 +2188,7 @@ def main():
                 release_artifacts_by_tool.get("sh", [{}])[0].get("payload_preset") != "default" or
                 release_artifacts_by_provider_tool.get("gdbserver", [{}])[0].get("payload_preset") != "default" or
                 release_artifacts_by_provider_status.get("gdbserver:found", [{}])[0].get("name") != "busierbox-test" or
+                release_artifact_map.get("bin/busierbox-test", {}).get("doom_wads", [{}])[0].get("filename") != "doom.wad" or
                 rel.get("artifact_stats", {}).get("total_size") != release_artifact_size or
                 rel.get("artifact_stats", {}).get("by_compatibility", {}).get("exact") != 1 or
                 rel.get("artifact_stats", {}).get("by_payload_preset", {}).get("default") != 1 or
@@ -2187,6 +2196,7 @@ def main():
                 rel.get("artifact_stats", {}).get("by_tool", {}).get("sh") != 1 or
                 rel.get("artifact_stats", {}).get("by_provider_tool", {}).get("gdbserver") != 1 or
                 rel.get("artifact_stats", {}).get("by_provider_status", {}).get("gdbserver:found") != 1 or
+                rel.get("artifact_stats", {}).get("doom_wad_count") != 1 or
                 release_device_map.get("lab-router", {}).get("tuple_path") != "by-tuple/native/host/host/host" or
                 release_tuple_map.get("by-tuple/native/host/host/host", {}).get("artifact_count") != 1):
             print("json status missing release browser lookup maps", file=sys.stderr)
