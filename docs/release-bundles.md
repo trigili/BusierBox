@@ -290,14 +290,15 @@ page or inspect from disk while still rendering compact diagnostics.
 
 Structured `warnings` use stable `type` values such as `service_error`,
 `stale_state`, `unexpected_listener`, `unmanaged_recorded_pid`,
-`invalid_event_log`, and `invalid_command_queue_policy`. Summary fields include
+`invalid_event_log`, and `invalid_command_queue_policy`. `warning_stats`
+summarizes warnings by type and service. Summary fields include
 `command_queue_policy_valid` and `command_queue_policy_error_count` so clients
 can distinguish a disabled queue from an invalid policy. Service-related
 warnings include the configured and actual states, port, PID, PID ownership evidence,
 listener PIDs, possible bind owners, error text, and process/session log paths
-when those fields are available. This lets a TUI, future web UI, or automation
-client show actionable cleanup guidance without scraping the human-readable
-`--status` output.
+when those fields are available. This lets a TUI, future web UI, or
+automation client show actionable cleanup guidance without scraping the
+human-readable `--status` output.
 
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it does not push the artifact or run it. In the

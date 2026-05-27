@@ -422,6 +422,25 @@ def records_by_session(records):
     return grouped
 
 
+def warning_stats(warnings):
+    by_type = {}
+    by_service = {}
+    for item in warnings or []:
+        if not isinstance(item, dict):
+            continue
+        warning_type = str(item.get("type") or "")
+        service = str(item.get("service") or "")
+        if warning_type:
+            by_type[warning_type] = by_type.get(warning_type, 0) + 1
+        if service:
+            by_service[service] = by_service.get(service, 0) + 1
+    return {
+        "total_count": len(warnings or []),
+        "by_type": by_type,
+        "by_service": by_service,
+    }
+
+
 def load_command_queue(cfg):
     data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
     if not isinstance(data, dict):
@@ -2828,6 +2847,7 @@ def status_document(cfg):
         "services_by_name": services_by_name,
         "summary": summary,
         "warnings": warnings,
+        "warning_stats": warning_stats(warnings),
         "local_ips": ips,
         "selected_local_ip": (ips or ["OPERATOR_IP"])[0],
         "target_commands": generated_target_commands(cfg, staged_raw),
