@@ -2989,6 +2989,9 @@ def print_workbench(cfg):
     print(f"  path: {queue.get('path', '')}")
     print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')}")
     print(f"  allowed_commands={queue.get('allowed_commands', '')} allow_arbitrary={queue.get('allow_arbitrary', '')} active_control_channel=no")
+    print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'} arbitrary_policy_requested={'yes' if queue.get('arbitrary_policy_requested') else 'no'} arbitrary_execution_allowed=no")
+    for error in queue.get("policy_errors") or []:
+        print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")

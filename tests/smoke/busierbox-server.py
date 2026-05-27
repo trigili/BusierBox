@@ -560,6 +560,7 @@ def main():
         if ("Command queue:" not in queue_status_text.stdout or
                 "enabled=no default_enabled=no" not in queue_status_text.stdout or
                 "allowed_commands=none allow_arbitrary=no active_control_channel=no" not in queue_status_text.stdout or
+                "policy_valid=yes configured_for_polling=no arbitrary_policy_requested=no arbitrary_execution_allowed=no" not in queue_status_text.stdout or
                 "busierbox reality-test --json" not in queue_status_text.stdout or
                 "result-received" not in queue_status_text.stdout or
                 "command_result_received" not in queue_status_text.stdout or
