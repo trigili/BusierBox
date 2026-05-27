@@ -1551,6 +1551,13 @@ def main():
         if any(not event.get("id") for event in global_events):
             print("global operator event log entries should carry stable ids", file=sys.stderr)
             return 1
+        session_global_events = [
+            event for event in global_events
+            if event.get("session") == session_doc.get("session_id")
+        ]
+        if not session_global_events:
+            print("global operator event log missing session-correlated events", file=sys.stderr)
+            return 1
         upload_state = json.loads((upload_operator_dir / "server-state.json").read_text(encoding="utf-8"))
         if not any(item.get("session_id") == session_doc.get("session_id") for item in upload_state.get("sessions", [])):
             print("server-state sessions missing file-service session id", file=sys.stderr)
@@ -1703,6 +1710,7 @@ def main():
         sessions_by_state = upload_doc.get("sessions_by_state") or {}
         sessions_by_exit_reason = upload_doc.get("sessions_by_exit_reason") or {}
         sessions_by_remote = upload_doc.get("sessions_by_remote") or {}
+        events_by_session = upload_doc.get("events_by_session") or {}
         uploaded_session_id = session_json_paths[0].parent.name
         if (sessions_by_id.get(uploaded_session_id, {}).get("metadata_path") != str(session_json_paths[0]) or
                 not sessions_by_service.get("file-service") or
@@ -1711,9 +1719,11 @@ def main():
                 sessions_by_state["stopped"][0].get("session_id") != uploaded_session_id or
                 not sessions_by_exit_reason.get("clean shutdown") or
                 sessions_by_exit_reason["clean shutdown"][0].get("session_id") != uploaded_session_id or
+                not events_by_session.get(uploaded_session_id) or
+                events_by_session[uploaded_session_id][-1].get("event") != "service_stop" or
                 not upload_remote or
                 sessions_by_remote.get(upload_remote, [{}])[0].get("session_id") != uploaded_session_id):
-            print("server json status missing session lookup indexes", file=sys.stderr)
+            print("server json status missing session/event lookup indexes", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         upload_event_stats = upload_doc.get("event_log_stats") or {}

@@ -706,6 +706,7 @@ def session_record_indexes(records):
 
 def event_record_indexes(records):
     by_id = {}
+    by_session = {}
     by_service = {}
     by_event = {}
     by_level = {}
@@ -714,12 +715,15 @@ def event_record_indexes(records):
         if not isinstance(rec, dict):
             continue
         event_id = str(rec.get("id") or "")
+        session_id = str(rec.get("session") or "")
         service = str(rec.get("service") or "")
         event = str(rec.get("event") or "")
         level = str(rec.get("level") or "")
         remote = str(rec.get("remote") or "")
         if event_id:
             by_id[event_id] = rec
+        if session_id:
+            by_session.setdefault(session_id, []).append(rec)
         if service:
             by_service.setdefault(service, []).append(rec)
         if event:
@@ -728,7 +732,7 @@ def event_record_indexes(records):
             by_level.setdefault(level, []).append(rec)
         if remote:
             by_remote.setdefault(remote, []).append(rec)
-    return by_id, by_service, by_event, by_level, by_remote
+    return by_id, by_session, by_service, by_event, by_level, by_remote
 
 
 def format_counts(counts, limit=6):
@@ -3303,7 +3307,7 @@ def status_document(cfg):
     sessions_by_id, sessions_by_service, sessions_by_state, sessions_by_exit_reason, sessions_by_remote = session_record_indexes(sessions)
     event_stats = event_log_stats(cfg)
     events = event_stats["tail"]
-    events_by_id, events_by_service, events_by_event, events_by_level, events_by_remote = event_record_indexes(events)
+    events_by_id, events_by_session, events_by_service, events_by_event, events_by_level, events_by_remote = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
     release = release_context()
     target_command_records = generated_target_command_records(cfg, staged_raw)
@@ -3512,6 +3516,7 @@ def status_document(cfg):
         "sessions_by_remote": sessions_by_remote,
         "events": events,
         "events_by_id": events_by_id,
+        "events_by_session": events_by_session,
         "events_by_service": events_by_service,
         "events_by_event": events_by_event,
         "events_by_level": events_by_level,

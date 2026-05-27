@@ -355,7 +355,7 @@ request operation, status, HTTP status, and request/file identifier when known,
 so timelines can show the final request outcome without scraping upload or fetch
 metadata separately. The `events` array is a bounded recent tail;
 `events_by_id` maps stable event ids to tail records, while
-`events_by_service`, `events_by_event`, `events_by_level`, and
+`events_by_session`, `events_by_service`, `events_by_event`, `events_by_level`, and
 `events_by_remote` group those tail records for direct frontend lookups.
 `event_log_stats` reports the event log path, total valid event count, tail
 count, invalid JSONL line count, tail limit, first/latest event timestamps, and
