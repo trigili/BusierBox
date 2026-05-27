@@ -85,6 +85,12 @@ python3 - <<'PY' "$tmp/status.json"
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 assert data["installed"] is True
+summary = data["summary"]
+assert summary["installation_count"] == 1
+assert summary["evidence_action_count"] == 0
+assert summary["command_action_count"] == 0
+assert summary["script_action_count"] == 0
+assert summary["external_write_required_count"] == 1
 safety = data["safety"]
 assert safety["visible_marked_hooks"] is True
 assert safety["uninstall_removes_marked_blocks"] is True
@@ -137,6 +143,11 @@ grep -q '/usr/bin/bbx_recovery evidence push --quiet' "$tmp/root/etc/rc.local"
 python3 - <<'PY' "$tmp/evidence-status.json"
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
+summary = data["summary"]
+assert summary["installation_count"] == 1
+assert summary["evidence_action_count"] == 1
+assert summary["command_action_count"] == 0
+assert summary["script_action_count"] == 0
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 assert item["action"] == "evidence-push"
 assert item["generated_command"] == "/usr/bin/bbx_recovery evidence push --quiet"
@@ -164,6 +175,9 @@ grep -q 'rm -f "$bbx_dmesg"' "$tmp/root/etc/rc.local"
 python3 - <<'PY' "$tmp/dmesg-status.json"
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
+summary = data["summary"]
+assert summary["installation_count"] == 1
+assert summary["evidence_action_count"] == 1
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 assert item["action"] == "dmesg-push"
 assert "bbx_dmesg_dir=" in item["generated_command"]
@@ -189,6 +203,9 @@ python3 - <<'PY' "$tmp/cron-status.json"
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 assert data["installed"] is True
+summary = data["summary"]
+assert summary["installation_count"] == 1
+assert summary["command_action_count"] == 1
 assert any(item["method"] == "cron-reboot" and item["action"] == "command" and item["generated_command"] == "busierbox rshell start" for item in data["installations"])
 PY
 "$bb" persistence uninstall --method cron-reboot --apply --root "$tmp/root" --name bbx_recovery >/dev/null
@@ -211,6 +228,9 @@ python3 - <<'PY' "$tmp/script-status.json" "$tmp/root"
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 root = sys.argv[2]
+summary = data["summary"]
+assert summary["installation_count"] == 1
+assert summary["script_action_count"] == 1
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 assert item["action"] == "script"
 assert item["generated_command"] == "/usr/bin/bbx_recovery.recovery.sh"

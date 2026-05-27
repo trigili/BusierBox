@@ -666,6 +666,11 @@ int applet_recovery_main(int argc, char **argv)
     if (!strcmp(cmd, "status")) {
         size_t j;
         int found = 0;
+        int installed_count = 0;
+        int evidence_action_count = 0;
+        int command_action_count = 0;
+        int script_action_count = 0;
+        int external_write_required_count = 0;
         if (json) {
             printf("{\"schema\":1,\"root\":");
             bb_json_string(stdout, root);
@@ -712,11 +717,26 @@ int applet_recovery_main(int argc, char **argv)
                     printf("installed_survives_reboot=%s\n", recovery_methods[j].survives_reboot);
                     printf("installed_requires_external_write=%s\n", recovery_methods[j].requires_external_write);
                 }
+                installed_count++;
+                if (!strcmp(action, "evidence-push") || !strcmp(action, "evidence-then-rshell") || !strcmp(action, "dmesg-push"))
+                    evidence_action_count++;
+                if (!strcmp(action, "command"))
+                    command_action_count++;
+                if (!strcmp(action, "script"))
+                    script_action_count++;
+                if (!strcmp(recovery_methods[j].requires_external_write, "yes"))
+                    external_write_required_count++;
                 found = 1;
             }
         }
         if (json) {
-            printf("],\"installed\":%s}\n", found ? "true" : "false");
+            printf("],\"summary\":{\"installation_count\":%d,\"evidence_action_count\":%d,\"command_action_count\":%d,\"script_action_count\":%d,\"external_write_required_count\":%d},\"installed\":%s}\n",
+                   installed_count,
+                   evidence_action_count,
+                   command_action_count,
+                   script_action_count,
+                   external_write_required_count,
+                   found ? "true" : "false");
         } else if (!found) {
             puts("installed=no");
         }
