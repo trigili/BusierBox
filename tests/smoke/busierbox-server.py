@@ -2083,8 +2083,29 @@ def main():
             print("json status missing release browser lookup maps", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
+        release_state = release_doc.get("release_state") or {}
+        if (release_state.get("release_dir") != str(release_dir) or
+                release_state.get("release_json") != str(release_dir / "release.json") or
+                release_state.get("release_index") != str(release_dir / "release-index.json") or
+                release_state.get("present") is not True or
+                release_state.get("valid") is not True or
+                release_state.get("release_json_valid") is not True or
+                release_state.get("release_index_valid") is not True or
+                release_state.get("bin_dir_exists") is not True or
+                release_state.get("scripts_dir_exists") is not True or
+                release_state.get("artifact_count") != 1 or
+                release_state.get("device_count") != 1 or
+                release_state.get("tuple_count") != 1 or
+                release_state.get("release_name") != "operator-smoke"):
+            print("json status missing explicit release state metadata", file=sys.stderr)
+            print(release_status.stdout, file=sys.stderr)
+            return 1
         release_summary = release_doc.get("summary") or {}
-        if (release_summary.get("release_artifact_count", 0) < 1 or
+        if (release_summary.get("release_present") is not True or
+                release_summary.get("release_valid") is not True or
+                release_summary.get("release_json_valid") is not True or
+                release_summary.get("release_index_valid") is not True or
+                release_summary.get("release_artifact_count", 0) < 1 or
                 release_summary.get("release_artifact_total_size") != release_artifact_size or
                 release_summary.get("release_device_count") != 1 or
                 release_summary.get("release_tuple_count") != 1 or
@@ -2096,6 +2117,33 @@ def main():
                 release_summary.get("release_artifact_tool_counts", {}).get("sh") != 1):
             print("json status missing release aggregate counts", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
+            return 1
+        invalid_release_dir = Path(tmp) / "invalid-release"
+        (invalid_release_dir / "bin").mkdir(parents=True)
+        (invalid_release_dir / "scripts").mkdir()
+        (invalid_release_dir / "release.json").write_text("{not-json\n", encoding="utf-8")
+        invalid_release_status = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--json-status",
+            ],
+            cwd=invalid_release_dir,
+            text=True,
+            capture_output=True,
+        )
+        invalid_release_doc = json.loads(invalid_release_status.stdout)
+        invalid_release_state = invalid_release_doc.get("release_state") or {}
+        if (invalid_release_state.get("present") is not True or
+                invalid_release_state.get("valid") is not False or
+                invalid_release_state.get("release_json_valid") is not False or
+                not invalid_release_state.get("errors") or
+                invalid_release_doc.get("release") or
+                invalid_release_doc.get("summary", {}).get("release_valid") is not False):
+            print("json status did not expose invalid release bundle state", file=sys.stderr)
+            print(invalid_release_status.stdout, file=sys.stderr)
             return 1
         staged_release = subprocess.run(
             [

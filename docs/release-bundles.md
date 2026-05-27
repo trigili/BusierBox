@@ -319,7 +319,14 @@ tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `artifacts_by_sha256`, `artifacts_by_payload_preset`,
 `artifacts_by_compatibility`, `artifacts_by_source`, `artifacts_by_tool`,
 `devices_by_name`, and `tuples_by_path` lookup maps. Release artifact
-aggregates are exposed as `release.artifact_stats` and mirrored into `summary`
+state is exposed separately as `release_state` with release directory,
+`release.json` and `release-index.json` paths, presence, validity, parse
+health, `bin`/`scripts` directory health, browser counts, release name, and
+errors. Compact booleans are mirrored into `summary` as `release_present`,
+`release_valid`, `release_json_valid`, and `release_index_valid` so API
+clients can distinguish "not in a bundle" from "bundle-like directory with a
+broken manifest". Release artifact aggregates are exposed as
+`release.artifact_stats` and mirrored into `summary`
 as `release_artifact_total_size`, `release_artifact_compatibility_counts`,
 `release_artifact_payload_preset_counts`, `release_artifact_source_counts`,
 and `release_artifact_tool_counts`.

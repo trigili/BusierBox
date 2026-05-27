@@ -1457,6 +1457,12 @@ def release_context():
     here = Path.cwd()
     release_json = here / "release.json"
     if release_json.is_file() and (here / "bin").is_dir() and (here / "scripts").is_dir():
+        try:
+            release = json.loads(release_json.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        if not isinstance(release, dict):
+            return {}
         artifacts = []
         for root_name in ("bin", "dist"):
             root = here / root_name
@@ -1471,7 +1477,6 @@ def release_context():
                             "source": root_name,
                         })
         index = read_json_file(here / "release-index.json", {})
-        release = read_json_file(release_json, {})
         if isinstance(index, dict):
             for row in index.get("artifacts") or []:
                 artifact = row.get("tuple_artifact") or row.get("artifact")
@@ -1598,6 +1603,91 @@ def release_context():
             "tuples_by_path": {rec.get("path", ""): rec for rec in tuples if rec.get("path")},
         }
     return {}
+
+
+def release_state_record(release=None):
+    here = Path.cwd()
+    release_json = here / "release.json"
+    release_index = here / "release-index.json"
+    bin_dir = here / "bin"
+    scripts_dir = here / "scripts"
+    rec = {
+        "release_dir": str(here),
+        "release_json": str(release_json),
+        "release_index": str(release_index),
+        "present": False,
+        "valid": False,
+        "release_json_exists": False,
+        "release_json_valid": False,
+        "release_index_exists": False,
+        "release_index_valid": False,
+        "bin_dir_exists": False,
+        "scripts_dir_exists": False,
+        "release_name": "",
+        "artifact_count": 0,
+        "device_count": 0,
+        "tuple_count": 0,
+        "errors": [],
+    }
+    release = release or {}
+    rec["release_json_exists"] = release_json.is_file()
+    rec["release_index_exists"] = release_index.is_file()
+    rec["bin_dir_exists"] = bin_dir.is_dir()
+    rec["scripts_dir_exists"] = scripts_dir.is_dir()
+    rec["present"] = bool(rec["release_json_exists"] or rec["release_index_exists"] or rec["bin_dir_exists"] or rec["scripts_dir_exists"])
+    if not rec["present"]:
+        return rec
+    release_doc = {}
+    index_doc = {}
+    if not rec["release_json_exists"]:
+        rec["errors"].append("release.json is missing")
+    else:
+        try:
+            release_doc = json.loads(release_json.read_text(encoding="utf-8"))
+            if isinstance(release_doc, dict):
+                rec["release_json_valid"] = True
+                rec["release_name"] = str(release_doc.get("release_name", ""))
+            else:
+                rec["errors"].append("release.json is not an object")
+        except (OSError, json.JSONDecodeError) as exc:
+            rec["errors"].append(f"release.json: {exc}")
+    if rec["release_index_exists"]:
+        try:
+            index_doc = json.loads(release_index.read_text(encoding="utf-8"))
+            if isinstance(index_doc, dict):
+                rec["release_index_valid"] = True
+            else:
+                rec["errors"].append("release-index.json is not an object")
+        except (OSError, json.JSONDecodeError) as exc:
+            rec["errors"].append(f"release-index.json: {exc}")
+    if not rec["bin_dir_exists"]:
+        rec["errors"].append("bin directory is missing")
+    if not rec["scripts_dir_exists"]:
+        rec["errors"].append("scripts directory is missing")
+    if release:
+        rec["release_name"] = str(release.get("release_name") or rec["release_name"])
+        rec["artifact_count"] = len(release.get("artifacts") or [])
+        rec["device_count"] = len(release.get("devices") or [])
+        rec["tuple_count"] = len(release.get("tuples") or [])
+        if release.get("release_index"):
+            rec["release_index"] = str(release.get("release_index"))
+            rec["release_index_exists"] = True
+    elif rec["release_index_valid"]:
+        rec["artifact_count"] = len(index_doc.get("artifacts") or [])
+        rec["device_count"] = len(index_doc.get("devices") or [])
+        rec["tuple_count"] = len(index_doc.get("tuples") or [])
+    elif rec["release_json_valid"]:
+        layout = release_doc.get("layout") or {}
+        if isinstance(layout, dict):
+            rec["device_count"] = len(layout.get("devices") or {})
+            rec["tuple_count"] = len(layout.get("tuples") or {})
+    rec["valid"] = bool(
+        rec["release_json_valid"] and
+        rec["bin_dir_exists"] and
+        rec["scripts_dir_exists"] and
+        (not rec["release_index_exists"] or rec["release_index_valid"])
+    )
+    return rec
 
 
 def artifact_compatibility_lines(artifact):
@@ -3536,6 +3626,7 @@ def status_document(cfg):
     events_by_id, events_by_session, events_by_service, events_by_event, events_by_level, events_by_remote = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
     release = release_context()
+    release_state = release_state_record(release)
     target_command_records = generated_target_command_records(cfg, staged_raw)
     target_commands_by_service, target_commands_by_request, target_commands_by_side, target_commands_by_purpose = target_command_record_indexes(target_command_records)
     target_command_summary = target_command_record_summary(target_command_records)
@@ -3689,6 +3780,10 @@ def status_document(cfg):
         "command_queue_arbitrary_policy_requested": bool(command_queue_policy_summary.get("arbitrary_policy_requested", False)),
         "command_queue_arbitrary_execution_allowed": bool(command_queue_policy_summary.get("arbitrary_execution_allowed", False)),
         "command_queue_safe_disabled_default": bool(command_queue_policy_summary.get("safe_disabled_default", False)),
+        "release_present": bool(release_state.get("present", False)),
+        "release_valid": bool(release_state.get("valid", False)),
+        "release_json_valid": bool(release_state.get("release_json_valid", False)),
+        "release_index_valid": bool(release_state.get("release_index_valid", False)),
         "release_artifact_count": len(release.get("artifacts") or []),
         "release_artifact_total_size": (release.get("artifact_stats") or {}).get("total_size", 0),
         "release_device_count": len(release.get("devices") or []),
@@ -3781,6 +3876,7 @@ def status_document(cfg):
         "event_log_stats": {
             key: value for key, value in event_stats.items() if key != "tail"
         },
+        "release_state": release_state,
         "release": release,
         "command_queue": command_queue,
     }
