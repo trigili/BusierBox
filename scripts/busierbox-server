@@ -3386,6 +3386,7 @@ def status_document(cfg):
         "session_count": len(sessions),
         "session_service_counts": record_count_by_key(sessions, "service"),
         "session_state_counts": record_count_by_key(sessions, "state"),
+        "session_exit_reason_counts": record_count_by_key(sessions, "exit_reason"),
         "session_remote_counts": record_count_by_key(sessions, "remote"),
         "latest_session_updated_at": latest_record_value(sessions, ("updated_at", "ended_at", "started_at")),
         "target_command_count": target_command_summary.get("total_count", 0),

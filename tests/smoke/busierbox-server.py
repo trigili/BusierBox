@@ -1625,6 +1625,7 @@ def main():
                 upload_summary.get("session_count", 0) < 1 or
                 upload_summary.get("session_service_counts", {}).get("file-service") != 1 or
                 upload_summary.get("session_state_counts", {}).get("stopped") != 1 or
+                upload_summary.get("session_exit_reason_counts", {}).get("clean shutdown") != 1 or
                 upload_summary.get("event_count", 0) < 1):
             print("server json status missing aggregate upload/session/event counts", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
