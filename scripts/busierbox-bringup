@@ -207,6 +207,7 @@ next_operator_records = [
         "command": "scripts/busierbox-server --transport file-service",
         "purpose": "start receive-only operator file service",
         "side": "operator",
+        "service": "file-service",
         "executes_on_target": False,
         "starts_listener": True,
         "requires_explicit_operator_action": True,
@@ -217,6 +218,7 @@ if env("TRAILER_COMMAND"):
         "command": env("TRAILER_COMMAND"),
         "purpose": "configure artifact trailer overrides",
         "side": "operator",
+        "service": "artifact-config",
         "executes_on_target": False,
         "starts_listener": False,
         "requires_explicit_operator_action": True,
@@ -227,6 +229,7 @@ next_target_records = [
         "command": "./busierbox survey --json",
         "purpose": "collect passive target facts",
         "side": "target",
+        "service": "survey",
         "requires_explicit_target_action": True,
         "network": False,
         "executes_operator_supplied_commands": False,
@@ -235,6 +238,7 @@ next_target_records = [
         "command": "./busierbox reality-test --json",
         "purpose": "run active local capability probes",
         "side": "target",
+        "service": "reality-test",
         "requires_explicit_target_action": True,
         "network": False,
         "executes_operator_supplied_commands": False,
@@ -245,6 +249,7 @@ if env("STAGED_FETCH_COMMAND"):
         "command": env("STAGED_FETCH_COMMAND"),
         "purpose": "explicitly fetch operator-staged artifact or config",
         "side": "target",
+        "service": "file-service",
         "requires_explicit_target_action": True,
         "network": True,
         "executes_operator_supplied_commands": False,
@@ -264,6 +269,15 @@ next_command_records_by_side = {
     "operator": next_operator_records,
     "target": next_target_records,
 }
+next_command_records_by_service = {}
+next_command_records_by_purpose = {}
+for item in next_command_records:
+    service = item.get("service") or ""
+    purpose = item.get("purpose") or ""
+    if service:
+        next_command_records_by_service.setdefault(service, []).append(item)
+    if purpose:
+        next_command_records_by_purpose.setdefault(purpose, []).append(item)
 
 recommendation_summary = {}
 recommendation_path = env("RECOMMENDATION_JSON")
@@ -331,6 +345,8 @@ doc = {
     "next_target_command_records": next_target_records,
     "next_command_records": next_command_records,
     "next_command_records_by_side": next_command_records_by_side,
+    "next_command_records_by_service": next_command_records_by_service,
+    "next_command_records_by_purpose": next_command_records_by_purpose,
     "command_record_summary": command_record_summary,
     "safety_boundary": {
         "network_autorun": False,
