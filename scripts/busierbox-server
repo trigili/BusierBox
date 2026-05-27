@@ -2645,6 +2645,14 @@ def status_document(cfg):
             "message": "operator event log contains invalid JSONL records",
             "suggested_action": "inspect or archive the event log before relying on event history",
         })
+    if not command_queue.get("policy_valid", True):
+        warnings.append({
+            "type": "invalid_command_queue_policy",
+            "path": command_queue.get("path", str(command_queue_path(cfg))),
+            "policy_errors": command_queue.get("policy_errors") or [],
+            "message": "command queue policy is invalid; target polling is not configured",
+            "suggested_action": "fix command queue config or leave it fully disabled",
+        })
     summary.update({
         "staged_count": len(staged),
         "upload_count": len(uploads),
@@ -2656,6 +2664,8 @@ def status_document(cfg):
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_result_count": command_queue.get("result_count", 0),
+        "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
+        "command_queue_policy_error_count": len(command_queue.get("policy_errors") or []),
         "release_artifact_count": len(release.get("artifacts") or []),
         "release_device_count": len(release.get("devices") or []),
         "release_tuple_count": len(release.get("tuples") or []),
@@ -2773,6 +2783,16 @@ def print_status(cfg, json_output=False):
             print("")
             print("Warnings:")
         print(f"  event log contains {doc['summary'].get('event_invalid_count', 0)} invalid JSONL record(s); inspect {doc['event_log']}")
+    if not doc["command_queue"].get("policy_valid", True):
+        if (not any(row["stale"] for row in doc["services"]) and
+                not any(row["actual"] == "listening" and row["configured"] not in ("listening", "starting") for row in doc["services"]) and
+                not any(row["pid"] and row.get("pid_alive") and not row.get("pid_managed") for row in doc["services"]) and
+                not doc["summary"].get("event_invalid_count", 0)):
+            print("")
+            print("Warnings:")
+        print("  command queue policy is invalid; target polling is not configured")
+        for error in doc["command_queue"].get("policy_errors") or []:
+            print(f"    {error}")
     print("")
     print("Recent sessions:")
     if doc["sessions"]:

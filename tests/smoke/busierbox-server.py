@@ -447,12 +447,30 @@ def main():
         )
         invalid_queue_status = json.loads(invalid_queue_status_doc.stdout)
         invalid_status_queue = invalid_queue_status["command_queue"]
+        invalid_policy_warnings = [
+            item for item in invalid_queue_status.get("warnings", [])
+            if item.get("type") == "invalid_command_queue_policy"
+        ]
         if (invalid_status_queue.get("policy_valid") is not False or
                 invalid_status_queue.get("configured_for_polling") is not False or
                 invalid_status_queue.get("arbitrary_policy_requested") is not False or
-                invalid_status_queue.get("arbitrary_execution_allowed") is not False):
+                invalid_status_queue.get("arbitrary_execution_allowed") is not False or
+                invalid_queue_status.get("summary", {}).get("command_queue_policy_valid") is not False or
+                invalid_queue_status.get("summary", {}).get("command_queue_policy_error_count") != len(invalid_status_queue.get("policy_errors", [])) or
+                not invalid_policy_warnings or
+                "disabled command queue must keep allowed commands policy none" not in invalid_policy_warnings[-1].get("policy_errors", [])):
             print("server json status marked invalid command queue policy usable", file=sys.stderr)
             print(invalid_queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        invalid_queue_status_text = run(
+            "scripts/busierbox-server",
+            "--config", str(invalid_queue_cfg),
+            "--status",
+        )
+        if ("command queue policy is invalid; target polling is not configured" not in invalid_queue_status_text.stdout or
+                "disabled command queue must keep allowed commands policy none" not in invalid_queue_status_text.stdout):
+            print("server text status missing invalid command queue policy warning", file=sys.stderr)
+            print(invalid_queue_status_text.stdout, file=sys.stderr)
             return 1
         arbitrary_queue_cfg = Path(tmp) / "server-config-arbitrary-command-queue.json"
         arbitrary_queue_cfg.write_text(json.dumps({
