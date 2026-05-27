@@ -1740,11 +1740,22 @@ def main():
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         upload_session = (upload_doc.get("sessions") or [{}])[0]
+        session_root_state = upload_doc.get("session_root_state") or {}
         if (upload_session.get("upload_count") != 1 or
                 upload_session.get("event_count", 0) < 1 or
                 upload_session.get("metadata_path") != str(session_json_paths[0]) or
                 upload_session.get("event_log") != str(session_json_paths[0].parent / "events.jsonl")):
             print("server json status missing session browser counts and paths", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
+        if (session_root_state.get("path") != str(session_root) or
+                session_root_state.get("exists") is not True or
+                session_root_state.get("recent_session_count") != 1 or
+                session_root_state.get("recent_session_ids") != [session_json_paths[0].parent.name] or
+                session_root_state.get("service_counts", {}).get("file-service") != 1 or
+                upload_summary.get("session_root_exists") is not True or
+                upload_summary.get("session_root_recent_count") != 1):
+            print("server json status missing session root browser state", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         sessions_by_id = upload_doc.get("sessions_by_id") or {}
