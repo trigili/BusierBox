@@ -252,6 +252,50 @@ def main():
             print(isolated_workbench.stdout, file=sys.stderr)
             return 1
 
+        mismatched_copy_path = Path(tmp) / "command-copy-is-directory"
+        mismatched_copy_path.mkdir()
+        path_mismatch_cfg = Path(tmp) / "server-config-path-mismatch.json"
+        path_mismatch_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(Path(tmp) / "operator-session-path-mismatch"),
+            "session_root": str(Path(tmp) / "path-mismatch-sessions"),
+            "command_copy_file": str(mismatched_copy_path),
+        }), encoding="utf-8")
+        path_mismatch_status = run(
+            "scripts/busierbox-server",
+            "--config", str(path_mismatch_cfg),
+            "--json-status",
+        )
+        path_mismatch_doc = json.loads(path_mismatch_status.stdout)
+        path_mismatch_rec = (path_mismatch_doc.get("path_status") or {}).get("command_copy_file") or {}
+        path_mismatch_warnings = [
+            item for item in path_mismatch_doc.get("warnings", [])
+            if item.get("type") == "operator_path_kind_mismatch"
+        ]
+        if (path_mismatch_rec.get("expected_kind") != "file" or
+                path_mismatch_rec.get("expected_kind_mismatch") is not True or
+                path_mismatch_rec.get("is_dir") is not True or
+                path_mismatch_doc.get("summary", {}).get("path_kind_mismatch_count") != 1 or
+                path_mismatch_doc.get("summary", {}).get("browser_path_kind_mismatch_count") != 1 or
+                path_mismatch_doc.get("summary", {}).get("browser_path_kind_mismatch_counts", {}).get("command-copy") != 1 or
+                not path_mismatch_warnings or
+                path_mismatch_warnings[-1].get("path_name") != "command_copy_file" or
+                path_mismatch_warnings[-1].get("path") != str(mismatched_copy_path) or
+                path_mismatch_doc.get("summary", {}).get("warning_type_counts", {}).get("operator_path_kind_mismatch") != 1):
+            print("server json status missing operator path kind mismatch warning", file=sys.stderr)
+            print(path_mismatch_status.stdout, file=sys.stderr)
+            return 1
+        path_mismatch_text = run(
+            "scripts/busierbox-server",
+            "--config", str(path_mismatch_cfg),
+            "--status",
+        )
+        if ("operator path kind mismatch:" not in path_mismatch_text.stdout or
+                f"{mismatched_copy_path} expected=file actual=dir" not in path_mismatch_text.stdout):
+            print("text --status missing operator path kind mismatch warning", file=sys.stderr)
+            print(path_mismatch_text.stdout, file=sys.stderr)
+            return 1
+
         queue_file = queue_operator_dir / "command-queue.json"
         queued = run(
             "scripts/busierbox-server",

@@ -4071,6 +4071,19 @@ def status_document(cfg):
         }
         for row in services
     }
+    for name, rec in sorted((path_status or {}).items()):
+        if not rec.get("expected_kind_mismatch"):
+            continue
+        warnings.append({
+            "type": "operator_path_kind_mismatch",
+            "path_name": name,
+            "path": rec.get("path", ""),
+            "expected_kind": rec.get("expected_kind", ""),
+            "is_file": bool(rec.get("is_file", False)),
+            "is_dir": bool(rec.get("is_dir", False)),
+            "message": "operator path exists with the wrong filesystem kind",
+            "suggested_action": "fix the configured path or remove the conflicting file/directory",
+        })
     if event_stats["invalid_count"]:
         warnings.append({
             "type": "invalid_event_log",
@@ -4525,34 +4538,33 @@ def print_status(cfg, json_output=False):
             print(f"    process_log: {row['process_log']}")
         if row["session_log"]:
             print(f"    session_log: {row['session_log']}")
+    warnings_printed = False
+    def print_warnings_header_once():
+        nonlocal warnings_printed
+        if not warnings_printed:
+            print("")
+            print("Warnings:")
+            warnings_printed = True
+    if doc["summary"].get("path_kind_mismatch_count", 0):
+        print_warnings_header_once()
+        for rec in (doc.get("path_status") or {}).values():
+            if rec.get("expected_kind_mismatch"):
+                actual = "dir" if rec.get("is_dir") else ("file" if rec.get("is_file") else "other")
+                print(f"  operator path kind mismatch: {rec.get('path', '')} expected={rec.get('expected_kind', '')} actual={actual}")
     if any(row["stale"] for row in doc["services"]):
-        print("")
-        print("Warnings:")
+        print_warnings_header_once()
         print("  stale state detected; run scripts/busierbox-server --stop to clean managed records")
     if any(row["actual"] == "listening" and row["configured"] not in ("listening", "starting") for row in doc["services"]):
-        if not any(row["stale"] for row in doc["services"]):
-            print("")
-            print("Warnings:")
+        print_warnings_header_once()
         print("  actual listener detected while configured state is not listening; inspect listener PID ownership")
     if any(row["pid"] and row.get("pid_alive") and not row.get("pid_managed") for row in doc["services"]):
-        if not any(row["stale"] for row in doc["services"]) and not any(row["actual"] == "listening" and row["configured"] not in ("listening", "starting") for row in doc["services"]):
-            print("")
-            print("Warnings:")
+        print_warnings_header_once()
         print("  recorded live PID without ownership evidence detected; --stop will skip it")
     if doc["summary"].get("event_invalid_count", 0):
-        if (not any(row["stale"] for row in doc["services"]) and
-                not any(row["actual"] == "listening" and row["configured"] not in ("listening", "starting") for row in doc["services"]) and
-                not any(row["pid"] and row.get("pid_alive") and not row.get("pid_managed") for row in doc["services"])):
-            print("")
-            print("Warnings:")
+        print_warnings_header_once()
         print(f"  event log contains {doc['summary'].get('event_invalid_count', 0)} invalid JSONL record(s); inspect {doc['event_log']}")
     if not doc["command_queue"].get("policy_valid", True):
-        if (not any(row["stale"] for row in doc["services"]) and
-                not any(row["actual"] == "listening" and row["configured"] not in ("listening", "starting") for row in doc["services"]) and
-                not any(row["pid"] and row.get("pid_alive") and not row.get("pid_managed") for row in doc["services"]) and
-                not doc["summary"].get("event_invalid_count", 0)):
-            print("")
-            print("Warnings:")
+        print_warnings_header_once()
         print("  command queue policy is invalid; target polling is not configured")
         for error in doc["command_queue"].get("policy_errors") or []:
             print(f"    {error}")
