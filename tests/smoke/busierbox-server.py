@@ -1466,6 +1466,17 @@ def main():
             print("bind failure status missing warning owner-pid index", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
+        service_port_key = f"file-service:{bind_fail_port}"
+        type_service_port_key = f"service_error:{service_port_key}"
+        if (bind_warning_stats.get("by_service_port", {}).get(service_port_key, 0) < 1 or
+                bind_warning_stats.get("by_type_service_port", {}).get(type_service_port_key, 0) < 1 or
+                bind_summary.get("warning_service_port_counts", {}).get(service_port_key, 0) < 1 or
+                bind_summary.get("warning_type_service_port_counts", {}).get(type_service_port_key, 0) < 1 or
+                bind_fail_doc.get("warnings_by_service_port", {}).get(service_port_key, [{}])[-1].get("type") != "service_error" or
+                bind_fail_doc.get("warnings_by_type_service_port", {}).get(type_service_port_key, [{}])[-1].get("service") != "file-service"):
+            print("bind failure status missing service:port warning indexes", file=sys.stderr)
+            print(bind_fail_status.stdout, file=sys.stderr)
+            return 1
         bind_fail_text_status = run(
             "scripts/busierbox-server", "--config", str(bind_fail_cfg),
             "--state-file", str(bind_fail_state),

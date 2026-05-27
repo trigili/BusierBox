@@ -1213,7 +1213,9 @@ def warning_stats(warnings):
      by_listener_pid,
      by_owner_pid,
      by_path,
-     by_type_path) = warning_record_indexes(warnings)
+     by_type_path,
+     by_service_port,
+     by_type_service_port) = warning_record_indexes(warnings)
     count_records = lambda records: {key: len(value) for key, value in records.items()}
     return {
         "total_count": len(warnings or []),
@@ -1225,6 +1227,8 @@ def warning_stats(warnings):
         "by_owner_pid": count_records(by_owner_pid),
         "by_path": count_records(by_path),
         "by_type_path": count_records(by_type_path),
+        "by_service_port": count_records(by_service_port),
+        "by_type_service_port": count_records(by_type_service_port),
     }
 
 
@@ -1246,19 +1250,27 @@ def warning_record_indexes(warnings):
     by_owner_pid = {}
     by_path = {}
     by_type_path = {}
+    by_service_port = {}
+    by_type_service_port = {}
     for item in warnings or []:
         if not isinstance(item, dict):
             continue
         warning_type = str(item.get("type") or "")
         service = str(item.get("service") or "")
         port = item.get("port")
+        port_key = str(port) if port not in (None, "", 0) else ""
         pid = str(item.get("pid") or "")
         if warning_type:
             by_type.setdefault(warning_type, []).append(item)
         if service:
             by_service.setdefault(service, []).append(item)
-        if port not in (None, "", 0):
-            by_port.setdefault(str(port), []).append(item)
+        if port_key:
+            by_port.setdefault(port_key, []).append(item)
+        if service and port_key:
+            service_port = f"{service}:{port_key}"
+            by_service_port.setdefault(service_port, []).append(item)
+            if warning_type:
+                by_type_service_port.setdefault(f"{warning_type}:{service_port}", []).append(item)
         if pid:
             by_pid.setdefault(pid, []).append(item)
         for listener_pid in item.get("listener_pids") or []:
@@ -1275,7 +1287,18 @@ def warning_record_indexes(warnings):
             by_path.setdefault(path, []).append(item)
             if warning_type:
                 by_type_path.setdefault(f"{warning_type}:{path}", []).append(item)
-    return by_type, by_service, by_port, by_pid, by_listener_pid, by_owner_pid, by_path, by_type_path
+    return (
+        by_type,
+        by_service,
+        by_port,
+        by_pid,
+        by_listener_pid,
+        by_owner_pid,
+        by_path,
+        by_type_path,
+        by_service_port,
+        by_type_service_port,
+    )
 
 
 def annotate_path_records_with_warnings(path_status, browser_paths, warnings_by_path):
@@ -4216,7 +4239,9 @@ def status_document(cfg):
      warnings_by_listener_pid,
      warnings_by_owner_pid,
      warnings_by_path,
-     warnings_by_type_path) = warning_record_indexes(warnings)
+     warnings_by_type_path,
+     warnings_by_service_port,
+     warnings_by_type_service_port) = warning_record_indexes(warnings)
     annotate_path_records_with_warnings(path_status, browser_paths, warnings_by_path)
     annotate_service_port_records_with_warnings(
         services,
@@ -4282,6 +4307,8 @@ def status_document(cfg):
         "warning_owner_pid_counts": warning_summary.get("by_owner_pid") or {},
         "warning_path_counts": warning_summary.get("by_path") or {},
         "warning_type_path_counts": warning_summary.get("by_type_path") or {},
+        "warning_service_port_counts": warning_summary.get("by_service_port") or {},
+        "warning_type_service_port_counts": warning_summary.get("by_type_service_port") or {},
         "upload_count": len(uploads),
         "upload_total_size": record_sum_by_key(uploads, "size"),
         "upload_stored_exists_count": upload_stored_exists_count,
@@ -4419,6 +4446,8 @@ def status_document(cfg):
         "warnings_by_owner_pid": warnings_by_owner_pid,
         "warnings_by_path": warnings_by_path,
         "warnings_by_type_path": warnings_by_type_path,
+        "warnings_by_service_port": warnings_by_service_port,
+        "warnings_by_type_service_port": warnings_by_type_service_port,
         "warning_stats": warning_summary,
         "local_ips": ips,
         "selected_local_ip": (ips or ["OPERATOR_IP"])[0],
