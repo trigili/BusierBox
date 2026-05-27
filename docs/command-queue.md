@@ -53,6 +53,9 @@ Safety boundary:
   `poll_transport_supported=false`, `delivery_supported=false`,
   `result_upload_supported=false`, and `execution_supported=false` so frontend
   and integration tooling can distinguish policy/planning from active control.
+- `allow_arbitrary=yes` is reported as an explicit policy request, not an
+  execution grant; `arbitrary_execution_allowed=false` remains false while this
+  build has `execution_supported=false`.
 
 Operator queue inspection:
 

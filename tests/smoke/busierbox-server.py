@@ -307,6 +307,8 @@ def main():
                 queue_summary.get("allow_arbitrary") != "no" or
                 queue_summary.get("policy_valid") is not True or
                 queue_summary.get("policy_errors") != [] or
+                queue_summary.get("arbitrary_policy_requested") is not False or
+                queue_summary.get("arbitrary_execution_allowed") is not False or
                 queue_summary.get("executes_commands") is not False or
                 queue_summary.get("operator_queue_records_only") is not True or
                 queue_summary.get("active_control_channel") is not False):
@@ -335,6 +337,7 @@ def main():
                 "disabled command queue must keep allowed commands policy none" not in invalid_queue_summary.get("policy_errors", []) or
                 "disabled command queue must not allow arbitrary execution" not in invalid_queue_summary.get("policy_errors", []) or
                 invalid_queue_summary.get("configured_for_polling") is not False or
+                invalid_queue_summary.get("arbitrary_policy_requested") is not False or
                 invalid_queue_summary.get("arbitrary_execution_allowed") is not False or
                 invalid_queue_summary.get("active_control_channel") is not False or
                 invalid_queue_summary.get("executes_commands") is not False):
@@ -348,6 +351,7 @@ def main():
         )
         if (invalid_queue_text.returncode != 0 or
                 "policy_valid=no" not in invalid_queue_text.stdout or
+                "arbitrary_execution_allowed=no" not in invalid_queue_text.stdout or
                 "policy_error=disabled command queue must keep allowed commands policy none" not in invalid_queue_text.stdout):
             print("invalid command queue text listing missing policy errors", file=sys.stderr)
             print(invalid_queue_text.stdout, file=sys.stderr)
@@ -429,6 +433,7 @@ def main():
                 status_queue.get("policy_valid") is not True or
                 status_queue.get("policy_errors") != [] or
                 status_queue.get("configured_for_polling") is not False or
+                status_queue.get("arbitrary_policy_requested") is not False or
                 status_queue.get("arbitrary_execution_allowed") is not False or
                 status_queue.get("active_control_channel") is not False or
                 status_queue.get("executes_commands") is not False):
@@ -444,9 +449,32 @@ def main():
         invalid_status_queue = invalid_queue_status["command_queue"]
         if (invalid_status_queue.get("policy_valid") is not False or
                 invalid_status_queue.get("configured_for_polling") is not False or
+                invalid_status_queue.get("arbitrary_policy_requested") is not False or
                 invalid_status_queue.get("arbitrary_execution_allowed") is not False):
             print("server json status marked invalid command queue policy usable", file=sys.stderr)
             print(invalid_queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        arbitrary_queue_cfg = Path(tmp) / "server-config-arbitrary-command-queue.json"
+        arbitrary_queue_cfg.write_text(json.dumps({
+            "operator_session_dir": str(queue_operator_dir),
+            "command_queue_file": str(queue_file),
+            "command_queue_enable": "yes",
+            "command_queue_allowed_commands": "custom",
+            "command_queue_allow_arbitrary": "yes",
+        }), encoding="utf-8")
+        arbitrary_queue_doc = run(
+            "scripts/busierbox-server",
+            "--config", str(arbitrary_queue_cfg),
+            "--json-command-queue",
+        )
+        arbitrary_queue = json.loads(arbitrary_queue_doc.stdout)["command_queue"]
+        if (arbitrary_queue.get("policy_valid") is not True or
+                arbitrary_queue.get("arbitrary_policy_requested") is not True or
+                arbitrary_queue.get("arbitrary_execution_allowed") is not False or
+                arbitrary_queue.get("execution_supported") is not False or
+                arbitrary_queue.get("executes_commands") is not False):
+            print("server command queue treated arbitrary policy request as execution permission", file=sys.stderr)
+            print(arbitrary_queue_doc.stdout, file=sys.stderr)
             return 1
         if "summary" not in queue_status_json or "warnings" not in queue_status_json:
             print("server json status missing top-level summary/warnings", file=sys.stderr)

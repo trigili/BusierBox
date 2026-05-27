@@ -505,6 +505,7 @@ def command_queue_summary(cfg):
     allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
     policy_errors = command_queue_policy_errors(cfg)
     policy_valid = not policy_errors
+    arbitrary_policy_requested = policy_valid and enabled == "yes" and allowed_commands == "custom" and allow_arbitrary == "yes"
     return {
         "path": str(command_queue_path(cfg)),
         "enabled": enabled,
@@ -527,7 +528,8 @@ def command_queue_summary(cfg):
         "operator_queue_records_only": True,
         "active_control_channel": False,
         "configured_for_polling": policy_valid and enabled == "yes",
-        "arbitrary_execution_allowed": policy_valid and enabled == "yes" and allowed_commands == "custom" and allow_arbitrary == "yes",
+        "arbitrary_policy_requested": arbitrary_policy_requested,
+        "arbitrary_execution_allowed": False,
         "safety_boundary": "explicit operator queue records only; no default target execution or hidden control channel",
     }
 
@@ -541,6 +543,7 @@ def print_command_queue(cfg, json_output=False):
         print(f"Command queue: {summary['path']}")
         print(f"  enabled={summary['enabled']} default_enabled=no port={summary['port']} tls={summary['tls']} require_token={summary['require_token']}")
         print(f"  allowed_commands={summary['allowed_commands']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no")
+        print(f"  arbitrary_policy_requested={'yes' if summary['arbitrary_policy_requested'] else 'no'} arbitrary_execution_allowed=no")
         print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
         for error in summary["policy_errors"]:
             print(f"  policy_error={error}")
@@ -549,6 +552,7 @@ def print_command_queue(cfg, json_output=False):
     print(f"Command queue: {summary['path']}")
     print(f"  enabled={summary['enabled']} default_enabled=no port={summary['port']} tls={summary['tls']} require_token={summary['require_token']}")
     print(f"  allowed_commands={summary['allowed_commands']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no")
+    print(f"  arbitrary_policy_requested={'yes' if summary['arbitrary_policy_requested'] else 'no'} arbitrary_execution_allowed=no")
     print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
     for error in summary["policy_errors"]:
         print(f"  policy_error={error}")
@@ -2808,7 +2812,7 @@ def print_status(cfg, json_output=False):
     print(f"  path: {queue.get('path', '')}")
     print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')}")
     print(f"  allowed_commands={queue.get('allowed_commands', '')} allow_arbitrary={queue.get('allow_arbitrary', '')} active_control_channel=no")
-    print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'}")
+    print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'} arbitrary_policy_requested={'yes' if queue.get('arbitrary_policy_requested') else 'no'} arbitrary_execution_allowed=no")
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")

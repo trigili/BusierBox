@@ -51,10 +51,12 @@ static const char *mode_status(const char *mode, int enabled, const char *operat
 static void print_json(const char *mode, int dry_run, const char *operator_host)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
-    int arbitrary_allowed = !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    int arbitrary_requested;
     struct command_queue_policy_report policy = bb_command_queue_validate_policy();
     int valid = bb_command_queue_policy_valid(&policy);
     int i;
+
+    arbitrary_requested = valid && enabled && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
 
     fputs("{\"schema\":1,\"command\":\"command-queue\",\"mode\":", stdout);
     bb_json_string(stdout, mode);
@@ -93,7 +95,8 @@ static void print_json(const char *mode, int dry_run, const char *operator_host)
     bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     fputs(",\"allow_arbitrary\":", stdout);
     bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
-    printf(",\"arbitrary_execution_allowed\":%s", arbitrary_allowed ? "true" : "false");
+    printf(",\"arbitrary_policy_requested\":%s", arbitrary_requested ? "true" : "false");
+    fputs(",\"arbitrary_execution_allowed\":false", stdout);
     fputs(",\"execution_supported\":false", stdout);
     fputs(",\"executes_commands\":false", stdout);
     fputs(",\"delivery_supported\":false", stdout);
@@ -109,10 +112,12 @@ static void print_json(const char *mode, int dry_run, const char *operator_host)
 static void print_text(const char *mode, int dry_run, const char *operator_host)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
-    int arbitrary_allowed = !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    int arbitrary_requested;
     struct command_queue_policy_report policy = bb_command_queue_validate_policy();
     int valid = bb_command_queue_policy_valid(&policy);
     int i;
+
+    arbitrary_requested = valid && enabled && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
 
     printf("command_queue_mode=%s\n", mode);
     printf("command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
@@ -134,7 +139,8 @@ static void print_text(const char *mode, int dry_run, const char *operator_host)
     printf("command_queue_token_source=%s\n", BB_COMMAND_QUEUE_TOKEN_SOURCE);
     printf("command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
-    printf("command_queue_arbitrary_execution_allowed=%s\n", arbitrary_allowed ? "yes" : "no");
+    printf("command_queue_arbitrary_policy_requested=%s\n", arbitrary_requested ? "yes" : "no");
+    puts("command_queue_arbitrary_execution_allowed=no");
     puts("command_queue_execution_supported=no");
     puts("command_queue_executes_commands=no");
     puts("command_queue_delivery_supported=no");
