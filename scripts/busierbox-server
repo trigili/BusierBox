@@ -410,6 +410,25 @@ def staged_record_list(staged):
     return records
 
 
+def staged_record_indexes(records):
+    by_request = {}
+    by_sha256 = {}
+    by_source_path = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        request_name = str(rec.get("request_name") or rec.get("name") or "")
+        sha256 = str(rec.get("sha256") or "")
+        source_path = str(rec.get("source_path") or "")
+        if request_name:
+            by_request[request_name] = rec
+        if sha256:
+            by_sha256.setdefault(sha256, []).append(rec)
+        if source_path:
+            by_source_path[source_path] = rec
+    return by_request, by_sha256, by_source_path
+
+
 def records_by_session(records):
     grouped = {}
     for rec in records or []:
@@ -2844,6 +2863,8 @@ def status_summary_and_warnings(services):
 def status_document(cfg):
     staged_raw = load_staged(cfg).get("staged", {})
     staged = enriched_staged_records(cfg, staged_raw)
+    staged_records = staged_record_list(staged)
+    staged_by_request, staged_by_sha256, staged_by_source_path = staged_record_indexes(staged_records)
     ips = local_ips()
     operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
     event_log_path = operator_dir / "events.jsonl"
@@ -2951,7 +2972,10 @@ def status_document(cfg):
         "target_commands_by_service": target_commands_by_service,
         "target_commands_by_request": target_commands_by_request,
         "staged": staged,
-        "staged_records": staged_record_list(staged),
+        "staged_records": staged_records,
+        "staged_by_request": staged_by_request,
+        "staged_by_sha256": staged_by_sha256,
+        "staged_by_source_path": staged_by_source_path,
         "uploads": uploads,
         "uploads_by_session": records_by_session(uploads),
         "fetches": fetches,

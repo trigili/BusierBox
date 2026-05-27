@@ -267,9 +267,11 @@ and the same records are indexed by service name in `services_by_name` for
 frontend clients that need direct lookup without reconstructing their own map.
 The same document includes `generated_at` and a `paths` object for stable
 discovery of server state, staged files, event logs, command queue records, and
-the session root. Staged files are exposed as the existing `staged` request map
-and as an ordered `staged_records` browser list. Recent upload and staged-fetch
-activity is exposed through top-level `uploads` and `fetches` arrays plus
+the session root. Staged files are exposed as the existing `staged` request map,
+an ordered `staged_records` browser list, and lookup maps
+`staged_by_request`, `staged_by_sha256`, and `staged_by_source_path`. Recent
+upload and staged-fetch activity is exposed through top-level `uploads` and
+`fetches` arrays plus
 `uploads_by_session` and `fetches_by_session` lookup maps for session explorers;
 session browser records are exposed as `sessions`, `sessions_by_id`, and
 `sessions_by_service`; aggregate counts remain in `summary`.

@@ -1943,6 +1943,10 @@ def main():
         staged_status = status_doc.get("staged", {}).get("/tmp/myfile", {})
         staged_records = status_doc.get("staged_records") or []
         staged_record = next((item for item in staged_records if item.get("request_name") == "/tmp/myfile"), {})
+        staged_by_request = status_doc.get("staged_by_request") or {}
+        staged_by_sha256 = status_doc.get("staged_by_sha256") or {}
+        staged_by_source_path = status_doc.get("staged_by_source_path") or {}
+        staged_sha = staged_record.get("sha256", "")
         if (not staged_status or
                 staged_status.get("request_name") != "/tmp/myfile" or
                 "fetch /tmp/myfile" not in staged_status.get("fetch_command", "") or
@@ -1953,6 +1957,10 @@ def main():
                 staged_record.get("source_path") != str(staged_source) or
                 staged_record.get("source_exists") is not True or
                 "fetch /tmp/myfile" not in staged_record.get("fetch_command", "") or
+                staged_by_request.get("/tmp/myfile", {}).get("source_path") != str(staged_source) or
+                staged_by_source_path.get(str(staged_source), {}).get("request_name") != "/tmp/myfile" or
+                not staged_sha or
+                not any(item.get("request_name") == "/tmp/myfile" for item in staged_by_sha256.get(staged_sha, [])) or
                 status_doc.get("target_commands_by_request", {}).get("/tmp/myfile", {}).get("request_name") != "/tmp/myfile" or
                 not any("fetch /tmp/myfile" in cmd for cmd in status_doc.get("target_commands", [])) or
                 "selected_local_ip" not in status_doc or
