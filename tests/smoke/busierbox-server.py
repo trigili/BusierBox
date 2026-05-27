@@ -1484,6 +1484,7 @@ def main():
         if (len(fetch_session_doc.get("fetches") or []) != 1 or
                 fetch_session_doc["fetches"][0].get("operation") != "fetch" or
                 fetch_session_doc["fetches"][0].get("status") != "served" or
+                fetch_session_doc["fetches"][0].get("http_status") != 200 or
                 fetch_session_doc.get("uploads")):
             print("staged fetch session was not classified as fetch-only", file=sys.stderr)
             print(json.dumps(fetch_session_doc, indent=2), file=sys.stderr)
@@ -1586,6 +1587,7 @@ def main():
         if (len(missing_doc.get("fetches") or []) != 1 or
                 missing_doc["fetches"][0].get("operation") != "fetch" or
                 missing_doc["fetches"][0].get("status") != "missing" or
+                missing_doc["fetches"][0].get("http_status") != 404 or
                 missing_doc.get("uploads")):
             print("missing staged fetch was incorrectly classified", file=sys.stderr)
             print(json.dumps(missing_doc, indent=2), file=sys.stderr)
