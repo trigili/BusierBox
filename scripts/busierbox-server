@@ -4633,6 +4633,25 @@ def warning_badge_suffix(row):
     return f" warnings={count}"
 
 
+def print_activity_summary(summary):
+    summary = summary or {}
+    print(
+        "Activity summary: "
+        f"staged={summary.get('staged_count', 0)} "
+        f"uploads={summary.get('upload_count', 0)} "
+        f"fetches={summary.get('fetch_count', 0)} "
+        f"sessions={summary.get('session_count', 0)} "
+        f"events={summary.get('event_count', 0)}"
+    )
+    print(
+        "  latest: "
+        f"staged={summary.get('latest_staged_at') or '-'} "
+        f"upload={summary.get('latest_upload_at') or '-'} "
+        f"fetch={summary.get('latest_fetch_at') or '-'} "
+        f"session={summary.get('latest_session_updated_at') or '-'}"
+    )
+
+
 def rshell_session_policy_record(cfg):
     policy = str(cfg.get("rshell_session_policy") or cfg.get("BB_RSHELL_SESSION_POLICY") or "single")
     valid = policy in ("single", "reconnect", "persistent")
@@ -4760,6 +4779,8 @@ def print_status(cfg, json_output=False):
     print(f"  command_queue_file: {doc['command_queue_file']}")
     print(f"  command_copy_file: {doc['command_copy_file']}")
     print(f"  session_root: {doc['session_root']}")
+    print("")
+    print_activity_summary(doc.get("summary") or {})
     print("")
     print("Path health:")
     for name in sorted(doc.get("path_status") or {}):
@@ -5007,6 +5028,7 @@ def print_workbench(cfg):
         f"stale={summary.get('stale_count', 0)} "
         f"warnings={len(snap.get('warnings') or [])}"
     )
+    print_activity_summary(summary)
     print("")
     print("Operator paths:")
     paths = snap.get("paths") or {}

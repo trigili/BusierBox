@@ -2154,8 +2154,10 @@ def main():
                 "remotes:" not in upload_status_text.stdout or
                 "operation=upload status=ok http=200 filename=evidence.txt" not in upload_status_text.stdout or
                 "Command queue:" not in upload_status_text.stdout or
+                "Activity summary:" not in upload_status_text.stdout or
                 "uploads=1" not in upload_status_text.stdout or
                 "stored_exists=True" not in upload_status_text.stdout or
+                f"upload={upload_item.get('timestamp')}" not in upload_status_text.stdout or
                 f"remote: {upload_remote} at {upload_item.get('timestamp')}" not in upload_status_text.stdout or
                 "session:" not in upload_status_text.stdout or
                 "metadata:" not in upload_status_text.stdout or
@@ -2179,12 +2181,14 @@ def main():
                 "Generated target commands" not in uploads_view.stdout or
                 "Operator paths:" not in uploads_view.stdout or
                 "Service summary:" not in uploads_view.stdout or
+                "Activity summary:" not in uploads_view.stdout or
                 "Path health:" not in uploads_view.stdout or
                 "state_file: exists=" not in uploads_view.stdout or
                 "event_log:" not in uploads_view.stdout or
                 "tls_cert:" not in uploads_view.stdout or
                 "Event log" not in uploads_view.stdout or
                 "uploads=1" not in uploads_view.stdout or
+                f"upload={upload_item.get('timestamp')}" not in uploads_view.stdout or
                 "stored_exists: True" not in uploads_view.stdout or
                 "session:" not in uploads_view.stdout or
                 "./busierbox put /etc/config/network" not in uploads_view.stdout or
@@ -2755,8 +2759,11 @@ def main():
             "--status",
         )
         if ("Recent fetches:" not in fetch_status_text.stdout or
+                "Activity summary:" not in fetch_status_text.stdout or
+                "fetches=1" not in fetch_status_text.stdout or
                 "/tmp/myfile" not in fetch_status_text.stdout or
                 "status=served http=200" not in fetch_status_text.stdout or
+                f"fetch={fetch_items[0].get('timestamp')}" not in fetch_status_text.stdout or
                 f"remote: {fetch_remote} at {fetch_items[0].get('timestamp')}" not in fetch_status_text.stdout):
             print("text --status missing recent fetch metadata", file=sys.stderr)
             print(fetch_status_text.stdout, file=sys.stderr)
@@ -2769,8 +2776,11 @@ def main():
             "--tui",
         )
         if ("Recent fetches:" not in fetch_view.stdout or
+                "Activity summary:" not in fetch_view.stdout or
+                "fetches=1" not in fetch_view.stdout or
                 "/tmp/myfile" not in fetch_view.stdout or
                 "status=served http=200" not in fetch_view.stdout or
+                f"fetch={fetch_items[0].get('timestamp')}" not in fetch_view.stdout or
                 f"remote: {fetch_remote} at {fetch_items[0].get('timestamp')}" not in fetch_view.stdout or
                 "event_log:" not in fetch_view.stdout):
             print("workbench fallback missing recent fetch metadata", file=sys.stderr)
