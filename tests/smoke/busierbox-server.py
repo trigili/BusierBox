@@ -1987,6 +1987,14 @@ def main():
         if not any(event.get("event") == "fetch_complete" and event.get("details", {}).get("operation") == "fetch" for event in fetch_events):
             print("staged fetch did not write structured fetch_complete event", file=sys.stderr)
             return 1
+        fetch_close_events = [event for event in fetch_events if event.get("event") == "connection_close"]
+        if (not fetch_close_events or
+                fetch_close_events[-1].get("details", {}).get("operation") != "fetch" or
+                fetch_close_events[-1].get("details", {}).get("status") != "served" or
+                fetch_close_events[-1].get("details", {}).get("http_status") != 200 or
+                fetch_close_events[-1].get("details", {}).get("request_name") != "/tmp/myfile"):
+            print("staged fetch connection_close event missing request outcome details", file=sys.stderr)
+            return 1
         fetch_status = run(
             "scripts/busierbox-server",
             "--config", str(fetch_cfg),
@@ -2167,6 +2175,14 @@ def main():
         missing_events = [json.loads(line) for line in (missing_sessions[0].parent / "events.jsonl").read_text(encoding="utf-8").splitlines()]
         if not any(event.get("event") == "fetch_complete" and event.get("details", {}).get("status") == "missing" for event in missing_events):
             print("missing staged fetch did not write fetch_complete status", file=sys.stderr)
+            return 1
+        missing_close_events = [event for event in missing_events if event.get("event") == "connection_close"]
+        if (not missing_close_events or
+                missing_close_events[-1].get("details", {}).get("operation") != "fetch" or
+                missing_close_events[-1].get("details", {}).get("status") != "missing" or
+                missing_close_events[-1].get("details", {}).get("http_status") != 404 or
+                missing_close_events[-1].get("details", {}).get("request_name") != "not-staged"):
+            print("missing fetch connection_close event missing request outcome details", file=sys.stderr)
             return 1
         missing_fetch_status = run(
             "scripts/busierbox-server",
