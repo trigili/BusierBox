@@ -1946,6 +1946,7 @@ def main():
                 release_artifacts_by_tool.get("sh", [{}])[0].get("payload_preset") != "default" or
                 rel.get("artifact_stats", {}).get("by_compatibility", {}).get("exact") != 1 or
                 rel.get("artifact_stats", {}).get("by_payload_preset", {}).get("default") != 1 or
+                rel.get("artifact_stats", {}).get("by_source", {}).get("release-index") != 1 or
                 rel.get("artifact_stats", {}).get("by_tool", {}).get("sh") != 1 or
                 release_device_map.get("lab-router", {}).get("tuple_path") != "by-tuple/native/host/host/host" or
                 release_tuple_map.get("by-tuple/native/host/host/host", {}).get("artifact_count") != 1):
@@ -1960,6 +1961,7 @@ def main():
                 release_summary.get("release_tuple_artifact_reference_count") != 1 or
                 release_summary.get("release_artifact_compatibility_counts", {}).get("exact") != 1 or
                 release_summary.get("release_artifact_payload_preset_counts", {}).get("default") != 1 or
+                release_summary.get("release_artifact_source_counts", {}).get("release-index") != 1 or
                 release_summary.get("release_artifact_tool_counts", {}).get("sh") != 1):
             print("json status missing release aggregate counts", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)

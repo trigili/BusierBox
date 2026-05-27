@@ -1284,6 +1284,7 @@ def release_context():
         artifacts_by_tool = {}
         artifact_compatibility_counts = {}
         artifact_payload_preset_counts = {}
+        artifact_source_counts = {}
         artifact_tool_counts = {}
         for rec in artifacts:
             key = rec.get("release_path") or rec.get("path") or rec.get("name")
@@ -1292,6 +1293,7 @@ def release_context():
             name = str(rec.get("name") or "")
             sha256 = str(rec.get("sha256") or "")
             payload_preset = str(rec.get("payload_preset") or "")
+            source = str(rec.get("source") or "")
             compatibility_label = str((rec.get("compatibility") or {}).get("label") or "")
             if name:
                 artifacts_by_name.setdefault(name, []).append(rec)
@@ -1300,6 +1302,8 @@ def release_context():
             if payload_preset:
                 artifacts_by_payload_preset.setdefault(payload_preset, []).append(rec)
                 artifact_payload_preset_counts[payload_preset] = artifact_payload_preset_counts.get(payload_preset, 0) + 1
+            if source:
+                artifact_source_counts[source] = artifact_source_counts.get(source, 0) + 1
             if compatibility_label:
                 artifact_compatibility_counts[compatibility_label] = artifact_compatibility_counts.get(compatibility_label, 0) + 1
             for tool in rec.get("tools") or []:
@@ -1321,6 +1325,7 @@ def release_context():
             "artifact_stats": {
                 "by_compatibility": artifact_compatibility_counts,
                 "by_payload_preset": artifact_payload_preset_counts,
+                "by_source": artifact_source_counts,
                 "by_tool": artifact_tool_counts,
             },
             "devices": devices,
@@ -3391,6 +3396,7 @@ def status_document(cfg):
         "release_tuple_artifact_reference_count": record_sum_by_key(release.get("tuples") or [], "artifact_count"),
         "release_artifact_compatibility_counts": (release.get("artifact_stats") or {}).get("by_compatibility") or {},
         "release_artifact_payload_preset_counts": (release.get("artifact_stats") or {}).get("by_payload_preset") or {},
+        "release_artifact_source_counts": (release.get("artifact_stats") or {}).get("by_source") or {},
         "release_artifact_tool_counts": (release.get("artifact_stats") or {}).get("by_tool") or {},
     })
     return {

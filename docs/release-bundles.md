@@ -309,7 +309,8 @@ tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `devices_by_name`, and `tuples_by_path` lookup maps. Release artifact
 aggregates are exposed as `release.artifact_stats` and mirrored into `summary`
 as `release_artifact_compatibility_counts`,
-`release_artifact_payload_preset_counts`, and `release_artifact_tool_counts`.
+`release_artifact_payload_preset_counts`, `release_artifact_source_counts`,
+and `release_artifact_tool_counts`.
 Device and tuple artifact reference totals are mirrored as
 `release_device_artifact_reference_count` and
 `release_tuple_artifact_reference_count`.
