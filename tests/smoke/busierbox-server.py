@@ -82,6 +82,13 @@ def main():
 
     # Paramiko key comparison must use get_name/get_base64, not object equality
     src = (ROOT / "scripts" / "busierbox-server").read_text()
+    release_docs = (ROOT / "docs" / "release-bundles.md").read_text()
+    for word in ("invalid_command_queue_policy",
+                 "command_queue_policy_valid",
+                 "command_queue_policy_error_count"):
+        if word not in release_docs:
+            print(f"release bundle status docs missing command queue policy contract: {word}", file=sys.stderr)
+            return 1
     if "get_name()" not in src or "get_base64()" not in src:
         print("busierbox-server: Paramiko key comparison missing get_name()/get_base64()", file=sys.stderr)
         return 1

@@ -258,9 +258,10 @@ scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host
 
 `--json-status` and `--api-status` include top-level `summary` and `warnings`
 objects for frontend and automation consumers. Stale server-state records,
-service errors, listener counts, command queue counts, and release
-artifact/device/tuple counts can be read without re-parsing the human status
-view. The same document includes `generated_at` and a `paths` object for stable
+service errors, listener counts, command queue counts, command queue policy
+validity, and release artifact/device/tuple counts can be read without
+re-parsing the human status view. The same document includes `generated_at` and
+a `paths` object for stable
 discovery of server state, staged files, event logs, command queue records, and
 the session root. Recent upload and staged-fetch activity is exposed through
 top-level `uploads` and `fetches` arrays plus aggregate counts in `summary`.
@@ -272,12 +273,15 @@ count, invalid JSONL line count, and tail limit so API consumers can tell
 whether there is more history to page or inspect from disk.
 
 Structured `warnings` use stable `type` values such as `service_error`,
-`stale_state`, `unexpected_listener`, `unmanaged_recorded_pid`, and
-`invalid_event_log`. Service-related warnings include the configured and actual
-states, port, PID, PID ownership evidence, listener PIDs, possible bind owners,
-error text, and process/session log paths when those fields are available. This
-lets a TUI, future web UI, or automation client show actionable cleanup guidance
-without scraping the human-readable `--status` output.
+`stale_state`, `unexpected_listener`, `unmanaged_recorded_pid`,
+`invalid_event_log`, and `invalid_command_queue_policy`. Summary fields include
+`command_queue_policy_valid` and `command_queue_policy_error_count` so clients
+can distinguish a disabled queue from an invalid policy. Service-related
+warnings include the configured and actual states, port, PID, PID ownership
+evidence, listener PIDs, possible bind owners, error text, and process/session
+log paths when those fields are available. This lets a TUI, future web UI, or
+automation client show actionable cleanup guidance without scraping the
+human-readable `--status` output.
 
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it does not push the artifact or run it. In the
