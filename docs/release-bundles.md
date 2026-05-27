@@ -371,7 +371,9 @@ counts for file-browser views; aggregate counts remain in `summary`, including
 compact dashboards.
 `latest_upload_at`, `latest_fetch_at`, and `latest_session_updated_at` expose
 recent activity timestamps without requiring clients to scan the full browser
-records.
+records. Human `--status` mirrors the same operator essentials for recent
+uploads and fetches, including source path, remote address, timestamp, session
+correlation, and metadata/event-log paths when available.
 When running inside a release bundle, `release` includes artifact, device, and
 tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `artifacts_by_sha256`, `artifacts_by_payload_preset`,

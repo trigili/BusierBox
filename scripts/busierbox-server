@@ -4863,6 +4863,7 @@ def print_status(cfg, json_output=False):
         for meta in doc["uploads"]:
             print(f"  {meta.get('filename', '')} size={meta.get('size', '')} sha256={meta.get('sha256_prefix', '')} status={meta.get('status', '')} stored_exists={meta.get('stored_exists', False)}")
             print(f"    source: {meta.get('source_path', '')}")
+            print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
             print(f"    stored: {meta.get('stored_path', '')}")
             print(f"    metadata: {meta.get('metadata_path', meta.get('_metadata_path', ''))}")
             print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
@@ -4874,6 +4875,7 @@ def print_status(cfg, json_output=False):
         for meta in doc["fetches"]:
             print(f"  {meta.get('request_name', '')} size={meta.get('size', '')} sha256={meta.get('sha256_prefix', '')} status={meta.get('status', '')} http={meta.get('http_status', '')} source_exists={meta.get('source_exists', False)}")
             print(f"    source: {meta.get('source_path', '')}")
+            print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
             print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
             if meta.get("event_log"):
                 print(f"    event_log: {meta.get('event_log', '')}")

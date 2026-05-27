@@ -2156,6 +2156,7 @@ def main():
                 "Command queue:" not in upload_status_text.stdout or
                 "uploads=1" not in upload_status_text.stdout or
                 "stored_exists=True" not in upload_status_text.stdout or
+                f"remote: {upload_remote} at {upload_item.get('timestamp')}" not in upload_status_text.stdout or
                 "session:" not in upload_status_text.stdout or
                 "metadata:" not in upload_status_text.stdout or
                 "event_log:" not in upload_status_text.stdout):
@@ -2755,7 +2756,8 @@ def main():
         )
         if ("Recent fetches:" not in fetch_status_text.stdout or
                 "/tmp/myfile" not in fetch_status_text.stdout or
-                "status=served http=200" not in fetch_status_text.stdout):
+                "status=served http=200" not in fetch_status_text.stdout or
+                f"remote: {fetch_remote} at {fetch_items[0].get('timestamp')}" not in fetch_status_text.stdout):
             print("text --status missing recent fetch metadata", file=sys.stderr)
             print(fetch_status_text.stdout, file=sys.stderr)
             return 1
