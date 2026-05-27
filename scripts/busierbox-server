@@ -927,16 +927,24 @@ def command_queue_summary(cfg):
     commands_by_id = {}
     commands_by_status = {}
     status_counts = {}
+    latest_created_at = ""
+    latest_result_received_at = ""
     for rec in commands:
         if not isinstance(rec, dict):
             continue
         command_id = str(rec.get("id") or "")
         status = str(rec.get("status") or "")
+        created_at = str(rec.get("created_at") or "")
+        result_received_at = str(rec.get("result_received_at") or "")
         if command_id:
             commands_by_id[command_id] = rec
         if status:
             commands_by_status.setdefault(status, []).append(rec)
             status_counts[status] = status_counts.get(status, 0) + 1
+        if created_at > latest_created_at:
+            latest_created_at = created_at
+        if result_received_at > latest_result_received_at:
+            latest_result_received_at = result_received_at
     result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
     result_exceeded_count = len([
         rec for rec in commands
@@ -980,6 +988,8 @@ def command_queue_summary(cfg):
         "commands_by_id": commands_by_id,
         "commands_by_status": commands_by_status,
         "status_counts": status_counts,
+        "latest_created_at": latest_created_at,
+        "latest_result_received_at": latest_result_received_at,
         "queued_count": len(queued),
         "result_count": result_count,
         "result_output_exceeded_count": result_exceeded_count,
@@ -1009,6 +1019,7 @@ def print_command_queue(cfg, json_output=False):
         print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
         for error in summary["policy_errors"]:
             print(f"  policy_error={error}")
+        print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
         print("  no queued commands")
         return
     print(f"Command queue: {summary['path']}")
@@ -1018,6 +1029,7 @@ def print_command_queue(cfg, json_output=False):
     print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
     for error in summary["policy_errors"]:
         print(f"  policy_error={error}")
+    print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
     for rec in summary["commands"]:
         print(f"{rec.get('id', '')}\t{rec.get('status', '')}\tcreated={rec.get('created_at', '')}")
         print(f"  command: {rec.get('command', '')}")
@@ -3281,6 +3293,8 @@ def status_document(cfg):
         "command_queue_result_count": command_queue.get("result_count", 0),
         "command_queue_result_output_exceeded_count": command_queue.get("result_output_exceeded_count", 0),
         "command_queue_status_counts": command_queue.get("status_counts") or {},
+        "command_queue_latest_created_at": command_queue.get("latest_created_at", ""),
+        "command_queue_latest_result_received_at": command_queue.get("latest_result_received_at", ""),
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
         "command_queue_policy_error_count": len(command_queue.get("policy_errors") or []),
         "release_artifact_count": len(release.get("artifacts") or []),
@@ -3570,6 +3584,7 @@ def print_status(cfg, json_output=False):
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
+    print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
         if rec.get("result_received_at"):
@@ -3796,6 +3811,7 @@ def print_workbench(cfg):
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
+    print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
         if rec.get("result_received_at"):

@@ -349,7 +349,9 @@ def main():
         queued_id = queue_summary["commands"][0]["id"]
         if (queue_summary.get("commands_by_id", {}).get(queued_id, {}).get("command") != "busierbox reality-test --json" or
                 len(queue_summary.get("commands_by_status", {}).get("queued", [])) != 1 or
-                queue_summary["commands_by_status"]["queued"][0].get("id") != queued_id):
+                queue_summary["commands_by_status"]["queued"][0].get("id") != queued_id or
+                queue_summary.get("latest_created_at") != queue_summary["commands"][0].get("created_at") or
+                queue_summary.get("latest_result_received_at") != ""):
             print("json command queue listing missing command lookup indexes", file=sys.stderr)
             print(queue_list.stdout, file=sys.stderr)
             return 1
@@ -498,8 +500,11 @@ def main():
         )
         queue_status_json = json.loads(queue_status_doc.stdout)
         if (queue_status_json["command_queue"]["result_count"] != 1 or
-                queue_status_json["command_queue"].get("result_output_exceeded_count") != 0):
+                queue_status_json["command_queue"].get("result_output_exceeded_count") != 0 or
+                queue_status_json["command_queue"].get("latest_created_at") != command_after_result.get("created_at") or
+                queue_status_json["command_queue"].get("latest_result_received_at") != command_after_result.get("result_received_at")):
             print("server json status missing command queue summary", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         status_queue = queue_status_json["command_queue"]
         if (status_queue.get("enabled") != "no" or
@@ -689,7 +694,9 @@ def main():
         if (queue_status_json["summary"].get("command_queue_total_count") != 1 or
                 queue_status_json["summary"].get("command_queue_result_count") != 1 or
                 queue_status_json["summary"].get("command_queue_result_output_exceeded_count") != 0 or
-                queue_status_json["summary"].get("command_queue_status_counts", {}).get("result-received") != 1):
+                queue_status_json["summary"].get("command_queue_status_counts", {}).get("result-received") != 1 or
+                queue_status_json["summary"].get("command_queue_latest_created_at") != command_after_result.get("created_at") or
+                queue_status_json["summary"].get("command_queue_latest_result_received_at") != command_after_result.get("result_received_at")):
             print("server json status missing aggregate command queue counts", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -785,6 +792,8 @@ def main():
                 "busierbox reality-test --json" not in queue_status_text.stdout or
                 "result-received" not in queue_status_text.stdout or
                 "result_output=12 limit=1234 exceeded_limit=no" not in queue_status_text.stdout or
+                "latest_created=" not in queue_status_text.stdout or
+                "latest_result=" not in queue_status_text.stdout or
                 "command_result_received" not in queue_status_text.stdout or
                 "Event log:" not in queue_status_text.stdout or
                 "services: command-queue=" not in queue_status_text.stdout or

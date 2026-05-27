@@ -316,8 +316,9 @@ frontends show the same commands without guessing whether a command is a safe
 explicit fetch/upload helper or control-like behavior.
 Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
-`command_queue_status_counts`, so dashboards can show queue state without
-recomputing it.
+`command_queue_status_counts`. It also exposes latest command-created and
+result-received timestamps, mirrored into `summary`, so dashboards can show
+queue recency without recomputing it.
 Event log entries include stable `id`, `session`, and `session_path` fields so
 frontend and integration tooling can correlate global operator events with
 per-session logs. File-service `connection_close` entries include the observed
