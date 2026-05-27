@@ -214,7 +214,10 @@ starts fresh sessions after disconnect up to the configured retry count, and
 `rshell status --json` includes `session_semantics` and
 `session_policy_summary` so operator tooling can distinguish first-connect
 retry, post-disconnect reconnects, persistent lifecycle, and fresh-session
-reconnect behavior without parsing prose.
+reconnect behavior without parsing prose. The human `rshell status` output
+also prints the same key booleans, including `stop_after_first_success`,
+`reconnect_after_disconnect`, `persistent_lifecycle`,
+`fresh_session_on_reconnect`, and `session_resume_supported`.
 
 For the builtin TLS shell preset, prepare the operator listener and then run the
 artifact explicitly:

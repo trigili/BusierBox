@@ -123,6 +123,12 @@ static void rshell_connect_hint(char *out, size_t outsz, const char *transport)
     }
 }
 
+static int valid_session_policy(void);
+static int policy_reconnects_after_disconnect(const char *policy);
+static int policy_stops_after_first_success(const char *policy);
+static int policy_persistent_lifecycle(const char *policy);
+static const char *policy_post_success_retry_count(const char *policy);
+
 static void print_rshell_config_status(FILE *out, const char *transport)
 {
     char target[128], server[256], hint[256];
@@ -135,6 +141,17 @@ static void print_rshell_config_status(FILE *out, const char *transport)
     fprintf(out, "encryption=%s\n", BB_RSHELL_ENCRYPTION);
     fprintf(out, "run_mode=%s\n", BB_RSHELL_RUN_MODE);
     fprintf(out, "session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
+    fprintf(out, "session_policy_valid=%s\n", valid_session_policy() ? "yes" : "no");
+    if (!valid_session_policy())
+        fputs("session_policy_error=unsupported rshell session policy\n", out);
+    fprintf(out, "retry_until_first_connection=yes\n");
+    fprintf(out, "stop_after_first_success=%s\n", policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
+    fprintf(out, "reconnect_after_disconnect=%s\n", policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
+    fprintf(out, "persistent_lifecycle=%s\n", policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
+    fprintf(out, "fresh_session_on_reconnect=%s\n", policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
+    fprintf(out, "session_resume_supported=no\n");
+    fprintf(out, "pre_connect_retry_count=%s\n", BB_RSHELL_RETRY_COUNT);
+    fprintf(out, "post_disconnect_retry_count=%s\n", policy_post_success_retry_count(BB_RSHELL_SESSION_POLICY));
     fprintf(out, "operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
     fprintf(out, "operator_shell_port=%s\n", BB_RSHELL_SOCAT_PORT);
     fprintf(out, "operator_ssh_port=%s\n", BB_OPERATOR_SERVER_SSH_PORT);

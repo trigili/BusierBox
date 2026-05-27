@@ -134,9 +134,22 @@ BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --transport ssh >"
 grep -q '^operator_ssh_port=' "$tmp/status-human.out"
 grep -q '^remote_forward_port=' "$tmp/status-human.out"
 grep -q '^session_policy=' "$tmp/status-human.out"
+grep -q '^session_policy_valid=yes$' "$tmp/status-human.out"
+grep -q '^retry_until_first_connection=yes$' "$tmp/status-human.out"
+grep -q '^session_resume_supported=no$' "$tmp/status-human.out"
+grep -q '^pre_connect_retry_count=' "$tmp/status-human.out"
+grep -q '^post_disconnect_retry_count=' "$tmp/status-human.out"
 grep -q '^target_dropbear=' "$tmp/status-human.out"
 grep -q '^server_listener=scripts/busierbox-server --transport ssh --ssh-port ' "$tmp/status-human.out"
 grep -q '^zero_arg_autorun=' "$tmp/status-human.out"
+
+BB_RSHELL_SESSION_POLICY=reconnect BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --transport ssh >"$tmp/status-human-reconnect.out"
+grep -q '^session_policy=reconnect$' "$tmp/status-human-reconnect.out"
+grep -q '^stop_after_first_success=no$' "$tmp/status-human-reconnect.out"
+grep -q '^reconnect_after_disconnect=yes$' "$tmp/status-human-reconnect.out"
+grep -q '^fresh_session_on_reconnect=yes$' "$tmp/status-human-reconnect.out"
+grep -q '^session_resume_supported=no$' "$tmp/status-human-reconnect.out"
+grep -q '^post_disconnect_retry_count=' "$tmp/status-human-reconnect.out"
 
 rm -f "$tmp/guard/rshell.status"
 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/inactive.json"
@@ -192,6 +205,14 @@ if summary.get("stops_after_success") is not True:
 if sem.get("session_resume_supported") is not False:
     raise SystemExit("single policy should not claim session resume")
 PY
+BB_RSHELL_SESSION_POLICY=single BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status >"$tmp/status-human-single.out"
+grep -q '^session_policy=single$' "$tmp/status-human-single.out"
+grep -q '^stop_after_first_success=yes$' "$tmp/status-human-single.out"
+grep -q '^reconnect_after_disconnect=no$' "$tmp/status-human-single.out"
+grep -q '^persistent_lifecycle=no$' "$tmp/status-human-single.out"
+grep -q '^fresh_session_on_reconnect=no$' "$tmp/status-human-single.out"
+grep -q '^session_resume_supported=no$' "$tmp/status-human-single.out"
+grep -q '^post_disconnect_retry_count=0$' "$tmp/status-human-single.out"
 
 BB_RSHELL_SESSION_POLICY=persistent BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/persistent.json"
 python3 -m json.tool "$tmp/persistent.json" >/dev/null
