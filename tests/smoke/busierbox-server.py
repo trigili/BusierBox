@@ -916,6 +916,14 @@ def main():
             print("status missing actual listener pid/process details", file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
+        recorded_pid = str(rows["file-service"].get("pid"))
+        listener_pid = str(rows["file-service"].get("listener_pids", [""])[0])
+        if ((status_doc.get("services_by_pid") or {}).get(recorded_pid, [{}])[0].get("name") != "file-service" or
+                (status_doc.get("services_by_listener_pid") or {}).get(listener_pid, [{}])[0].get("name") != "file-service"):
+            print("status missing service PID lookup indexes", file=sys.stderr)
+            print(status.stdout, file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
         endpoints = rows["file-service"].get("listener_endpoints") or []
         if not any(endpoint.get("address") == "127.0.0.1" and endpoint.get("port") == lifecycle_port for endpoint in endpoints):
             print("status missing actual listener endpoint address/port", file=sys.stderr)

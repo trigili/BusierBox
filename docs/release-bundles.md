@@ -268,8 +268,9 @@ validity, and release artifact/device/tuple counts can be read without
 re-parsing the human status view. Service rows remain available in `services`,
 and the same records are indexed by service name, actual state, configured
 state, and port in `services_by_name`, `services_by_actual`,
-`services_by_configured`, and `services_by_port` for frontend clients that need
-direct lookup without reconstructing their own maps. `summary` also includes
+`services_by_configured`, `services_by_port`, `services_by_pid`, and
+`services_by_listener_pid` for frontend clients that need direct lookup without
+reconstructing their own maps. `summary` also includes
 `service_actual_counts` and `service_configured_counts` for compact service
 dashboards.
 The same document includes `generated_at` and a `paths` object for stable
