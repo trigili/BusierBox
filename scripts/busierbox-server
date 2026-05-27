@@ -760,6 +760,7 @@ def command_queue_summary(cfg):
     queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
     commands_by_id = {}
     commands_by_status = {}
+    status_counts = {}
     for rec in commands:
         if not isinstance(rec, dict):
             continue
@@ -769,6 +770,7 @@ def command_queue_summary(cfg):
             commands_by_id[command_id] = rec
         if status:
             commands_by_status.setdefault(status, []).append(rec)
+            status_counts[status] = status_counts.get(status, 0) + 1
     result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
     result_exceeded_count = len([
         rec for rec in commands
@@ -811,6 +813,7 @@ def command_queue_summary(cfg):
         "commands": commands,
         "commands_by_id": commands_by_id,
         "commands_by_status": commands_by_status,
+        "status_counts": status_counts,
         "queued_count": len(queued),
         "result_count": result_count,
         "result_output_exceeded_count": result_exceeded_count,
@@ -3059,6 +3062,7 @@ def status_document(cfg):
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_result_count": command_queue.get("result_count", 0),
         "command_queue_result_output_exceeded_count": command_queue.get("result_output_exceeded_count", 0),
+        "command_queue_status_counts": command_queue.get("status_counts") or {},
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
         "command_queue_policy_error_count": len(command_queue.get("policy_errors") or []),
         "release_artifact_count": len(release.get("artifacts") or []),

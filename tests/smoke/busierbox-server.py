@@ -513,7 +513,8 @@ def main():
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         if (status_queue.get("commands_by_id", {}).get(command_id, {}).get("status") != "result-received" or
-                len(status_queue.get("commands_by_status", {}).get("result-received", [])) != 1):
+                len(status_queue.get("commands_by_status", {}).get("result-received", [])) != 1 or
+                status_queue.get("status_counts", {}).get("result-received") != 1):
             print("server json status missing command queue lookup indexes", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -672,8 +673,10 @@ def main():
                     return 1
         if (queue_status_json["summary"].get("command_queue_total_count") != 1 or
                 queue_status_json["summary"].get("command_queue_result_count") != 1 or
-                queue_status_json["summary"].get("command_queue_result_output_exceeded_count") != 0):
+                queue_status_json["summary"].get("command_queue_result_output_exceeded_count") != 0 or
+                queue_status_json["summary"].get("command_queue_status_counts", {}).get("result-received") != 1):
             print("server json status missing aggregate command queue counts", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         event_stats = queue_status_json.get("event_log_stats") or {}
         if (event_stats.get("total_count", 0) < 2 or
