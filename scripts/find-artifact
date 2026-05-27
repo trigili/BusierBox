@@ -147,6 +147,9 @@ def recommendation_document(index, rows, args):
             "artifacts_by_tool_count": len(index.get("artifacts_by_tool") or {}),
             "artifacts_by_payload_preset_count": len(index.get("artifacts_by_payload_preset") or {}),
             "artifacts_by_feature_count": len(index.get("artifacts_by_feature") or {}),
+            "artifacts_by_tool_payload_preset_count": len(index.get("artifacts_by_tool_payload_preset") or {}),
+            "artifacts_by_feature_payload_preset_count": len(index.get("artifacts_by_feature_payload_preset") or {}),
+            "artifacts_by_tuple_payload_preset_count": len(index.get("artifacts_by_tuple_payload_preset") or {}),
         },
     }
 

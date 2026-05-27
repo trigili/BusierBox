@@ -167,12 +167,16 @@ release name, and tuple-path keys. The index preserves compatibility path maps
 such as `tools_present`, `payload_presets`, and `features`, and also provides
 full artifact-record maps named `artifacts_by_tool`,
 `artifacts_by_payload_preset`, and `artifacts_by_feature` for TUI/web clients
-that need to render details without rescanning every artifact. You can search
-by canonical tuple path directly with `--tuple-path` when a survey or release
-manifest has already resolved the target compatibility tuple. It does not
-download or rebuild anything. `--recommendation-json` returns the selected
-artifact plus active filters, match count, index counts, and the selection
-policy. The policy used to prefer lower-risk compatibility labels also prefers newer release metadata. Use
+that need to render details without rescanning every artifact. Composite maps
+`artifacts_by_tool_payload_preset`, `artifacts_by_feature_payload_preset`, and
+`artifacts_by_tuple_payload_preset` let clients jump directly to combinations
+such as `tcpdump:survey-core`, `reverse-ssh:ssh-operator`, or
+`by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug` without intersecting
+separate indexes. You can search by canonical tuple path directly with
+`--tuple-path` when a survey or release manifest has already resolved the
+target compatibility tuple. It does not download or rebuild anything.
+`--recommendation-json` returns the selected artifact plus active filters,
+match count, index counts, and the selection policy. The policy used to prefer lower-risk compatibility labels also prefers newer release metadata. Use
 `--max-compatibility exact|likely|heuristic|unsafe|incompatible`
 to reject artifacts above an operator-selected risk threshold instead of only
 sorting them lower. Plain text output also prints `compatibility_reason=` lines so an

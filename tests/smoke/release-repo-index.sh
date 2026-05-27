@@ -119,6 +119,9 @@ assert len(tuple_rows) == 3
 assert index["artifacts_by_tool"]["tcpdump"][0]["release_name"] == "one"
 assert index["artifacts_by_payload_preset"]["ssh-operator"][0]["release_name"] == "two"
 assert index["artifacts_by_feature"]["reverse-ssh"][0]["release_name"] in {"one", "two", "three"}
+assert index["artifacts_by_tool_payload_preset"]["tcpdump:survey-core"][0]["release_name"] == "one"
+assert index["artifacts_by_feature_payload_preset"]["reverse-ssh:ssh-operator"][0]["release_name"] == "two"
+assert len(index["artifacts_by_tuple_payload_preset"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug"]) == 1
 PY
 
 scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null
@@ -160,6 +163,9 @@ assert doc["index"]["artifacts_by_tuple_path_count"] == 1
 assert doc["index"]["artifacts_by_tool_count"] == 4
 assert doc["index"]["artifacts_by_payload_preset_count"] == 3
 assert doc["index"]["artifacts_by_feature_count"] >= 4
+assert doc["index"]["artifacts_by_tool_payload_preset_count"] >= 4
+assert doc["index"]["artifacts_by_feature_payload_preset_count"] >= 6
+assert doc["index"]["artifacts_by_tuple_payload_preset_count"] == 3
 assert doc["dedupe_count"] == 2
 assert {item["release_name"] for item in doc["dedupe_alternatives"]} == {"one", "two"}
 assert "newest release_mtime" in doc["selection_policy"]
