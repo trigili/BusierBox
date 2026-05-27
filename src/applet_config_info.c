@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "command_queue_policy.h"
 #include "effective_config.h"
 #include "payload_runtime.h"
 
@@ -53,6 +54,8 @@ int applet_config_info_main(int argc, char **argv)
     struct embedded_payload ep;
     int have_embedded;
     int have_payload;
+    struct command_queue_policy_report command_queue_policy = bb_command_queue_validate_policy();
+    int command_queue_policy_valid = bb_command_queue_policy_valid(&command_queue_policy);
     int i;
 
     if (is_help(argc, argv)) {
@@ -90,6 +93,9 @@ int applet_config_info_main(int argc, char **argv)
     printf("effective_command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
     printf("effective_command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("effective_command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf("effective_command_queue_policy_valid=%s\n", command_queue_policy_valid ? "yes" : "no");
+    for (i = 0; i < command_queue_policy.count; i++)
+        printf("effective_command_queue_policy_error=%s\n", command_queue_policy.errors[i]);
     have_embedded = bb_get_embedded_payload(&ep) == 0;
     have_payload = bb_candidate_payload_dir(payload, sizeof(payload)) == 0;
     printf("embedded_payload=%s\n", have_embedded ? "yes" : "no");

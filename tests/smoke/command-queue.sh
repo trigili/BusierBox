@@ -48,10 +48,13 @@ grep -q '^command_queue_active_control_channel=no$' "${TMPDIR:-/tmp}/busierbox-c
 rm -f "${TMPDIR:-/tmp}/busierbox-command-queue-daemon.$$"
 "$bb" plan command-queue --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"] == "command-queue"; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["execution_supported"] is False; assert d["requires_external_writes"] is False'
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" plan command-queue --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"] == "command-queue"; assert d["policy_valid"] is False; assert "disabled command queue must keep allowed commands policy none" in d["policy_errors"]; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["would_start"] == []; assert d["would_connect"] == []'
-"$bb" runtime-config --json | python3 -c 'import json,sys; d=json.load(sys.stdin); c=d["effective_config"]; assert c["BB_COMMAND_QUEUE_ENABLE"] == "no"; assert c["BB_COMMAND_QUEUE_ALLOWED_COMMANDS"] == "none"; assert c["BB_COMMAND_QUEUE_ALLOW_ARBITRARY"] == "no"'
+"$bb" runtime-config --json | python3 -c 'import json,sys; d=json.load(sys.stdin); c=d["effective_config"]; p=d["command_queue_policy"]; assert c["BB_COMMAND_QUEUE_ENABLE"] == "no"; assert c["BB_COMMAND_QUEUE_ALLOWED_COMMANDS"] == "none"; assert c["BB_COMMAND_QUEUE_ALLOW_ARBITRARY"] == "no"; assert p["valid"] is True; assert p["errors"] == []'
+BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only "$bb" runtime-config --json | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d["command_queue_policy"]; assert p["valid"] is False; assert "disabled command queue must keep allowed commands policy none" in p["errors"]'
 "$bb" manifest --json | python3 -c 'import json,sys; d=json.load(sys.stdin); q=d["operator_services"]["command_queue"]; assert q["enabled"] == "no"; assert q["policy_valid"] is True; assert q["policy_errors"] == []; assert q["executes_commands"] is False; assert q["default_enabled"] is False'
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY=yes "$bb" manifest --json | python3 -c 'import json,sys; d=json.load(sys.stdin); q=d["operator_services"]["command_queue"]; assert q["policy_valid"] is False; assert "disabled command queue must not allow arbitrary execution" in q["policy_errors"]'
 "$bb" config-info | grep -q '^effective_command_queue_enable=no$'
+"$bb" config-info | grep -q '^effective_command_queue_policy_valid=yes$'
+BB_COMMAND_QUEUE_ALLOW_ARBITRARY=yes "$bb" config-info | grep -q '^effective_command_queue_policy_error=disabled command queue must not allow arbitrary execution$'
 
 grep -q 'BB_COMMAND_QUEUE_ENABLE="no"' configs/busierbox.conf.example
 grep -q 'Advanced / Explicit command queue' scripts/menuconfig

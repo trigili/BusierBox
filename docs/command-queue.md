@@ -45,6 +45,8 @@ Safety boundary:
 - It is not required for normal file transfer or reverse shell workflows.
 - It is visible in `config-info`, `runtime-config --json`, `manifest --json`,
   and `plan command-queue`.
+- `config-info` and `runtime-config --json` expose policy validity alongside
+  the raw effective settings so operators do not need to infer safety state.
 - Trailer overrides alone are not an execution capability; this build does not
   execute queued commands.
 - Target-side `poll`, `once`, and `daemon` expose `would_poll`,

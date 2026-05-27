@@ -149,6 +149,8 @@ if command_queue.get("enabled") != manifest["effective_config"]["BB_COMMAND_QUEU
     raise SystemExit("manifest-metadata: command queue enable does not match effective config")
 if command_queue.get("allowed_commands") != manifest["effective_config"]["BB_COMMAND_QUEUE_ALLOWED_COMMANDS"]:
     raise SystemExit("manifest-metadata: command queue policy does not match effective config")
+if command_queue.get("policy_valid") is not True or command_queue.get("policy_errors") != []:
+    raise SystemExit("manifest-metadata: command queue policy validity metadata missing")
 if command_queue.get("executes_commands") is not False or command_queue.get("default_enabled") is not False:
     raise SystemExit("manifest-metadata: command queue safety metadata missing")
 

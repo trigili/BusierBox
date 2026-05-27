@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "command_queue_policy.h"
 #include "json_helpers.h"
 #include "runtime_config.h"
 #include "trailer_config.h"
@@ -632,6 +633,8 @@ int applet_runtime_config_main(int argc, char **argv)
     int json = 0;
     int i;
     size_t j;
+    struct command_queue_policy_report command_queue_policy = bb_command_queue_validate_policy();
+    int command_queue_policy_valid = bb_command_queue_policy_valid(&command_queue_policy);
 
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
         puts("usage: busierbox runtime-config [--json]");
@@ -657,6 +660,15 @@ int applet_runtime_config_main(int argc, char **argv)
         bb_config_print_compiled_json(stdout, bb_json_string);
         fputs(",\"effective_config\":", stdout);
         bb_config_print_effective_json(stdout, bb_json_string);
+        fputs(",\"command_queue_policy\":{\"valid\":", stdout);
+        fputs(command_queue_policy_valid ? "true" : "false", stdout);
+        fputs(",\"errors\":[", stdout);
+        for (i = 0; i < command_queue_policy.count; i++) {
+            if (i)
+                fputc(',', stdout);
+            bb_json_string(stdout, command_queue_policy.errors[i]);
+        }
+        fputs("]}", stdout);
         fputs("}\n", stdout);
         return 0;
     }
@@ -668,6 +680,9 @@ int applet_runtime_config_main(int argc, char **argv)
     printf("trailer_status=%s\n", bb_config_trailer_error());
     printf("environment_override_count=%d\n", env_override_count());
     printf("cli_override_count=%d\n", cli_override_count());
+    printf("command_queue_policy_valid=%s\n", command_queue_policy_valid ? "yes" : "no");
+    for (i = 0; i < command_queue_policy.count; i++)
+        printf("command_queue_policy_error=%s\n", command_queue_policy.errors[i]);
     for (j = 0; j < sizeof(cfg) / sizeof(cfg[0]); j++) {
         printf("compiled_%s=%s\n", cfg[j].key, cfg[j].compiled);
         printf("effective_%s=%s\n", cfg[j].key, bb_config_get(cfg[j].key));
