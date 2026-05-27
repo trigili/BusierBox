@@ -962,6 +962,8 @@ def upload_record_indexes(records):
     by_stored_path = {}
     by_remote_addr = {}
     by_status = {}
+    by_filename_status = {}
+    by_status_remote_addr = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -983,7 +985,20 @@ def upload_record_indexes(records):
             by_remote_addr.setdefault(remote_addr, []).append(rec)
         if status:
             by_status.setdefault(status, []).append(rec)
-    return by_filename, by_sha256, by_source_path, by_stored_path, by_remote_addr, by_status
+        if filename and status:
+            by_filename_status.setdefault(f"{filename}:{status}", []).append(rec)
+        if status and remote_addr:
+            by_status_remote_addr.setdefault(f"{status}:{remote_addr}", []).append(rec)
+    return (
+        by_filename,
+        by_sha256,
+        by_source_path,
+        by_stored_path,
+        by_remote_addr,
+        by_status,
+        by_filename_status,
+        by_status_remote_addr,
+    )
 
 
 def fetch_record_indexes(records):
@@ -993,6 +1008,9 @@ def fetch_record_indexes(records):
     by_status = {}
     by_http_status = {}
     by_remote_addr = {}
+    by_request_status = {}
+    by_status_remote_addr = {}
+    by_http_status_remote_addr = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1014,7 +1032,23 @@ def fetch_record_indexes(records):
             by_http_status.setdefault(str(http_status), []).append(rec)
         if remote_addr:
             by_remote_addr.setdefault(remote_addr, []).append(rec)
-    return by_request, by_sha256, by_source_path, by_status, by_http_status, by_remote_addr
+        if request_name and status:
+            by_request_status.setdefault(f"{request_name}:{status}", []).append(rec)
+        if status and remote_addr:
+            by_status_remote_addr.setdefault(f"{status}:{remote_addr}", []).append(rec)
+        if http_status not in (None, "") and remote_addr:
+            by_http_status_remote_addr.setdefault(f"{http_status}:{remote_addr}", []).append(rec)
+    return (
+        by_request,
+        by_sha256,
+        by_source_path,
+        by_status,
+        by_http_status,
+        by_remote_addr,
+        by_request_status,
+        by_status_remote_addr,
+        by_http_status_remote_addr,
+    )
 
 
 def session_record_indexes(records):
@@ -1023,6 +1057,9 @@ def session_record_indexes(records):
     by_state = {}
     by_exit_reason = {}
     by_remote = {}
+    by_service_state = {}
+    by_service_exit_reason = {}
+    by_service_remote = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1041,7 +1078,22 @@ def session_record_indexes(records):
             by_exit_reason.setdefault(exit_reason, []).append(rec)
         if remote:
             by_remote.setdefault(remote, []).append(rec)
-    return by_id, by_service, by_state, by_exit_reason, by_remote
+        if service and state:
+            by_service_state.setdefault(f"{service}:{state}", []).append(rec)
+        if service and exit_reason:
+            by_service_exit_reason.setdefault(f"{service}:{exit_reason}", []).append(rec)
+        if service and remote:
+            by_service_remote.setdefault(f"{service}:{remote}", []).append(rec)
+    return (
+        by_id,
+        by_service,
+        by_state,
+        by_exit_reason,
+        by_remote,
+        by_service_state,
+        by_service_exit_reason,
+        by_service_remote,
+    )
 
 
 def session_root_record(cfg, records):
@@ -4108,7 +4160,14 @@ def status_document(cfg):
     fetches = recent_fetch_metadata(cfg)
     sessions = recent_session_records(cfg)
     session_root_state = session_root_record(cfg, sessions)
-    sessions_by_id, sessions_by_service, sessions_by_state, sessions_by_exit_reason, sessions_by_remote = session_record_indexes(sessions)
+    (sessions_by_id,
+     sessions_by_service,
+     sessions_by_state,
+     sessions_by_exit_reason,
+     sessions_by_remote,
+     sessions_by_service_state,
+     sessions_by_service_exit_reason,
+     sessions_by_service_remote) = session_record_indexes(sessions)
     event_stats = event_log_stats(cfg)
     event_log_state = event_log_state_record(cfg, event_stats)
     events = event_stats["tail"]
@@ -4131,8 +4190,23 @@ def status_document(cfg):
      target_commands_by_service_purpose,
      target_commands_by_side_purpose) = target_command_record_indexes(target_command_records)
     target_command_summary = target_command_record_summary(target_command_records)
-    uploads_by_filename, uploads_by_sha256, uploads_by_source_path, uploads_by_stored_path, uploads_by_remote_addr, uploads_by_status = upload_record_indexes(uploads)
-    fetches_by_request, fetches_by_sha256, fetches_by_source_path, fetches_by_status, fetches_by_http_status, fetches_by_remote_addr = fetch_record_indexes(fetches)
+    (uploads_by_filename,
+     uploads_by_sha256,
+     uploads_by_source_path,
+     uploads_by_stored_path,
+     uploads_by_remote_addr,
+     uploads_by_status,
+     uploads_by_filename_status,
+     uploads_by_status_remote_addr) = upload_record_indexes(uploads)
+    (fetches_by_request,
+     fetches_by_sha256,
+     fetches_by_source_path,
+     fetches_by_status,
+     fetches_by_http_status,
+     fetches_by_remote_addr,
+     fetches_by_request_status,
+     fetches_by_status_remote_addr,
+     fetches_by_http_status_remote_addr) = fetch_record_indexes(fetches)
     summary, warnings = status_summary_and_warnings(services)
     services_by_actual, services_by_configured, services_by_port, services_by_pid, services_by_listener_pid = service_record_indexes(services)
     ports = port_records_from_services(services)
@@ -4315,6 +4389,8 @@ def status_document(cfg):
         "upload_stored_missing_count": upload_stored_missing_count,
         "upload_status_counts": record_count_by_key(uploads, "status"),
         "upload_remote_counts": record_count_by_key(uploads, "remote_addr"),
+        "upload_filename_status_counts": {key: len(value) for key, value in uploads_by_filename_status.items()},
+        "upload_status_remote_counts": {key: len(value) for key, value in uploads_by_status_remote_addr.items()},
         "latest_upload_at": latest_record_value(uploads, ("timestamp", "updated_at")),
         "fetch_count": len(fetches),
         "fetch_total_size": record_sum_by_key(fetches, "size"),
@@ -4323,6 +4399,9 @@ def status_document(cfg):
         "fetch_status_counts": record_count_by_key(fetches, "status"),
         "fetch_http_status_counts": record_count_by_key(fetches, "http_status"),
         "fetch_remote_counts": record_count_by_key(fetches, "remote_addr"),
+        "fetch_request_status_counts": {key: len(value) for key, value in fetches_by_request_status.items()},
+        "fetch_status_remote_counts": {key: len(value) for key, value in fetches_by_status_remote_addr.items()},
+        "fetch_http_status_remote_counts": {key: len(value) for key, value in fetches_by_http_status_remote_addr.items()},
         "latest_fetch_at": latest_record_value(fetches, ("timestamp", "updated_at")),
         "session_count": len(sessions),
         "session_root_exists": bool(session_root_state.get("exists", False)),
@@ -4331,6 +4410,9 @@ def status_document(cfg):
         "session_state_counts": record_count_by_key(sessions, "state"),
         "session_exit_reason_counts": record_count_by_key(sessions, "exit_reason"),
         "session_remote_counts": record_count_by_key(sessions, "remote"),
+        "session_service_state_counts": {key: len(value) for key, value in sessions_by_service_state.items()},
+        "session_service_exit_reason_counts": {key: len(value) for key, value in sessions_by_service_exit_reason.items()},
+        "session_service_remote_counts": {key: len(value) for key, value in sessions_by_service_remote.items()},
         "latest_session_updated_at": latest_record_value(sessions, ("updated_at", "ended_at", "started_at")),
         "target_command_count": target_command_summary.get("total_count", 0),
         "target_command_network_count": target_command_summary.get("network_count", 0),
@@ -4473,6 +4555,8 @@ def status_document(cfg):
         "uploads_by_stored_path": uploads_by_stored_path,
         "uploads_by_remote_addr": uploads_by_remote_addr,
         "uploads_by_status": uploads_by_status,
+        "uploads_by_filename_status": uploads_by_filename_status,
+        "uploads_by_status_remote_addr": uploads_by_status_remote_addr,
         "fetches": fetches,
         "fetches_by_session": records_by_session(fetches),
         "fetches_by_request": fetches_by_request,
@@ -4481,6 +4565,9 @@ def status_document(cfg):
         "fetches_by_status": fetches_by_status,
         "fetches_by_http_status": fetches_by_http_status,
         "fetches_by_remote_addr": fetches_by_remote_addr,
+        "fetches_by_request_status": fetches_by_request_status,
+        "fetches_by_status_remote_addr": fetches_by_status_remote_addr,
+        "fetches_by_http_status_remote_addr": fetches_by_http_status_remote_addr,
         "sessions": sessions,
         "session_root_state": session_root_state,
         "sessions_by_id": sessions_by_id,
@@ -4488,6 +4575,9 @@ def status_document(cfg):
         "sessions_by_state": sessions_by_state,
         "sessions_by_exit_reason": sessions_by_exit_reason,
         "sessions_by_remote": sessions_by_remote,
+        "sessions_by_service_state": sessions_by_service_state,
+        "sessions_by_service_exit_reason": sessions_by_service_exit_reason,
+        "sessions_by_service_remote": sessions_by_service_remote,
         "events": events,
         "events_by_id": events_by_id,
         "events_by_session": events_by_session,

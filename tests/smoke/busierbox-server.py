@@ -2025,18 +2025,26 @@ def main():
         uploads_by_stored = upload_doc.get("uploads_by_stored_path") or {}
         uploads_by_remote = upload_doc.get("uploads_by_remote_addr") or {}
         uploads_by_status = upload_doc.get("uploads_by_status") or {}
+        uploads_by_filename_status = upload_doc.get("uploads_by_filename_status") or {}
+        uploads_by_status_remote = upload_doc.get("uploads_by_status_remote_addr") or {}
         upload_remote = upload_item.get("remote_addr", "")
+        upload_filename_status_key = "evidence.txt:ok"
+        upload_status_remote_key = f"ok:{upload_remote}"
         if (uploads_by_filename.get("evidence.txt", [{}])[0].get("metadata_path") != str(metadata_path) or
                 uploads_by_sha.get(metadata.get("sha256"), [{}])[0].get("filename") != "evidence.txt" or
                 uploads_by_source.get("/tmp/evidence.txt", [{}])[0].get("stored_path") != str(uploaded[0]) or
                 uploads_by_stored.get(str(uploaded[0]), {}).get("source_path") != "/tmp/evidence.txt" or
                 uploads_by_status.get("ok", [{}])[0].get("filename") != "evidence.txt" or
                 not upload_remote or
-                uploads_by_remote.get(upload_remote, [{}])[0].get("filename") != "evidence.txt"):
+                uploads_by_remote.get(upload_remote, [{}])[0].get("filename") != "evidence.txt" or
+                uploads_by_filename_status.get(upload_filename_status_key, [{}])[0].get("stored_path") != str(uploaded[0]) or
+                uploads_by_status_remote.get(upload_status_remote_key, [{}])[0].get("filename") != "evidence.txt"):
             print("server json status missing upload browser lookup maps", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         if (upload_summary.get("upload_remote_counts", {}).get(upload_remote) != 1 or
+                upload_summary.get("upload_filename_status_counts", {}).get(upload_filename_status_key) != 1 or
+                upload_summary.get("upload_status_remote_counts", {}).get(upload_status_remote_key) != 1 or
                 upload_summary.get("session_remote_counts", {}).get(upload_remote) != 1):
             print("server json status missing upload/session remote summary counts", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
@@ -2088,10 +2096,16 @@ def main():
         sessions_by_state = upload_doc.get("sessions_by_state") or {}
         sessions_by_exit_reason = upload_doc.get("sessions_by_exit_reason") or {}
         sessions_by_remote = upload_doc.get("sessions_by_remote") or {}
+        sessions_by_service_state = upload_doc.get("sessions_by_service_state") or {}
+        sessions_by_service_exit_reason = upload_doc.get("sessions_by_service_exit_reason") or {}
+        sessions_by_service_remote = upload_doc.get("sessions_by_service_remote") or {}
         events_by_session = upload_doc.get("events_by_session") or {}
         events_by_session_event = upload_doc.get("events_by_session_event") or {}
         upload_events_by_service_event = upload_doc.get("events_by_service_event") or {}
         uploaded_session_id = session_json_paths[0].parent.name
+        session_service_state_key = "file-service:stopped"
+        session_service_exit_key = "file-service:clean shutdown"
+        session_service_remote_key = f"file-service:{upload_remote}"
         if (sessions_by_id.get(uploaded_session_id, {}).get("metadata_path") != str(session_json_paths[0]) or
                 not sessions_by_service.get("file-service") or
                 sessions_by_service["file-service"][0].get("session_id") != uploaded_session_id or
@@ -2104,7 +2118,13 @@ def main():
                 not events_by_session_event.get(f"{uploaded_session_id}:upload_complete") or
                 not upload_events_by_service_event.get("file-service:upload_complete") or
                 not upload_remote or
-                sessions_by_remote.get(upload_remote, [{}])[0].get("session_id") != uploaded_session_id):
+                sessions_by_remote.get(upload_remote, [{}])[0].get("session_id") != uploaded_session_id or
+                sessions_by_service_state.get(session_service_state_key, [{}])[0].get("session_id") != uploaded_session_id or
+                sessions_by_service_exit_reason.get(session_service_exit_key, [{}])[0].get("session_id") != uploaded_session_id or
+                sessions_by_service_remote.get(session_service_remote_key, [{}])[0].get("session_id") != uploaded_session_id or
+                upload_summary.get("session_service_state_counts", {}).get(session_service_state_key) != 1 or
+                upload_summary.get("session_service_exit_reason_counts", {}).get(session_service_exit_key) != 1 or
+                upload_summary.get("session_service_remote_counts", {}).get(session_service_remote_key) != 1):
             print("server json status missing session/event lookup indexes", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
@@ -2693,8 +2713,14 @@ def main():
         fetches_by_status = fetch_status_doc.get("fetches_by_status") or {}
         fetches_by_http_status = fetch_status_doc.get("fetches_by_http_status") or {}
         fetches_by_remote = fetch_status_doc.get("fetches_by_remote_addr") or {}
+        fetches_by_request_status = fetch_status_doc.get("fetches_by_request_status") or {}
+        fetches_by_status_remote = fetch_status_doc.get("fetches_by_status_remote_addr") or {}
+        fetches_by_http_status_remote = fetch_status_doc.get("fetches_by_http_status_remote_addr") or {}
         fetch_sha = fetch_items[0].get("sha256", "")
         fetch_remote = fetch_items[0].get("remote_addr", "")
+        fetch_request_status_key = "/tmp/myfile:served"
+        fetch_status_remote_key = f"served:{fetch_remote}"
+        fetch_http_status_remote_key = f"200:{fetch_remote}"
         if (fetches_by_request.get("/tmp/myfile", [{}])[0].get("status") != "served" or
                 not fetch_sha or
                 fetches_by_sha.get(fetch_sha, [{}])[0].get("request_name") != "/tmp/myfile" or
@@ -2702,11 +2728,17 @@ def main():
                 fetches_by_status.get("served", [{}])[0].get("source_path") != str(staged_source) or
                 fetches_by_http_status.get("200", [{}])[0].get("request_name") != "/tmp/myfile" or
                 not fetch_remote or
-                fetches_by_remote.get(fetch_remote, [{}])[0].get("request_name") != "/tmp/myfile"):
+                fetches_by_remote.get(fetch_remote, [{}])[0].get("request_name") != "/tmp/myfile" or
+                fetches_by_request_status.get(fetch_request_status_key, [{}])[0].get("source_path") != str(staged_source) or
+                fetches_by_status_remote.get(fetch_status_remote_key, [{}])[0].get("request_name") != "/tmp/myfile" or
+                fetches_by_http_status_remote.get(fetch_http_status_remote_key, [{}])[0].get("status") != "served"):
             print("server json status missing fetch browser lookup maps", file=sys.stderr)
             print(fetch_status.stdout, file=sys.stderr)
             return 1
-        if fetch_summary.get("fetch_remote_counts", {}).get(fetch_remote) != 1:
+        if (fetch_summary.get("fetch_remote_counts", {}).get(fetch_remote) != 1 or
+                fetch_summary.get("fetch_request_status_counts", {}).get(fetch_request_status_key) != 1 or
+                fetch_summary.get("fetch_status_remote_counts", {}).get(fetch_status_remote_key) != 1 or
+                fetch_summary.get("fetch_http_status_remote_counts", {}).get(fetch_http_status_remote_key) != 1):
             print("server json status missing fetch remote summary counts", file=sys.stderr)
             print(fetch_status.stdout, file=sys.stderr)
             return 1

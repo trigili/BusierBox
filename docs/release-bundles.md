@@ -346,12 +346,16 @@ upload and staged-fetch activity is exposed through top-level `uploads` and
 `fetches` arrays plus lookup maps: `uploads_by_session`,
 `uploads_by_filename`, `uploads_by_sha256`, `uploads_by_source_path`,
 `uploads_by_stored_path`, `uploads_by_remote_addr`, `uploads_by_status`,
+`uploads_by_filename_status`, `uploads_by_status_remote_addr`,
 `fetches_by_session`, `fetches_by_request`, `fetches_by_sha256`,
 `fetches_by_source_path`, `fetches_by_status`, `fetches_by_http_status`, and
-`fetches_by_remote_addr`;
+`fetches_by_remote_addr`, plus `fetches_by_request_status`,
+`fetches_by_status_remote_addr`, and `fetches_by_http_status_remote_addr`;
 session browser records are exposed as `sessions`, `sessions_by_id`,
 `sessions_by_service`, `sessions_by_state`, and
-`sessions_by_exit_reason`, and `sessions_by_remote`. `session_root_state`
+`sessions_by_exit_reason`, `sessions_by_remote`, `sessions_by_service_state`,
+`sessions_by_service_exit_reason`, and `sessions_by_service_remote`.
+`session_root_state`
 summarizes the session directory, recent session ids, service counts, and state
 counts for file-browser views; aggregate counts remain in `summary`, including
 `upload_total_size`, `fetch_total_size`, `upload_stored_exists_count`,
@@ -359,8 +363,12 @@ counts for file-browser views; aggregate counts remain in `summary`, including
 `fetch_source_missing_count`, `upload_status_counts`, `fetch_status_counts`,
 `fetch_http_status_counts`, `upload_remote_counts`, `fetch_remote_counts`,
 `session_service_counts`, `session_state_counts`,
-`session_exit_reason_counts`, and `session_remote_counts` for compact
-dashboards.
+`session_exit_reason_counts`, `session_remote_counts`,
+`upload_filename_status_counts`, `upload_status_remote_counts`,
+`fetch_request_status_counts`, `fetch_status_remote_counts`,
+`fetch_http_status_remote_counts`, `session_service_state_counts`,
+`session_service_exit_reason_counts`, and `session_service_remote_counts` for
+compact dashboards.
 `latest_upload_at`, `latest_fetch_at`, and `latest_session_updated_at` expose
 recent activity timestamps without requiring clients to scan the full browser
 records.
