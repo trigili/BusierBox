@@ -52,11 +52,17 @@ static void print_json(const char *mode, int dry_run, const char *operator_host)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
     int arbitrary_requested;
+    int configured_for_polling;
+    int would_poll;
+    int safe_disabled_default;
     struct command_queue_policy_report policy = bb_command_queue_validate_policy();
     int valid = bb_command_queue_policy_valid(&policy);
     int i;
 
     arbitrary_requested = valid && enabled && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    configured_for_polling = valid && enabled && operator_host && operator_host[0];
+    would_poll = mode_would_poll(mode, enabled, operator_host, &policy);
+    safe_disabled_default = !enabled && valid && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
 
     fputs("{\"schema\":1,\"command\":\"command-queue\",\"mode\":", stdout);
     bb_json_string(stdout, mode);
@@ -70,9 +76,27 @@ static void print_json(const char *mode, int dry_run, const char *operator_host)
         bb_json_string(stdout, policy.errors[i]);
     }
     fputc(']', stdout);
-    printf(",\"configured_for_polling\":%s", (valid && enabled && operator_host && operator_host[0]) ? "true" : "false");
+    fputs(",\"policy_summary\":{", stdout);
+    printf("\"enabled\":%s", enabled ? "true" : "false");
+    fputs(",\"default_enabled\":false", stdout);
+    printf(",\"valid\":%s", valid ? "true" : "false");
+    printf(",\"error_count\":%d", policy.count);
+    printf(",\"configured_for_polling\":%s", configured_for_polling ? "true" : "false");
+    printf(",\"would_poll\":%s", would_poll ? "true" : "false");
+    fputs(",\"operator_queue_records_only\":false", stdout);
+    fputs(",\"execution_supported\":false", stdout);
+    fputs(",\"executes_commands\":false", stdout);
+    fputs(",\"delivery_supported\":false", stdout);
+    fputs(",\"poll_transport_supported\":false", stdout);
+    fputs(",\"result_upload_supported\":false", stdout);
+    fputs(",\"active_control_channel\":false", stdout);
+    printf(",\"arbitrary_policy_requested\":%s", arbitrary_requested ? "true" : "false");
+    fputs(",\"arbitrary_execution_allowed\":false", stdout);
+    printf(",\"safe_disabled_default\":%s", safe_disabled_default ? "true" : "false");
+    fputc('}', stdout);
+    printf(",\"configured_for_polling\":%s", configured_for_polling ? "true" : "false");
     printf(",\"missing_operator_host\":%s", (valid && enabled && (!operator_host || !operator_host[0])) ? "true" : "false");
-    printf(",\"would_poll\":%s", mode_would_poll(mode, enabled, operator_host, &policy) ? "true" : "false");
+    printf(",\"would_poll\":%s", would_poll ? "true" : "false");
     fputs(",\"operator_host\":", stdout);
     bb_json_string(stdout, operator_host ? operator_host : "");
     fputs(",\"port\":", stdout);

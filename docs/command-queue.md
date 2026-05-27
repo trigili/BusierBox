@@ -7,7 +7,8 @@ fetch, evidence push, and reverse shells.
 Current behavior is intentionally non-executing:
 
 - `BB_COMMAND_QUEUE_ENABLE` defaults to `no`.
-- `busierbox command-queue status --json` reports the compiled/effective policy.
+- `busierbox command-queue status --json` reports the compiled/effective policy
+  and a compact `policy_summary` for frontend/operator tooling.
 - Invalid effective policy is reported as `policy_valid=false` with explicit
   `policy_errors`; invalid policy suppresses `would_poll`.
 - `busierbox command-queue poll --json`, `once`, and `daemon` report a dry-run
@@ -52,8 +53,9 @@ Safety boundary:
   execute queued commands.
 - Target-side `poll`, `once`, and `daemon` expose `would_poll`,
   `poll_transport_supported=false`, `delivery_supported=false`,
-  `result_upload_supported=false`, and `execution_supported=false` so frontend
-  and integration tooling can distinguish policy/planning from active control.
+  `result_upload_supported=false`, `execution_supported=false`, and a
+  `policy_summary` so frontend and integration tooling can distinguish
+  policy/planning from active control.
 - `allow_arbitrary=yes` is reported as an explicit policy request, not an
   execution grant; `arbitrary_execution_allowed=false` remains false while this
   build has `execution_supported=false`.
