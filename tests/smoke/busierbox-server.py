@@ -366,6 +366,15 @@ def main():
             print("json command queue listing missing explicit safety policy", file=sys.stderr)
             print(queue_list.stdout, file=sys.stderr)
             return 1
+        queue_policy_summary = queue_summary.get("policy_summary") or {}
+        if (queue_policy_summary.get("safe_disabled_default") is not True or
+                queue_policy_summary.get("operator_queue_records_only") is not True or
+                queue_policy_summary.get("execution_supported") is not False or
+                queue_policy_summary.get("active_control_channel") is not False or
+                queue_policy_summary.get("error_count") != 0):
+            print("json command queue listing missing compact policy summary", file=sys.stderr)
+            print(queue_list.stdout, file=sys.stderr)
+            return 1
         invalid_queue_cfg = Path(tmp) / "server-config-invalid-command-queue.json"
         invalid_queue_cfg.write_text(json.dumps({
             "operator_session_dir": str(queue_operator_dir),
@@ -384,6 +393,7 @@ def main():
             print(invalid_queue_list.stderr, file=sys.stderr)
             return 1
         invalid_queue_summary = json.loads(invalid_queue_list.stdout)["command_queue"]
+        invalid_queue_policy_summary = invalid_queue_summary.get("policy_summary") or {}
         if (invalid_queue_summary.get("policy_valid") is not False or
                 "disabled command queue must keep allowed commands policy none" not in invalid_queue_summary.get("policy_errors", []) or
                 "disabled command queue must not allow arbitrary execution" not in invalid_queue_summary.get("policy_errors", []) or
@@ -391,7 +401,10 @@ def main():
                 invalid_queue_summary.get("arbitrary_policy_requested") is not False or
                 invalid_queue_summary.get("arbitrary_execution_allowed") is not False or
                 invalid_queue_summary.get("active_control_channel") is not False or
-                invalid_queue_summary.get("executes_commands") is not False):
+                invalid_queue_summary.get("executes_commands") is not False or
+                invalid_queue_policy_summary.get("valid") is not False or
+                invalid_queue_policy_summary.get("safe_disabled_default") is not False or
+                invalid_queue_policy_summary.get("error_count") != len(invalid_queue_summary.get("policy_errors", []))):
             print("invalid command queue policy was not reported safely", file=sys.stderr)
             print(invalid_queue_list.stdout, file=sys.stderr)
             return 1
@@ -600,11 +613,15 @@ def main():
             "--json-command-queue",
         )
         arbitrary_queue = json.loads(arbitrary_queue_doc.stdout)["command_queue"]
+        arbitrary_queue_summary = arbitrary_queue.get("policy_summary") or {}
         if (arbitrary_queue.get("policy_valid") is not True or
                 arbitrary_queue.get("arbitrary_policy_requested") is not True or
                 arbitrary_queue.get("arbitrary_execution_allowed") is not False or
                 arbitrary_queue.get("execution_supported") is not False or
-                arbitrary_queue.get("executes_commands") is not False):
+                arbitrary_queue.get("executes_commands") is not False or
+                arbitrary_queue_summary.get("configured_for_polling") is not True or
+                arbitrary_queue_summary.get("arbitrary_policy_requested") is not True or
+                arbitrary_queue_summary.get("arbitrary_execution_allowed") is not False):
             print("server command queue treated arbitrary policy request as execution permission", file=sys.stderr)
             print(arbitrary_queue_doc.stdout, file=sys.stderr)
             return 1

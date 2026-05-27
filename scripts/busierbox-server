@@ -675,6 +675,21 @@ def command_queue_summary(cfg):
     policy_errors = command_queue_policy_errors(cfg)
     policy_valid = not policy_errors
     arbitrary_policy_requested = policy_valid and enabled == "yes" and allowed_commands == "custom" and allow_arbitrary == "yes"
+    configured_for_polling = policy_valid and enabled == "yes"
+    policy_summary = {
+        "enabled": enabled == "yes",
+        "default_enabled": False,
+        "valid": policy_valid,
+        "error_count": len(policy_errors),
+        "configured_for_polling": configured_for_polling,
+        "operator_queue_records_only": True,
+        "execution_supported": False,
+        "executes_commands": False,
+        "active_control_channel": False,
+        "arbitrary_policy_requested": arbitrary_policy_requested,
+        "arbitrary_execution_allowed": False,
+        "safe_disabled_default": enabled == "no" and policy_valid and allowed_commands == "none" and allow_arbitrary == "no",
+    }
     return {
         "path": str(command_queue_path(cfg)),
         "enabled": enabled,
@@ -687,6 +702,7 @@ def command_queue_summary(cfg):
         "allow_arbitrary": allow_arbitrary,
         "policy_valid": policy_valid,
         "policy_errors": policy_errors,
+        "policy_summary": policy_summary,
         "commands": commands,
         "commands_by_id": commands_by_id,
         "commands_by_status": commands_by_status,
@@ -699,7 +715,7 @@ def command_queue_summary(cfg):
         "executes_commands": False,
         "operator_queue_records_only": True,
         "active_control_channel": False,
-        "configured_for_polling": policy_valid and enabled == "yes",
+        "configured_for_polling": configured_for_polling,
         "arbitrary_policy_requested": arbitrary_policy_requested,
         "arbitrary_execution_allowed": False,
         "safety_boundary": "explicit operator queue records only; no default target execution or hidden control channel",
