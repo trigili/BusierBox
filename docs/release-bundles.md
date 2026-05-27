@@ -372,7 +372,9 @@ health, `bin`/`scripts` directory health, browser counts, release name, and
 errors. Compact booleans are mirrored into `summary` as `release_present`,
 `release_valid`, `release_json_valid`, and `release_index_valid` so API
 clients can distinguish "not in a bundle" from "bundle-like directory with a
-broken manifest". Release artifact aggregates are exposed as
+broken manifest". Invalid bundle-like directories also emit an
+`invalid_release_state` warning with the release directory, manifest paths, and
+release-state errors. Release artifact aggregates are exposed as
 `release.artifact_stats` and mirrored into `summary`
 as `release_artifact_total_size`, `release_artifact_compatibility_counts`,
 `release_artifact_payload_preset_counts`, `release_artifact_source_counts`,
@@ -472,7 +474,8 @@ Structured `warnings` use stable `type` values such as `service_error`,
 `stale_state`, `unexpected_listener`, `unmanaged_recorded_pid`,
 `operator_path_kind_mismatch`, `invalid_server_state`,
 `invalid_staged_files_state`, `invalid_command_queue_state`,
-`invalid_event_log`, and `invalid_command_queue_policy`. `warning_stats`
+`invalid_release_state`, `invalid_event_log`, and
+`invalid_command_queue_policy`. `warning_stats`
 summarizes warnings by type, service, port, recorded PID, listener PID, and
 possible owner PID. `warnings_by_type`, `warnings_by_service`,
 `warnings_by_port`, `warnings_by_pid`, `warnings_by_listener_pid`, and

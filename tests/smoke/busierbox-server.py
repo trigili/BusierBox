@@ -2421,14 +2421,40 @@ def main():
         )
         invalid_release_doc = json.loads(invalid_release_status.stdout)
         invalid_release_state = invalid_release_doc.get("release_state") or {}
+        invalid_release_warnings = [
+            item for item in invalid_release_doc.get("warnings", [])
+            if item.get("type") == "invalid_release_state"
+        ]
         if (invalid_release_state.get("present") is not True or
                 invalid_release_state.get("valid") is not False or
                 invalid_release_state.get("release_json_valid") is not False or
                 not invalid_release_state.get("errors") or
                 invalid_release_doc.get("release") or
-                invalid_release_doc.get("summary", {}).get("release_valid") is not False):
+                invalid_release_doc.get("summary", {}).get("release_valid") is not False or
+                invalid_release_doc.get("summary", {}).get("warning_type_counts", {}).get("invalid_release_state") != 1 or
+                not invalid_release_warnings or
+                invalid_release_warnings[-1].get("path") != str(invalid_release_dir) or
+                not invalid_release_warnings[-1].get("errors") or
+                invalid_release_doc.get("warnings_by_type", {}).get("invalid_release_state", [{}])[-1].get("path") != str(invalid_release_dir)):
             print("json status did not expose invalid release bundle state", file=sys.stderr)
             print(invalid_release_status.stdout, file=sys.stderr)
+            return 1
+        invalid_release_text = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--status",
+            ],
+            cwd=invalid_release_dir,
+            text=True,
+            capture_output=True,
+        )
+        if ("release bundle state is invalid:" not in invalid_release_text.stdout or
+                "release.json:" not in invalid_release_text.stdout):
+            print("text status did not expose invalid release bundle warning", file=sys.stderr)
+            print(invalid_release_text.stdout, file=sys.stderr)
             return 1
         staged_release = subprocess.run(
             [

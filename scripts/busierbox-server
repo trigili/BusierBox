@@ -4099,6 +4099,16 @@ def status_document(cfg):
             "message": message,
             "suggested_action": "inspect, repair, archive, or remove the invalid operator state file",
         })
+    if release_state.get("present") and not release_state.get("valid"):
+        warnings.append({
+            "type": "invalid_release_state",
+            "path": release_state.get("release_dir", ""),
+            "release_json": release_state.get("release_json", ""),
+            "release_index": release_state.get("release_index", ""),
+            "errors": release_state.get("errors") or [],
+            "message": "release bundle state is invalid",
+            "suggested_action": "inspect release.json, release-index.json, bin/, and scripts/ before using release browser results",
+        })
     if event_stats["invalid_count"]:
         warnings.append({
             "type": "invalid_event_log",
@@ -4587,6 +4597,16 @@ def print_status(cfg, json_output=False):
         for warning in invalid_state_warnings:
             suffix = f": {warning.get('error', '')}" if warning.get("error") else ""
             print(f"  {warning.get('message', 'operator state file is invalid')}: {warning.get('path', '')}{suffix}")
+    invalid_release_warnings = [
+        item for item in doc.get("warnings") or []
+        if item.get("type") == "invalid_release_state"
+    ]
+    if invalid_release_warnings:
+        print_warnings_header_once()
+        for warning in invalid_release_warnings:
+            print(f"  release bundle state is invalid: {warning.get('path', '')}")
+            for error in warning.get("errors") or []:
+                print(f"    {error}")
     if not doc["command_queue"].get("policy_valid", True):
         print_warnings_header_once()
         print("  command queue policy is invalid; target polling is not configured")
