@@ -4652,6 +4652,17 @@ def print_activity_summary(summary):
     )
 
 
+def print_warning_summary(summary):
+    summary = summary or {}
+    print(
+        "Warning summary: "
+        f"total={summary.get('warning_count', 0)} "
+        f"types={format_counts(summary.get('warning_type_counts') or {})} "
+        f"services={format_counts(summary.get('warning_service_counts') or {})} "
+        f"ports={format_counts(summary.get('warning_port_counts') or {})}"
+    )
+
+
 def print_release_summary(doc):
     doc = doc or {}
     release_state = doc.get("release_state") or {}
@@ -4807,6 +4818,7 @@ def print_status(cfg, json_output=False):
     print(f"  session_root: {doc['session_root']}")
     print("")
     print_activity_summary(doc.get("summary") or {})
+    print_warning_summary(doc.get("summary") or {})
     print("")
     print("Path health:")
     for name in sorted(doc.get("path_status") or {}):
@@ -5054,6 +5066,7 @@ def print_workbench(cfg):
         f"warnings={len(snap.get('warnings') or [])}"
     )
     print_activity_summary(summary)
+    print_warning_summary(summary)
     print("")
     print("Operator paths:")
     paths = snap.get("paths") or {}

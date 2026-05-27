@@ -1485,7 +1485,11 @@ def main():
         )
         if (f"file-service bind=127.0.0.1 port={bind_fail_port}" not in bind_fail_text_status.stdout or
                 "configured=error" not in bind_fail_text_status.stdout or
-                "warnings=1:service_error" not in bind_fail_text_status.stdout):
+                "warnings=1:service_error" not in bind_fail_text_status.stdout or
+                "Warning summary:" not in bind_fail_text_status.stdout or
+                "service_error=1" not in bind_fail_text_status.stdout or
+                "services=file-service=1" not in bind_fail_text_status.stdout or
+                f"ports={bind_fail_port}=1" not in bind_fail_text_status.stdout):
             print("bind failure text status missing inline service warning badge", file=sys.stderr)
             print(bind_fail_text_status.stdout, file=sys.stderr)
             return 1
@@ -1500,6 +1504,10 @@ def main():
                 f"bind: 127.0.0.1:{bind_fail_port}" not in bind_fail_workbench.stdout or
                 "owner_pid=" not in bind_fail_workbench.stdout or
                 "suggested_action:" not in bind_fail_workbench.stdout or
+                "Warning summary:" not in bind_fail_workbench.stdout or
+                "service_error=1" not in bind_fail_workbench.stdout or
+                "services=file-service=1" not in bind_fail_workbench.stdout or
+                f"ports={bind_fail_port}=1" not in bind_fail_workbench.stdout or
                 "bind_error=" not in bind_fail_workbench.stdout or
                 "error=" not in bind_fail_workbench.stdout or
                 "file-service:bind_error" not in bind_fail_workbench.stdout):

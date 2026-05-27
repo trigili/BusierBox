@@ -515,7 +515,9 @@ as `warning_count`, `warning_type_counts`, `warning_service_counts`,
 `warning_type_service_port_counts`; summary
 fields also include `command_queue_policy_valid` and
 `command_queue_policy_error_count` so clients can distinguish a disabled queue
-from an invalid policy. Service-related
+from an invalid policy. Human `--status` and the line-oriented fallback print a
+compact warning summary by total, type, service, and port before the detailed
+warning records. Service-related
 warnings include the configured and actual states, bind address, port, PID,
 PID ownership evidence, listener PIDs, possible bind owners, error text, and
 process/session log paths when those fields are available. This lets a TUI, future web UI, or
