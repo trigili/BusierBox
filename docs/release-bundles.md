@@ -287,7 +287,8 @@ upload and staged-fetch activity is exposed through top-level `uploads` and
 `fetches` arrays plus lookup maps: `uploads_by_session`,
 `uploads_by_filename`, `uploads_by_sha256`, `uploads_by_source_path`,
 `uploads_by_stored_path`, `fetches_by_session`, `fetches_by_request`,
-`fetches_by_sha256`, `fetches_by_source_path`, and `fetches_by_status`;
+`fetches_by_sha256`, `fetches_by_source_path`, `fetches_by_status`, and
+`fetches_by_http_status`;
 session browser records are exposed as `sessions`, `sessions_by_id`,
 `sessions_by_service`, `sessions_by_state`, and
 `sessions_by_exit_reason`; aggregate counts remain in `summary`, including

@@ -2046,12 +2046,14 @@ def main():
         fetches_by_sha = fetch_status_doc.get("fetches_by_sha256") or {}
         fetches_by_source = fetch_status_doc.get("fetches_by_source_path") or {}
         fetches_by_status = fetch_status_doc.get("fetches_by_status") or {}
+        fetches_by_http_status = fetch_status_doc.get("fetches_by_http_status") or {}
         fetch_sha = fetch_items[0].get("sha256", "")
         if (fetches_by_request.get("/tmp/myfile", [{}])[0].get("status") != "served" or
                 not fetch_sha or
                 fetches_by_sha.get(fetch_sha, [{}])[0].get("request_name") != "/tmp/myfile" or
                 fetches_by_source.get(str(staged_source), [{}])[0].get("http_status") != 200 or
-                fetches_by_status.get("served", [{}])[0].get("source_path") != str(staged_source)):
+                fetches_by_status.get("served", [{}])[0].get("source_path") != str(staged_source) or
+                fetches_by_http_status.get("200", [{}])[0].get("request_name") != "/tmp/myfile"):
             print("server json status missing fetch browser lookup maps", file=sys.stderr)
             print(fetch_status.stdout, file=sys.stderr)
             return 1
@@ -2214,7 +2216,8 @@ def main():
                 missing_fetches[0].get("request_name") != "not-staged" or
                 missing_fetches[0].get("status") != "missing" or
                 missing_fetches[0].get("http_status") != 404 or
-                missing_fetches[0].get("source_exists") is not False):
+                missing_fetches[0].get("source_exists") is not False or
+                (missing_fetch_doc.get("fetches_by_http_status") or {}).get("404", [{}])[0].get("request_name") != "not-staged"):
             print("server json status missing missing-fetch metadata", file=sys.stderr)
             print(missing_fetch_status.stdout, file=sys.stderr)
             return 1
