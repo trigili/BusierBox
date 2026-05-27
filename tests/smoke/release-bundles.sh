@@ -216,6 +216,9 @@ data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 layout = data.get("layout", {})
 if layout.get("mode") != "symlink":
     raise SystemExit("expected default symlink layout")
+summary = data["artifacts"][0].get("tuple_summary") or {}
+if not isinstance(summary.get("tool_provider_status"), dict):
+    raise SystemExit("release tuple summary lacks provider status object")
 tuples = layout.get("tuples", {})
 native_tuple = tuples.get("by-tuple/native/host/host/host")
 if not native_tuple:

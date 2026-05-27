@@ -357,6 +357,10 @@ and `release_artifact_tool_counts`.
 Device and tuple artifact reference totals are mirrored as
 `release_device_artifact_reference_count` and
 `release_tuple_artifact_reference_count`.
+Release `tuple_summary` records and generated `release-index` artifact rows
+also carry `tool_provider_status`, which mirrors payload-manifest provider
+checks such as the effective gdbserver local drop-in search path, executable
+state, and checker output.
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
 purpose, service, side, network, explicit-target-action, and
