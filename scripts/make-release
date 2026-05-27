@@ -1429,6 +1429,8 @@ def artifact_summary(release_dir, rec, include_missing=False):
             "allow_arbitrary": command_queue.get("allow_arbitrary", "no"),
             "policy_valid": command_queue.get("policy_valid", False),
             "policy_errors": command_queue.get("policy_errors", []),
+            "arbitrary_policy_requested": command_queue.get("arbitrary_policy_requested", False),
+            "arbitrary_execution_allowed": command_queue.get("arbitrary_execution_allowed", False),
             "target_polling": command_queue.get("target_polling", False),
             "executes_commands": command_queue.get("executes_commands", False),
         },

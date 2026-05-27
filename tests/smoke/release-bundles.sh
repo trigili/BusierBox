@@ -245,6 +245,8 @@ if (queue.get("enabled") != "no" or
         queue.get("default_enabled") is not False or
         queue.get("policy_valid") is not True or
         queue.get("policy_errors") != [] or
+        queue.get("arbitrary_policy_requested") is not False or
+        queue.get("arbitrary_execution_allowed") is not False or
         queue.get("executes_commands") is not False):
     raise SystemExit(f"tuple summary command queue policy unsafe/missing: {queue!r}")
 noresidue = summary.get("noresidue_policy") or {}
@@ -299,6 +301,8 @@ if (queue.get("enabled") != "no" or
         queue.get("default_enabled") is not False or
         queue.get("policy_valid") is not True or
         queue.get("policy_errors") != [] or
+        queue.get("arbitrary_policy_requested") is not False or
+        queue.get("arbitrary_execution_allowed") is not False or
         queue.get("executes_commands") is not False):
     raise SystemExit(f"tuple manifest command queue policy unsafe/missing: {queue!r}")
 noresidue = summary.get("noresidue_policy") or {}

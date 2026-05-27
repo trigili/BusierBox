@@ -226,6 +226,10 @@ static void write_manifest_json(FILE *out, int include_missing)
 {
     struct command_queue_policy_report command_queue_policy = bb_command_queue_validate_policy();
     int command_queue_policy_valid = bb_command_queue_policy_valid(&command_queue_policy);
+    int command_queue_arbitrary_requested = command_queue_policy_valid &&
+        !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") &&
+        !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") &&
+        !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes");
     int i;
 
     fprintf(out, "{\"schema\":1,\"busierbox\":{\"payload_version\":");
@@ -337,7 +341,8 @@ static void write_manifest_json(FILE *out, int include_missing)
             fputc(',', out);
         json_string_payload(out, command_queue_policy.errors[i]);
     }
-    fprintf(out, "],\"target_polling\":true,\"executes_commands\":false,\"default_enabled\":false}");
+    fprintf(out, "],\"arbitrary_policy_requested\":%s,\"arbitrary_execution_allowed\":false,\"target_polling\":true,\"executes_commands\":false,\"default_enabled\":false}",
+            command_queue_arbitrary_requested ? "true" : "false");
     fprintf(out, "},\"dotfiles\":{\"enabled\":");
     json_string_payload(out, BB_DOTFILES_ENABLE);
     fprintf(out, ",\"zsh\":");
