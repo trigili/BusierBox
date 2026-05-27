@@ -687,11 +687,16 @@ def main():
         if (set(paths) - set(path_status) or
                 state_path_status.get("path") != queue_status_json.get("state_file") or
                 state_path_status.get("expected_kind") != "file" or
+                state_path_status.get("expected_kind_matches") is not True or
+                state_path_status.get("expected_kind_mismatch") is not False or
                 state_path_status.get("parent_exists") is not True or
                 state_path_status.get("writable") is not True or
                 session_path_status.get("expected_kind") != "dir" or
+                session_path_status.get("expected_kind_matches") is not True or
+                session_path_status.get("expected_kind_mismatch") is not False or
                 queue_status_json["summary"].get("path_status_count") != len(paths) or
-                queue_status_json["summary"].get("path_parent_missing_count") != 0):
+                queue_status_json["summary"].get("path_parent_missing_count") != 0 or
+                queue_status_json["summary"].get("path_kind_mismatch_count") != 0):
             print("server json status missing operator path health records", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -705,9 +710,13 @@ def main():
                 queue_status_json["summary"].get("browser_path_kind_counts", {}).get("server-state") != 1 or
                 queue_status_json["summary"].get("browser_path_exists_kind_counts", {}).get("command-queue-ledger") != 1 or
                 queue_status_json["summary"].get("browser_path_missing_kind_counts", {}).get("staged-ledger") != 1 or
+                queue_status_json["summary"].get("browser_path_kind_mismatch_count") != 0 or
+                queue_status_json["summary"].get("browser_path_kind_mismatch_counts") != {} or
                 not browser_by_kind.get("operator-dir") or
                 not browser_by_kind.get("server-state") or
                 not browser_by_kind.get("command-queue-ledger") or
+                browser_by_kind["operator-dir"][0].get("expected_kind_matches") is not True or
+                browser_by_kind["server-state"][0].get("expected_kind_mismatch") is not False or
                 browser_by_path.get(str(queue_file), [{}])[0].get("kind") != "command-queue-ledger" or
                 browser_by_kind_source.get("command-queue-ledger:command_queue_file", [{}])[0].get("path") != str(queue_file) or
                 browser_summary.get("exists_count", 0) < 1):
@@ -2263,9 +2272,12 @@ def main():
         release_browser_by_kind_source = release_doc.get("browser_paths_by_kind_source_id") or {}
         if (release_doc.get("browser_path_summary", {}).get("by_kind", {}).get("release-artifact") != 1 or
                 release_doc.get("browser_path_summary", {}).get("exists_by_kind", {}).get("release-artifact") != 1 or
+                release_doc.get("browser_path_summary", {}).get("kind_mismatch_count") != 0 or
                 release_doc.get("summary", {}).get("browser_path_exists_kind_counts", {}).get("release-artifact") != 1 or
+                release_doc.get("summary", {}).get("browser_path_kind_mismatch_count") != 0 or
                 release_browser_by_kind.get("release-json", [{}])[0].get("path") != str(release_dir / "release.json") or
                 release_browser_by_kind.get("release-artifact", [{}])[0].get("source_id") != "bin/busierbox-test" or
+                release_browser_by_kind.get("release-artifact", [{}])[0].get("expected_kind_matches") is not True or
                 release_browser_by_path.get(str(release_dir / "bin" / "busierbox-test"), [{}])[0].get("kind") != "release-artifact" or
                 release_browser_by_kind_source.get("release-artifact:bin/busierbox-test", [{}])[0].get("path") != str(release_dir / "bin" / "busierbox-test")):
             print("json status missing release browser path records", file=sys.stderr)

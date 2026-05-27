@@ -648,6 +648,8 @@ def status_path_records(paths):
             "name": name,
             "path": path_text,
             "expected_kind": "dir" if name in dir_keys else "file",
+            "expected_kind_matches": False,
+            "expected_kind_mismatch": False,
             "exists": False,
             "is_file": False,
             "is_dir": False,
@@ -672,6 +674,14 @@ def status_path_records(paths):
                 rec["writable"] = os.access(path, os.W_OK)
             else:
                 rec["writable"] = bool(rec["parent_exists"] and os.access(parent, os.W_OK))
+            if rec["exists"]:
+                if rec["expected_kind"] == "dir":
+                    rec["expected_kind_matches"] = bool(rec["is_dir"])
+                elif rec["expected_kind"] == "file":
+                    rec["expected_kind_matches"] = bool(rec["is_file"])
+                else:
+                    rec["expected_kind_matches"] = True
+                rec["expected_kind_mismatch"] = not rec["expected_kind_matches"]
         except OSError as exc:
             rec["error"] = str(exc)
         records[name] = rec
@@ -682,6 +692,7 @@ def status_path_summary(records):
     missing = 0
     parent_missing = 0
     not_writable = 0
+    kind_mismatch = 0
     for rec in (records or {}).values():
         if not rec.get("exists"):
             missing += 1
@@ -689,11 +700,14 @@ def status_path_summary(records):
             parent_missing += 1
         if not rec.get("writable"):
             not_writable += 1
+        if rec.get("expected_kind_mismatch"):
+            kind_mismatch += 1
     return {
         "path_status_count": len(records or {}),
         "path_missing_count": missing,
         "path_parent_missing_count": parent_missing,
         "path_not_writable_count": not_writable,
+        "path_kind_mismatch_count": kind_mismatch,
     }
 
 
@@ -701,6 +715,8 @@ def browser_path_status(path_text, expected_kind="file"):
     rec = {
         "path": str(path_text or ""),
         "expected_kind": expected_kind,
+        "expected_kind_matches": False,
+        "expected_kind_mismatch": False,
         "exists": False,
         "is_file": False,
         "is_dir": False,
@@ -725,6 +741,14 @@ def browser_path_status(path_text, expected_kind="file"):
             rec["writable"] = os.access(path, os.W_OK)
         else:
             rec["writable"] = bool(rec["parent_exists"] and os.access(parent, os.W_OK))
+        if rec["exists"]:
+            if rec["expected_kind"] == "dir":
+                rec["expected_kind_matches"] = bool(rec["is_dir"])
+            elif rec["expected_kind"] == "file":
+                rec["expected_kind_matches"] = bool(rec["is_file"])
+            else:
+                rec["expected_kind_matches"] = True
+            rec["expected_kind_mismatch"] = not rec["expected_kind_matches"]
     except OSError as exc:
         rec["error"] = str(exc)
     return rec
@@ -826,6 +850,7 @@ def browser_path_summary(records):
     missing_by_kind = {}
     readable_by_kind = {}
     writable_by_kind = {}
+    kind_mismatch_by_kind = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -840,17 +865,21 @@ def browser_path_summary(records):
             readable_by_kind[kind] = readable_by_kind.get(kind, 0) + 1
         if rec.get("writable") is True:
             writable_by_kind[kind] = writable_by_kind.get(kind, 0) + 1
+        if rec.get("expected_kind_mismatch") is True:
+            kind_mismatch_by_kind[kind] = kind_mismatch_by_kind.get(kind, 0) + 1
     return {
         "total_count": len(records or []),
         "exists_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("exists") is True),
         "missing_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("exists") is not True),
         "readable_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("readable") is True),
         "writable_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("writable") is True),
+        "kind_mismatch_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("expected_kind_mismatch") is True),
         "by_kind": record_count_by_key(records, "kind"),
         "exists_by_kind": exists_by_kind,
         "missing_by_kind": missing_by_kind,
         "readable_by_kind": readable_by_kind,
         "writable_by_kind": writable_by_kind,
+        "kind_mismatch_by_kind": kind_mismatch_by_kind,
     }
 
 
@@ -4074,16 +4103,19 @@ def status_document(cfg):
         "path_missing_count": path_summary.get("path_missing_count", 0),
         "path_parent_missing_count": path_summary.get("path_parent_missing_count", 0),
         "path_not_writable_count": path_summary.get("path_not_writable_count", 0),
+        "path_kind_mismatch_count": path_summary.get("path_kind_mismatch_count", 0),
         "browser_path_count": browser_summary.get("total_count", 0),
         "browser_path_exists_count": browser_summary.get("exists_count", 0),
         "browser_path_missing_count": browser_summary.get("missing_count", 0),
         "browser_path_readable_count": browser_summary.get("readable_count", 0),
         "browser_path_writable_count": browser_summary.get("writable_count", 0),
+        "browser_path_kind_mismatch_count": browser_summary.get("kind_mismatch_count", 0),
         "browser_path_kind_counts": browser_summary.get("by_kind") or {},
         "browser_path_exists_kind_counts": browser_summary.get("exists_by_kind") or {},
         "browser_path_missing_kind_counts": browser_summary.get("missing_by_kind") or {},
         "browser_path_readable_kind_counts": browser_summary.get("readable_by_kind") or {},
         "browser_path_writable_kind_counts": browser_summary.get("writable_by_kind") or {},
+        "browser_path_kind_mismatch_counts": browser_summary.get("kind_mismatch_by_kind") or {},
         "server_state_exists": bool(server_state.get("exists", False)),
         "server_state_valid": bool(server_state.get("valid", False)),
         "server_state_service_count": server_state.get("service_count", 0),
