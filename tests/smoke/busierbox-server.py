@@ -1126,8 +1126,10 @@ def main():
         ]
         if (not bind_fail_warnings or
                 not bind_fail_warnings[-1].get("error") or
+                bind_fail_warnings[-1].get("bind_address") != "127.0.0.1" or
+                bind_fail_warnings[-1].get("port") != bind_fail_port or
                 not bind_fail_warnings[-1].get("owners")):
-            print("bind failure status warning missing error/owner context", file=sys.stderr)
+            print("bind failure status warning missing bind/error/owner context", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
         bind_warning_stats = bind_fail_doc.get("warning_stats") or {}
@@ -1158,6 +1160,7 @@ def main():
         if ("Warnings:" not in bind_fail_workbench.stdout or
                 "service_error file-service" not in bind_fail_workbench.stdout or
                 "unable to bind" not in bind_fail_workbench.stdout or
+                f"bind: 127.0.0.1:{bind_fail_port}" not in bind_fail_workbench.stdout or
                 "owner_pid=" not in bind_fail_workbench.stdout or
                 "suggested_action:" not in bind_fail_workbench.stdout or
                 "bind_error=" not in bind_fail_workbench.stdout or

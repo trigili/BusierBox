@@ -3183,6 +3183,7 @@ def service_status_rows(cfg):
         rows.append({
             "name": name,
             "port": info["port"],
+            "bind_address": rec.get("listen_host") or str(cfg.get("listen_host", "")),
             "tls": service_tls_enabled(cfg, name),
             "actual": actual,
             "configured": rec.get("status", "unknown"),
@@ -3220,6 +3221,7 @@ def status_summary_and_warnings(services):
         return {
             "service": row.get("name", ""),
             "port": row.get("port", 0),
+            "bind_address": row.get("bind_address", ""),
             "configured": row.get("configured", ""),
             "actual": row.get("actual", ""),
             "pid": row.get("pid", ""),
@@ -3315,6 +3317,7 @@ def status_document(cfg):
         row["name"]: {
             "name": row.get("name", ""),
             "port": row.get("port", 0),
+            "bind_address": row.get("bind_address", ""),
             "tls": row.get("tls", False),
             "configured": row.get("configured", ""),
             "actual": row.get("actual", ""),
@@ -3620,7 +3623,8 @@ def print_status(cfg, json_output=False):
         stale = " stale-state" if row["stale"] else ""
         pid = f" pid={row['pid']}" if row["pid"] else ""
         tls = "yes" if row["tls"] else "no"
-        print(f"  {row['name']:12s} port={row['port']} tls={tls} configured={row['configured']} actual={row['actual']}{pid}{stale}")
+        bind_address = row.get("bind_address") or ""
+        print(f"  {row['name']:12s} bind={bind_address} port={row['port']} tls={tls} configured={row['configured']} actual={row['actual']}{pid}{stale}")
         if row["pid"] and row.get("pid_managed"):
             print(f"    ownership: {','.join(row.get('ownership_evidence') or [])}")
         elif row["pid"] and row.get("pid_alive"):
@@ -3867,7 +3871,7 @@ def print_workbench(cfg):
         item = row["status_row"]
         pid = f" pid={item['pid']}" if item["pid"] else ""
         tls = "yes" if item["tls"] else "no"
-        print(f"  {item['name']:12s} port={item['port']} tls={tls} desired={item['configured']} actual={item['actual']}{pid}")
+        print(f"  {item['name']:12s} bind={item.get('bind_address', '')} port={item['port']} tls={tls} desired={item['configured']} actual={item['actual']}{pid}")
         if item["error"]:
             print(f"    error: {item['error']}")
         if item["session_log"]:
@@ -3882,6 +3886,8 @@ def print_workbench(cfg):
             if service:
                 prefix = f"{prefix} {service}"
             print(f"  {prefix}: {warning.get('message', '')}")
+            if warning.get("bind_address") or warning.get("port"):
+                print(f"    bind: {warning.get('bind_address', '')}:{warning.get('port', '')}")
             if warning.get("suggested_action"):
                 print(f"    suggested_action: {warning.get('suggested_action', '')}")
             if warning.get("error"):
