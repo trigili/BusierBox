@@ -336,7 +336,10 @@ target-side `busierbox fetch`; it does not push the artifact or run it. In the
 curses workbench, `v` opens the selected local metadata/log/artifact path in the
 operator's pager when one is available, and `c` copies the selected generated
 target command to the local clipboard when possible plus
-`local/operator-session/last-command.txt`.
+`local/operator-session/last-command.txt`. The line-oriented fallback exposes
+the same operator path health and compact service summary so non-curses or
+non-TTY runs still show whether listener state, logs, staged files, and session
+roots are usable.
 
 Inspect and clean BusierBox-controlled runtime state:
 

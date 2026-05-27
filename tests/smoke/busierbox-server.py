@@ -1638,6 +1638,9 @@ def main():
                 "metadata:" not in uploads_view.stdout or
                 "Generated target commands" not in uploads_view.stdout or
                 "Operator paths:" not in uploads_view.stdout or
+                "Service summary:" not in uploads_view.stdout or
+                "Path health:" not in uploads_view.stdout or
+                "state_file: exists=" not in uploads_view.stdout or
                 "event_log:" not in uploads_view.stdout or
                 "tls_cert:" not in uploads_view.stdout or
                 "Event log" not in uploads_view.stdout or

@@ -3579,9 +3579,18 @@ def stop_managed_services(cfg):
 
 def print_workbench(cfg):
     snap = workbench_snapshot(cfg)
+    summary = snap.get("summary") or {}
     print("BusierBox Operator Workbench")
     print(f"Current time: {utc_now()}")
     print(f"Selected local IP: {snap['selected_local_ip']}")
+    print(
+        "Service summary: "
+        f"listening={summary.get('listening_count', 0)} "
+        f"configured_listening={summary.get('configured_listening_count', 0)} "
+        f"errors={summary.get('error_count', 0)} "
+        f"stale={summary.get('stale_count', 0)} "
+        f"warnings={len(snap.get('warnings') or [])}"
+    )
     print("")
     print("Operator paths:")
     paths = snap.get("paths") or {}
@@ -3596,6 +3605,15 @@ def print_workbench(cfg):
         print(f"  {label}: {paths.get(key, snap.get(key, ''))}")
     print(f"  tls_cert: {cfg.get('tls_cert', '')}")
     print(f"  tls_key: {cfg.get('tls_key', '')}")
+    print("")
+    print("Path health:")
+    path_status = snap.get("path_status") or {}
+    for name in sorted(path_status):
+        rec = path_status[name]
+        exists = "yes" if rec.get("exists") else "no"
+        parent_exists = "yes" if rec.get("parent_exists") else "no"
+        writable = "yes" if rec.get("writable") else "no"
+        print(f"  {name}: exists={exists} parent_exists={parent_exists} writable={writable} kind={rec.get('expected_kind', '')}")
     print("")
     print("Local IP candidates:")
     candidates = snap["local_ips"]
