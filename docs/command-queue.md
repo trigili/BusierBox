@@ -22,6 +22,10 @@ Current behavior is intentionally non-executing:
   `commands_by_status`, result lookup maps, latest queue/result timestamps,
   `policy_summary`, `mode_semantics`, `mode_summary`, and non-execution safety
   boundary.
+- Human `--status`, `--list-command-queue`, and the line-oriented workbench
+  print the same mode lifecycle and non-execution flags so operators do not
+  need JSON tooling to see that `poll`, `once`, and `daemon` are dry-run-only
+  planning modes in this build.
 - `busierbox plan command-queue --json` and `manifest --json` expose the same
   policy validity fields so release tooling and frontends do not treat an
   inconsistent policy as ready to poll.

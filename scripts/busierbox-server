@@ -1566,6 +1566,7 @@ def print_command_queue(cfg, json_output=False):
         for error in summary["policy_errors"]:
             print(f"  policy_error={error}")
         print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
+        print_command_queue_mode_lines(summary)
         print("  no queued commands")
         return
     print(f"Command queue: {summary['path']}")
@@ -1576,6 +1577,7 @@ def print_command_queue(cfg, json_output=False):
     for error in summary["policy_errors"]:
         print(f"  policy_error={error}")
     print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
+    print_command_queue_mode_lines(summary)
     for rec in summary["commands"]:
         print(f"{rec.get('id', '')}\t{rec.get('status', '')}\tcreated={rec.get('created_at', '')}")
         print(f"  command: {rec.get('command', '')}")
@@ -4169,6 +4171,28 @@ def generated_target_commands(cfg, staged=None):
     return [rec["command"] for rec in generated_target_command_records(cfg, staged)]
 
 
+def print_command_queue_mode_lines(queue):
+    mode_summary = queue.get("mode_summary") or {}
+    print(
+        "  modes: "
+        f"total={mode_summary.get('mode_count', 0)} "
+        f"would_poll_if_configured={mode_summary.get('polling_mode_count', 0)} "
+        f"operator_host_required={mode_summary.get('operator_host_required_mode_count', 0)} "
+        f"execution_supported={mode_summary.get('execution_supported_mode_count', 0)} "
+        f"active_control_channel={mode_summary.get('active_control_channel_mode_count', 0)}"
+    )
+    for name in ("status", "poll", "once", "daemon"):
+        rec = (queue.get("mode_semantics") or {}).get(name) or {}
+        print(
+            f"  mode {name}: "
+            f"lifecycle={rec.get('lifecycle', '')} "
+            f"requires_operator_host={'yes' if rec.get('requires_operator_host') else 'no'} "
+            f"would_poll_if_configured={'yes' if rec.get('would_poll_if_configured') else 'no'} "
+            f"execution_supported={'yes' if rec.get('execution_supported') else 'no'} "
+            f"active_control_channel={'yes' if rec.get('active_control_channel') else 'no'}"
+        )
+
+
 def rshell_session_policy_record(cfg):
     policy = str(cfg.get("rshell_session_policy") or cfg.get("BB_RSHELL_SESSION_POLICY") or "single")
     valid = policy in ("single", "reconnect", "persistent")
@@ -4397,6 +4421,7 @@ def print_status(cfg, json_output=False):
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
+    print_command_queue_mode_lines(queue)
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
         if rec.get("result_received_at"):
@@ -4627,6 +4652,7 @@ def print_workbench(cfg):
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
+    print_command_queue_mode_lines(queue)
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
         if rec.get("result_received_at"):

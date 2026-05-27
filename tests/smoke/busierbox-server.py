@@ -378,6 +378,20 @@ def main():
             print("json command queue listing missing compact policy summary", file=sys.stderr)
             print(queue_list.stdout, file=sys.stderr)
             return 1
+        queue_modes = queue_summary.get("mode_semantics") or {}
+        queue_mode_summary = queue_summary.get("mode_summary") or {}
+        if (queue_modes.get("status", {}).get("lifecycle") != "inspect" or
+                queue_modes.get("poll", {}).get("lifecycle") != "single-poll" or
+                queue_modes.get("once", {}).get("lifecycle") != "single-cycle" or
+                queue_modes.get("daemon", {}).get("lifecycle") != "long-running" or
+                queue_modes.get("daemon", {}).get("execution_supported") is not False or
+                queue_modes.get("daemon", {}).get("active_control_channel") is not False or
+                queue_mode_summary.get("mode_count") != 4 or
+                queue_mode_summary.get("polling_mode_count") != 3 or
+                queue_mode_summary.get("execution_supported_mode_count") != 0):
+            print("json command queue listing missing mode semantics", file=sys.stderr)
+            print(queue_list.stdout, file=sys.stderr)
+            return 1
         invalid_queue_cfg = Path(tmp) / "server-config-invalid-command-queue.json"
         invalid_queue_cfg.write_text(json.dumps({
             "operator_session_dir": str(queue_operator_dir),
@@ -419,6 +433,8 @@ def main():
         if (invalid_queue_text.returncode != 0 or
                 "policy_valid=no" not in invalid_queue_text.stdout or
                 "arbitrary_execution_allowed=no" not in invalid_queue_text.stdout or
+                "modes: total=4 would_poll_if_configured=3 operator_host_required=3 execution_supported=0 active_control_channel=0" not in invalid_queue_text.stdout or
+                "mode daemon: lifecycle=long-running requires_operator_host=yes would_poll_if_configured=yes execution_supported=no active_control_channel=no" not in invalid_queue_text.stdout or
                 "policy_error=disabled command queue must keep allowed commands policy none" not in invalid_queue_text.stdout):
             print("invalid command queue text listing missing policy errors", file=sys.stderr)
             print(invalid_queue_text.stdout, file=sys.stderr)
@@ -923,6 +939,9 @@ def main():
                 "result_output=12 limit=1234 exceeded_limit=no" not in queue_status_text.stdout or
                 "latest_created=" not in queue_status_text.stdout or
                 "latest_result=" not in queue_status_text.stdout or
+                "modes: total=4 would_poll_if_configured=3 operator_host_required=3 execution_supported=0 active_control_channel=0" not in queue_status_text.stdout or
+                "mode status: lifecycle=inspect requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
+                "mode daemon: lifecycle=long-running requires_operator_host=yes would_poll_if_configured=yes execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
                 "command_result_received" not in queue_status_text.stdout or
                 "Event log:" not in queue_status_text.stdout or
                 "services: command-queue=" not in queue_status_text.stdout or
