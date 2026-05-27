@@ -2162,6 +2162,12 @@ def main():
                 "remotes:" not in upload_status_text.stdout or
                 "operation=upload status=ok http=200 filename=evidence.txt" not in upload_status_text.stdout or
                 "Command queue:" not in upload_status_text.stdout or
+                "Generated target commands:" not in upload_status_text.stdout or
+                "Target command summary:" not in upload_status_text.stdout or
+                "operator_supplied_execution=0" not in upload_status_text.stdout or
+                "executes_operator_supplied_commands=no" not in upload_status_text.stdout or
+                "all_require_explicit_target_action=yes" not in upload_status_text.stdout or
+                "./busierbox reality-test push" not in upload_status_text.stdout or
                 "Activity summary:" not in upload_status_text.stdout or
                 "uploads=1" not in upload_status_text.stdout or
                 "stored_exists=True" not in upload_status_text.stdout or
@@ -2196,6 +2202,10 @@ def main():
                 "tls_cert:" not in uploads_view.stdout or
                 "Event log" not in uploads_view.stdout or
                 "uploads=1" not in uploads_view.stdout or
+                "Target command summary:" not in uploads_view.stdout or
+                "operator_supplied_execution=0" not in uploads_view.stdout or
+                "executes_operator_supplied_commands=no" not in uploads_view.stdout or
+                "all_require_explicit_target_action=yes" not in uploads_view.stdout or
                 f"upload={upload_item.get('timestamp')}" not in uploads_view.stdout or
                 "stored_exists: True" not in uploads_view.stdout or
                 "session:" not in uploads_view.stdout or

@@ -437,7 +437,9 @@ network, explicit-target action, and operator-supplied-command execution
 counts, with side and purpose counts mirrored into `summary` as
 `target_command_side_counts` and `target_command_purpose_counts`. This lets
 future frontends show the same commands without guessing whether a command is a
-safe explicit fetch/upload helper or control-like behavior.
+safe explicit fetch/upload helper or control-like behavior. Human `--status`
+and the line-oriented fallback print the same target-command safety summary
+before listing generated commands.
 Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
 `command_queue_status_counts`. Recorded results are grouped as full records in

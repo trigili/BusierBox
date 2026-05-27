@@ -4663,6 +4663,23 @@ def print_warning_summary(summary):
     )
 
 
+def print_target_command_summary(doc):
+    doc = doc or {}
+    summary = doc.get("summary") or {}
+    records = doc.get("target_command_records") or []
+    total = summary.get("target_command_count", len(records))
+    print(
+        "Target command summary: "
+        f"total={total} "
+        f"network={summary.get('target_command_network_count', 0)} "
+        f"explicit_target_action={summary.get('target_command_explicit_action_count', 0)} "
+        f"operator_supplied_execution={summary.get('target_command_operator_supplied_execution_count', 0)} "
+        f"executes_operator_supplied_commands={'yes' if summary.get('target_command_executes_operator_supplied_commands') else 'no'} "
+        f"all_require_explicit_target_action={'yes' if summary.get('target_command_all_require_explicit_target_action') else 'no'}"
+    )
+    print(f"  sides: {format_counts(summary.get('target_command_side_counts') or {})}")
+
+
 def print_release_summary(doc):
     doc = doc or {}
     release_state = doc.get("release_state") or {}
@@ -4941,6 +4958,11 @@ def print_status(cfg, json_output=False):
     else:
         print("  none")
     print("")
+    print("Generated target commands:")
+    print_target_command_summary(doc)
+    for cmd in doc.get("target_commands") or []:
+        print(f"  {cmd}")
+    print("")
     print("Command queue:")
     queue = doc["command_queue"]
     print(f"  path: {queue.get('path', '')}")
@@ -5184,6 +5206,7 @@ def print_workbench(cfg):
         print("  none")
     print("")
     print("Generated target commands:")
+    print_target_command_summary(snap)
     for cmd in snap["target_commands"]:
         print(f"  {cmd}")
     print("")
