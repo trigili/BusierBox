@@ -266,8 +266,10 @@ and the same records are indexed by service name in `services_by_name` for
 frontend clients that need direct lookup without reconstructing their own map.
 The same document includes `generated_at` and a `paths` object for stable
 discovery of server state, staged files, event logs, command queue records, and
-the session root. Recent upload and staged-fetch activity is exposed through
-top-level `uploads` and `fetches` arrays plus aggregate counts in `summary`.
+the session root. Staged files are exposed as the existing `staged` request map
+and as an ordered `staged_records` browser list. Recent upload and staged-fetch
+activity is exposed through top-level `uploads` and `fetches` arrays plus
+aggregate counts in `summary`.
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
 purpose, service, side, network, explicit-target-action, and

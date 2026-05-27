@@ -382,6 +382,18 @@ def enriched_staged_records(cfg, staged=None):
     return out
 
 
+def staged_record_list(staged):
+    records = []
+    for name, rec in sorted((staged or {}).items()):
+        if not isinstance(rec, dict):
+            continue
+        item = dict(rec)
+        item["name"] = name
+        item["request_name"] = item.get("request_name") or name
+        records.append(item)
+    return records
+
+
 def load_command_queue(cfg):
     data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
     if not isinstance(data, dict):
@@ -2785,6 +2797,7 @@ def status_document(cfg):
         "target_commands": generated_target_commands(cfg, staged_raw),
         "target_command_records": generated_target_command_records(cfg, staged_raw),
         "staged": staged,
+        "staged_records": staged_record_list(staged),
         "uploads": uploads,
         "fetches": fetches,
         "sessions": sessions,
