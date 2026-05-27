@@ -60,6 +60,11 @@ Safety boundary:
   object with mode, status, endpoint, explicit-target-action, dry-run-only,
   would-contact-operator, queued-command availability, delivery/result upload,
   execution, and hidden-control-channel fields.
+- `command-queue --json` also includes `mode_semantics` for `status`, `poll`,
+  `once`, and `daemon`. Each entry declares whether the mode is selected,
+  whether it needs an operator host, its lifecycle label (`inspect`,
+  `single-poll`, `single-cycle`, or `long-running`), and the same
+  non-execution safety booleans so UIs do not infer mode behavior from strings.
 - `allow_arbitrary=yes` is reported as an explicit policy request, not an
   execution grant; `arbitrary_execution_allowed=false` remains false while this
   build has `execution_supported=false`.

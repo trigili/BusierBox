@@ -48,6 +48,59 @@ static const char *mode_status(const char *mode, int enabled, const char *operat
     return "unknown";
 }
 
+static int mode_requires_operator_host(const char *mode)
+{
+    return strcmp(mode, "status") != 0;
+}
+
+static const char *mode_lifecycle(const char *mode)
+{
+    if (!strcmp(mode, "status"))
+        return "inspect";
+    if (!strcmp(mode, "poll"))
+        return "single-poll";
+    if (!strcmp(mode, "once"))
+        return "single-cycle";
+    if (!strcmp(mode, "daemon"))
+        return "long-running";
+    return "unknown";
+}
+
+static void print_mode_semantics_json(const char *name, int selected)
+{
+    fputc('"', stdout);
+    fputs(name, stdout);
+    fputs("\":{", stdout);
+    printf("\"selected\":%s", selected ? "true" : "false");
+    printf(",\"requires_operator_host\":%s", mode_requires_operator_host(name) ? "true" : "false");
+    printf(",\"would_poll_if_configured\":%s", strcmp(name, "status") ? "true" : "false");
+    fputs(",\"dry_run_only\":true", stdout);
+    fputs(",\"requires_explicit_target_action\":true", stdout);
+    fputs(",\"would_contact_operator\":false", stdout);
+    fputs(",\"delivery_supported\":false", stdout);
+    fputs(",\"result_upload_supported\":false", stdout);
+    fputs(",\"execution_supported\":false", stdout);
+    fputs(",\"executes_commands\":false", stdout);
+    fputs(",\"active_control_channel\":false", stdout);
+    fputs(",\"operator_supplied_command_execution\":false", stdout);
+    fputs(",\"lifecycle\":", stdout);
+    bb_json_string(stdout, mode_lifecycle(name));
+    fputc('}', stdout);
+}
+
+static void print_all_mode_semantics_json(const char *mode)
+{
+    fputs(",\"mode_semantics\":{", stdout);
+    print_mode_semantics_json("status", !strcmp(mode, "status"));
+    fputc(',', stdout);
+    print_mode_semantics_json("poll", !strcmp(mode, "poll"));
+    fputc(',', stdout);
+    print_mode_semantics_json("once", !strcmp(mode, "once"));
+    fputc(',', stdout);
+    print_mode_semantics_json("daemon", !strcmp(mode, "daemon"));
+    fputc('}', stdout);
+}
+
 static void print_json(const char *mode, int dry_run, const char *operator_host)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
@@ -157,6 +210,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host)
     fputs(",\"queued_command_available\":false", stdout);
     fputs(",\"operator_supplied_command_execution\":false", stdout);
     fputc('}', stdout);
+    print_all_mode_semantics_json(mode);
     fputs(",\"safety_boundary\":\"target polling is explicit and dry-run only in this build; no command delivery or execution is implemented\"", stdout);
     fputs(",\"queued_command\":null}\n", stdout);
 }
@@ -205,6 +259,16 @@ static void print_text(const char *mode, int dry_run, const char *operator_host)
     puts("command_queue_poll_plan_would_contact_operator=no");
     puts("command_queue_poll_plan_queued_command_available=no");
     puts("command_queue_poll_plan_operator_supplied_command_execution=no");
+    puts("command_queue_mode_status_lifecycle=inspect");
+    puts("command_queue_mode_status_would_poll_if_configured=no");
+    puts("command_queue_mode_poll_lifecycle=single-poll");
+    puts("command_queue_mode_poll_would_poll_if_configured=yes");
+    puts("command_queue_mode_once_lifecycle=single-cycle");
+    puts("command_queue_mode_once_would_poll_if_configured=yes");
+    puts("command_queue_mode_daemon_lifecycle=long-running");
+    puts("command_queue_mode_daemon_would_poll_if_configured=yes");
+    puts("command_queue_modes_execute_commands=no");
+    puts("command_queue_modes_active_control_channel=no");
     puts("command_queue_safety_boundary=explicit target polling dry-run only; queued command delivery/execution is not implemented");
 }
 
