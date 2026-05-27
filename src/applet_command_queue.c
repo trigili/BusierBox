@@ -11,6 +11,71 @@ static int yes_value(const char *s)
     return s && (!strcmp(s, "yes") || !strcmp(s, "1") || !strcmp(s, "true") || !strcmp(s, "on"));
 }
 
+struct policy_report {
+    const char *errors[8];
+    int count;
+};
+
+static int exact_value(const char *s, const char *a, const char *b)
+{
+    return s && (!strcmp(s, a) || !strcmp(s, b));
+}
+
+static int valid_port_value(const char *s)
+{
+    const char *p;
+
+    if (!s || !s[0])
+        return 0;
+    for (p = s; *p; p++) {
+        if (*p < '0' || *p > '9')
+            return 0;
+    }
+    return 1;
+}
+
+static int valid_policy_value(const char *s)
+{
+    return s && (!strcmp(s, "none") || !strcmp(s, "busierbox-only") ||
+                 !strcmp(s, "allowlist") || !strcmp(s, "custom"));
+}
+
+static void policy_add_error(struct policy_report *report, const char *error)
+{
+    if (report->count < (int)(sizeof(report->errors) / sizeof(report->errors[0])))
+        report->errors[report->count++] = error;
+}
+
+static struct policy_report validate_policy(void)
+{
+    struct policy_report report = {{0}, 0};
+
+    if (!exact_value(BB_COMMAND_QUEUE_ENABLE, "yes", "no"))
+        policy_add_error(&report, "invalid command queue enable value");
+    if (!valid_port_value(BB_COMMAND_QUEUE_PORT))
+        policy_add_error(&report, "invalid command queue port");
+    if (!exact_value(BB_COMMAND_QUEUE_TLS, "yes", "no"))
+        policy_add_error(&report, "invalid command queue TLS value");
+    if (!exact_value(BB_COMMAND_QUEUE_REQUIRE_TOKEN, "yes", "no"))
+        policy_add_error(&report, "invalid command queue token requirement");
+    if (!exact_value(BB_COMMAND_QUEUE_TOKEN_SOURCE, "manual", "generated"))
+        policy_add_error(&report, "invalid command queue token source");
+    if (!valid_policy_value(BB_COMMAND_QUEUE_ALLOWED_COMMANDS))
+        policy_add_error(&report, "invalid command queue allowed commands policy");
+    if (!exact_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes", "no"))
+        policy_add_error(&report, "invalid command queue arbitrary-execution flag");
+    if (strcmp(BB_COMMAND_QUEUE_ENABLE, "yes")) {
+        if (strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none"))
+            policy_add_error(&report, "disabled command queue must keep allowed commands policy none");
+        if (strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "no"))
+            policy_add_error(&report, "disabled command queue must not allow arbitrary execution");
+    }
+    if (!strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes") &&
+        strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom"))
+        policy_add_error(&report, "arbitrary command queue execution requires allowed commands policy custom");
+    return report;
+}
+
 static int is_help(int argc, char **argv)
 {
     return argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"));
@@ -23,13 +88,20 @@ static void print_help(void)
     puts("This build does not fetch, deliver, or execute queued commands.");
 }
 
-static int mode_would_poll(const char *mode, int enabled, const char *operator_host)
+static int policy_valid(const struct policy_report *report)
 {
-    return enabled && operator_host && operator_host[0] && (strcmp(mode, "status") != 0);
+    return report->count == 0;
 }
 
-static const char *mode_status(const char *mode, int enabled, const char *operator_host)
+static int mode_would_poll(const char *mode, int enabled, const char *operator_host, const struct policy_report *report)
 {
+    return policy_valid(report) && enabled && operator_host && operator_host[0] && (strcmp(mode, "status") != 0);
+}
+
+static const char *mode_status(const char *mode, int enabled, const char *operator_host, const struct policy_report *report)
+{
+    if (!policy_valid(report))
+        return "invalid_policy";
     if (!enabled)
         return "disabled";
     if (!operator_host || !operator_host[0])
@@ -49,13 +121,25 @@ static void print_json(const char *mode, int dry_run, const char *operator_host)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
     int arbitrary_allowed = !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    struct policy_report policy = validate_policy();
+    int valid = policy_valid(&policy);
+    int i;
+
     fputs("{\"schema\":1,\"command\":\"command-queue\",\"mode\":", stdout);
     bb_json_string(stdout, mode);
     printf(",\"enabled\":%s", enabled ? "true" : "false");
     printf(",\"dry_run\":%s", dry_run ? "true" : "false");
-    printf(",\"configured_for_polling\":%s", (enabled && operator_host && operator_host[0]) ? "true" : "false");
-    printf(",\"missing_operator_host\":%s", (enabled && (!operator_host || !operator_host[0])) ? "true" : "false");
-    printf(",\"would_poll\":%s", mode_would_poll(mode, enabled, operator_host) ? "true" : "false");
+    printf(",\"policy_valid\":%s", valid ? "true" : "false");
+    fputs(",\"policy_errors\":[", stdout);
+    for (i = 0; i < policy.count; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, policy.errors[i]);
+    }
+    fputc(']', stdout);
+    printf(",\"configured_for_polling\":%s", (valid && enabled && operator_host && operator_host[0]) ? "true" : "false");
+    printf(",\"missing_operator_host\":%s", (valid && enabled && (!operator_host || !operator_host[0])) ? "true" : "false");
+    printf(",\"would_poll\":%s", mode_would_poll(mode, enabled, operator_host, &policy) ? "true" : "false");
     fputs(",\"operator_host\":", stdout);
     bb_json_string(stdout, operator_host ? operator_host : "");
     fputs(",\"port\":", stdout);
@@ -86,7 +170,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host)
     fputs(",\"poll_transport_supported\":false", stdout);
     fputs(",\"active_control_channel\":false", stdout);
     fputs(",\"status\":", stdout);
-    bb_json_string(stdout, mode_status(mode, enabled, operator_host));
+    bb_json_string(stdout, mode_status(mode, enabled, operator_host, &policy));
     fputs(",\"safety_boundary\":\"target polling is explicit and dry-run only in this build; no command delivery or execution is implemented\"", stdout);
     fputs(",\"queued_command\":null}\n", stdout);
 }
@@ -95,12 +179,19 @@ static void print_text(const char *mode, int dry_run, const char *operator_host)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
     int arbitrary_allowed = !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    struct policy_report policy = validate_policy();
+    int valid = policy_valid(&policy);
+    int i;
+
     printf("command_queue_mode=%s\n", mode);
     printf("command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
     printf("command_queue_dry_run=%s\n", dry_run ? "yes" : "no");
-    printf("command_queue_configured_for_polling=%s\n", (enabled && operator_host && operator_host[0]) ? "yes" : "no");
-    printf("command_queue_missing_operator_host=%s\n", (enabled && (!operator_host || !operator_host[0])) ? "yes" : "no");
-    printf("command_queue_would_poll=%s\n", mode_would_poll(mode, enabled, operator_host) ? "yes" : "no");
+    printf("command_queue_policy_valid=%s\n", valid ? "yes" : "no");
+    for (i = 0; i < policy.count; i++)
+        printf("command_queue_policy_error=%s\n", policy.errors[i]);
+    printf("command_queue_configured_for_polling=%s\n", (valid && enabled && operator_host && operator_host[0]) ? "yes" : "no");
+    printf("command_queue_missing_operator_host=%s\n", (valid && enabled && (!operator_host || !operator_host[0])) ? "yes" : "no");
+    printf("command_queue_would_poll=%s\n", mode_would_poll(mode, enabled, operator_host, &policy) ? "yes" : "no");
     printf("command_queue_operator_host=%s\n", operator_host ? operator_host : "");
     printf("command_queue_port=%s\n", BB_COMMAND_QUEUE_PORT);
     if (operator_host && operator_host[0])
@@ -119,7 +210,7 @@ static void print_text(const char *mode, int dry_run, const char *operator_host)
     puts("command_queue_result_upload_supported=no");
     puts("command_queue_poll_transport_supported=no");
     puts("command_queue_active_control_channel=no");
-    printf("command_queue_status=%s\n", mode_status(mode, enabled, operator_host));
+    printf("command_queue_status=%s\n", mode_status(mode, enabled, operator_host, &policy));
     puts("command_queue_safety_boundary=explicit target polling dry-run only; queued command delivery/execution is not implemented");
 }
 
