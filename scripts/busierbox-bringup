@@ -289,6 +289,10 @@ command_record_summary = {
     "target_requires_explicit_action_count": sum(1 for item in next_target_records if item.get("requires_explicit_target_action") is True),
     "target_executes_operator_supplied_commands_count": sum(1 for item in next_target_records if item.get("executes_operator_supplied_commands") is True),
     "operator_executes_on_target_count": sum(1 for item in next_operator_records if item.get("executes_on_target") is True),
+    "all_target_commands_require_explicit_action": all(item.get("requires_explicit_target_action") is True for item in next_target_records),
+    "all_operator_commands_require_explicit_action": all(item.get("requires_explicit_operator_action") is True for item in next_operator_records),
+    "any_operator_command_executes_on_target": any(item.get("executes_on_target") is True for item in next_operator_records),
+    "any_target_command_executes_operator_supplied_commands": any(item.get("executes_operator_supplied_commands") is True for item in next_target_records),
 }
 next_command_records = next_operator_records + next_target_records
 next_command_records_by_side = {
@@ -297,13 +301,20 @@ next_command_records_by_side = {
 }
 next_command_records_by_service = {}
 next_command_records_by_purpose = {}
+next_command_records_by_side_service = {}
+next_command_records_by_service_purpose = {}
 for item in next_command_records:
     service = item.get("service") or ""
     purpose = item.get("purpose") or ""
+    side = item.get("side") or ""
     if service:
         next_command_records_by_service.setdefault(service, []).append(item)
     if purpose:
         next_command_records_by_purpose.setdefault(purpose, []).append(item)
+    if side and service:
+        next_command_records_by_side_service.setdefault(f"{side}:{service}", []).append(item)
+    if service and purpose:
+        next_command_records_by_service_purpose.setdefault(f"{service}:{purpose}", []).append(item)
 
 recommendation_summary = {}
 recommendation_path = env("RECOMMENDATION_JSON")
@@ -373,6 +384,8 @@ doc = {
     "next_command_records_by_side": next_command_records_by_side,
     "next_command_records_by_service": next_command_records_by_service,
     "next_command_records_by_purpose": next_command_records_by_purpose,
+    "next_command_records_by_side_service": next_command_records_by_side_service,
+    "next_command_records_by_service_purpose": next_command_records_by_service_purpose,
     "command_record_summary": command_record_summary,
     "safety_boundary": {
         "network_autorun": False,
