@@ -852,6 +852,23 @@ def main():
             print("server json status missing normalized browser path records", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
+        api_collections = queue_status_json.get("api_collections") or {}
+        for collection_name, expected_count, expected_index in (
+                ("services", len(queue_status_json.get("services") or []), "services_by_name"),
+                ("ports", len(queue_status_json.get("ports") or []), "ports_by_number"),
+                ("browser_paths", len(browser_paths), "browser_paths_by_kind_source_id"),
+                ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
+                ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_id"),
+                ("events", len(queue_status_json.get("events") or []), "events_by_id"),
+        ):
+            collection = api_collections.get(collection_name) or {}
+            if (collection.get("count") != expected_count or
+                    collection.get("name") != collection_name or
+                    expected_index not in (collection.get("indexes") or []) or
+                    not collection.get("summary_key")):
+                print(f"server json status missing api collection metadata for {collection_name}", file=sys.stderr)
+                print(queue_status_doc.stdout, file=sys.stderr)
+                return 1
         if (staged_files_state.get("path") != queue_status_json.get("staged_files") or
                 staged_files_state.get("exists") != staged_path_status.get("exists") or
                 queue_status_json["summary"].get("staged_files_exists") != bool(staged_files_state.get("exists")) or

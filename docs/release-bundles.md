@@ -289,7 +289,11 @@ scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host
 objects for frontend and automation consumers. Stale server-state records,
 service errors, listener counts, command queue counts, command queue policy
 validity, and release artifact/device/tuple counts can be read without
-re-parsing the human status view. Service rows remain available in `services`,
+re-parsing the human status view. The same document includes `api_collections`,
+a small self-description map for frontend clients; each entry names a
+collection, record count, primary key field, summary counter, and available
+lookup maps such as `services_by_name` or `browser_paths_by_kind_source_id`.
+Service rows remain available in `services`,
 and the same records are indexed by service name, actual state, configured
 state, and port in `services_by_name`, `services_by_actual`,
 `services_by_configured`, `services_by_port`, `services_by_pid`, and

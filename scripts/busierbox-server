@@ -1413,6 +1413,16 @@ def annotate_service_port_records_with_warnings(services, ports, warnings_by_ser
         rec["warning_types"] = sorted({str(item.get("type") or "") for item in warnings if item.get("type")})
 
 
+def api_collection_record(name, records, primary_key="", indexes=None, summary_key=""):
+    return {
+        "name": name,
+        "count": len(records or []),
+        "primary_key": primary_key,
+        "summary_key": summary_key,
+        "indexes": sorted(indexes or []),
+    }
+
+
 def load_command_queue(cfg):
     data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
     if not isinstance(data, dict):
@@ -4543,9 +4553,105 @@ def status_document(cfg):
         "release_artifact_doom_wad_sha256_counts": (release.get("artifact_stats") or {}).get("by_doom_wad_sha256") or {},
         "release_artifact_doom_wad_count": (release.get("artifact_stats") or {}).get("doom_wad_count", 0),
     })
+    api_collections = {
+        "services": api_collection_record(
+            "services", services, "name", (
+                "services_by_name", "services_by_actual", "services_by_configured",
+                "services_by_port", "services_by_pid", "services_by_listener_pid",
+            ), "service_count",
+        ),
+        "ports": api_collection_record(
+            "ports", ports, "service", (
+                "ports_by_number", "ports_by_service", "ports_by_actual",
+            ), "port_count",
+        ),
+        "browser_paths": api_collection_record(
+            "browser_paths", browser_paths, "id", (
+                "browser_paths_by_kind", "browser_paths_by_path",
+                "browser_paths_by_source_id", "browser_paths_by_kind_source_id",
+            ), "browser_path_count",
+        ),
+        "warnings": api_collection_record(
+            "warnings", warnings, "type", (
+                "warnings_by_type", "warnings_by_service", "warnings_by_port",
+                "warnings_by_pid", "warnings_by_listener_pid", "warnings_by_owner_pid",
+                "warnings_by_path", "warnings_by_type_path",
+                "warnings_by_service_port", "warnings_by_type_service_port",
+            ), "warning_count",
+        ),
+        "target_command_records": api_collection_record(
+            "target_command_records", target_command_records, "command", (
+                "target_commands_by_service", "target_commands_by_request",
+                "target_commands_by_side", "target_commands_by_purpose",
+                "target_commands_by_service_purpose", "target_commands_by_side_purpose",
+            ), "target_command_count",
+        ),
+        "staged_records": api_collection_record(
+            "staged_records", staged_records, "request_name", (
+                "staged_by_request", "staged_by_sha256", "staged_by_source_path",
+            ), "staged_count",
+        ),
+        "uploads": api_collection_record(
+            "uploads", uploads, "metadata_path", (
+                "uploads_by_session", "uploads_by_filename", "uploads_by_sha256",
+                "uploads_by_source_path", "uploads_by_stored_path", "uploads_by_remote_addr",
+                "uploads_by_status", "uploads_by_filename_status", "uploads_by_status_remote_addr",
+            ), "upload_count",
+        ),
+        "fetches": api_collection_record(
+            "fetches", fetches, "metadata_path", (
+                "fetches_by_session", "fetches_by_request", "fetches_by_sha256",
+                "fetches_by_source_path", "fetches_by_status", "fetches_by_http_status",
+                "fetches_by_remote_addr", "fetches_by_request_status",
+                "fetches_by_status_remote_addr", "fetches_by_http_status_remote_addr",
+            ), "fetch_count",
+        ),
+        "sessions": api_collection_record(
+            "sessions", sessions, "session_id", (
+                "sessions_by_id", "sessions_by_service", "sessions_by_state",
+                "sessions_by_exit_reason", "sessions_by_remote",
+                "sessions_by_service_state", "sessions_by_service_exit_reason",
+                "sessions_by_service_remote",
+            ), "session_count",
+        ),
+        "events": api_collection_record(
+            "events", events, "id", (
+                "events_by_id", "events_by_session", "events_by_service",
+                "events_by_event", "events_by_level", "events_by_remote",
+                "events_by_service_event", "events_by_session_event",
+            ), "event_tail_count",
+        ),
+        "release_artifacts": api_collection_record(
+            "release_artifacts", release.get("artifacts") or [], "path", (
+                "artifacts_by_release_path", "artifacts_by_name", "artifacts_by_sha256",
+                "artifacts_by_payload_preset", "artifacts_by_tool", "artifacts_by_feature",
+                "artifacts_by_compatibility", "artifacts_by_source", "artifacts_by_tuple_payload_preset",
+                "artifacts_by_tool_payload_preset", "artifacts_by_feature_payload_preset",
+                "artifacts_by_provider_tool", "artifacts_by_provider_status",
+                "artifacts_by_doom_wad_filename", "artifacts_by_doom_wad_sha256",
+            ), "release_artifact_count",
+        ),
+        "release_devices": api_collection_record(
+            "release_devices", release.get("devices") or [], "name", (
+                "devices_by_name",
+            ), "release_device_count",
+        ),
+        "release_tuples": api_collection_record(
+            "release_tuples", release.get("tuples") or [], "path", (
+                "tuples_by_path",
+            ), "release_tuple_count",
+        ),
+        "command_queue_commands": api_collection_record(
+            "command_queue_commands", command_queue.get("commands") or [], "id", (
+                "commands_by_id", "commands_by_status", "commands_by_result_status",
+                "commands_by_result_exit_code", "commands_by_result_output_exceeded",
+            ), "command_queue_total_count",
+        ),
+    }
     return {
         "schema": 1,
         "generated_at": utc_now(),
+        "api_collections": api_collections,
         "operator_session_dir": str(operator_dir),
         "state_file": str(state_file_path(cfg)),
         "staged_files": str(staged_file_path(cfg)),
