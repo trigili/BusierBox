@@ -113,11 +113,18 @@ class EventLog:
         by_event = {}
         by_level = {}
         by_remote = {}
+        first_ts = ""
+        latest_ts = ""
         for rec in records:
+            ts = str(rec.get("ts") or "")
             service = str(rec.get("service") or "")
             event = str(rec.get("event") or "")
             level = str(rec.get("level") or "")
             remote = str(rec.get("remote") or "")
+            if ts and (not first_ts or ts < first_ts):
+                first_ts = ts
+            if ts > latest_ts:
+                latest_ts = ts
             if service:
                 by_service[service] = by_service.get(service, 0) + 1
             if event:
@@ -132,6 +139,8 @@ class EventLog:
             "tail_count": len(tail),
             "invalid_count": invalid,
             "tail_limit": limit,
+            "first_event_at": first_ts,
+            "latest_event_at": latest_ts,
             "by_service": by_service,
             "by_event": by_event,
             "by_level": by_level,
@@ -3301,6 +3310,8 @@ def status_document(cfg):
         "event_count": event_stats["total_count"],
         "event_tail_count": event_stats["tail_count"],
         "event_invalid_count": event_stats["invalid_count"],
+        "first_event_at": event_stats.get("first_event_at", ""),
+        "latest_event_at": event_stats.get("latest_event_at", ""),
         "event_service_counts": event_stats.get("by_service") or {},
         "event_type_counts": event_stats.get("by_event") or {},
         "event_level_counts": event_stats.get("by_level") or {},
@@ -3612,6 +3623,7 @@ def print_status(cfg, json_output=False):
     stats = doc.get("event_log_stats") or {}
     print(f"  path: {doc.get('event_log', '')}")
     print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)}")
+    print(f"  first={stats.get('first_event_at', '') or '-'} latest={stats.get('latest_event_at', '') or '-'}")
     print(f"  services: {format_counts(stats.get('by_service') or {})}")
     print(f"  events: {format_counts(stats.get('by_event') or {})}")
     print(f"  levels: {format_counts(stats.get('by_level') or {})}")
@@ -3839,6 +3851,7 @@ def print_workbench(cfg):
     stats = snap.get("event_log_stats") or {}
     print(f"  path: {snap.get('event_log', '')}")
     print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)}")
+    print(f"  first={stats.get('first_event_at', '') or '-'} latest={stats.get('latest_event_at', '') or '-'}")
     print(f"  services: {format_counts(stats.get('by_service') or {})}")
     print(f"  events: {format_counts(stats.get('by_event') or {})}")
     print(f"  levels: {format_counts(stats.get('by_level') or {})}")

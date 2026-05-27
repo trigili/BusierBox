@@ -704,7 +704,11 @@ def main():
         if (event_stats.get("total_count", 0) < 2 or
                 event_stats.get("tail_count") != len(queue_status_json.get("events", [])) or
                 queue_status_json["summary"].get("event_count") != event_stats.get("total_count") or
-                queue_status_json["summary"].get("event_tail_count") != event_stats.get("tail_count")):
+                queue_status_json["summary"].get("event_tail_count") != event_stats.get("tail_count") or
+                not event_stats.get("first_event_at") or
+                not event_stats.get("latest_event_at") or
+                queue_status_json["summary"].get("first_event_at") != event_stats.get("first_event_at") or
+                queue_status_json["summary"].get("latest_event_at") != event_stats.get("latest_event_at")):
             print("server json status missing event log total/tail stats", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -799,6 +803,8 @@ def main():
                 "services: command-queue=" not in queue_status_text.stdout or
                 "events: command_queue_queued=" not in queue_status_text.stdout or
                 "levels: info=" not in queue_status_text.stdout or
+                "first=" not in queue_status_text.stdout or
+                "latest=" not in queue_status_text.stdout or
                 "tls=yes" not in queue_status_text.stdout or
                 "tls=no" not in queue_status_text.stdout):
             print("text --status missing command queue/event sections", file=sys.stderr)

@@ -331,14 +331,14 @@ metadata separately. The `events` array is a bounded recent tail;
 `events_by_service`, `events_by_event`, `events_by_level`, and
 `events_by_remote` group those tail records for direct frontend lookups.
 `event_log_stats` reports the event log path, total valid event count, tail
-count, invalid JSONL line count, tail limit, and aggregate counters by service,
-event, level, and remote endpoint so API consumers can tell whether there is
-more history to page or inspect from disk while still rendering compact
-diagnostics.
+count, invalid JSONL line count, tail limit, first/latest event timestamps, and
+aggregate counters by service, event, level, and remote endpoint so API
+consumers can tell whether there is more history to page or inspect from disk
+while still rendering compact diagnostics.
 Those aggregate maps are also mirrored into `summary` as
 `event_service_counts`, `event_type_counts`, `event_level_counts`, and
-`event_remote_counts` for dashboard clients that only need compact status
-counters.
+`event_remote_counts`; `first_event_at` and `latest_event_at` are mirrored for
+dashboard clients that only need compact status counters and event recency.
 
 Structured `warnings` use stable `type` values such as `service_error`,
 `stale_state`, `unexpected_listener`, `unmanaged_recorded_pid`,
