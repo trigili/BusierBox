@@ -25,6 +25,7 @@ Provider metadata should record buildroot, local-dropin, overlay, host-only, dis
 Implemented provider hooks:
 
 - `payloads/tool-compat.json` carries provider/classification metadata for the wishlist tools.
+- `tests/smoke/heavy-tool-triage.sh` rejects tool metadata entries that omit provider, classification, approximate size, static constraint, kernel floor, architecture, or libc fields.
 - `scripts/check-buildroot-tool-mappings` validates Buildroot symbols for supported target-payload tools and reports tools that require a target-compatible drop-in/user/overlay binary without failing non-strict checks.
 - `scripts/gen-buildroot-defconfig` emits Buildroot package symbols for supported wishlist payloads.
 - `scripts/menuconfig` exposes a clearly labeled dangerous storage/flash diagnostics category; none of those tools are selected by default presets.

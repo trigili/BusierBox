@@ -4,6 +4,33 @@ set -eu
 menu=${1:-scripts/menuconfig}
 
 python3 -m json.tool payloads/tool-compat.json >/dev/null
+python3 - payloads/tool-compat.json <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as fh:
+    tools = json.load(fh).get("tools") or {}
+
+required = {
+    "providers",
+    "classification",
+    "expected_payload_size",
+    "static_constraints",
+    "minimum_kernel_floor",
+    "supported_arches",
+    "unsupported_libcs",
+}
+missing = {}
+for name, meta in sorted(tools.items()):
+    absent = sorted(field for field in required if field not in meta)
+    if absent:
+        missing[name] = absent
+if missing:
+    for name, absent in missing.items():
+        print(f"{name}: missing {', '.join(absent)}", file=sys.stderr)
+    raise SystemExit("tool compatibility metadata is incomplete")
+PY
 
 grep -q 'configure_busybox_applet_search()' "$menu"
 grep -q 'Search applets by name/group/description' "$menu"

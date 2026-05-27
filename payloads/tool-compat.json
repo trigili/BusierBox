@@ -16,7 +16,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Buildroot package provider; stages .bashrc when bash dotfiles are enabled."
+      "notes": "Buildroot package provider; stages .bashrc when bash dotfiles are enabled.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "target payload shell",
+      "expected_payload_size": "medium",
+      "static_constraints": "Buildroot bash can be statically linked; size is larger than BusyBox ash."
     },
     "zsh": {
       "requires_devpts": false,
@@ -33,7 +41,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "May increase payload size and may need modules or terminfo depending on build options."
+      "notes": "May increase payload size and may need modules or terminfo depending on build options.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "target payload shell",
+      "expected_payload_size": "medium",
+      "static_constraints": "Buildroot zsh can be statically linked; modules and terminfo may increase payload size."
     },
     "tmux": {
       "requires_devpts": true,
@@ -50,7 +66,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Needs /dev/pts, usable ptys, and terminal capability data."
+      "notes": "Needs /dev/pts, usable ptys, and terminal capability data.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "interactive target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static tmux builds need ncurses/libevent support and usable ptys at runtime."
     },
     "strace": {
       "requires_devpts": false,
@@ -67,7 +91,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Requires ptrace support and architecture-specific syscall decoding."
+      "notes": "Requires ptrace support and architecture-specific syscall decoding.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "debug target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static strace builds are supported by Buildroot but still require ptrace policy support."
     },
     "gdbserver": {
       "providers": [
@@ -123,7 +155,10 @@
           "suggested_action": "Use provider=local-dropin with local/tools/<target>/bin/gdbserver, provider=user with a pre-built static binary, or provider=overlay with the binary under your overlay root/target/bin/."
         }
       ],
-      "notes": "Requires ptrace and enough target memory for debug sessions. On mipsel/mips+musl the full GDB BFD library fails to build; use STRICT_HEAVY_TOOLS=1 to treat this as a fatal error. Use BB_GDBSERVER_PROVIDER=local-dropin, user, or overlay to supply a pre-built binary."
+      "notes": "Requires ptrace and enough target memory for debug sessions. On mipsel/mips+musl the full GDB BFD library fails to build; use STRICT_HEAVY_TOOLS=1 to treat this as a fatal error. Use BB_GDBSERVER_PROVIDER=local-dropin, user, or overlay to supply a pre-built binary.",
+      "classification": "debug target payload",
+      "expected_payload_size": "large",
+      "static_constraints": "Buildroot gdbserver can be statically linked where GDB/BFD supports the tuple; local-dropin/user/overlay providers must match the target ABI."
     },
     "dropbear": {
       "requires_devpts": false,
@@ -140,7 +175,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Server mode needs writable storage for host keys and usable ptys for interactive sessions."
+      "notes": "Server mode needs writable storage for host keys and usable ptys for interactive sessions.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "reverse-access target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static Dropbear builds are supported by Buildroot; writable key storage and ptys may still be required."
     },
     "curl": {
       "requires_devpts": false,
@@ -157,7 +200,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "TLS-enabled builds can increase payload size and may need CA data."
+      "notes": "TLS-enabled builds can increase payload size and may need CA data.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "network diagnostic target payload",
+      "expected_payload_size": "large",
+      "static_constraints": "Static curl builds may be large because TLS and resolver dependencies are included."
     },
     "socat": {
       "requires_devpts": false,
@@ -174,7 +225,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Buildroot package provider; useful for relays, serial devices, and quick socket tests."
+      "notes": "Buildroot package provider; useful for relays, serial devices, and quick socket tests.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "network relay target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static socat builds are supported by Buildroot for common Linux targets."
     },
     "tcpdump": {
       "requires_devpts": false,
@@ -191,7 +250,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Requires packet capture permissions and usable network interfaces on target."
+      "notes": "Requires packet capture permissions and usable network interfaces on target.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "network diagnostic target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static tcpdump builds include packet capture dependencies and still need capture permissions."
     },
     "rsync": {
       "requires_devpts": false,
@@ -208,7 +275,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Buildroot package provider."
+      "notes": "Buildroot package provider.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "file transfer target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static rsync builds are supported by Buildroot for common Linux targets."
     },
     "mtr": {
       "requires_devpts": false,
@@ -225,7 +300,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "May require raw socket privileges for full diagnostics."
+      "notes": "May require raw socket privileges for full diagnostics.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "network diagnostic target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static mtr builds are possible but runtime usefulness depends on raw socket permissions."
     },
     "iperf3": {
       "requires_devpts": false,
@@ -242,7 +325,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Buildroot package provider."
+      "notes": "Buildroot package provider.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "network benchmark target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static iperf3 builds are supported by Buildroot for common Linux targets."
     },
     "ethtool": {
       "requires_devpts": false,
@@ -259,7 +350,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Requires kernel driver support for device-specific details."
+      "notes": "Requires kernel driver support for device-specific details.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "network diagnostic target payload",
+      "expected_payload_size": "small",
+      "static_constraints": "Static ethtool builds are supported by Buildroot; output depends on kernel driver support."
     },
     "iw": {
       "requires_devpts": false,
@@ -276,7 +375,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Requires cfg80211/nl80211 support and wireless hardware."
+      "notes": "Requires cfg80211/nl80211 support and wireless hardware.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "wireless diagnostic target payload",
+      "expected_payload_size": "small",
+      "static_constraints": "Static iw builds are supported by Buildroot but require nl80211/cfg80211 support."
     },
     "minicom": {
       "requires_devpts": false,
@@ -293,7 +400,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Needs a usable serial device and terminal settings."
+      "notes": "Needs a usable serial device and terminal settings.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "serial diagnostic target payload",
+      "expected_payload_size": "small",
+      "static_constraints": "Static minicom builds need terminal handling support and usable device nodes."
     },
     "mosh-client": {
       "requires_devpts": true,
@@ -310,7 +425,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Client-only staging from Buildroot mosh package; needs UDP connectivity to server."
+      "notes": "Client-only staging from Buildroot mosh package; needs UDP connectivity to server.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "interactive network target payload",
+      "expected_payload_size": "large",
+      "static_constraints": "Static mosh-client builds may be large due to protobuf/crypto dependencies."
     },
     "ripgrep": {
       "requires_devpts": false,
@@ -327,7 +450,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Buildroot Rust package; may increase host build requirements and build time."
+      "notes": "Buildroot Rust package; may increase host build requirements and build time.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "search helper target payload",
+      "expected_payload_size": "large",
+      "static_constraints": "Buildroot Rust static builds depend on host Rust support and can increase build time."
     },
     "jq": {
       "requires_devpts": false,
@@ -344,7 +475,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Buildroot package provider."
+      "notes": "Buildroot package provider.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "data inspection target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static jq builds are supported by Buildroot for common Linux targets."
     },
     "file": {
       "requires_devpts": false,
@@ -361,7 +500,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Buildroot package provider."
+      "notes": "Buildroot package provider.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "file inspection target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static file builds include magic database support and may increase payload size."
     },
     "htop": {
       "requires_devpts": true,
@@ -378,7 +525,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Interactive ncurses UI; needs terminal support."
+      "notes": "Interactive ncurses UI; needs terminal support.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "interactive process target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static htop builds require ncurses and procfs support."
     },
     "screen": {
       "requires_devpts": true,
@@ -395,7 +550,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Needs ptys and terminal capability data."
+      "notes": "Needs ptys and terminal capability data.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "interactive terminal target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Static screen builds need ptys and terminal capability data."
     },
     "ltrace": {
       "requires_devpts": false,
@@ -412,7 +575,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Requires ptrace support and architecture-specific ltrace support."
+      "notes": "Requires ptrace support and architecture-specific ltrace support.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "debug target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Buildroot ltrace is not available for all libc/static combinations; dynamic-only constraints may apply."
     },
     "readelf": {
       "requires_devpts": false,
@@ -429,7 +600,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Provided by Buildroot target binutils."
+      "notes": "Provided by Buildroot target binutils.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "binary inspection target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Provided by target binutils; static builds are larger than BusyBox-style helpers."
     },
     "objdump": {
       "requires_devpts": false,
@@ -446,7 +625,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Provided by Buildroot target binutils."
+      "notes": "Provided by Buildroot target binutils.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "binary inspection target payload",
+      "expected_payload_size": "medium",
+      "static_constraints": "Provided by target binutils; static builds are larger than BusyBox-style helpers."
     },
     "xxd": {
       "requires_devpts": false,
@@ -463,7 +650,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Provided by the BusyBox applet set when enabled."
+      "notes": "Provided by the BusyBox applet set when enabled.",
+      "providers": [
+        "busybox",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "binary inspection target payload",
+      "expected_payload_size": "small",
+      "static_constraints": "Provided by the BusyBox applet set when enabled; follows the payload static policy."
     },
     "usbutils": {
       "requires_devpts": false,
@@ -480,7 +675,15 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Stages lsusb; output depends on usbfs/sysfs availability."
+      "notes": "Stages lsusb; output depends on usbfs/sysfs availability.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "hardware diagnostic target payload",
+      "expected_payload_size": "small",
+      "static_constraints": "Static usbutils builds are supported by Buildroot; runtime output depends on usbfs/sysfs."
     },
     "pciutils": {
       "requires_devpts": false,
@@ -497,140 +700,380 @@
         "native"
       ],
       "unsupported_libcs": [],
-      "notes": "Stages lspci; many embedded targets do not expose PCI hardware."
+      "notes": "Stages lspci; many embedded targets do not expose PCI hardware.",
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
+      "classification": "hardware diagnostic target payload",
+      "expected_payload_size": "small",
+      "static_constraints": "Static pciutils builds are supported by Buildroot; many embedded targets expose no PCI bus."
     },
     "gdb": {
-      "providers": ["host-only", "local-dropin", "overlay"],
+      "providers": [
+        "host-only",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "host/operator-side by default",
       "expected_payload_size": "very-large",
       "static_constraints": "Target-side full gdb is heavy and may require Python/termcap support; prefer target gdbserver with operator-side gdb.",
-      "notes": "Do not include in default presets. Use local drop-in or overlay only when target-side gdb is explicitly validated."
+      "notes": "Do not include in default presets. Use local drop-in or overlay only when target-side gdb is explicitly validated.",
+      "minimum_kernel_floor": "target-dependent",
+      "supported_arches": [],
+      "unsupported_libcs": []
     },
     "gef-pwndbg": {
-      "providers": ["host-only"],
+      "providers": [
+        "host-only"
+      ],
       "classification": "operator-side companion",
       "expected_payload_size": "very-large",
       "static_constraints": "Requires operator-side gdb with Python plugin support.",
-      "notes": "Keep GEF/pwndbg-style helpers on the operator workstation unless a target-side Python gdb stack is explicitly selected."
+      "notes": "Keep GEF/pwndbg-style helpers on the operator workstation unless a target-side Python gdb stack is explicitly selected.",
+      "minimum_kernel_floor": "target-dependent",
+      "supported_arches": [],
+      "unsupported_libcs": []
     },
     "nmap": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "add as target payload",
       "expected_payload_size": "large",
       "static_constraints": "Buildroot package needs C++/threads/MMU.",
-      "notes": "Useful for local network diagnostics; not included in default presets."
+      "notes": "Useful for local network diagnostics; not included in default presets.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "nmap-ncat": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "add as target payload",
       "expected_payload_size": "medium",
       "static_constraints": "Uses the Buildroot nmap package ncat suboption.",
-      "notes": "Complements BusyBox nc/netcat when richer relay features are needed."
+      "notes": "Complements BusyBox nc/netcat when richer relay features are needed.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "psmisc": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "add as target payload",
       "expected_payload_size": "small",
       "static_constraints": "Buildroot package provides pstree/fuser/killall variants depending on configuration.",
-      "notes": "Partly overlaps BusyBox process applets; select only when pstree/fuser behavior is needed."
+      "notes": "Partly overlaps BusyBox process applets; select only when pstree/fuser behavior is needed.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "openssl": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "add as target payload",
       "expected_payload_size": "large",
       "static_constraints": "Static builds may be large; dynamic builds may need bundled shared libraries.",
-      "notes": "Useful as an operator diagnostic and TLS helper, but not required for builtin TLS."
+      "notes": "Useful as an operator diagnostic and TLS helper, but not required for builtin TLS.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "fd": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "add as target payload",
       "expected_payload_size": "medium",
       "static_constraints": "Rust package; static availability depends on active Buildroot/toolchain support.",
-      "notes": "Nice-to-have search helper; BusyBox find remains the default baseline."
+      "notes": "Nice-to-have search helper; BusyBox find remains the default baseline.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "zoxide": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "add as target payload",
       "expected_payload_size": "medium",
       "static_constraints": "Rust package; needs shell integration files to be useful interactively.",
-      "notes": "Shell convenience tool, not selected by default."
+      "notes": "Shell convenience tool, not selected by default.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "radare2": {
-      "providers": ["local-dropin", "overlay"],
+      "providers": [
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "local-dropin/overlay provider only",
       "expected_payload_size": "very-large",
       "static_constraints": "No Buildroot mapping in the checked tree.",
-      "notes": "Reverse-engineering suites are too large and variable for default payload generation."
+      "notes": "Reverse-engineering suites are too large and variable for default payload generation.",
+      "minimum_kernel_floor": "target-dependent",
+      "supported_arches": [],
+      "unsupported_libcs": []
     },
     "rizin": {
-      "providers": ["local-dropin", "overlay"],
+      "providers": [
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "local-dropin/overlay provider only",
       "expected_payload_size": "very-large",
       "static_constraints": "No Buildroot mapping in the checked tree.",
-      "notes": "Requires a target-compatible drop-in or overlay binary until a target tuple has a validated package path."
+      "notes": "Requires a target-compatible drop-in or overlay binary until a target tuple has a validated package path.",
+      "minimum_kernel_floor": "target-dependent",
+      "supported_arches": [],
+      "unsupported_libcs": []
     },
     "gcore": {
-      "providers": ["host-only", "local-dropin", "overlay"],
+      "providers": [
+        "host-only",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "dangerous/special handling",
       "expected_payload_size": "large",
       "static_constraints": "Usually part of a full gdb stack and requires ptrace/core dump policy support.",
-      "notes": "Prefer gdbserver and operator-side gdb for capture workflows."
+      "notes": "Prefer gdbserver and operator-side gdb for capture workflows.",
+      "minimum_kernel_floor": "target-dependent",
+      "supported_arches": [],
+      "unsupported_libcs": []
     },
     "tshark": {
-      "providers": ["local-dropin", "overlay"],
+      "providers": [
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "local-dropin/overlay provider only",
       "expected_payload_size": "very-large",
       "static_constraints": "Wireshark/tshark is too heavy for default static payloads in this tree.",
-      "notes": "Use tcpdump by default; stage tshark only as a validated provider binary."
+      "notes": "Use tcpdump by default; stage tshark only as a validated provider binary.",
+      "minimum_kernel_floor": "target-dependent",
+      "supported_arches": [],
+      "unsupported_libcs": []
     },
     "mtd-utils": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "dangerous/special handling",
       "expected_payload_size": "medium",
       "static_constraints": "Requires Linux MTD device support and root permissions for most operations.",
-      "notes": "Flash tools can irreversibly alter devices; keep behind explicit dangerous storage/flash selection."
+      "notes": "Flash tools can irreversibly alter devices; keep behind explicit dangerous storage/flash selection.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "ubi-utils": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "dangerous/special handling",
       "expected_payload_size": "medium",
       "static_constraints": "Requires UBI kernel support and root permissions for most operations.",
-      "notes": "Do not include in default/full-debug presets."
+      "notes": "Do not include in default/full-debug presets.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "i2c-tools": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "dangerous/special handling",
       "expected_payload_size": "small",
       "static_constraints": "Requires i2c-dev and device-node access.",
-      "notes": "Bus probing may affect hardware; select explicitly."
+      "notes": "Bus probing may affect hardware; select explicitly.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "spi-tools": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "dangerous/special handling",
       "expected_payload_size": "small",
       "static_constraints": "Requires spidev and device-node access.",
-      "notes": "Select only for hardware diagnostics."
+      "notes": "Select only for hardware diagnostics.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "mmc-utils": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "dangerous/special handling",
       "expected_payload_size": "small",
       "static_constraints": "Requires MMC block device access; dangerous commands are not enabled by default.",
-      "notes": "Keep destructive MMC commands out unless explicitly needed."
+      "notes": "Keep destructive MMC commands out unless explicitly needed.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "e2fsprogs": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "dangerous/special handling",
       "expected_payload_size": "medium",
       "static_constraints": "Static builds may be larger; some tools need block device write access.",
-      "notes": "Includes filesystem inspection and repair tools such as debugfs/tune2fs/e2fsck depending on package options."
+      "notes": "Includes filesystem inspection and repair tools such as debugfs/tune2fs/e2fsck depending on package options.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "parted": {
-      "providers": ["buildroot", "local-dropin", "overlay"],
+      "providers": [
+        "buildroot",
+        "local-dropin",
+        "overlay"
+      ],
       "classification": "dangerous/special handling",
       "expected_payload_size": "medium",
       "static_constraints": "Requires block device access and libparted dependencies.",
-      "notes": "Partition editors are explicitly dangerous and should never be default-selected."
+      "notes": "Partition editors are explicitly dangerous and should never be default-selected.",
+      "minimum_kernel_floor": "2.6",
+      "supported_arches": [
+        "mipsel",
+        "mips",
+        "armv7",
+        "aarch64",
+        "x86_64",
+        "i386",
+        "native"
+      ],
+      "unsupported_libcs": []
     },
     "doom": {
       "providers": [
