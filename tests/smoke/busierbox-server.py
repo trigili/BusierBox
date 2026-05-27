@@ -1606,6 +1606,11 @@ def main():
             print("server json status missing upload browser lookup maps", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+        if (upload_summary.get("upload_remote_counts", {}).get(upload_remote) != 1 or
+                upload_summary.get("session_remote_counts", {}).get(upload_remote) != 1):
+            print("server json status missing upload/session remote summary counts", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         upload_session = (upload_doc.get("sessions") or [{}])[0]
         if (upload_session.get("upload_count") != 1 or
                 upload_session.get("event_count", 0) < 1 or
@@ -2070,6 +2075,10 @@ def main():
                 not fetch_remote or
                 fetches_by_remote.get(fetch_remote, [{}])[0].get("request_name") != "/tmp/myfile"):
             print("server json status missing fetch browser lookup maps", file=sys.stderr)
+            print(fetch_status.stdout, file=sys.stderr)
+            return 1
+        if fetch_summary.get("fetch_remote_counts", {}).get(fetch_remote) != 1:
+            print("server json status missing fetch remote summary counts", file=sys.stderr)
             print(fetch_status.stdout, file=sys.stderr)
             return 1
         fetch_status_text = run(

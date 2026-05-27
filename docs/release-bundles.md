@@ -295,7 +295,8 @@ session browser records are exposed as `sessions`, `sessions_by_id`,
 `sessions_by_exit_reason`, and `sessions_by_remote`; aggregate counts remain in
 `summary`, including
 `upload_status_counts`, `fetch_status_counts`, `fetch_http_status_counts`,
-`session_service_counts`, and `session_state_counts` for compact dashboards.
+`upload_remote_counts`, `fetch_remote_counts`, `session_service_counts`,
+`session_state_counts`, and `session_remote_counts` for compact dashboards.
 When running inside a release bundle, `release` includes artifact, device, and
 tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `artifacts_by_sha256`, `artifacts_by_payload_preset`, `artifacts_by_tool`,
