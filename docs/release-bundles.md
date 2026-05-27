@@ -346,9 +346,11 @@ Structured `warnings` use stable `type` values such as `service_error`,
 `invalid_event_log`, and `invalid_command_queue_policy`. `warning_stats`
 summarizes warnings by type and service, while `warnings_by_type` and
 `warnings_by_service` provide full warning records grouped for direct frontend
-lookups. Summary fields include
-`command_queue_policy_valid` and `command_queue_policy_error_count` so clients
-can distinguish a disabled queue from an invalid policy. Service-related
+lookups. The same compact warning counters are mirrored into `summary` as
+`warning_count`, `warning_type_counts`, and `warning_service_counts`; summary
+fields also include `command_queue_policy_valid` and
+`command_queue_policy_error_count` so clients can distinguish a disabled queue
+from an invalid policy. Service-related
 warnings include the configured and actual states, port, PID, PID ownership evidence,
 listener PIDs, possible bind owners, error text, and process/session log paths
 when those fields are available. This lets a TUI, future web UI, or

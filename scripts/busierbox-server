@@ -3288,6 +3288,7 @@ def status_document(cfg):
             "suggested_action": "fix command queue config or leave it fully disabled",
         })
     warnings_by_type, warnings_by_service = warning_record_indexes(warnings)
+    warning_summary = warning_stats(warnings)
     summary.update({
         "path_status_count": path_summary.get("path_status_count", 0),
         "path_missing_count": path_summary.get("path_missing_count", 0),
@@ -3299,6 +3300,9 @@ def status_document(cfg):
         "staged_source_missing_count": staged_summary.get("source_missing_count", 0),
         "service_actual_counts": record_count_by_key(services, "actual"),
         "service_configured_counts": record_count_by_key(services, "configured"),
+        "warning_count": warning_summary.get("total_count", 0),
+        "warning_type_counts": warning_summary.get("by_type") or {},
+        "warning_service_counts": warning_summary.get("by_service") or {},
         "upload_count": len(uploads),
         "upload_total_size": record_sum_by_key(uploads, "size"),
         "upload_status_counts": record_count_by_key(uploads, "status"),
@@ -3369,7 +3373,7 @@ def status_document(cfg):
         "warnings": warnings,
         "warnings_by_type": warnings_by_type,
         "warnings_by_service": warnings_by_service,
-        "warning_stats": warning_stats(warnings),
+        "warning_stats": warning_summary,
         "local_ips": ips,
         "selected_local_ip": (ips or ["OPERATOR_IP"])[0],
         "target_commands": [rec["command"] for rec in target_command_records],

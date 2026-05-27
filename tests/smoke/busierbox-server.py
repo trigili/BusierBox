@@ -1108,9 +1108,13 @@ def main():
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
         bind_warning_stats = bind_fail_doc.get("warning_stats") or {}
+        bind_summary = bind_fail_doc.get("summary") or {}
         if (bind_warning_stats.get("total_count", 0) < 1 or
                 bind_warning_stats.get("by_type", {}).get("service_error", 0) < 1 or
-                bind_warning_stats.get("by_service", {}).get("file-service", 0) < 1):
+                bind_warning_stats.get("by_service", {}).get("file-service", 0) < 1 or
+                bind_summary.get("warning_count", 0) < 1 or
+                bind_summary.get("warning_type_counts", {}).get("service_error", 0) < 1 or
+                bind_summary.get("warning_service_counts", {}).get("file-service", 0) < 1):
             print("bind failure status missing warning aggregate stats", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
