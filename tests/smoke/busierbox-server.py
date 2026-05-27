@@ -659,8 +659,10 @@ def main():
             return 1
         path_status = queue_status_json.get("path_status") or {}
         state_path_status = path_status.get("state_file") or {}
+        staged_path_status = path_status.get("staged_files") or {}
         session_path_status = path_status.get("session_root") or {}
         server_state = queue_status_json.get("server_state") or {}
+        staged_files_state = queue_status_json.get("staged_files_state") or {}
         if (set(paths) - set(path_status) or
                 state_path_status.get("path") != queue_status_json.get("state_file") or
                 state_path_status.get("expected_kind") != "file" or
@@ -670,6 +672,14 @@ def main():
                 queue_status_json["summary"].get("path_status_count") != len(paths) or
                 queue_status_json["summary"].get("path_parent_missing_count") != 0):
             print("server json status missing operator path health records", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        if (staged_files_state.get("path") != queue_status_json.get("staged_files") or
+                staged_files_state.get("exists") != staged_path_status.get("exists") or
+                queue_status_json["summary"].get("staged_files_exists") != bool(staged_files_state.get("exists")) or
+                queue_status_json["summary"].get("staged_files_valid") != bool(staged_files_state.get("valid")) or
+                not isinstance(staged_files_state.get("request_names"), list)):
+            print("server json status missing reusable staged-files state record", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         if (server_state.get("path") != queue_status_json.get("state_file") or
@@ -2283,6 +2293,7 @@ def main():
         staged_by_request = status_doc.get("staged_by_request") or {}
         staged_by_sha256 = status_doc.get("staged_by_sha256") or {}
         staged_by_source_path = status_doc.get("staged_by_source_path") or {}
+        staged_files_state = status_doc.get("staged_files_state") or {}
         staged_sha = staged_record.get("sha256", "")
         staged_summary = status_doc.get("summary") or {}
         if (not staged_status or
@@ -2309,6 +2320,14 @@ def main():
                 "selected_local_ip" not in status_doc or
                 not isinstance(status_doc.get("events"), list)):
             print("json status missing enriched workbench fields", file=sys.stderr)
+            print(status_enriched.stdout, file=sys.stderr)
+            return 1
+        if (staged_files_state.get("valid") is not True or
+                staged_files_state.get("staged_count", 0) < 1 or
+                "/tmp/myfile" not in staged_files_state.get("request_names", []) or
+                staged_summary.get("staged_files_valid") is not True or
+                staged_summary.get("staged_files_state_count", 0) < 1):
+            print("json status missing staged-files ledger state", file=sys.stderr)
             print(status_enriched.stdout, file=sys.stderr)
             return 1
         unstage = run(

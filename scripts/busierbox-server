@@ -394,6 +394,41 @@ def load_staged(cfg):
     return data
 
 
+def staged_files_state_record(cfg):
+    path = staged_file_path(cfg)
+    rec = {
+        "path": str(path),
+        "exists": False,
+        "valid": False,
+        "schema": None,
+        "staged_count": 0,
+        "request_names": [],
+        "error": "",
+    }
+    try:
+        rec["exists"] = path.exists()
+        if not rec["exists"]:
+            return rec
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            rec["error"] = "staged-files JSON is not an object"
+            return rec
+        staged = data.get("staged")
+        if not isinstance(staged, dict):
+            rec["error"] = "staged-files JSON staged field is not an object"
+            return rec
+        request_names = sorted(str(name) for name in staged if str(name))
+        rec.update({
+            "valid": True,
+            "schema": data.get("schema"),
+            "staged_count": len(request_names),
+            "request_names": request_names,
+        })
+    except (OSError, json.JSONDecodeError) as exc:
+        rec["error"] = str(exc)
+    return rec
+
+
 def server_state_record(cfg):
     path = state_file_path(cfg)
     rec = {
@@ -3448,6 +3483,7 @@ def status_document(cfg):
         "tls_key": str(cfg.get("tls_key", "")),
     }
     server_state = server_state_record(cfg)
+    staged_files_state = staged_files_state_record(cfg)
     path_status = status_path_records(paths)
     path_summary = status_path_summary(path_status)
     services_by_name = {
@@ -3499,6 +3535,9 @@ def status_document(cfg):
         "server_state_valid": bool(server_state.get("valid", False)),
         "server_state_service_count": server_state.get("service_count", 0),
         "server_state_session_count": server_state.get("session_count", 0),
+        "staged_files_exists": bool(staged_files_state.get("exists", False)),
+        "staged_files_valid": bool(staged_files_state.get("valid", False)),
+        "staged_files_state_count": staged_files_state.get("staged_count", 0),
         "staged_count": len(staged),
         "staged_total_size": staged_summary.get("total_size", 0),
         "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
@@ -3595,6 +3634,7 @@ def status_document(cfg):
         "paths": paths,
         "path_status": path_status,
         "server_state": server_state,
+        "staged_files_state": staged_files_state,
         "services": services,
         "services_by_name": services_by_name,
         "services_by_actual": services_by_actual,
