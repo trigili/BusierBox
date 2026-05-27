@@ -50,6 +50,8 @@ required = [
     ("zero_arg", "mode"),
     ("rshell", "transport"),
     ("rshell", "session_policy"),
+    ("rshell", "session_policy_valid"),
+    ("rshell", "session_policy_errors"),
     ("rshell", "operator_host"),
     ("rshell", "operator_shell_port"),
     ("rshell", "operator_ssh_port"),
@@ -130,6 +132,7 @@ checks = [
     (manifest["zero_arg"]["mode"], config.get("zero_arg_mode"), "zero_arg_mode"),
     (manifest["rshell"]["transport"], config.get("rshell_transport"), "rshell_transport"),
     (manifest["rshell"]["session_policy"], config.get("rshell_session_policy"), "rshell_session_policy"),
+    (manifest["rshell"]["session_policy_valid"], True, "rshell_session_policy_valid"),
     (manifest["rshell"]["operator_shell_port"], config.get("rshell_socat_port"), "rshell_socat_port"),
     (manifest["rshell"]["remote_forward_port"], config.get("operator_reverse_ssh_catch_hint", "").split()[2] if config.get("operator_reverse_ssh_catch_hint") else None, "remote_forward_port"),
 ]
@@ -162,6 +165,23 @@ for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec"
         raise SystemExit(f"manifest-metadata: missing rshell.retry.{key}")
 
 print("manifest-metadata ok")
+PY
+
+mkdir -p "$tmp"
+BB_RSHELL_SESSION_POLICY=bogus "$bb_abs" manifest --json >"$tmp/manifest-invalid-policy.json"
+python3 -m json.tool "$tmp/manifest-invalid-policy.json" >/dev/null
+python3 - "$tmp/manifest-invalid-policy.json" <<'PY'
+import json
+import sys
+
+manifest = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+rshell = manifest.get("rshell") or {}
+if rshell.get("session_policy") != "bogus":
+    raise SystemExit("manifest invalid policy did not preserve effective value")
+if rshell.get("session_policy_valid") is not False:
+    raise SystemExit("manifest invalid policy should report session_policy_valid=false")
+if "unsupported rshell session policy" not in rshell.get("session_policy_errors", []):
+    raise SystemExit("manifest invalid policy error missing")
 PY
 
 rm -rf "$tmp"

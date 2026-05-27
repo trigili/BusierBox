@@ -18,6 +18,13 @@
 #define PATH_MAX 4096
 #endif
 
+static int rshell_session_policy_valid(const char *policy)
+{
+    return !strcmp(policy, "single") ||
+           !strcmp(policy, "reconnect") ||
+           !strcmp(policy, "persistent");
+}
+
 #ifndef BUSIERBOX_PAYLOAD_VERSION
 #define BUSIERBOX_PAYLOAD_VERSION "dev"
 #endif
@@ -284,6 +291,11 @@ static void write_manifest_json(FILE *out, int include_missing)
     json_string_payload(out, BB_RSHELL_RUN_MODE);
     fprintf(out, ",\"session_policy\":");
     json_string_payload(out, BB_RSHELL_SESSION_POLICY);
+    fprintf(out, ",\"session_policy_valid\":%s", rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+    fprintf(out, ",\"session_policy_errors\":[");
+    if (!rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY))
+        json_string_payload(out, "unsupported rshell session policy");
+    fprintf(out, "]");
     fprintf(out, ",\"shell_provider\":");
     json_string_payload(out, BB_RSHELL_SHELL_PROVIDER);
     fprintf(out, ",\"operator_host\":");
@@ -655,6 +667,9 @@ int applet_manifest_main(int argc, char **argv)
     printf("rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
     printf("rshell_encryption=%s\n", BB_RSHELL_ENCRYPTION);
     printf("rshell_session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
+    printf("rshell_session_policy_valid=%s\n", rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
+    if (!rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY))
+        puts("rshell_session_policy_error=unsupported rshell session policy");
     printf("command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
     printf("command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);

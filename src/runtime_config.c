@@ -560,6 +560,13 @@ static void rshell_connect_hint(char *out, size_t outsz)
         snprintf(out, outsz, "shell stream is attached by scripts/busierbox-server");
 }
 
+static int rshell_session_policy_valid(const char *policy)
+{
+    return !strcmp(policy, "single") ||
+           !strcmp(policy, "reconnect") ||
+           !strcmp(policy, "persistent");
+}
+
 void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *, const char *))
 {
     const char *transport = bb_config_get("BB_RSHELL_TRANSPORT");
@@ -589,6 +596,11 @@ void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *
     json_string(out, run_mode);
     fprintf(out, ",\"session_policy\":");
     json_string(out, session_policy);
+    fprintf(out, ",\"session_policy_valid\":%s", rshell_session_policy_valid(session_policy) ? "true" : "false");
+    fprintf(out, ",\"session_policy_errors\":[");
+    if (!rshell_session_policy_valid(session_policy))
+        json_string(out, "unsupported rshell session policy");
+    fprintf(out, "]");
     fprintf(out, ",\"zero_arg_autorun\":%s", !strcmp(zero_arg_mode, "rshell") ? "true" : "false");
     fprintf(out, ",\"operator_host_set\":%s", operator_host[0] ? "true" : "false");
     fprintf(out, ",\"operator_host\":");
@@ -619,6 +631,11 @@ void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *
         if (warning_count++)
             fputc(',', out);
         json_string(out, "zero-arg execution will not start reverse access");
+    }
+    if (!rshell_session_policy_valid(session_policy)) {
+        if (warning_count++)
+            fputc(',', out);
+        json_string(out, "unsupported rshell session policy");
     }
     if (strcmp(transport, "ssh") && !strcmp(encryption, "none")) {
         if (warning_count++)

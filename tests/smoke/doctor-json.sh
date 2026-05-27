@@ -46,11 +46,15 @@ for key in ["requested_payload_tools", "missing_payload_tools", "missing_payload
 for key in ["target_preset", "payload_preset", "runtime_mode", "zero_arg_mode"]:
     if key not in data["manifest_summary"]:
         raise SystemExit(f"doctor manifest summary missing {key}")
-for key in ["enabled", "transport", "operator_host_set", "server_listener", "connect_hint", "warnings"]:
+for key in ["enabled", "transport", "operator_host_set", "server_listener", "connect_hint", "warnings", "session_policy_valid", "session_policy_errors"]:
     if key not in data["rshell_readiness"]:
         raise SystemExit(f"doctor rshell readiness missing {key}")
 if not isinstance(data["rshell_readiness"]["warnings"], list):
     raise SystemExit("doctor rshell warnings must be a list")
+if data["rshell_readiness"]["session_policy_valid"] is not True:
+    raise SystemExit("doctor default rshell session policy should be valid")
+if data["rshell_readiness"]["session_policy_errors"] != []:
+    raise SystemExit("doctor default rshell session policy errors should be empty")
 if data["runtime_config"].get("effective_config_source") not in {"compiled", "trailer", "env", "cli"}:
     raise SystemExit("doctor runtime config source missing")
 if "trailer_override" not in data["runtime_config"]:
@@ -84,6 +88,22 @@ if not isinstance(host.get("default_route_present"), bool):
     raise SystemExit("doctor default route status must be boolean")
 if host.get("ptrace_probe") not in {"basic-ok", "denied", "unavailable", "unknown"}:
     raise SystemExit(f"doctor ptrace status unexpected: {host.get('ptrace_probe')!r}")
+PY
+
+BB_RSHELL_SESSION_POLICY=bogus "$bb" doctor --json >"$tmp/doctor-invalid-policy.json"
+python3 -m json.tool "$tmp/doctor-invalid-policy.json" >/dev/null
+python3 - "$tmp/doctor-invalid-policy.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+rshell = data.get("rshell_readiness") or {}
+if rshell.get("session_policy_valid") is not False:
+    raise SystemExit("doctor invalid rshell session policy should be invalid")
+if "unsupported rshell session policy" not in rshell.get("session_policy_errors", []):
+    raise SystemExit("doctor invalid rshell session policy error missing")
+if "unsupported rshell session policy" not in rshell.get("warnings", []):
+    raise SystemExit("doctor invalid rshell session policy warning missing")
 PY
 
 (
