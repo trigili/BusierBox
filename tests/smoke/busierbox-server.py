@@ -1649,11 +1649,13 @@ def main():
         uploads_by_source = upload_doc.get("uploads_by_source_path") or {}
         uploads_by_stored = upload_doc.get("uploads_by_stored_path") or {}
         uploads_by_remote = upload_doc.get("uploads_by_remote_addr") or {}
+        uploads_by_status = upload_doc.get("uploads_by_status") or {}
         upload_remote = upload_item.get("remote_addr", "")
         if (uploads_by_filename.get("evidence.txt", [{}])[0].get("metadata_path") != str(metadata_path) or
                 uploads_by_sha.get(metadata.get("sha256"), [{}])[0].get("filename") != "evidence.txt" or
                 uploads_by_source.get("/tmp/evidence.txt", [{}])[0].get("stored_path") != str(uploaded[0]) or
                 uploads_by_stored.get(str(uploaded[0]), {}).get("source_path") != "/tmp/evidence.txt" or
+                uploads_by_status.get("ok", [{}])[0].get("filename") != "evidence.txt" or
                 not upload_remote or
                 uploads_by_remote.get(upload_remote, [{}])[0].get("filename") != "evidence.txt"):
             print("server json status missing upload browser lookup maps", file=sys.stderr)
