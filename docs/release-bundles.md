@@ -296,10 +296,12 @@ session browser records are exposed as `sessions`, `sessions_by_id`,
 `sessions_by_service`, `sessions_by_state`, and
 `sessions_by_exit_reason`, and `sessions_by_remote`; aggregate counts remain in
 `summary`, including
-`upload_total_size`, `fetch_total_size`, `upload_status_counts`,
-`fetch_status_counts`, `fetch_http_status_counts`, `upload_remote_counts`,
-`fetch_remote_counts`, `session_service_counts`, `session_state_counts`, and
-`session_remote_counts` for compact dashboards.
+`upload_total_size`, `fetch_total_size`, `upload_stored_exists_count`,
+`upload_stored_missing_count`, `fetch_source_exists_count`,
+`fetch_source_missing_count`, `upload_status_counts`, `fetch_status_counts`,
+`fetch_http_status_counts`, `upload_remote_counts`, `fetch_remote_counts`,
+`session_service_counts`, `session_state_counts`, and `session_remote_counts`
+for compact dashboards.
 `latest_upload_at`, `latest_fetch_at`, and `latest_session_updated_at` expose
 recent activity timestamps without requiring clients to scan the full browser
 records.
