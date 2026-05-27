@@ -250,6 +250,16 @@ if env("STAGED_FETCH_COMMAND"):
         "executes_operator_supplied_commands": False,
     })
 
+command_record_summary = {
+    "operator_count": len(next_operator_records),
+    "target_count": len(next_target_records),
+    "target_network_count": sum(1 for item in next_target_records if item.get("network") is True),
+    "operator_listener_count": sum(1 for item in next_operator_records if item.get("starts_listener") is True),
+    "target_requires_explicit_action_count": sum(1 for item in next_target_records if item.get("requires_explicit_target_action") is True),
+    "target_executes_operator_supplied_commands_count": sum(1 for item in next_target_records if item.get("executes_operator_supplied_commands") is True),
+    "operator_executes_on_target_count": sum(1 for item in next_operator_records if item.get("executes_on_target") is True),
+}
+
 recommendation_summary = {}
 recommendation_path = env("RECOMMENDATION_JSON")
 if recommendation_path and os.path.exists(recommendation_path):
@@ -314,6 +324,7 @@ doc = {
     "next_target_commands": next_target,
     "next_operator_command_records": next_operator_records,
     "next_target_command_records": next_target_records,
+    "command_record_summary": command_record_summary,
     "safety_boundary": {
         "network_autorun": False,
         "target_must_run_fetch": bool(env("STAGED_FETCH_COMMAND")),

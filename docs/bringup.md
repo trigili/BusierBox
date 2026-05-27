@@ -133,9 +133,11 @@ selection, maximum compatibility threshold, compatibility label/reasons,
 generated trailer command, staged fetch command, next operator commands, and
 next target commands. The JSON also
 includes `next_operator_command_records` and `next_target_command_records`
-with side/effect metadata, plus a `safety_boundary` object that states that
-bringup does not enable network autorun, hidden control channels, command queue
-execution, or default remote command execution.
+with side/effect metadata, a `command_record_summary` with operator/target,
+networked target action, listener, and execution-safety counts, plus a
+`safety_boundary` object that states that bringup does not enable network
+autorun, hidden control channels, command queue execution, or default remote
+command execution.
 
 ## Safety Defaults
 
