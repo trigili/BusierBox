@@ -386,6 +386,10 @@ if compat.get("label") != "incompatible":
 reasons = "\n".join(compat.get("reasons") or [])
 if "arch mismatch" not in reasons or "/tmp noexec" not in reasons:
     raise SystemExit(f"survey compatibility reasons missing: {reasons}")
+if "storage low" not in reasons:
+    raise SystemExit(f"survey low-storage reason missing: {reasons}")
+if compat.get("facts", {}).get("low_storage_free_bytes") != 1048576:
+    raise SystemExit(f"survey low-storage fact missing: {compat.get('facts')!r}")
 PY
 cat >"$work/reality-unsafe.json" <<'JSON'
 {

@@ -777,6 +777,14 @@ def write_release_helpers(script_dir):
                     if isinstance(entry, dict) and entry.get("path") == "/tmp":
                         facts["tmp_noexec"] = boolish(entry.get("noexec"))
                         facts["tmp_writable"] = boolish(entry.get("writable"))
+                    if isinstance(entry, dict) and boolish(entry.get("writable")):
+                        try:
+                            free_bytes = int(entry.get("free_bytes"))
+                        except (TypeError, ValueError):
+                            free_bytes = -1
+                        if 0 <= free_bytes < 4 * 1024 * 1024:
+                            facts["low_storage"] = True
+                            facts["low_storage_free_bytes"] = free_bytes
             if boolish(recs.get("low_disk")):
                 facts["low_storage"] = True
             if boolish(recs.get("noexec_tmp")):
