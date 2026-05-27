@@ -116,6 +116,9 @@ assert {item["release_name"] for item in index["artifacts_by_sha"][sha]} == {"on
 assert len(index["artifacts_by_release"]["one"]) == 1
 tuple_rows = index["artifacts_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]
 assert len(tuple_rows) == 3
+assert index["artifacts_by_tool"]["tcpdump"][0]["release_name"] == "one"
+assert index["artifacts_by_payload_preset"]["ssh-operator"][0]["release_name"] == "two"
+assert index["artifacts_by_feature"]["reverse-ssh"][0]["release_name"] in {"one", "two", "three"}
 PY
 
 scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null
@@ -154,6 +157,9 @@ assert doc["index"]["deduplicated_artifact_count"] == 2
 assert doc["index"]["artifacts_by_sha_count"] == 2
 assert doc["index"]["artifacts_by_release_count"] == 3
 assert doc["index"]["artifacts_by_tuple_path_count"] == 1
+assert doc["index"]["artifacts_by_tool_count"] == 4
+assert doc["index"]["artifacts_by_payload_preset_count"] == 3
+assert doc["index"]["artifacts_by_feature_count"] >= 4
 assert doc["dedupe_count"] == 2
 assert {item["release_name"] for item in doc["dedupe_alternatives"]} == {"one", "two"}
 assert "newest release_mtime" in doc["selection_policy"]

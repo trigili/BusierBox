@@ -163,11 +163,16 @@ scripts/find-artifact --index local/release-repo-index.json --device glinet-mt13
 The repository index reuses each bundle's `release-index.json`, records the
 release name and directory for every artifact, deduplicates artifacts by sha256,
 and indexes tuple, device, tool, payload preset, feature, artifact sha256,
-release name, and tuple-path keys. You can search by canonical tuple path
-directly with `--tuple-path` when a survey or release manifest has already
-resolved the target compatibility tuple. It does not download or rebuild
-anything. `--recommendation-json` returns the selected artifact plus active
-filters, match count, index counts, and the selection policy. The policy used to prefer lower-risk compatibility labels also prefers newer release metadata. Use
+release name, and tuple-path keys. The index preserves compatibility path maps
+such as `tools_present`, `payload_presets`, and `features`, and also provides
+full artifact-record maps named `artifacts_by_tool`,
+`artifacts_by_payload_preset`, and `artifacts_by_feature` for TUI/web clients
+that need to render details without rescanning every artifact. You can search
+by canonical tuple path directly with `--tuple-path` when a survey or release
+manifest has already resolved the target compatibility tuple. It does not
+download or rebuild anything. `--recommendation-json` returns the selected
+artifact plus active filters, match count, index counts, and the selection
+policy. The policy used to prefer lower-risk compatibility labels also prefers newer release metadata. Use
 `--max-compatibility exact|likely|heuristic|unsafe|incompatible`
 to reject artifacts above an operator-selected risk threshold instead of only
 sorting them lower. Plain text output also prints `compatibility_reason=` lines so an
