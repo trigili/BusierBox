@@ -295,7 +295,10 @@ state, and port in `services_by_name`, `services_by_actual`,
 `services_by_configured`, `services_by_port`, `services_by_pid`, and
 `services_by_listener_pid` for frontend clients that need direct lookup without
 reconstructing their own maps. Listener ports are exposed as `ports`,
-`ports_by_number`, `ports_by_service`, and `ports_by_actual`. `summary` also
+`ports_by_number`, `ports_by_service`, and `ports_by_actual`. Service and port
+records carry `warning_count` and `warning_types` fields, so service panes can
+badge bind errors, stale state, and PID ownership warnings without joining the
+warning maps first. `summary` also
 includes `service_actual_counts`, `service_configured_counts`, `port_count`,
 and `port_actual_counts` for compact service and port dashboards.
 The same document includes `generated_at` and a `paths` object for stable

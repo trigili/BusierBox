@@ -1296,6 +1296,48 @@ def annotate_path_records_with_warnings(path_status, browser_paths, warnings_by_
         rec["warning_types"] = sorted({str(item.get("type") or "") for item in warnings if item.get("type")})
 
 
+def annotate_service_port_records_with_warnings(services, ports, warnings_by_service, warnings_by_port, warnings_by_pid, warnings_by_listener_pid):
+    def collect_warning_records(rec, service_key="name"):
+        seen = set()
+        out = []
+
+        def add(items):
+            for item in items or []:
+                ident = id(item)
+                if ident in seen:
+                    continue
+                seen.add(ident)
+                out.append(item)
+
+        service = str(rec.get(service_key) or "")
+        port = rec.get("port")
+        pid = str(rec.get("pid") or "")
+        if service:
+            add((warnings_by_service or {}).get(service))
+        if port not in (None, "", 0):
+            add((warnings_by_port or {}).get(str(port)))
+        if pid:
+            add((warnings_by_pid or {}).get(pid))
+        for listener_pid in rec.get("listener_pids") or []:
+            listener_pid = str(listener_pid or "")
+            if listener_pid:
+                add((warnings_by_listener_pid or {}).get(listener_pid))
+        return out
+
+    for rec in services or []:
+        if not isinstance(rec, dict):
+            continue
+        warnings = collect_warning_records(rec, service_key="name")
+        rec["warning_count"] = len(warnings)
+        rec["warning_types"] = sorted({str(item.get("type") or "") for item in warnings if item.get("type")})
+    for rec in ports or []:
+        if not isinstance(rec, dict):
+            continue
+        warnings = collect_warning_records(rec, service_key="service")
+        rec["warning_count"] = len(warnings)
+        rec["warning_types"] = sorted({str(item.get("type") or "") for item in warnings if item.get("type")})
+
+
 def load_command_queue(cfg):
     data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
     if not isinstance(data, dict):
@@ -4176,6 +4218,19 @@ def status_document(cfg):
      warnings_by_path,
      warnings_by_type_path) = warning_record_indexes(warnings)
     annotate_path_records_with_warnings(path_status, browser_paths, warnings_by_path)
+    annotate_service_port_records_with_warnings(
+        services,
+        ports,
+        warnings_by_service,
+        warnings_by_port,
+        warnings_by_pid,
+        warnings_by_listener_pid,
+    )
+    for row in services:
+        mapped = services_by_name.get(row.get("name", ""))
+        if mapped is not None:
+            mapped["warning_count"] = row.get("warning_count", 0)
+            mapped["warning_types"] = row.get("warning_types", [])
     warning_summary = warning_stats(warnings)
     command_queue_policy_summary = command_queue.get("policy_summary") or {}
     command_queue_mode_summary = command_queue.get("mode_summary") or {}

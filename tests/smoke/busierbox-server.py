@@ -917,7 +917,7 @@ def main():
         service_rows = {row.get("name"): row for row in queue_status_json.get("services") or []}
         for name, row in service_rows.items():
             mapped = services_by_name.get(name) or {}
-            for key in ("port", "tls", "configured", "actual", "pid", "pid_alive", "pid_managed", "listener_pids", "stale", "error"):
+            for key in ("port", "tls", "configured", "actual", "pid", "pid_alive", "pid_managed", "listener_pids", "stale", "error", "warning_count", "warning_types"):
                 if mapped.get(key) != row.get(key):
                     print(f"server json status services_by_name drift for {name}:{key}", file=sys.stderr)
                     print(queue_status_doc.stdout, file=sys.stderr)
@@ -1416,11 +1416,18 @@ def main():
             item for item in bind_fail_doc.get("warnings", [])
             if item.get("type") == "service_error" and item.get("service") == "file-service"
         ]
+        bind_fail_service = (bind_fail_doc.get("services_by_name") or {}).get("file-service") or {}
+        bind_fail_port_rows = (bind_fail_doc.get("ports_by_number") or {}).get(str(bind_fail_port)) or []
+        bind_fail_port_row = next((row for row in bind_fail_port_rows if row.get("service") == "file-service"), {})
         if (not bind_fail_warnings or
                 not bind_fail_warnings[-1].get("error") or
                 bind_fail_warnings[-1].get("bind_address") != "127.0.0.1" or
                 bind_fail_warnings[-1].get("port") != bind_fail_port or
-                not bind_fail_warnings[-1].get("owners")):
+                not bind_fail_warnings[-1].get("owners") or
+                bind_fail_service.get("warning_count") != 1 or
+                "service_error" not in bind_fail_service.get("warning_types", []) or
+                bind_fail_port_row.get("warning_count") != 1 or
+                "service_error" not in bind_fail_port_row.get("warning_types", [])):
             print("bind failure status warning missing bind/error/owner context", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
