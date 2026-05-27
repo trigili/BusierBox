@@ -2101,6 +2101,7 @@ def main():
                     "payload_preset": "default",
                     "sha256": "abc123",
                     "tools": ["sh"],
+                    "features": ["reverse-ssh", "default", "sh", "reverse-ssh"],
                     "tool_provider_status": {"gdbserver": {"schema": 1, "overall": "found", "search_paths": []}},
                     "doom_wads": [
                         {
@@ -2174,6 +2175,7 @@ def main():
         release_artifacts_by_compat = rel.get("artifacts_by_compatibility") or {}
         release_artifacts_by_source = rel.get("artifacts_by_source") or {}
         release_artifacts_by_tool = rel.get("artifacts_by_tool") or {}
+        release_artifacts_by_feature = rel.get("artifacts_by_feature") or {}
         release_artifacts_by_provider_tool = rel.get("artifacts_by_provider_tool") or {}
         release_artifacts_by_provider_status = rel.get("artifacts_by_provider_status") or {}
         release_artifacts_by_doom_wad_filename = rel.get("artifacts_by_doom_wad_filename") or {}
@@ -2189,6 +2191,7 @@ def main():
                 release_artifacts_by_compat.get("exact", [{}])[0].get("payload_preset") != "default" or
                 release_artifacts_by_source.get("release-index", [{}])[0].get("release_path") != "bin/busierbox-test" or
                 release_artifacts_by_tool.get("sh", [{}])[0].get("payload_preset") != "default" or
+                release_artifacts_by_feature.get("reverse-ssh", [{}])[0].get("release_path") != "bin/busierbox-test" or
                 release_artifacts_by_provider_tool.get("gdbserver", [{}])[0].get("payload_preset") != "default" or
                 release_artifacts_by_provider_status.get("gdbserver:found", [{}])[0].get("name") != "busierbox-test" or
                 release_artifact_map.get("bin/busierbox-test", {}).get("doom_wads", [{}])[0].get("filename") != "doom.wad" or
@@ -2199,6 +2202,7 @@ def main():
                 rel.get("artifact_stats", {}).get("by_payload_preset", {}).get("default") != 1 or
                 rel.get("artifact_stats", {}).get("by_source", {}).get("release-index") != 1 or
                 rel.get("artifact_stats", {}).get("by_tool", {}).get("sh") != 1 or
+                rel.get("artifact_stats", {}).get("by_feature", {}).get("reverse-ssh") != 1 or
                 rel.get("artifact_stats", {}).get("by_provider_tool", {}).get("gdbserver") != 1 or
                 rel.get("artifact_stats", {}).get("by_provider_status", {}).get("gdbserver:found") != 1 or
                 rel.get("artifact_stats", {}).get("by_doom_wad_filename", {}).get("doom.wad") != 1 or
@@ -2252,6 +2256,7 @@ def main():
                 release_summary.get("release_artifact_payload_preset_counts", {}).get("default") != 1 or
                 release_summary.get("release_artifact_source_counts", {}).get("release-index") != 1 or
                 release_summary.get("release_artifact_tool_counts", {}).get("sh") != 1 or
+                release_summary.get("release_artifact_feature_counts", {}).get("reverse-ssh") != 1 or
                 release_summary.get("release_artifact_provider_tool_counts", {}).get("gdbserver") != 1 or
                 release_summary.get("release_artifact_provider_status_counts", {}).get("gdbserver:found") != 1 or
                 release_summary.get("release_artifact_doom_wad_filename_counts", {}).get("doom.wad") != 1 or
