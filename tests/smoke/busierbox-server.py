@@ -1595,10 +1595,14 @@ def main():
         uploads_by_sha = upload_doc.get("uploads_by_sha256") or {}
         uploads_by_source = upload_doc.get("uploads_by_source_path") or {}
         uploads_by_stored = upload_doc.get("uploads_by_stored_path") or {}
+        uploads_by_remote = upload_doc.get("uploads_by_remote_addr") or {}
+        upload_remote = upload_item.get("remote_addr", "")
         if (uploads_by_filename.get("evidence.txt", [{}])[0].get("metadata_path") != str(metadata_path) or
                 uploads_by_sha.get(metadata.get("sha256"), [{}])[0].get("filename") != "evidence.txt" or
                 uploads_by_source.get("/tmp/evidence.txt", [{}])[0].get("stored_path") != str(uploaded[0]) or
-                uploads_by_stored.get(str(uploaded[0]), {}).get("source_path") != "/tmp/evidence.txt"):
+                uploads_by_stored.get(str(uploaded[0]), {}).get("source_path") != "/tmp/evidence.txt" or
+                not upload_remote or
+                uploads_by_remote.get(upload_remote, [{}])[0].get("filename") != "evidence.txt"):
             print("server json status missing upload browser lookup maps", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
@@ -2047,13 +2051,17 @@ def main():
         fetches_by_source = fetch_status_doc.get("fetches_by_source_path") or {}
         fetches_by_status = fetch_status_doc.get("fetches_by_status") or {}
         fetches_by_http_status = fetch_status_doc.get("fetches_by_http_status") or {}
+        fetches_by_remote = fetch_status_doc.get("fetches_by_remote_addr") or {}
         fetch_sha = fetch_items[0].get("sha256", "")
+        fetch_remote = fetch_items[0].get("remote_addr", "")
         if (fetches_by_request.get("/tmp/myfile", [{}])[0].get("status") != "served" or
                 not fetch_sha or
                 fetches_by_sha.get(fetch_sha, [{}])[0].get("request_name") != "/tmp/myfile" or
                 fetches_by_source.get(str(staged_source), [{}])[0].get("http_status") != 200 or
                 fetches_by_status.get("served", [{}])[0].get("source_path") != str(staged_source) or
-                fetches_by_http_status.get("200", [{}])[0].get("request_name") != "/tmp/myfile"):
+                fetches_by_http_status.get("200", [{}])[0].get("request_name") != "/tmp/myfile" or
+                not fetch_remote or
+                fetches_by_remote.get(fetch_remote, [{}])[0].get("request_name") != "/tmp/myfile"):
             print("server json status missing fetch browser lookup maps", file=sys.stderr)
             print(fetch_status.stdout, file=sys.stderr)
             return 1

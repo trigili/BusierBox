@@ -558,6 +558,7 @@ def upload_record_indexes(records):
     by_sha256 = {}
     by_source_path = {}
     by_stored_path = {}
+    by_remote_addr = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -565,6 +566,7 @@ def upload_record_indexes(records):
         sha256 = str(rec.get("sha256") or "")
         source_path = str(rec.get("source_path") or "")
         stored_path = str(rec.get("stored_path") or "")
+        remote_addr = str(rec.get("remote_addr") or "")
         if filename:
             by_filename.setdefault(filename, []).append(rec)
         if sha256:
@@ -573,7 +575,9 @@ def upload_record_indexes(records):
             by_source_path.setdefault(source_path, []).append(rec)
         if stored_path:
             by_stored_path[stored_path] = rec
-    return by_filename, by_sha256, by_source_path, by_stored_path
+        if remote_addr:
+            by_remote_addr.setdefault(remote_addr, []).append(rec)
+    return by_filename, by_sha256, by_source_path, by_stored_path, by_remote_addr
 
 
 def fetch_record_indexes(records):
@@ -582,6 +586,7 @@ def fetch_record_indexes(records):
     by_source_path = {}
     by_status = {}
     by_http_status = {}
+    by_remote_addr = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -590,6 +595,7 @@ def fetch_record_indexes(records):
         source_path = str(rec.get("source_path") or "")
         status = str(rec.get("status") or "")
         http_status = rec.get("http_status")
+        remote_addr = str(rec.get("remote_addr") or "")
         if request_name:
             by_request.setdefault(request_name, []).append(rec)
         if sha256:
@@ -600,7 +606,9 @@ def fetch_record_indexes(records):
             by_status.setdefault(status, []).append(rec)
         if http_status not in (None, ""):
             by_http_status.setdefault(str(http_status), []).append(rec)
-    return by_request, by_sha256, by_source_path, by_status, by_http_status
+        if remote_addr:
+            by_remote_addr.setdefault(remote_addr, []).append(rec)
+    return by_request, by_sha256, by_source_path, by_status, by_http_status, by_remote_addr
 
 
 def session_record_indexes(records):
@@ -3168,8 +3176,8 @@ def status_document(cfg):
     target_command_records = generated_target_command_records(cfg, staged_raw)
     target_commands_by_service, target_commands_by_request = target_command_record_indexes(target_command_records)
     target_command_summary = target_command_record_summary(target_command_records)
-    uploads_by_filename, uploads_by_sha256, uploads_by_source_path, uploads_by_stored_path = upload_record_indexes(uploads)
-    fetches_by_request, fetches_by_sha256, fetches_by_source_path, fetches_by_status, fetches_by_http_status = fetch_record_indexes(fetches)
+    uploads_by_filename, uploads_by_sha256, uploads_by_source_path, uploads_by_stored_path, uploads_by_remote_addr = upload_record_indexes(uploads)
+    fetches_by_request, fetches_by_sha256, fetches_by_source_path, fetches_by_status, fetches_by_http_status, fetches_by_remote_addr = fetch_record_indexes(fetches)
     summary, warnings = status_summary_and_warnings(services)
     services_by_actual, services_by_configured, services_by_port = service_record_indexes(services)
     paths = {
@@ -3307,6 +3315,7 @@ def status_document(cfg):
         "uploads_by_sha256": uploads_by_sha256,
         "uploads_by_source_path": uploads_by_source_path,
         "uploads_by_stored_path": uploads_by_stored_path,
+        "uploads_by_remote_addr": uploads_by_remote_addr,
         "fetches": fetches,
         "fetches_by_session": records_by_session(fetches),
         "fetches_by_request": fetches_by_request,
@@ -3314,6 +3323,7 @@ def status_document(cfg):
         "fetches_by_source_path": fetches_by_source_path,
         "fetches_by_status": fetches_by_status,
         "fetches_by_http_status": fetches_by_http_status,
+        "fetches_by_remote_addr": fetches_by_remote_addr,
         "sessions": sessions,
         "sessions_by_id": sessions_by_id,
         "sessions_by_service": sessions_by_service,
