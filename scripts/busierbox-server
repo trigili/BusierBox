@@ -3311,6 +3311,7 @@ def status_document(cfg):
         "staged_total_size": staged_summary.get("total_size", 0),
         "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
         "staged_source_missing_count": staged_summary.get("source_missing_count", 0),
+        "latest_staged_at": latest_record_value(staged_records, ("staged_at",)),
         "service_actual_counts": record_count_by_key(services, "actual"),
         "service_configured_counts": record_count_by_key(services, "configured"),
         "warning_count": warning_summary.get("total_count", 0),

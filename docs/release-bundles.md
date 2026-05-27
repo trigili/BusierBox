@@ -283,7 +283,8 @@ path health counts are mirrored into `summary` as `path_status_count`,
 request map, an ordered `staged_records` browser list, and lookup maps
 `staged_by_request`, `staged_by_sha256`, and `staged_by_source_path`;
 `summary` includes `staged_total_size`, `staged_source_exists_count`, and
-`staged_source_missing_count` for staged-file health. Recent
+`staged_source_missing_count` for staged-file health, plus `latest_staged_at`
+for compact recency displays. Recent
 upload and staged-fetch activity is exposed through top-level `uploads` and
 `fetches` arrays plus lookup maps: `uploads_by_session`,
 `uploads_by_filename`, `uploads_by_sha256`, `uploads_by_source_path`,

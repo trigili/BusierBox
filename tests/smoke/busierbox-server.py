@@ -2187,6 +2187,7 @@ def main():
                 staged_summary.get("staged_source_exists_count", 0) < 1 or
                 staged_summary.get("staged_source_missing_count") != 0 or
                 staged_summary.get("staged_total_size", 0) < staged_source.stat().st_size or
+                staged_summary.get("latest_staged_at") != staged_record.get("staged_at") or
                 not staged_record or
                 staged_record.get("name") != "/tmp/myfile" or
                 staged_record.get("source_path") != str(staged_source) or
