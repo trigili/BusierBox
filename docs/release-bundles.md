@@ -273,7 +273,9 @@ The same document includes `generated_at` and a `paths` object for stable
 discovery of server state, staged files, event logs, command queue records, and
 the session root. Staged files are exposed as the existing `staged` request map,
 an ordered `staged_records` browser list, and lookup maps
-`staged_by_request`, `staged_by_sha256`, and `staged_by_source_path`. Recent
+`staged_by_request`, `staged_by_sha256`, and `staged_by_source_path`;
+`summary` includes `staged_total_size`, `staged_source_exists_count`, and
+`staged_source_missing_count` for staged-file health. Recent
 upload and staged-fetch activity is exposed through top-level `uploads` and
 `fetches` arrays plus lookup maps: `uploads_by_session`,
 `uploads_by_filename`, `uploads_by_sha256`, `uploads_by_source_path`,

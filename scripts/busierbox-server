@@ -454,6 +454,28 @@ def record_count_by_key(records, key):
     return counts
 
 
+def staged_record_summary(records):
+    total_size = 0
+    source_exists_count = 0
+    source_missing_count = 0
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        try:
+            total_size += int(rec.get("size", 0) or 0)
+        except (TypeError, ValueError):
+            pass
+        if rec.get("source_exists") is True:
+            source_exists_count += 1
+        else:
+            source_missing_count += 1
+    return {
+        "total_size": total_size,
+        "source_exists_count": source_exists_count,
+        "source_missing_count": source_missing_count,
+    }
+
+
 def service_record_indexes(records):
     by_actual = {}
     by_configured = {}
@@ -3021,6 +3043,7 @@ def status_document(cfg):
     staged_raw = load_staged(cfg).get("staged", {})
     staged = enriched_staged_records(cfg, staged_raw)
     staged_records = staged_record_list(staged)
+    staged_summary = staged_record_summary(staged_records)
     staged_by_request, staged_by_sha256, staged_by_source_path = staged_record_indexes(staged_records)
     ips = local_ips()
     operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
@@ -3080,6 +3103,9 @@ def status_document(cfg):
     warnings_by_type, warnings_by_service = warning_record_indexes(warnings)
     summary.update({
         "staged_count": len(staged),
+        "staged_total_size": staged_summary.get("total_size", 0),
+        "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
+        "staged_source_missing_count": staged_summary.get("source_missing_count", 0),
         "service_actual_counts": record_count_by_key(services, "actual"),
         "service_configured_counts": record_count_by_key(services, "configured"),
         "upload_count": len(uploads),
