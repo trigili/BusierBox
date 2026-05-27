@@ -707,6 +707,14 @@ def main():
             print("server json status missing event log aggregate counters", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
+        event_summary = queue_status_json.get("summary", {})
+        if (event_summary.get("event_service_counts", {}).get("command-queue", 0) < 2 or
+                event_summary.get("event_type_counts", {}).get("command_queue_queued", 0) < 1 or
+                event_summary.get("event_type_counts", {}).get("command_result_received", 0) < 1 or
+                event_summary.get("event_level_counts", {}).get("info", 0) < 2):
+            print("server json status missing mirrored event aggregate summary counters", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
         events_by_service = queue_status_json.get("events_by_service") or {}
         events_by_event = queue_status_json.get("events_by_event") or {}
         if (not events_by_service.get("command-queue") or
