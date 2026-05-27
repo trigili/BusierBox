@@ -64,7 +64,11 @@ semantics, including whether it uploads evidence, captures `dmesg`, starts
 `rshell` after evidence upload, executes an operator-supplied command, enables a
 command queue, or creates a hidden control channel. The summary mirrors compact
 counts such as evidence uploads, `dmesg` actions, `rshell` actions, and
-operator-supplied command actions for audits.
+operator-supplied command actions for audits. The JSON also includes
+`installations_by_method`, `installations_by_action`, and
+`installations_by_category` maps whose values are indexes into the
+`installations` array, so operator UIs can jump directly to evidence,
+reverse-shell, command, or status hooks without rescanning the full list.
 
 `busierbox recovery` remains as a deprecated compatibility alias. Internal hook
 markers still use `BUSIERBOX RECOVERY` so older cleanup/status checks keep

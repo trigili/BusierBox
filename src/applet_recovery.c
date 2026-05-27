@@ -400,6 +400,106 @@ static int recovery_status_one(const char *root, const struct recovery_method *m
     return 0;
 }
 
+static int recovery_status_index_match(const char *kind, const struct recovery_method *m,
+                                       const char *action, const char *value)
+{
+    if (!strcmp(kind, "method"))
+        return !strcmp(m->name, value);
+    if (!strcmp(kind, "action"))
+        return !strcmp(action, value);
+    if (!strcmp(kind, "category"))
+        return !strcmp(recovery_action_category(action), value);
+    return 0;
+}
+
+static int recovery_print_status_index_array(const char *root, const char *name,
+                                             const char *kind, const char *value)
+{
+    size_t j;
+    int installed_index = 0;
+    int first = 1;
+    int matched = 0;
+
+    fputc('[', stdout);
+    for (j = 0; j < sizeof(recovery_methods) / sizeof(recovery_methods[0]); j++) {
+        char action[64], generated[PATH_MAX * 2];
+        if (!recovery_status_one(root, &recovery_methods[j], name, action, sizeof(action), generated, sizeof(generated)))
+            continue;
+        if (recovery_status_index_match(kind, &recovery_methods[j], action[0] ? action : "unknown", value)) {
+            printf("%s%d", first ? "" : ",", installed_index);
+            first = 0;
+            matched = 1;
+        }
+        installed_index++;
+    }
+    fputc(']', stdout);
+    return matched;
+}
+
+static int recovery_status_index_has_match(const char *root, const char *name,
+                                           const char *kind, const char *value)
+{
+    size_t j;
+    for (j = 0; j < sizeof(recovery_methods) / sizeof(recovery_methods[0]); j++) {
+        char action[64], generated[PATH_MAX * 2];
+        if (!recovery_status_one(root, &recovery_methods[j], name, action, sizeof(action), generated, sizeof(generated)))
+            continue;
+        if (recovery_status_index_match(kind, &recovery_methods[j], action[0] ? action : "unknown", value))
+            return 1;
+    }
+    return 0;
+}
+
+static void recovery_print_status_indexes(const char *root, const char *name)
+{
+    static const char *actions[] = {
+        "status-only", "rshell", "evidence-push", "evidence-then-rshell",
+        "dmesg-push", "command", "script", "unknown", NULL
+    };
+    static const char *categories[] = {
+        "status", "reverse-shell", "evidence", "command", "script", NULL
+    };
+    size_t i;
+    int first;
+
+    fputs(",\"installations_by_method\":{", stdout);
+    first = 1;
+    for (i = 0; i < sizeof(recovery_methods) / sizeof(recovery_methods[0]); i++) {
+        if (!recovery_status_index_has_match(root, name, "method", recovery_methods[i].name))
+            continue;
+        fputs(first ? "" : ",", stdout);
+        bb_json_string(stdout, recovery_methods[i].name);
+        fputc(':', stdout);
+        recovery_print_status_index_array(root, name, "method", recovery_methods[i].name);
+        first = 0;
+    }
+    fputs("}", stdout);
+    fputs(",\"installations_by_action\":{", stdout);
+    first = 1;
+    for (i = 0; actions[i]; i++) {
+        if (!recovery_status_index_has_match(root, name, "action", actions[i]))
+            continue;
+        fputs(first ? "" : ",", stdout);
+        bb_json_string(stdout, actions[i]);
+        fputc(':', stdout);
+        recovery_print_status_index_array(root, name, "action", actions[i]);
+        first = 0;
+    }
+    fputs("}", stdout);
+    fputs(",\"installations_by_category\":{", stdout);
+    first = 1;
+    for (i = 0; categories[i]; i++) {
+        if (!recovery_status_index_has_match(root, name, "category", categories[i]))
+            continue;
+        fputs(first ? "" : ",", stdout);
+        bb_json_string(stdout, categories[i]);
+        fputc(':', stdout);
+        recovery_print_status_index_array(root, name, "category", categories[i]);
+        first = 0;
+    }
+    fputs("}", stdout);
+}
+
 static void recovery_print_survey(int json, const char *root)
 {
     size_t i;
@@ -791,7 +891,9 @@ int applet_recovery_main(int argc, char **argv)
             }
         }
         if (json) {
-            printf("],\"summary\":{\"installation_count\":%d,\"evidence_action_count\":%d,\"evidence_upload_count\":%d,\"dmesg_action_count\":%d,\"rshell_action_count\":%d,\"rshell_after_evidence_count\":%d,\"command_action_count\":%d,\"script_action_count\":%d,\"operator_supplied_command_count\":%d,\"external_write_required_count\":%d},\"installed\":%s}\n",
+            fputc(']', stdout);
+            recovery_print_status_indexes(root, name);
+            printf(",\"summary\":{\"installation_count\":%d,\"evidence_action_count\":%d,\"evidence_upload_count\":%d,\"dmesg_action_count\":%d,\"rshell_action_count\":%d,\"rshell_after_evidence_count\":%d,\"command_action_count\":%d,\"script_action_count\":%d,\"operator_supplied_command_count\":%d,\"external_write_required_count\":%d},\"installed\":%s}\n",
                    installed_count,
                    evidence_action_count,
                    evidence_upload_count,

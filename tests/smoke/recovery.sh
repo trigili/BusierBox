@@ -104,6 +104,9 @@ assert safety["command_queue_enabled"] is False
 assert safety["self_reinstall"] is False
 assert safety["survives_factory_reset_claim"] is False
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
+assert data["installations_by_method"]["rc-local"] == [0]
+assert data["installations_by_action"]["status-only"] == [0]
+assert data["installations_by_category"]["status"] == [0]
 assert item["action"] == "status-only"
 assert item["action_category"] == "status"
 assert item["uploads_evidence"] is False
@@ -166,6 +169,9 @@ assert summary["operator_supplied_command_count"] == 0
 assert summary["command_action_count"] == 0
 assert summary["script_action_count"] == 0
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
+assert data["installations_by_method"]["rc-local"] == [0]
+assert data["installations_by_action"]["evidence-push"] == [0]
+assert data["installations_by_category"]["evidence"] == [0]
 assert item["action"] == "evidence-push"
 assert item["action_category"] == "evidence"
 assert item["uploads_evidence"] is True
@@ -193,6 +199,8 @@ assert summary["evidence_upload_count"] == 1
 assert summary["rshell_action_count"] == 1
 assert summary["rshell_after_evidence_count"] == 1
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
+assert data["installations_by_action"]["evidence-then-rshell"] == [0]
+assert data["installations_by_category"]["evidence"] == [0]
 assert item["action"] == "evidence-then-rshell"
 assert item["action_category"] == "evidence"
 assert item["uploads_evidence"] is True
@@ -220,6 +228,8 @@ assert summary["evidence_action_count"] == 1
 assert summary["evidence_upload_count"] == 1
 assert summary["dmesg_action_count"] == 1
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
+assert data["installations_by_action"]["dmesg-push"] == [0]
+assert data["installations_by_category"]["evidence"] == [0]
 assert item["action"] == "dmesg-push"
 assert item["action_category"] == "evidence"
 assert item["uploads_evidence"] is True
@@ -253,6 +263,9 @@ summary = data["summary"]
 assert summary["installation_count"] == 1
 assert summary["command_action_count"] == 1
 assert summary["operator_supplied_command_count"] == 1
+assert data["installations_by_method"]["cron-reboot"] == [0]
+assert data["installations_by_action"]["command"] == [0]
+assert data["installations_by_category"]["command"] == [0]
 assert any(item["method"] == "cron-reboot" and item["action"] == "command" and item["action_category"] == "command" and item["executes_operator_supplied_command"] is True and item["generated_command"] == "busierbox rshell start" for item in data["installations"])
 PY
 "$bb" persistence uninstall --method cron-reboot --apply --root "$tmp/root" --name bbx_recovery >/dev/null
