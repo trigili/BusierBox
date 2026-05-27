@@ -59,7 +59,14 @@ print(json.dumps({
                 "overall": "found",
                 "search_paths": []
             }
-        }
+        },
+        "doom_wads": [
+            {
+                "filename": "doom.wad",
+                "size": 9,
+                "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            }
+        ]
     },
     "compatibility": {"label": "likely", "reasons": ["arch exact", "libc inferred musl"]},
 }))
@@ -72,7 +79,7 @@ cat >"$release_tmp/reality.json" <<'JSON'
 ]}
 JSON
 release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --reality-json "$release_tmp/reality.json" --release-dir "$release_tmp" --max-compatibility likely --configure-trailer --json)
-printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); files=d["run_files"]; providers=d["selected_tool_provider_status"]; assert d["compatibility"]["label"] == "likely"; assert d["max_compatibility"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert providers["gdbserver"]["overall"] == "found"; assert d["reality_json"]; assert "artifact-config set" in d["generated_trailer_override_command"]; assert d["recommendation"]["config"]["BB_RUNTIME_MODE"] == "extract"; assert d["recommendation"]["facts"]["reality"]["tmp_noexec_detected"] is True; assert any("reality-test detected /tmp noexec" in w for w in d["recommendation"]["warnings"]); assert files["release_find_json"]["exists"] is True; assert files["selected_artifact"]["path"] == d["selected_artifact"]; assert files["selected_artifact"]["exists"] is True; assert files["reality_json"]["exists"] is True'
+printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); files=d["run_files"]; providers=d["selected_tool_provider_status"]; wads=d["selected_doom_wads"]; assert d["compatibility"]["label"] == "likely"; assert d["max_compatibility"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert providers["gdbserver"]["overall"] == "found"; assert wads[0]["filename"] == "doom.wad"; assert wads[0]["size"] == 9; assert d["reality_json"]; assert "artifact-config set" in d["generated_trailer_override_command"]; assert d["recommendation"]["config"]["BB_RUNTIME_MODE"] == "extract"; assert d["recommendation"]["facts"]["reality"]["tmp_noexec_detected"] is True; assert any("reality-test detected /tmp noexec" in w for w in d["recommendation"]["warnings"]); assert files["release_find_json"]["exists"] is True; assert files["selected_artifact"]["path"] == d["selected_artifact"]; assert files["selected_artifact"]["exists"] is True; assert files["reality_json"]["exists"] is True'
 rm -rf "$release_tmp"
 grep -q 'BUSIERBOX_CONFIG="$recommended" make package' scripts/busierbox-bringup
 grep -q 'Bringup is a guided onboarding flow' README.md

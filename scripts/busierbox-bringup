@@ -82,6 +82,7 @@ selected_artifact=
 compatibility_label=
 compatibility_reasons_json='[]'
 selected_tool_provider_status_json='{}'
+selected_doom_wads_json='[]'
 trailer_command=
 staged_fetch_command=
 staged_request_name=
@@ -165,6 +166,7 @@ write_summary() {
     COMPATIBILITY_LABEL="$compatibility_label" \
     COMPATIBILITY_REASONS_JSON="$compatibility_reasons_json" \
     SELECTED_TOOL_PROVIDER_STATUS_JSON="$selected_tool_provider_status_json" \
+    SELECTED_DOOM_WADS_JSON="$selected_doom_wads_json" \
     TRAILER_COMMAND="$trailer_command" \
     STAGED_FETCH_COMMAND="$staged_fetch_command" \
     STAGED_REQUEST_NAME="$staged_request_name" \
@@ -221,6 +223,13 @@ try:
         selected_tool_provider_status = {}
 except Exception:
     selected_tool_provider_status = {}
+
+try:
+    selected_doom_wads = json.loads(env("SELECTED_DOOM_WADS_JSON") or "[]")
+    if not isinstance(selected_doom_wads, list):
+        selected_doom_wads = []
+except Exception:
+    selected_doom_wads = []
 
 host = env("HOST")
 operator_host = env("OPERATOR_HOST")
@@ -379,6 +388,7 @@ doc = {
     "release_find_json": maybe_file(env("RELEASE_FIND_JSON")),
     "selected_artifact": env("SELECTED_ARTIFACT"),
     "selected_tool_provider_status": selected_tool_provider_status,
+    "selected_doom_wads": selected_doom_wads,
     "compatibility": {
         "label": env("COMPATIBILITY_LABEL"),
         "reasons": reasons,
@@ -479,6 +489,7 @@ compat = data.get("compatibility")
 label = ""
 reasons = []
 tool_provider_status = {}
+doom_wads = []
 if isinstance(compat, dict):
     label = first_string(compat.get("label"), compat.get("score"), compat.get("status"))
     raw = compat.get("reasons", [])
@@ -489,6 +500,9 @@ if isinstance(selected, dict):
     raw_provider_status = selected.get("tool_provider_status")
     if isinstance(raw_provider_status, dict):
         tool_provider_status = raw_provider_status
+    raw_doom_wads = selected.get("doom_wads")
+    if isinstance(raw_doom_wads, list):
+        doom_wads = raw_doom_wads
 if not label:
     label = first_string(data.get("compatibility_label"), data.get("score"), data.get("label"))
 if not reasons:
@@ -502,6 +516,7 @@ values = {
     "compatibility_label": label,
     "compatibility_reasons_json": json.dumps([str(x) for x in reasons if x not in (None, "")]),
     "selected_tool_provider_status_json": json.dumps(tool_provider_status),
+    "selected_doom_wads_json": json.dumps(doom_wads),
 }
 for key, value in values.items():
     print(f"{key}={shlex.quote(str(value))}")
