@@ -200,6 +200,9 @@ the `c` key or exported with `--copy-target-command`; the fallback copy path is
 `local/operator-session/last-command.txt`. Staging a file or release artifact
 only prepares an explicit target-side `busierbox fetch` command; it does not
 execute commands on the target.
+`scripts/busierbox-server --status` and `--json-status` expose the same
+structured event log with aggregate counts and tail indexes by service, event,
+and level for operator tooling.
 
 The optional command queue remains a separate advanced feature. Operator-side
 queue entries can be recorded with `scripts/busierbox-server --queue-command`

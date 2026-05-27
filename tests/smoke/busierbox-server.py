@@ -717,9 +717,11 @@ def main():
             return 1
         events_by_service = queue_status_json.get("events_by_service") or {}
         events_by_event = queue_status_json.get("events_by_event") or {}
+        events_by_level = queue_status_json.get("events_by_level") or {}
         if (not events_by_service.get("command-queue") or
                 not events_by_event.get("command_queue_queued") or
-                not events_by_event.get("command_result_received")):
+                not events_by_event.get("command_result_received") or
+                not events_by_level.get("info")):
             print("server json status missing event tail lookup indexes", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -784,6 +786,9 @@ def main():
                 "result_output=12 limit=1234 exceeded_limit=no" not in queue_status_text.stdout or
                 "command_result_received" not in queue_status_text.stdout or
                 "Event log:" not in queue_status_text.stdout or
+                "services: command-queue=" not in queue_status_text.stdout or
+                "events: command_queue_queued=" not in queue_status_text.stdout or
+                "levels: info=" not in queue_status_text.stdout or
                 "tls=yes" not in queue_status_text.stdout or
                 "tls=no" not in queue_status_text.stdout):
             print("text --status missing command queue/event sections", file=sys.stderr)
@@ -1623,6 +1628,10 @@ def main():
             print("server json status missing upload event log stats", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+        if not (upload_doc.get("events_by_level") or {}).get("info"):
+            print("server json status missing upload event level lookup index", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         upload_status_text = run(
             "scripts/busierbox-server",
             "--config", str(upload_cfg),
@@ -1630,6 +1639,9 @@ def main():
         )
         if ("Event log:" not in upload_status_text.stdout or
                 "file-service:upload_complete" not in upload_status_text.stdout or
+                "services: file-service=" not in upload_status_text.stdout or
+                "levels: info=" not in upload_status_text.stdout or
+                "operation=upload status=ok http=200 filename=evidence.txt" not in upload_status_text.stdout or
                 "Command queue:" not in upload_status_text.stdout or
                 "uploads=1" not in upload_status_text.stdout or
                 "stored_exists=True" not in upload_status_text.stdout or

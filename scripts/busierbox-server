@@ -625,16 +625,43 @@ def session_record_indexes(records):
 def event_record_indexes(records):
     by_service = {}
     by_event = {}
+    by_level = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
         service = str(rec.get("service") or "")
         event = str(rec.get("event") or "")
+        level = str(rec.get("level") or "")
         if service:
             by_service.setdefault(service, []).append(rec)
         if event:
             by_event.setdefault(event, []).append(rec)
-    return by_service, by_event
+        if level:
+            by_level.setdefault(level, []).append(rec)
+    return by_service, by_event, by_level
+
+
+def format_counts(counts, limit=6):
+    if not counts:
+        return "none"
+    parts = []
+    for key, value in sorted(counts.items(), key=lambda item: (-int(item[1]), str(item[0])))[:limit]:
+        parts.append(f"{key}={value}")
+    return ", ".join(parts) if parts else "none"
+
+
+def compact_event_details(event):
+    details = event.get("details") if isinstance(event, dict) else {}
+    if not isinstance(details, dict):
+        return ""
+    pieces = []
+    for key in ("operation", "status", "http_status", "request_name", "filename", "reason"):
+        value = details.get(key)
+        if value in (None, ""):
+            continue
+        label = "http" if key == "http_status" else key
+        pieces.append(f"{label}={value}")
+    return " ".join(pieces)
 
 
 def target_command_record_indexes(records):
@@ -3131,7 +3158,7 @@ def status_document(cfg):
     sessions_by_id, sessions_by_service, sessions_by_state, sessions_by_exit_reason = session_record_indexes(sessions)
     event_stats = event_log_stats(cfg)
     events = event_stats["tail"]
-    events_by_service, events_by_event = event_record_indexes(events)
+    events_by_service, events_by_event, events_by_level = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
     release = release_context()
     target_command_records = generated_target_command_records(cfg, staged_raw)
@@ -3290,6 +3317,7 @@ def status_document(cfg):
         "events": events,
         "events_by_service": events_by_service,
         "events_by_event": events_by_event,
+        "events_by_level": events_by_level,
         "event_log_stats": {
             key: value for key, value in event_stats.items() if key != "tail"
         },
@@ -3515,11 +3543,20 @@ def print_status(cfg, json_output=False):
             print(f"    result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
     print("")
     print("Event log:")
+    stats = doc.get("event_log_stats") or {}
+    print(f"  path: {doc.get('event_log', '')}")
+    print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)}")
+    print(f"  services: {format_counts(stats.get('by_service') or {})}")
+    print(f"  events: {format_counts(stats.get('by_event') or {})}")
+    print(f"  levels: {format_counts(stats.get('by_level') or {})}")
     if doc["events"]:
         for event in doc["events"][-8:]:
-            print(f"  {event.get('ts', '')} {event.get('level', '')} {event.get('service', '')}:{event.get('event', '')}")
+            suffix = compact_event_details(event)
+            if suffix:
+                suffix = f" {suffix}"
+            print(f"  {event.get('ts', '')} {event.get('level', '')} {event.get('service', '')}:{event.get('event', '')}{suffix}")
     else:
-        print("  none")
+        print("  events_tail: none")
     if doc["release"]:
         print("")
         print("Release browser:")
