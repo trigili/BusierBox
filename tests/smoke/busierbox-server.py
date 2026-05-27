@@ -1970,6 +1970,7 @@ def main():
         release_artifacts_by_sha = rel.get("artifacts_by_sha256") or {}
         release_artifacts_by_preset = rel.get("artifacts_by_payload_preset") or {}
         release_artifacts_by_compat = rel.get("artifacts_by_compatibility") or {}
+        release_artifacts_by_source = rel.get("artifacts_by_source") or {}
         release_artifacts_by_tool = rel.get("artifacts_by_tool") or {}
         release_device_map = rel.get("devices_by_name") or {}
         release_tuple_map = rel.get("tuples_by_path") or {}
@@ -1979,6 +1980,7 @@ def main():
                 release_artifacts_by_sha.get("abc123", [{}])[0].get("name") != "busierbox-test" or
                 release_artifacts_by_preset.get("default", [{}])[0].get("sha256") != "abc123" or
                 release_artifacts_by_compat.get("exact", [{}])[0].get("payload_preset") != "default" or
+                release_artifacts_by_source.get("release-index", [{}])[0].get("release_path") != "bin/busierbox-test" or
                 release_artifacts_by_tool.get("sh", [{}])[0].get("payload_preset") != "default" or
                 rel.get("artifact_stats", {}).get("total_size") != release_artifact_size or
                 rel.get("artifact_stats", {}).get("by_compatibility", {}).get("exact") != 1 or

@@ -309,8 +309,8 @@ records.
 When running inside a release bundle, `release` includes artifact, device, and
 tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `artifacts_by_sha256`, `artifacts_by_payload_preset`,
-`artifacts_by_compatibility`, `artifacts_by_tool`, `devices_by_name`, and
-`tuples_by_path` lookup maps. Release artifact
+`artifacts_by_compatibility`, `artifacts_by_source`, `artifacts_by_tool`,
+`devices_by_name`, and `tuples_by_path` lookup maps. Release artifact
 aggregates are exposed as `release.artifact_stats` and mirrored into `summary`
 as `release_artifact_total_size`, `release_artifact_compatibility_counts`,
 `release_artifact_payload_preset_counts`, `release_artifact_source_counts`,

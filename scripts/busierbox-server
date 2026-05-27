@@ -1316,6 +1316,7 @@ def release_context():
         artifacts_by_sha256 = {}
         artifacts_by_payload_preset = {}
         artifacts_by_compatibility = {}
+        artifacts_by_source = {}
         artifacts_by_tool = {}
         artifact_compatibility_counts = {}
         artifact_payload_preset_counts = {}
@@ -1343,6 +1344,7 @@ def release_context():
                 artifacts_by_payload_preset.setdefault(payload_preset, []).append(rec)
                 artifact_payload_preset_counts[payload_preset] = artifact_payload_preset_counts.get(payload_preset, 0) + 1
             if source:
+                artifacts_by_source.setdefault(source, []).append(rec)
                 artifact_source_counts[source] = artifact_source_counts.get(source, 0) + 1
             if compatibility_label:
                 artifacts_by_compatibility.setdefault(compatibility_label, []).append(rec)
@@ -1363,6 +1365,7 @@ def release_context():
             "artifacts_by_sha256": artifacts_by_sha256,
             "artifacts_by_payload_preset": artifacts_by_payload_preset,
             "artifacts_by_compatibility": artifacts_by_compatibility,
+            "artifacts_by_source": artifacts_by_source,
             "artifacts_by_tool": artifacts_by_tool,
             "artifact_stats": {
                 "total_size": artifact_total_size,
