@@ -266,7 +266,9 @@ re-parsing the human status view. Service rows remain available in `services`,
 and the same records are indexed by service name, actual state, configured
 state, and port in `services_by_name`, `services_by_actual`,
 `services_by_configured`, and `services_by_port` for frontend clients that need
-direct lookup without reconstructing their own maps.
+direct lookup without reconstructing their own maps. `summary` also includes
+`service_actual_counts` and `service_configured_counts` for compact service
+dashboards.
 The same document includes `generated_at` and a `paths` object for stable
 discovery of server state, staged files, event logs, command queue records, and
 the session root. Staged files are exposed as the existing `staged` request map,

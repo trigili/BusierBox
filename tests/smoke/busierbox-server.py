@@ -641,8 +641,11 @@ def main():
                 paths.get("tls_key") != str(key_path)):
             print("server json status missing stable generated_at/paths API fields", file=sys.stderr)
             return 1
-        if queue_status_json["summary"].get("service_count") != 4:
+        if (queue_status_json["summary"].get("service_count") != 4 or
+                queue_status_json["summary"].get("service_actual_counts", {}).get("stopped") != 4 or
+                queue_status_json["summary"].get("service_configured_counts", {}).get("unknown", 0) < 3):
             print("server json status service summary is wrong", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         services_by_name = queue_status_json.get("services_by_name") or {}
         if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service"}:

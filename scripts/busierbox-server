@@ -3042,6 +3042,8 @@ def status_document(cfg):
     warnings_by_type, warnings_by_service = warning_record_indexes(warnings)
     summary.update({
         "staged_count": len(staged),
+        "service_actual_counts": record_count_by_key(services, "actual"),
+        "service_configured_counts": record_count_by_key(services, "configured"),
         "upload_count": len(uploads),
         "upload_status_counts": record_count_by_key(uploads, "status"),
         "fetch_count": len(fetches),
