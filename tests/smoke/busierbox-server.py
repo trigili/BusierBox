@@ -1476,6 +1476,22 @@ def main():
             print("staged fetch did not return the staged file:", file=sys.stderr)
             print(response.decode("utf-8", errors="replace"), file=sys.stderr)
             return 1
+        fetch_sessions = list((Path(tmp) / "sessions-fetch").glob("*/session.json"))
+        if len(fetch_sessions) != 1:
+            print("staged fetch did not write a session record", file=sys.stderr)
+            return 1
+        fetch_session_doc = json.loads(fetch_sessions[0].read_text(encoding="utf-8"))
+        if (len(fetch_session_doc.get("fetches") or []) != 1 or
+                fetch_session_doc["fetches"][0].get("operation") != "fetch" or
+                fetch_session_doc["fetches"][0].get("status") != "served" or
+                fetch_session_doc.get("uploads")):
+            print("staged fetch session was not classified as fetch-only", file=sys.stderr)
+            print(json.dumps(fetch_session_doc, indent=2), file=sys.stderr)
+            return 1
+        fetch_events = [json.loads(line) for line in (fetch_sessions[0].parent / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+        if not any(event.get("event") == "fetch_complete" and event.get("details", {}).get("operation") == "fetch" for event in fetch_events):
+            print("staged fetch did not write structured fetch_complete event", file=sys.stderr)
+            return 1
         staged_doc = json.loads(staged_file.read_text(encoding="utf-8"))
         if "/tmp/myfile" not in staged_doc.get("staged", {}):
             print("staged-files JSON missing request name", file=sys.stderr)
@@ -1524,6 +1540,59 @@ def main():
             print("--unstage did not remove staged request", file=sys.stderr)
             print(unstage.stdout, file=sys.stderr)
             print(unstage.stderr, file=sys.stderr)
+            return 1
+
+        missing_fetch_port = free_port()
+        missing_fetch_cfg = Path(tmp) / "server-config-missing-fetch.json"
+        missing_fetch_root = Path(tmp) / "sessions-missing-fetch"
+        missing_fetch_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "file_service_port": missing_fetch_port,
+            "session_root": str(missing_fetch_root),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+            "file_service_tls": "no",
+        }), encoding="utf-8")
+        missing_proc = subprocess.Popen(
+            [
+                str(server), "--config", str(missing_fetch_cfg),
+                "--state-file", str(Path(tmp) / "missing-fetch-state.json"),
+                "--staged-file", str(Path(tmp) / "missing-fetch-staged.json"),
+                "--transport", "file-service",
+                "--file-service-tls", "no",
+                "--one-shot",
+                "--timeout", "5",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        missing_response = connect_with_retry(
+            missing_fetch_port,
+            b"GET /fetch?name=not-staged HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+        )
+        missing_stdout, missing_stderr = missing_proc.communicate(timeout=5)
+        if missing_proc.returncode != 0 or b"HTTP/1.1 404" not in missing_response:
+            print("missing staged fetch did not return HTTP 404 cleanly", file=sys.stderr)
+            print(missing_stdout, file=sys.stderr)
+            print(missing_stderr, file=sys.stderr)
+            return 1
+        missing_sessions = list(missing_fetch_root.glob("*/session.json"))
+        if len(missing_sessions) != 1:
+            print("missing staged fetch did not write a session record", file=sys.stderr)
+            return 1
+        missing_doc = json.loads(missing_sessions[0].read_text(encoding="utf-8"))
+        if (len(missing_doc.get("fetches") or []) != 1 or
+                missing_doc["fetches"][0].get("operation") != "fetch" or
+                missing_doc["fetches"][0].get("status") != "missing" or
+                missing_doc.get("uploads")):
+            print("missing staged fetch was incorrectly classified", file=sys.stderr)
+            print(json.dumps(missing_doc, indent=2), file=sys.stderr)
+            return 1
+        missing_events = [json.loads(line) for line in (missing_sessions[0].parent / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+        if not any(event.get("event") == "fetch_complete" and event.get("details", {}).get("status") == "missing" for event in missing_events):
+            print("missing staged fetch did not write fetch_complete status", file=sys.stderr)
             return 1
 
         serve_dir = Path(tmp) / "operator-files"
