@@ -3387,6 +3387,8 @@ def status_document(cfg):
         "release_artifact_count": len(release.get("artifacts") or []),
         "release_device_count": len(release.get("devices") or []),
         "release_tuple_count": len(release.get("tuples") or []),
+        "release_device_artifact_reference_count": record_sum_by_key(release.get("devices") or [], "artifact_count"),
+        "release_tuple_artifact_reference_count": record_sum_by_key(release.get("tuples") or [], "artifact_count"),
         "release_artifact_compatibility_counts": (release.get("artifact_stats") or {}).get("by_compatibility") or {},
         "release_artifact_payload_preset_counts": (release.get("artifact_stats") or {}).get("by_payload_preset") or {},
         "release_artifact_tool_counts": (release.get("artifact_stats") or {}).get("by_tool") or {},

@@ -1956,6 +1956,8 @@ def main():
         if (release_summary.get("release_artifact_count", 0) < 1 or
                 release_summary.get("release_device_count") != 1 or
                 release_summary.get("release_tuple_count") != 1 or
+                release_summary.get("release_device_artifact_reference_count") != 1 or
+                release_summary.get("release_tuple_artifact_reference_count") != 1 or
                 release_summary.get("release_artifact_compatibility_counts", {}).get("exact") != 1 or
                 release_summary.get("release_artifact_payload_preset_counts", {}).get("default") != 1 or
                 release_summary.get("release_artifact_tool_counts", {}).get("sh") != 1):

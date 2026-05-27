@@ -310,6 +310,9 @@ tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 aggregates are exposed as `release.artifact_stats` and mirrored into `summary`
 as `release_artifact_compatibility_counts`,
 `release_artifact_payload_preset_counts`, and `release_artifact_tool_counts`.
+Device and tuple artifact reference totals are mirrored as
+`release_device_artifact_reference_count` and
+`release_tuple_artifact_reference_count`.
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
 purpose, service, side, network, explicit-target-action, and
