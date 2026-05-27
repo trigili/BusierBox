@@ -849,6 +849,32 @@ def recent_upload_metadata(cfg, limit=8):
     return out
 
 
+def recent_fetch_metadata(cfg, limit=8):
+    root = Path(str(cfg.get("session_root", "local/sessions")))
+    if not root.is_dir():
+        return []
+    rows = []
+    for session_json in root.glob("*/session.json"):
+        session_doc = read_json_file(session_json, {})
+        if not isinstance(session_doc, dict):
+            continue
+        session_path = session_json.parent
+        session_id_value = session_doc.get("session_id") or session_path.name
+        for item in session_doc.get("fetches") or []:
+            if not isinstance(item, dict):
+                continue
+            rec = dict(item)
+            rec["session_id"] = session_id_value
+            rec["session_path"] = str(session_path)
+            rec["metadata_path"] = str(session_json)
+            rec["event_log"] = str(session_path / "events.jsonl")
+            rec["sha256_prefix"] = str(rec.get("sha256", ""))[:12]
+            rec["source_exists"] = Path(str(rec.get("source_path", ""))).is_file() if rec.get("source_path") else False
+            rows.append(rec)
+    rows.sort(key=lambda item: item.get("timestamp") or item.get("updated_at") or "", reverse=True)
+    return rows[:limit]
+
+
 def shquote(value):
     text = str(value)
     if all(ch.isalnum() or ch in "._-/:=" for ch in text):
@@ -2551,6 +2577,7 @@ def status_document(cfg):
     session_root = str(cfg.get("session_root", "local/sessions"))
     services = service_status_rows(cfg)
     uploads = recent_upload_metadata(cfg)
+    fetches = recent_fetch_metadata(cfg)
     sessions = recent_session_records(cfg)
     event_stats = event_log_stats(cfg)
     events = event_stats["tail"]
@@ -2568,6 +2595,7 @@ def status_document(cfg):
     summary.update({
         "staged_count": len(staged),
         "upload_count": len(uploads),
+        "fetch_count": len(fetches),
         "session_count": len(sessions),
         "event_count": event_stats["total_count"],
         "event_tail_count": event_stats["tail_count"],
@@ -2610,6 +2638,7 @@ def status_document(cfg):
         "target_commands": generated_target_commands(cfg, staged_raw),
         "staged": staged,
         "uploads": uploads,
+        "fetches": fetches,
         "sessions": sessions,
         "events": events,
         "event_log_stats": {
@@ -2711,6 +2740,17 @@ def print_status(cfg, json_output=False):
             print(f"    stored: {meta.get('stored_path', '')}")
             print(f"    metadata: {meta.get('metadata_path', meta.get('_metadata_path', ''))}")
             print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
+    else:
+        print("  none")
+    print("")
+    print("Recent fetches:")
+    if doc["fetches"]:
+        for meta in doc["fetches"]:
+            print(f"  {meta.get('request_name', '')} size={meta.get('size', '')} sha256={meta.get('sha256_prefix', '')} status={meta.get('status', '')} http={meta.get('http_status', '')} source_exists={meta.get('source_exists', False)}")
+            print(f"    source: {meta.get('source_path', '')}")
+            print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
+            if meta.get("event_log"):
+                print(f"    event_log: {meta.get('event_log', '')}")
     else:
         print("  none")
     print("")

@@ -1493,6 +1493,39 @@ def main():
         if not any(event.get("event") == "fetch_complete" and event.get("details", {}).get("operation") == "fetch" for event in fetch_events):
             print("staged fetch did not write structured fetch_complete event", file=sys.stderr)
             return 1
+        fetch_status = run(
+            "scripts/busierbox-server",
+            "--config", str(fetch_cfg),
+            "--state-file", str(state_file),
+            "--staged-file", str(staged_file),
+            "--json-status",
+        )
+        fetch_status_doc = json.loads(fetch_status.stdout)
+        fetch_items = fetch_status_doc.get("fetches") or []
+        if (fetch_status_doc.get("summary", {}).get("fetch_count") != 1 or
+                len(fetch_items) != 1 or
+                fetch_items[0].get("request_name") != "/tmp/myfile" or
+                fetch_items[0].get("status") != "served" or
+                fetch_items[0].get("http_status") != 200 or
+                fetch_items[0].get("source_exists") is not True or
+                fetch_items[0].get("session_id") != fetch_sessions[0].parent.name or
+                fetch_items[0].get("event_log") != str(fetch_sessions[0].parent / "events.jsonl")):
+            print("server json status missing recent fetch metadata", file=sys.stderr)
+            print(fetch_status.stdout, file=sys.stderr)
+            return 1
+        fetch_status_text = run(
+            "scripts/busierbox-server",
+            "--config", str(fetch_cfg),
+            "--state-file", str(state_file),
+            "--staged-file", str(staged_file),
+            "--status",
+        )
+        if ("Recent fetches:" not in fetch_status_text.stdout or
+                "/tmp/myfile" not in fetch_status_text.stdout or
+                "status=served http=200" not in fetch_status_text.stdout):
+            print("text --status missing recent fetch metadata", file=sys.stderr)
+            print(fetch_status_text.stdout, file=sys.stderr)
+            return 1
         staged_doc = json.loads(staged_file.read_text(encoding="utf-8"))
         if "/tmp/myfile" not in staged_doc.get("staged", {}):
             print("staged-files JSON missing request name", file=sys.stderr)
@@ -1595,6 +1628,24 @@ def main():
         missing_events = [json.loads(line) for line in (missing_sessions[0].parent / "events.jsonl").read_text(encoding="utf-8").splitlines()]
         if not any(event.get("event") == "fetch_complete" and event.get("details", {}).get("status") == "missing" for event in missing_events):
             print("missing staged fetch did not write fetch_complete status", file=sys.stderr)
+            return 1
+        missing_fetch_status = run(
+            "scripts/busierbox-server",
+            "--config", str(missing_fetch_cfg),
+            "--state-file", str(Path(tmp) / "missing-fetch-state.json"),
+            "--staged-file", str(Path(tmp) / "missing-fetch-staged.json"),
+            "--json-status",
+        )
+        missing_fetch_doc = json.loads(missing_fetch_status.stdout)
+        missing_fetches = missing_fetch_doc.get("fetches") or []
+        if (missing_fetch_doc.get("summary", {}).get("fetch_count") != 1 or
+                len(missing_fetches) != 1 or
+                missing_fetches[0].get("request_name") != "not-staged" or
+                missing_fetches[0].get("status") != "missing" or
+                missing_fetches[0].get("http_status") != 404 or
+                missing_fetches[0].get("source_exists") is not False):
+            print("server json status missing missing-fetch metadata", file=sys.stderr)
+            print(missing_fetch_status.stdout, file=sys.stderr)
             return 1
 
         serve_dir = Path(tmp) / "operator-files"
