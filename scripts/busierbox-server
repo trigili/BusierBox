@@ -1387,6 +1387,58 @@ def command_queue_policy_errors(cfg):
     return errors
 
 
+def command_queue_mode_semantics():
+    modes = {
+        "status": {
+            "lifecycle": "inspect",
+            "requires_operator_host": False,
+            "would_poll_if_configured": False,
+        },
+        "poll": {
+            "lifecycle": "single-poll",
+            "requires_operator_host": True,
+            "would_poll_if_configured": True,
+        },
+        "once": {
+            "lifecycle": "single-cycle",
+            "requires_operator_host": True,
+            "would_poll_if_configured": True,
+        },
+        "daemon": {
+            "lifecycle": "long-running",
+            "requires_operator_host": True,
+            "would_poll_if_configured": True,
+        },
+    }
+    for rec in modes.values():
+        rec.update({
+            "dry_run_only": True,
+            "requires_explicit_target_action": True,
+            "would_contact_operator": False,
+            "delivery_supported": False,
+            "result_upload_supported": False,
+            "execution_supported": False,
+            "executes_commands": False,
+            "active_control_channel": False,
+            "operator_supplied_command_execution": False,
+        })
+    return modes
+
+
+def command_queue_mode_summary(mode_semantics):
+    records = list(mode_semantics.values())
+    return {
+        "mode_count": len(records),
+        "polling_mode_count": len([rec for rec in records if rec.get("would_poll_if_configured")]),
+        "operator_host_required_mode_count": len([rec for rec in records if rec.get("requires_operator_host")]),
+        "execution_supported_mode_count": len([rec for rec in records if rec.get("execution_supported")]),
+        "active_control_channel_mode_count": len([rec for rec in records if rec.get("active_control_channel")]),
+        "operator_supplied_command_execution_mode_count": len([
+            rec for rec in records if rec.get("operator_supplied_command_execution")
+        ]),
+    }
+
+
 def command_queue_summary(cfg):
     data = load_command_queue(cfg)
     commands = data.get("commands", [])
@@ -1442,6 +1494,8 @@ def command_queue_summary(cfg):
     policy_valid = not policy_errors
     arbitrary_policy_requested = policy_valid and enabled == "yes" and allowed_commands == "custom" and allow_arbitrary == "yes"
     configured_for_polling = policy_valid and enabled == "yes"
+    mode_semantics = command_queue_mode_semantics()
+    mode_summary = command_queue_mode_summary(mode_semantics)
     policy_summary = {
         "enabled": enabled == "yes",
         "default_enabled": False,
@@ -1469,6 +1523,8 @@ def command_queue_summary(cfg):
         "policy_valid": policy_valid,
         "policy_errors": policy_errors,
         "policy_summary": policy_summary,
+        "mode_semantics": mode_semantics,
+        "mode_summary": mode_summary,
         "commands": commands,
         "commands_by_id": commands_by_id,
         "commands_by_status": commands_by_status,
@@ -3886,6 +3942,7 @@ def status_document(cfg):
      warnings_by_owner_pid) = warning_record_indexes(warnings)
     warning_summary = warning_stats(warnings)
     command_queue_policy_summary = command_queue.get("policy_summary") or {}
+    command_queue_mode_summary = command_queue.get("mode_summary") or {}
     upload_stored_exists_count, upload_stored_missing_count = record_bool_counts(uploads, "stored_exists")
     fetch_source_exists_count, fetch_source_missing_count = record_bool_counts(fetches, "source_exists")
     summary.update({
@@ -3986,6 +4043,12 @@ def status_document(cfg):
         "command_queue_arbitrary_policy_requested": bool(command_queue_policy_summary.get("arbitrary_policy_requested", False)),
         "command_queue_arbitrary_execution_allowed": bool(command_queue_policy_summary.get("arbitrary_execution_allowed", False)),
         "command_queue_safe_disabled_default": bool(command_queue_policy_summary.get("safe_disabled_default", False)),
+        "command_queue_mode_count": command_queue_mode_summary.get("mode_count", 0),
+        "command_queue_polling_mode_count": command_queue_mode_summary.get("polling_mode_count", 0),
+        "command_queue_operator_host_required_mode_count": command_queue_mode_summary.get("operator_host_required_mode_count", 0),
+        "command_queue_execution_supported_mode_count": command_queue_mode_summary.get("execution_supported_mode_count", 0),
+        "command_queue_active_control_channel_mode_count": command_queue_mode_summary.get("active_control_channel_mode_count", 0),
+        "command_queue_operator_supplied_command_execution_mode_count": command_queue_mode_summary.get("operator_supplied_command_execution_mode_count", 0),
         "release_present": bool(release_state.get("present", False)),
         "release_valid": bool(release_state.get("valid", False)),
         "release_json_valid": bool(release_state.get("release_json_valid", False)),

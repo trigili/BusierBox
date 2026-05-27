@@ -20,7 +20,8 @@ Current behavior is intentionally non-executing:
 - `scripts/busierbox-server --json-status` or `--api-status` includes the
   command queue path, counts, entries, `commands_by_id`,
   `commands_by_status`, result lookup maps, latest queue/result timestamps,
-  `policy_summary`, and non-execution safety boundary.
+  `policy_summary`, `mode_semantics`, `mode_summary`, and non-execution safety
+  boundary.
 - `busierbox plan command-queue --json` and `manifest --json` expose the same
   policy validity fields so release tooling and frontends do not treat an
   inconsistent policy as ready to poll.

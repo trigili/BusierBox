@@ -766,6 +766,9 @@ def main():
                     print(f"server json status services_by_name drift for {name}:{key}", file=sys.stderr)
                     print(queue_status_doc.stdout, file=sys.stderr)
                     return 1
+        command_queue_doc = queue_status_json.get("command_queue") or {}
+        command_queue_modes = command_queue_doc.get("mode_semantics") or {}
+        command_queue_mode_summary = command_queue_doc.get("mode_summary") or {}
         if (queue_status_json["summary"].get("command_queue_total_count") != 1 or
                 queue_status_json["summary"].get("command_queue_result_count") != 1 or
                 queue_status_json["summary"].get("command_queue_result_output_exceeded_count") != 0 or
@@ -778,7 +781,24 @@ def main():
                 queue_status_json["summary"].get("command_queue_execution_supported") is not False or
                 queue_status_json["summary"].get("command_queue_arbitrary_policy_requested") is not False or
                 queue_status_json["summary"].get("command_queue_arbitrary_execution_allowed") is not False or
-                queue_status_json["summary"].get("command_queue_safe_disabled_default") is not True):
+                queue_status_json["summary"].get("command_queue_safe_disabled_default") is not True or
+                command_queue_modes.get("status", {}).get("lifecycle") != "inspect" or
+                command_queue_modes.get("status", {}).get("would_poll_if_configured") is not False or
+                command_queue_modes.get("poll", {}).get("lifecycle") != "single-poll" or
+                command_queue_modes.get("once", {}).get("lifecycle") != "single-cycle" or
+                command_queue_modes.get("daemon", {}).get("lifecycle") != "long-running" or
+                command_queue_modes.get("daemon", {}).get("execution_supported") is not False or
+                command_queue_modes.get("daemon", {}).get("active_control_channel") is not False or
+                command_queue_mode_summary.get("mode_count") != 4 or
+                command_queue_mode_summary.get("polling_mode_count") != 3 or
+                command_queue_mode_summary.get("operator_host_required_mode_count") != 3 or
+                command_queue_mode_summary.get("execution_supported_mode_count") != 0 or
+                queue_status_json["summary"].get("command_queue_mode_count") != 4 or
+                queue_status_json["summary"].get("command_queue_polling_mode_count") != 3 or
+                queue_status_json["summary"].get("command_queue_operator_host_required_mode_count") != 3 or
+                queue_status_json["summary"].get("command_queue_execution_supported_mode_count") != 0 or
+                queue_status_json["summary"].get("command_queue_active_control_channel_mode_count") != 0 or
+                queue_status_json["summary"].get("command_queue_operator_supplied_command_execution_mode_count") != 0):
             print("server json status missing aggregate command queue counts", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
