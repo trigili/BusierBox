@@ -282,7 +282,14 @@ frontends that need the persisted manager view. `path_status` mirrors those
 paths with existence, parent-existence, expected-kind, readability, and
 writability fields; compact path health counts are mirrored into `summary` as
 `path_status_count`, `path_missing_count`, `path_parent_missing_count`, and
-`path_not_writable_count`. `staged_files_state` exposes the staged-files ledger
+`path_not_writable_count`. `browser_paths` provides a normalized operator file
+browser list for future TUI/web clients, covering operator ledgers, session
+directories, upload/fetch metadata, staged sources, event logs, TLS files, and
+release bundle files. The same records are grouped in `browser_paths_by_kind`,
+`browser_paths_by_path`, and `browser_paths_by_source_id`; compact counts are
+exposed in `browser_path_summary` and mirrored into `summary` as
+`browser_path_count`, existence/readability/writability counts, and
+`browser_path_kind_counts`. `staged_files_state` exposes the staged-files ledger
 path, validity, request names, and raw staged-entry count. `command_queue_state`
 exposes the command queue ledger path, validity, command ids, status counts,
 and raw command count. Staged files are exposed as the existing `staged`

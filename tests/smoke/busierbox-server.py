@@ -676,6 +676,21 @@ def main():
             print("server json status missing operator path health records", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
+        browser_paths = queue_status_json.get("browser_paths") or []
+        browser_summary = queue_status_json.get("browser_path_summary") or {}
+        browser_by_kind = queue_status_json.get("browser_paths_by_kind") or {}
+        browser_by_path = queue_status_json.get("browser_paths_by_path") or {}
+        if (browser_summary.get("total_count") != len(browser_paths) or
+                queue_status_json["summary"].get("browser_path_count") != len(browser_paths) or
+                queue_status_json["summary"].get("browser_path_kind_counts", {}).get("server-state") != 1 or
+                not browser_by_kind.get("operator-dir") or
+                not browser_by_kind.get("server-state") or
+                not browser_by_kind.get("command-queue-ledger") or
+                browser_by_path.get(str(queue_file), [{}])[0].get("kind") != "command-queue-ledger" or
+                browser_summary.get("exists_count", 0) < 1):
+            print("server json status missing normalized browser path records", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
         if (staged_files_state.get("path") != queue_status_json.get("staged_files") or
                 staged_files_state.get("exists") != staged_path_status.get("exists") or
                 queue_status_json["summary"].get("staged_files_exists") != bool(staged_files_state.get("exists")) or
@@ -1777,6 +1792,17 @@ def main():
             print("server json status missing upload/session recency summary", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+        upload_browser_by_kind = upload_doc.get("browser_paths_by_kind") or {}
+        upload_browser_by_path = upload_doc.get("browser_paths_by_path") or {}
+        upload_browser_by_source = upload_doc.get("browser_paths_by_source_id") or {}
+        if (upload_doc.get("browser_path_summary", {}).get("by_kind", {}).get("upload-stored") != 1 or
+                upload_summary.get("browser_path_kind_counts", {}).get("upload-metadata") != 1 or
+                upload_browser_by_kind.get("upload-stored", [{}])[0].get("path") != str(uploaded[0]) or
+                upload_browser_by_path.get(str(metadata_path), [{}])[0].get("kind") != "upload-metadata" or
+                not upload_browser_by_source.get(session_json_paths[0].parent.name)):
+            print("server json status missing upload/session browser path records", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         upload_session = (upload_doc.get("sessions") or [{}])[0]
         session_root_state = upload_doc.get("session_root_state") or {}
         if (upload_session.get("upload_count") != 1 or
@@ -2098,6 +2124,15 @@ def main():
                 release_state.get("tuple_count") != 1 or
                 release_state.get("release_name") != "operator-smoke"):
             print("json status missing explicit release state metadata", file=sys.stderr)
+            print(release_status.stdout, file=sys.stderr)
+            return 1
+        release_browser_by_kind = release_doc.get("browser_paths_by_kind") or {}
+        release_browser_by_path = release_doc.get("browser_paths_by_path") or {}
+        if (release_doc.get("browser_path_summary", {}).get("by_kind", {}).get("release-artifact") != 1 or
+                release_browser_by_kind.get("release-json", [{}])[0].get("path") != str(release_dir / "release.json") or
+                release_browser_by_kind.get("release-artifact", [{}])[0].get("source_id") != "bin/busierbox-test" or
+                release_browser_by_path.get(str(release_dir / "bin" / "busierbox-test"), [{}])[0].get("kind") != "release-artifact"):
+            print("json status missing release browser path records", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
         release_summary = release_doc.get("summary") or {}
