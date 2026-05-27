@@ -261,8 +261,10 @@ scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host
 objects for frontend and automation consumers. Stale server-state records,
 service errors, listener counts, command queue counts, command queue policy
 validity, and release artifact/device/tuple counts can be read without
-re-parsing the human status view. The same document includes `generated_at` and
-a `paths` object for stable
+re-parsing the human status view. Service rows remain available in `services`,
+and the same records are indexed by service name in `services_by_name` for
+frontend clients that need direct lookup without reconstructing their own map.
+The same document includes `generated_at` and a `paths` object for stable
 discovery of server state, staged files, event logs, command queue records, and
 the session root. Recent upload and staged-fetch activity is exposed through
 top-level `uploads` and `fetches` arrays plus aggregate counts in `summary`.

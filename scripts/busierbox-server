@@ -2701,6 +2701,24 @@ def status_document(cfg):
     command_queue = command_queue_summary(cfg)
     release = release_context()
     summary, warnings = status_summary_and_warnings(services)
+    services_by_name = {
+        row["name"]: {
+            "name": row.get("name", ""),
+            "port": row.get("port", 0),
+            "tls": row.get("tls", False),
+            "configured": row.get("configured", ""),
+            "actual": row.get("actual", ""),
+            "pid": row.get("pid", ""),
+            "pid_alive": row.get("pid_alive", False),
+            "pid_managed": row.get("pid_managed", False),
+            "listener_pids": row.get("listener_pids") or [],
+            "stale": row.get("stale", False),
+            "error": row.get("error", ""),
+            "process_log": row.get("process_log", ""),
+            "session_log": row.get("session_log", ""),
+        }
+        for row in services
+    }
     if event_stats["invalid_count"]:
         warnings.append({
             "type": "invalid_event_log",
@@ -2759,6 +2777,7 @@ def status_document(cfg):
             "tls_key": str(cfg.get("tls_key", "")),
         },
         "services": services,
+        "services_by_name": services_by_name,
         "summary": summary,
         "warnings": warnings,
         "local_ips": ips,

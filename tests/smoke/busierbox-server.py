@@ -615,6 +615,19 @@ def main():
         if queue_status_json["summary"].get("service_count") != 4:
             print("server json status service summary is wrong", file=sys.stderr)
             return 1
+        services_by_name = queue_status_json.get("services_by_name") or {}
+        if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service"}:
+            print("server json status missing stable services_by_name map", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        service_rows = {row.get("name"): row for row in queue_status_json.get("services") or []}
+        for name, row in service_rows.items():
+            mapped = services_by_name.get(name) or {}
+            for key in ("port", "tls", "configured", "actual", "pid", "pid_alive", "pid_managed", "listener_pids", "stale", "error"):
+                if mapped.get(key) != row.get(key):
+                    print(f"server json status services_by_name drift for {name}:{key}", file=sys.stderr)
+                    print(queue_status_doc.stdout, file=sys.stderr)
+                    return 1
         if (queue_status_json["summary"].get("command_queue_total_count") != 1 or
                 queue_status_json["summary"].get("command_queue_result_count") != 1 or
                 queue_status_json["summary"].get("command_queue_result_output_exceeded_count") != 0):
