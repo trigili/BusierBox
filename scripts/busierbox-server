@@ -1776,12 +1776,16 @@ def release_context():
         artifacts_by_tool = {}
         artifacts_by_provider_tool = {}
         artifacts_by_provider_status = {}
+        artifacts_by_doom_wad_filename = {}
+        artifacts_by_doom_wad_sha256 = {}
         artifact_compatibility_counts = {}
         artifact_payload_preset_counts = {}
         artifact_source_counts = {}
         artifact_tool_counts = {}
         artifact_provider_tool_counts = {}
         artifact_provider_status_counts = {}
+        artifact_doom_wad_filename_counts = {}
+        artifact_doom_wad_sha256_counts = {}
         artifact_doom_wad_count = 0
         artifact_total_size = 0
         for rec in artifacts:
@@ -1826,7 +1830,18 @@ def release_context():
                     status_key = f"{provider_tool}:{overall}"
                     artifacts_by_provider_status.setdefault(status_key, []).append(rec)
                     artifact_provider_status_counts[status_key] = artifact_provider_status_counts.get(status_key, 0) + 1
-            artifact_doom_wad_count += len([wad for wad in (rec.get("doom_wads") or []) if isinstance(wad, dict) and wad.get("filename")])
+            for wad in rec.get("doom_wads") or []:
+                if not isinstance(wad, dict):
+                    continue
+                filename = str(wad.get("filename") or "")
+                wad_sha256 = str(wad.get("sha256") or "")
+                if filename:
+                    artifact_doom_wad_count += 1
+                    artifacts_by_doom_wad_filename.setdefault(filename, []).append(rec)
+                    artifact_doom_wad_filename_counts[filename] = artifact_doom_wad_filename_counts.get(filename, 0) + 1
+                if wad_sha256:
+                    artifacts_by_doom_wad_sha256.setdefault(wad_sha256, []).append(rec)
+                    artifact_doom_wad_sha256_counts[wad_sha256] = artifact_doom_wad_sha256_counts.get(wad_sha256, 0) + 1
         return {
             "release_dir": str(here),
             "release_json": str(release_json),
@@ -1842,6 +1857,8 @@ def release_context():
             "artifacts_by_tool": artifacts_by_tool,
             "artifacts_by_provider_tool": artifacts_by_provider_tool,
             "artifacts_by_provider_status": artifacts_by_provider_status,
+            "artifacts_by_doom_wad_filename": artifacts_by_doom_wad_filename,
+            "artifacts_by_doom_wad_sha256": artifacts_by_doom_wad_sha256,
             "artifact_stats": {
                 "total_size": artifact_total_size,
                 "by_compatibility": artifact_compatibility_counts,
@@ -1850,6 +1867,8 @@ def release_context():
                 "by_tool": artifact_tool_counts,
                 "by_provider_tool": artifact_provider_tool_counts,
                 "by_provider_status": artifact_provider_status_counts,
+                "by_doom_wad_filename": artifact_doom_wad_filename_counts,
+                "by_doom_wad_sha256": artifact_doom_wad_sha256_counts,
                 "doom_wad_count": artifact_doom_wad_count,
             },
             "devices": devices,
@@ -4113,6 +4132,8 @@ def status_document(cfg):
         "release_artifact_tool_counts": (release.get("artifact_stats") or {}).get("by_tool") or {},
         "release_artifact_provider_tool_counts": (release.get("artifact_stats") or {}).get("by_provider_tool") or {},
         "release_artifact_provider_status_counts": (release.get("artifact_stats") or {}).get("by_provider_status") or {},
+        "release_artifact_doom_wad_filename_counts": (release.get("artifact_stats") or {}).get("by_doom_wad_filename") or {},
+        "release_artifact_doom_wad_sha256_counts": (release.get("artifact_stats") or {}).get("by_doom_wad_sha256") or {},
         "release_artifact_doom_wad_count": (release.get("artifact_stats") or {}).get("doom_wad_count", 0),
     })
     return {
