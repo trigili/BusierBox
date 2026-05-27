@@ -1584,7 +1584,9 @@ def main():
                 target_summary.get("explicit_target_action_count") != len(target_records) or
                 target_summary.get("operator_supplied_command_execution_count") != 0 or
                 target_summary.get("executes_operator_supplied_commands") is not False or
-                target_summary.get("all_require_explicit_target_action") is not True):
+                target_summary.get("all_require_explicit_target_action") is not True or
+                target_summary.get("by_side", {}).get("target") != len(target_records) or
+                target_summary.get("by_purpose", {}).get("start the configured reverse shell transport from the target") != 1):
             print("server json status missing target command safety summary", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
@@ -1594,12 +1596,18 @@ def main():
                 upload_summary.get("target_command_explicit_action_count") != len(target_records) or
                 upload_summary.get("target_command_operator_supplied_execution_count") != 0 or
                 upload_summary.get("target_command_executes_operator_supplied_commands") is not False or
-                upload_summary.get("target_command_all_require_explicit_target_action") is not True):
+                upload_summary.get("target_command_all_require_explicit_target_action") is not True or
+                upload_summary.get("target_command_side_counts", {}).get("target") != len(target_records) or
+                upload_summary.get("target_command_purpose_counts", {}).get("start the configured reverse shell transport from the target") != 1):
             print("server json status missing aggregate target command safety counts", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         target_commands_by_service = upload_doc.get("target_commands_by_service") or {}
+        target_commands_by_side = upload_doc.get("target_commands_by_side") or {}
+        target_commands_by_purpose = upload_doc.get("target_commands_by_purpose") or {}
         if (len(target_commands_by_service.get("file-service") or []) < 6 or
+                len(target_commands_by_side.get("target") or []) != len(target_records) or
+                len(target_commands_by_purpose.get("start the configured reverse shell transport from the target") or []) != 1 or
                 not any(rec.get("service") == "rshell" for rec in target_records) or
                 target_summary.get("by_service", {}).get("file-service", 0) < 6 or
                 target_summary.get("by_service", {}).get("rshell") != 1):

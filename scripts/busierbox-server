@@ -739,16 +739,24 @@ def compact_event_details(event):
 def target_command_record_indexes(records):
     by_service = {}
     by_request_name = {}
+    by_side = {}
+    by_purpose = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
         service = str(rec.get("service") or "")
         request_name = str(rec.get("request_name") or "")
+        side = str(rec.get("side") or "")
+        purpose = str(rec.get("purpose") or "")
         if service:
             by_service.setdefault(service, []).append(rec)
         if request_name:
             by_request_name[request_name] = rec
-    return by_service, by_request_name
+        if side:
+            by_side.setdefault(side, []).append(rec)
+        if purpose:
+            by_purpose.setdefault(purpose, []).append(rec)
+    return by_service, by_request_name, by_side, by_purpose
 
 
 def target_command_record_summary(records):
@@ -758,13 +766,21 @@ def target_command_record_summary(records):
     explicit_target_action_count = 0
     operator_supplied_command_execution_count = 0
     by_service = {}
+    by_side = {}
+    by_purpose = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
         total += 1
         service = str(rec.get("service") or "")
+        side = str(rec.get("side") or "")
+        purpose = str(rec.get("purpose") or "")
         if service:
             by_service[service] = by_service.get(service, 0) + 1
+        if side:
+            by_side[side] = by_side.get(side, 0) + 1
+        if purpose:
+            by_purpose[purpose] = by_purpose.get(purpose, 0) + 1
         if rec.get("side") == "target":
             target_count += 1
         if rec.get("network") is True:
@@ -782,6 +798,8 @@ def target_command_record_summary(records):
         "executes_operator_supplied_commands": operator_supplied_command_execution_count > 0,
         "all_require_explicit_target_action": total > 0 and explicit_target_action_count == total,
         "by_service": by_service,
+        "by_side": by_side,
+        "by_purpose": by_purpose,
     }
 
 
@@ -3246,7 +3264,7 @@ def status_document(cfg):
     command_queue = command_queue_summary(cfg)
     release = release_context()
     target_command_records = generated_target_command_records(cfg, staged_raw)
-    target_commands_by_service, target_commands_by_request = target_command_record_indexes(target_command_records)
+    target_commands_by_service, target_commands_by_request, target_commands_by_side, target_commands_by_purpose = target_command_record_indexes(target_command_records)
     target_command_summary = target_command_record_summary(target_command_records)
     uploads_by_filename, uploads_by_sha256, uploads_by_source_path, uploads_by_stored_path, uploads_by_remote_addr = upload_record_indexes(uploads)
     fetches_by_request, fetches_by_sha256, fetches_by_source_path, fetches_by_status, fetches_by_http_status, fetches_by_remote_addr = fetch_record_indexes(fetches)
@@ -3339,6 +3357,8 @@ def status_document(cfg):
         "target_command_operator_supplied_execution_count": target_command_summary.get("operator_supplied_command_execution_count", 0),
         "target_command_executes_operator_supplied_commands": bool(target_command_summary.get("executes_operator_supplied_commands", False)),
         "target_command_all_require_explicit_target_action": bool(target_command_summary.get("all_require_explicit_target_action", False)),
+        "target_command_side_counts": target_command_summary.get("by_side") or {},
+        "target_command_purpose_counts": target_command_summary.get("by_purpose") or {},
         "event_count": event_stats["total_count"],
         "event_tail_count": event_stats["tail_count"],
         "event_invalid_count": event_stats["invalid_count"],
@@ -3404,6 +3424,8 @@ def status_document(cfg):
         "target_command_summary": target_command_summary,
         "target_commands_by_service": target_commands_by_service,
         "target_commands_by_request": target_commands_by_request,
+        "target_commands_by_side": target_commands_by_side,
+        "target_commands_by_purpose": target_commands_by_purpose,
         "staged": staged,
         "staged_records": staged_records,
         "staged_by_request": staged_by_request,

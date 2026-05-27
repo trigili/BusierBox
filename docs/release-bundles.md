@@ -313,13 +313,15 @@ as `release_artifact_compatibility_counts`,
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
 purpose, service, side, network, explicit-target-action, and
-operator-supplied-command execution metadata. `target_commands_by_service` and
-`target_commands_by_request` index those records for service panes and staged
-fetch rows. `target_command_summary` reports total, network, explicit-target
-action, and operator-supplied-command execution counts; the same safety counts
-are mirrored into `summary` as `target_command_*` fields. This lets future
-frontends show the same commands without guessing whether a command is a safe
-explicit fetch/upload helper or control-like behavior.
+operator-supplied-command execution metadata. `target_commands_by_service`,
+`target_commands_by_request`, `target_commands_by_side`, and
+`target_commands_by_purpose` index those records for service panes, staged
+fetch rows, and command-category views. `target_command_summary` reports total,
+network, explicit-target action, and operator-supplied-command execution
+counts, with side and purpose counts mirrored into `summary` as
+`target_command_side_counts` and `target_command_purpose_counts`. This lets
+future frontends show the same commands without guessing whether a command is a
+safe explicit fetch/upload helper or control-like behavior.
 Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
 `command_queue_status_counts`. It also exposes latest command-created and
