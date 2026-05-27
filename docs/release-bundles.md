@@ -276,8 +276,9 @@ upload and staged-fetch activity is exposed through top-level `uploads` and
 session browser records are exposed as `sessions`, `sessions_by_id`, and
 `sessions_by_service`; aggregate counts remain in `summary`.
 When running inside a release bundle, `release` includes artifact, device, and
-tuple browser lists plus `artifacts_by_release_path`, `devices_by_name`, and
-`tuples_by_path` lookup maps.
+tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
+`artifacts_by_sha256`, `artifacts_by_payload_preset`, `artifacts_by_tool`,
+`devices_by_name`, and `tuples_by_path` lookup maps.
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
 purpose, service, side, network, explicit-target-action, and
