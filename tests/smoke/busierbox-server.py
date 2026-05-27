@@ -1028,6 +1028,15 @@ def main():
             print("bind failure status missing warning aggregate stats", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
+        warnings_by_type = bind_fail_doc.get("warnings_by_type") or {}
+        warnings_by_service = bind_fail_doc.get("warnings_by_service") or {}
+        if (not warnings_by_type.get("service_error") or
+                warnings_by_type["service_error"][-1].get("service") != "file-service" or
+                not warnings_by_service.get("file-service") or
+                warnings_by_service["file-service"][-1].get("type") != "service_error"):
+            print("bind failure status missing warning lookup indexes", file=sys.stderr)
+            print(bind_fail_status.stdout, file=sys.stderr)
+            return 1
         bind_fail_workbench = run(
             "scripts/busierbox-server", "--config", str(bind_fail_cfg),
             "--state-file", str(bind_fail_state),

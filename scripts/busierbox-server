@@ -441,6 +441,21 @@ def warning_stats(warnings):
     }
 
 
+def warning_record_indexes(warnings):
+    by_type = {}
+    by_service = {}
+    for item in warnings or []:
+        if not isinstance(item, dict):
+            continue
+        warning_type = str(item.get("type") or "")
+        service = str(item.get("service") or "")
+        if warning_type:
+            by_type.setdefault(warning_type, []).append(item)
+        if service:
+            by_service.setdefault(service, []).append(item)
+    return by_type, by_service
+
+
 def load_command_queue(cfg):
     data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
     if not isinstance(data, dict):
@@ -2815,6 +2830,7 @@ def status_document(cfg):
             "message": "command queue policy is invalid; target polling is not configured",
             "suggested_action": "fix command queue config or leave it fully disabled",
         })
+    warnings_by_type, warnings_by_service = warning_record_indexes(warnings)
     summary.update({
         "staged_count": len(staged),
         "upload_count": len(uploads),
@@ -2860,6 +2876,8 @@ def status_document(cfg):
         "services_by_name": services_by_name,
         "summary": summary,
         "warnings": warnings,
+        "warnings_by_type": warnings_by_type,
+        "warnings_by_service": warnings_by_service,
         "warning_stats": warning_stats(warnings),
         "local_ips": ips,
         "selected_local_ip": (ips or ["OPERATOR_IP"])[0],
