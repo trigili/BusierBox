@@ -763,6 +763,7 @@ def main():
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         event_stats = queue_status_json.get("event_log_stats") or {}
+        event_log_state = queue_status_json.get("event_log_state") or {}
         if (event_stats.get("total_count", 0) < 2 or
                 event_stats.get("tail_count") != len(queue_status_json.get("events", [])) or
                 queue_status_json["summary"].get("event_count") != event_stats.get("total_count") or
@@ -772,6 +773,17 @@ def main():
                 queue_status_json["summary"].get("first_event_at") != event_stats.get("first_event_at") or
                 queue_status_json["summary"].get("latest_event_at") != event_stats.get("latest_event_at")):
             print("server json status missing event log total/tail stats", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        if (event_log_state.get("path") != queue_status_json.get("event_log") or
+                event_log_state.get("exists") is not True or
+                event_log_state.get("valid") is not True or
+                event_log_state.get("event_count") != event_stats.get("total_count") or
+                event_log_state.get("invalid_count") != event_stats.get("invalid_count") or
+                queue_status_json["summary"].get("event_log_exists") is not True or
+                queue_status_json["summary"].get("event_log_valid") is not True or
+                queue_status_json["summary"].get("event_log_size", 0) <= 0):
+            print("server json status missing reusable event log state record", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         if (event_stats.get("by_service", {}).get("command-queue", 0) < 2 or
@@ -821,6 +833,9 @@ def main():
         ]
         expected_invalid = previous_invalid + 1
         if (invalid_event_doc.get("summary", {}).get("event_invalid_count") != expected_invalid or
+                invalid_event_doc.get("summary", {}).get("event_log_valid") is not False or
+                (invalid_event_doc.get("event_log_state") or {}).get("valid") is not False or
+                (invalid_event_doc.get("event_log_state") or {}).get("invalid_count") != expected_invalid or
                 not invalid_event_warnings or
                 invalid_event_warnings[-1].get("path") != str(event_log_path) or
                 invalid_event_warnings[-1].get("invalid_count") != expected_invalid):

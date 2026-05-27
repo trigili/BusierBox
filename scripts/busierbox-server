@@ -348,6 +348,32 @@ def event_log_stats(cfg, limit=12):
     return EventLog(cfg).stats(limit)
 
 
+def event_log_state_record(cfg, stats=None):
+    stats = stats or event_log_stats(cfg)
+    path = Path(str(stats.get("path") or EventLog(cfg).path))
+    exists = path.is_file()
+    invalid_count = int(stats.get("invalid_count", 0) or 0)
+    total_count = int(stats.get("total_count", 0) or 0)
+    rec = {
+        "path": str(path),
+        "exists": exists,
+        "valid": bool(exists and invalid_count == 0),
+        "event_count": total_count,
+        "invalid_count": invalid_count,
+        "tail_count": int(stats.get("tail_count", 0) or 0),
+        "tail_limit": int(stats.get("tail_limit", 0) or 0),
+        "first_event_at": stats.get("first_event_at", ""),
+        "latest_event_at": stats.get("latest_event_at", ""),
+        "error": "",
+    }
+    if exists:
+        try:
+            rec["size"] = path.stat().st_size
+        except OSError as exc:
+            rec["error"] = str(exc)
+    return rec
+
+
 def staged_file_path(cfg):
     return Path(str(cfg.get("staged_files") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "staged-files.json"))
 
@@ -3505,6 +3531,7 @@ def status_document(cfg):
     session_root_state = session_root_record(cfg, sessions)
     sessions_by_id, sessions_by_service, sessions_by_state, sessions_by_exit_reason, sessions_by_remote = session_record_indexes(sessions)
     event_stats = event_log_stats(cfg)
+    event_log_state = event_log_state_record(cfg, event_stats)
     events = event_stats["tail"]
     events_by_id, events_by_session, events_by_service, events_by_event, events_by_level, events_by_remote = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
@@ -3633,6 +3660,9 @@ def status_document(cfg):
         "target_command_side_counts": target_command_summary.get("by_side") or {},
         "target_command_purpose_counts": target_command_summary.get("by_purpose") or {},
         "event_count": event_stats["total_count"],
+        "event_log_exists": bool(event_log_state.get("exists", False)),
+        "event_log_valid": bool(event_log_state.get("valid", False)),
+        "event_log_size": event_log_state.get("size", 0),
         "event_tail_count": event_stats["tail_count"],
         "event_invalid_count": event_stats["invalid_count"],
         "first_event_at": event_stats.get("first_event_at", ""),
@@ -3747,6 +3777,7 @@ def status_document(cfg):
         "events_by_event": events_by_event,
         "events_by_level": events_by_level,
         "events_by_remote": events_by_remote,
+        "event_log_state": event_log_state,
         "event_log_stats": {
             key: value for key, value in event_stats.items() if key != "tail"
         },

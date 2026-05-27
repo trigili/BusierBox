@@ -366,8 +366,11 @@ metadata separately. The `events` array is a bounded recent tail;
 `events_by_id` maps stable event ids to tail records, while
 `events_by_session`, `events_by_service`, `events_by_event`, `events_by_level`, and
 `events_by_remote` group those tail records for direct frontend lookups.
-`event_log_stats` reports the event log path, total valid event count, tail
-count, invalid JSONL line count, tail limit, first/latest event timestamps, and
+`event_log_state` reports the event log path, existence, validity, size, total
+valid event count, invalid JSONL line count, tail count, tail limit, and
+first/latest event timestamps. `event_log_stats` reports the event log path,
+total valid event count, tail count, invalid JSONL line count, tail limit,
+first/latest event timestamps, and
 aggregate counters by service, event, level, and remote endpoint so API
 consumers can tell whether there is more history to page or inspect from disk
 while still rendering compact diagnostics.
