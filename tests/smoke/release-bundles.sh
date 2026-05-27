@@ -355,6 +355,23 @@ grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/busierbox-nati
 grep -q '^compatibility=exact$' "$work/release-find.out"
 "$work/release/scripts/release-find" --device native --json >"$work/release-find.json"
 python3 -m json.tool "$work/release-find.json" >/dev/null
+python3 - "$work/release-find.json" <<'PY'
+import json
+import sys
+
+row = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+selection = row.get("selection") or {}
+if selection.get("selected_artifact") != row.get("tuple_artifact"):
+    raise SystemExit(f"selection selected artifact mismatch: {selection!r}")
+if selection.get("candidate_count", 0) < 1 or selection.get("eligible_count", 0) < 1:
+    raise SystemExit(f"release-find selection counts missing: {selection!r}")
+filters = selection.get("filters") or {}
+if filters.get("device") != "native":
+    raise SystemExit(f"release-find selection filters missing device: {filters!r}")
+policy = "\n".join(selection.get("policy") or [])
+if "prefer lower-risk compatibility labels" not in policy:
+    raise SystemExit(f"release-find selection policy missing: {policy}")
+PY
 python3 - "$work/release/release-index.json" <<'PY'
 import json
 import sys
@@ -416,6 +433,9 @@ JSON
 "$work/release/scripts/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-unsafe.json" >"$work/release-find-reality.out"
 grep -q '^compatibility=unsafe$' "$work/release-find-reality.out"
 grep -q '^compatibility_reason=runtime root execution failed in reality-test$' "$work/release-find-reality.out"
+grep -q '^candidate_count=1$' "$work/release-find-reality.out"
+grep -q '^eligible_count=1$' "$work/release-find-reality.out"
+grep -q '^selection_policy=.*prefer lower-risk compatibility labels' "$work/release-find-reality.out"
 if "$work/release/scripts/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-unsafe.json" --max-compatibility likely >"$work/release-find-threshold.out" 2>"$work/release-find-threshold.err"; then
     printf '%s\n' "release-bundles: max compatibility threshold accepted unsafe artifact" >&2
     exit 1

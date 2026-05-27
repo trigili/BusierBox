@@ -129,6 +129,10 @@ artifact. Labels are `exact`, `likely`, `heuristic`, `unsafe`, and
 reality-test JSON add target-specific scoring for arch, endian, libc, kernel
 floor, CPU/ABI hints, `/tmp` noexec, read-only rootfs, low storage, failed
 runtime execution, failed payload extraction, and partial procfs evidence.
+JSON output includes a `selection` block with selected artifact, candidate and
+eligible counts, threshold-filter count, active filters, max compatibility, and
+the selection policy. Plain text output mirrors the counts and policy so an
+operator can audit why a release artifact was selected without parsing JSON.
 `release-index.json` and tuple `MANIFEST.json` include baseline compatibility
 metadata for every artifact.
 

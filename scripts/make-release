@@ -947,6 +947,7 @@ def write_release_helpers(script_dir):
             raise SystemExit("release-find: no matching artifact")
         for candidate in candidates:
             candidate["compatibility"] = score_candidate(index, candidate, args)
+        scored_count = len(candidates)
         if args.max_compatibility:
             max_rank = score_rank(args.max_compatibility)
             candidates = [
@@ -957,11 +958,46 @@ def write_release_helpers(script_dir):
             raise SystemExit("release-find: no matching artifact within compatibility threshold")
         candidates.sort(key=lambda item: (score_rank((item.get("compatibility") or {}).get("label")), item.get("payload_preset") or "", item.get("artifact") or ""))
         row = candidates[0]
+        selection = {
+            "schema": 1,
+            "selected_artifact": row.get("tuple_artifact") or row.get("artifact") or "",
+            "candidate_count": scored_count,
+            "eligible_count": len(candidates),
+            "filtered_out_by_threshold_count": scored_count - len(candidates),
+            "max_compatibility": args.max_compatibility or "",
+            "policy": [
+                "filter by requested device/tuple/tool/feature/payload preset",
+                "score with survey/reality facts when provided",
+                "exclude artifacts riskier than max compatibility when set",
+                "prefer lower-risk compatibility labels",
+                "tie-break by payload preset then artifact path",
+            ],
+            "filters": {
+                "arch": args.arch or "",
+                "endian": args.endian or "",
+                "libc": args.libc or "",
+                "kernel": args.kernel or "",
+                "cpu": args.cpu or "",
+                "abi": args.abi or "",
+                "device": args.device or "",
+                "feature": args.feature or "",
+                "tool": args.tool or "",
+                "payload_preset": args.payload_preset or "",
+                "survey_json": args.survey_json or "",
+                "reality_json": args.reality_json or "",
+                "max_compatibility": args.max_compatibility or "",
+            },
+        }
+        row["selection"] = selection
         if args.json:
             print(json.dumps(row, indent=2, sort_keys=True))
             raise SystemExit(0)
         artifact = row.get("tuple_artifact") or row.get("artifact")
         print(f"recommended_artifact={artifact}")
+        print(f"candidate_count={selection['candidate_count']}")
+        print(f"eligible_count={selection['eligible_count']}")
+        print(f"filtered_out_by_threshold_count={selection['filtered_out_by_threshold_count']}")
+        print(f"selection_policy={'; '.join(selection['policy'])}")
         print(f"tuple_path={row.get('tuple_path')}")
         print(f"payload_preset={row.get('payload_preset')}")
         print(f"runtime_mode={row.get('runtime_mode') or ''}")
