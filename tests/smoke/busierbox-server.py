@@ -703,6 +703,8 @@ def main():
         if (browser_summary.get("total_count") != len(browser_paths) or
                 queue_status_json["summary"].get("browser_path_count") != len(browser_paths) or
                 queue_status_json["summary"].get("browser_path_kind_counts", {}).get("server-state") != 1 or
+                queue_status_json["summary"].get("browser_path_exists_kind_counts", {}).get("command-queue-ledger") != 1 or
+                queue_status_json["summary"].get("browser_path_missing_kind_counts", {}).get("staged-ledger") != 1 or
                 not browser_by_kind.get("operator-dir") or
                 not browser_by_kind.get("server-state") or
                 not browser_by_kind.get("command-queue-ledger") or
@@ -1882,7 +1884,10 @@ def main():
         upload_browser_by_kind_source = upload_doc.get("browser_paths_by_kind_source_id") or {}
         upload_session_id = session_json_paths[0].parent.name
         if (upload_doc.get("browser_path_summary", {}).get("by_kind", {}).get("upload-stored") != 1 or
+                upload_doc.get("browser_path_summary", {}).get("exists_by_kind", {}).get("upload-stored") != 1 or
                 upload_summary.get("browser_path_kind_counts", {}).get("upload-metadata") != 1 or
+                upload_summary.get("browser_path_exists_kind_counts", {}).get("upload-stored") != 1 or
+                upload_summary.get("browser_path_missing_kind_counts", {}).get("staged-ledger") != 1 or
                 upload_browser_by_kind.get("upload-stored", [{}])[0].get("path") != str(uploaded[0]) or
                 upload_browser_by_path.get(str(metadata_path), [{}])[0].get("kind") != "upload-metadata" or
                 not upload_browser_by_source.get(upload_session_id) or
@@ -2257,6 +2262,8 @@ def main():
         release_browser_by_path = release_doc.get("browser_paths_by_path") or {}
         release_browser_by_kind_source = release_doc.get("browser_paths_by_kind_source_id") or {}
         if (release_doc.get("browser_path_summary", {}).get("by_kind", {}).get("release-artifact") != 1 or
+                release_doc.get("browser_path_summary", {}).get("exists_by_kind", {}).get("release-artifact") != 1 or
+                release_doc.get("summary", {}).get("browser_path_exists_kind_counts", {}).get("release-artifact") != 1 or
                 release_browser_by_kind.get("release-json", [{}])[0].get("path") != str(release_dir / "release.json") or
                 release_browser_by_kind.get("release-artifact", [{}])[0].get("source_id") != "bin/busierbox-test" or
                 release_browser_by_path.get(str(release_dir / "bin" / "busierbox-test"), [{}])[0].get("kind") != "release-artifact" or

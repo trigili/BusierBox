@@ -316,7 +316,9 @@ future web clients jump directly to records such as
 `upload-metadata:<session-id>` or `release-artifact:<release-path>` without
 filtering the broader source-id group. Compact counts are exposed in
 `browser_path_summary` and mirrored into `summary` as `browser_path_count`,
-existence/readability/writability counts, and `browser_path_kind_counts`.
+existence/readability/writability counts, `browser_path_kind_counts`, and
+per-kind health counters such as `browser_path_exists_kind_counts` and
+`browser_path_missing_kind_counts`.
 `staged_files_state` exposes the staged-files ledger
 path, validity, request names, and raw staged-entry count. `command_queue_state`
 exposes the command queue ledger path, validity, command ids, status counts,

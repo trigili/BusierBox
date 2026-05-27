@@ -822,6 +822,24 @@ def browser_path_indexes(records):
 
 
 def browser_path_summary(records):
+    exists_by_kind = {}
+    missing_by_kind = {}
+    readable_by_kind = {}
+    writable_by_kind = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        kind = str(rec.get("kind") or "")
+        if not kind:
+            continue
+        if rec.get("exists") is True:
+            exists_by_kind[kind] = exists_by_kind.get(kind, 0) + 1
+        else:
+            missing_by_kind[kind] = missing_by_kind.get(kind, 0) + 1
+        if rec.get("readable") is True:
+            readable_by_kind[kind] = readable_by_kind.get(kind, 0) + 1
+        if rec.get("writable") is True:
+            writable_by_kind[kind] = writable_by_kind.get(kind, 0) + 1
     return {
         "total_count": len(records or []),
         "exists_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("exists") is True),
@@ -829,6 +847,10 @@ def browser_path_summary(records):
         "readable_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("readable") is True),
         "writable_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("writable") is True),
         "by_kind": record_count_by_key(records, "kind"),
+        "exists_by_kind": exists_by_kind,
+        "missing_by_kind": missing_by_kind,
+        "readable_by_kind": readable_by_kind,
+        "writable_by_kind": writable_by_kind,
     }
 
 
@@ -4058,6 +4080,10 @@ def status_document(cfg):
         "browser_path_readable_count": browser_summary.get("readable_count", 0),
         "browser_path_writable_count": browser_summary.get("writable_count", 0),
         "browser_path_kind_counts": browser_summary.get("by_kind") or {},
+        "browser_path_exists_kind_counts": browser_summary.get("exists_by_kind") or {},
+        "browser_path_missing_kind_counts": browser_summary.get("missing_by_kind") or {},
+        "browser_path_readable_kind_counts": browser_summary.get("readable_by_kind") or {},
+        "browser_path_writable_kind_counts": browser_summary.get("writable_by_kind") or {},
         "server_state_exists": bool(server_state.get("exists", False)),
         "server_state_valid": bool(server_state.get("valid", False)),
         "server_state_service_count": server_state.get("service_count", 0),
