@@ -403,6 +403,11 @@ JSON
 "$work/release/scripts/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-unsafe.json" >"$work/release-find-reality.out"
 grep -q '^compatibility=unsafe$' "$work/release-find-reality.out"
 grep -q '^compatibility_reason=runtime root execution failed in reality-test$' "$work/release-find-reality.out"
+if "$work/release/scripts/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-unsafe.json" --max-compatibility likely >"$work/release-find-threshold.out" 2>"$work/release-find-threshold.err"; then
+    printf '%s\n' "release-bundles: max compatibility threshold accepted unsafe artifact" >&2
+    exit 1
+fi
+grep -q 'no matching artifact within compatibility threshold' "$work/release-find-threshold.err"
 "$work/release/scripts/release-self-test" >/dev/null
 scripts/release-self-test --release-dir "$work/release" >/dev/null
 

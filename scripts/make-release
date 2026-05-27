@@ -919,6 +919,8 @@ def write_release_helpers(script_dir):
         parser.add_argument("--payload-preset")
         parser.add_argument("--survey-json", help="score candidates against survey --json output")
         parser.add_argument("--reality-json", help="score candidates against reality-test --json output")
+        parser.add_argument("--max-compatibility", choices=("exact", "likely", "heuristic", "unsafe", "incompatible"),
+                            help="exclude artifacts riskier than this compatibility label")
         parser.add_argument("--json", action="store_true")
         args = parser.parse_args()
 
@@ -945,6 +947,14 @@ def write_release_helpers(script_dir):
             raise SystemExit("release-find: no matching artifact")
         for candidate in candidates:
             candidate["compatibility"] = score_candidate(index, candidate, args)
+        if args.max_compatibility:
+            max_rank = score_rank(args.max_compatibility)
+            candidates = [
+                row for row in candidates
+                if score_rank((row.get("compatibility") or {}).get("label")) <= max_rank
+            ]
+        if not candidates:
+            raise SystemExit("release-find: no matching artifact within compatibility threshold")
         candidates.sort(key=lambda item: (score_rank((item.get("compatibility") or {}).get("label")), item.get("payload_preset") or "", item.get("artifact") or ""))
         row = candidates[0]
         if args.json:

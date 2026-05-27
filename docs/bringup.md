@@ -79,6 +79,7 @@ scripts/busierbox-bringup \
   --recommend-only \
   --survey-json local/survey.json \
   --release-dir dist/releases/smoke \
+  --max-compatibility likely \
   --operator-host 192.0.2.10 \
   --configure-trailer
 ```
@@ -128,8 +129,9 @@ local/bringup-runs/<timestamp>/
 
 `summary.json` records the run status, local run directory, remote directory,
 host, target preset, payload preset, generated target preset path, release
-selection, compatibility label/reasons, generated trailer command, staged fetch
-command, next operator commands, and next target commands. The JSON also
+selection, maximum compatibility threshold, compatibility label/reasons,
+generated trailer command, staged fetch command, next operator commands, and
+next target commands. The JSON also
 includes `next_operator_command_records` and `next_target_command_records`
 with side/effect metadata, plus a `safety_boundary` object that states that
 bringup does not enable network autorun, hidden control channels, command queue

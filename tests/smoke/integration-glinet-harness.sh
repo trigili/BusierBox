@@ -21,6 +21,7 @@ done
 "$script" --dry-run --all-safe --operator-host 127.0.0.1 >/dev/null
 scripts/busierbox-bringup --help 2>&1 | grep -q 'Guided target bring-up flow'
 scripts/busierbox-bringup --help 2>&1 | grep -q -- '--reality-json PATH'
+scripts/busierbox-bringup --help 2>&1 | grep -q -- '--max-compatibility LABEL'
 scripts/busierbox-bringup --help 2>&1 | grep -q 'does not start scripts/busierbox-server'
 scripts/busierbox-bringup --help 2>&1 | grep -q 'does not install persistence'
 scripts/busierbox-bringup --help 2>&1 | grep -q 'integration-glinet is the regression harness'
@@ -47,6 +48,8 @@ if "--json" not in sys.argv or "--survey-json" not in sys.argv:
     raise SystemExit(2)
 if "--reality-json" not in sys.argv:
     raise SystemExit("missing --reality-json")
+if "--max-compatibility" not in sys.argv:
+    raise SystemExit("missing --max-compatibility")
 print(json.dumps({
     "selected": {"artifact_path": str(root / "bin" / "busierbox-mipsel-full")},
     "compatibility": {"label": "likely", "reasons": ["arch exact", "libc inferred musl"]},
@@ -59,8 +62,8 @@ cat >"$release_tmp/reality.json" <<'JSON'
   {"name":"tmp_noexec","type":"constraint","status":"pass","ok":true,"detected":true,"skipped":false,"detail":"detected"}
 ]}
 JSON
-release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --reality-json "$release_tmp/reality.json" --release-dir "$release_tmp" --configure-trailer --json)
-printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["compatibility"]["label"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert d["reality_json"]; assert "artifact-config set" in d["generated_trailer_override_command"]; assert d["recommendation"]["config"]["BB_RUNTIME_MODE"] == "extract"; assert d["recommendation"]["facts"]["reality"]["tmp_noexec_detected"] is True; assert any("reality-test detected /tmp noexec" in w for w in d["recommendation"]["warnings"])'
+release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --reality-json "$release_tmp/reality.json" --release-dir "$release_tmp" --max-compatibility likely --configure-trailer --json)
+printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["compatibility"]["label"] == "likely"; assert d["max_compatibility"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert d["reality_json"]; assert "artifact-config set" in d["generated_trailer_override_command"]; assert d["recommendation"]["config"]["BB_RUNTIME_MODE"] == "extract"; assert d["recommendation"]["facts"]["reality"]["tmp_noexec_detected"] is True; assert any("reality-test detected /tmp noexec" in w for w in d["recommendation"]["warnings"])'
 rm -rf "$release_tmp"
 grep -q 'BUSIERBOX_CONFIG="$recommended" make package' scripts/busierbox-bringup
 grep -q 'Bringup is a guided onboarding flow' README.md
