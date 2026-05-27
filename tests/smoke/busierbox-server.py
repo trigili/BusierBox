@@ -649,6 +649,16 @@ def main():
             print("server json status missing stable services_by_name map", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
+        services_by_actual = queue_status_json.get("services_by_actual") or {}
+        services_by_configured = queue_status_json.get("services_by_configured") or {}
+        services_by_port = queue_status_json.get("services_by_port") or {}
+        file_service_port = str(services_by_name.get("file-service", {}).get("port", ""))
+        if (len(services_by_actual.get("stopped", [])) != 4 or
+                len(services_by_configured.get("unknown", [])) < 3 or
+                not any(row.get("name") == "file-service" for row in services_by_port.get(file_service_port, []))):
+            print("server json status missing grouped service lookup maps", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
         service_rows = {row.get("name"): row for row in queue_status_json.get("services") or []}
         for name, row in service_rows.items():
             mapped = services_by_name.get(name) or {}
