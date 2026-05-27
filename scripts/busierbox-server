@@ -2600,9 +2600,13 @@ def status_summary_and_warnings(services):
             summary["configured_listening_count"] += 1
         if row.get("configured") == "error" or row.get("error"):
             summary["error_count"] += 1
+            message = row.get("error", "service is marked error")
+            if row.get("owners"):
+                message = f"unable to bind/listen: {message}"
             warnings.append({**warning_context(row),
                 "type": "service_error",
-                "message": row.get("error", "service is marked error"),
+                "message": message,
+                "suggested_action": "scripts/busierbox-server --status or scripts/busierbox-server --stop",
             })
         if row.get("stale"):
             summary["stale_count"] += 1
@@ -2962,6 +2966,26 @@ def print_workbench(cfg):
             print(f"    error: {item['error']}")
         if item["session_log"]:
             print(f"    log: {item['session_log']}")
+    print("")
+    print("Warnings:")
+    warnings = snap.get("warnings") or []
+    if warnings:
+        for warning in warnings:
+            service = warning.get("service", "")
+            prefix = f"{warning.get('type', '')}"
+            if service:
+                prefix = f"{prefix} {service}"
+            print(f"  {prefix}: {warning.get('message', '')}")
+            if warning.get("suggested_action"):
+                print(f"    suggested_action: {warning.get('suggested_action', '')}")
+            if warning.get("error"):
+                print(f"    error: {warning.get('error', '')}")
+            for owner in warning.get("owners") or []:
+                print(f"    owner_pid={owner.get('pid', '')} {owner.get('cmdline', '')}")
+            for pid in warning.get("listener_pids") or []:
+                print(f"    listener_pid={pid}")
+    else:
+        print("  none")
     print("")
     print("Staged files:")
     if snap["staged"]:
@@ -3394,7 +3418,8 @@ def run_curses_tui(cfg):
             stdscr.erase()
             height, width = stdscr.getmaxyx()
             active = sum(1 for row in services if row["actual"] == "listening")
-            safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} | ip={snap['selected_local_ip']} | {utc_now()} | tab panes j/k move enter start/stop s stage d unstage v view c copy ? help q quit", curses.A_REVERSE)
+            warning_count = len(snap.get("warnings") or [])
+            safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} warnings={warning_count} | ip={snap['selected_local_ip']} | {utc_now()} | tab panes j/k move enter start/stop s stage d unstage v view c copy ? help q quit", curses.A_REVERSE)
             left_w = max(34, width // 3)
             right_w = max(20, width - left_w - 1)
             lower_y = max(12, height // 2)

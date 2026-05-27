@@ -892,6 +892,19 @@ def main():
             print("bind failure status warning missing error/owner context", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
+        bind_fail_workbench = run(
+            "scripts/busierbox-server", "--config", str(bind_fail_cfg),
+            "--state-file", str(bind_fail_state),
+            "--tui",
+        )
+        if ("Warnings:" not in bind_fail_workbench.stdout or
+                "service_error file-service" not in bind_fail_workbench.stdout or
+                "unable to bind" not in bind_fail_workbench.stdout or
+                "owner_pid=" not in bind_fail_workbench.stdout or
+                "suggested_action:" not in bind_fail_workbench.stdout):
+            print("workbench did not surface bind failure warnings", file=sys.stderr)
+            print(bind_fail_workbench.stdout, file=sys.stderr)
+            return 1
         bind_events_path = Path(tmp) / "operator-session" / "events.jsonl"
         bind_events = [json.loads(line) for line in bind_events_path.read_text(encoding="utf-8").splitlines()]
         bind_error = [event for event in bind_events if event.get("event") == "bind_error"]
