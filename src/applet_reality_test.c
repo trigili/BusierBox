@@ -542,6 +542,8 @@ static void print_json(struct check_result checks[], size_t n)
 {
     size_t i;
     int pass = 0, fail = 0, skip = 0;
+    int capability_pass = 0, capability_fail = 0, operator_pass = 0, operator_fail = 0, operator_skip = 0;
+    int tmp_noexec = 0, rootfs_read_only = 0, procfs_partial = 0;
     printf("{\"schema\":1,\"runtime_root\":");
     bb_json_string(stdout, BB_RUNTIME_ROOT);
     printf(",\"operator_host\":");
@@ -570,8 +572,33 @@ static void print_json(struct check_result checks[], size_t n)
             pass++;
         else
             fail++;
+        if (is_operator_check(checks[i].name)) {
+            if (checks[i].skipped)
+                operator_skip++;
+            else if (checks[i].ok)
+                operator_pass++;
+            else
+                operator_fail++;
+        } else if (!is_constraint_check(checks[i].name) && !checks[i].skipped) {
+            if (checks[i].ok)
+                capability_pass++;
+            else
+                capability_fail++;
+        }
+        if (!strcmp(checks[i].name, "tmp_noexec"))
+            tmp_noexec = constraint_detected(&checks[i]);
+        else if (!strcmp(checks[i].name, "rootfs_read_only"))
+            rootfs_read_only = constraint_detected(&checks[i]);
+        else if (!strcmp(checks[i].name, "procfs_partial"))
+            procfs_partial = constraint_detected(&checks[i]);
     }
-    printf("],\"summary\":{\"pass\":%d,\"fail\":%d,\"skipped\":%d}}\n", pass, fail, skip);
+    printf("],\"summary\":{\"pass\":%d,\"fail\":%d,\"skipped\":%d", pass, fail, skip);
+    printf(",\"capability_pass\":%d,\"capability_fail\":%d", capability_pass, capability_fail);
+    printf(",\"operator_pass\":%d,\"operator_fail\":%d,\"operator_skipped\":%d", operator_pass, operator_fail, operator_skip);
+    printf(",\"constraints\":{\"tmp_noexec\":%s,\"rootfs_read_only\":%s,\"procfs_partial\":%s}}}\n",
+           tmp_noexec ? "true" : "false",
+           rootfs_read_only ? "true" : "false",
+           procfs_partial ? "true" : "false");
 }
 
 static void print_text(struct check_result checks[], size_t n)
