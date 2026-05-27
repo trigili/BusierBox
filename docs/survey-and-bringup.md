@@ -66,6 +66,7 @@ busierbox survey --shell-script
 BUSIERBOX_SURVEY_PROBE_DIR=/tmp/bbx-probe /bin/sh ./busierbox-survey.sh
 busierbox survey --write-shell-script /tmp/busierbox-survey.sh
 busierbox reality-test --json
+busierbox reality-test push
 scripts/config-from-survey --format shell survey.json
 scripts/config-from-survey --format json survey.json
 scripts/config-from-survey --format json --reality-json reality.json survey.json

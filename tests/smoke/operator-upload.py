@@ -82,6 +82,7 @@ def main():
                 [str(bb), "evidence", "push", "--quiet"],
                 [str(bb), "survey", "push", "--quiet"],
                 [str(bb), "manifest", "push", "--quiet"],
+                [str(bb), "reality-test", "push", "--quiet"],
             ]
             for cmd in commands:
                 subprocess.run(
@@ -103,6 +104,7 @@ def main():
                     "busierbox-evidence.json",
                     "busierbox-survey.json",
                     "busierbox-manifest.json",
+                    "busierbox-reality-test.json",
                 }.issubset(names):
                     break
                 time.sleep(0.05)
@@ -129,11 +131,15 @@ def main():
             "busierbox-evidence.json",
             "busierbox-survey.json",
             "busierbox-manifest.json",
+            "busierbox-reality-test.json",
         ):
             matches = list(session_root.glob(f"*/files/{expected}"))
             if len(matches) != 1:
                 raise SystemExit(f"operator-upload: {expected} not found")
-            json.loads(matches[0].read_text(encoding="utf-8"))
+            doc = json.loads(matches[0].read_text(encoding="utf-8"))
+            if expected == "busierbox-reality-test.json":
+                if doc.get("schema") != 1 or "checks" not in doc or "summary" not in doc:
+                    raise SystemExit("operator-upload: reality-test push uploaded invalid report")
     print("operator-upload ok")
 
 

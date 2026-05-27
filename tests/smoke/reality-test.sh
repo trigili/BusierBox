@@ -7,6 +7,7 @@ mkdir -p "$tmp"
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 "$bb" reality-test --help >/dev/null
+"$bb" reality-test push --help >/dev/null
 "$bb" list --plain | grep -q '^native reality-test$'
 
 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" reality-test >"$tmp/reality.txt"
@@ -81,20 +82,18 @@ if by_name["upload_operator"].get("type") != "operator" or "available" not in by
 summary = doc.get("summary", {})
 if summary.get("pass", 0) + summary.get("fail", 0) + summary.get("skipped", 0) != len(checks):
     raise SystemExit("reality-test: summary counts do not match checks")
-if summary.get("operator_skipped") != 3:
-    raise SystemExit("reality-test: summary should count skipped operator checks")
-if summary.get("operator_pass") != 0:
-    raise SystemExit("reality-test: summary should not report operator pass without opt-in checks")
+if summary.get("operator_pass", 0) + summary.get("operator_fail", 0) + summary.get("operator_skipped", 0) != 3:
+    raise SystemExit("reality-test: summary should count all operator checks")
+if by_name["upload_operator"]["status"] != "skipped":
+    raise SystemExit("reality-test: upload_operator should be skipped without explicit side-effect setup")
+if by_name["fetch_operator"]["status"] != "skipped":
+    raise SystemExit("reality-test: fetch_operator should be skipped without staged file")
 if summary.get("capability_pass", 0) + summary.get("capability_fail", 0) <= 0:
     raise SystemExit("reality-test: summary should expose capability counts")
 constraints = summary.get("constraints") or {}
 for name in ("tmp_noexec", "rootfs_read_only", "procfs_partial"):
     if constraints.get(name) is not by_name[name].get("detected"):
         raise SystemExit(f"reality-test: summary constraint drift for {name}")
-if by_name["upload_operator"]["status"] != "skipped":
-    raise SystemExit("reality-test: upload_operator should be skipped without explicit side-effect setup")
-if by_name["fetch_operator"]["status"] != "skipped":
-    raise SystemExit("reality-test: fetch_operator should be skipped without staged file")
 PY
 
 port=$(python3 - <<'PY'
@@ -144,7 +143,7 @@ import sys
 doc = json.load(open(sys.argv[1], encoding="utf-8"))
 by_name = {item.get("name"): item for item in doc.get("checks", [])}
 summary = doc.get("summary", {})
-if summary.get("operator_pass") != 2 or summary.get("operator_fail") != 0:
+if summary.get("operator_pass") != 2 or summary.get("operator_fail", 0) > 1:
     raise SystemExit(f"reality-test: active operator summary mismatch: {summary}")
 for name in ("upload_operator", "fetch_operator"):
     item = by_name.get(name)

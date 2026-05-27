@@ -683,9 +683,54 @@ int applet_reality_test_main(int argc, char **argv)
 
     if (is_help(argc, argv)) {
         puts("usage: busierbox reality-test [--json] [--operator-host HOST] [--file-port PORT] [--tls yes|no|--no-tls] [--check-upload] [--check-fetch REQUEST]");
+        puts("       busierbox reality-test push [--host HOST] [--port PORT] [--tls yes|no]");
         puts("Actively probes target runtime capabilities and degrades gracefully on broken systems.");
         puts("Upload/fetch checks are side-effecting and run only when explicitly requested.");
         return 0;
+    }
+    if (argc > 1 && !strcmp(argv[1], "push")) {
+        const char *roots[] = { BB_RUNTIME_ROOT, ".", "/tmp", NULL };
+        char path[PATH_MAX];
+        int r;
+        if (argc > 2 && (!strcmp(argv[2], "--help") || !strcmp(argv[2], "-h"))) {
+            puts("usage: busierbox reality-test push [--host HOST] [--port PORT] [--tls yes|no]");
+            puts("Generate reality-test JSON and upload it to the receive-only operator file service.");
+            puts("Operator upload/fetch probes are not enabled by this generated report.");
+            return 0;
+        }
+        for (r = 0; roots[r]; r++) {
+            int fd, saved, rc;
+            char *reality_argv[] = { "reality-test", "--json", NULL };
+            if (roots[r][0] && strcmp(roots[r], "."))
+                bb_mkdir_p(roots[r], 0700);
+            snprintf(path, sizeof(path), "%s/.busierbox-reality-test.%ld.XXXXXX", roots[r], (long)getpid());
+            fd = mkstemp(path);
+            if (fd < 0)
+                continue;
+            fflush(stdout);
+            saved = dup(STDOUT_FILENO);
+            if (saved < 0 || dup2(fd, STDOUT_FILENO) < 0) {
+                if (saved >= 0)
+                    close(saved);
+                close(fd);
+                unlink(path);
+                continue;
+            }
+            rc = applet_reality_test_main(2, reality_argv);
+            fflush(stdout);
+            dup2(saved, STDOUT_FILENO);
+            close(saved);
+            close(fd);
+            if (rc != 0) {
+                unlink(path);
+                return rc;
+            }
+            rc = bb_operator_upload_file(path, "busierbox-reality-test.json", "reality-test", argc - 2, argv + 2);
+            unlink(path);
+            return rc;
+        }
+        fputs("reality-test: unable to create temporary reality-test JSON\n", stderr);
+        return 1;
     }
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--json"))

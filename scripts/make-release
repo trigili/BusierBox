@@ -1172,6 +1172,7 @@ def write_release_quickstart(path, name):
 
                ./busierbox put /tmp/evidence.txt
                ./busierbox survey push
+               ./busierbox reality-test push
                ./busierbox manifest push
                ./busierbox config-push
                ./busierbox evidence push
