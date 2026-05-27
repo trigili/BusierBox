@@ -283,8 +283,10 @@ paths with existence, parent-existence, expected-kind, readability, and
 writability fields; compact path health counts are mirrored into `summary` as
 `path_status_count`, `path_missing_count`, `path_parent_missing_count`, and
 `path_not_writable_count`. `staged_files_state` exposes the staged-files ledger
-path, validity, request names, and raw staged-entry count. Staged files are
-exposed as the existing `staged` request map, an ordered `staged_records`
+path, validity, request names, and raw staged-entry count. `command_queue_state`
+exposes the command queue ledger path, validity, command ids, status counts,
+and raw command count. Staged files are exposed as the existing `staged`
+request map, an ordered `staged_records`
 browser list, and lookup maps
 `staged_by_request`, `staged_by_sha256`, and `staged_by_source_path`;
 `summary` includes `staged_total_size`, `staged_source_exists_count`, and

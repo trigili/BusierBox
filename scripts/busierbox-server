@@ -1014,6 +1014,53 @@ def load_command_queue(cfg):
     return data
 
 
+def command_queue_state_record(cfg):
+    path = command_queue_path(cfg)
+    rec = {
+        "path": str(path),
+        "exists": False,
+        "valid": False,
+        "schema": None,
+        "command_count": 0,
+        "command_ids": [],
+        "status_counts": {},
+        "error": "",
+    }
+    try:
+        rec["exists"] = path.exists()
+        if not rec["exists"]:
+            return rec
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            rec["error"] = "command-queue JSON is not an object"
+            return rec
+        commands = data.get("commands")
+        if not isinstance(commands, list):
+            rec["error"] = "command-queue JSON commands field is not a list"
+            return rec
+        command_ids = []
+        status_counts = {}
+        for item in commands:
+            if not isinstance(item, dict):
+                continue
+            command_id = str(item.get("id") or "")
+            status = str(item.get("status") or "")
+            if command_id:
+                command_ids.append(command_id)
+            if status:
+                status_counts[status] = status_counts.get(status, 0) + 1
+        rec.update({
+            "valid": True,
+            "schema": data.get("schema"),
+            "command_count": len(commands),
+            "command_ids": command_ids,
+            "status_counts": status_counts,
+        })
+    except (OSError, json.JSONDecodeError) as exc:
+        rec["error"] = str(exc)
+    return rec
+
+
 def save_command_queue(cfg, data):
     data.setdefault("schema", 1)
     if not isinstance(data.get("commands"), list):
@@ -3484,6 +3531,7 @@ def status_document(cfg):
     }
     server_state = server_state_record(cfg)
     staged_files_state = staged_files_state_record(cfg)
+    command_queue_state = command_queue_state_record(cfg)
     path_status = status_path_records(paths)
     path_summary = status_path_summary(path_status)
     services_by_name = {
@@ -3538,6 +3586,9 @@ def status_document(cfg):
         "staged_files_exists": bool(staged_files_state.get("exists", False)),
         "staged_files_valid": bool(staged_files_state.get("valid", False)),
         "staged_files_state_count": staged_files_state.get("staged_count", 0),
+        "command_queue_file_exists": bool(command_queue_state.get("exists", False)),
+        "command_queue_file_valid": bool(command_queue_state.get("valid", False)),
+        "command_queue_file_command_count": command_queue_state.get("command_count", 0),
         "staged_count": len(staged),
         "staged_total_size": staged_summary.get("total_size", 0),
         "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
@@ -3635,6 +3686,7 @@ def status_document(cfg):
         "path_status": path_status,
         "server_state": server_state,
         "staged_files_state": staged_files_state,
+        "command_queue_state": command_queue_state,
         "services": services,
         "services_by_name": services_by_name,
         "services_by_actual": services_by_actual,

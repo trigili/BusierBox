@@ -660,9 +660,11 @@ def main():
         path_status = queue_status_json.get("path_status") or {}
         state_path_status = path_status.get("state_file") or {}
         staged_path_status = path_status.get("staged_files") or {}
+        command_queue_path_status = path_status.get("command_queue_file") or {}
         session_path_status = path_status.get("session_root") or {}
         server_state = queue_status_json.get("server_state") or {}
         staged_files_state = queue_status_json.get("staged_files_state") or {}
+        command_queue_state = queue_status_json.get("command_queue_state") or {}
         if (set(paths) - set(path_status) or
                 state_path_status.get("path") != queue_status_json.get("state_file") or
                 state_path_status.get("expected_kind") != "file" or
@@ -680,6 +682,17 @@ def main():
                 queue_status_json["summary"].get("staged_files_valid") != bool(staged_files_state.get("valid")) or
                 not isinstance(staged_files_state.get("request_names"), list)):
             print("server json status missing reusable staged-files state record", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        if (command_queue_state.get("path") != queue_status_json.get("command_queue_file") or
+                command_queue_state.get("exists") != command_queue_path_status.get("exists") or
+                command_queue_state.get("valid") is not True or
+                command_queue_state.get("command_count") != 1 or
+                command_queue_state.get("status_counts", {}).get("result-received") != 1 or
+                queue_status_json["summary"].get("command_queue_file_exists") is not True or
+                queue_status_json["summary"].get("command_queue_file_valid") is not True or
+                queue_status_json["summary"].get("command_queue_file_command_count") != 1):
+            print("server json status missing reusable command queue state record", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         if (server_state.get("path") != queue_status_json.get("state_file") or
