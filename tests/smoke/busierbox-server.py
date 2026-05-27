@@ -660,6 +660,14 @@ def main():
             print("server json status missing event log aggregate counters", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
+        events_by_service = queue_status_json.get("events_by_service") or {}
+        events_by_event = queue_status_json.get("events_by_event") or {}
+        if (not events_by_service.get("command-queue") or
+                not events_by_event.get("command_queue_queued") or
+                not events_by_event.get("command_result_received")):
+            print("server json status missing event tail lookup indexes", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
         event_log_path = Path(paths["event_log"])
         previous_invalid = int(event_stats.get("invalid_count", 0))
         with event_log_path.open("a", encoding="utf-8") as fh:

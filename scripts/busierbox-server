@@ -437,6 +437,21 @@ def session_record_indexes(records):
     return by_id, by_service
 
 
+def event_record_indexes(records):
+    by_service = {}
+    by_event = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        service = str(rec.get("service") or "")
+        event = str(rec.get("event") or "")
+        if service:
+            by_service.setdefault(service, []).append(rec)
+        if event:
+            by_event.setdefault(event, []).append(rec)
+    return by_service, by_event
+
+
 def warning_stats(warnings):
     by_type = {}
     by_service = {}
@@ -2809,6 +2824,7 @@ def status_document(cfg):
     sessions_by_id, sessions_by_service = session_record_indexes(sessions)
     event_stats = event_log_stats(cfg)
     events = event_stats["tail"]
+    events_by_service, events_by_event = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
     release = release_context()
     summary, warnings = status_summary_and_warnings(services)
@@ -2909,6 +2925,8 @@ def status_document(cfg):
         "sessions_by_id": sessions_by_id,
         "sessions_by_service": sessions_by_service,
         "events": events,
+        "events_by_service": events_by_service,
+        "events_by_event": events_by_event,
         "event_log_stats": {
             key: value for key, value in event_stats.items() if key != "tail"
         },

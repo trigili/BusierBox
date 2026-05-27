@@ -284,10 +284,8 @@ fetch/upload helper or control-like behavior.
 Event log entries include stable `id`, `session`, and `session_path` fields so
 frontend and integration tooling can correlate global operator events with
 per-session logs. The `events` array is a bounded recent tail;
-`event_log_stats` reports the event log path, total valid event count, tail
-count, invalid JSONL line count, tail limit, and aggregate counters by service,
-event, and level so API consumers can tell whether there is more history to
-page or inspect from disk while still rendering compact diagnostics.
+`events_by_service` and `events_by_event` group those tail records for direct
+frontend lookups. `event_log_stats` reports the event log path, total valid event count, tail count, invalid JSONL line count, tail limit, and aggregate counters by service, event, and level so API consumers can tell whether there is more history to page or inspect from disk while still rendering compact diagnostics.
 
 Structured `warnings` use stable `type` values such as `service_error`,
 `stale_state`, `unexpected_listener`, `unmanaged_recorded_pid`,
