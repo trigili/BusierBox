@@ -4652,6 +4652,32 @@ def print_activity_summary(summary):
     )
 
 
+def print_release_summary(doc):
+    doc = doc or {}
+    release_state = doc.get("release_state") or {}
+    summary = doc.get("summary") or {}
+    release = doc.get("release") or {}
+    print("Release summary:")
+    print(
+        f"  present={'yes' if release_state.get('present') else 'no'} "
+        f"valid={'yes' if release_state.get('valid') else 'no'} "
+        f"release_json_valid={'yes' if release_state.get('release_json_valid') else 'no'} "
+        f"release_index_valid={'yes' if release_state.get('release_index_valid') else 'no'}"
+    )
+    print(
+        f"  artifacts={summary.get('release_artifact_count', len(release.get('artifacts') or []))} "
+        f"devices={summary.get('release_device_count', len(release.get('devices') or []))} "
+        f"tuples={summary.get('release_tuple_count', len(release.get('tuples') or []))} "
+        f"total_size={summary.get('release_artifact_total_size', (release.get('artifact_stats') or {}).get('total_size', 0))}"
+    )
+    if release_state.get("release_dir") or release.get("release_dir"):
+        print(f"  release_dir: {release_state.get('release_dir') or release.get('release_dir', '')}")
+    if release_state.get("release_name") or release.get("release_name"):
+        print(f"  release_name: {release_state.get('release_name') or release.get('release_name', '')}")
+    for error in release_state.get("errors") or []:
+        print(f"  error: {error}")
+
+
 def rshell_session_policy_record(cfg):
     policy = str(cfg.get("rshell_session_policy") or cfg.get("BB_RSHELL_SESSION_POLICY") or "single")
     valid = policy in ("single", "reconnect", "persistent")
@@ -4940,8 +4966,7 @@ def print_status(cfg, json_output=False):
     if doc["release"]:
         print("")
         print("Release browser:")
-        print(f"  release_dir: {doc['release'].get('release_dir', '')}")
-        print(f"  release_name: {doc['release'].get('release_name', '')}")
+        print_release_summary(doc)
         for artifact in doc["release"].get("artifacts", [])[:12]:
             compat = (artifact.get("compatibility") or {}).get("label") or ""
             suffix = f" compatibility={compat}" if compat else ""
@@ -5187,8 +5212,7 @@ def print_workbench(cfg):
     if rel:
         print("")
         print("Release artifact browser:")
-        print(f"  release_dir: {rel.get('release_dir', '')}")
-        print(f"  release_name: {rel.get('release_name', '')}")
+        print_release_summary(snap)
         if rel.get("artifacts"):
             for artifact in rel["artifacts"][:12]:
                 sha = str(artifact.get("sha256", ""))[:12]

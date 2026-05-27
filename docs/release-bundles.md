@@ -392,7 +392,10 @@ errors. Compact booleans are mirrored into `summary` as `release_present`,
 clients can distinguish "not in a bundle" from "bundle-like directory with a
 broken manifest". Invalid bundle-like directories also emit an
 `invalid_release_state` warning with the release directory, manifest paths, and
-release-state errors. Release artifact aggregates are exposed as
+release-state errors. Human `--status` and the line-oriented fallback print a
+compact release summary with validity, artifact/device/tuple counts, total
+artifact size, release directory, and release name before listing release
+browser entries. Release artifact aggregates are exposed as
 `release.artifact_stats` and mirrored into `summary`
 as `release_artifact_total_size`, `release_artifact_compatibility_counts`,
 `release_artifact_payload_preset_counts`, `release_artifact_source_counts`,

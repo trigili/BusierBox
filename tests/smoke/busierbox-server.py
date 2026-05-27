@@ -2342,6 +2342,11 @@ def main():
             capture_output=True,
         )
         if ("Release artifact browser" not in release_view.stdout or
+                "Release summary:" not in release_view.stdout or
+                "present=yes valid=yes release_json_valid=yes release_index_valid=yes" not in release_view.stdout or
+                "artifacts=1 devices=1 tuples=1 total_size=9" not in release_view.stdout or
+                f"release_dir: {release_dir}" not in release_view.stdout or
+                "release_name: operator-smoke" not in release_view.stdout or
                 "busierbox-test" not in release_view.stdout or
                 "compatibility=exact" not in release_view.stdout or
                 "compatibility_reason: fixture" not in release_view.stdout or
@@ -2354,6 +2359,25 @@ def main():
                 "--stage-release-artifact" not in release_view.stdout):
             print("workbench did not show release artifact paths", file=sys.stderr)
             print(release_view.stdout, file=sys.stderr)
+            return 1
+        release_text_status = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--status",
+            ],
+            cwd=release_dir,
+            text=True,
+            capture_output=True,
+        )
+        if ("Release browser" not in release_text_status.stdout or
+                "Release summary:" not in release_text_status.stdout or
+                "present=yes valid=yes release_json_valid=yes release_index_valid=yes" not in release_text_status.stdout or
+                "artifacts=1 devices=1 tuples=1 total_size=9" not in release_text_status.stdout):
+            print("text --status missing release summary", file=sys.stderr)
+            print(release_text_status.stdout, file=sys.stderr)
             return 1
         release_status = subprocess.run(
             [
