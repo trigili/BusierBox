@@ -34,6 +34,11 @@ JSON output is intended for integration harnesses:
 busierbox plan rshell --json | python3 -m json.tool
 ```
 
+The `rshell` JSON plan includes both `session_semantics` and
+`session_policy_summary`, matching `rshell status --json` so operator tooling
+can render single/reconnect/persistent behavior without duplicating policy
+logic.
+
 Plan mode uses the effective runtime config, so post-build trailer overrides are
 reflected in the output. Config precedence remains compiled defaults, trailer
 overrides, environment overrides, then explicit CLI flags where a command

@@ -70,6 +70,15 @@ assert rshell["session_semantics"]["reconnect_after_disconnect"] is True
 assert rshell["session_semantics"]["persistent_lifecycle"] is False
 assert rshell["session_semantics"]["fresh_session_on_reconnect"] is True
 assert rshell["session_semantics"]["session_resume_supported"] is False
+summary = rshell["session_policy_summary"]
+assert summary["valid"] is True
+assert summary["retry_scope"] == "pre-connect+post-disconnect"
+assert summary["post_disconnect_retry_count"] == "1"
+assert summary["stops_after_success"] is False
+assert summary["reconnects_after_disconnect"] is True
+assert summary["persistent_lifecycle"] is False
+assert summary["fresh_session_on_reconnect"] is True
+assert summary["session_resume_supported"] is False
 assert rshell["retry"]["pre_connect_count"] == "1"
 assert rshell["retry"]["post_disconnect_count"] == "1"
 assert rshell["operator_host"] == "192.0.2.77"

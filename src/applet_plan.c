@@ -204,6 +204,17 @@ static void plan_print_rshell(int json)
                rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
                rshell_policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
                rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+        printf(",\"session_policy_summary\":{\"valid\":%s,\"retry_scope\":\"pre-connect",
+               rshell_policy_valid(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+        if (rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY))
+            fputs("+post-disconnect", stdout);
+        fputs("\",\"post_disconnect_retry_count\":", stdout);
+        bb_json_string(stdout, rshell_policy_post_disconnect_count(BB_RSHELL_SESSION_POLICY));
+        printf(",\"stops_after_success\":%s,\"reconnects_after_disconnect\":%s,\"persistent_lifecycle\":%s,\"fresh_session_on_reconnect\":%s,\"session_resume_supported\":false}",
+               rshell_policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
         fputs(",\"retry\":{\"pre_connect_count\":", stdout);
         bb_json_string(stdout, BB_RSHELL_RETRY_COUNT);
         fputs(",\"post_disconnect_count\":", stdout);
