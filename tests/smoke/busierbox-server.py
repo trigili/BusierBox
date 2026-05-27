@@ -1505,6 +1505,17 @@ def main():
             print("server json status missing uploads_by_session browser grouping", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+        uploads_by_filename = upload_doc.get("uploads_by_filename") or {}
+        uploads_by_sha = upload_doc.get("uploads_by_sha256") or {}
+        uploads_by_source = upload_doc.get("uploads_by_source_path") or {}
+        uploads_by_stored = upload_doc.get("uploads_by_stored_path") or {}
+        if (uploads_by_filename.get("evidence.txt", [{}])[0].get("metadata_path") != str(metadata_path) or
+                uploads_by_sha.get(metadata.get("sha256"), [{}])[0].get("filename") != "evidence.txt" or
+                uploads_by_source.get("/tmp/evidence.txt", [{}])[0].get("stored_path") != str(uploaded[0]) or
+                uploads_by_stored.get(str(uploaded[0]), {}).get("source_path") != "/tmp/evidence.txt"):
+            print("server json status missing upload browser lookup maps", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         upload_session = (upload_doc.get("sessions") or [{}])[0]
         if (upload_session.get("upload_count") != 1 or
                 upload_session.get("event_count", 0) < 1 or
@@ -1910,6 +1921,19 @@ def main():
                 session_fetches[0].get("request_name") != "/tmp/myfile" or
                 session_fetches[0].get("status") != "served"):
             print("server json status missing fetches_by_session browser grouping", file=sys.stderr)
+            print(fetch_status.stdout, file=sys.stderr)
+            return 1
+        fetches_by_request = fetch_status_doc.get("fetches_by_request") or {}
+        fetches_by_sha = fetch_status_doc.get("fetches_by_sha256") or {}
+        fetches_by_source = fetch_status_doc.get("fetches_by_source_path") or {}
+        fetches_by_status = fetch_status_doc.get("fetches_by_status") or {}
+        fetch_sha = fetch_items[0].get("sha256", "")
+        if (fetches_by_request.get("/tmp/myfile", [{}])[0].get("status") != "served" or
+                not fetch_sha or
+                fetches_by_sha.get(fetch_sha, [{}])[0].get("request_name") != "/tmp/myfile" or
+                fetches_by_source.get(str(staged_source), [{}])[0].get("http_status") != 200 or
+                fetches_by_status.get("served", [{}])[0].get("source_path") != str(staged_source)):
+            print("server json status missing fetch browser lookup maps", file=sys.stderr)
             print(fetch_status.stdout, file=sys.stderr)
             return 1
         fetch_status_text = run(

@@ -441,6 +441,52 @@ def records_by_session(records):
     return grouped
 
 
+def upload_record_indexes(records):
+    by_filename = {}
+    by_sha256 = {}
+    by_source_path = {}
+    by_stored_path = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        filename = str(rec.get("filename") or "")
+        sha256 = str(rec.get("sha256") or "")
+        source_path = str(rec.get("source_path") or "")
+        stored_path = str(rec.get("stored_path") or "")
+        if filename:
+            by_filename.setdefault(filename, []).append(rec)
+        if sha256:
+            by_sha256.setdefault(sha256, []).append(rec)
+        if source_path:
+            by_source_path.setdefault(source_path, []).append(rec)
+        if stored_path:
+            by_stored_path[stored_path] = rec
+    return by_filename, by_sha256, by_source_path, by_stored_path
+
+
+def fetch_record_indexes(records):
+    by_request = {}
+    by_sha256 = {}
+    by_source_path = {}
+    by_status = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        request_name = str(rec.get("request_name") or "")
+        sha256 = str(rec.get("sha256") or "")
+        source_path = str(rec.get("source_path") or "")
+        status = str(rec.get("status") or "")
+        if request_name:
+            by_request.setdefault(request_name, []).append(rec)
+        if sha256:
+            by_sha256.setdefault(sha256, []).append(rec)
+        if source_path:
+            by_source_path.setdefault(source_path, []).append(rec)
+        if status:
+            by_status.setdefault(status, []).append(rec)
+    return by_request, by_sha256, by_source_path, by_status
+
+
 def session_record_indexes(records):
     by_id = {}
     by_service = {}
@@ -2902,6 +2948,8 @@ def status_document(cfg):
     release = release_context()
     target_command_records = generated_target_command_records(cfg, staged_raw)
     target_commands_by_service, target_commands_by_request = target_command_record_indexes(target_command_records)
+    uploads_by_filename, uploads_by_sha256, uploads_by_source_path, uploads_by_stored_path = upload_record_indexes(uploads)
+    fetches_by_request, fetches_by_sha256, fetches_by_source_path, fetches_by_status = fetch_record_indexes(fetches)
     summary, warnings = status_summary_and_warnings(services)
     services_by_name = {
         row["name"]: {
@@ -2999,8 +3047,16 @@ def status_document(cfg):
         "staged_by_source_path": staged_by_source_path,
         "uploads": uploads,
         "uploads_by_session": records_by_session(uploads),
+        "uploads_by_filename": uploads_by_filename,
+        "uploads_by_sha256": uploads_by_sha256,
+        "uploads_by_source_path": uploads_by_source_path,
+        "uploads_by_stored_path": uploads_by_stored_path,
         "fetches": fetches,
         "fetches_by_session": records_by_session(fetches),
+        "fetches_by_request": fetches_by_request,
+        "fetches_by_sha256": fetches_by_sha256,
+        "fetches_by_source_path": fetches_by_source_path,
+        "fetches_by_status": fetches_by_status,
         "sessions": sessions,
         "sessions_by_id": sessions_by_id,
         "sessions_by_service": sessions_by_service,

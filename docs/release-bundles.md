@@ -271,8 +271,10 @@ the session root. Staged files are exposed as the existing `staged` request map,
 an ordered `staged_records` browser list, and lookup maps
 `staged_by_request`, `staged_by_sha256`, and `staged_by_source_path`. Recent
 upload and staged-fetch activity is exposed through top-level `uploads` and
-`fetches` arrays plus
-`uploads_by_session` and `fetches_by_session` lookup maps for session explorers;
+`fetches` arrays plus lookup maps: `uploads_by_session`,
+`uploads_by_filename`, `uploads_by_sha256`, `uploads_by_source_path`,
+`uploads_by_stored_path`, `fetches_by_session`, `fetches_by_request`,
+`fetches_by_sha256`, `fetches_by_source_path`, and `fetches_by_status`;
 session browser records are exposed as `sessions`, `sessions_by_id`, and
 `sessions_by_service`; aggregate counts remain in `summary`.
 When running inside a release bundle, `release` includes artifact, device, and
