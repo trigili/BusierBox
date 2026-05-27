@@ -152,6 +152,7 @@ scripts/find-artifact --index local/release-repo-index.json --device glinet-mt13
 scripts/find-artifact --index local/release-repo-index.json --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc
 scripts/find-artifact --index local/release-repo-index.json --tool tcpdump --payload-preset survey-core
 scripts/find-artifact --index local/release-repo-index.json --feature reverse-ssh --json
+scripts/find-artifact --index local/release-repo-index.json --device glinet-mt1300 --max-compatibility likely
 scripts/find-artifact --index local/release-repo-index.json --device glinet-mt1300 --recommendation-json
 ```
 
@@ -163,7 +164,9 @@ release manifest has already resolved the target compatibility tuple. It does no
 download or rebuild anything. `--recommendation-json` returns the selected
 artifact plus active filters, match count, index counts, and the selection
 policy used to prefer lower-risk compatibility labels and newer release
-metadata. Plain text output also prints `compatibility_reason=` lines so an
+metadata. Use `--max-compatibility exact|likely|heuristic|unsafe|incompatible`
+to reject artifacts above an operator-selected risk threshold instead of only
+sorting them lower. Plain text output also prints `compatibility_reason=` lines so an
 operator can see why the selected artifact was considered exact, likely,
 heuristic, unsafe, or incompatible without parsing JSON.
 

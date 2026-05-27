@@ -71,6 +71,10 @@ def label_rank(row):
     return {"exact": 0, "likely": 1, "heuristic": 2, "unsafe": 3, "incompatible": 4}.get(label, 5)
 
 
+def compatibility_rank(label):
+    return {"exact": 0, "likely": 1, "heuristic": 2, "unsafe": 3, "incompatible": 4}.get(label or "", 5)
+
+
 def print_text(row, index):
     info = tuple_info(row, index)
     compatibility = row.get("compatibility") or {}
@@ -109,6 +113,7 @@ def active_filters(args):
         "payload_preset",
         "feature",
         "sha256",
+        "max_compatibility",
     )
     return {key: getattr(args, key) for key in keys if getattr(args, key)}
 
@@ -156,6 +161,8 @@ def main(argv=None):
     parser.add_argument("--payload-preset")
     parser.add_argument("--feature")
     parser.add_argument("--sha256")
+    parser.add_argument("--max-compatibility", choices=("exact", "likely", "heuristic", "unsafe", "incompatible"),
+                        help="exclude artifacts riskier than this compatibility label")
     parser.add_argument("--all", action="store_true", help="print all matches")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--recommendation-json", action="store_true",
@@ -169,6 +176,9 @@ def main(argv=None):
         index = build_index(roots)
 
     rows = [row for row in index.get("artifacts") or [] if matches(row, index, args)]
+    if args.max_compatibility:
+        max_rank = compatibility_rank(args.max_compatibility)
+        rows = [row for row in rows if label_rank(row) <= max_rank]
     rows.sort(key=lambda row: (label_rank(row), -(row.get("release_mtime") or 0), row.get("payload_preset") or "", row.get("artifact") or ""))
     if not rows:
         raise SystemExit("find-artifact: no matching artifact")

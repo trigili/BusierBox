@@ -11,6 +11,7 @@ make_release() {
     tool=$4
     sha=$5
     device=$6
+    compatibility_label=${7:-exact}
     mkdir -p "$dir/bin"
     printf '%s\n' "$name artifact" >"$dir/bin/busierbox-$name-full"
     cat >"$dir/release.json" <<JSON
@@ -83,7 +84,7 @@ JSON
       "size": 123,
       "tools": ["sh", "$tool"],
       "trailer_support": true,
-      "compatibility": {"schema": 1, "label": "exact", "reasons": ["fixture"]}
+      "compatibility": {"schema": 1, "label": "$compatibility_label", "reasons": ["fixture"]}
     }
   ]
 }
@@ -93,6 +94,7 @@ JSON
 same_sha=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 make_release "$tmp/releases/one" one survey-core tcpdump "$same_sha" glinet-mt1300
 make_release "$tmp/releases/two" two ssh-operator strace "$same_sha" lab-router
+make_release "$tmp/releases/three" three full-debug gdbserver fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210 lab-router unsafe
 
 scripts/index-release-repo "$tmp/releases" >"$tmp/index.json"
 python3 -m json.tool "$tmp/index.json" >/dev/null
@@ -101,9 +103,9 @@ import json
 import sys
 
 index = json.load(open(sys.argv[1], "r", encoding="utf-8"))
-assert index["release_count"] == 2
-assert index["artifact_count"] == 2
-assert index["deduplicated_artifact_count"] == 1
+assert index["release_count"] == 3
+assert index["artifact_count"] == 3
+assert index["deduplicated_artifact_count"] == 2
 assert "tcpdump" in index["tools_present"]
 assert "ssh-operator" in index["payload_presets"]
 assert "trailer" in index["features"]
@@ -141,12 +143,23 @@ doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert doc["schema"] == 1
 assert doc["command"] == "find-artifact"
 assert doc["filters"]["device"] == "lab-router"
-assert doc["match_count"] == 1
+assert doc["match_count"] == 2
 assert doc["selected"]["release_name"] == "two"
-assert doc["index"]["deduplicated_artifact_count"] == 1
+assert doc["index"]["deduplicated_artifact_count"] == 2
 assert doc["dedupe_count"] == 2
 assert {item["release_name"] for item in doc["dedupe_alternatives"]} == {"one", "two"}
 assert "newest release_mtime" in doc["selection_policy"]
+PY
+scripts/find-artifact --index "$tmp/repo-index.json" --device lab-router --max-compatibility likely --recommendation-json >"$tmp/recommend-safe-json.out"
+python3 - "$tmp/recommend-safe-json.out" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert doc["filters"]["max_compatibility"] == "likely"
+assert doc["match_count"] == 1
+assert doc["selected"]["release_name"] == "two"
+assert doc["selected"]["compatibility"]["label"] == "exact"
 PY
 scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --recommendation-json >"$tmp/recommend-tuple-json.out"
 python3 - "$tmp/recommend-tuple-json.out" <<'PY'
@@ -155,7 +168,7 @@ import sys
 
 doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert doc["filters"]["tuple_path"] == "by-tuple/mipsel/musl/4.x/mips32r2-24kc"
-assert doc["match_count"] == 2
+assert doc["match_count"] == 3
 assert doc["selected"]["tuple_path"] == "by-tuple/mipsel/musl/4.x/mips32r2-24kc"
 PY
 grep -q -- '--recommendation-json' docs/release-bundles.md
