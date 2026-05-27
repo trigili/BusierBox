@@ -1482,6 +1482,15 @@ def main():
             print("server json status missing session browser counts and paths", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+        sessions_by_id = upload_doc.get("sessions_by_id") or {}
+        sessions_by_service = upload_doc.get("sessions_by_service") or {}
+        uploaded_session_id = session_json_paths[0].parent.name
+        if (sessions_by_id.get(uploaded_session_id, {}).get("metadata_path") != str(session_json_paths[0]) or
+                not sessions_by_service.get("file-service") or
+                sessions_by_service["file-service"][0].get("session_id") != uploaded_session_id):
+            print("server json status missing session lookup indexes", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         upload_event_stats = upload_doc.get("event_log_stats") or {}
         if (upload_event_stats.get("total_count", 0) < len(global_events) or
                 upload_event_stats.get("tail_count") != len(upload_doc.get("events", [])) or
