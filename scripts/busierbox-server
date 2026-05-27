@@ -1278,6 +1278,24 @@ def warning_record_indexes(warnings):
     return by_type, by_service, by_port, by_pid, by_listener_pid, by_owner_pid, by_path, by_type_path
 
 
+def annotate_path_records_with_warnings(path_status, browser_paths, warnings_by_path):
+    warnings_by_path = warnings_by_path or {}
+    for rec in (path_status or {}).values():
+        if not isinstance(rec, dict):
+            continue
+        path = str(rec.get("path") or "")
+        warnings = warnings_by_path.get(path) or []
+        rec["warning_count"] = len(warnings)
+        rec["warning_types"] = sorted({str(item.get("type") or "") for item in warnings if item.get("type")})
+    for rec in browser_paths or []:
+        if not isinstance(rec, dict):
+            continue
+        path = str(rec.get("path") or "")
+        warnings = warnings_by_path.get(path) or []
+        rec["warning_count"] = len(warnings)
+        rec["warning_types"] = sorted({str(item.get("type") or "") for item in warnings if item.get("type")})
+
+
 def load_command_queue(cfg):
     data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
     if not isinstance(data, dict):
@@ -4157,6 +4175,7 @@ def status_document(cfg):
      warnings_by_owner_pid,
      warnings_by_path,
      warnings_by_type_path) = warning_record_indexes(warnings)
+    annotate_path_records_with_warnings(path_status, browser_paths, warnings_by_path)
     warning_summary = warning_stats(warnings)
     command_queue_policy_summary = command_queue.get("policy_summary") or {}
     command_queue_mode_summary = command_queue.get("mode_summary") or {}

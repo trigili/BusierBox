@@ -268,6 +268,9 @@ def main():
         )
         path_mismatch_doc = json.loads(path_mismatch_status.stdout)
         path_mismatch_rec = (path_mismatch_doc.get("path_status") or {}).get("command_copy_file") or {}
+        path_mismatch_browser_rec = (
+            path_mismatch_doc.get("browser_paths_by_path", {}).get(str(mismatched_copy_path)) or [{}]
+        )[0]
         path_mismatch_warnings = [
             item for item in path_mismatch_doc.get("warnings", [])
             if item.get("type") == "operator_path_kind_mismatch"
@@ -275,6 +278,10 @@ def main():
         if (path_mismatch_rec.get("expected_kind") != "file" or
                 path_mismatch_rec.get("expected_kind_mismatch") is not True or
                 path_mismatch_rec.get("is_dir") is not True or
+                path_mismatch_rec.get("warning_count") != 1 or
+                "operator_path_kind_mismatch" not in path_mismatch_rec.get("warning_types", []) or
+                path_mismatch_browser_rec.get("warning_count") != 1 or
+                "operator_path_kind_mismatch" not in path_mismatch_browser_rec.get("warning_types", []) or
                 path_mismatch_doc.get("summary", {}).get("path_kind_mismatch_count") != 1 or
                 path_mismatch_doc.get("summary", {}).get("browser_path_kind_mismatch_count") != 1 or
                 path_mismatch_doc.get("summary", {}).get("browser_path_kind_mismatch_counts", {}).get("command-copy") != 1 or
@@ -323,6 +330,8 @@ def main():
             "--json-status",
         )
         invalid_state_doc = json.loads(invalid_state_status.stdout)
+        invalid_state_path_status = invalid_state_doc.get("path_status") or {}
+        invalid_state_browser_by_path = invalid_state_doc.get("browser_paths_by_path") or {}
         invalid_warning_types = invalid_state_doc.get("summary", {}).get("warning_type_counts", {})
         invalid_warning_paths = invalid_state_doc.get("summary", {}).get("warning_path_counts", {})
         invalid_warning_type_paths = invalid_state_doc.get("summary", {}).get("warning_type_path_counts", {})
@@ -341,6 +350,15 @@ def main():
                 invalid_warning_type_paths.get(f"invalid_server_state:{invalid_state_file}") != 1 or
                 invalid_warning_type_paths.get(f"invalid_staged_files_state:{invalid_staged_file}") != 1 or
                 invalid_warning_type_paths.get(f"invalid_command_queue_state:{invalid_queue_file}") != 1 or
+                invalid_state_path_status.get("state_file", {}).get("warning_count") != 1 or
+                invalid_state_path_status.get("staged_files", {}).get("warning_count") != 1 or
+                invalid_state_path_status.get("command_queue_file", {}).get("warning_count") != 1 or
+                "invalid_server_state" not in invalid_state_path_status.get("state_file", {}).get("warning_types", []) or
+                "invalid_staged_files_state" not in invalid_state_path_status.get("staged_files", {}).get("warning_types", []) or
+                "invalid_command_queue_state" not in invalid_state_path_status.get("command_queue_file", {}).get("warning_types", []) or
+                invalid_state_browser_by_path.get(str(invalid_state_file), [{}])[0].get("warning_count") != 1 or
+                invalid_state_browser_by_path.get(str(invalid_staged_file), [{}])[0].get("warning_count") != 1 or
+                invalid_state_browser_by_path.get(str(invalid_queue_file), [{}])[0].get("warning_count") != 1 or
                 invalid_warnings_by_type.get("invalid_server_state", [{}])[0].get("path") != str(invalid_state_file) or
                 invalid_warnings_by_type.get("invalid_staged_files_state", [{}])[0].get("path") != str(invalid_staged_file) or
                 invalid_warnings_by_type.get("invalid_command_queue_state", [{}])[0].get("path") != str(invalid_queue_file) or

@@ -324,7 +324,10 @@ per-kind health counters such as `browser_path_exists_kind_counts` and
 frontends can flag a path that exists as a file where a directory was expected,
 or the reverse, without reimplementing path-kind inference. Operator path kind
 mismatches also emit an `operator_path_kind_mismatch` warning in `warnings` and
-the human `--status` output.
+the human `--status` output. `path_status` and `browser_paths` records carry
+`warning_count` and `warning_types` fields after status warnings are indexed, so
+path and file-browser panes can show warning badges without joining separate
+maps first.
 `staged_files_state` exposes the staged-files ledger
 path, validity, request names, and raw staged-entry count. `command_queue_state`
 exposes the command queue ledger path, validity, command ids, status counts,
