@@ -441,6 +441,19 @@ def records_by_session(records):
     return grouped
 
 
+def record_count_by_key(records, key):
+    counts = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        value = rec.get(key)
+        if value in (None, ""):
+            continue
+        text = str(value)
+        counts[text] = counts.get(text, 0) + 1
+    return counts
+
+
 def upload_record_indexes(records):
     by_filename = {}
     by_sha256 = {}
@@ -2997,8 +3010,13 @@ def status_document(cfg):
     summary.update({
         "staged_count": len(staged),
         "upload_count": len(uploads),
+        "upload_status_counts": record_count_by_key(uploads, "status"),
         "fetch_count": len(fetches),
+        "fetch_status_counts": record_count_by_key(fetches, "status"),
+        "fetch_http_status_counts": record_count_by_key(fetches, "http_status"),
         "session_count": len(sessions),
+        "session_service_counts": record_count_by_key(sessions, "service"),
+        "session_state_counts": record_count_by_key(sessions, "state"),
         "event_count": event_stats["total_count"],
         "event_tail_count": event_stats["tail_count"],
         "event_invalid_count": event_stats["invalid_count"],

@@ -1484,10 +1484,15 @@ def main():
             print("server json status missing generated command service lookup", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
-        if (upload_doc.get("summary", {}).get("upload_count", 0) < 1 or
-                upload_doc.get("summary", {}).get("session_count", 0) < 1 or
-                upload_doc.get("summary", {}).get("event_count", 0) < 1):
+        upload_summary = upload_doc.get("summary", {})
+        if (upload_summary.get("upload_count", 0) < 1 or
+                upload_summary.get("upload_status_counts", {}).get("ok") != 1 or
+                upload_summary.get("session_count", 0) < 1 or
+                upload_summary.get("session_service_counts", {}).get("file-service") != 1 or
+                upload_summary.get("session_state_counts", {}).get("stopped") != 1 or
+                upload_summary.get("event_count", 0) < 1):
             print("server json status missing aggregate upload/session/event counts", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
             return 1
         upload_item = (upload_doc.get("uploads") or [{}])[0]
         if (upload_item.get("metadata_path") != str(metadata_path) or
@@ -1912,7 +1917,10 @@ def main():
         )
         fetch_status_doc = json.loads(fetch_status.stdout)
         fetch_items = fetch_status_doc.get("fetches") or []
-        if (fetch_status_doc.get("summary", {}).get("fetch_count") != 1 or
+        fetch_summary = fetch_status_doc.get("summary", {})
+        if (fetch_summary.get("fetch_count") != 1 or
+                fetch_summary.get("fetch_status_counts", {}).get("served") != 1 or
+                fetch_summary.get("fetch_http_status_counts", {}).get("200") != 1 or
                 len(fetch_items) != 1 or
                 fetch_items[0].get("request_name") != "/tmp/myfile" or
                 fetch_items[0].get("status") != "served" or

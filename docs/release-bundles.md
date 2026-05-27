@@ -277,7 +277,9 @@ upload and staged-fetch activity is exposed through top-level `uploads` and
 `fetches_by_sha256`, `fetches_by_source_path`, and `fetches_by_status`;
 session browser records are exposed as `sessions`, `sessions_by_id`,
 `sessions_by_service`, `sessions_by_state`, and
-`sessions_by_exit_reason`; aggregate counts remain in `summary`.
+`sessions_by_exit_reason`; aggregate counts remain in `summary`, including
+`upload_status_counts`, `fetch_status_counts`, `fetch_http_status_counts`,
+`session_service_counts`, and `session_state_counts` for compact dashboards.
 When running inside a release bundle, `release` includes artifact, device, and
 tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `artifacts_by_sha256`, `artifacts_by_payload_preset`, `artifacts_by_tool`,
