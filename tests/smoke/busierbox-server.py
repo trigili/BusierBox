@@ -345,6 +345,13 @@ def main():
             print("json command queue listing missing queued entry", file=sys.stderr)
             return 1
         queue_summary = queue_status["command_queue"]
+        queued_id = queue_summary["commands"][0]["id"]
+        if (queue_summary.get("commands_by_id", {}).get(queued_id, {}).get("command") != "busierbox reality-test --json" or
+                len(queue_summary.get("commands_by_status", {}).get("queued", [])) != 1 or
+                queue_summary["commands_by_status"]["queued"][0].get("id") != queued_id):
+            print("json command queue listing missing command lookup indexes", file=sys.stderr)
+            print(queue_list.stdout, file=sys.stderr)
+            return 1
         if (queue_summary.get("enabled") != "no" or
                 queue_summary.get("default_enabled") is not False or
                 queue_summary.get("allowed_commands") != "none" or
@@ -490,6 +497,11 @@ def main():
                 status_queue.get("active_control_channel") is not False or
                 status_queue.get("executes_commands") is not False):
             print("server json status missing command queue safety policy", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        if (status_queue.get("commands_by_id", {}).get(command_id, {}).get("status") != "result-received" or
+                len(status_queue.get("commands_by_status", {}).get("result-received", [])) != 1):
+            print("server json status missing command queue lookup indexes", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         invalid_queue_status_doc = run(

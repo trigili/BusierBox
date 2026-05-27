@@ -593,6 +593,17 @@ def command_queue_summary(cfg):
     data = load_command_queue(cfg)
     commands = data.get("commands", [])
     queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
+    commands_by_id = {}
+    commands_by_status = {}
+    for rec in commands:
+        if not isinstance(rec, dict):
+            continue
+        command_id = str(rec.get("id") or "")
+        status = str(rec.get("status") or "")
+        if command_id:
+            commands_by_id[command_id] = rec
+        if status:
+            commands_by_status.setdefault(status, []).append(rec)
     result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
     result_exceeded_count = len([
         rec for rec in commands
@@ -617,6 +628,8 @@ def command_queue_summary(cfg):
         "policy_valid": policy_valid,
         "policy_errors": policy_errors,
         "commands": commands,
+        "commands_by_id": commands_by_id,
+        "commands_by_status": commands_by_status,
         "queued_count": len(queued),
         "result_count": result_count,
         "result_output_exceeded_count": result_exceeded_count,

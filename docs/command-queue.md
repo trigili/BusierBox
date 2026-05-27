@@ -17,7 +17,8 @@ Current behavior is intentionally non-executing:
   queue entries in `local/operator-session/command-queue.json` for inspection
   and future tooling. The current server does not deliver or execute them.
 - `scripts/busierbox-server --json-status` or `--api-status` includes the
-  command queue path, counts, entries, and non-execution safety boundary.
+  command queue path, counts, entries, `commands_by_id`,
+  `commands_by_status`, and non-execution safety boundary.
 - `busierbox plan command-queue --json` and `manifest --json` expose the same
   policy validity fields so release tooling and frontends do not treat an
   inconsistent policy as ready to poll.
