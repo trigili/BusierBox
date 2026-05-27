@@ -1726,6 +1726,7 @@ def release_context():
                     "sha256": row.get("sha256", ""),
                     "tools": row.get("tools") or [],
                     "compatibility": row.get("compatibility") or {},
+                    "tool_provider_status": row.get("tool_provider_status") or {},
                 }
                 existing_paths = [item.get("path") for item in artifacts]
                 if rec["path"] in existing_paths:
@@ -1772,10 +1773,14 @@ def release_context():
         artifacts_by_compatibility = {}
         artifacts_by_source = {}
         artifacts_by_tool = {}
+        artifacts_by_provider_tool = {}
+        artifacts_by_provider_status = {}
         artifact_compatibility_counts = {}
         artifact_payload_preset_counts = {}
         artifact_source_counts = {}
         artifact_tool_counts = {}
+        artifact_provider_tool_counts = {}
+        artifact_provider_status_counts = {}
         artifact_total_size = 0
         for rec in artifacts:
             try:
@@ -1808,6 +1813,17 @@ def release_context():
                 if tool_name:
                     artifacts_by_tool.setdefault(tool_name, []).append(rec)
                     artifact_tool_counts[tool_name] = artifact_tool_counts.get(tool_name, 0) + 1
+            for provider_tool, provider_status in (rec.get("tool_provider_status") or {}).items():
+                if not isinstance(provider_status, dict):
+                    continue
+                provider_tool = str(provider_tool)
+                overall = str(provider_status.get("overall") or provider_status.get("status") or "unknown")
+                if provider_tool:
+                    artifacts_by_provider_tool.setdefault(provider_tool, []).append(rec)
+                    artifact_provider_tool_counts[provider_tool] = artifact_provider_tool_counts.get(provider_tool, 0) + 1
+                    status_key = f"{provider_tool}:{overall}"
+                    artifacts_by_provider_status.setdefault(status_key, []).append(rec)
+                    artifact_provider_status_counts[status_key] = artifact_provider_status_counts.get(status_key, 0) + 1
         return {
             "release_dir": str(here),
             "release_json": str(release_json),
@@ -1821,12 +1837,16 @@ def release_context():
             "artifacts_by_compatibility": artifacts_by_compatibility,
             "artifacts_by_source": artifacts_by_source,
             "artifacts_by_tool": artifacts_by_tool,
+            "artifacts_by_provider_tool": artifacts_by_provider_tool,
+            "artifacts_by_provider_status": artifacts_by_provider_status,
             "artifact_stats": {
                 "total_size": artifact_total_size,
                 "by_compatibility": artifact_compatibility_counts,
                 "by_payload_preset": artifact_payload_preset_counts,
                 "by_source": artifact_source_counts,
                 "by_tool": artifact_tool_counts,
+                "by_provider_tool": artifact_provider_tool_counts,
+                "by_provider_status": artifact_provider_status_counts,
             },
             "devices": devices,
             "devices_by_name": {rec.get("name", ""): rec for rec in devices if rec.get("name")},
@@ -1931,6 +1951,16 @@ def artifact_compatibility_lines(artifact):
         lines.append(f"compatibility_reason: {reason}")
     if compatibility.get("note"):
         lines.append(f"compatibility_note: {compatibility.get('note')}")
+    return lines
+
+
+def artifact_provider_status_lines(artifact):
+    lines = []
+    for tool, status in sorted((artifact.get("tool_provider_status") or {}).items()):
+        if not isinstance(status, dict):
+            continue
+        overall = status.get("overall") or status.get("status") or "unknown"
+        lines.append(f"provider_status_{tool}: {overall}")
     return lines
 
 
@@ -4065,6 +4095,8 @@ def status_document(cfg):
         "release_artifact_payload_preset_counts": (release.get("artifact_stats") or {}).get("by_payload_preset") or {},
         "release_artifact_source_counts": (release.get("artifact_stats") or {}).get("by_source") or {},
         "release_artifact_tool_counts": (release.get("artifact_stats") or {}).get("by_tool") or {},
+        "release_artifact_provider_tool_counts": (release.get("artifact_stats") or {}).get("by_provider_tool") or {},
+        "release_artifact_provider_status_counts": (release.get("artifact_stats") or {}).get("by_provider_status") or {},
     })
     return {
         "schema": 1,
@@ -4689,6 +4721,8 @@ def print_workbench(cfg):
                 suffix = f" compatibility={compat}" if compat else ""
                 print(f"  artifact {artifact.get('name', '')} size={artifact.get('size', '')} sha256={sha} tuple={artifact.get('tuple_path', '')} preset={artifact.get('payload_preset', '')}{suffix}")
                 for line in artifact_compatibility_lines(artifact):
+                    print(f"    {line}")
+                for line in artifact_provider_status_lines(artifact):
                     print(f"    {line}")
                 print(f"    stage: scripts/busierbox-server --stage-release-artifact {shquote(artifact.get('release_path') or artifact.get('name', ''))}")
         else:

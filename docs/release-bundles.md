@@ -345,6 +345,7 @@ When running inside a release bundle, `release` includes artifact, device, and
 tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `artifacts_by_sha256`, `artifacts_by_payload_preset`,
 `artifacts_by_compatibility`, `artifacts_by_source`, `artifacts_by_tool`,
+`artifacts_by_provider_tool`, `artifacts_by_provider_status`,
 `devices_by_name`, and `tuples_by_path` lookup maps. Release artifact
 state is exposed separately as `release_state` with release directory,
 `release.json` and `release-index.json` paths, presence, validity, parse
@@ -356,7 +357,8 @@ broken manifest". Release artifact aggregates are exposed as
 `release.artifact_stats` and mirrored into `summary`
 as `release_artifact_total_size`, `release_artifact_compatibility_counts`,
 `release_artifact_payload_preset_counts`, `release_artifact_source_counts`,
-and `release_artifact_tool_counts`.
+`release_artifact_tool_counts`, `release_artifact_provider_tool_counts`, and
+`release_artifact_provider_status_counts`.
 Device and tuple artifact reference totals are mirrored as
 `release_device_artifact_reference_count` and
 `release_tuple_artifact_reference_count`.

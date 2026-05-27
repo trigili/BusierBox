@@ -2101,6 +2101,7 @@ def main():
                     "payload_preset": "default",
                     "sha256": "abc123",
                     "tools": ["sh"],
+                    "tool_provider_status": {"gdbserver": {"schema": 1, "overall": "found", "search_paths": []}},
                     "compatibility": {"label": "exact", "reasons": ["fixture"]},
                 }
             ],
@@ -2121,6 +2122,7 @@ def main():
                 "busierbox-test" not in release_view.stdout or
                 "compatibility=exact" not in release_view.stdout or
                 "compatibility_reason: fixture" not in release_view.stdout or
+                "provider_status_gdbserver: found" not in release_view.stdout or
                 "Release devices" not in release_view.stdout or
                 "lab-router" not in release_view.stdout or
                 "artifacts=1" not in release_view.stdout or
@@ -2164,6 +2166,8 @@ def main():
         release_artifacts_by_compat = rel.get("artifacts_by_compatibility") or {}
         release_artifacts_by_source = rel.get("artifacts_by_source") or {}
         release_artifacts_by_tool = rel.get("artifacts_by_tool") or {}
+        release_artifacts_by_provider_tool = rel.get("artifacts_by_provider_tool") or {}
+        release_artifacts_by_provider_status = rel.get("artifacts_by_provider_status") or {}
         release_device_map = rel.get("devices_by_name") or {}
         release_tuple_map = rel.get("tuples_by_path") or {}
         release_artifact_size = len("artifact\n")
@@ -2174,11 +2178,15 @@ def main():
                 release_artifacts_by_compat.get("exact", [{}])[0].get("payload_preset") != "default" or
                 release_artifacts_by_source.get("release-index", [{}])[0].get("release_path") != "bin/busierbox-test" or
                 release_artifacts_by_tool.get("sh", [{}])[0].get("payload_preset") != "default" or
+                release_artifacts_by_provider_tool.get("gdbserver", [{}])[0].get("payload_preset") != "default" or
+                release_artifacts_by_provider_status.get("gdbserver:found", [{}])[0].get("name") != "busierbox-test" or
                 rel.get("artifact_stats", {}).get("total_size") != release_artifact_size or
                 rel.get("artifact_stats", {}).get("by_compatibility", {}).get("exact") != 1 or
                 rel.get("artifact_stats", {}).get("by_payload_preset", {}).get("default") != 1 or
                 rel.get("artifact_stats", {}).get("by_source", {}).get("release-index") != 1 or
                 rel.get("artifact_stats", {}).get("by_tool", {}).get("sh") != 1 or
+                rel.get("artifact_stats", {}).get("by_provider_tool", {}).get("gdbserver") != 1 or
+                rel.get("artifact_stats", {}).get("by_provider_status", {}).get("gdbserver:found") != 1 or
                 release_device_map.get("lab-router", {}).get("tuple_path") != "by-tuple/native/host/host/host" or
                 release_tuple_map.get("by-tuple/native/host/host/host", {}).get("artifact_count") != 1):
             print("json status missing release browser lookup maps", file=sys.stderr)
@@ -2226,7 +2234,9 @@ def main():
                 release_summary.get("release_artifact_compatibility_counts", {}).get("exact") != 1 or
                 release_summary.get("release_artifact_payload_preset_counts", {}).get("default") != 1 or
                 release_summary.get("release_artifact_source_counts", {}).get("release-index") != 1 or
-                release_summary.get("release_artifact_tool_counts", {}).get("sh") != 1):
+                release_summary.get("release_artifact_tool_counts", {}).get("sh") != 1 or
+                release_summary.get("release_artifact_provider_tool_counts", {}).get("gdbserver") != 1 or
+                release_summary.get("release_artifact_provider_status_counts", {}).get("gdbserver:found") != 1):
             print("json status missing release aggregate counts", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
