@@ -365,7 +365,10 @@ Device and tuple artifact reference totals are mirrored as
 Release `tuple_summary` records and generated `release-index` artifact rows
 also carry `tool_provider_status`, which mirrors payload-manifest provider
 checks such as the effective gdbserver local drop-in search path, executable
-state, and checker output.
+state, and checker output. Doom-enabled payloads also carry `doom_wads`
+records with the staged WAD basename, size, and sha256 so release consumers can
+audit bundled game data without unpacking the payload manifest or seeing the
+builder's local source path.
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
 purpose, service, side, network, explicit-target-action, and

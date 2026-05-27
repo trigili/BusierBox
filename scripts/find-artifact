@@ -98,6 +98,10 @@ def print_text(row, index):
     for tool, status in sorted((row.get("tool_provider_status") or {}).items()):
         if isinstance(status, dict):
             print(f"provider_status_{tool}={status.get('overall') or status.get('status') or 'unknown'}")
+    for wad in row.get("doom_wads") or []:
+        if not isinstance(wad, dict) or not wad.get("filename"):
+            continue
+        print(f"doom_wad={wad.get('filename')} size={wad.get('size', '')} sha256={wad.get('sha256', '')}")
     print(f"dedupe_count={len((index.get('dedupe', {}).get(row.get('sha256') or '', {}) or {}).get('artifacts') or [])}")
     print("features=" + " ".join(row.get("features") or []))
 

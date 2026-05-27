@@ -589,6 +589,7 @@ def write_release_helpers(script_dir):
                     "manifest": rec.get("manifest_path") or rec.get("payload_manifest_path"),
                     "payload_manifest": rec.get("payload_manifest_path"),
                     "tool_provider_status": summary.get("tool_provider_status") or {},
+                    "doom_wads": summary.get("doom_wads") or [],
                     "config": rec.get("config"),
                     "sha256": rec.get("sha256"),
                     "size": rec.get("size"),
@@ -683,6 +684,7 @@ def write_release_helpers(script_dir):
                         "manifest": rec.get("manifest_path") or rec.get("payload_manifest_path"),
                         "payload_manifest": rec.get("payload_manifest_path"),
                         "tool_provider_status": (rec.get("tuple_summary") or {}).get("tool_provider_status") or {},
+                        "doom_wads": (rec.get("tuple_summary") or {}).get("doom_wads") or [],
                         "tools": ((rec.get("tuple_summary") or {}).get("busybox_applets") or []) + ((rec.get("tuple_summary") or {}).get("heavy_tools") or []),
                         "compatibility": (rec.get("tuple_summary") or {}).get("compatibility") or {
                             "schema": 1,
@@ -1439,6 +1441,7 @@ def artifact_summary(release_dir, rec, include_missing=False):
     heavy = payload_tools.get("heavy_tools") or payload_tools.get("staged_payload_tools") or (payload_manifest or {}).get("staged_payload_tools") or []
     busybox = payload_tools.get("busybox_applets") or (payload_manifest or {}).get("busybox_applets") or []
     tool_provider_status = (payload_manifest or {}).get("tool_provider_status") or {}
+    doom_wads = (payload_manifest or {}).get("doom_wads") or []
     native = [key for key, value in sorted(native_features.items()) if value is True]
     noresidue_level = runtime.get("noresidue_level")
     summary = {
@@ -1479,6 +1482,7 @@ def artifact_summary(release_dir, rec, include_missing=False):
         "core_extraction_behavior": "BusyBox applet dispatch extracts a core payload subset; heavy tools upgrade to full extraction.",
         "heavy_tools": heavy,
         "tool_provider_status": tool_provider_status,
+        "doom_wads": doom_wads,
         "trailer_overridable_fields": trailer_keys,
         "size": rec.get("size"),
         "sha256": rec.get("sha256"),
@@ -1595,6 +1599,7 @@ def manifest_text_for_tuple(tuple_info, records, include_missing=False):
             f"  core_extraction={summary.get('core_extraction_behavior', '')}",
             f"  heavy_tools={', '.join(summary.get('heavy_tools') or [])}",
             "  tool_provider_status=" + json.dumps(summary.get("tool_provider_status") or {}, sort_keys=True),
+            "  doom_wads=" + json.dumps(summary.get("doom_wads") or [], sort_keys=True),
         ])
         if include_missing:
             lines.append(f"  missing_tools={', '.join(summary.get('missing_tools') or [])}")

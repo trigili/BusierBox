@@ -12,6 +12,7 @@ make_release() {
     sha=$5
     device=$6
     compatibility_label=${7:-exact}
+    doom_wads_json=${8:-[]}
     mkdir -p "$dir/bin"
     printf '%s\n' "$name artifact" >"$dir/bin/busierbox-$name-full"
     cat >"$dir/release.json" <<JSON
@@ -84,6 +85,7 @@ JSON
       "size": 123,
       "tools": ["sh", "$tool"],
       "tool_provider_status": {"$tool": {"schema": 1, "overall": "found", "search_paths": []}},
+      "doom_wads": $doom_wads_json,
       "trailer_support": true,
       "compatibility": {"schema": 1, "label": "$compatibility_label", "reasons": ["fixture"]}
     }
@@ -93,7 +95,7 @@ JSON
 }
 
 same_sha=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-make_release "$tmp/releases/one" one survey-core tcpdump "$same_sha" glinet-mt1300
+make_release "$tmp/releases/one" one survey-core tcpdump "$same_sha" glinet-mt1300 exact '[{"filename":"doom.wad","size":9,"sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}]'
 make_release "$tmp/releases/two" two ssh-operator strace "$same_sha" lab-router
 make_release "$tmp/releases/three" three full-debug gdbserver fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210 lab-router unsafe
 
@@ -118,6 +120,7 @@ assert len(index["artifacts_by_release"]["one"]) == 1
 tuple_rows = index["artifacts_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]
 assert len(tuple_rows) == 3
 assert index["artifacts_by_tool"]["tcpdump"][0]["release_name"] == "one"
+assert index["artifacts_by_tool"]["tcpdump"][0]["doom_wads"][0]["filename"] == "doom.wad"
 assert index["artifacts_by_payload_preset"]["ssh-operator"][0]["release_name"] == "two"
 assert index["artifacts_by_feature"]["reverse-ssh"][0]["release_name"] in {"one", "two", "three"}
 assert index["artifacts_by_tool_payload_preset"]["tcpdump:survey-core"][0]["release_name"] == "one"
@@ -136,6 +139,7 @@ grep -q '^compatibility=exact$' "$tmp/find-device.out"
 grep -q '^compatibility_reason=fixture$' "$tmp/find-device.out"
 grep -q '^dedupe_count=2$' "$tmp/find-device.out"
 grep -q '^provider_status_tcpdump=found$' "$tmp/find-device.out"
+grep -q '^doom_wad=doom.wad size=9 sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef$' "$tmp/find-device.out"
 scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --release one >"$tmp/find-tuple.out"
 grep -q '^release_name=one$' "$tmp/find-tuple.out"
 grep -q '^tuple_path=by-tuple/mipsel/musl/4.x/mips32r2-24kc$' "$tmp/find-tuple.out"

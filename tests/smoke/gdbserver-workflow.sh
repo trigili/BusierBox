@@ -189,6 +189,13 @@ cat >"$work/inspect-root/payload/manifest.json" <<'EOF'
   "overlay_applied_paths": [],
   "applet_symlink_skips": [],
   "gdbserver_provider": "local-dropin",
+  "doom_wads": [
+    {
+      "filename": "doom.wad",
+      "size": 9,
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+  ],
   "tool_provider_status": {
     "gdbserver": {
       "schema": 1,
@@ -208,6 +215,7 @@ tar -C "$work/inspect-root" -cf "$work/inspect-payload.tar" payload
 printf '%s\n' "core" >"$work/inspect-core"
 scripts/embed-payload "$work/inspect-core" "$work/inspect-payload.tar" "$work/inspect-artifact" >/dev/null
 scripts/inspect-artifact "$work/inspect-artifact" >"$work/inspect-artifact.out"
+grep -q '^doom_wad=doom.wad size=9 sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef$' "$work/inspect-artifact.out"
 grep -q '^provider_status_gdbserver=found$' "$work/inspect-artifact.out"
 grep -q '^provider_path_gdbserver=local/tools/mipsel-linux-4.x-musl/bin/gdbserver$' "$work/inspect-artifact.out"
 

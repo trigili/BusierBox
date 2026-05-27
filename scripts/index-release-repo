@@ -77,6 +77,7 @@ def load_release_index(release_dir):
             "manifest": rec.get("manifest_path") or rec.get("payload_manifest_path"),
             "payload_manifest": rec.get("payload_manifest_path"),
             "tool_provider_status": summary.get("tool_provider_status") or {},
+            "doom_wads": summary.get("doom_wads") or [],
             "config": rec.get("config"),
             "sha256": rec.get("sha256"),
             "size": rec.get("size"),

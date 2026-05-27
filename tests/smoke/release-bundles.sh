@@ -241,7 +241,7 @@ if artifact.get("tuple", {}).get("path") != artifact.get("tuple_path"):
 if artifact.get("tuple_artifact") != "by-tuple/native/host/host/host/bin/busierbox-native-default-full":
     raise SystemExit("artifact tuple artifact missing")
 summary = artifact.get("tuple_summary") or {}
-for key in ("payload_manifest", "native_applets", "busybox_applets", "core_extraction_behavior", "trailer_overridable_fields", "command_queue", "noresidue_policy", "recovery_workflows"):
+for key in ("payload_manifest", "native_applets", "busybox_applets", "core_extraction_behavior", "trailer_overridable_fields", "command_queue", "noresidue_policy", "recovery_workflows", "doom_wads"):
     if key not in summary:
         raise SystemExit(f"tuple summary missing {key}")
 queue = summary.get("command_queue") or {}
@@ -297,7 +297,7 @@ artifacts = manifest.get("artifacts", [])
 if len(artifacts) != 1:
     raise SystemExit("tuple manifest artifact count mismatch")
 summary = artifacts[0]
-for key in ("payload_preset", "runtime_mode", "noresidue_level", "payload_manifest", "native_applets", "busybox_applets", "heavy_tools", "sha256", "config", "command_queue", "noresidue_policy", "recovery_workflows"):
+for key in ("payload_preset", "runtime_mode", "noresidue_level", "payload_manifest", "native_applets", "busybox_applets", "heavy_tools", "sha256", "config", "command_queue", "noresidue_policy", "recovery_workflows", "doom_wads"):
     if key not in summary:
         raise SystemExit(f"tuple artifact summary missing {key}")
 queue = summary.get("command_queue") or {}
@@ -332,6 +332,7 @@ for needle in (
     "noresidue_policy=",
     "recovery_workflows=",
     "busybox_applets=",
+    "doom_wads=",
     "core_extraction=",
     "trailer_overridable_fields=",
     "reverse_access_defaults=",

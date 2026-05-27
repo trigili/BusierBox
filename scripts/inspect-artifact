@@ -141,6 +141,20 @@ def provider_status_lines(manifest):
     return lines
 
 
+def doom_wad_lines(manifest):
+    lines = []
+    for wad in manifest.get("doom_wads") or []:
+        if not isinstance(wad, dict):
+            continue
+        filename = wad.get("filename")
+        if not filename:
+            continue
+        size = wad.get("size", "")
+        sha256 = wad.get("sha256", "")
+        lines.append(f"doom_wad={one_line(filename)} size={one_line(size)} sha256={one_line(sha256)}")
+    return lines
+
+
 if len(sys.argv) != 2:
     die("usage: scripts/inspect-artifact dist/busierbox-<target>")
 
@@ -205,6 +219,8 @@ if manifest:
     print(f"busybox_applet_count={len(manifest.get('busybox_applets') or [])}")
     print("staged_tools=" + " ".join(manifest.get("staged_payload_tools") or []))
     print("missing_tools=" + " ".join(manifest.get("missing_payload_tools") or []))
+    for line in doom_wad_lines(manifest):
+        print(line)
     print(f"gdbserver_provider={manifest.get('gdbserver_provider', 'auto')}")
     for line in provider_status_lines(manifest):
         print(line)
