@@ -316,7 +316,10 @@ includes `commands_by_status` and `status_counts`, mirrored into `summary` as
 recomputing it.
 Event log entries include stable `id`, `session`, and `session_path` fields so
 frontend and integration tooling can correlate global operator events with
-per-session logs. The `events` array is a bounded recent tail;
+per-session logs. File-service `connection_close` entries include the observed
+request operation, status, HTTP status, and request/file identifier when known,
+so timelines can show the final request outcome without scraping upload or fetch
+metadata separately. The `events` array is a bounded recent tail;
 `events_by_service` and `events_by_event` group those tail records for direct
 frontend lookups. `event_log_stats` reports the event log path, total valid event count, tail count, invalid JSONL line count, tail limit, and aggregate counters by service, event, and level so API consumers can tell whether there is more history to page or inspect from disk while still rendering compact diagnostics.
 

@@ -1466,6 +1466,14 @@ def main():
         if any(event.get("session_path") != str(session_json_paths[0].parent) for event in session_events):
             print("session event records should carry the exact session path", file=sys.stderr)
             return 1
+        close_events = [event for event in session_events if event.get("event") == "connection_close"]
+        if (not close_events or
+                close_events[-1].get("details", {}).get("operation") != "upload" or
+                close_events[-1].get("details", {}).get("status") != "ok" or
+                close_events[-1].get("details", {}).get("http_status") != 200 or
+                close_events[-1].get("details", {}).get("filename") != "evidence.txt"):
+            print("file-service connection_close event missing request outcome details", file=sys.stderr)
+            return 1
         global_events_path = upload_operator_dir / "events.jsonl"
         global_events = [json.loads(line) for line in global_events_path.read_text(encoding="utf-8").splitlines()]
         if "upload_complete" not in {event.get("event") for event in global_events}:

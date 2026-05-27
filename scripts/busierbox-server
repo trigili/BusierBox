@@ -2730,6 +2730,8 @@ def serve_file_service(cfg, timeout, max_sessions=0):
                 if SHUTDOWN.is_set():
                     return 0
                 raise
+            metadata = {}
+            status_code = ""
             try:
                 with raw:
                     conn = context.wrap_socket(raw, server_side=True) if context else raw
@@ -2749,6 +2751,8 @@ def serve_file_service(cfg, timeout, max_sessions=0):
                             append_event(cfg, service, "upload_start", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details={"filename": metadata.get("filename", ""), "expected_size": metadata.get("expected_size", "")})
                             append_event(cfg, service, "upload_complete", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
             except Exception as exc:
+                metadata = {"operation": "unknown", "status": "error", "reason": str(exc)}
+                status_code = 500
                 try:
                     send_json_response(raw, 500, {"status": "error", "reason": str(exc)})
                 except Exception:
@@ -2756,7 +2760,20 @@ def serve_file_service(cfg, timeout, max_sessions=0):
                 print(f"file-service request failed: {exc}", file=sys.stderr)
                 append_event(cfg, service, "request_error", "error", session=str(log_dir), details={"error": str(exc)})
             finally:
-                append_event(cfg, service, "connection_close", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
+                append_event(
+                    cfg,
+                    service,
+                    "connection_close",
+                    session=str(log_dir),
+                    remote=f"{addr[0]}:{addr[1]}",
+                    details={
+                        "operation": metadata.get("operation", ""),
+                        "status": metadata.get("status", ""),
+                        "http_status": metadata.get("http_status", status_code),
+                        "request_name": metadata.get("request_name", ""),
+                        "filename": metadata.get("filename", ""),
+                    },
+                )
                 sessions += 1
             if max_sessions > 0 and sessions >= max_sessions:
                 break
