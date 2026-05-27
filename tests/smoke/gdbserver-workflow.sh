@@ -156,6 +156,25 @@ if [ -x runtime/payload/bin/busybox ]; then
     test -x runtime/payload/bin/gdbserver
     grep -qx gdbserver runtime/payload/staged-tools.txt
     grep -qx gdbserver runtime/payload/built-tools.txt
+    python3 - <<'PY'
+import json
+
+manifest = json.load(open("runtime/payload/manifest.json", "r", encoding="utf-8"))
+status = (manifest.get("tool_provider_status") or {}).get("gdbserver") or {}
+if status.get("overall") != "found":
+    raise SystemExit("payload manifest did not record gdbserver provider as found")
+paths = status.get("search_paths") or []
+found = [entry for entry in paths if entry.get("executable")]
+if len(found) != 1:
+    raise SystemExit("payload manifest should record exactly one executable gdbserver provider path")
+entry = found[0]
+if entry.get("status") != "ok":
+    raise SystemExit("payload manifest provider check status mismatch")
+if entry.get("check", {}).get("tool") != "gdbserver":
+    raise SystemExit("payload manifest provider check tool mismatch")
+if entry.get("metadata") and entry.get("check", {}).get("sha256") != entry.get("metadata", {}).get("sha256"):
+    raise SystemExit("payload manifest provider metadata sha mismatch")
+PY
 else
     printf '%s\n' "skip: runtime/payload/bin/busybox missing; package-native first for gdbserver provider smoke"
 fi

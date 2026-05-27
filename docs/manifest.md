@@ -39,7 +39,11 @@ Extraction writes the artifact manifest to
 `./.busierbox/manifest/artifact.json` next to the runtime payload. The extracted
 payload also carries `payload/manifest.json`, produced during packaging. That
 payload manifest records requested tools, staged tools, missing tools, overlay
-metadata, gdbserver provider state, BusyBox applets, and payload hashes.
+metadata, gdbserver provider state, structured provider status under
+`tool_provider_status`, BusyBox applets, and payload hashes. For provider-backed
+tools such as `gdbserver`, the status records the searched local drop-in paths,
+checker output, executable state, and installed metadata so release bundles can
+audit what provider path was available when the artifact was built.
 
 Runtime extraction state is intentionally reported by runtime diagnostics rather
 than the compiled manifest. `busierbox config-info` and `busierbox doctor

@@ -2,6 +2,7 @@
 import argparse
 import json
 import pathlib
+import subprocess
 import time
 
 
@@ -15,6 +16,32 @@ def read_list(path):
         if item and item not in out:
             out.append(item)
     return sorted(out)
+
+
+def read_tool_provider_status(tool, target, arch, libc):
+    script = pathlib.Path(__file__).resolve().parent / "tools" / "dropin-tool-status"
+    if not script.exists():
+        return {"status": "unavailable", "warning": f"missing helper {script}"}
+    try:
+        out = subprocess.check_output(
+            [
+                str(script),
+                "--tool",
+                tool,
+                "--target",
+                target,
+                "--arch",
+                arch,
+                "--libc",
+                libc,
+                "--json",
+            ],
+            text=True,
+            stderr=subprocess.PIPE,
+        )
+        return json.loads(out)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
+        return {"status": "unavailable", "warning": str(exc)}
 
 
 parser = argparse.ArgumentParser()
@@ -67,6 +94,15 @@ warn_file = payload / "share" / "busierbox" / "overlay-warnings.txt"
 if warn_file.exists():
     overlay_warnings = [l.strip() for l in warn_file.read_text(encoding="utf-8").splitlines() if l.strip()]
 
+tool_provider_status = {}
+if "gdbserver" in requested or "gdbserver" in staged or args.gdbserver_provider != "auto":
+    tool_provider_status["gdbserver"] = read_tool_provider_status(
+        "gdbserver",
+        args.target,
+        args.arch,
+        args.libc,
+    )
+
 symlink_count = 0
 count_file = payload / "share" / "busierbox" / "applet-symlink-count.txt"
 if count_file.exists():
@@ -99,6 +135,7 @@ manifest = {
     "user_provided_tools": user_provided,
     "overlay_warnings": overlay_warnings,
     "gdbserver_provider": args.gdbserver_provider,
+    "tool_provider_status": tool_provider_status,
     "applet_symlink_count": symlink_count,
     "applet_symlink_skips": symlink_skips,
     "included_shared_libs": libs,
