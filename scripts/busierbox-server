@@ -572,6 +572,40 @@ def target_command_record_indexes(records):
     return by_service, by_request_name
 
 
+def target_command_record_summary(records):
+    total = 0
+    target_count = 0
+    network_count = 0
+    explicit_target_action_count = 0
+    operator_supplied_command_execution_count = 0
+    by_service = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        total += 1
+        service = str(rec.get("service") or "")
+        if service:
+            by_service[service] = by_service.get(service, 0) + 1
+        if rec.get("side") == "target":
+            target_count += 1
+        if rec.get("network") is True:
+            network_count += 1
+        if rec.get("requires_explicit_target_action") is True:
+            explicit_target_action_count += 1
+        if rec.get("executes_operator_supplied_commands") is True:
+            operator_supplied_command_execution_count += 1
+    return {
+        "total_count": total,
+        "target_count": target_count,
+        "network_count": network_count,
+        "explicit_target_action_count": explicit_target_action_count,
+        "operator_supplied_command_execution_count": operator_supplied_command_execution_count,
+        "executes_operator_supplied_commands": operator_supplied_command_execution_count > 0,
+        "all_require_explicit_target_action": total > 0 and explicit_target_action_count == total,
+        "by_service": by_service,
+    }
+
+
 def warning_stats(warnings):
     by_type = {}
     by_service = {}
@@ -3004,6 +3038,7 @@ def status_document(cfg):
     release = release_context()
     target_command_records = generated_target_command_records(cfg, staged_raw)
     target_commands_by_service, target_commands_by_request = target_command_record_indexes(target_command_records)
+    target_command_summary = target_command_record_summary(target_command_records)
     uploads_by_filename, uploads_by_sha256, uploads_by_source_path, uploads_by_stored_path = upload_record_indexes(uploads)
     fetches_by_request, fetches_by_sha256, fetches_by_source_path, fetches_by_status = fetch_record_indexes(fetches)
     summary, warnings = status_summary_and_warnings(services)
@@ -3109,6 +3144,7 @@ def status_document(cfg):
         "selected_local_ip": (ips or ["OPERATOR_IP"])[0],
         "target_commands": [rec["command"] for rec in target_command_records],
         "target_command_records": target_command_records,
+        "target_command_summary": target_command_summary,
         "target_commands_by_service": target_commands_by_service,
         "target_commands_by_request": target_commands_by_request,
         "staged": staged,

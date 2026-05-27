@@ -1494,9 +1494,22 @@ def main():
             print("server target command records weakened the explicit-action safety boundary", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+        target_summary = upload_doc.get("target_command_summary") or {}
+        if (target_summary.get("total_count") != len(target_records) or
+                target_summary.get("target_count") != len(target_records) or
+                target_summary.get("network_count") != len(target_records) or
+                target_summary.get("explicit_target_action_count") != len(target_records) or
+                target_summary.get("operator_supplied_command_execution_count") != 0 or
+                target_summary.get("executes_operator_supplied_commands") is not False or
+                target_summary.get("all_require_explicit_target_action") is not True):
+            print("server json status missing target command safety summary", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         target_commands_by_service = upload_doc.get("target_commands_by_service") or {}
         if (len(target_commands_by_service.get("file-service") or []) < 6 or
-                not any(rec.get("service") == "rshell" for rec in target_records)):
+                not any(rec.get("service") == "rshell" for rec in target_records) or
+                target_summary.get("by_service", {}).get("file-service", 0) < 6 or
+                target_summary.get("by_service", {}).get("rshell") != 1):
             print("server json status missing generated command service lookup", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
