@@ -67,6 +67,7 @@ if data["state"] != "running":
 if data["session_policy"] != "reconnect":
     raise SystemExit("session policy from status file missing")
 sem = data.get("session_semantics") or {}
+summary = data.get("session_policy_summary") or {}
 if sem.get("retry_until_first_connection") is not True:
     raise SystemExit("retry-until-first-connection semantic missing")
 if sem.get("stop_after_first_success") is not False:
@@ -79,6 +80,16 @@ if sem.get("fresh_session_on_reconnect") is not True:
     raise SystemExit("reconnect policy should report fresh sessions on reconnect")
 if sem.get("session_resume_supported") is not False:
     raise SystemExit("rshell should not claim session resume")
+if summary.get("valid") is not True:
+    raise SystemExit("session policy summary should report valid reconnect policy")
+if summary.get("retry_scope") != "pre-connect+post-disconnect":
+    raise SystemExit("reconnect summary should report pre/post retry scope")
+if summary.get("pre_connect_retry_count") != data["retry"].get("pre_connect_count"):
+    raise SystemExit("summary pre-connect retry count mismatch")
+if summary.get("post_disconnect_retry_count") != data["retry"].get("post_disconnect_count"):
+    raise SystemExit("summary post-disconnect retry count mismatch")
+if summary.get("reconnects_after_disconnect") is not True:
+    raise SystemExit("summary should report reconnect after disconnect")
 if data["pids"].get("rshell") != "1234":
     raise SystemExit("rshell pid missing")
 if data["pids"].get("dropbear") != "2345":
@@ -165,6 +176,7 @@ import sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 sem = data.get("session_semantics") or {}
+summary = data.get("session_policy_summary") or {}
 if data["session_policy"] != "single":
     raise SystemExit("env single policy not reflected in status")
 if sem.get("stop_after_first_success") is not True:
@@ -173,6 +185,10 @@ if sem.get("reconnect_after_disconnect") is not False:
     raise SystemExit("single policy should not reconnect after disconnect")
 if data["retry"].get("post_disconnect_count") != "0":
     raise SystemExit("single policy should report zero post-disconnect retries")
+if summary.get("retry_scope") != "pre-connect":
+    raise SystemExit("single policy summary should only report pre-connect retry scope")
+if summary.get("stops_after_success") is not True:
+    raise SystemExit("single policy summary should report stop after success")
 if sem.get("session_resume_supported") is not False:
     raise SystemExit("single policy should not claim session resume")
 PY
@@ -186,6 +202,7 @@ import sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 sem = data.get("session_semantics") or {}
+summary = data.get("session_policy_summary") or {}
 if data["session_policy"] != "persistent":
     raise SystemExit("env persistent policy not reflected in status")
 if sem.get("persistent_lifecycle") is not True:
@@ -196,6 +213,10 @@ if sem.get("fresh_session_on_reconnect") is not True:
     raise SystemExit("persistent policy should report fresh sessions")
 if data["retry"].get("post_disconnect_count") != "-1":
     raise SystemExit("persistent policy should report unbounded post-disconnect retry")
+if summary.get("retry_scope") != "pre-connect+post-disconnect":
+    raise SystemExit("persistent policy summary should report pre/post retry scope")
+if summary.get("persistent_lifecycle") is not True:
+    raise SystemExit("persistent policy summary should report persistent lifecycle")
 if sem.get("session_resume_supported") is not False:
     raise SystemExit("persistent policy should not claim session resume")
 PY
@@ -215,6 +236,11 @@ if data.get("session_policy_valid") is not False:
 if "unsupported rshell session policy" not in data.get("session_policy_errors", []):
     raise SystemExit("invalid policy error missing")
 sem = data.get("session_semantics") or {}
+summary = data.get("session_policy_summary") or {}
+if summary.get("valid") is not False:
+    raise SystemExit("invalid policy summary should report valid=false")
+if summary.get("session_resume_supported") is not False:
+    raise SystemExit("invalid policy summary should not claim session resume")
 if sem.get("session_resume_supported") is not False:
     raise SystemExit("invalid policy should not claim session resume")
 PY
