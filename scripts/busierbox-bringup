@@ -81,6 +81,7 @@ release_find_json=
 selected_artifact=
 compatibility_label=
 compatibility_reasons_json='[]'
+selected_tool_provider_status_json='{}'
 trailer_command=
 staged_fetch_command=
 staged_request_name=
@@ -163,6 +164,7 @@ write_summary() {
     SELECTED_ARTIFACT="$selected_artifact" \
     COMPATIBILITY_LABEL="$compatibility_label" \
     COMPATIBILITY_REASONS_JSON="$compatibility_reasons_json" \
+    SELECTED_TOOL_PROVIDER_STATUS_JSON="$selected_tool_provider_status_json" \
     TRAILER_COMMAND="$trailer_command" \
     STAGED_FETCH_COMMAND="$staged_fetch_command" \
     STAGED_REQUEST_NAME="$staged_request_name" \
@@ -212,6 +214,13 @@ try:
         reasons = [reasons]
 except Exception:
     reasons = split_lines(env("COMPATIBILITY_REASONS_JSON"))
+
+try:
+    selected_tool_provider_status = json.loads(env("SELECTED_TOOL_PROVIDER_STATUS_JSON") or "{}")
+    if not isinstance(selected_tool_provider_status, dict):
+        selected_tool_provider_status = {}
+except Exception:
+    selected_tool_provider_status = {}
 
 host = env("HOST")
 operator_host = env("OPERATOR_HOST")
@@ -369,6 +378,7 @@ doc = {
     "max_compatibility": env("MAX_COMPATIBILITY"),
     "release_find_json": maybe_file(env("RELEASE_FIND_JSON")),
     "selected_artifact": env("SELECTED_ARTIFACT"),
+    "selected_tool_provider_status": selected_tool_provider_status,
     "compatibility": {
         "label": env("COMPATIBILITY_LABEL"),
         "reasons": reasons,
@@ -468,12 +478,17 @@ if isinstance(selected, dict):
 compat = data.get("compatibility")
 label = ""
 reasons = []
+tool_provider_status = {}
 if isinstance(compat, dict):
     label = first_string(compat.get("label"), compat.get("score"), compat.get("status"))
     raw = compat.get("reasons", [])
     reasons = raw if isinstance(raw, list) else [raw]
 elif isinstance(compat, str):
     label = compat
+if isinstance(selected, dict):
+    raw_provider_status = selected.get("tool_provider_status")
+    if isinstance(raw_provider_status, dict):
+        tool_provider_status = raw_provider_status
 if not label:
     label = first_string(data.get("compatibility_label"), data.get("score"), data.get("label"))
 if not reasons:
@@ -486,6 +501,7 @@ values = {
     "selected_artifact": artifact,
     "compatibility_label": label,
     "compatibility_reasons_json": json.dumps([str(x) for x in reasons if x not in (None, "")]),
+    "selected_tool_provider_status_json": json.dumps(tool_provider_status),
 }
 for key, value in values.items():
     print(f"{key}={shlex.quote(str(value))}")
