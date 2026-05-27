@@ -680,6 +680,7 @@ def main():
         browser_summary = queue_status_json.get("browser_path_summary") or {}
         browser_by_kind = queue_status_json.get("browser_paths_by_kind") or {}
         browser_by_path = queue_status_json.get("browser_paths_by_path") or {}
+        browser_by_kind_source = queue_status_json.get("browser_paths_by_kind_source_id") or {}
         if (browser_summary.get("total_count") != len(browser_paths) or
                 queue_status_json["summary"].get("browser_path_count") != len(browser_paths) or
                 queue_status_json["summary"].get("browser_path_kind_counts", {}).get("server-state") != 1 or
@@ -687,6 +688,7 @@ def main():
                 not browser_by_kind.get("server-state") or
                 not browser_by_kind.get("command-queue-ledger") or
                 browser_by_path.get(str(queue_file), [{}])[0].get("kind") != "command-queue-ledger" or
+                browser_by_kind_source.get("command-queue-ledger:command_queue_file", [{}])[0].get("path") != str(queue_file) or
                 browser_summary.get("exists_count", 0) < 1):
             print("server json status missing normalized browser path records", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
@@ -1810,11 +1812,15 @@ def main():
         upload_browser_by_kind = upload_doc.get("browser_paths_by_kind") or {}
         upload_browser_by_path = upload_doc.get("browser_paths_by_path") or {}
         upload_browser_by_source = upload_doc.get("browser_paths_by_source_id") or {}
+        upload_browser_by_kind_source = upload_doc.get("browser_paths_by_kind_source_id") or {}
+        upload_session_id = session_json_paths[0].parent.name
         if (upload_doc.get("browser_path_summary", {}).get("by_kind", {}).get("upload-stored") != 1 or
                 upload_summary.get("browser_path_kind_counts", {}).get("upload-metadata") != 1 or
                 upload_browser_by_kind.get("upload-stored", [{}])[0].get("path") != str(uploaded[0]) or
                 upload_browser_by_path.get(str(metadata_path), [{}])[0].get("kind") != "upload-metadata" or
-                not upload_browser_by_source.get(session_json_paths[0].parent.name)):
+                not upload_browser_by_source.get(upload_session_id) or
+                upload_browser_by_kind_source.get(f"upload-metadata:{upload_session_id}", [{}])[0].get("path") != str(metadata_path) or
+                upload_browser_by_kind_source.get(f"session-dir:{upload_session_id}", [{}])[0].get("path") != str(session_json_paths[0].parent)):
             print("server json status missing upload/session browser path records", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
@@ -2143,10 +2149,12 @@ def main():
             return 1
         release_browser_by_kind = release_doc.get("browser_paths_by_kind") or {}
         release_browser_by_path = release_doc.get("browser_paths_by_path") or {}
+        release_browser_by_kind_source = release_doc.get("browser_paths_by_kind_source_id") or {}
         if (release_doc.get("browser_path_summary", {}).get("by_kind", {}).get("release-artifact") != 1 or
                 release_browser_by_kind.get("release-json", [{}])[0].get("path") != str(release_dir / "release.json") or
                 release_browser_by_kind.get("release-artifact", [{}])[0].get("source_id") != "bin/busierbox-test" or
-                release_browser_by_path.get(str(release_dir / "bin" / "busierbox-test"), [{}])[0].get("kind") != "release-artifact"):
+                release_browser_by_path.get(str(release_dir / "bin" / "busierbox-test"), [{}])[0].get("kind") != "release-artifact" or
+                release_browser_by_kind_source.get("release-artifact:bin/busierbox-test", [{}])[0].get("path") != str(release_dir / "bin" / "busierbox-test")):
             print("json status missing release browser path records", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1

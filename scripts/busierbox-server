@@ -792,6 +792,7 @@ def browser_path_indexes(records):
     by_kind = {}
     by_path = {}
     by_source_id = {}
+    by_kind_source_id = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -804,7 +805,9 @@ def browser_path_indexes(records):
             by_path.setdefault(path, []).append(rec)
         if source_id:
             by_source_id.setdefault(source_id, []).append(rec)
-    return by_kind, by_path, by_source_id
+        if kind and source_id:
+            by_kind_source_id.setdefault(f"{kind}:{source_id}", []).append(rec)
+    return by_kind, by_path, by_source_id, by_kind_source_id
 
 
 def browser_path_summary(records):
@@ -3800,7 +3803,10 @@ def status_document(cfg):
     path_status = status_path_records(paths)
     path_summary = status_path_summary(path_status)
     browser_paths = operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, sessions, release)
-    browser_paths_by_kind, browser_paths_by_path, browser_paths_by_source_id = browser_path_indexes(browser_paths)
+    (browser_paths_by_kind,
+     browser_paths_by_path,
+     browser_paths_by_source_id,
+     browser_paths_by_kind_source_id) = browser_path_indexes(browser_paths)
     browser_summary = browser_path_summary(browser_paths)
     services_by_name = {
         row["name"]: {
@@ -3978,6 +3984,7 @@ def status_document(cfg):
         "browser_paths_by_kind": browser_paths_by_kind,
         "browser_paths_by_path": browser_paths_by_path,
         "browser_paths_by_source_id": browser_paths_by_source_id,
+        "browser_paths_by_kind_source_id": browser_paths_by_kind_source_id,
         "browser_path_summary": browser_summary,
         "server_state": server_state,
         "staged_files_state": staged_files_state,

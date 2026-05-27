@@ -295,10 +295,14 @@ writability fields; compact path health counts are mirrored into `summary` as
 browser list for future TUI/web clients, covering operator ledgers, session
 directories, upload/fetch metadata, staged sources, event logs, TLS files, and
 release bundle files. The same records are grouped in `browser_paths_by_kind`,
-`browser_paths_by_path`, and `browser_paths_by_source_id`; compact counts are
-exposed in `browser_path_summary` and mirrored into `summary` as
-`browser_path_count`, existence/readability/writability counts, and
-`browser_path_kind_counts`. `staged_files_state` exposes the staged-files ledger
+`browser_paths_by_path`, `browser_paths_by_source_id`, and
+`browser_paths_by_kind_source_id`. The composite kind/source map lets TUI and
+future web clients jump directly to records such as
+`upload-metadata:<session-id>` or `release-artifact:<release-path>` without
+filtering the broader source-id group. Compact counts are exposed in
+`browser_path_summary` and mirrored into `summary` as `browser_path_count`,
+existence/readability/writability counts, and `browser_path_kind_counts`.
+`staged_files_state` exposes the staged-files ledger
 path, validity, request names, and raw staged-entry count. `command_queue_state`
 exposes the command queue ledger path, validity, command ids, status counts,
 and raw command count. Staged files are exposed as the existing `staged`
