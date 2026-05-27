@@ -1459,6 +1459,12 @@ def main():
             print("server target command records weakened the explicit-action safety boundary", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+        target_commands_by_service = upload_doc.get("target_commands_by_service") or {}
+        if (len(target_commands_by_service.get("file-service") or []) < 6 or
+                not any(rec.get("service") == "rshell" for rec in target_records)):
+            print("server json status missing generated command service lookup", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         if (upload_doc.get("summary", {}).get("upload_count", 0) < 1 or
                 upload_doc.get("summary", {}).get("session_count", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_count", 0) < 1):
@@ -1782,6 +1788,11 @@ def main():
             print("json status missing structured staged fetch command metadata", file=sys.stderr)
             print(staged_status.stdout, file=sys.stderr)
             return 1
+        staged_commands_by_request = staged_doc.get("target_commands_by_request") or {}
+        if staged_commands_by_request.get("busierbox-test", {}).get("source_path") != str(release_dir / "bin" / "busierbox-test"):
+            print("json status missing staged fetch command request lookup", file=sys.stderr)
+            print(staged_status.stdout, file=sys.stderr)
+            return 1
 
         bad_stage = run(
             "scripts/busierbox-server",
@@ -1925,6 +1936,7 @@ def main():
                 staged_record.get("source_path") != str(staged_source) or
                 staged_record.get("source_exists") is not True or
                 "fetch /tmp/myfile" not in staged_record.get("fetch_command", "") or
+                status_doc.get("target_commands_by_request", {}).get("/tmp/myfile", {}).get("request_name") != "/tmp/myfile" or
                 not any("fetch /tmp/myfile" in cmd for cmd in status_doc.get("target_commands", [])) or
                 "selected_local_ip" not in status_doc or
                 not isinstance(status_doc.get("events"), list)):

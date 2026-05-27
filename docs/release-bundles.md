@@ -278,9 +278,11 @@ tuple browser lists plus `artifacts_by_release_path`, `devices_by_name`, and
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
 purpose, service, side, network, explicit-target-action, and
-operator-supplied-command execution metadata. This lets future frontends show
-the same commands without guessing whether a command is a safe explicit
-fetch/upload helper or control-like behavior.
+operator-supplied-command execution metadata. `target_commands_by_service` and
+`target_commands_by_request` index those records for service panes and staged
+fetch rows. This lets future frontends show the same commands without guessing
+whether a command is a safe explicit fetch/upload helper or control-like
+behavior.
 Event log entries include stable `id`, `session`, and `session_path` fields so
 frontend and integration tooling can correlate global operator events with
 per-session logs. The `events` array is a bounded recent tail;

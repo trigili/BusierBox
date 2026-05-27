@@ -452,6 +452,21 @@ def event_record_indexes(records):
     return by_service, by_event
 
 
+def target_command_record_indexes(records):
+    by_service = {}
+    by_request_name = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        service = str(rec.get("service") or "")
+        request_name = str(rec.get("request_name") or "")
+        if service:
+            by_service.setdefault(service, []).append(rec)
+        if request_name:
+            by_request_name[request_name] = rec
+    return by_service, by_request_name
+
+
 def warning_stats(warnings):
     by_type = {}
     by_service = {}
@@ -2827,6 +2842,8 @@ def status_document(cfg):
     events_by_service, events_by_event = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
     release = release_context()
+    target_command_records = generated_target_command_records(cfg, staged_raw)
+    target_commands_by_service, target_commands_by_request = target_command_record_indexes(target_command_records)
     summary, warnings = status_summary_and_warnings(services)
     services_by_name = {
         row["name"]: {
@@ -2913,8 +2930,10 @@ def status_document(cfg):
         "warning_stats": warning_stats(warnings),
         "local_ips": ips,
         "selected_local_ip": (ips or ["OPERATOR_IP"])[0],
-        "target_commands": generated_target_commands(cfg, staged_raw),
-        "target_command_records": generated_target_command_records(cfg, staged_raw),
+        "target_commands": [rec["command"] for rec in target_command_records],
+        "target_command_records": target_command_records,
+        "target_commands_by_service": target_commands_by_service,
+        "target_commands_by_request": target_commands_by_request,
         "staged": staged,
         "staged_records": staged_record_list(staged),
         "uploads": uploads,
