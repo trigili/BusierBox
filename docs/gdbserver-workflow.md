@@ -37,7 +37,8 @@ to write the same inspection result as JSON without installing the file. Use
 `--strict` when installing or checking a final drop-in so detected
 architecture/endian mismatches fail instead of becoming payload content. For
 non-native target drop-ins, strict mode also rejects files whose architecture
-cannot be identified.
+cannot be identified. `mipsel` and `mips` imply little- and big-endian MIPS
+respectively, so endian mismatches are caught without an extra flag.
 
 Set `BB_GDBSERVER_PROVIDER="local-dropin"` or leave it as `auto`.
 

@@ -38,6 +38,24 @@ if scripts/tools/check-dropin-tool --tool gdbserver --path "$fake" --arch mipsel
     exit 1
 fi
 grep -q 'unable to detect arch expected=mipsel' "$work/strict-script.out"
+mockbin="$work/mockbin"
+mkdir "$mockbin"
+cat >"$mockbin/file" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$1: ELF 32-bit MSB executable, MIPS"
+EOF
+chmod 0755 "$mockbin/file"
+cat >"$mockbin/readelf" <<'EOF'
+#!/bin/sh
+exit 1
+EOF
+chmod 0755 "$mockbin/readelf"
+if PATH="$mockbin:$PATH" scripts/tools/check-dropin-tool --tool gdbserver --path "$fake" --arch mipsel --libc musl --strict >"$work/strict-endian.out" 2>"$work/strict-endian.err"; then
+    printf '%s\n' "gdbserver-workflow: strict check accepted big-endian MIPS for mipsel" >&2
+    exit 1
+fi
+grep -q '^expected_endian=little$' "$work/strict-endian.out"
+grep -q 'endian mismatch expected=little detected=big' "$work/strict-endian.out"
 if command -v ls >/dev/null 2>&1; then
     if scripts/tools/install-dropin-gdbserver --source "$(command -v ls)" --arch mipsel --libc musl --dest-root "$work/tools-strict" --strict >"$work/install-strict.out" 2>"$work/install-strict.err"; then
         printf '%s\n' "gdbserver-workflow: strict install accepted mismatched host binary" >&2

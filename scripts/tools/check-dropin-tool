@@ -74,11 +74,19 @@ detected_endian=unknown
 dynamic=unknown
 interpreter=
 sha=unknown
+expected_endian=$endian
 
 if command -v sha256sum >/dev/null 2>&1; then
     sha=$(sha256sum "$path" | awk '{print $1}')
 elif command -v shasum >/dev/null 2>&1; then
     sha=$(shasum -a 256 "$path" | awk '{print $1}')
+fi
+
+if [ "$expected_endian" = "auto" ]; then
+    case "$arch" in
+        mipsel) expected_endian=little ;;
+        mips) expected_endian=big ;;
+    esac
 fi
 
 case "$file_out $readelf_h" in
@@ -112,13 +120,13 @@ esac
 if [ "$strict" -eq 1 ] && [ -n "$arch" ] && [ "$arch" != "native" ] && [ "$detected_arch" = "unknown" ]; then
     warn="${warn}${warn:+; }unable to detect arch expected=$arch"
 fi
-case "$endian:$detected_endian" in
+case "$expected_endian:$detected_endian" in
     auto:*|"":*|*:unknown) ;;
     little:little|big:big) ;;
-    *) warn="${warn}${warn:+; }endian mismatch expected=$endian detected=$detected_endian" ;;
+    *) warn="${warn}${warn:+; }endian mismatch expected=$expected_endian detected=$detected_endian" ;;
 esac
-if [ "$strict" -eq 1 ] && [ "$endian" != "auto" ] && [ -n "$endian" ] && [ "$detected_endian" = "unknown" ]; then
-    warn="${warn}${warn:+; }unable to detect endian expected=$endian"
+if [ "$strict" -eq 1 ] && [ "$expected_endian" != "auto" ] && [ -n "$expected_endian" ] && [ "$detected_endian" = "unknown" ]; then
+    warn="${warn}${warn:+; }unable to detect endian expected=$expected_endian"
 fi
 
 if [ "$strict" -eq 1 ] && [ -n "$warn" ]; then
@@ -134,6 +142,7 @@ printf 'sha256=%s\n' "$sha"
 printf 'target=%s\n' "$target"
 printf 'expected_arch=%s\n' "$arch"
 printf 'expected_libc=%s\n' "$libc"
+printf 'expected_endian=%s\n' "$expected_endian"
 printf 'detected_arch=%s\n' "$detected_arch"
 printf 'detected_endian=%s\n' "$detected_endian"
 printf 'dynamic=%s\n' "$dynamic"
@@ -142,7 +151,7 @@ printf 'warning=%s\n' "$warn"
 
 if [ -n "$metadata_out" ]; then
     if command -v python3 >/dev/null 2>&1; then
-        python3 - "$metadata_out" "$status" "$tool" "$path" "$sha" "$target" "$arch" "$libc" "$endian" "$detected_arch" "$detected_endian" "$dynamic" "$interpreter" "$warn" "$file_out" "$readelf_h" <<'PY'
+        python3 - "$metadata_out" "$status" "$tool" "$path" "$sha" "$target" "$arch" "$libc" "$expected_endian" "$detected_arch" "$detected_endian" "$dynamic" "$interpreter" "$warn" "$file_out" "$readelf_h" <<'PY'
 import json
 import pathlib
 import sys
