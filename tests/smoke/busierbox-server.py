@@ -524,6 +524,9 @@ def main():
             return 1
         if (status_queue.get("commands_by_id", {}).get(command_id, {}).get("status") != "result-received" or
                 len(status_queue.get("commands_by_status", {}).get("result-received", [])) != 1 or
+                status_queue.get("commands_by_result_status", {}).get("completed", [{}])[0].get("id") != command_id or
+                status_queue.get("commands_by_result_exit_code", {}).get("0", [{}])[0].get("id") != command_id or
+                status_queue.get("commands_by_result_output_exceeded", {}).get("no", [{}])[0].get("id") != command_id or
                 status_queue.get("status_counts", {}).get("result-received") != 1):
             print("server json status missing command queue lookup indexes", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)

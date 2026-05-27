@@ -375,8 +375,11 @@ future frontends show the same commands without guessing whether a command is a
 safe explicit fetch/upload helper or control-like behavior.
 Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
-`command_queue_status_counts`. Recorded result status and exit-code aggregates
-are exposed as `command_queue.result_status_counts`,
+`command_queue_status_counts`. Recorded results are grouped as full records in
+`commands_by_result_status`, `commands_by_result_exit_code`, and
+`commands_by_result_output_exceeded` so operator UIs can inspect received
+results without scanning all queued commands. Result status and exit-code
+aggregates are exposed as `command_queue.result_status_counts`,
 `command_queue.result_exit_code_counts`, and mirrored into `summary` as
 `command_queue_result_status_counts` and
 `command_queue_result_exit_code_counts`. It also exposes latest

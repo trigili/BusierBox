@@ -1393,6 +1393,9 @@ def command_queue_summary(cfg):
     queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
     commands_by_id = {}
     commands_by_status = {}
+    commands_by_result_status = {}
+    commands_by_result_exit_code = {}
+    commands_by_result_output_exceeded = {}
     status_counts = {}
     result_status_counts = {}
     result_exit_code_counts = {}
@@ -1418,10 +1421,15 @@ def command_queue_summary(cfg):
         result_status = str(result.get("status") or "")
         result_exit_code = result.get("exit_code")
         if result_status:
+            commands_by_result_status.setdefault(result_status, []).append(rec)
             result_status_counts[result_status] = result_status_counts.get(result_status, 0) + 1
         if result_exit_code not in (None, ""):
             key = str(result_exit_code)
+            commands_by_result_exit_code.setdefault(key, []).append(rec)
             result_exit_code_counts[key] = result_exit_code_counts.get(key, 0) + 1
+        if status == "result-received":
+            output_key = "yes" if rec.get("result_output_exceeded_limit") is True else "no"
+            commands_by_result_output_exceeded.setdefault(output_key, []).append(rec)
     result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
     result_exceeded_count = len([
         rec for rec in commands
@@ -1464,6 +1472,9 @@ def command_queue_summary(cfg):
         "commands": commands,
         "commands_by_id": commands_by_id,
         "commands_by_status": commands_by_status,
+        "commands_by_result_status": commands_by_result_status,
+        "commands_by_result_exit_code": commands_by_result_exit_code,
+        "commands_by_result_output_exceeded": commands_by_result_output_exceeded,
         "status_counts": status_counts,
         "result_status_counts": result_status_counts,
         "result_exit_code_counts": result_exit_code_counts,
