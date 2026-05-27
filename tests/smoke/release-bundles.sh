@@ -241,7 +241,11 @@ for key in ("payload_manifest", "native_applets", "busybox_applets", "core_extra
     if key not in summary:
         raise SystemExit(f"tuple summary missing {key}")
 queue = summary.get("command_queue") or {}
-if queue.get("enabled") != "no" or queue.get("default_enabled") is not False or queue.get("executes_commands") is not False:
+if (queue.get("enabled") != "no" or
+        queue.get("default_enabled") is not False or
+        queue.get("policy_valid") is not True or
+        queue.get("policy_errors") != [] or
+        queue.get("executes_commands") is not False):
     raise SystemExit(f"tuple summary command queue policy unsafe/missing: {queue!r}")
 noresidue = summary.get("noresidue_policy") or {}
 if noresidue.get("best_effort_cleanup") is not True or noresidue.get("forensic_no_trace") is not False:
@@ -291,7 +295,11 @@ for key in ("payload_preset", "runtime_mode", "noresidue_level", "payload_manife
     if key not in summary:
         raise SystemExit(f"tuple artifact summary missing {key}")
 queue = summary.get("command_queue") or {}
-if queue.get("enabled") != "no" or queue.get("default_enabled") is not False or queue.get("executes_commands") is not False:
+if (queue.get("enabled") != "no" or
+        queue.get("default_enabled") is not False or
+        queue.get("policy_valid") is not True or
+        queue.get("policy_errors") != [] or
+        queue.get("executes_commands") is not False):
     raise SystemExit(f"tuple manifest command queue policy unsafe/missing: {queue!r}")
 noresidue = summary.get("noresidue_policy") or {}
 if noresidue.get("best_effort_cleanup") is not True or noresidue.get("forensic_no_trace") is not False:
