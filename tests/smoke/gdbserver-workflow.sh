@@ -163,6 +163,54 @@ if status.get("search_paths", [{}])[0].get("status") != "ok":
     raise SystemExit("workspace target.json did not preserve provider search-path status")
 PY
 
+mkdir -p "$work/inspect-root/payload/bin"
+cat >"$work/inspect-root/payload/bin/busybox" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+cat >"$work/inspect-root/payload/bin/gdbserver" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+chmod 0755 "$work/inspect-root/payload/bin/busybox" "$work/inspect-root/payload/bin/gdbserver"
+cat >"$work/inspect-root/payload/manifest.json" <<'EOF'
+{
+  "target": "mipsel-linux-4.x-musl",
+  "arch": "mipsel",
+  "libc": "musl",
+  "busybox_applets": ["busybox"],
+  "requested_payload_tools": ["gdbserver"],
+  "built_payload_tools": ["gdbserver"],
+  "staged_payload_tools": ["gdbserver"],
+  "missing_payload_tools": [],
+  "missing_payload_tool_reasons": {},
+  "overlay_tools": [],
+  "overlay_files": [],
+  "overlay_applied_paths": [],
+  "applet_symlink_skips": [],
+  "gdbserver_provider": "local-dropin",
+  "tool_provider_status": {
+    "gdbserver": {
+      "schema": 1,
+      "overall": "found",
+      "search_paths": [
+        {
+          "path": "local/tools/mipsel-linux-4.x-musl/bin/gdbserver",
+          "status": "ok",
+          "executable": true
+        }
+      ]
+    }
+  }
+}
+EOF
+tar -C "$work/inspect-root" -cf "$work/inspect-payload.tar" payload
+printf '%s\n' "core" >"$work/inspect-core"
+scripts/embed-payload "$work/inspect-core" "$work/inspect-payload.tar" "$work/inspect-artifact" >/dev/null
+scripts/inspect-artifact "$work/inspect-artifact" >"$work/inspect-artifact.out"
+grep -q '^provider_status_gdbserver=found$' "$work/inspect-artifact.out"
+grep -q '^provider_path_gdbserver=local/tools/mipsel-linux-4.x-musl/bin/gdbserver$' "$work/inspect-artifact.out"
+
 cat >"$work/gdb.conf" <<EOF
 BB_HEAVY_TOOLS="gdbserver"
 BB_GDBSERVER_PROVIDER="local-dropin"

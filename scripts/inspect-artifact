@@ -114,6 +114,33 @@ def validate_static(manifest, members, contents):
             die("tmux is staged but no terminal capability data was found")
 
 
+def one_line(value):
+    return str(value).replace("\n", " ").replace("\r", " ")
+
+
+def provider_status_lines(manifest):
+    status_map = manifest.get("tool_provider_status") or {}
+    if not isinstance(status_map, dict):
+        return []
+    lines = []
+    for tool, status in sorted(status_map.items()):
+        if not isinstance(tool, str) or not isinstance(status, dict):
+            continue
+        overall = status.get("overall") or status.get("status") or "unknown"
+        lines.append(f"provider_status_{one_line(tool)}={one_line(overall)}")
+        search_paths = status.get("search_paths") or []
+        if not isinstance(search_paths, list):
+            continue
+        for entry in search_paths:
+            if not isinstance(entry, dict) or not entry.get("executable"):
+                continue
+            path = entry.get("path")
+            if path:
+                lines.append(f"provider_path_{one_line(tool)}={one_line(path)}")
+                break
+    return lines
+
+
 if len(sys.argv) != 2:
     die("usage: scripts/inspect-artifact dist/busierbox-<target>")
 
@@ -179,6 +206,8 @@ if manifest:
     print("staged_tools=" + " ".join(manifest.get("staged_payload_tools") or []))
     print("missing_tools=" + " ".join(manifest.get("missing_payload_tools") or []))
     print(f"gdbserver_provider={manifest.get('gdbserver_provider', 'auto')}")
+    for line in provider_status_lines(manifest):
+        print(line)
     print(f"overlay_enabled={'yes' if manifest.get('overlay_enabled') else 'no'}")
     if manifest.get("overlay_root"):
         print(f"overlay_root={manifest['overlay_root']}")
