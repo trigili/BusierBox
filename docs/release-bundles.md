@@ -342,9 +342,12 @@ human-readable `--status` output.
 
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it does not push the artifact or run it. In the
-curses workbench, `v` opens the selected local metadata/log/artifact path in the
-operator's pager when one is available, and `c` copies the selected generated
-target command to the local clipboard when possible plus
+curses workbench, the Event Log pane can be selected like the other browser
+panes; the details pane shows the event id, session correlation fields, remote,
+and compact outcome details from the structured event record. `v` opens the
+selected local metadata/log/artifact/event-log path in the operator's pager when
+one is available, and `c` copies the selected generated target command to the
+local clipboard when possible plus
 `local/operator-session/last-command.txt`. The line-oriented fallback exposes
 the same operator path health and compact service summary so non-curses or
 non-TTY runs still show whether listener state, logs, staged files, and session

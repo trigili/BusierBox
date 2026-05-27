@@ -4020,9 +4020,10 @@ def run_curses_tui(cfg):
                 for idx, t in enumerate(release_tuples[:5], 1 + len(release_devices[:5]))
             ]
             device_tuple_lines = device_tuple_lines or ["none"]
+            recent_events = snap["events"][-8:]
             event_lines = [
-                f"{e.get('ts', '')} {e.get('service', '')}:{e.get('event', '')}"
-                for e in snap["events"][-8:]
+                f"{'>' if pane == 4 and idx == selected else ' '} {e.get('ts', '')} {e.get('level', '')} {e.get('service', '')}:{e.get('event', '')}"
+                for idx, e in enumerate(recent_events)
             ] or ["none"]
             command_lines = [
                 f"{'>' if pane == 5 and idx == selected else ' '} {idx + 1}: {cmd}"
@@ -4096,6 +4097,22 @@ def run_curses_tui(cfg):
                     f"events: {rec.get('event_count', 0)}",
                     f"artifacts: {rec.get('artifact_count', 0)}",
                     "v opens session metadata in pager",
+                ]
+            elif pane == 4 and recent_events:
+                event = recent_events[min(selected, len(recent_events) - 1)]
+                details = event.get("details") if isinstance(event.get("details"), dict) else {}
+                detail_lines = [
+                    f"event: {event.get('event', '')}",
+                    f"event_id: {event.get('id', '')}",
+                    f"ts: {event.get('ts', '')}",
+                    f"level: {event.get('level', '')}",
+                    f"service: {event.get('service', '')}",
+                    f"session: {event.get('session', '') or '-'}",
+                    f"session_path: {event.get('session_path', '') or '-'}",
+                    f"remote: {event.get('remote', '') or '-'}",
+                    f"outcome: {compact_event_details(event) or '-'}",
+                    f"details_json: {json.dumps(details, sort_keys=True)}",
+                    "v opens operator event log in pager",
                 ]
             elif pane == 6 and release_artifacts:
                 rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
@@ -4252,6 +4269,7 @@ def run_curses_tui(cfg):
                 len(staged_names) if pane == 1 else
                 len(snap["uploads"]) if pane == 2 else
                 len(snap["sessions"]) if pane == 3 else
+                len(recent_events) if pane == 4 else
                 len(snap["target_commands"]) if pane == 5 else
                 len(release_artifacts) if pane == 6 else
                 (1 + len(release_devices[:5]) + len(release_tuples[:5])) if pane == 7 else

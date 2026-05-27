@@ -105,7 +105,8 @@ def main():
     if "sys.stdin.isatty()" not in src or "--no-stdin" not in src or "--log-only" not in src:
         print("busierbox-server: stdin EOF/log-only handling not found", file=sys.stderr)
         return 1
-    for word in ("open_path_in_pager", "pager_command", 'ord("v")', "v opens", "copy_generated_command", "clipboard_command"):
+    for word in ("open_path_in_pager", "pager_command", 'ord("v")', "v opens", "copy_generated_command", "clipboard_command",
+                 "event_id:", "details_json:", "v opens operator event log in pager"):
         if word not in src:
             print(f"busierbox-server: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
