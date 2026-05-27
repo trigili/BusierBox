@@ -297,6 +297,9 @@ session browser records are exposed as `sessions`, `sessions_by_id`,
 `upload_status_counts`, `fetch_status_counts`, `fetch_http_status_counts`,
 `upload_remote_counts`, `fetch_remote_counts`, `session_service_counts`,
 `session_state_counts`, and `session_remote_counts` for compact dashboards.
+`latest_upload_at`, `latest_fetch_at`, and `latest_session_updated_at` expose
+recent activity timestamps without requiring clients to scan the full browser
+records.
 When running inside a release bundle, `release` includes artifact, device, and
 tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `artifacts_by_sha256`, `artifacts_by_payload_preset`, `artifacts_by_tool`,
