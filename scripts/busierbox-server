@@ -3301,6 +3301,7 @@ def status_document(cfg):
         })
     warnings_by_type, warnings_by_service = warning_record_indexes(warnings)
     warning_summary = warning_stats(warnings)
+    command_queue_policy_summary = command_queue.get("policy_summary") or {}
     summary.update({
         "path_status_count": path_summary.get("path_status_count", 0),
         "path_missing_count": path_summary.get("path_missing_count", 0),
@@ -3355,6 +3356,13 @@ def status_document(cfg):
         "command_queue_latest_result_received_at": command_queue.get("latest_result_received_at", ""),
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
         "command_queue_policy_error_count": len(command_queue.get("policy_errors") or []),
+        "command_queue_enabled": bool(command_queue_policy_summary.get("enabled", False)),
+        "command_queue_configured_for_polling": bool(command_queue_policy_summary.get("configured_for_polling", False)),
+        "command_queue_active_control_channel": bool(command_queue_policy_summary.get("active_control_channel", False)),
+        "command_queue_execution_supported": bool(command_queue_policy_summary.get("execution_supported", False)),
+        "command_queue_arbitrary_policy_requested": bool(command_queue_policy_summary.get("arbitrary_policy_requested", False)),
+        "command_queue_arbitrary_execution_allowed": bool(command_queue_policy_summary.get("arbitrary_execution_allowed", False)),
+        "command_queue_safe_disabled_default": bool(command_queue_policy_summary.get("safe_disabled_default", False)),
         "release_artifact_count": len(release.get("artifacts") or []),
         "release_device_count": len(release.get("devices") or []),
         "release_tuple_count": len(release.get("tuples") or []),

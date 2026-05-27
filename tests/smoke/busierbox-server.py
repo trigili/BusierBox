@@ -541,6 +541,9 @@ def main():
                 invalid_status_queue.get("arbitrary_execution_allowed") is not False or
                 invalid_queue_status.get("summary", {}).get("command_queue_policy_valid") is not False or
                 invalid_queue_status.get("summary", {}).get("command_queue_policy_error_count") != len(invalid_status_queue.get("policy_errors", [])) or
+                invalid_queue_status.get("summary", {}).get("command_queue_configured_for_polling") is not False or
+                invalid_queue_status.get("summary", {}).get("command_queue_active_control_channel") is not False or
+                invalid_queue_status.get("summary", {}).get("command_queue_arbitrary_execution_allowed") is not False or
                 not invalid_policy_warnings or
                 "disabled command queue must keep allowed commands policy none" not in invalid_policy_warnings[-1].get("policy_errors", [])):
             print("server json status marked invalid command queue policy usable", file=sys.stderr)
@@ -696,7 +699,14 @@ def main():
                 queue_status_json["summary"].get("command_queue_result_output_exceeded_count") != 0 or
                 queue_status_json["summary"].get("command_queue_status_counts", {}).get("result-received") != 1 or
                 queue_status_json["summary"].get("command_queue_latest_created_at") != command_after_result.get("created_at") or
-                queue_status_json["summary"].get("command_queue_latest_result_received_at") != command_after_result.get("result_received_at")):
+                queue_status_json["summary"].get("command_queue_latest_result_received_at") != command_after_result.get("result_received_at") or
+                queue_status_json["summary"].get("command_queue_enabled") is not False or
+                queue_status_json["summary"].get("command_queue_configured_for_polling") is not False or
+                queue_status_json["summary"].get("command_queue_active_control_channel") is not False or
+                queue_status_json["summary"].get("command_queue_execution_supported") is not False or
+                queue_status_json["summary"].get("command_queue_arbitrary_policy_requested") is not False or
+                queue_status_json["summary"].get("command_queue_arbitrary_execution_allowed") is not False or
+                queue_status_json["summary"].get("command_queue_safe_disabled_default") is not True):
             print("server json status missing aggregate command queue counts", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1

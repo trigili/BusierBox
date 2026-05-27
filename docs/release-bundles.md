@@ -323,7 +323,13 @@ Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
 `command_queue_status_counts`. It also exposes latest command-created and
 result-received timestamps, mirrored into `summary`, so dashboards can show
-queue recency without recomputing it.
+queue recency without recomputing it. Compact safety booleans such as
+`command_queue_enabled`, `command_queue_configured_for_polling`,
+`command_queue_active_control_channel`, `command_queue_execution_supported`,
+`command_queue_arbitrary_policy_requested`,
+`command_queue_arbitrary_execution_allowed`, and
+`command_queue_safe_disabled_default` are also mirrored for UI badges that must
+not scan the full queue policy object.
 Event log entries include stable `id`, `session`, and `session_path` fields so
 frontend and integration tooling can correlate global operator events with
 per-session logs. File-service `connection_close` entries include the observed
