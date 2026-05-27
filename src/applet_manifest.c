@@ -117,6 +117,25 @@ static int rshell_session_policy_valid(const char *policy)
 #endif
 #include "effective_config.h"
 
+static void manifest_print_noresidue_policy(FILE *out)
+{
+    int active = !strcmp(BB_RUNTIME_MODE, "no-residue");
+    int aggressive = !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+
+    fprintf(out, "{\"active\":%s,\"level\":", active ? "true" : "false");
+    json_string_payload(out, BB_NORESIDUE_LEVEL);
+    fprintf(out, ",\"cleanup_scope\":\"BusierBox-owned runtime roots and ledgered files only\"");
+    fprintf(out, ",\"best_effort\":true");
+    fprintf(out, ",\"aggressive_minimizes_runtime_residue\":%s", aggressive ? "true" : "false");
+    fprintf(out, ",\"forensic_no_trace\":false");
+    fprintf(out, ",\"external_writes_require_explicit_apply\":true");
+    fprintf(out, ",\"guarantee\":");
+    json_string_payload(out, aggressive ?
+        "aggressive minimizes BusierBox runtime residue but cannot guarantee absence of residue" :
+        "best-effort cleanup removes owned runtime state where reasonable");
+    fprintf(out, "}");
+}
+
 static const char *busybox_tools[] = {
 #include "bbx_busybox_applets.h"
     NULL
@@ -273,6 +292,8 @@ static void write_manifest_json(FILE *out, int include_missing)
     json_string_payload(out, BB_RUNTIME_MODE);
     fprintf(out, ",\"noresidue_level\":");
     json_string_payload(out, BB_NORESIDUE_LEVEL);
+    fprintf(out, ",\"noresidue_policy\":");
+    manifest_print_noresidue_policy(out);
     fprintf(out, ",\"root\":");
     json_string_payload(out, BB_RUNTIME_ROOT);
     fprintf(out, ",\"allow_fallback_root\":");

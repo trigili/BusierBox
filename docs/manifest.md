@@ -17,7 +17,7 @@ The JSON manifest includes:
 - payload version, artifact tier, build timestamp, and git commit when available
 - target preset/name and target arch/endian/cpu/abi/libc/kernel/static policy
 - payload preset and gdbserver provider
-- runtime mode, no-residue level, root, and fallback settings
+- runtime mode, no-residue level, no-residue policy summary, root, and fallback settings
 - zero-arg mode and log mode
 - rshell transport, encryption, run mode, and shell provider
 - dotfile modes and user overlay policy
