@@ -482,6 +482,18 @@ def latest_record_value(records, keys):
     return latest
 
 
+def record_sum_by_key(records, key):
+    total = 0
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        try:
+            total += int(rec.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            pass
+    return total
+
+
 def staged_record_summary(records):
     total_size = 0
     source_exists_count = 0
@@ -3288,10 +3300,12 @@ def status_document(cfg):
         "service_actual_counts": record_count_by_key(services, "actual"),
         "service_configured_counts": record_count_by_key(services, "configured"),
         "upload_count": len(uploads),
+        "upload_total_size": record_sum_by_key(uploads, "size"),
         "upload_status_counts": record_count_by_key(uploads, "status"),
         "upload_remote_counts": record_count_by_key(uploads, "remote_addr"),
         "latest_upload_at": latest_record_value(uploads, ("timestamp", "updated_at")),
         "fetch_count": len(fetches),
+        "fetch_total_size": record_sum_by_key(fetches, "size"),
         "fetch_status_counts": record_count_by_key(fetches, "status"),
         "fetch_http_status_counts": record_count_by_key(fetches, "http_status"),
         "fetch_remote_counts": record_count_by_key(fetches, "remote_addr"),

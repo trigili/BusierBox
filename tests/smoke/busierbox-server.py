@@ -1580,6 +1580,7 @@ def main():
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         if (upload_summary.get("upload_count", 0) < 1 or
+                upload_summary.get("upload_total_size") != len(payload) or
                 upload_summary.get("upload_status_counts", {}).get("ok") != 1 or
                 upload_summary.get("session_count", 0) < 1 or
                 upload_summary.get("session_service_counts", {}).get("file-service") != 1 or
@@ -2058,6 +2059,7 @@ def main():
         fetch_items = fetch_status_doc.get("fetches") or []
         fetch_summary = fetch_status_doc.get("summary", {})
         if (fetch_summary.get("fetch_count") != 1 or
+                fetch_summary.get("fetch_total_size") != staged_source.stat().st_size or
                 fetch_summary.get("fetch_status_counts", {}).get("served") != 1 or
                 fetch_summary.get("fetch_http_status_counts", {}).get("200") != 1 or
                 len(fetch_items) != 1 or
