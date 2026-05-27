@@ -642,6 +642,20 @@ def main():
                 paths.get("tls_key") != str(key_path)):
             print("server json status missing stable generated_at/paths API fields", file=sys.stderr)
             return 1
+        path_status = queue_status_json.get("path_status") or {}
+        state_path_status = path_status.get("state_file") or {}
+        session_path_status = path_status.get("session_root") or {}
+        if (set(paths) - set(path_status) or
+                state_path_status.get("path") != queue_status_json.get("state_file") or
+                state_path_status.get("expected_kind") != "file" or
+                state_path_status.get("parent_exists") is not True or
+                state_path_status.get("writable") is not True or
+                session_path_status.get("expected_kind") != "dir" or
+                queue_status_json["summary"].get("path_status_count") != len(paths) or
+                queue_status_json["summary"].get("path_parent_missing_count") != 0):
+            print("server json status missing operator path health records", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
         if (queue_status_json["summary"].get("service_count") != 4 or
                 queue_status_json["summary"].get("service_actual_counts", {}).get("stopped") != 4 or
                 queue_status_json["summary"].get("service_configured_counts", {}).get("unknown", 0) < 3):
@@ -752,6 +766,8 @@ def main():
             "--status",
         )
         if ("Command queue:" not in queue_status_text.stdout or
+                "Path health:" not in queue_status_text.stdout or
+                "state_file: exists=" not in queue_status_text.stdout or
                 "enabled=no default_enabled=no" not in queue_status_text.stdout or
                 "allowed_commands=none allow_arbitrary=no active_control_channel=no" not in queue_status_text.stdout or
                 "policy_valid=yes configured_for_polling=no arbitrary_policy_requested=no arbitrary_execution_allowed=no" not in queue_status_text.stdout or

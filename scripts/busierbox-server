@@ -476,6 +476,64 @@ def staged_record_summary(records):
     }
 
 
+def status_path_records(paths):
+    records = {}
+    dir_keys = {"operator_session_dir", "session_root"}
+    for name, raw_path in (paths or {}).items():
+        path_text = str(raw_path or "")
+        rec = {
+            "name": name,
+            "path": path_text,
+            "expected_kind": "dir" if name in dir_keys else "file",
+            "exists": False,
+            "is_file": False,
+            "is_dir": False,
+            "parent": "",
+            "parent_exists": False,
+            "readable": False,
+            "writable": False,
+        }
+        if not path_text:
+            records[name] = rec
+            continue
+        path = Path(path_text)
+        parent = path.parent
+        rec["parent"] = str(parent)
+        try:
+            rec["exists"] = path.exists()
+            rec["is_file"] = path.is_file()
+            rec["is_dir"] = path.is_dir()
+            rec["parent_exists"] = parent.exists()
+            rec["readable"] = bool(rec["exists"] and os.access(path, os.R_OK))
+            if rec["exists"]:
+                rec["writable"] = os.access(path, os.W_OK)
+            else:
+                rec["writable"] = bool(rec["parent_exists"] and os.access(parent, os.W_OK))
+        except OSError as exc:
+            rec["error"] = str(exc)
+        records[name] = rec
+    return records
+
+
+def status_path_summary(records):
+    missing = 0
+    parent_missing = 0
+    not_writable = 0
+    for rec in (records or {}).values():
+        if not rec.get("exists"):
+            missing += 1
+        if not rec.get("parent_exists"):
+            parent_missing += 1
+        if not rec.get("writable"):
+            not_writable += 1
+    return {
+        "path_status_count": len(records or {}),
+        "path_missing_count": missing,
+        "path_parent_missing_count": parent_missing,
+        "path_not_writable_count": not_writable,
+    }
+
+
 def service_record_indexes(records):
     by_actual = {}
     by_configured = {}
@@ -3066,6 +3124,19 @@ def status_document(cfg):
     fetches_by_request, fetches_by_sha256, fetches_by_source_path, fetches_by_status = fetch_record_indexes(fetches)
     summary, warnings = status_summary_and_warnings(services)
     services_by_actual, services_by_configured, services_by_port = service_record_indexes(services)
+    paths = {
+        "operator_session_dir": str(operator_dir),
+        "state_file": str(state_file_path(cfg)),
+        "staged_files": str(staged_file_path(cfg)),
+        "command_queue_file": str(command_queue_path(cfg)),
+        "command_copy_file": str(command_copy_path(cfg)),
+        "event_log": str(event_log_path),
+        "session_root": session_root,
+        "tls_cert": str(cfg.get("tls_cert", "")),
+        "tls_key": str(cfg.get("tls_key", "")),
+    }
+    path_status = status_path_records(paths)
+    path_summary = status_path_summary(path_status)
     services_by_name = {
         row["name"]: {
             "name": row.get("name", ""),
@@ -3102,6 +3173,10 @@ def status_document(cfg):
         })
     warnings_by_type, warnings_by_service = warning_record_indexes(warnings)
     summary.update({
+        "path_status_count": path_summary.get("path_status_count", 0),
+        "path_missing_count": path_summary.get("path_missing_count", 0),
+        "path_parent_missing_count": path_summary.get("path_parent_missing_count", 0),
+        "path_not_writable_count": path_summary.get("path_not_writable_count", 0),
         "staged_count": len(staged),
         "staged_total_size": staged_summary.get("total_size", 0),
         "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
@@ -3151,17 +3226,8 @@ def status_document(cfg):
         "session_root": session_root,
         "tls_cert": str(cfg.get("tls_cert", "")),
         "tls_key": str(cfg.get("tls_key", "")),
-        "paths": {
-            "operator_session_dir": str(operator_dir),
-            "state_file": str(state_file_path(cfg)),
-            "staged_files": str(staged_file_path(cfg)),
-            "command_queue_file": str(command_queue_path(cfg)),
-            "command_copy_file": str(command_copy_path(cfg)),
-            "event_log": str(event_log_path),
-            "session_root": session_root,
-            "tls_cert": str(cfg.get("tls_cert", "")),
-            "tls_key": str(cfg.get("tls_key", "")),
-        },
+        "paths": paths,
+        "path_status": path_status,
         "services": services,
         "services_by_name": services_by_name,
         "services_by_actual": services_by_actual,
@@ -3313,6 +3379,14 @@ def print_status(cfg, json_output=False):
     print(f"  command_queue_file: {doc['command_queue_file']}")
     print(f"  command_copy_file: {doc['command_copy_file']}")
     print(f"  session_root: {doc['session_root']}")
+    print("")
+    print("Path health:")
+    for name in sorted(doc.get("path_status") or {}):
+        rec = doc["path_status"][name]
+        exists = "yes" if rec.get("exists") else "no"
+        parent_exists = "yes" if rec.get("parent_exists") else "no"
+        writable = "yes" if rec.get("writable") else "no"
+        print(f"  {name}: exists={exists} parent_exists={parent_exists} writable={writable} kind={rec.get('expected_kind', '')} path={rec.get('path', '')}")
     print("")
     print("Services:")
     for row in doc["services"]:
