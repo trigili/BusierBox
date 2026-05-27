@@ -45,6 +45,23 @@ static int read_exe_dir(char *out, size_t outsz)
     return 0;
 }
 
+static void print_noresidue_policy_info(void)
+{
+    int active = !strcmp(BB_RUNTIME_MODE, "no-residue");
+    int aggressive = !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+
+    printf("noresidue_policy_active=%s\n", active ? "yes" : "no");
+    printf("noresidue_policy_level=%s\n", BB_NORESIDUE_LEVEL);
+    puts("noresidue_policy_cleanup_scope=BusierBox-owned runtime roots and ledgered files only");
+    puts("noresidue_policy_best_effort=yes");
+    printf("noresidue_policy_aggressive_minimizes_runtime_residue=%s\n", aggressive ? "yes" : "no");
+    puts("noresidue_policy_forensic_no_trace=no");
+    puts("noresidue_policy_external_writes_require_explicit_apply=yes");
+    printf("noresidue_policy_guarantee=%s\n", aggressive ?
+        "aggressive minimizes BusierBox runtime residue but cannot guarantee absence of residue" :
+        "best-effort cleanup removes owned runtime state where reasonable");
+}
+
 int applet_config_info_main(int argc, char **argv)
 {
     const char *const *heavy_tools = bb_payload_heavy_tools();
@@ -87,6 +104,7 @@ int applet_config_info_main(int argc, char **argv)
     printf("compiled_command_queue_allow_arbitrary=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_ALLOW_ARBITRARY"));
     printf("effective_zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
     printf("effective_noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
+    print_noresidue_policy_info();
     printf("effective_rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
     printf("effective_rshell_session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
     printf("effective_rshell_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);

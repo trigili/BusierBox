@@ -110,6 +110,11 @@ mkdir "$run"
     cd "$run"
     ../busierbox-no-residue-aggressive config-info >config-info.out
     grep -q '^effective_noresidue_level=aggressive$' config-info.out
+    grep -q '^noresidue_policy_active=yes$' config-info.out
+    grep -q '^noresidue_policy_level=aggressive$' config-info.out
+    grep -q '^noresidue_policy_aggressive_minimizes_runtime_residue=yes$' config-info.out
+    grep -q '^noresidue_policy_forensic_no_trace=no$' config-info.out
+    grep -q '^noresidue_policy_external_writes_require_explicit_apply=yes$' config-info.out
     ../busierbox-no-residue-aggressive doctor >doctor.out
     grep -q '^noresidue_active=yes$' doctor.out
     grep -q '^noresidue_level=aggressive$' doctor.out

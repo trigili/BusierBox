@@ -106,14 +106,24 @@ if native_features.get("persistence") is not True or native_features.get("recove
 noresidue = manifest["runtime"].get("noresidue_policy") or {}
 if noresidue.get("level") != manifest["runtime"].get("noresidue_level"):
     raise SystemExit("manifest-metadata: no-residue policy level mismatch")
+if config.get("noresidue_policy_level") != manifest["runtime"].get("noresidue_level"):
+    raise SystemExit("manifest-metadata: config-info no-residue policy level mismatch")
 if noresidue.get("best_effort") is not True:
     raise SystemExit("manifest-metadata: no-residue policy must report best-effort cleanup")
+if config.get("noresidue_policy_best_effort") != "yes":
+    raise SystemExit("manifest-metadata: config-info no-residue best-effort flag missing")
 if noresidue.get("forensic_no_trace") is not False:
     raise SystemExit("manifest-metadata: no-residue policy must reject forensic no-trace claims")
+if config.get("noresidue_policy_forensic_no_trace") != "no":
+    raise SystemExit("manifest-metadata: config-info no-residue no-trace boundary missing")
 if noresidue.get("external_writes_require_explicit_apply") is not True:
     raise SystemExit("manifest-metadata: no-residue policy must require explicit external apply")
+if config.get("noresidue_policy_external_writes_require_explicit_apply") != "yes":
+    raise SystemExit("manifest-metadata: config-info external write gate missing")
 if "BusierBox-owned runtime roots" not in noresidue.get("cleanup_scope", ""):
     raise SystemExit("manifest-metadata: no-residue policy cleanup scope missing")
+if "BusierBox-owned runtime roots" not in config.get("noresidue_policy_cleanup_scope", ""):
+    raise SystemExit("manifest-metadata: config-info no-residue cleanup scope missing")
 payload_tools = manifest.get("payload_tools") or {}
 for key in ("requested_payload_tools", "missing_payload_tools", "missing_payload_tool_reasons"):
     if key in payload_tools:

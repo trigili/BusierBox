@@ -51,6 +51,10 @@ than the compiled manifest. `busierbox config-info` and `busierbox doctor
 `full`. BusyBox applet dispatch may create a core payload containing
 `payload/bin/busybox` and metadata only; `busierbox extract` and heavy-tool
 dispatch upgrade that runtime root to full before use.
+`busierbox config-info` also prints `noresidue_policy_*` fields that mirror the
+manifest/doctor safety boundary: cleanup is best-effort, scoped to
+BusierBox-owned runtime roots and ledgered files, external writes require
+explicit apply, and no mode claims forensic no-trace behavior.
 
 BusierBox is not a BusyBox fork. Native BusierBox applets are compiled into the
 supervisor. BusyBox applets dispatch through `payload/bin/busybox`, while heavy
