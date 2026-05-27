@@ -845,7 +845,9 @@ def main():
         if (event_stats.get("by_service", {}).get("command-queue", 0) < 2 or
                 event_stats.get("by_event", {}).get("command_queue_queued", 0) < 1 or
                 event_stats.get("by_event", {}).get("command_result_received", 0) < 1 or
-                event_stats.get("by_level", {}).get("info", 0) < 2):
+                event_stats.get("by_level", {}).get("info", 0) < 2 or
+                event_stats.get("by_service_event", {}).get("command-queue:command_queue_queued", 0) < 1 or
+                event_stats.get("by_service_event", {}).get("command-queue:command_result_received", 0) < 1):
             print("server json status missing event log aggregate counters", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -853,7 +855,9 @@ def main():
         if (event_summary.get("event_service_counts", {}).get("command-queue", 0) < 2 or
                 event_summary.get("event_type_counts", {}).get("command_queue_queued", 0) < 1 or
                 event_summary.get("event_type_counts", {}).get("command_result_received", 0) < 1 or
-                event_summary.get("event_level_counts", {}).get("info", 0) < 2):
+                event_summary.get("event_level_counts", {}).get("info", 0) < 2 or
+                event_summary.get("event_service_event_counts", {}).get("command-queue:command_queue_queued", 0) < 1 or
+                event_summary.get("event_service_event_counts", {}).get("command-queue:command_result_received", 0) < 1):
             print("server json status missing mirrored event aggregate summary counters", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -1725,6 +1729,15 @@ def main():
             "--json-status",
         )
         upload_doc = json.loads(upload_status_json.stdout)
+        upload_event_stats = upload_doc.get("event_log_stats") or {}
+        upload_summary = upload_doc.get("summary") or {}
+        session_close_key = f"{session_doc.get('session_id')}:connection_close"
+        if (upload_event_stats.get("by_session_event", {}).get(session_close_key) != 1 or
+                upload_summary.get("event_session_event_counts", {}).get(session_close_key) != 1 or
+                upload_summary.get("event_service_event_counts", {}).get("file-service:upload_complete", 0) < 1):
+            print("server json status missing full-log session/event aggregate counters", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         target_commands = upload_doc.get("target_commands") or []
         for expected_command in (
             "./busierbox survey push",

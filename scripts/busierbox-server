@@ -113,10 +113,13 @@ class EventLog:
         by_event = {}
         by_level = {}
         by_remote = {}
+        by_service_event = {}
+        by_session_event = {}
         first_ts = ""
         latest_ts = ""
         for rec in records:
             ts = str(rec.get("ts") or "")
+            session = str(rec.get("session") or "")
             service = str(rec.get("service") or "")
             event = str(rec.get("event") or "")
             level = str(rec.get("level") or "")
@@ -133,6 +136,12 @@ class EventLog:
                 by_level[level] = by_level.get(level, 0) + 1
             if remote:
                 by_remote[remote] = by_remote.get(remote, 0) + 1
+            if service and event:
+                key = f"{service}:{event}"
+                by_service_event[key] = by_service_event.get(key, 0) + 1
+            if session and event:
+                key = f"{session}:{event}"
+                by_session_event[key] = by_session_event.get(key, 0) + 1
         return {
             "path": str(self.path),
             "total_count": len(records),
@@ -145,6 +154,8 @@ class EventLog:
             "by_event": by_event,
             "by_level": by_level,
             "by_remote": by_remote,
+            "by_service_event": by_service_event,
+            "by_session_event": by_session_event,
             "tail": tail,
         }
 
@@ -4116,6 +4127,8 @@ def status_document(cfg):
         "event_type_counts": event_stats.get("by_event") or {},
         "event_level_counts": event_stats.get("by_level") or {},
         "event_remote_counts": event_stats.get("by_remote") or {},
+        "event_service_event_counts": event_stats.get("by_service_event") or {},
+        "event_session_event_counts": event_stats.get("by_session_event") or {},
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_result_count": command_queue.get("result_count", 0),
