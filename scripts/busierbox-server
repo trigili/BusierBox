@@ -5097,6 +5097,20 @@ def print_workbench(cfg):
     else:
         print("  none")
     print("")
+    print("Recent fetches:")
+    fetches = snap.get("fetches") or []
+    if fetches:
+        for meta in fetches:
+            sha = str(meta.get("sha256", ""))[:12]
+            print(f"  {meta.get('request_name', '')} size={meta.get('size', '')} sha256={sha} status={meta.get('status', '')} http={meta.get('http_status', '')}")
+            print(f"    source: {meta.get('source_path', '')}")
+            print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
+            print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
+            if meta.get("event_log"):
+                print(f"    event_log: {meta.get('event_log', '')}")
+    else:
+        print("  none")
+    print("")
     print("Recent sessions:")
     sessions = snap["sessions"]
     if sessions:

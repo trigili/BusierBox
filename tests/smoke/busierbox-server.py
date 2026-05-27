@@ -2761,6 +2761,21 @@ def main():
             print("text --status missing recent fetch metadata", file=sys.stderr)
             print(fetch_status_text.stdout, file=sys.stderr)
             return 1
+        fetch_view = run(
+            "scripts/busierbox-server",
+            "--config", str(fetch_cfg),
+            "--state-file", str(state_file),
+            "--staged-file", str(staged_file),
+            "--tui",
+        )
+        if ("Recent fetches:" not in fetch_view.stdout or
+                "/tmp/myfile" not in fetch_view.stdout or
+                "status=served http=200" not in fetch_view.stdout or
+                f"remote: {fetch_remote} at {fetch_items[0].get('timestamp')}" not in fetch_view.stdout or
+                "event_log:" not in fetch_view.stdout):
+            print("workbench fallback missing recent fetch metadata", file=sys.stderr)
+            print(fetch_view.stdout, file=sys.stderr)
+            return 1
         staged_doc = json.loads(staged_file.read_text(encoding="utf-8"))
         if "/tmp/myfile" not in staged_doc.get("staged", {}):
             print("staged-files JSON missing request name", file=sys.stderr)
