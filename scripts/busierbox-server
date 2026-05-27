@@ -4007,9 +4007,43 @@ def wait_service_port_released(cfg, service, pid=None, timeout=3.0):
     return not listener_endpoints(port)
 
 
+def _address_values(host):
+    if not host:
+        return set()
+    value = str(host)
+    if value in ("0.0.0.0", "::"):
+        return {value}
+    values = {value}
+    try:
+        for family, _, _, _, sockaddr in socket.getaddrinfo(value, None):
+            if family in (socket.AF_INET, socket.AF_INET6) and sockaddr:
+                values.add(str(sockaddr[0]))
+    except OSError:
+        pass
+    return values
+
+
+def endpoint_matches_bind_address(bind_address, endpoint_address):
+    bind_values = _address_values(bind_address)
+    endpoint_values = _address_values(endpoint_address)
+    if not bind_values:
+        return True
+    if bind_values.intersection({"0.0.0.0", "::"}):
+        return True
+    if endpoint_values.intersection({"0.0.0.0", "::"}):
+        return True
+    return bool(bind_values & endpoint_values)
+
+
+def matching_listener_endpoints(host, port):
+    return [
+        endpoint for endpoint in listener_endpoints(port)
+        if endpoint_matches_bind_address(host, endpoint.get("address", ""))
+    ]
+
+
 def port_listening(host, port):
-    del host
-    return bool(listener_endpoints(port))
+    return bool(matching_listener_endpoints(host, port))
 
 
 def raw_service_snapshot(cfg):
@@ -4017,13 +4051,22 @@ def raw_service_snapshot(cfg):
     services = {}
     for name in ("ssh", "tls-shell", "plain-shell", "file-service"):
         port = service_port(cfg, name)
+        bind_address = str(cfg.get("listen_host", ""))
         endpoints = listener_endpoints(port)
+        matching_endpoints = [
+            endpoint for endpoint in endpoints
+            if endpoint_matches_bind_address(bind_address, endpoint.get("address", ""))
+        ]
         listener_pids = sorted({pid for endpoint in endpoints for pid in endpoint.get("pids", [])})
+        matching_listener_pids = sorted({pid for endpoint in matching_endpoints for pid in endpoint.get("pids", [])})
         services[name] = {
             "port": port,
-            "listening": bool(endpoints),
+            "bind_address": bind_address,
+            "listening": bool(matching_endpoints),
             "listener_endpoints": endpoints,
+            "matching_listener_endpoints": matching_endpoints,
             "listener_pids": listener_pids,
+            "matching_listener_pids": matching_listener_pids,
             "state": (state.get("services") or {}).get(name, {}),
         }
     return {"state": state, "staged": load_staged(cfg).get("staged", {}), "services": services}
@@ -4055,7 +4098,7 @@ def service_status_rows(cfg):
         rows.append({
             "name": name,
             "port": info["port"],
-            "bind_address": rec.get("listen_host") or str(cfg.get("listen_host", "")),
+            "bind_address": rec.get("listen_host") or info.get("bind_address") or str(cfg.get("listen_host", "")),
             "tls": service_tls_enabled(cfg, name),
             "actual": actual,
             "configured": rec.get("status", "unknown"),
@@ -4064,7 +4107,9 @@ def service_status_rows(cfg):
             "pid_managed": bool(ownership_evidence),
             "ownership_evidence": ownership_evidence,
             "listener_pids": info.get("listener_pids", []),
+            "matching_listener_pids": info.get("matching_listener_pids", []),
             "listener_endpoints": info.get("listener_endpoints", []),
+            "matching_listener_endpoints": info.get("matching_listener_endpoints", []),
             "listener_processes": [
                 {"pid": listener_pid, "cmdline": pid_cmdline(listener_pid)}
                 for listener_pid in info.get("listener_pids", [])
@@ -4074,6 +4119,7 @@ def service_status_rows(cfg):
             "owners": rec.get("owners", []),
             "session_log": rec.get("session_log", ""),
             "process_log": rec.get("process_log", ""),
+            "listener_bind_mismatch": bool(info.get("listener_endpoints")) and not bool(info.get("matching_listener_endpoints")),
         })
     return rows
 
@@ -4101,6 +4147,9 @@ def status_summary_and_warnings(services):
             "pid_managed": row.get("pid_managed", False),
             "ownership_evidence": row.get("ownership_evidence") or [],
             "listener_pids": row.get("listener_pids") or [],
+            "matching_listener_pids": row.get("matching_listener_pids") or [],
+            "listener_endpoints": row.get("listener_endpoints") or [],
+            "matching_listener_endpoints": row.get("matching_listener_endpoints") or [],
             "process_log": row.get("process_log", ""),
             "session_log": row.get("session_log", ""),
             "error": row.get("error", ""),
@@ -4116,6 +4165,12 @@ def status_summary_and_warnings(services):
                     "message": "actual listener was found but configured state does not say the service is listening",
                     "suggested_action": "inspect the listener PID and run scripts/busierbox-server --stop if it is managed",
                 })
+        if row.get("listener_bind_mismatch"):
+            warnings.append({**warning_context(row),
+                "type": "listener_bind_mismatch",
+                "message": "a listener was found on the configured port, but not on the configured bind address",
+                "suggested_action": "inspect listener address/PID ownership before treating the service as active",
+            })
         if row.get("configured") == "listening":
             summary["configured_listening_count"] += 1
         if row.get("configured") == "error" or row.get("error"):
@@ -4245,6 +4300,10 @@ def status_document(cfg):
             "pid_alive": row.get("pid_alive", False),
             "pid_managed": row.get("pid_managed", False),
             "listener_pids": row.get("listener_pids") or [],
+            "matching_listener_pids": row.get("matching_listener_pids") or [],
+            "listener_endpoints": row.get("listener_endpoints") or [],
+            "matching_listener_endpoints": row.get("matching_listener_endpoints") or [],
+            "listener_bind_mismatch": row.get("listener_bind_mismatch", False),
             "stale": row.get("stale", False),
             "error": row.get("error", ""),
             "process_log": row.get("process_log", ""),
@@ -4892,6 +4951,9 @@ def print_status(cfg, json_output=False):
     if any(row["actual"] == "listening" and row["configured"] not in ("listening", "starting") for row in doc["services"]):
         print_warnings_header_once()
         print("  actual listener detected while configured state is not listening; inspect listener PID ownership")
+    if any(row.get("listener_bind_mismatch") for row in doc["services"]):
+        print_warnings_header_once()
+        print("  listener found on configured port but not configured bind address; inspect listener address/PID ownership")
     if any(row["pid"] and row.get("pid_alive") and not row.get("pid_managed") for row in doc["services"]):
         print_warnings_header_once()
         print("  recorded live PID without ownership evidence detected; --stop will skip it")

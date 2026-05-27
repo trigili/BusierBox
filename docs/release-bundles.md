@@ -494,7 +494,7 @@ Those aggregate maps are also mirrored into `summary` as
 dashboard clients that only need compact status counters and event recency.
 
 Structured `warnings` use stable `type` values such as `service_error`,
-`stale_state`, `unexpected_listener`, `unmanaged_recorded_pid`,
+`stale_state`, `unexpected_listener`, `listener_bind_mismatch`, `unmanaged_recorded_pid`,
 `operator_path_kind_mismatch`, `invalid_server_state`,
 `invalid_staged_files_state`, `invalid_command_queue_state`,
 `invalid_release_state`, `invalid_event_log`, and
@@ -524,7 +524,10 @@ warnings include the configured and actual states, bind address, port, PID,
 PID ownership evidence, listener PIDs, possible bind owners, error text, and
 process/session log paths when those fields are available. This lets a TUI, future web UI, or
 automation client show actionable cleanup guidance without scraping the
-human-readable `--status` output.
+human-readable `--status` output. Actual service state is bind-address aware:
+a listener on the same port but a different address is reported as listener
+evidence with `listener_bind_mismatch`, not as proof that the configured service
+is listening.
 
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it does not push the artifact or run it. In the

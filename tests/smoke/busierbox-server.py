@@ -1573,6 +1573,66 @@ def main():
                 print(unexpected_json.stdout, file=sys.stderr)
                 return 1
 
+        bind_mismatch_port = free_port()
+        bind_mismatch_cfg = Path(tmp) / "server-config-bind-mismatch.json"
+        bind_mismatch_state = Path(tmp) / "operator-session" / "bind-mismatch-state.json"
+        bind_mismatch_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.2",
+            "file_service_port": bind_mismatch_port,
+            "session_root": str(Path(tmp) / "sessions-bind-mismatch"),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+            "file_service_tls": "no",
+            "operator_session_dir": str(Path(tmp) / "operator-session"),
+        }), encoding="utf-8")
+        bind_mismatch_state.write_text(json.dumps({
+            "schema": 1,
+            "services": {
+                "file-service": {
+                    "status": "stopped",
+                    "pid": "",
+                    "listen_host": "127.0.0.2",
+                    "file_service_port": bind_mismatch_port,
+                    "updated_at": "bind-mismatch",
+                }
+            },
+            "sessions": [],
+        }, indent=2) + "\n", encoding="utf-8")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as blocker:
+            blocker.bind(("127.0.0.1", bind_mismatch_port))
+            blocker.listen(1)
+            bind_mismatch_text = run(
+                "scripts/busierbox-server", "--config", str(bind_mismatch_cfg),
+                "--state-file", str(bind_mismatch_state),
+                "--staged-file", str(lifecycle_staged),
+                "--status",
+            )
+            if "listener found on configured port but not configured bind address" not in bind_mismatch_text.stdout:
+                print("--status did not warn on listener bind-address mismatch", file=sys.stderr)
+                print(bind_mismatch_text.stdout, file=sys.stderr)
+                return 1
+            bind_mismatch_json = run(
+                "scripts/busierbox-server", "--config", str(bind_mismatch_cfg),
+                "--state-file", str(bind_mismatch_state),
+                "--staged-file", str(lifecycle_staged),
+                "--json-status",
+            )
+            bind_mismatch_doc = json.loads(bind_mismatch_json.stdout)
+            bind_mismatch_service = (bind_mismatch_doc.get("services_by_name") or {}).get("file-service") or {}
+            bind_mismatch_warnings = [
+                item for item in bind_mismatch_doc.get("warnings", [])
+                if item.get("type") == "listener_bind_mismatch" and item.get("service") == "file-service"
+            ]
+            if (bind_mismatch_service.get("actual") != "stopped" or
+                    not bind_mismatch_service.get("listener_endpoints") or
+                    bind_mismatch_service.get("matching_listener_endpoints") or
+                    not bind_mismatch_warnings or
+                    bind_mismatch_warnings[-1].get("bind_address") != "127.0.0.2" or
+                    bind_mismatch_warnings[-1].get("actual") != "stopped"):
+                print("--json-status did not expose listener bind-address mismatch", file=sys.stderr)
+                print(bind_mismatch_json.stdout, file=sys.stderr)
+                return 1
+
         state_after_bind["services"]["file-service"].update({"status": "listening", "pid": 999999, "updated_at": "stale"})
         lifecycle_state.write_text(json.dumps(state_after_bind, indent=2) + "\n", encoding="utf-8")
         stale = run(
