@@ -1315,6 +1315,7 @@ def release_context():
         artifacts_by_name = {}
         artifacts_by_sha256 = {}
         artifacts_by_payload_preset = {}
+        artifacts_by_compatibility = {}
         artifacts_by_tool = {}
         artifact_compatibility_counts = {}
         artifact_payload_preset_counts = {}
@@ -1344,6 +1345,7 @@ def release_context():
             if source:
                 artifact_source_counts[source] = artifact_source_counts.get(source, 0) + 1
             if compatibility_label:
+                artifacts_by_compatibility.setdefault(compatibility_label, []).append(rec)
                 artifact_compatibility_counts[compatibility_label] = artifact_compatibility_counts.get(compatibility_label, 0) + 1
             for tool in rec.get("tools") or []:
                 tool_name = str(tool)
@@ -1360,6 +1362,7 @@ def release_context():
             "artifacts_by_name": artifacts_by_name,
             "artifacts_by_sha256": artifacts_by_sha256,
             "artifacts_by_payload_preset": artifacts_by_payload_preset,
+            "artifacts_by_compatibility": artifacts_by_compatibility,
             "artifacts_by_tool": artifacts_by_tool,
             "artifact_stats": {
                 "total_size": artifact_total_size,
