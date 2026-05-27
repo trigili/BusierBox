@@ -615,6 +615,51 @@ def service_record_indexes(records):
     return by_actual, by_configured, by_port, by_pid, by_listener_pid
 
 
+def port_records_from_services(records):
+    ports = []
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        port = rec.get("port")
+        if port in (None, ""):
+            continue
+        ports.append({
+            "service": rec.get("name", ""),
+            "port": port,
+            "bind_address": rec.get("bind_address", ""),
+            "tls": rec.get("tls", False),
+            "configured": rec.get("configured", ""),
+            "actual": rec.get("actual", ""),
+            "pid": rec.get("pid", ""),
+            "pid_alive": rec.get("pid_alive", False),
+            "pid_managed": rec.get("pid_managed", False),
+            "listener_pids": rec.get("listener_pids") or [],
+            "listener_endpoints": rec.get("listener_endpoints") or [],
+            "stale": rec.get("stale", False),
+            "error": rec.get("error", ""),
+        })
+    return ports
+
+
+def port_record_indexes(records):
+    by_number = {}
+    by_service = {}
+    by_actual = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        port = rec.get("port")
+        service = str(rec.get("service") or "")
+        actual = str(rec.get("actual") or "")
+        if port not in (None, ""):
+            by_number.setdefault(str(port), []).append(rec)
+        if service:
+            by_service.setdefault(service, []).append(rec)
+        if actual:
+            by_actual.setdefault(actual, []).append(rec)
+    return by_number, by_service, by_actual
+
+
 def upload_record_indexes(records):
     by_filename = {}
     by_sha256 = {}
@@ -3323,6 +3368,8 @@ def status_document(cfg):
     fetches_by_request, fetches_by_sha256, fetches_by_source_path, fetches_by_status, fetches_by_http_status, fetches_by_remote_addr = fetch_record_indexes(fetches)
     summary, warnings = status_summary_and_warnings(services)
     services_by_actual, services_by_configured, services_by_port, services_by_pid, services_by_listener_pid = service_record_indexes(services)
+    ports = port_records_from_services(services)
+    ports_by_number, ports_by_service, ports_by_actual = port_record_indexes(ports)
     paths = {
         "operator_session_dir": str(operator_dir),
         "state_file": str(state_file_path(cfg)),
@@ -3388,6 +3435,8 @@ def status_document(cfg):
         "latest_staged_at": latest_record_value(staged_records, ("staged_at",)),
         "service_actual_counts": record_count_by_key(services, "actual"),
         "service_configured_counts": record_count_by_key(services, "configured"),
+        "port_count": len(ports),
+        "port_actual_counts": record_count_by_key(ports, "actual"),
         "warning_count": warning_summary.get("total_count", 0),
         "warning_type_counts": warning_summary.get("by_type") or {},
         "warning_service_counts": warning_summary.get("by_service") or {},
@@ -3479,6 +3528,10 @@ def status_document(cfg):
         "services_by_port": services_by_port,
         "services_by_pid": services_by_pid,
         "services_by_listener_pid": services_by_listener_pid,
+        "ports": ports,
+        "ports_by_number": ports_by_number,
+        "ports_by_service": ports_by_service,
+        "ports_by_actual": ports_by_actual,
         "summary": summary,
         "warnings": warnings,
         "warnings_by_type": warnings_by_type,

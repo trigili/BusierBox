@@ -270,9 +270,10 @@ and the same records are indexed by service name, actual state, configured
 state, and port in `services_by_name`, `services_by_actual`,
 `services_by_configured`, `services_by_port`, `services_by_pid`, and
 `services_by_listener_pid` for frontend clients that need direct lookup without
-reconstructing their own maps. `summary` also includes
-`service_actual_counts` and `service_configured_counts` for compact service
-dashboards.
+reconstructing their own maps. Listener ports are exposed as `ports`,
+`ports_by_number`, `ports_by_service`, and `ports_by_actual`. `summary` also
+includes `service_actual_counts`, `service_configured_counts`, `port_count`,
+and `port_actual_counts` for compact service and port dashboards.
 The same document includes `generated_at` and a `paths` object for stable
 discovery of server state, staged files, event logs, command queue records, and
 the session root. `path_status` mirrors those paths with existence,

@@ -685,11 +685,24 @@ def main():
         services_by_actual = queue_status_json.get("services_by_actual") or {}
         services_by_configured = queue_status_json.get("services_by_configured") or {}
         services_by_port = queue_status_json.get("services_by_port") or {}
+        ports = queue_status_json.get("ports") or []
+        ports_by_number = queue_status_json.get("ports_by_number") or {}
+        ports_by_service = queue_status_json.get("ports_by_service") or {}
+        ports_by_actual = queue_status_json.get("ports_by_actual") or {}
         file_service_port = str(services_by_name.get("file-service", {}).get("port", ""))
         if (len(services_by_actual.get("stopped", [])) != 4 or
                 len(services_by_configured.get("unknown", [])) < 3 or
                 not any(row.get("name") == "file-service" for row in services_by_port.get(file_service_port, []))):
             print("server json status missing grouped service lookup maps", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        if (queue_status_json["summary"].get("port_count") != 4 or
+                queue_status_json["summary"].get("port_actual_counts", {}).get("stopped") != 4 or
+                len(ports) != 4 or
+                not any(row.get("service") == "file-service" for row in ports_by_number.get(file_service_port, [])) or
+                ports_by_service.get("file-service", [{}])[0].get("port") != int(file_service_port) or
+                len(ports_by_actual.get("stopped", [])) != 4):
+            print("server json status missing explicit port API records", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         service_rows = {row.get("name"): row for row in queue_status_json.get("services") or []}
@@ -948,6 +961,16 @@ def main():
         endpoints = rows["file-service"].get("listener_endpoints") or []
         if not any(endpoint.get("address") == "127.0.0.1" and endpoint.get("port") == lifecycle_port for endpoint in endpoints):
             print("status missing actual listener endpoint address/port", file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        lifecycle_ports_by_number = status_doc.get("ports_by_number") or {}
+        lifecycle_port_rows = lifecycle_ports_by_number.get(str(lifecycle_port)) or []
+        if (not lifecycle_port_rows or
+                lifecycle_port_rows[0].get("service") != "file-service" or
+                lifecycle_port_rows[0].get("actual") != "listening" or
+                lifecycle_port_rows[0].get("listener_endpoints") != endpoints):
+            print("status missing explicit listening port record", file=sys.stderr)
+            print(status.stdout, file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
         if not any(endpoint.get("pids") for endpoint in endpoints):
