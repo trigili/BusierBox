@@ -178,6 +178,19 @@ def build_repo_index(paths):
                 features.setdefault(feature, []).append(record["artifact_path"])
 
     artifacts.sort(key=lambda r: (r.get("release_mtime") or 0, r.get("release_name") or "", r.get("artifact") or ""), reverse=True)
+    artifacts_by_sha = {}
+    artifacts_by_release = {}
+    artifacts_by_tuple_path = {}
+    for record in artifacts:
+        sha = record.get("sha256") or ""
+        release_name = record.get("release_name") or ""
+        tuple_path = record.get("tuple_path") or ""
+        if sha:
+            artifacts_by_sha.setdefault(sha, []).append(record)
+        if release_name:
+            artifacts_by_release.setdefault(release_name, []).append(record)
+        if tuple_path:
+            artifacts_by_tuple_path.setdefault(tuple_path, []).append(record)
     return {
         "schema": 1,
         "release_count": len(release_dirs),
@@ -185,6 +198,9 @@ def build_repo_index(paths):
         "deduplicated_artifact_count": len(by_sha),
         "release_dirs": [str(path) for path in release_dirs],
         "artifacts": artifacts,
+        "artifacts_by_sha": {key: artifacts_by_sha[key] for key in sorted(artifacts_by_sha)},
+        "artifacts_by_release": {key: artifacts_by_release[key] for key in sorted(artifacts_by_release)},
+        "artifacts_by_tuple_path": {key: artifacts_by_tuple_path[key] for key in sorted(artifacts_by_tuple_path)},
         "dedupe": {key: by_sha[key] for key in sorted(by_sha)},
         "devices": {key: devices[key] for key in sorted(devices)},
         "tuples": {key: tuples[key] for key in sorted(tuples)},

@@ -111,6 +111,11 @@ assert "ssh-operator" in index["payload_presets"]
 assert "trailer" in index["features"]
 sha, rec = next(iter(index["dedupe"].items()))
 assert rec["count"] == 2
+assert len(index["artifacts_by_sha"][sha]) == 2
+assert {item["release_name"] for item in index["artifacts_by_sha"][sha]} == {"one", "two"}
+assert len(index["artifacts_by_release"]["one"]) == 1
+tuple_rows = index["artifacts_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]
+assert len(tuple_rows) == 3
 PY
 
 scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null
@@ -146,6 +151,9 @@ assert doc["filters"]["device"] == "lab-router"
 assert doc["match_count"] == 2
 assert doc["selected"]["release_name"] == "two"
 assert doc["index"]["deduplicated_artifact_count"] == 2
+assert doc["index"]["artifacts_by_sha_count"] == 2
+assert doc["index"]["artifacts_by_release_count"] == 3
+assert doc["index"]["artifacts_by_tuple_path_count"] == 1
 assert doc["dedupe_count"] == 2
 assert {item["release_name"] for item in doc["dedupe_alternatives"]} == {"one", "two"}
 assert "newest release_mtime" in doc["selection_policy"]

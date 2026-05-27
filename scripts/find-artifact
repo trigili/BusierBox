@@ -141,6 +141,9 @@ def recommendation_document(index, rows, args):
             "release_count": index.get("release_count", 0),
             "artifact_count": index.get("artifact_count", 0),
             "deduplicated_artifact_count": index.get("deduplicated_artifact_count", 0),
+            "artifacts_by_sha_count": len(index.get("artifacts_by_sha") or {}),
+            "artifacts_by_release_count": len(index.get("artifacts_by_release") or {}),
+            "artifacts_by_tuple_path_count": len(index.get("artifacts_by_tuple_path") or {}),
         },
     }
 
