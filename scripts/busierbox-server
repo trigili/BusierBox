@@ -394,6 +394,18 @@ def staged_record_list(staged):
     return records
 
 
+def records_by_session(records):
+    grouped = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        session_id = str(rec.get("session_id") or "")
+        if not session_id:
+            continue
+        grouped.setdefault(session_id, []).append(rec)
+    return grouped
+
+
 def load_command_queue(cfg):
     data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
     if not isinstance(data, dict):
@@ -2799,7 +2811,9 @@ def status_document(cfg):
         "staged": staged,
         "staged_records": staged_record_list(staged),
         "uploads": uploads,
+        "uploads_by_session": records_by_session(uploads),
         "fetches": fetches,
+        "fetches_by_session": records_by_session(fetches),
         "sessions": sessions,
         "events": events,
         "event_log_stats": {

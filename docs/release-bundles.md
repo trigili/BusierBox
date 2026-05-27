@@ -269,7 +269,8 @@ discovery of server state, staged files, event logs, command queue records, and
 the session root. Staged files are exposed as the existing `staged` request map
 and as an ordered `staged_records` browser list. Recent upload and staged-fetch
 activity is exposed through top-level `uploads` and `fetches` arrays plus
-aggregate counts in `summary`.
+`uploads_by_session` and `fetches_by_session` lookup maps for session explorers;
+aggregate counts remain in `summary`.
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
 purpose, service, side, network, explicit-target-action, and

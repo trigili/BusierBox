@@ -1431,6 +1431,14 @@ def main():
             print("server json status missing upload browser metadata", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+        uploads_by_session = upload_doc.get("uploads_by_session") or {}
+        session_uploads = uploads_by_session.get(session_json_paths[0].parent.name) or []
+        if (len(session_uploads) != 1 or
+                session_uploads[0].get("metadata_path") != str(metadata_path) or
+                session_uploads[0].get("stored_exists") is not True):
+            print("server json status missing uploads_by_session browser grouping", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         upload_session = (upload_doc.get("sessions") or [{}])[0]
         if (upload_session.get("upload_count") != 1 or
                 upload_session.get("event_count", 0) < 1 or
@@ -1797,6 +1805,14 @@ def main():
                 fetch_items[0].get("session_id") != fetch_sessions[0].parent.name or
                 fetch_items[0].get("event_log") != str(fetch_sessions[0].parent / "events.jsonl")):
             print("server json status missing recent fetch metadata", file=sys.stderr)
+            print(fetch_status.stdout, file=sys.stderr)
+            return 1
+        fetches_by_session = fetch_status_doc.get("fetches_by_session") or {}
+        session_fetches = fetches_by_session.get(fetch_sessions[0].parent.name) or []
+        if (len(session_fetches) != 1 or
+                session_fetches[0].get("request_name") != "/tmp/myfile" or
+                session_fetches[0].get("status") != "served"):
+            print("server json status missing fetches_by_session browser grouping", file=sys.stderr)
             print(fetch_status.stdout, file=sys.stderr)
             return 1
         fetch_status_text = run(
