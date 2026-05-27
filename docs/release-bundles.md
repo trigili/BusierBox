@@ -119,6 +119,7 @@ scripts/release-find --device glinet-mt1300
 scripts/release-find --arch mipsel --libc musl --kernel 4.x
 scripts/release-find --tool tcpdump
 scripts/release-find --payload-preset survey-core
+scripts/release-find --doom-wad doom.wad
 scripts/release-find --survey-json survey.json
 scripts/release-find --survey-json survey.json --reality-json reality.json --json
 ```
@@ -133,6 +134,9 @@ JSON output includes a `selection` block with selected artifact, candidate and
 eligible counts, threshold-filter count, active filters, max compatibility, and
 the selection policy. Plain text output mirrors the counts and policy so an
 operator can audit why a release artifact was selected without parsing JSON.
+For Doom-enabled payloads, `--doom-wad` and `--doom-wad-sha256` filter by staged
+WAD basename or payload-manifest hash without exposing the builder's local
+source path.
 `release-index.json` and tuple `MANIFEST.json` include baseline compatibility
 metadata for every artifact.
 

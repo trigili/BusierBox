@@ -921,6 +921,8 @@ def write_release_helpers(script_dir):
         parser.add_argument("--feature")
         parser.add_argument("--tool")
         parser.add_argument("--payload-preset")
+        parser.add_argument("--doom-wad", help="match artifacts that stage a Doom WAD with this basename")
+        parser.add_argument("--doom-wad-sha256", help="match artifacts that stage a Doom WAD with this SHA-256")
         parser.add_argument("--survey-json", help="score candidates against survey --json output")
         parser.add_argument("--reality-json", help="score candidates against reality-test --json output")
         parser.add_argument("--max-compatibility", choices=("exact", "likely", "heuristic", "unsafe", "incompatible"),
@@ -939,6 +941,16 @@ def write_release_helpers(script_dir):
             candidates = [row for row in candidates if row.get("payload_preset") == args.payload_preset]
         if args.tool:
             candidates = [row for row in candidates if args.tool in (row.get("tools") or [])]
+        if args.doom_wad:
+            candidates = [
+                row for row in candidates
+                if any(isinstance(wad, dict) and wad.get("filename") == args.doom_wad for wad in (row.get("doom_wads") or []))
+            ]
+        if args.doom_wad_sha256:
+            candidates = [
+                row for row in candidates
+                if any(isinstance(wad, dict) and wad.get("sha256") == args.doom_wad_sha256 for wad in (row.get("doom_wads") or []))
+            ]
         if args.feature:
             candidates = [
                 row for row in candidates
@@ -987,6 +999,8 @@ def write_release_helpers(script_dir):
                 "feature": args.feature or "",
                 "tool": args.tool or "",
                 "payload_preset": args.payload_preset or "",
+                "doom_wad": args.doom_wad or "",
+                "doom_wad_sha256": args.doom_wad_sha256 or "",
                 "survey_json": args.survey_json or "",
                 "reality_json": args.reality_json or "",
                 "max_compatibility": args.max_compatibility or "",
@@ -1010,6 +1024,9 @@ def write_release_helpers(script_dir):
         print(f"compatibility={(row.get('compatibility') or {}).get('label') or ''}")
         for reason in (row.get("compatibility") or {}).get("reasons") or []:
             print(f"compatibility_reason={reason}")
+        for wad in row.get("doom_wads") or []:
+            if isinstance(wad, dict) and wad.get("filename"):
+                print(f"doom_wad={wad.get('filename')} size={wad.get('size', '')} sha256={wad.get('sha256', '')}")
         print(f"manifest={row.get('manifest') or ''}")
         print(f"first_command=./{pathlib.Path(artifact).name} survey --json")
         ''',

@@ -376,11 +376,13 @@ policy = "\n".join(selection.get("policy") or [])
 if "prefer lower-risk compatibility labels" not in policy:
     raise SystemExit(f"release-find selection policy missing: {policy}")
 PY
+cp "$work/release/release-index.json" "$work/release/release-index.json.orig"
 python3 - "$work/release/release-index.json" <<'PY'
 import json
 import sys
 
-index = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+path = sys.argv[1]
+index = json.load(open(path, "r", encoding="utf-8"))
 row = index["artifacts"][0]
 if row.get("tuple", {}).get("path") != row.get("tuple_path"):
     raise SystemExit("release-index tuple path drift")
@@ -390,7 +392,34 @@ if (row.get("compatibility") or {}).get("label") != "exact":
     raise SystemExit("release-index compatibility baseline missing")
 if sorted(index.get("tuples", {})) != ["by-tuple/native/host/host/host"]:
     raise SystemExit("release-index tuple keys mismatch")
+row["doom_wads"] = [
+    {
+        "filename": "doom.wad",
+        "size": 9,
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    }
+]
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(index, fh, indent=2, sort_keys=True)
+    fh.write("\n")
 PY
+"$work/release/scripts/release-find" --doom-wad doom.wad >"$work/release-find-doom.out"
+grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/busierbox-native-default-full$' "$work/release-find-doom.out"
+grep -q '^doom_wad=doom.wad size=9 sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef$' "$work/release-find-doom.out"
+"$work/release/scripts/release-find" --doom-wad-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef --json >"$work/release-find-doom-sha.json"
+python3 - "$work/release-find-doom-sha.json" <<'PY'
+import json
+import sys
+
+row = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+selection = row.get("selection") or {}
+filters = selection.get("filters") or {}
+if filters.get("doom_wad_sha256") != "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef":
+    raise SystemExit(f"release-find Doom WAD filter missing: {filters!r}")
+if (row.get("doom_wads") or [{}])[0].get("filename") != "doom.wad":
+    raise SystemExit("release-find did not preserve Doom WAD metadata")
+PY
+mv "$work/release/release-index.json.orig" "$work/release/release-index.json"
 cat >"$work/survey-mipsel.json" <<'JSON'
 {
   "schema": 2,
