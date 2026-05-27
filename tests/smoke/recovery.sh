@@ -85,6 +85,13 @@ python3 - <<'PY' "$tmp/status.json"
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 assert data["installed"] is True
+safety = data["safety"]
+assert safety["visible_marked_hooks"] is True
+assert safety["uninstall_removes_marked_blocks"] is True
+assert safety["hidden_control_channel"] is False
+assert safety["command_queue_enabled"] is False
+assert safety["self_reinstall"] is False
+assert safety["survives_factory_reset_claim"] is False
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 assert item["action"] == "status-only"
 assert item["kind"] == "rc.local marked block"

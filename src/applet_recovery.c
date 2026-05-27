@@ -671,6 +671,7 @@ int applet_recovery_main(int argc, char **argv)
             bb_json_string(stdout, root);
             fputs(",\"name\":", stdout);
             bb_json_string(stdout, name);
+            fputs(",\"safety\":{\"visible_marked_hooks\":true,\"uninstall_removes_marked_blocks\":true,\"hidden_control_channel\":false,\"command_queue_enabled\":false,\"self_reinstall\":false,\"survives_factory_reset_claim\":false}", stdout);
             fputs(",\"installations\":[", stdout);
         }
         for (j = 0; j < sizeof(recovery_methods) / sizeof(recovery_methods[0]); j++) {
