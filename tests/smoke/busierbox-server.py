@@ -1417,6 +1417,8 @@ def main():
             print("file service session.json missing structured fields", file=sys.stderr)
             print(session_doc, file=sys.stderr)
             return 1
+        session_doc["exit_reason"] = "clean shutdown"
+        session_json_paths[0].write_text(json.dumps(session_doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         session_events = [json.loads(line) for line in (session_json_paths[0].parent / "events.jsonl").read_text(encoding="utf-8").splitlines()]
         event_names = {event.get("event") for event in session_events}
         for expected_event in ("service_start", "connection_open", "upload_start", "upload_complete", "connection_close", "service_stop"):
@@ -1526,10 +1528,16 @@ def main():
             return 1
         sessions_by_id = upload_doc.get("sessions_by_id") or {}
         sessions_by_service = upload_doc.get("sessions_by_service") or {}
+        sessions_by_state = upload_doc.get("sessions_by_state") or {}
+        sessions_by_exit_reason = upload_doc.get("sessions_by_exit_reason") or {}
         uploaded_session_id = session_json_paths[0].parent.name
         if (sessions_by_id.get(uploaded_session_id, {}).get("metadata_path") != str(session_json_paths[0]) or
                 not sessions_by_service.get("file-service") or
-                sessions_by_service["file-service"][0].get("session_id") != uploaded_session_id):
+                sessions_by_service["file-service"][0].get("session_id") != uploaded_session_id or
+                not sessions_by_state.get("stopped") or
+                sessions_by_state["stopped"][0].get("session_id") != uploaded_session_id or
+                not sessions_by_exit_reason.get("clean shutdown") or
+                sessions_by_exit_reason["clean shutdown"][0].get("session_id") != uploaded_session_id):
             print("server json status missing session lookup indexes", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
