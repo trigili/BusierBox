@@ -241,7 +241,10 @@ retry, post-disconnect reconnects, persistent lifecycle, and fresh-session
 reconnect behavior without parsing prose. The human `rshell status` output
 also prints the same key booleans, including `stop_after_first_success`,
 `reconnect_after_disconnect`, `persistent_lifecycle`,
-`fresh_session_on_reconnect`, and `session_resume_supported`.
+`fresh_session_on_reconnect`, and `session_resume_supported`. Runtime
+`rshell.status` files also persist those evaluated fields, retry scope, and
+pre/post-disconnect retry counts so postmortem evidence can be read without
+reconstructing policy semantics from compiled defaults.
 
 For the builtin TLS shell preset, prepare the operator listener and then run the
 artifact explicitly:

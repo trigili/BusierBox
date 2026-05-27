@@ -11,6 +11,15 @@ cat >"$tmp/guard/rshell.status" <<'EOF'
 state=running
 transport=ssh
 session_policy=reconnect
+session_policy_valid=yes
+retry_scope=pre-connect+post-disconnect
+pre_connect_retry_count=2
+post_disconnect_retry_count=2
+stop_after_first_success=no
+reconnect_after_disconnect=yes
+persistent_lifecycle=no
+fresh_session_on_reconnect=yes
+session_resume_supported=no
 rshell_pid=1234
 dropbear_pid=2345
 dbclient_pid=3456
@@ -94,6 +103,20 @@ if summary.get("fresh_session_on_reconnect") is not True:
     raise SystemExit("summary should report fresh sessions on reconnect")
 if summary.get("session_resume_supported") is not False:
     raise SystemExit("summary should not claim session resume")
+fields = data.get("fields") or {}
+for key, expected in {
+    "session_policy_valid": "yes",
+    "retry_scope": "pre-connect+post-disconnect",
+    "pre_connect_retry_count": "2",
+    "post_disconnect_retry_count": "2",
+    "stop_after_first_success": "no",
+    "reconnect_after_disconnect": "yes",
+    "persistent_lifecycle": "no",
+    "fresh_session_on_reconnect": "yes",
+    "session_resume_supported": "no",
+}.items():
+    if fields.get(key) != expected:
+        raise SystemExit(f"status file semantic field mismatch: {key}")
 if data["pids"].get("rshell") != "1234":
     raise SystemExit("rshell pid missing")
 if data["pids"].get("dropbear") != "2345":
@@ -139,6 +162,7 @@ grep -q '^operator_ssh_port=' "$tmp/status-human.out"
 grep -q '^remote_forward_port=' "$tmp/status-human.out"
 grep -q '^session_policy=' "$tmp/status-human.out"
 grep -q '^session_policy_valid=yes$' "$tmp/status-human.out"
+grep -q '^retry_scope=pre-connect+post-disconnect$' "$tmp/status-human.out"
 grep -q '^retry_until_first_connection=yes$' "$tmp/status-human.out"
 grep -q '^session_resume_supported=no$' "$tmp/status-human.out"
 grep -q '^pre_connect_retry_count=' "$tmp/status-human.out"

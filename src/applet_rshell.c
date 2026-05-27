@@ -294,11 +294,23 @@ static void write_rshell_runtime_status(const char *transport, const char *state
     dprintf(fd,
             "state=%s\ntransport=%s\nencryption=%s\n"
             "run_mode=%s\nsession_policy=%s\n"
+            "session_policy_valid=%s\nretry_scope=%s\n"
+            "pre_connect_retry_count=%s\npost_disconnect_retry_count=%s\n"
+            "stop_after_first_success=%s\nreconnect_after_disconnect=%s\n"
+            "persistent_lifecycle=%s\nfresh_session_on_reconnect=%s\n"
+            "session_resume_supported=no\n"
             "rshell_pid=%ld\nstarted_at=%ld\nupdated_at=%ld\n"
             "initial_attempts=%d\nreconnect_attempts=%d\nconnected_once=%s\n"
             "last_exit_code=%d\nlast_exit_reason=%s\n",
             state, transport, BB_RSHELL_ENCRYPTION,
             BB_RSHELL_RUN_MODE, BB_RSHELL_SESSION_POLICY,
+            valid_session_policy() ? "yes" : "no",
+            policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "pre-connect+post-disconnect" : "pre-connect",
+            BB_RSHELL_RETRY_COUNT, policy_post_success_retry_count(BB_RSHELL_SESSION_POLICY),
+            policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+            policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+            policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+            policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
             (long)getpid(), (long)now, (long)now,
             initial_attempts, reconnect_attempts,
             connected_once ? "yes" : "no",
@@ -362,9 +374,23 @@ static void write_rshell_background_status(const char *transport, pid_t pid)
     if (fd >= 0) {
         dprintf(fd,
                 "state=starting\ntransport=%s\nencryption=%s\n"
-                "run_mode=%s\nsession_policy=%s\nrshell_pid=%ld\nstarted_at=%ld\n",
+                "run_mode=%s\nsession_policy=%s\n"
+                "session_policy_valid=%s\nretry_scope=%s\n"
+                "pre_connect_retry_count=%s\npost_disconnect_retry_count=%s\n"
+                "stop_after_first_success=%s\nreconnect_after_disconnect=%s\n"
+                "persistent_lifecycle=%s\nfresh_session_on_reconnect=%s\n"
+                "session_resume_supported=no\n"
+                "rshell_pid=%ld\nstarted_at=%ld\n",
                 transport, BB_RSHELL_ENCRYPTION, BB_RSHELL_RUN_MODE,
-                BB_RSHELL_SESSION_POLICY, (long)pid, (long)now);
+                BB_RSHELL_SESSION_POLICY,
+                valid_session_policy() ? "yes" : "no",
+                policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "pre-connect+post-disconnect" : "pre-connect",
+                BB_RSHELL_RETRY_COUNT, policy_post_success_retry_count(BB_RSHELL_SESSION_POLICY),
+                policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                (long)pid, (long)now);
         close(fd);
         bb_ledger_record("write", path, "runtime", "rshell status");
     }
@@ -1209,11 +1235,25 @@ int applet_rshell_main(int argc, char **argv)
                 dprintf(lfd,
                     "state=active\ntransport=%s\nencryption=%s\n"
                     "run_mode=%s\nsession_policy=%s\n"
+                    "session_policy_valid=%s\nretry_scope=%s\n"
+                    "pre_connect_retry_count=%s\npost_disconnect_retry_count=%s\n"
+                    "stop_after_first_success=%s\nreconnect_after_disconnect=%s\n"
+                    "persistent_lifecycle=%s\nfresh_session_on_reconnect=%s\n"
+                    "session_resume_supported=no\n"
                     "dropbear_pid=%ld\ndbclient_pid=%ld\n"
+                    "initial_attempts=1\nreconnect_attempts=0\nconnected_once=yes\n"
+                    "last_exit_reason=ssh-reverse-forward-active\n"
                     "connect_hint=ssh -p %s root@127.0.0.1\n"
                     "started_at=%ld\n",
                     transport, BB_RSHELL_ENCRYPTION,
                     BB_RSHELL_RUN_MODE, BB_RSHELL_SESSION_POLICY,
+                    valid_session_policy() ? "yes" : "no",
+                    policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "pre-connect+post-disconnect" : "pre-connect",
+                    BB_RSHELL_RETRY_COUNT, policy_post_success_retry_count(BB_RSHELL_SESSION_POLICY),
+                    policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                    policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                    policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                    policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
                     dropbear_pid, dbclient_pid,
                     BB_OPERATOR_REMOTE_FORWARD_PORT,
                     (long)now);
