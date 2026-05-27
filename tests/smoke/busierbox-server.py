@@ -1783,6 +1783,9 @@ def main():
                 release_artifacts_by_sha.get("abc123", [{}])[0].get("name") != "busierbox-test" or
                 release_artifacts_by_preset.get("default", [{}])[0].get("sha256") != "abc123" or
                 release_artifacts_by_tool.get("sh", [{}])[0].get("payload_preset") != "default" or
+                rel.get("artifact_stats", {}).get("by_compatibility", {}).get("exact") != 1 or
+                rel.get("artifact_stats", {}).get("by_payload_preset", {}).get("default") != 1 or
+                rel.get("artifact_stats", {}).get("by_tool", {}).get("sh") != 1 or
                 release_device_map.get("lab-router", {}).get("tuple_path") != "by-tuple/native/host/host/host" or
                 release_tuple_map.get("by-tuple/native/host/host/host", {}).get("artifact_count") != 1):
             print("json status missing release browser lookup maps", file=sys.stderr)
@@ -1791,7 +1794,10 @@ def main():
         release_summary = release_doc.get("summary") or {}
         if (release_summary.get("release_artifact_count", 0) < 1 or
                 release_summary.get("release_device_count") != 1 or
-                release_summary.get("release_tuple_count") != 1):
+                release_summary.get("release_tuple_count") != 1 or
+                release_summary.get("release_artifact_compatibility_counts", {}).get("exact") != 1 or
+                release_summary.get("release_artifact_payload_preset_counts", {}).get("default") != 1 or
+                release_summary.get("release_artifact_tool_counts", {}).get("sh") != 1):
             print("json status missing release aggregate counts", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1

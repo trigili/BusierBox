@@ -283,7 +283,10 @@ session browser records are exposed as `sessions`, `sessions_by_id`,
 When running inside a release bundle, `release` includes artifact, device, and
 tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `artifacts_by_sha256`, `artifacts_by_payload_preset`, `artifacts_by_tool`,
-`devices_by_name`, and `tuples_by_path` lookup maps.
+`devices_by_name`, and `tuples_by_path` lookup maps. Release artifact
+aggregates are exposed as `release.artifact_stats` and mirrored into `summary`
+as `release_artifact_compatibility_counts`,
+`release_artifact_payload_preset_counts`, and `release_artifact_tool_counts`.
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
 purpose, service, side, network, explicit-target-action, and

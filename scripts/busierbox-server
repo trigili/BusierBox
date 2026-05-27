@@ -1017,6 +1017,9 @@ def release_context():
         artifacts_by_sha256 = {}
         artifacts_by_payload_preset = {}
         artifacts_by_tool = {}
+        artifact_compatibility_counts = {}
+        artifact_payload_preset_counts = {}
+        artifact_tool_counts = {}
         for rec in artifacts:
             key = rec.get("release_path") or rec.get("path") or rec.get("name")
             if key:
@@ -1024,16 +1027,21 @@ def release_context():
             name = str(rec.get("name") or "")
             sha256 = str(rec.get("sha256") or "")
             payload_preset = str(rec.get("payload_preset") or "")
+            compatibility_label = str((rec.get("compatibility") or {}).get("label") or "")
             if name:
                 artifacts_by_name.setdefault(name, []).append(rec)
             if sha256:
                 artifacts_by_sha256.setdefault(sha256, []).append(rec)
             if payload_preset:
                 artifacts_by_payload_preset.setdefault(payload_preset, []).append(rec)
+                artifact_payload_preset_counts[payload_preset] = artifact_payload_preset_counts.get(payload_preset, 0) + 1
+            if compatibility_label:
+                artifact_compatibility_counts[compatibility_label] = artifact_compatibility_counts.get(compatibility_label, 0) + 1
             for tool in rec.get("tools") or []:
                 tool_name = str(tool)
                 if tool_name:
                     artifacts_by_tool.setdefault(tool_name, []).append(rec)
+                    artifact_tool_counts[tool_name] = artifact_tool_counts.get(tool_name, 0) + 1
         return {
             "release_dir": str(here),
             "release_json": str(release_json),
@@ -1045,6 +1053,11 @@ def release_context():
             "artifacts_by_sha256": artifacts_by_sha256,
             "artifacts_by_payload_preset": artifacts_by_payload_preset,
             "artifacts_by_tool": artifacts_by_tool,
+            "artifact_stats": {
+                "by_compatibility": artifact_compatibility_counts,
+                "by_payload_preset": artifact_payload_preset_counts,
+                "by_tool": artifact_tool_counts,
+            },
             "devices": devices,
             "devices_by_name": {rec.get("name", ""): rec for rec in devices if rec.get("name")},
             "tuples": tuples,
@@ -3029,6 +3042,9 @@ def status_document(cfg):
         "release_artifact_count": len(release.get("artifacts") or []),
         "release_device_count": len(release.get("devices") or []),
         "release_tuple_count": len(release.get("tuples") or []),
+        "release_artifact_compatibility_counts": (release.get("artifact_stats") or {}).get("by_compatibility") or {},
+        "release_artifact_payload_preset_counts": (release.get("artifact_stats") or {}).get("by_payload_preset") or {},
+        "release_artifact_tool_counts": (release.get("artifact_stats") or {}).get("by_tool") or {},
     })
     return {
         "schema": 1,
