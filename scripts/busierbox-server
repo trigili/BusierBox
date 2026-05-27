@@ -109,12 +109,28 @@ class EventLog:
     def stats(self, limit=12):
         records, invalid = self.records()
         tail = records[-limit:]
+        by_service = {}
+        by_event = {}
+        by_level = {}
+        for rec in records:
+            service = str(rec.get("service") or "")
+            event = str(rec.get("event") or "")
+            level = str(rec.get("level") or "")
+            if service:
+                by_service[service] = by_service.get(service, 0) + 1
+            if event:
+                by_event[event] = by_event.get(event, 0) + 1
+            if level:
+                by_level[level] = by_level.get(level, 0) + 1
         return {
             "path": str(self.path),
             "total_count": len(records),
             "tail_count": len(tail),
             "invalid_count": invalid,
             "tail_limit": limit,
+            "by_service": by_service,
+            "by_event": by_event,
+            "by_level": by_level,
             "tail": tail,
         }
 

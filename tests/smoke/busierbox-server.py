@@ -641,6 +641,13 @@ def main():
             print("server json status missing event log total/tail stats", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
+        if (event_stats.get("by_service", {}).get("command-queue", 0) < 2 or
+                event_stats.get("by_event", {}).get("command_queue_queued", 0) < 1 or
+                event_stats.get("by_event", {}).get("command_result_received", 0) < 1 or
+                event_stats.get("by_level", {}).get("info", 0) < 2):
+            print("server json status missing event log aggregate counters", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
         event_log_path = Path(paths["event_log"])
         previous_invalid = int(event_stats.get("invalid_count", 0))
         with event_log_path.open("a", encoding="utf-8") as fh:
