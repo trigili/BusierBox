@@ -455,11 +455,21 @@ def record_command_result(cfg, command_id, result_path):
     commands = data.get("commands", [])
     for rec in commands:
         if isinstance(rec, dict) and rec.get("id") == command_id:
+            stdout_bytes = int(result.get("stdout_bytes", 0) or 0)
+            stderr_bytes = int(result.get("stderr_bytes", 0) or 0)
+            output_bytes = stdout_bytes + stderr_bytes
+            max_output_bytes = int(rec.get("max_output_bytes", 0) or 0)
+            output_exceeded = bool(max_output_bytes and output_bytes > max_output_bytes)
             rec["status"] = "result-received"
             rec["result_received_at"] = utc_now()
             rec["result"] = result
             rec["result_command_id"] = str(command_id)
             rec["result_source_path"] = str(path)
+            rec["result_stdout_bytes"] = stdout_bytes
+            rec["result_stderr_bytes"] = stderr_bytes
+            rec["result_output_bytes"] = output_bytes
+            rec["result_output_limit_bytes"] = max_output_bytes
+            rec["result_output_exceeded_limit"] = output_exceeded
             save_command_queue(cfg, data)
             append_event(
                 cfg,
@@ -471,6 +481,11 @@ def record_command_result(cfg, command_id, result_path):
                     "result_source_path": str(path),
                     "status": result.get("status", ""),
                     "exit_code": result.get("exit_code", ""),
+                    "stdout_bytes": stdout_bytes,
+                    "stderr_bytes": stderr_bytes,
+                    "output_bytes": output_bytes,
+                    "output_limit_bytes": max_output_bytes,
+                    "output_exceeded_limit": output_exceeded,
                 },
             )
             return rec
@@ -520,6 +535,10 @@ def command_queue_summary(cfg):
     commands = data.get("commands", [])
     queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
     result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
+    result_exceeded_count = len([
+        rec for rec in commands
+        if isinstance(rec, dict) and rec.get("result_output_exceeded_limit") is True
+    ])
     enabled = str(cfg.get("command_queue_enable", "no"))
     allowed_commands = str(cfg.get("command_queue_allowed_commands", "none"))
     allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
@@ -541,6 +560,7 @@ def command_queue_summary(cfg):
         "commands": commands,
         "queued_count": len(queued),
         "result_count": result_count,
+        "result_output_exceeded_count": result_exceeded_count,
         "total_count": len(commands),
         "execution_supported": False,
         "delivery_supported": False,
@@ -582,6 +602,7 @@ def print_command_queue(cfg, json_output=False):
         print(f"  timeout={rec.get('timeout_sec', '')} max_output={rec.get('max_output_bytes', '')} execution_supported=no")
         if rec.get("result_received_at"):
             print(f"  result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
+            print(f"  result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
 
 
 def reject_traversal_request_name(name):
@@ -2707,6 +2728,7 @@ def status_document(cfg):
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_result_count": command_queue.get("result_count", 0),
+        "command_queue_result_output_exceeded_count": command_queue.get("result_output_exceeded_count", 0),
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
         "command_queue_policy_error_count": len(command_queue.get("policy_errors") or []),
         "release_artifact_count": len(release.get("artifacts") or []),
@@ -2883,11 +2905,12 @@ def print_status(cfg, json_output=False):
     print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'} arbitrary_policy_requested={'yes' if queue.get('arbitrary_policy_requested') else 'no'} arbitrary_execution_allowed=no")
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
-    print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
+    print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
         if rec.get("result_received_at"):
             print(f"    result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
+            print(f"    result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
     print("")
     print("Event log:")
     if doc["events"]:
@@ -3080,11 +3103,12 @@ def print_workbench(cfg):
     print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'} arbitrary_policy_requested={'yes' if queue.get('arbitrary_policy_requested') else 'no'} arbitrary_execution_allowed=no")
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
-    print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
+    print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
         if rec.get("result_received_at"):
             print(f"    result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
+            print(f"    result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
     print("")
     print("Event log:")
     if snap["events"]:

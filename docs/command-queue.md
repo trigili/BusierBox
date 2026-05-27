@@ -74,7 +74,9 @@ a later explicitly enabled command-queue transport and target execution policy
 are implemented.
 
 `--record-command-result` attaches a structured JSON result object to an
-existing queued command, records `result_command_id`, `result_received_at`, and
-`result_source_path`, and logs `command_result_received` with the command id.
+existing queued command, records `result_command_id`, `result_received_at`,
+`result_source_path`, result stdout/stderr byte counts, the queued
+`max_output_bytes` limit, and whether the result exceeded that limit. It also
+logs `command_result_received` with the command id and output-limit metadata.
 This is still operator-side bookkeeping; it does not poll, deliver, or execute
 commands.

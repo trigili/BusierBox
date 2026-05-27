@@ -451,7 +451,10 @@ def main():
         if (command_after_result.get("status") != "result-received" or
                 command_after_result.get("result", {}).get("exit_code") != 0 or
                 command_after_result.get("result_command_id") != command_id or
-                not command_after_result.get("result_received_at")):
+                not command_after_result.get("result_received_at") or
+                command_after_result.get("result_output_bytes") != 12 or
+                command_after_result.get("result_output_limit_bytes") != 1234 or
+                command_after_result.get("result_output_exceeded_limit") is not False):
             print("operator command queue result metadata missing", file=sys.stderr)
             return 1
         event_log = queue_operator_dir / "events.jsonl"
@@ -459,7 +462,11 @@ def main():
             json.loads(line) for line in event_log.read_text(encoding="utf-8").splitlines()
             if "command_result_received" in line
         ]
-        if not result_events or result_events[-1].get("details", {}).get("command_id") != command_id:
+        if (not result_events or
+                result_events[-1].get("details", {}).get("command_id") != command_id or
+                result_events[-1].get("details", {}).get("output_bytes") != 12 or
+                result_events[-1].get("details", {}).get("output_limit_bytes") != 1234 or
+                result_events[-1].get("details", {}).get("output_exceeded_limit") is not False):
             print("operator command queue result event missing command id", file=sys.stderr)
             return 1
         queue_status_doc = run(
@@ -469,7 +476,8 @@ def main():
             "--json-status",
         )
         queue_status_json = json.loads(queue_status_doc.stdout)
-        if queue_status_json["command_queue"]["result_count"] != 1:
+        if (queue_status_json["command_queue"]["result_count"] != 1 or
+                queue_status_json["command_queue"].get("result_output_exceeded_count") != 0):
             print("server json status missing command queue summary", file=sys.stderr)
             return 1
         status_queue = queue_status_json["command_queue"]
@@ -516,6 +524,56 @@ def main():
             print("server text status missing invalid command queue policy warning", file=sys.stderr)
             print(invalid_queue_status_text.stdout, file=sys.stderr)
             return 1
+        exceeded_queue_file = Path(tmp) / "operator-session" / "exceeded-command-queue.json"
+        exceeded_queued = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(exceeded_queue_file),
+            "--queue-command", "busierbox survey",
+            "--queue-max-output", "10",
+        )
+        if exceeded_queued.returncode != 0:
+            print("operator command queue exceeded-limit fixture failed to queue", file=sys.stderr)
+            print(exceeded_queued.stdout, file=sys.stderr)
+            print(exceeded_queued.stderr, file=sys.stderr)
+            return 1
+        exceeded_id = json.loads(exceeded_queue_file.read_text(encoding="utf-8"))["commands"][0]["id"]
+        exceeded_result_json = Path(tmp) / "command-result-exceeded.json"
+        exceeded_result_json.write_text(json.dumps({
+            "schema": 1,
+            "command_id": exceeded_id,
+            "status": "completed",
+            "exit_code": 0,
+            "stdout_bytes": 8,
+            "stderr_bytes": 7,
+        }) + "\n", encoding="utf-8")
+        exceeded_recorded = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(exceeded_queue_file),
+            "--record-command-result", exceeded_id,
+            "--result-json", str(exceeded_result_json),
+        )
+        if exceeded_recorded.returncode != 0:
+            print("operator command queue exceeded-limit result failed to record", file=sys.stderr)
+            print(exceeded_recorded.stdout, file=sys.stderr)
+            print(exceeded_recorded.stderr, file=sys.stderr)
+            return 1
+        exceeded_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(exceeded_queue_file),
+            "--json-command-queue",
+        ).stdout)["command_queue"]
+        exceeded_rec = exceeded_status["commands"][0]
+        if (exceeded_status.get("result_output_exceeded_count") != 1 or
+                exceeded_rec.get("result_output_bytes") != 15 or
+                exceeded_rec.get("result_output_limit_bytes") != 10 or
+                exceeded_rec.get("result_output_exceeded_limit") is not True):
+            print("operator command queue did not flag result output over limit", file=sys.stderr)
+            print(json.dumps(exceeded_status, indent=2), file=sys.stderr)
+            return 1
+
         arbitrary_queue_cfg = Path(tmp) / "server-config-arbitrary-command-queue.json"
         arbitrary_queue_cfg.write_text(json.dumps({
             "operator_session_dir": str(queue_operator_dir),
@@ -558,7 +616,8 @@ def main():
             print("server json status service summary is wrong", file=sys.stderr)
             return 1
         if (queue_status_json["summary"].get("command_queue_total_count") != 1 or
-                queue_status_json["summary"].get("command_queue_result_count") != 1):
+                queue_status_json["summary"].get("command_queue_result_count") != 1 or
+                queue_status_json["summary"].get("command_queue_result_output_exceeded_count") != 0):
             print("server json status missing aggregate command queue counts", file=sys.stderr)
             return 1
         event_stats = queue_status_json.get("event_log_stats") or {}
@@ -625,6 +684,7 @@ def main():
                 "policy_valid=yes configured_for_polling=no arbitrary_policy_requested=no arbitrary_execution_allowed=no" not in queue_status_text.stdout or
                 "busierbox reality-test --json" not in queue_status_text.stdout or
                 "result-received" not in queue_status_text.stdout or
+                "result_output=12 limit=1234 exceeded_limit=no" not in queue_status_text.stdout or
                 "command_result_received" not in queue_status_text.stdout or
                 "Event log:" not in queue_status_text.stdout or
                 "tls=yes" not in queue_status_text.stdout or
