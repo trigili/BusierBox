@@ -31,7 +31,7 @@ recommended_conf=$(printf '%s\n' "$bringup_out" | sed -n 's/^bringup: recommende
 grep -q '^BB_TARGET_PRESET=glinet-mt7621-openwrt-musl$' "$recommended_conf"
 rm -f local/presets/targets/smoke-bringup.json
 bringup_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --write-target-preset smoke-bringup --stage-recommended-artifact --operator-host 198.51.100.9 --configure-trailer --json)
-printf '%s\n' "$bringup_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["status"] == "pass"; assert d["recommended_target_preset"].endswith("smoke-bringup.json"); assert d["staged_fetch_command"]; assert "./busierbox reality-test --json" in d["next_target_commands"]'
+printf '%s\n' "$bringup_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["status"] == "pass"; assert d["recommended_target_preset"].endswith("smoke-bringup.json"); assert d["staged_fetch_command"]; assert "./busierbox reality-test --json" in d["next_target_commands"]; assert d["safety_boundary"]["network_autorun"] is False; assert d["safety_boundary"]["target_must_run_fetch"] is True; assert d["safety_boundary"]["hidden_control_channel"] is False; assert any(r["command"] == d["staged_fetch_command"] and r["side"] == "target" and r["network"] is True and r["requires_explicit_target_action"] is True and r["executes_operator_supplied_commands"] is False for r in d["next_target_command_records"]); assert all(r["executes_on_target"] is False for r in d["next_operator_command_records"])'
 test -f local/presets/targets/smoke-bringup.json
 rm -f local/presets/targets/smoke-bringup.json
 release_tmp=$(mktemp -d "${TMPDIR:-/tmp}/busierbox-bringup-release.XXXXXX")

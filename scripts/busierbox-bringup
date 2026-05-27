@@ -197,6 +197,54 @@ next_target = [
 if env("STAGED_FETCH_COMMAND"):
     next_target.append(env("STAGED_FETCH_COMMAND"))
 
+next_operator_records = [
+    {
+        "command": "scripts/busierbox-server --transport file-service",
+        "purpose": "start receive-only operator file service",
+        "side": "operator",
+        "executes_on_target": False,
+        "starts_listener": True,
+        "requires_explicit_operator_action": True,
+    },
+]
+if env("TRAILER_COMMAND"):
+    next_operator_records.append({
+        "command": env("TRAILER_COMMAND"),
+        "purpose": "configure artifact trailer overrides",
+        "side": "operator",
+        "executes_on_target": False,
+        "starts_listener": False,
+        "requires_explicit_operator_action": True,
+    })
+
+next_target_records = [
+    {
+        "command": "./busierbox survey --json",
+        "purpose": "collect passive target facts",
+        "side": "target",
+        "requires_explicit_target_action": True,
+        "network": False,
+        "executes_operator_supplied_commands": False,
+    },
+    {
+        "command": "./busierbox reality-test --json",
+        "purpose": "run active local capability probes",
+        "side": "target",
+        "requires_explicit_target_action": True,
+        "network": False,
+        "executes_operator_supplied_commands": False,
+    },
+]
+if env("STAGED_FETCH_COMMAND"):
+    next_target_records.append({
+        "command": env("STAGED_FETCH_COMMAND"),
+        "purpose": "explicitly fetch operator-staged artifact or config",
+        "side": "target",
+        "requires_explicit_target_action": True,
+        "network": True,
+        "executes_operator_supplied_commands": False,
+    })
+
 recommendation_summary = {}
 recommendation_path = env("RECOMMENDATION_JSON")
 if recommendation_path and os.path.exists(recommendation_path):
@@ -258,6 +306,15 @@ doc = {
     "staged_fetch_command": env("STAGED_FETCH_COMMAND"),
     "next_operator_commands": next_operator,
     "next_target_commands": next_target,
+    "next_operator_command_records": next_operator_records,
+    "next_target_command_records": next_target_records,
+    "safety_boundary": {
+        "network_autorun": False,
+        "target_must_run_fetch": bool(env("STAGED_FETCH_COMMAND")),
+        "remote_command_execution_by_default": False,
+        "command_queue_enabled_by_default": False,
+        "hidden_control_channel": False,
+    },
 }
 if env("REASON"):
     doc["reason"] = env("REASON")
