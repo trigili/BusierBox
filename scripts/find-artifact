@@ -33,7 +33,12 @@ def tuple_info(row, index):
 
 def matches(row, index, args):
     info = tuple_info(row, index)
+    doom_wads = [wad for wad in (row.get("doom_wads") or []) if isinstance(wad, dict)]
     if args.sha256 and row.get("sha256") != args.sha256:
+        return False
+    if args.doom_wad and not any(wad.get("filename") == args.doom_wad for wad in doom_wads):
+        return False
+    if args.doom_wad_sha256 and not any(wad.get("sha256") == args.doom_wad_sha256 for wad in doom_wads):
         return False
     if args.release and row.get("release_name") != args.release:
         return False
@@ -120,6 +125,8 @@ def active_filters(args):
         "payload_preset",
         "feature",
         "sha256",
+        "doom_wad",
+        "doom_wad_sha256",
         "max_compatibility",
     )
     return {key: getattr(args, key) for key in keys if getattr(args, key)}
@@ -159,6 +166,8 @@ def recommendation_document(index, rows, args):
             "artifacts_by_tuple_payload_preset_count": len(index.get("artifacts_by_tuple_payload_preset") or {}),
             "artifacts_by_provider_tool_count": len(index.get("artifacts_by_provider_tool") or {}),
             "artifacts_by_provider_status_count": len(index.get("artifacts_by_provider_status") or {}),
+            "artifacts_by_doom_wad_filename_count": len(index.get("artifacts_by_doom_wad_filename") or {}),
+            "artifacts_by_doom_wad_sha256_count": len(index.get("artifacts_by_doom_wad_sha256") or {}),
         },
     }
 
@@ -179,6 +188,8 @@ def main(argv=None):
     parser.add_argument("--payload-preset")
     parser.add_argument("--feature")
     parser.add_argument("--sha256")
+    parser.add_argument("--doom-wad", help="match artifacts that stage a Doom WAD with this basename")
+    parser.add_argument("--doom-wad-sha256", help="match artifacts that stage a Doom WAD with this SHA-256")
     parser.add_argument("--max-compatibility", choices=("exact", "likely", "heuristic", "unsafe", "incompatible"),
                         help="exclude artifacts riskier than this compatibility label")
     parser.add_argument("--all", action="store_true", help="print all matches")

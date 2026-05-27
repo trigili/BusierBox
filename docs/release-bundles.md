@@ -156,6 +156,7 @@ scripts/find-artifact --index local/release-repo-index.json --device glinet-mt13
 scripts/find-artifact --index local/release-repo-index.json --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc
 scripts/find-artifact --index local/release-repo-index.json --tool tcpdump --payload-preset survey-core
 scripts/find-artifact --index local/release-repo-index.json --feature reverse-ssh --json
+scripts/find-artifact --index local/release-repo-index.json --doom-wad doom.wad
 scripts/find-artifact --index local/release-repo-index.json --device glinet-mt1300 --max-compatibility likely
 scripts/find-artifact --index local/release-repo-index.json --device glinet-mt1300 --recommendation-json
 ```
@@ -175,7 +176,10 @@ such as `tcpdump:survey-core`, `reverse-ssh:ssh-operator`, or
 separate indexes. Provider audit maps `artifacts_by_provider_tool` and
 `artifacts_by_provider_status` expose payload-manifest provider checks such as
 `gdbserver` or `gdbserver:found` so offline pickers can surface local drop-in
-status without opening each payload manifest. You can search by canonical tuple path directly with
+status without opening each payload manifest. Doom audit maps
+`artifacts_by_doom_wad_filename` and `artifacts_by_doom_wad_sha256` index
+artifacts by staged WAD basename/hash, and `scripts/find-artifact` exposes the
+same lookup through `--doom-wad` and `--doom-wad-sha256`. You can search by canonical tuple path directly with
 `--tuple-path` when a survey or release manifest has already resolved the
 target compatibility tuple. It does not download or rebuild anything.
 `--recommendation-json` returns the selected artifact plus active filters,

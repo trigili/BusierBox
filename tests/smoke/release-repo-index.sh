@@ -128,6 +128,8 @@ assert index["artifacts_by_feature_payload_preset"]["reverse-ssh:ssh-operator"][
 assert len(index["artifacts_by_tuple_payload_preset"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug"]) == 1
 assert index["artifacts_by_provider_tool"]["gdbserver"][0]["release_name"] == "three"
 assert index["artifacts_by_provider_status"]["gdbserver:found"][0]["payload_preset"] == "full-debug"
+assert index["artifacts_by_doom_wad_filename"]["doom.wad"][0]["release_name"] == "one"
+assert index["artifacts_by_doom_wad_sha256"]["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"][0]["payload_preset"] == "survey-core"
 PY
 
 scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null
@@ -140,6 +142,10 @@ grep -q '^compatibility_reason=fixture$' "$tmp/find-device.out"
 grep -q '^dedupe_count=2$' "$tmp/find-device.out"
 grep -q '^provider_status_tcpdump=found$' "$tmp/find-device.out"
 grep -q '^doom_wad=doom.wad size=9 sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef$' "$tmp/find-device.out"
+scripts/find-artifact --index "$tmp/repo-index.json" --doom-wad doom.wad >"$tmp/find-doom-wad.out"
+grep -q '^release_name=one$' "$tmp/find-doom-wad.out"
+scripts/find-artifact --index "$tmp/repo-index.json" --doom-wad-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef >"$tmp/find-doom-sha.out"
+grep -q '^payload_preset=survey-core$' "$tmp/find-doom-sha.out"
 scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --release one >"$tmp/find-tuple.out"
 grep -q '^release_name=one$' "$tmp/find-tuple.out"
 grep -q '^tuple_path=by-tuple/mipsel/musl/4.x/mips32r2-24kc$' "$tmp/find-tuple.out"
@@ -176,6 +182,8 @@ assert doc["index"]["artifacts_by_feature_payload_preset_count"] >= 6
 assert doc["index"]["artifacts_by_tuple_payload_preset_count"] == 3
 assert doc["index"]["artifacts_by_provider_tool_count"] == 3
 assert doc["index"]["artifacts_by_provider_status_count"] == 3
+assert doc["index"]["artifacts_by_doom_wad_filename_count"] == 1
+assert doc["index"]["artifacts_by_doom_wad_sha256_count"] == 1
 assert doc["dedupe_count"] == 2
 assert {item["release_name"] for item in doc["dedupe_alternatives"]} == {"one", "two"}
 assert "newest release_mtime" in doc["selection_policy"]

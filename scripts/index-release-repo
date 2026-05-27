@@ -191,6 +191,8 @@ def build_repo_index(paths):
     artifacts_by_tuple_payload_preset = {}
     artifacts_by_provider_tool = {}
     artifacts_by_provider_status = {}
+    artifacts_by_doom_wad_filename = {}
+    artifacts_by_doom_wad_sha256 = {}
     for record in artifacts:
         sha = record.get("sha256") or ""
         release_name = record.get("release_name") or ""
@@ -220,6 +222,15 @@ def build_repo_index(paths):
             artifacts_by_provider_tool.setdefault(provider_tool, []).append(record)
             overall = provider_status.get("overall") or provider_status.get("status") or "unknown"
             artifacts_by_provider_status.setdefault(f"{provider_tool}:{overall}", []).append(record)
+        for wad in record.get("doom_wads") or []:
+            if not isinstance(wad, dict):
+                continue
+            filename = wad.get("filename")
+            sha256 = wad.get("sha256")
+            if filename:
+                artifacts_by_doom_wad_filename.setdefault(str(filename), []).append(record)
+            if sha256:
+                artifacts_by_doom_wad_sha256.setdefault(str(sha256), []).append(record)
     return {
         "schema": 1,
         "release_count": len(release_dirs),
@@ -238,6 +249,8 @@ def build_repo_index(paths):
         "artifacts_by_tuple_payload_preset": {key: artifacts_by_tuple_payload_preset[key] for key in sorted(artifacts_by_tuple_payload_preset)},
         "artifacts_by_provider_tool": {key: artifacts_by_provider_tool[key] for key in sorted(artifacts_by_provider_tool)},
         "artifacts_by_provider_status": {key: artifacts_by_provider_status[key] for key in sorted(artifacts_by_provider_status)},
+        "artifacts_by_doom_wad_filename": {key: artifacts_by_doom_wad_filename[key] for key in sorted(artifacts_by_doom_wad_filename)},
+        "artifacts_by_doom_wad_sha256": {key: artifacts_by_doom_wad_sha256[key] for key in sorted(artifacts_by_doom_wad_sha256)},
         "dedupe": {key: by_sha[key] for key in sorted(by_sha)},
         "devices": {key: devices[key] for key in sorted(devices)},
         "tuples": {key: tuples[key] for key in sorted(tuples)},
