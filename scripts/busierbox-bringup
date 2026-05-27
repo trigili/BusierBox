@@ -259,6 +259,11 @@ command_record_summary = {
     "target_executes_operator_supplied_commands_count": sum(1 for item in next_target_records if item.get("executes_operator_supplied_commands") is True),
     "operator_executes_on_target_count": sum(1 for item in next_operator_records if item.get("executes_on_target") is True),
 }
+next_command_records = next_operator_records + next_target_records
+next_command_records_by_side = {
+    "operator": next_operator_records,
+    "target": next_target_records,
+}
 
 recommendation_summary = {}
 recommendation_path = env("RECOMMENDATION_JSON")
@@ -324,6 +329,8 @@ doc = {
     "next_target_commands": next_target,
     "next_operator_command_records": next_operator_records,
     "next_target_command_records": next_target_records,
+    "next_command_records": next_command_records,
+    "next_command_records_by_side": next_command_records_by_side,
     "command_record_summary": command_record_summary,
     "safety_boundary": {
         "network_autorun": False,
