@@ -1505,6 +1505,16 @@ def main():
             print("server json status missing target command safety summary", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+        upload_summary = upload_doc.get("summary", {})
+        if (upload_summary.get("target_command_count") != len(target_records) or
+                upload_summary.get("target_command_network_count") != len(target_records) or
+                upload_summary.get("target_command_explicit_action_count") != len(target_records) or
+                upload_summary.get("target_command_operator_supplied_execution_count") != 0 or
+                upload_summary.get("target_command_executes_operator_supplied_commands") is not False or
+                upload_summary.get("target_command_all_require_explicit_target_action") is not True):
+            print("server json status missing aggregate target command safety counts", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         target_commands_by_service = upload_doc.get("target_commands_by_service") or {}
         if (len(target_commands_by_service.get("file-service") or []) < 6 or
                 not any(rec.get("service") == "rshell" for rec in target_records) or
@@ -1513,7 +1523,6 @@ def main():
             print("server json status missing generated command service lookup", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
-        upload_summary = upload_doc.get("summary", {})
         if (upload_summary.get("upload_count", 0) < 1 or
                 upload_summary.get("upload_status_counts", {}).get("ok") != 1 or
                 upload_summary.get("session_count", 0) < 1 or

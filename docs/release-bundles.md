@@ -297,7 +297,8 @@ purpose, service, side, network, explicit-target-action, and
 operator-supplied-command execution metadata. `target_commands_by_service` and
 `target_commands_by_request` index those records for service panes and staged
 fetch rows. `target_command_summary` reports total, network, explicit-target
-action, and operator-supplied-command execution counts. This lets future
+action, and operator-supplied-command execution counts; the same safety counts
+are mirrored into `summary` as `target_command_*` fields. This lets future
 frontends show the same commands without guessing whether a command is a safe
 explicit fetch/upload helper or control-like behavior.
 Command queue entries remain explicit operator records only; `command_queue`
