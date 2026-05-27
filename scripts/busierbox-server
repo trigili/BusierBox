@@ -312,6 +312,7 @@ DEFAULTS = {
     "command_queue_token_source": "manual",
     "command_queue_allowed_commands": "none",
     "command_queue_allow_arbitrary": "no",
+    "rshell_session_policy": "single",
 }
 
 
@@ -3513,6 +3514,25 @@ def generated_target_commands(cfg, staged=None):
     return [rec["command"] for rec in generated_target_command_records(cfg, staged)]
 
 
+def rshell_session_policy_record(cfg):
+    policy = str(cfg.get("rshell_session_policy") or cfg.get("BB_RSHELL_SESSION_POLICY") or "single")
+    valid = policy in ("single", "reconnect", "persistent")
+    reconnects = policy in ("reconnect", "persistent")
+    return {
+        "session_policy": policy,
+        "session_policy_valid": valid,
+        "session_policy_errors": [] if valid else ["unsupported rshell session policy"],
+        "session_semantics": {
+            "retry_until_first_connection": valid,
+            "stop_after_first_success": policy == "single",
+            "reconnect_after_disconnect": reconnects,
+            "persistent_lifecycle": policy == "persistent",
+            "fresh_session_on_reconnect": reconnects,
+            "session_resume_supported": False,
+        },
+    }
+
+
 def generated_target_command_records(cfg, staged=None):
     staged = staged if staged is not None else load_staged(cfg).get("staged", {})
     host = (local_ips() or ["OPERATOR_IP"])[0]
@@ -3579,6 +3599,7 @@ def generated_target_command_records(cfg, staged=None):
             "network": True,
             "requires_explicit_target_action": True,
             "executes_operator_supplied_commands": False,
+            "metadata": rshell_session_policy_record(cfg),
         },
     ]
     for name in sorted(staged):

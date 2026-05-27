@@ -1433,6 +1433,7 @@ def main():
             "staged_files": str(upload_operator_dir / "staged-files.json"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
+            "rshell_session_policy": "reconnect",
         }), encoding="utf-8")
         proc = subprocess.Popen(
             [
@@ -1608,13 +1609,21 @@ def main():
         target_commands_by_service = upload_doc.get("target_commands_by_service") or {}
         target_commands_by_side = upload_doc.get("target_commands_by_side") or {}
         target_commands_by_purpose = upload_doc.get("target_commands_by_purpose") or {}
+        rshell_record = next((rec for rec in target_records if rec.get("service") == "rshell"), {})
+        rshell_metadata = rshell_record.get("metadata") or {}
+        rshell_semantics = rshell_metadata.get("session_semantics") or {}
         if (len(target_commands_by_service.get("file-service") or []) < 6 or
                 len(target_commands_by_side.get("target") or []) != len(target_records) or
                 len(target_commands_by_purpose.get("start the configured reverse shell transport from the target") or []) != 1 or
-                not any(rec.get("service") == "rshell" for rec in target_records) or
+                not rshell_record or
+                rshell_metadata.get("session_policy") != "reconnect" or
+                rshell_metadata.get("session_policy_valid") is not True or
+                rshell_semantics.get("reconnect_after_disconnect") is not True or
+                rshell_semantics.get("fresh_session_on_reconnect") is not True or
+                rshell_semantics.get("session_resume_supported") is not False or
                 target_summary.get("by_service", {}).get("file-service", 0) < 6 or
                 target_summary.get("by_service", {}).get("rshell") != 1):
-            print("server json status missing generated command service lookup", file=sys.stderr)
+            print("server json status missing generated command service/session-policy lookup", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         if (upload_summary.get("upload_count", 0) < 1 or

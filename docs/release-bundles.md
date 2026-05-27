@@ -320,7 +320,11 @@ Device and tuple artifact reference totals are mirrored as
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
 purpose, service, side, network, explicit-target-action, and
-operator-supplied-command execution metadata. `target_commands_by_service`,
+operator-supplied-command execution metadata. The generated `rshell` command
+record also carries `metadata.session_policy`, validity, errors, and
+`session_semantics` so operator UIs can distinguish single-shot, reconnect,
+and persistent fresh-session behavior next to the command itself.
+`target_commands_by_service`,
 `target_commands_by_request`, `target_commands_by_side`, and
 `target_commands_by_purpose` index those records for service panes, staged
 fetch rows, and command-category views. `target_command_summary` reports total,
