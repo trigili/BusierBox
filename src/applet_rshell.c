@@ -232,6 +232,13 @@ static int valid_session_policy(void)
            !strcmp(BB_RSHELL_SESSION_POLICY, "persistent");
 }
 
+static int valid_session_policy_value(const char *policy)
+{
+    return !strcmp(policy, "single") ||
+           !strcmp(policy, "reconnect") ||
+           !strcmp(policy, "persistent");
+}
+
 static const char *policy_post_success_retry_count(const char *policy)
 {
     if (!strcmp(policy, "single"))
@@ -541,6 +548,11 @@ int applet_rshell_main(int argc, char **argv)
             json_string_main(stdout, BB_RSHELL_RUN_MODE);
             printf(",\"session_policy\":");
             json_string_main(stdout, effective_session_policy);
+            printf(",\"session_policy_valid\":%s", valid_session_policy_value(effective_session_policy) ? "true" : "false");
+            printf(",\"session_policy_errors\":[");
+            if (!valid_session_policy_value(effective_session_policy))
+                json_string_main(stdout, "unsupported rshell session policy");
+            printf("]");
             printf(",\"session_semantics\":{\"retry_until_first_connection\":true,\"stop_after_first_success\":%s,\"reconnect_after_disconnect\":%s,\"persistent_lifecycle\":%s,\"fresh_session_on_reconnect\":%s,\"session_resume_supported\":false}",
                    policy_stops_after_first_success(effective_session_policy) ? "true" : "false",
                    policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false",
@@ -696,6 +708,9 @@ int applet_rshell_main(int argc, char **argv)
         puts("rshell_status=inactive");
         printf("rshell_guard=%s\n", guard);
         print_rshell_config_status(stdout, transport);
+        printf("session_policy_valid=%s\n", valid_session_policy() ? "yes" : "no");
+        if (!valid_session_policy())
+            puts("session_policy_error=unsupported rshell session policy");
         return 0;
     }
     if (!strcmp(subcmd, "logs")) {

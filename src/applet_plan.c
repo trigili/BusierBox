@@ -142,6 +142,13 @@ static int rshell_policy_persistent_lifecycle(const char *policy)
     return !strcmp(policy, "persistent");
 }
 
+static int rshell_policy_valid(const char *policy)
+{
+    return !strcmp(policy, "single") ||
+           !strcmp(policy, "reconnect") ||
+           !strcmp(policy, "persistent");
+}
+
 static const char *rshell_policy_post_disconnect_count(const char *policy)
 {
     if (!strcmp(policy, "single"))
@@ -187,6 +194,11 @@ static void plan_print_rshell(int json)
         fputs(",\"encryption\":", stdout); bb_json_string(stdout, BB_RSHELL_ENCRYPTION);
         fputs(",\"run_mode\":", stdout); bb_json_string(stdout, BB_RSHELL_RUN_MODE);
         fputs(",\"session_policy\":", stdout); bb_json_string(stdout, BB_RSHELL_SESSION_POLICY);
+        printf(",\"session_policy_valid\":%s", rshell_policy_valid(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+        fputs(",\"session_policy_errors\":[", stdout);
+        if (!rshell_policy_valid(BB_RSHELL_SESSION_POLICY))
+            bb_json_string(stdout, "unsupported rshell session policy");
+        fputs("]", stdout);
         printf(",\"session_semantics\":{\"retry_until_first_connection\":true,\"stop_after_first_success\":%s,\"reconnect_after_disconnect\":%s,\"persistent_lifecycle\":%s,\"fresh_session_on_reconnect\":%s,\"session_resume_supported\":false}",
                rshell_policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
                rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
@@ -215,6 +227,9 @@ static void plan_print_rshell(int json)
     printf("encryption=%s\n", BB_RSHELL_ENCRYPTION);
     printf("run_mode=%s\n", BB_RSHELL_RUN_MODE);
     printf("session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
+    printf("session_policy_valid=%s\n", rshell_policy_valid(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
+    if (!rshell_policy_valid(BB_RSHELL_SESSION_POLICY))
+        puts("session_policy_error=unsupported rshell session policy");
     printf("retry_until_first_connection=yes\n");
     printf("post_disconnect_retry_count=%s\n", rshell_policy_post_disconnect_count(BB_RSHELL_SESSION_POLICY));
     printf("session_resume_supported=no\n");

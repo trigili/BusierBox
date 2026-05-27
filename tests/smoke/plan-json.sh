@@ -17,7 +17,8 @@ scripts/artifact-config set "$work/busierbox" \
     BB_RUNTIME_ROOT="$work/runtime" \
     BB_OPERATOR_SERVER_HOST=192.0.2.77 \
     BB_RSHELL_TRANSPORT=builtin \
-    BB_RSHELL_SESSION_POLICY=reconnect >/dev/null
+    BB_RSHELL_SESSION_POLICY=reconnect \
+    BB_RSHELL_RETRY_COUNT=1 >/dev/null
 
 "$work/busierbox" plan --json | python3 -m json.tool >/dev/null
 "$work/busierbox" plan extract --json >"$work/extract.json"
@@ -127,5 +128,21 @@ grep -q "  $work/root/usr/bin/bbx_recovery.recovery.sh" "$work/recovery-script.t
 grep -q '^action=dmesg-push$' "$work/recovery-dmesg.txt"
 grep -q 'dmesg >"$bbx_dmesg"' "$work/recovery-dmesg.txt"
 grep -q -- '--dest bbx_recovery-dmesg.txt' "$work/recovery-dmesg.txt"
+
+BB_RSHELL_SESSION_POLICY=bogus "$work/busierbox" plan rshell --json >"$work/rshell-invalid-policy.json"
+python3 -m json.tool "$work/rshell-invalid-policy.json" >/dev/null
+python3 - "$work/rshell-invalid-policy.json" <<'PY'
+import json
+import sys
+
+data = json.loads(open(sys.argv[1], "r", encoding="utf-8").read())
+assert data["session_policy"] == "bogus"
+assert data["session_policy_valid"] is False
+assert "unsupported rshell session policy" in data["session_policy_errors"]
+assert data["session_semantics"]["session_resume_supported"] is False
+PY
+BB_RSHELL_SESSION_POLICY=bogus "$work/busierbox" plan rshell >"$work/rshell-invalid-policy.txt"
+grep -q '^session_policy_valid=no$' "$work/rshell-invalid-policy.txt"
+grep -q '^session_policy_error=unsupported rshell session policy$' "$work/rshell-invalid-policy.txt"
 
 printf '%s\n' "plan-json ok"

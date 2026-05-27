@@ -200,4 +200,26 @@ if sem.get("session_resume_supported") is not False:
     raise SystemExit("persistent policy should not claim session resume")
 PY
 
+BB_RSHELL_SESSION_POLICY=bogus BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/invalid-policy.json"
+python3 -m json.tool "$tmp/invalid-policy.json" >/dev/null
+python3 - "$tmp/invalid-policy.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+if data["session_policy"] != "bogus":
+    raise SystemExit("invalid policy value not reflected in status")
+if data.get("session_policy_valid") is not False:
+    raise SystemExit("invalid policy should report session_policy_valid=false")
+if "unsupported rshell session policy" not in data.get("session_policy_errors", []):
+    raise SystemExit("invalid policy error missing")
+sem = data.get("session_semantics") or {}
+if sem.get("session_resume_supported") is not False:
+    raise SystemExit("invalid policy should not claim session resume")
+PY
+BB_RSHELL_SESSION_POLICY=bogus BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status >"$tmp/invalid-policy.txt"
+grep -q '^session_policy_valid=no$' "$tmp/invalid-policy.txt"
+grep -q '^session_policy_error=unsupported rshell session policy$' "$tmp/invalid-policy.txt"
+
 printf '%s\n' "rshell-status-json ok"
