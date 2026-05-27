@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "applets.h"
+#include "command_queue_policy.h"
 #include "effective_config.h"
 #include "json_helpers.h"
 
@@ -236,7 +237,11 @@ static void plan_print_rshell(int json)
 static void plan_print_command_queue(int json)
 {
     int enabled = !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes");
-    int configured = enabled && BB_OPERATOR_SERVER_HOST[0];
+    struct command_queue_policy_report policy = bb_command_queue_validate_policy();
+    int valid = bb_command_queue_policy_valid(&policy);
+    int configured = valid && enabled && BB_OPERATOR_SERVER_HOST[0];
+    int i;
+
     if (json) {
         fputs("{\"schema\":1,\"command\":\"command-queue\",\"would_create\":[],\"would_modify\":[],\"would_remove\":[],\"would_start\":[", stdout);
         if (configured)
@@ -248,9 +253,17 @@ static void plan_print_command_queue(int json)
             bb_json_string(stdout, endpoint);
         }
         fputs("],\"requires_external_writes\":false", stdout);
-        printf(",\"enabled\":%s,\"configured_for_polling\":%s,\"missing_operator_host\":%s,\"execution_supported\":false",
-               enabled ? "true" : "false", configured ? "true" : "false",
-               (enabled && !BB_OPERATOR_SERVER_HOST[0]) ? "true" : "false");
+        printf(",\"enabled\":%s,\"policy_valid\":%s,\"configured_for_polling\":%s,\"missing_operator_host\":%s,\"execution_supported\":false",
+               enabled ? "true" : "false", valid ? "true" : "false",
+               configured ? "true" : "false",
+               (valid && enabled && !BB_OPERATOR_SERVER_HOST[0]) ? "true" : "false");
+        fputs(",\"policy_errors\":[", stdout);
+        for (i = 0; i < policy.count; i++) {
+            if (i)
+                fputc(',', stdout);
+            bb_json_string(stdout, policy.errors[i]);
+        }
+        fputc(']', stdout);
         fputs(",\"allowed_commands\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
         fputs(",\"allow_arbitrary\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
         fputs(",\"safety_boundary\":", stdout); bb_json_string(stdout, "explicit opt-in target polling; queued command execution is not implemented");
@@ -261,8 +274,11 @@ static void plan_print_command_queue(int json)
     puts("Plan: command-queue");
     plan_print_config_source_text();
     printf("enabled=%s\n", BB_COMMAND_QUEUE_ENABLE);
+    printf("policy_valid=%s\n", valid ? "yes" : "no");
+    for (i = 0; i < policy.count; i++)
+        printf("policy_error=%s\n", policy.errors[i]);
     printf("configured_for_polling=%s\n", configured ? "yes" : "no");
-    printf("missing_operator_host=%s\n", (enabled && !BB_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
+    printf("missing_operator_host=%s\n", (valid && enabled && !BB_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
     printf("port=%s\n", BB_COMMAND_QUEUE_PORT);
     printf("tls=%s\n", BB_COMMAND_QUEUE_TLS);
     printf("require_token=%s\n", BB_COMMAND_QUEUE_REQUIRE_TOKEN);

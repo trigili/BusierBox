@@ -8,6 +8,8 @@ Current behavior is intentionally non-executing:
 
 - `BB_COMMAND_QUEUE_ENABLE` defaults to `no`.
 - `busierbox command-queue status --json` reports the compiled/effective policy.
+- Invalid effective policy is reported as `policy_valid=false` with explicit
+  `policy_errors`; invalid policy suppresses `would_poll`.
 - `busierbox command-queue poll --json`, `once`, and `daemon` report a dry-run
   target polling plan. They do not contact the operator service, fetch queue
   entries, upload results, or execute queued commands in this build.
@@ -16,8 +18,9 @@ Current behavior is intentionally non-executing:
   and future tooling. The current server does not deliver or execute them.
 - `scripts/busierbox-server --json-status` or `--api-status` includes the
   command queue path, counts, entries, and non-execution safety boundary.
-- `busierbox plan command-queue --json` reports the safety boundary and whether
-  polling would be configured.
+- `busierbox plan command-queue --json` and `manifest --json` expose the same
+  policy validity fields so release tooling and frontends do not treat an
+  inconsistent policy as ready to poll.
 
 Configuration keys:
 

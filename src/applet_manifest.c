@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "applets.h"
+#include "command_queue_policy.h"
 #include "json_helpers.h"
 
 #define json_string_payload bb_json_string
@@ -223,6 +224,8 @@ static char *capture_json_alloc(manifest_capture_writer writer, void *ctx, size_
 
 static void write_manifest_json(FILE *out, int include_missing)
 {
+    struct command_queue_policy_report command_queue_policy = bb_command_queue_validate_policy();
+    int command_queue_policy_valid = bb_command_queue_policy_valid(&command_queue_policy);
     int i;
 
     fprintf(out, "{\"schema\":1,\"busierbox\":{\"payload_version\":");
@@ -327,7 +330,14 @@ static void write_manifest_json(FILE *out, int include_missing)
     json_string_payload(out, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     fprintf(out, ",\"allow_arbitrary\":");
     json_string_payload(out, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
-    fprintf(out, ",\"target_polling\":true,\"executes_commands\":false,\"default_enabled\":false}");
+    fprintf(out, ",\"policy_valid\":%s", command_queue_policy_valid ? "true" : "false");
+    fprintf(out, ",\"policy_errors\":[");
+    for (i = 0; i < command_queue_policy.count; i++) {
+        if (i)
+            fputc(',', out);
+        json_string_payload(out, command_queue_policy.errors[i]);
+    }
+    fprintf(out, "],\"target_polling\":true,\"executes_commands\":false,\"default_enabled\":false}");
     fprintf(out, "},\"dotfiles\":{\"enabled\":");
     json_string_payload(out, BB_DOTFILES_ENABLE);
     fprintf(out, ",\"zsh\":");
