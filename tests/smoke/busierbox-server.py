@@ -1466,6 +1466,18 @@ def main():
             print("bind failure status missing warning owner-pid index", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
+        bind_fail_text_status = run(
+            "scripts/busierbox-server", "--config", str(bind_fail_cfg),
+            "--state-file", str(bind_fail_state),
+            "--staged-file", str(lifecycle_staged),
+            "--status",
+        )
+        if (f"file-service bind=127.0.0.1 port={bind_fail_port}" not in bind_fail_text_status.stdout or
+                "configured=error" not in bind_fail_text_status.stdout or
+                "warnings=1:service_error" not in bind_fail_text_status.stdout):
+            print("bind failure text status missing inline service warning badge", file=sys.stderr)
+            print(bind_fail_text_status.stdout, file=sys.stderr)
+            return 1
         bind_fail_workbench = run(
             "scripts/busierbox-server", "--config", str(bind_fail_cfg),
             "--state-file", str(bind_fail_state),

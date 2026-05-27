@@ -4504,6 +4504,16 @@ def print_command_queue_mode_lines(queue):
         )
 
 
+def warning_badge_suffix(row):
+    count = int(row.get("warning_count") or 0)
+    if count <= 0:
+        return ""
+    types = ",".join(str(item) for item in (row.get("warning_types") or []) if item)
+    if types:
+        return f" warnings={count}:{types}"
+    return f" warnings={count}"
+
+
 def rshell_session_policy_record(cfg):
     policy = str(cfg.get("rshell_session_policy") or cfg.get("BB_RSHELL_SESSION_POLICY") or "single")
     valid = policy in ("single", "reconnect", "persistent")
@@ -4646,7 +4656,8 @@ def print_status(cfg, json_output=False):
         pid = f" pid={row['pid']}" if row["pid"] else ""
         tls = "yes" if row["tls"] else "no"
         bind_address = row.get("bind_address") or ""
-        print(f"  {row['name']:12s} bind={bind_address} port={row['port']} tls={tls} configured={row['configured']} actual={row['actual']}{pid}{stale}")
+        warnings = warning_badge_suffix(row)
+        print(f"  {row['name']:12s} bind={bind_address} port={row['port']} tls={tls} configured={row['configured']} actual={row['actual']}{pid}{stale}{warnings}")
         if row["pid"] and row.get("pid_managed"):
             print(f"    ownership: {','.join(row.get('ownership_evidence') or [])}")
         elif row["pid"] and row.get("pid_alive"):
