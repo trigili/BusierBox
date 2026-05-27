@@ -144,6 +144,8 @@ assert doc["filters"]["device"] == "lab-router"
 assert doc["match_count"] == 1
 assert doc["selected"]["release_name"] == "two"
 assert doc["index"]["deduplicated_artifact_count"] == 1
+assert doc["dedupe_count"] == 2
+assert {item["release_name"] for item in doc["dedupe_alternatives"]} == {"one", "two"}
 assert "newest release_mtime" in doc["selection_policy"]
 PY
 scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --recommendation-json >"$tmp/recommend-tuple-json.out"
