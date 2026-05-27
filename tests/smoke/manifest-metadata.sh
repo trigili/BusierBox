@@ -63,6 +63,10 @@ required = [
     ("dotfiles", "enabled"),
     ("dotfiles", "bash"),
     ("overlay", "enabled"),
+    ("licensing", "project_license"),
+    ("licensing", "combined_gplv2_compatible"),
+    ("licensing", "not_busybox_fork"),
+    ("licensing", "third_party"),
 ]
 for section, field in required:
     if section not in manifest or field not in manifest[section]:
@@ -77,6 +81,24 @@ if not isinstance(manifest["effective_config"], dict):
     raise SystemExit("manifest-metadata: effective_config must be an object")
 if not isinstance(manifest["trailer_override"], dict):
     raise SystemExit("manifest-metadata: trailer_override must be an object")
+licensing = manifest.get("licensing") or {}
+if licensing.get("project_license") != "GPL-2.0-or-later":
+    raise SystemExit("manifest-metadata: project license missing from manifest")
+if licensing.get("supervisor_license") != "GPL-2.0-or-later":
+    raise SystemExit("manifest-metadata: supervisor license missing from manifest")
+if licensing.get("combined_gplv2_compatible") is not True:
+    raise SystemExit("manifest-metadata: GPL compatibility flag missing")
+if licensing.get("not_busybox_fork") is not True:
+    raise SystemExit("manifest-metadata: BusyBox fork boundary missing")
+third_party = {item.get("name"): item for item in licensing.get("third_party", [])}
+for name, license_id in {
+    "BusyBox": "GPL-2.0",
+    "Buildroot": "GPL-2.0-or-later with package exceptions",
+    "doom-ascii": "GPL-2.0-or-later",
+    "miniz": "MIT OR Unlicense",
+}.items():
+    if third_party.get(name, {}).get("license") != license_id:
+        raise SystemExit(f"manifest-metadata: third-party license missing for {name}")
 native_features = manifest.get("native_features") or {}
 if native_features.get("persistence") is not True or native_features.get("recovery_alias") is not True:
     raise SystemExit("manifest-metadata: recovery native feature flags missing")
@@ -168,6 +190,13 @@ print("manifest-metadata ok")
 PY
 
 mkdir -p "$tmp"
+"$bb_abs" manifest >"$tmp/manifest.txt"
+grep -q '^project_license=GPL-2.0-or-later$' "$tmp/manifest.txt"
+grep -q '^combined_gplv2_compatible=yes$' "$tmp/manifest.txt"
+grep -q '^not_busybox_fork=yes$' "$tmp/manifest.txt"
+grep -q '^third_party_component=BusyBox GPL-2.0 payload applets$' "$tmp/manifest.txt"
+grep -q '^third_party_component=Buildroot GPL-2.0-or-later target build system$' "$tmp/manifest.txt"
+
 BB_RSHELL_SESSION_POLICY=bogus "$bb_abs" manifest --json >"$tmp/manifest-invalid-policy.json"
 python3 -m json.tool "$tmp/manifest-invalid-policy.json" >/dev/null
 python3 - "$tmp/manifest-invalid-policy.json" <<'PY'

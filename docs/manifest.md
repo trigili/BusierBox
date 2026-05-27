@@ -21,6 +21,9 @@ The JSON manifest includes:
 - zero-arg mode and log mode
 - rshell transport, encryption, run mode, and shell provider
 - dotfile modes and user overlay policy
+- artifact licensing posture: BusierBox GPL license, combined GPLv2
+  compatibility, BusyBox fork boundary, and third-party component license
+  inventory for BusyBox, Buildroot, doom-ascii, and miniz
 - native feature flags
 - BusyBox applets and staged heavy tools compiled into the dispatch table
 - compiled config, effective config, and post-build override trailer status
