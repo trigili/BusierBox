@@ -76,7 +76,6 @@ BB_DOTFILE_GDB_MODE="${_dot_gdb_mode_from_env:-${BB_DOTFILE_GDB_MODE:-default}}"
 BB_DOTFILE_GDB_USER_FILE="${_dot_gdb_file_from_env:-${BB_DOTFILE_GDB_USER_FILE:-}}"
 BB_DOTFILE_PROFILE_MODE="${_dot_profile_mode_from_env:-${BB_DOTFILE_PROFILE_MODE:-default}}"
 BB_DOTFILE_PROFILE_USER_FILE="${_dot_profile_file_from_env:-${BB_DOTFILE_PROFILE_USER_FILE:-}}"
-BB_DOOM_USER_PATH="${BB_DOOM_USER_PATH:-}"
 BB_DOOM_WAD_PATH="${BB_DOOM_WAD_PATH:-}"
 
 stage_dotfiles() {
@@ -244,24 +243,6 @@ stage_doom_wad() {
     printf '%s\n' "build-payload: staged Doom WAD $_wad_name"
 }
 
-write_doom_launcher() {
-    [ -x runtime/payload/bin/prboom ] || return 1
-    cat >runtime/payload/bin/doom <<'EOF'
-#!/bin/sh
-PAYLOAD_DIR=${BUSIERBOX_PAYLOAD_DIR:-}
-if [ -z "$PAYLOAD_DIR" ]; then
-    PAYLOAD_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 1
-fi
-for wad in "$PAYLOAD_DIR/share/games/doom"/*.wad "$PAYLOAD_DIR/share/games/doom"/*.WAD; do
-    [ -f "$wad" ] && exec "$PAYLOAD_DIR/bin/prboom" -iwad "$wad" "$@"
-done
-exec "$PAYLOAD_DIR/bin/prboom" "$@"
-EOF
-    chmod 0755 runtime/payload/bin/doom
-    printf '%s\n' doom >>runtime/payload/staged-tools.txt
-    printf '%s\n' doom >>runtime/payload/built-tools.txt
-}
-
 # Set up only selected heavy tools
 for tool in bash zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils nmap nmap-ncat psmisc openssl fd zoxide mtd-utils ubi-utils i2c-tools spi-tools mmc-utils e2fsprogs parted doom; do
     if tool_selected "$tool"; then
@@ -327,16 +308,9 @@ for tool in bash zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync
             for e2_tool in debugfs tune2fs e2fsck lsattr chattr; do
                 command -v "$e2_tool" >/dev/null 2>&1 && stage_real_tool "$tool" "$(command -v "$e2_tool")" "$e2_tool" || true
             done
-        elif [ "$tool" = doom ] && [ -n "$BB_DOOM_USER_PATH" ]; then
-            stage_user_binary "$tool" "$BB_DOOM_USER_PATH" doom || {
-                printf '%s\n' "build-payload: WARNING: BB_DOOM_USER_PATH is not executable: $BB_DOOM_USER_PATH" >&2
-            }
-        elif [ "$tool" = doom ] && command -v prboom >/dev/null 2>&1; then
-            stage_real_tool "$tool" "$(command -v prboom)" prboom && write_doom_launcher || true
-        elif [ "$tool" = doom ] && command -v doom >/dev/null 2>&1; then
-            stage_real_tool "$tool" "$(command -v doom)" doom || true
-        elif [ "$tool" = doom ] && command -v chocolate-doom >/dev/null 2>&1; then
-            stage_real_tool "$tool" "$(command -v chocolate-doom)" doom || true
+        elif [ "$tool" = doom ]; then
+            printf '%s\n' "build-payload: ERROR: native payloads do not stage Doom engines; use TARGET=<tuple> scripts/build-payload so Buildroot compiles static doom-ascii, with BB_DOOM_WAD_PATH pointing at the .wad file" >&2
+            exit 1
         elif [ "$tool" = dropbear ]; then
             for dropbear_tool in dropbear dbclient dropbearkey; do
                 if command -v "$dropbear_tool" >/dev/null 2>&1; then
@@ -481,12 +455,6 @@ apply_overlay
 scripts/install-busybox-symlinks runtime/payload
 stage_host_terminfo
 tool_selected doom && stage_doom_wad
-
-if tool_selected doom && [ -e runtime/payload/bin/chocolate-doom ] && [ ! -e runtime/payload/bin/doom ]; then
-    cp runtime/payload/bin/chocolate-doom runtime/payload/bin/doom
-    chmod 0755 runtime/payload/bin/doom
-    printf '%s\n' "doom" >>runtime/payload/overlay-tools.txt
-fi
 
 for tool in xxd doom gdb radare2 rizin gcore tshark; do
     if tool_selected "$tool" && [ -e "runtime/payload/bin/$tool" ]; then

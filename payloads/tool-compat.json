@@ -634,14 +634,11 @@
     },
     "doom": {
       "providers": [
-        "buildroot",
-        "local-dropin",
-        "overlay",
-        "host-native"
+        "buildroot"
       ],
       "classification": "optional runtime with user-provided WAD data",
       "expected_payload_size": "small engine plus user-staged WAD data",
-      "static_constraints": "Buildroot provider builds doom-ascii statically; user/provider binaries must match the target architecture and libc.",
+      "static_constraints": "Buildroot provider builds doom-ascii statically; target payloads reject non-static Doom engines.",
       "requires_devpts": false,
       "requires_pty": false,
       "requires_ptrace": false,
@@ -652,8 +649,7 @@
         "armv7",
         "aarch64",
         "x86_64",
-        "i386",
-        "native"
+        "i386"
       ],
       "unsupported_libcs": [],
       "known_provider_issues": [],
