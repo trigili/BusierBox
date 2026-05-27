@@ -330,6 +330,7 @@ per-session logs. File-service `connection_close` entries include the observed
 request operation, status, HTTP status, and request/file identifier when known,
 so timelines can show the final request outcome without scraping upload or fetch
 metadata separately. The `events` array is a bounded recent tail;
+`events_by_id` maps stable event ids to tail records, while
 `events_by_service`, `events_by_event`, `events_by_level`, and
 `events_by_remote` group those tail records for direct frontend lookups.
 `event_log_stats` reports the event log path, total valid event count, tail

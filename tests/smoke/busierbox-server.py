@@ -728,9 +728,14 @@ def main():
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         events_by_service = queue_status_json.get("events_by_service") or {}
+        events_by_id = queue_status_json.get("events_by_id") or {}
         events_by_event = queue_status_json.get("events_by_event") or {}
         events_by_level = queue_status_json.get("events_by_level") or {}
-        if (not events_by_service.get("command-queue") or
+        first_tail_event = (queue_status_json.get("events") or [{}])[0]
+        first_tail_event_id = first_tail_event.get("id", "")
+        if (not first_tail_event_id or
+                events_by_id.get(first_tail_event_id, {}).get("event") != first_tail_event.get("event") or
+                not events_by_service.get("command-queue") or
                 not events_by_event.get("command_queue_queued") or
                 not events_by_event.get("command_result_received") or
                 not events_by_level.get("info")):
