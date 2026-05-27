@@ -1303,7 +1303,12 @@ def release_context():
         artifact_payload_preset_counts = {}
         artifact_source_counts = {}
         artifact_tool_counts = {}
+        artifact_total_size = 0
         for rec in artifacts:
+            try:
+                artifact_total_size += int(rec.get("size", 0) or 0)
+            except (TypeError, ValueError):
+                pass
             key = rec.get("release_path") or rec.get("path") or rec.get("name")
             if key:
                 artifacts_by_release_path[str(key)] = rec
@@ -1340,6 +1345,7 @@ def release_context():
             "artifacts_by_payload_preset": artifacts_by_payload_preset,
             "artifacts_by_tool": artifacts_by_tool,
             "artifact_stats": {
+                "total_size": artifact_total_size,
                 "by_compatibility": artifact_compatibility_counts,
                 "by_payload_preset": artifact_payload_preset_counts,
                 "by_source": artifact_source_counts,
@@ -3413,6 +3419,7 @@ def status_document(cfg):
         "command_queue_arbitrary_execution_allowed": bool(command_queue_policy_summary.get("arbitrary_execution_allowed", False)),
         "command_queue_safe_disabled_default": bool(command_queue_policy_summary.get("safe_disabled_default", False)),
         "release_artifact_count": len(release.get("artifacts") or []),
+        "release_artifact_total_size": (release.get("artifact_stats") or {}).get("total_size", 0),
         "release_device_count": len(release.get("devices") or []),
         "release_tuple_count": len(release.get("tuples") or []),
         "release_device_artifact_reference_count": record_sum_by_key(release.get("devices") or [], "artifact_count"),

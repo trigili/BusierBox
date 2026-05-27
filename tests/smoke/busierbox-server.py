@@ -1943,11 +1943,13 @@ def main():
         release_artifacts_by_tool = rel.get("artifacts_by_tool") or {}
         release_device_map = rel.get("devices_by_name") or {}
         release_tuple_map = rel.get("tuples_by_path") or {}
+        release_artifact_size = len("artifact\n")
         if (release_artifact_map.get("bin/busierbox-test", {}).get("name") != "busierbox-test" or
                 release_artifacts_by_name.get("busierbox-test", [{}])[0].get("release_path") != "bin/busierbox-test" or
                 release_artifacts_by_sha.get("abc123", [{}])[0].get("name") != "busierbox-test" or
                 release_artifacts_by_preset.get("default", [{}])[0].get("sha256") != "abc123" or
                 release_artifacts_by_tool.get("sh", [{}])[0].get("payload_preset") != "default" or
+                rel.get("artifact_stats", {}).get("total_size") != release_artifact_size or
                 rel.get("artifact_stats", {}).get("by_compatibility", {}).get("exact") != 1 or
                 rel.get("artifact_stats", {}).get("by_payload_preset", {}).get("default") != 1 or
                 rel.get("artifact_stats", {}).get("by_source", {}).get("release-index") != 1 or
@@ -1959,6 +1961,7 @@ def main():
             return 1
         release_summary = release_doc.get("summary") or {}
         if (release_summary.get("release_artifact_count", 0) < 1 or
+                release_summary.get("release_artifact_total_size") != release_artifact_size or
                 release_summary.get("release_device_count") != 1 or
                 release_summary.get("release_tuple_count") != 1 or
                 release_summary.get("release_device_artifact_reference_count") != 1 or
