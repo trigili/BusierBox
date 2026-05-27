@@ -393,6 +393,9 @@ metadata separately. The `events` array is a bounded recent tail;
 `events_by_id` maps stable event ids to tail records, while
 `events_by_session`, `events_by_service`, `events_by_event`, `events_by_level`, and
 `events_by_remote` group those tail records for direct frontend lookups.
+Composite maps `events_by_service_event` and `events_by_session_event` support
+direct timeline lookups such as `file-service:upload_complete` or
+`<session-id>:connection_close` without filtering broader event groups.
 `event_log_state` reports the event log path, existence, validity, size, total
 valid event count, invalid JSONL line count, tail count, tail limit, and
 first/latest event timestamps. `event_log_stats` reports the event log path,

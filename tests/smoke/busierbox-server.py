@@ -822,6 +822,7 @@ def main():
         events_by_id = queue_status_json.get("events_by_id") or {}
         events_by_event = queue_status_json.get("events_by_event") or {}
         events_by_level = queue_status_json.get("events_by_level") or {}
+        events_by_service_event = queue_status_json.get("events_by_service_event") or {}
         first_tail_event = (queue_status_json.get("events") or [{}])[0]
         first_tail_event_id = first_tail_event.get("id", "")
         if (not first_tail_event_id or
@@ -829,7 +830,9 @@ def main():
                 not events_by_service.get("command-queue") or
                 not events_by_event.get("command_queue_queued") or
                 not events_by_event.get("command_result_received") or
-                not events_by_level.get("info")):
+                not events_by_level.get("info") or
+                not events_by_service_event.get("command-queue:command_queue_queued") or
+                not events_by_service_event.get("command-queue:command_result_received")):
             print("server json status missing event tail lookup indexes", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -1849,6 +1852,8 @@ def main():
         sessions_by_exit_reason = upload_doc.get("sessions_by_exit_reason") or {}
         sessions_by_remote = upload_doc.get("sessions_by_remote") or {}
         events_by_session = upload_doc.get("events_by_session") or {}
+        events_by_session_event = upload_doc.get("events_by_session_event") or {}
+        upload_events_by_service_event = upload_doc.get("events_by_service_event") or {}
         uploaded_session_id = session_json_paths[0].parent.name
         if (sessions_by_id.get(uploaded_session_id, {}).get("metadata_path") != str(session_json_paths[0]) or
                 not sessions_by_service.get("file-service") or
@@ -1859,6 +1864,8 @@ def main():
                 sessions_by_exit_reason["clean shutdown"][0].get("session_id") != uploaded_session_id or
                 not events_by_session.get(uploaded_session_id) or
                 events_by_session[uploaded_session_id][-1].get("event") != "service_stop" or
+                not events_by_session_event.get(f"{uploaded_session_id}:upload_complete") or
+                not upload_events_by_service_event.get("file-service:upload_complete") or
                 not upload_remote or
                 sessions_by_remote.get(upload_remote, [{}])[0].get("session_id") != uploaded_session_id):
             print("server json status missing session/event lookup indexes", file=sys.stderr)

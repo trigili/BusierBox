@@ -1017,6 +1017,8 @@ def event_record_indexes(records):
     by_event = {}
     by_level = {}
     by_remote = {}
+    by_service_event = {}
+    by_session_event = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1038,7 +1040,11 @@ def event_record_indexes(records):
             by_level.setdefault(level, []).append(rec)
         if remote:
             by_remote.setdefault(remote, []).append(rec)
-    return by_id, by_session, by_service, by_event, by_level, by_remote
+        if service and event:
+            by_service_event.setdefault(f"{service}:{event}", []).append(rec)
+        if session_id and event:
+            by_session_event.setdefault(f"{session_id}:{event}", []).append(rec)
+    return by_id, by_session, by_service, by_event, by_level, by_remote, by_service_event, by_session_event
 
 
 def format_counts(counts, limit=6):
@@ -3773,7 +3779,14 @@ def status_document(cfg):
     event_stats = event_log_stats(cfg)
     event_log_state = event_log_state_record(cfg, event_stats)
     events = event_stats["tail"]
-    events_by_id, events_by_session, events_by_service, events_by_event, events_by_level, events_by_remote = event_record_indexes(events)
+    (events_by_id,
+     events_by_session,
+     events_by_service,
+     events_by_event,
+     events_by_level,
+     events_by_remote,
+     events_by_service_event,
+     events_by_session_event) = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
     release = release_context()
     release_state = release_state_record(release)
@@ -4053,6 +4066,8 @@ def status_document(cfg):
         "events_by_event": events_by_event,
         "events_by_level": events_by_level,
         "events_by_remote": events_by_remote,
+        "events_by_service_event": events_by_service_event,
+        "events_by_session_event": events_by_session_event,
         "event_log_state": event_log_state,
         "event_log_stats": {
             key: value for key, value in event_stats.items() if key != "tail"
