@@ -40,6 +40,18 @@ non-native target drop-ins, strict mode also rejects files whose architecture
 cannot be identified. `mipsel` and `mips` imply little- and big-endian MIPS
 respectively, so endian mismatches are caught without an extra flag.
 
+Inspect the effective drop-in search path:
+
+```sh
+scripts/tools/dropin-tool-status --tool gdbserver --target mipsel-linux-4.x-musl --arch mipsel --libc musl
+scripts/tools/dropin-tool-status --tool gdbserver --target mipsel-linux-4.x-musl --arch mipsel --libc musl --json
+```
+
+The JSON form is intended for operator status surfaces. It reports the target,
+arch/libc tuple, each searched path, executable state, checker output, and any
+installed `metadata.json` so the selected provider can be audited without
+parsing the text view.
+
 Set `BB_GDBSERVER_PROVIDER="local-dropin"` or leave it as `auto`.
 
 ## Operator Workspace

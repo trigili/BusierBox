@@ -70,11 +70,44 @@ grep -q 'Overall: found' "$work/status.out"
 grep -q 'metadata_sha256=' "$work/status.out"
 grep -q '    sha256=' "$work/status.out"
 grep -q 'detected_arch=' "$work/status.out"
+scripts/tools/dropin-tool-status --tool gdbserver --target native --arch native --libc host --dest-root "$work/tools" --json >"$work/status.json"
+python3 -m json.tool "$work/status.json" >/dev/null
+python3 - "$work/status.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if data.get("schema") != 1:
+    raise SystemExit("schema mismatch")
+if data.get("tool") != "gdbserver":
+    raise SystemExit("tool mismatch")
+if data.get("overall") != "found":
+    raise SystemExit("overall mismatch")
+found = [p for p in data.get("search_paths", []) if p.get("executable")]
+if len(found) != 1:
+    raise SystemExit("expected exactly one executable path")
+entry = found[0]
+if entry.get("status") != "ok":
+    raise SystemExit("entry status mismatch")
+if entry.get("check", {}).get("sha256") != entry.get("metadata", {}).get("sha256"):
+    raise SystemExit("metadata sha mismatch")
+PY
 
 scripts/tools/install-dropin-tool --tool gdb --source "$fake" --arch mipsel --libc musl --dest-root "$work/tools" >"$work/install-gdb.out"
 test -x "$work/tools/mipsel-musl/bin/gdb"
 scripts/tools/dropin-tool-status --tool gdb --target glinet-mt7621-openwrt-musl --arch mipsel --libc musl --dest-root "$work/tools" >"$work/gdb-status.out"
 grep -q "$work/tools/mipsel-musl/bin/gdb \\[found\\]" "$work/gdb-status.out"
+scripts/tools/dropin-tool-status --tool missing-tool --target native --arch native --libc host --dest-root "$work/tools" --json >"$work/missing-status.json"
+python3 - "$work/missing-status.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if data.get("overall") != "missing":
+    raise SystemExit("missing overall mismatch")
+if any(path.get("executable") for path in data.get("search_paths", [])):
+    raise SystemExit("missing tool reported executable path")
+PY
 
 cat >"$work/survey.json" <<'EOF'
 {
