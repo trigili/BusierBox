@@ -129,6 +129,34 @@ static void print_json(const char *mode, int dry_run, const char *operator_host)
     fputs(",\"active_control_channel\":false", stdout);
     fputs(",\"status\":", stdout);
     bb_json_string(stdout, mode_status(mode, enabled, operator_host, &policy));
+    fputs(",\"poll_plan\":{", stdout);
+    fputs("\"mode\":", stdout); bb_json_string(stdout, mode);
+    fputs(",\"status\":", stdout); bb_json_string(stdout, mode_status(mode, enabled, operator_host, &policy));
+    printf(",\"enabled\":%s", enabled ? "true" : "false");
+    printf(",\"policy_valid\":%s", valid ? "true" : "false");
+    printf(",\"configured_for_polling\":%s", configured_for_polling ? "true" : "false");
+    printf(",\"missing_operator_host\":%s", (valid && enabled && (!operator_host || !operator_host[0])) ? "true" : "false");
+    printf(",\"would_poll\":%s", would_poll ? "true" : "false");
+    fputs(",\"dry_run_only\":true", stdout);
+    fputs(",\"requires_explicit_target_action\":true", stdout);
+    fputs(",\"would_contact_operator\":false", stdout);
+    fputs(",\"operator_host\":", stdout); bb_json_string(stdout, operator_host ? operator_host : "");
+    fputs(",\"endpoint\":", stdout);
+    if (operator_host && operator_host[0]) {
+        char endpoint[512];
+        snprintf(endpoint, sizeof(endpoint), "%s:%s", operator_host, BB_COMMAND_QUEUE_PORT);
+        bb_json_string(stdout, endpoint);
+    } else {
+        bb_json_string(stdout, "");
+    }
+    fputs(",\"delivery_supported\":false", stdout);
+    fputs(",\"result_upload_supported\":false", stdout);
+    fputs(",\"execution_supported\":false", stdout);
+    fputs(",\"executes_commands\":false", stdout);
+    fputs(",\"active_control_channel\":false", stdout);
+    fputs(",\"queued_command_available\":false", stdout);
+    fputs(",\"operator_supplied_command_execution\":false", stdout);
+    fputc('}', stdout);
     fputs(",\"safety_boundary\":\"target polling is explicit and dry-run only in this build; no command delivery or execution is implemented\"", stdout);
     fputs(",\"queued_command\":null}\n", stdout);
 }
@@ -172,6 +200,11 @@ static void print_text(const char *mode, int dry_run, const char *operator_host)
     puts("command_queue_poll_transport_supported=no");
     puts("command_queue_active_control_channel=no");
     printf("command_queue_status=%s\n", mode_status(mode, enabled, operator_host, &policy));
+    puts("command_queue_poll_plan_dry_run_only=yes");
+    puts("command_queue_poll_plan_requires_explicit_target_action=yes");
+    puts("command_queue_poll_plan_would_contact_operator=no");
+    puts("command_queue_poll_plan_queued_command_available=no");
+    puts("command_queue_poll_plan_operator_supplied_command_execution=no");
     puts("command_queue_safety_boundary=explicit target polling dry-run only; queued command delivery/execution is not implemented");
 }
 

@@ -56,7 +56,10 @@ Safety boundary:
   `poll_transport_supported=false`, `delivery_supported=false`,
   `result_upload_supported=false`, `execution_supported=false`, and a
   `policy_summary` so frontend and integration tooling can distinguish
-  policy/planning from active control.
+  policy/planning from active control. They also expose a compact `poll_plan`
+  object with mode, status, endpoint, explicit-target-action, dry-run-only,
+  would-contact-operator, queued-command availability, delivery/result upload,
+  execution, and hidden-control-channel fields.
 - `allow_arbitrary=yes` is reported as an explicit policy request, not an
   execution grant; `arbitrary_execution_allowed=false` remains false while this
   build has `execution_supported=false`.
