@@ -25,8 +25,10 @@ busierbox reality-test --json \
 
 `--check-upload` uploads a generated probe file to the receive-only operator
 file-service. `--check-fetch REQUEST` performs a staged-file fetch check for the
-given request name. Fetch probing currently requires `--no-tls`; TLS upload
-probing follows the artifact's built-in TLS support.
+given request name and URL-encodes it using the same staged fetch semantics as
+`busierbox fetch`, so path components and spaces in staged names are supported.
+Fetch probing currently requires `--no-tls`; TLS upload probing follows the
+artifact's built-in TLS support.
 
 The generated shell probe is POSIX-ish and avoids required Python, Perl, awk,
 sed, grep, or coreutils dependencies. It uses common target commands only when
