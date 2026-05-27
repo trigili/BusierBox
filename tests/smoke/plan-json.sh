@@ -63,6 +63,14 @@ assert any(path.endswith("/runtime") for path in extract["would_create"])
 assert rshell["command"] == "rshell"
 assert rshell["transport"] == "builtin"
 assert rshell["session_policy"] == "reconnect"
+assert rshell["session_semantics"]["retry_until_first_connection"] is True
+assert rshell["session_semantics"]["stop_after_first_success"] is False
+assert rshell["session_semantics"]["reconnect_after_disconnect"] is True
+assert rshell["session_semantics"]["persistent_lifecycle"] is False
+assert rshell["session_semantics"]["fresh_session_on_reconnect"] is True
+assert rshell["session_semantics"]["session_resume_supported"] is False
+assert rshell["retry"]["pre_connect_count"] == "1"
+assert rshell["retry"]["post_disconnect_count"] == "1"
 assert rshell["operator_host"] == "192.0.2.77"
 assert rshell["requires_external_writes"] is False
 assert "192.0.2.77" in rshell["would_connect"][0]

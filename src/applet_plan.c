@@ -126,6 +126,30 @@ static void plan_print_clean(int json)
     puts("external_cleanup_note=external ledger cleanup still requires clean --external --apply");
 }
 
+static int rshell_policy_reconnects_after_disconnect(const char *policy)
+{
+    return !strcmp(policy, "reconnect") || !strcmp(policy, "persistent");
+}
+
+static int rshell_policy_stops_after_first_success(const char *policy)
+{
+    return !strcmp(policy, "single");
+}
+
+static int rshell_policy_persistent_lifecycle(const char *policy)
+{
+    return !strcmp(policy, "persistent");
+}
+
+static const char *rshell_policy_post_disconnect_count(const char *policy)
+{
+    if (!strcmp(policy, "single"))
+        return "0";
+    if (!strcmp(policy, "persistent"))
+        return "-1";
+    return BB_RSHELL_RETRY_COUNT;
+}
+
 static void plan_print_rshell(int json)
 {
     char guard[PATH_MAX], log_path[PATH_MAX], server[256], connect[256];
@@ -162,6 +186,16 @@ static void plan_print_rshell(int json)
         fputs(",\"encryption\":", stdout); bb_json_string(stdout, BB_RSHELL_ENCRYPTION);
         fputs(",\"run_mode\":", stdout); bb_json_string(stdout, BB_RSHELL_RUN_MODE);
         fputs(",\"session_policy\":", stdout); bb_json_string(stdout, BB_RSHELL_SESSION_POLICY);
+        printf(",\"session_semantics\":{\"retry_until_first_connection\":true,\"stop_after_first_success\":%s,\"reconnect_after_disconnect\":%s,\"persistent_lifecycle\":%s,\"fresh_session_on_reconnect\":%s,\"session_resume_supported\":false}",
+               rshell_policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+        fputs(",\"retry\":{\"pre_connect_count\":", stdout);
+        bb_json_string(stdout, BB_RSHELL_RETRY_COUNT);
+        fputs(",\"post_disconnect_count\":", stdout);
+        bb_json_string(stdout, rshell_policy_post_disconnect_count(BB_RSHELL_SESSION_POLICY));
+        fputs("}", stdout);
         fputs(",\"shell_provider\":", stdout); bb_json_string(stdout, BB_RSHELL_SHELL_PROVIDER);
         fputs(",\"operator_host\":", stdout); bb_json_string(stdout, BB_OPERATOR_SERVER_HOST);
         fputs(",\"expected_transport_behavior\":", stdout); bb_json_string(stdout, connect);
@@ -180,6 +214,9 @@ static void plan_print_rshell(int json)
     printf("encryption=%s\n", BB_RSHELL_ENCRYPTION);
     printf("run_mode=%s\n", BB_RSHELL_RUN_MODE);
     printf("session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
+    printf("retry_until_first_connection=yes\n");
+    printf("post_disconnect_retry_count=%s\n", rshell_policy_post_disconnect_count(BB_RSHELL_SESSION_POLICY));
+    printf("session_resume_supported=no\n");
     printf("shell_provider=%s\n", BB_RSHELL_SHELL_PROVIDER);
     printf("operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
     printf("expected_transport_behavior=%s\n", connect);
