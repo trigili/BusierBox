@@ -111,7 +111,7 @@ def main():
         if word not in src:
             print(f"busierbox-server: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
-    for word in ("stage_release_nav_item", "by_device:", "by_tuple_path:", "enter/s stages recommended artifact when available"):
+    for word in ("stage_release_nav_item", "stage_release_selection", "by_device:", "by_tuple_path:", "enter/s stages recommended artifact when available"):
         if word not in src:
             print(f"busierbox-server: release device/tuple staging missing: {word}", file=sys.stderr)
             return 1
@@ -2981,6 +2981,47 @@ def main():
             print("--stage-release-artifact did not stage tuple recommendation", file=sys.stderr)
             print(staged_release_tuple_recommendation.stdout, file=sys.stderr)
             print(staged_release_tuple_recommendation.stderr, file=sys.stderr)
+            return 1
+        line_release_staged_file = Path(tmp) / "operator-session" / "line-release-staged.json"
+        line_release_state_file = Path(tmp) / "operator-session" / "line-release-state.json"
+        line_master, line_slave = pty.openpty()
+        try:
+            line_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(fetch_cfg),
+                    "--state-file", str(line_release_state_file),
+                    "--staged-file", str(line_release_staged_file),
+                    "--tui",
+                ],
+                cwd=release_dir,
+                stdin=line_slave,
+                stdout=line_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(line_slave)
+            line_slave = -1
+            time.sleep(0.3)
+            os.write(line_master, b"10\nby_tuple_path:by-tuple/native/host/host/host\nq\n")
+            _line_stdout, line_stderr = line_proc.communicate(timeout=5)
+        finally:
+            if line_slave != -1:
+                os.close(line_slave)
+            try:
+                os.close(line_master)
+            except OSError:
+                pass
+        if line_proc.returncode != 0 or "Traceback" in (line_stderr or ""):
+            print("line-oriented TUI did not stage release tuple recommendation", file=sys.stderr)
+            print(line_stderr or "", file=sys.stderr)
+            return 1
+        line_staged = json.loads(line_release_staged_file.read_text(encoding="utf-8"))
+        if ((line_staged.get("staged") or {}).get("busierbox-test", {}).get("tuple_path") !=
+                "by-tuple/native/host/host/host"):
+            print("line-oriented TUI staged release metadata incorrectly", file=sys.stderr)
+            print(json.dumps(line_staged, indent=2), file=sys.stderr)
             return 1
         staged_status = subprocess.run(
             [

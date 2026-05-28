@@ -464,8 +464,9 @@ compact release summary with validity, artifact/device/tuple counts, total
 artifact size, release directory, and release name before listing release
 browser entries. They also print compact release recommendation rows such as
 `by_device:lab-router -> bin/busierbox-target-full`, keeping the same safety
-boundary: staging remains explicit through `--stage-release-artifact` or the
-TUI action, and nothing is pushed to or executed on the target automatically.
+boundary: staging remains explicit through `--stage-release-artifact`, the
+curses action, or the line-oriented fallback release staging action, and
+nothing is pushed to or executed on the target automatically.
 The curses workbench mirrors those rows in the release devices/tuples pane.
 Pressing `Enter` or `s` on a release artifact, recommendation, device alias, or
 tuple row stages the selected/recommended artifact for target-side
@@ -647,7 +648,9 @@ the same operator path health, compact service and activity summaries, recent
 upload/fetch activity, event aggregate counts, refresh state, and compact event
 outcome details so non-curses or non-TTY runs still show whether listener state,
 logs, staged files, session roots, transfer activity, and recent event outcomes
-are usable.
+are usable. Its release staging action accepts a displayed release row number,
+recommendation id, artifact path, `by_device:NAME`, or `by_tuple_path:PATH` and
+stages the same explicit target-side fetch record as the curses browser.
 
 Inspect and clean BusierBox-controlled runtime state:
 

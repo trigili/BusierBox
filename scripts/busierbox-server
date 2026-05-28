@@ -2841,6 +2841,78 @@ def stage_release_artifact(cfg, artifact_name):
     return stage_file(cfg, rec["path"], request, metadata=metadata)
 
 
+def release_nav_records(release, release_devices, release_tuples, limit=5):
+    release = release or {}
+    artifacts_by_path = release.get("artifacts_by_release_path") or {}
+    out = [{"kind": "index", "label": f"index {Path(release.get('release_index', '')).name if release.get('release_index') else '-'}", "path": release.get("release_index", "")}]
+    for rec in release.get("recommendation_records") or []:
+        artifact_key = rec.get("artifact") or ""
+        artifact = artifacts_by_path.get(artifact_key) or {}
+        path = artifact.get("path") or artifact_key
+        label = f"rec {rec.get('scope', '')}:{rec.get('key', '')} -> {rec.get('artifact_name') or Path(artifact_key).name}"
+        out.append({"kind": "recommendation", "label": label, "path": path, "record": rec, "artifact": artifact})
+    for d in (release_devices or [])[:limit]:
+        out.append({"kind": "device", "label": f"dev {d.get('name', '')} -> {d.get('tuple_path', '')} artifacts={d.get('artifact_count', len(d.get('artifacts') or []))}", "record": d})
+    for t in (release_tuples or [])[:limit]:
+        out.append({"kind": "tuple", "label": f"tuple {t.get('path', '')} artifacts={t.get('artifact_count', len(t.get('artifacts') or []))}", "record": t})
+    return out
+
+
+def stage_release_nav_item(cfg, rec):
+    kind = rec.get("kind", "")
+    record = rec.get("record") if isinstance(rec.get("record"), dict) else {}
+    if kind == "recommendation":
+        recommendation_id = record.get("id")
+        if recommendation_id:
+            return stage_release_artifact(cfg, recommendation_id)
+        artifact = record.get("artifact") or rec.get("path")
+        if artifact:
+            return stage_release_artifact(cfg, artifact)
+    if kind == "device":
+        name = record.get("name", "")
+        if name:
+            try:
+                return stage_release_artifact(cfg, f"by_device:{name}")
+            except ValueError:
+                pass
+    if kind == "tuple":
+        tuple_path = record.get("path", "")
+        if tuple_path:
+            try:
+                return stage_release_artifact(cfg, f"by_tuple_path:{tuple_path}")
+            except ValueError:
+                pass
+    artifact_paths = record.get("artifacts") or record.get("artifact_paths") or []
+    for artifact in artifact_paths:
+        if artifact:
+            return stage_release_artifact(cfg, artifact)
+    path = rec.get("path") or record.get("path") or record.get("filesystem_path") or ""
+    if path:
+        return stage_release_artifact(cfg, path)
+    raise ValueError("no release artifact to stage")
+
+
+def stage_release_selection(cfg, selector):
+    selector = str(selector or "").strip()
+    if not selector:
+        raise ValueError("release selection is required")
+    rel = release_context(cfg)
+    if not rel:
+        raise ValueError("not running inside a release bundle")
+    if selector.isdigit():
+        nav = release_nav_records(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=12)
+        idx = int(selector) - 1
+        if idx < 0 or idx >= len(nav):
+            raise ValueError(f"release selection number out of range: {selector}")
+        return stage_release_nav_item(cfg, nav[idx])
+    if selector.startswith(("by_device:", "by_tuple_path:")):
+        return stage_release_artifact(cfg, selector)
+    recommendations = rel.get("recommendations_by_id") or {}
+    if selector in recommendations:
+        return stage_release_artifact(cfg, selector)
+    return stage_release_artifact(cfg, selector)
+
+
 def render_fetch_command(request_name, cfg, host=None, force=False):
     candidates = local_ips()
     host = host or (candidates[0] if candidates else "OPERATOR_IP")
@@ -6387,6 +6459,7 @@ def run_line_tui(cfg):
         print("  7 list staged")
         print("  8 unstage file")
         print("  9 open local path in pager")
+        print("  10 stage release recommendation/device/tuple")
         print("  c show/copy generated commands")
         print("  r refresh")
         print("  ? help")
@@ -6416,6 +6489,22 @@ def run_line_tui(cfg):
             path = input("local path> ").strip()
             if path:
                 print(open_path_in_pager(path))
+        elif choice == "10":
+            rel = release_context(cfg)
+            if not rel:
+                print("no release bundle detected")
+                continue
+            nav = release_nav_records(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=12)
+            for idx, rec in enumerate(nav, 1):
+                print(f"{idx}: {rec.get('label', '')}")
+            selector = input("release selection number, recommendation id, artifact path, by_device:NAME, or by_tuple_path:PATH> ").strip()
+            if selector:
+                try:
+                    rec = stage_release_selection(cfg, selector)
+                    print(f"staged {rec['request_name']}")
+                    print(render_fetch_command(rec["request_name"], cfg))
+                except ValueError as exc:
+                    print(exc)
         elif choice == "r":
             rec = record_workbench_refresh(cfg)
             print(f"refreshed workbench at {rec.get('last_refresh_at', '')}")
@@ -6431,7 +6520,7 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage, 8/d unstage, 9/v view, c show/copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage release item, 8/d unstage, 9/v view, c show/copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 
@@ -6452,22 +6541,6 @@ def run_curses_tui(cfg):
         safe_add(stdscr, row, col, title[:width - 1], attr)
         for idx, line in enumerate(lines[:max(0, height - 1)], 1):
             safe_add(stdscr, row + idx, col, line[:width - 1])
-
-    def release_nav_records(release, release_devices, release_tuples):
-        release = release or {}
-        artifacts_by_path = release.get("artifacts_by_release_path") or {}
-        out = [{"kind": "index", "label": f"index {Path(release.get('release_index', '')).name if release.get('release_index') else '-'}", "path": release.get("release_index", "")}]
-        for rec in release.get("recommendation_records") or []:
-            artifact_key = rec.get("artifact") or ""
-            artifact = artifacts_by_path.get(artifact_key) or {}
-            path = artifact.get("path") or artifact_key
-            label = f"rec {rec.get('scope', '')}:{rec.get('key', '')} -> {rec.get('artifact_name') or Path(artifact_key).name}"
-            out.append({"kind": "recommendation", "label": label, "path": path, "record": rec, "artifact": artifact})
-        for d in release_devices[:5]:
-            out.append({"kind": "device", "label": f"dev {d.get('name', '')} -> {d.get('tuple_path', '')} artifacts={d.get('artifact_count', len(d.get('artifacts') or []))}", "record": d})
-        for t in release_tuples[:5]:
-            out.append({"kind": "tuple", "label": f"tuple {t.get('path', '')} artifacts={t.get('artifact_count', len(t.get('artifacts') or []))}", "record": t})
-        return out
 
     def selected_view_path(pane, selected, snap, services, staged_names, release, release_artifacts, release_devices, release_tuples):
         if pane == 0 and services:
@@ -6496,39 +6569,6 @@ def run_curses_tui(cfg):
             artifact_paths = record.get("artifact_paths") or []
             return rec.get("path") or record.get("filesystem_path") or record.get("path") or (artifact_paths[0] if artifact_paths else "") or release.get("release_json", "")
         return ""
-
-    def stage_release_nav_item(cfg, rec):
-        kind = rec.get("kind", "")
-        record = rec.get("record") if isinstance(rec.get("record"), dict) else {}
-        if kind == "recommendation":
-            recommendation_id = record.get("id")
-            if recommendation_id:
-                return stage_release_artifact(cfg, recommendation_id)
-            artifact = record.get("artifact") or rec.get("path")
-            if artifact:
-                return stage_release_artifact(cfg, artifact)
-        if kind == "device":
-            name = record.get("name", "")
-            if name:
-                try:
-                    return stage_release_artifact(cfg, f"by_device:{name}")
-                except ValueError:
-                    pass
-        if kind == "tuple":
-            tuple_path = record.get("path", "")
-            if tuple_path:
-                try:
-                    return stage_release_artifact(cfg, f"by_tuple_path:{tuple_path}")
-                except ValueError:
-                    pass
-        artifact_paths = record.get("artifacts") or record.get("artifact_paths") or []
-        for artifact in artifact_paths:
-            if artifact:
-                return stage_release_artifact(cfg, artifact)
-        path = rec.get("path") or record.get("path") or record.get("filesystem_path") or ""
-        if path:
-            return stage_release_artifact(cfg, path)
-        raise ValueError("no release artifact to stage")
 
     def draw(stdscr):
         curses.curs_set(0)
