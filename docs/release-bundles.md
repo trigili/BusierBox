@@ -263,8 +263,11 @@ release license record as `release.release_license`, `release_licenses`, and
 GPLv2 compatibility, notice count, and missing notices.
 `--recommendation-json` returns the selected artifact plus active filters,
 filter provenance records, match count, visible match count, match lookup maps,
-`api_collections` metadata with the same count/primary-key fields, index
-counts, and the selection policy. `filter_records`, `filters_by_name`,
+an `api` catalog, `api_resources`, `api_resources_by_name`,
+`api_resources_by_records_key`, `api_resources_by_summary_key`,
+`api_resources_by_primary_key`, `api_collections` metadata with the same
+count/primary-key fields, index counts, and the selection policy.
+`filter_records`, `filters_by_name`,
 `filters_by_source`, and `filters_by_name_source` distinguish explicit
 operator filters from filters derived from survey evidence. Lookup maps include
 `matches_by_release`, `matches_by_tuple_path`, `matches_by_payload_preset`,

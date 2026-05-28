@@ -642,5 +642,6 @@ grep -q 'release_license_records_by_component_license' docs/release-bundles.md
 grep -q 'combined_gplv2_compatible' docs/release-bundles.md
 grep -q -- '--gplv2-compatible yes|no' docs/release-bundles.md
 grep -q 'matches_by_component_license' docs/release-bundles.md
+grep -q 'api_resources_by_records_key' docs/release-bundles.md
 
 printf '%s\n' "release-repo-index ok"
