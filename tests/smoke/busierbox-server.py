@@ -2094,6 +2094,10 @@ def main():
         if ("Command queue:" not in queue_status_text.stdout or
                 "Path health:" not in queue_status_text.stdout or
                 "state_file: exists=" not in queue_status_text.stdout or
+                "API resources: schema=1 resources=" not in queue_status_text.stdout or
+                "collections_key=api_collections resources_key=api_resources" not in queue_status_text.stdout or
+                "command_queue_commands: records=command_queue.commands" not in queue_status_text.stdout or
+                "summary=command_queue_total_count" not in queue_status_text.stdout or
                 "enabled=no default_enabled=no" not in queue_status_text.stdout or
                 "require_token=yes token_configured=no token_source=manual" not in queue_status_text.stdout or
                 "allowed_commands=none execution_mode=metadata-only allow_arbitrary=no active_control_channel=no" not in queue_status_text.stdout or
