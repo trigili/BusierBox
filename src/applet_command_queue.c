@@ -739,16 +739,15 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
     append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, stop->status, stop->error);
 }
 
-static void print_mode_semantics_json(const char *name, int selected, int dry_run, int live_would_poll)
+static void print_mode_record_json(const char *name, int selected, int dry_run, int live_would_poll)
 {
     int polls_operator = strcmp(name, "status") != 0 && strcmp(name, "stop") != 0;
     int live_selected = !dry_run && selected && polls_operator && live_would_poll;
     int live_available = !dry_run && polls_operator && live_would_poll;
 
-    fputc('"', stdout);
-    fputs(name, stdout);
-    fputs("\":{", stdout);
-    printf("\"selected\":%s", selected ? "true" : "false");
+    fputs("{\"mode\":", stdout);
+    bb_json_string(stdout, name);
+    printf(",\"selected\":%s", selected ? "true" : "false");
     printf(",\"requires_operator_host\":%s", mode_requires_operator_host(name) ? "true" : "false");
     printf(",\"would_poll_if_configured\":%s", polls_operator ? "true" : "false");
     printf(",\"dry_run_only\":%s", dry_run ? "true" : "false");
@@ -765,6 +764,14 @@ static void print_mode_semantics_json(const char *name, int selected, int dry_ru
     fputc('}', stdout);
 }
 
+static void print_mode_semantics_json(const char *name, int selected, int dry_run, int live_would_poll)
+{
+    fputc('"', stdout);
+    fputs(name, stdout);
+    fputs("\":", stdout);
+    print_mode_record_json(name, selected, dry_run, live_would_poll);
+}
+
 static void print_all_mode_semantics_json(const char *mode, int dry_run, int live_would_poll)
 {
     fputs(",\"mode_semantics\":{", stdout);
@@ -777,6 +784,113 @@ static void print_all_mode_semantics_json(const char *mode, int dry_run, int liv
     print_mode_semantics_json("daemon", !strcmp(mode, "daemon"), dry_run, live_would_poll);
     fputc(',', stdout);
     print_mode_semantics_json("stop", !strcmp(mode, "stop"), dry_run, live_would_poll);
+    fputc('}', stdout);
+}
+
+static void print_mode_records_json(const char *mode, int dry_run, int live_would_poll)
+{
+    fputs(",\"mode_records\":[", stdout);
+    print_mode_record_json("status", !strcmp(mode, "status"), dry_run, live_would_poll);
+    fputc(',', stdout);
+    print_mode_record_json("poll", !strcmp(mode, "poll"), dry_run, live_would_poll);
+    fputc(',', stdout);
+    print_mode_record_json("once", !strcmp(mode, "once"), dry_run, live_would_poll);
+    fputc(',', stdout);
+    print_mode_record_json("daemon", !strcmp(mode, "daemon"), dry_run, live_would_poll);
+    fputc(',', stdout);
+    print_mode_record_json("stop", !strcmp(mode, "stop"), dry_run, live_would_poll);
+    fputc(']', stdout);
+}
+
+static void print_mode_index_array(const char *field, const char *value, const char *mode, int dry_run, int live_would_poll)
+{
+    static const char *names[] = {"status", "poll", "once", "daemon", "stop"};
+    size_t i;
+    int first = 1;
+
+    fputc('[', stdout);
+    for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+        const char *name = names[i];
+        int selected = !strcmp(mode, name);
+        int polls_operator = strcmp(name, "status") != 0 && strcmp(name, "stop") != 0;
+        int live_selected = !dry_run && selected && polls_operator && live_would_poll;
+        int live_available = !dry_run && polls_operator && live_would_poll;
+        const char *candidate = "";
+        if (!strcmp(field, "mode"))
+            candidate = name;
+        else if (!strcmp(field, "lifecycle"))
+            candidate = mode_lifecycle(name);
+        else if (!strcmp(field, "would_poll_if_configured"))
+            candidate = polls_operator ? "true" : "false";
+        else if (!strcmp(field, "live_supported"))
+            candidate = live_available ? "true" : "false";
+        else if (!strcmp(field, "execution_supported"))
+            candidate = "false";
+        else if (!strcmp(field, "active_control_channel"))
+            candidate = live_selected ? "true" : "false";
+        if (strcmp(candidate, value))
+            continue;
+        printf("%s%zu", first ? "" : ",", i);
+        first = 0;
+    }
+    fputc(']', stdout);
+}
+
+static void print_mode_indexes_json(const char *mode, int dry_run, int live_would_poll)
+{
+    static const char *names[] = {"status", "poll", "once", "daemon", "stop"};
+    static const char *lifecycles[] = {"inspect", "single-poll", "single-cycle", "long-running", "stop"};
+    static const char *bools[] = {"true", "false"};
+    size_t i;
+
+    fputs(",\"mode_records_by_mode\":{", stdout);
+    for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, names[i]);
+        fputc(':', stdout);
+        print_mode_index_array("mode", names[i], mode, dry_run, live_would_poll);
+    }
+    fputs("},\"mode_records_by_lifecycle\":{", stdout);
+    for (i = 0; i < sizeof(lifecycles) / sizeof(lifecycles[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, lifecycles[i]);
+        fputc(':', stdout);
+        print_mode_index_array("lifecycle", lifecycles[i], mode, dry_run, live_would_poll);
+    }
+    fputs("},\"mode_records_by_would_poll_if_configured\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        print_mode_index_array("would_poll_if_configured", bools[i], mode, dry_run, live_would_poll);
+    }
+    fputs("},\"mode_records_by_live_supported\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        print_mode_index_array("live_supported", bools[i], mode, dry_run, live_would_poll);
+    }
+    fputs("},\"mode_records_by_execution_supported\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        print_mode_index_array("execution_supported", bools[i], mode, dry_run, live_would_poll);
+    }
+    fputs("},\"mode_records_by_active_control_channel\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        print_mode_index_array("active_control_channel", bools[i], mode, dry_run, live_would_poll);
+    }
     fputc('}', stdout);
 }
 
@@ -796,6 +910,13 @@ static void print_mode_summary_json(const char *mode, int dry_run, int live_woul
     printf(",\"active_control_channel_mode_count\":%d", active_control_modes);
     fputs(",\"operator_supplied_command_execution_mode_count\":0", stdout);
     fputc('}', stdout);
+}
+
+static void print_api_collections_json(void)
+{
+    fputs(",\"api_collections\":{\"mode_records\":{\"name\":\"mode_records\",\"count\":5", stdout);
+    fputs(",\"count_summary_key\":\"mode_summary.mode_count\",\"primary_key\":\"mode\",\"summary_key\":\"mode_summary.mode_count\"", stdout);
+    fputs(",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_live_supported\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\"]}}", stdout);
 }
 
 static void print_poll_run_json(const struct poll_run_result *run)
@@ -985,7 +1106,10 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     fputs(",\"operator_supplied_command_execution\":false", stdout);
     fputc('}', stdout);
     print_all_mode_semantics_json(mode, dry_run, would_poll);
+    print_mode_records_json(mode, dry_run, would_poll);
+    print_mode_indexes_json(mode, dry_run, would_poll);
     print_mode_summary_json(mode, dry_run, would_poll);
+    print_api_collections_json();
     print_poll_run_json(run);
     print_daemon_state_json(state_file, daemon_state);
     print_stop_result_json(stop);

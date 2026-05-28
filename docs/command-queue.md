@@ -132,6 +132,11 @@ Safety boundary:
   whether it needs an operator host, its lifecycle label (`inspect`,
   `single-poll`, `single-cycle`, `long-running`, or `stop`), and the same
   non-execution safety booleans so UIs do not infer mode behavior from strings.
+- The same mode data is exposed as flat `mode_records`, with lookup maps by
+  mode, lifecycle, polling behavior, live-support status, execution support,
+  and active-control-channel state. `api_collections.mode_records` publishes
+  count, summary-key, count-summary-key, primary-key, and index metadata for
+  frontend discovery.
 - `mode_summary` mirrors those mode records into compact counts for polling
   modes, operator-host-required modes, delivery-capable live modes, active
   control-channel modes, result-upload modes, and execution-capable modes.
