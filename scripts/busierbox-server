@@ -913,6 +913,31 @@ def status_path_summary(records):
     }
 
 
+def status_path_record_list(records):
+    return list((records or {}).values())
+
+
+def records_by_bool(records, key):
+    grouped = {"yes": [], "no": []}
+    for rec in records or []:
+        if not isinstance(rec, dict) or key not in rec:
+            continue
+        grouped["yes" if rec.get(key) is True else "no"].append(rec)
+    return grouped
+
+
+def status_path_record_indexes(records):
+    return {
+        "path_status_by_name": {rec.get("name", ""): rec for rec in records or [] if rec.get("name")},
+        "path_status_by_path": records_by_key(records, "path"),
+        "path_status_by_expected_kind": records_by_key(records, "expected_kind"),
+        "path_status_by_exists": records_by_bool(records, "exists"),
+        "path_status_by_parent_exists": records_by_bool(records, "parent_exists"),
+        "path_status_by_writable": records_by_bool(records, "writable"),
+        "path_status_by_expected_kind_mismatch": records_by_bool(records, "expected_kind_mismatch"),
+    }
+
+
 def browser_path_status(path_text, expected_kind="file"):
     rec = {
         "path": str(path_text or ""),
@@ -5182,6 +5207,8 @@ def status_document(cfg):
     staged_files_state = staged_files_state_record(cfg)
     command_queue_state = command_queue_state_record(cfg)
     path_status = status_path_records(paths)
+    path_status_records = status_path_record_list(path_status)
+    path_status_indexes = status_path_record_indexes(path_status_records)
     path_summary = status_path_summary(path_status)
     browser_paths = operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, sessions, release)
     (browser_paths_by_kind,
@@ -5491,6 +5518,14 @@ def status_document(cfg):
                 "ports_by_number", "ports_by_service", "ports_by_actual",
             ), "port_count",
         ),
+        "path_status_records": api_collection_record(
+            "path_status_records", path_status_records, "name", (
+                "path_status_by_name", "path_status_by_path",
+                "path_status_by_expected_kind", "path_status_by_exists",
+                "path_status_by_parent_exists", "path_status_by_writable",
+                "path_status_by_expected_kind_mismatch",
+            ), "path_status_count",
+        ),
         "browser_paths": api_collection_record(
             "browser_paths", browser_paths, "id", (
                 "browser_paths_by_kind", "browser_paths_by_path",
@@ -5609,6 +5644,8 @@ def status_document(cfg):
         "tls_key": str(cfg.get("tls_key", "")),
         "paths": paths,
         "path_status": path_status,
+        "path_status_records": path_status_records,
+        **path_status_indexes,
         "browser_paths": browser_paths,
         "browser_paths_by_kind": browser_paths_by_kind,
         "browser_paths_by_path": browser_paths_by_path,

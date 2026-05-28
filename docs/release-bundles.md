@@ -367,7 +367,12 @@ paths with existence, parent-existence, expected-kind, expected-kind match,
 readability, and writability fields; compact path health counts are mirrored
 into `summary` as `path_status_count`, `path_missing_count`,
 `path_parent_missing_count`, `path_not_writable_count`, and
-`path_kind_mismatch_count`. `browser_paths` provides a normalized operator file
+`path_kind_mismatch_count`. `path_status_records` is the normalized list form
+of the same path health data, with lookup maps such as `path_status_by_name`,
+`path_status_by_path`, `path_status_by_expected_kind`, `path_status_by_exists`,
+`path_status_by_parent_exists`, `path_status_by_writable`, and
+`path_status_by_expected_kind_mismatch` plus `api_collections.path_status_records`
+metadata for clients that render every operator path as a table. `browser_paths` provides a normalized operator file
 browser list for future TUI/web clients, covering operator ledgers, session
 directories, upload/fetch metadata, staged sources, event logs, TLS files,
 release bundle files, and release recommendation artifact targets. The same records are grouped in `browser_paths_by_kind`,

@@ -937,6 +937,14 @@ def main():
             print("server json status missing stable generated_at/paths API fields", file=sys.stderr)
             return 1
         path_status = queue_status_json.get("path_status") or {}
+        path_status_records = queue_status_json.get("path_status_records") or []
+        path_status_by_name = queue_status_json.get("path_status_by_name") or {}
+        path_status_by_path = queue_status_json.get("path_status_by_path") or {}
+        path_status_by_kind = queue_status_json.get("path_status_by_expected_kind") or {}
+        path_status_by_exists = queue_status_json.get("path_status_by_exists") or {}
+        path_status_by_parent_exists = queue_status_json.get("path_status_by_parent_exists") or {}
+        path_status_by_writable = queue_status_json.get("path_status_by_writable") or {}
+        path_status_by_kind_mismatch = queue_status_json.get("path_status_by_expected_kind_mismatch") or {}
         state_path_status = path_status.get("state_file") or {}
         staged_path_status = path_status.get("staged_files") or {}
         command_queue_path_status = path_status.get("command_queue_file") or {}
@@ -958,6 +966,18 @@ def main():
                 queue_status_json["summary"].get("path_parent_missing_count") != 0 or
                 queue_status_json["summary"].get("path_kind_mismatch_count") != 0):
             print("server json status missing operator path health records", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        if (len(path_status_records) != len(paths) or
+                path_status_by_name.get("state_file", {}).get("path") != queue_status_json.get("state_file") or
+                path_status_by_path.get(str(queue_file), [{}])[0].get("name") != "command_queue_file" or
+                not path_status_by_kind.get("dir") or
+                len(path_status_by_kind.get("file", [])) < 1 or
+                len(path_status_by_exists.get("yes", [])) < 1 or
+                path_status_by_parent_exists.get("no") != [] or
+                len(path_status_by_writable.get("yes", [])) < 1 or
+                path_status_by_kind_mismatch.get("yes") != []):
+            print("server json status missing normalized operator path records/indexes", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         browser_paths = queue_status_json.get("browser_paths") or []
@@ -987,6 +1007,7 @@ def main():
         for collection_name, expected_count, expected_index in (
                 ("services", len(queue_status_json.get("services") or []), "services_by_name"),
                 ("ports", len(queue_status_json.get("ports") or []), "ports_by_number"),
+                ("path_status_records", len(path_status_records), "path_status_by_name"),
                 ("browser_paths", len(browser_paths), "browser_paths_by_kind_source_id"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_id"),
