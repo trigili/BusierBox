@@ -123,6 +123,10 @@ case "$BB_NORESIDUE_LEVEL" in
         exit 1
         ;;
 esac
+if [ "$BB_RUNTIME_MODE" = no-residue ] && [ "$BB_NORESIDUE_LEVEL" = aggressive ] && [ "$BB_RUNTIME_ALLOW_FALLBACK_ROOT" = yes ]; then
+    printf '%s\n' "build-native: aggressive no-residue cannot use runtime fallback root; set BB_RUNTIME_ALLOW_FALLBACK_ROOT=no or use BB_NORESIDUE_LEVEL=best-effort" >&2
+    exit 1
+fi
 
 # Validate transport+encryption combination
 if [ "$BB_RSHELL_TRANSPORT" = builtin ] && [ "$BB_RSHELL_ENCRYPTION" = none ]; then

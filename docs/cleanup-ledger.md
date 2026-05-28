@@ -72,7 +72,9 @@ how strongly BusierBox tries to minimize its own runtime residue:
   files where reasonable, while keeping visible logs/status when configured.
 - `aggressive`: minimize BusierBox runtime writes and cleanup detail after
   payload commands, while still staying visible, reversible where applicable,
-  and auditable.
+  and auditable. Aggressive mode fails closed instead of using a configured
+  fallback runtime root; use `best-effort` when fallback extraction is an
+  acceptable operator tradeoff.
 
 Both levels remove only BusierBox-owned runtime roots after foreground payload
 commands, forward common interrupt signals to the child process, and still

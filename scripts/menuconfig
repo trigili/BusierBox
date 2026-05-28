@@ -862,6 +862,10 @@ validate_config() {
         *) _errors="$_errors\n- invalid no-residue level: $BB_NORESIDUE_LEVEL." ;;
     esac
 
+    if [ "$BB_RUNTIME_MODE" = no-residue ] && [ "$BB_NORESIDUE_LEVEL" = aggressive ] && [ "$BB_RUNTIME_ALLOW_FALLBACK_ROOT" = yes ]; then
+        _errors="$_errors\n- aggressive no-residue cannot use runtime fallback root; set BB_RUNTIME_ALLOW_FALLBACK_ROOT=no or use BB_NORESIDUE_LEVEL=best-effort."
+    fi
+
     if [ "$BB_RUNTIME_MODE" = "core-only" ]; then
         case "$BB_RSHELL_TRANSPORT" in
             ssh|socat)

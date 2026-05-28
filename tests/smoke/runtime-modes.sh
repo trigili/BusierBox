@@ -141,9 +141,40 @@ PY
     ../busierbox-no-residue-aggressive sh -c 'echo aggressive-ok' >out
     grep -q '^aggressive-ok$' out
     [ ! -e .bbx-aggressive ]
+    printf '%s\n' "not a directory" >.bbx-aggressive-blocked
+    if BB_RUNTIME_ROOT=.bbx-aggressive-blocked BB_RUNTIME_ALLOW_FALLBACK_ROOT=yes BB_RUNTIME_FALLBACK_ROOT=.bbx-aggressive-fallback ../busierbox-no-residue-aggressive sh -c 'echo should-not-fallback' >fallback.out 2>fallback.err; then
+        printf '%s\n' "runtime-modes: aggressive no-residue unexpectedly used fallback root" >&2
+        exit 1
+    fi
+    grep -q 'payload unavailable' fallback.err
+    [ -f .bbx-aggressive-blocked ]
+    [ ! -e .bbx-aggressive-fallback ]
+    BB_RUNTIME_ROOT=.bbx-aggressive-blocked BB_RUNTIME_ALLOW_FALLBACK_ROOT=yes BB_RUNTIME_FALLBACK_ROOT=.bbx-aggressive-fallback ../busierbox-no-residue-aggressive doctor --json | python3 -m json.tool >aggressive-fallback-doctor.json
+    python3 - aggressive-fallback-doctor.json <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+runtime = doc["extraction_runtime"]
+assert runtime["fallback_configured"] is True
+assert runtime["fallback_enabled"] is False
+assert runtime["fallback_disabled_by_aggressive_noresidue"] is True
+assert runtime["selected_root"] is None
+PY
     ../busierbox-no-residue-aggressive reality-test --json | python3 -m json.tool >reality.json
     [ ! -e .bbx-aggressive ]
 )
+
+if OUT="$tmp/aggressive-fallback-invalid.core" ARTIFACT_TIER=full ADVERTISE_PAYLOAD_TOOLS=1 \
+    BB_RUNTIME_MODE=no-residue \
+    BB_NORESIDUE_LEVEL=aggressive \
+    BB_RUNTIME_ALLOW_FALLBACK_ROOT=yes \
+    BB_ZERO_ARG_MODE=help \
+    scripts/build-native >"$tmp/aggressive-fallback-invalid.out" 2>"$tmp/aggressive-fallback-invalid.err"; then
+    printf '%s\n' "runtime-modes: build-native accepted aggressive no-residue fallback root" >&2
+    exit 1
+fi
+grep -q 'aggressive no-residue cannot use runtime fallback root' "$tmp/aggressive-fallback-invalid.err"
 
 build_mode_artifact extract "$tmp/busierbox-extract-fallback-clean" ".bbx-runtime-blocked" yes ".bbx-fallback"
 run="$tmp/run-clean-fallback"

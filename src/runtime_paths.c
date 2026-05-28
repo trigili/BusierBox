@@ -248,12 +248,16 @@ int bb_choose_extract_root(char *out, size_t outsz)
     const char *runtime_root = bb_config_get("BB_RUNTIME_ROOT");
     const char *fallback_enabled = bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT");
     const char *fallback_root = bb_config_get("BB_RUNTIME_FALLBACK_ROOT");
+    int aggressive_noresidue =
+        !strcmp(bb_config_get("BB_RUNTIME_MODE"), "no-residue") &&
+        !strcmp(bb_config_get("BB_NORESIDUE_LEVEL"), "aggressive");
     const char *roots[2];
     int i, nroots = 0;
 
     if (runtime_root && runtime_root[0])
         roots[nroots++] = runtime_root;
-    if (fallback_enabled && !strcmp(fallback_enabled, "yes") &&
+    if (!aggressive_noresidue &&
+        fallback_enabled && !strcmp(fallback_enabled, "yes") &&
         fallback_root && fallback_root[0])
         roots[nroots++] = fallback_root;
 
@@ -307,7 +311,11 @@ void bb_print_extraction_runtime_json(FILE *out, unsigned long long payload_size
     const char *fallback_root = bb_config_get("BB_RUNTIME_FALLBACK_ROOT");
     const char *fallback_enabled_value = bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT");
     const char *selected = NULL;
-    int fallback_enabled = fallback_enabled_value && !strcmp(fallback_enabled_value, "yes");
+    int fallback_configured = fallback_enabled_value && !strcmp(fallback_enabled_value, "yes");
+    int aggressive_noresidue =
+        !strcmp(bb_config_get("BB_RUNTIME_MODE"), "no-residue") &&
+        !strcmp(bb_config_get("BB_NORESIDUE_LEVEL"), "aggressive");
+    int fallback_enabled = fallback_configured && !aggressive_noresidue;
 
     if (bb_extract_root_usable(runtime_root))
         selected = runtime_root;
@@ -318,8 +326,10 @@ void bb_print_extraction_runtime_json(FILE *out, unsigned long long payload_size
     json_string(out, runtime_root ? runtime_root : "");
     fprintf(out, ",\"fallback_root\":");
     json_string(out, fallback_root ? fallback_root : "");
-    fprintf(out, ",\"fallback_enabled\":%s,\"required_bytes\":%llu,\"writable_executable\":%s,\"selected_root\":",
+    fprintf(out, ",\"fallback_enabled\":%s,\"fallback_configured\":%s,\"fallback_disabled_by_aggressive_noresidue\":%s,\"required_bytes\":%llu,\"writable_executable\":%s,\"selected_root\":",
             fallback_enabled ? "true" : "false",
+            fallback_configured ? "true" : "false",
+            fallback_configured && aggressive_noresidue ? "true" : "false",
             bb_extract_required_bytes(payload_size),
             selected ? "true" : "false");
     if (selected)

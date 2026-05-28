@@ -38,6 +38,7 @@ require 'invalid session policy' 'BB_RSHELL_SESSION_POLICY'
 require 'invalid shell provider' 'BB_RSHELL_SHELL_PROVIDER'
 require 'invalid retry backoff' 'BB_RSHELL_RETRY_BACKOFF'
 require 'invalid rshell transport' 'BB_RSHELL_TRANSPORT'
+require 'aggressive no-residue fallback guard' 'aggressive no-residue.*BB_RUNTIME_ALLOW_FALLBACK_ROOT|BB_RUNTIME_ALLOW_FALLBACK_ROOT.*aggressive no-residue'
 require 'invalid command queue policy' 'BB_COMMAND_QUEUE_ALLOWED_COMMANDS'
 require 'invalid command queue execution mode' 'BB_COMMAND_QUEUE_EXECUTION'
 require 'command queue arbitrary guard' 'BB_COMMAND_QUEUE_ALLOW_ARBITRARY'
@@ -56,6 +57,7 @@ for pattern in \
     'invalid rshell run mode' \
     'invalid rshell session policy' \
     'invalid shell provider' \
+    'aggressive no-residue cannot use runtime fallback root' \
     'invalid command queue allowed commands policy' \
     'authkeys mode.*writes outside the runtime root'
 do
@@ -152,6 +154,10 @@ expect_package_invalid invalid-shell-provider 'invalid shell provider' \
     'BB_RSHELL_SHELL_PROVIDER="fish"'
 expect_package_invalid invalid-runtime 'invalid runtime mode' \
     'BB_RUNTIME_MODE="forever"'
+expect_package_invalid aggressive-fallback 'aggressive no-residue cannot use runtime fallback root' \
+    'BB_RUNTIME_MODE="no-residue"' \
+    'BB_NORESIDUE_LEVEL="aggressive"' \
+    'BB_RUNTIME_ALLOW_FALLBACK_ROOT="yes"'
 expect_package_invalid invalid-transport 'invalid rshell transport' \
     'BB_RSHELL_TRANSPORT="wireguard"'
 expect_package_invalid invalid-command-queue-policy 'invalid command queue allowed commands policy' \

@@ -285,6 +285,10 @@ validate_build_config() {
         *) errors="$errors
 - invalid no-residue level: $BB_NORESIDUE_LEVEL." ;;
     esac
+    if [ "$BB_RUNTIME_MODE" = no-residue ] && [ "$BB_NORESIDUE_LEVEL" = aggressive ] && [ "$BB_RUNTIME_ALLOW_FALLBACK_ROOT" = yes ]; then
+        errors="$errors
+- aggressive no-residue cannot use runtime fallback root; set BB_RUNTIME_ALLOW_FALLBACK_ROOT=no or use BB_NORESIDUE_LEVEL=best-effort."
+    fi
 
     case "$BB_ZERO_ARG_MODE" in
         help|survey|rshell|custom|command) ;;
