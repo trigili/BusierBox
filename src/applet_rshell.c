@@ -149,6 +149,8 @@ static int policy_reconnects_after_disconnect(const char *policy);
 static int policy_stops_after_first_success(const char *policy);
 static int policy_persistent_lifecycle(const char *policy);
 static const char *policy_post_success_retry_count(const char *policy);
+static int should_reconnect_after_success(int reconnects);
+static int should_reconnect_policy_after_success(const char *policy, int reconnects, const char *retry_count_text);
 
 static void print_rshell_config_status(FILE *out, const char *transport)
 {
@@ -173,6 +175,9 @@ static void print_rshell_config_status(FILE *out, const char *transport)
     fprintf(out, "session_resume_supported=no\n");
     fprintf(out, "pre_connect_retry_count=%s\n", BB_RSHELL_RETRY_COUNT);
     fprintf(out, "post_disconnect_retry_count=%s\n", policy_post_success_retry_count(BB_RSHELL_SESSION_POLICY));
+    fprintf(out, "would_reconnect_after_success_attempt_0=%s\n", should_reconnect_after_success(0) ? "yes" : "no");
+    fprintf(out, "would_reconnect_after_success_attempt_1=%s\n", should_reconnect_after_success(1) ? "yes" : "no");
+    fprintf(out, "would_reconnect_after_success_attempt_2=%s\n", should_reconnect_after_success(2) ? "yes" : "no");
     fprintf(out, "operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
     fprintf(out, "operator_shell_port=%s\n", BB_RSHELL_SOCAT_PORT);
     fprintf(out, "operator_ssh_port=%s\n", BB_OPERATOR_SERVER_SSH_PORT);
@@ -249,15 +254,20 @@ static int should_retry_after_attempt(int attempt)
 
 static int should_reconnect_after_success(int reconnects)
 {
+    return should_reconnect_policy_after_success(BB_RSHELL_SESSION_POLICY, reconnects, BB_RSHELL_RETRY_COUNT);
+}
+
+static int should_reconnect_policy_after_success(const char *policy, int reconnects, const char *retry_count_text)
+{
     int retry_count;
 
-    if (!strcmp(BB_RSHELL_SESSION_POLICY, "single"))
+    if (!policy || !strcmp(policy, "single"))
         return 0;
-    if (!strcmp(BB_RSHELL_SESSION_POLICY, "persistent"))
+    if (!strcmp(policy, "persistent"))
         return 1;
-    if (strcmp(BB_RSHELL_SESSION_POLICY, "reconnect"))
+    if (strcmp(policy, "reconnect"))
         return 0;
-    retry_count = parse_int_default(BB_RSHELL_RETRY_COUNT, 1);
+    retry_count = parse_int_default(retry_count_text, 1);
     if (retry_count < 0)
         return 1;
     return reconnects < retry_count;
@@ -741,6 +751,11 @@ int applet_rshell_main(int argc, char **argv)
                    policy_stops_after_first_success(effective_session_policy) ? "true" : "false",
                    policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false",
                    policy_persistent_lifecycle(effective_session_policy) ? "true" : "false",
+                   policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false");
+            printf(",\"runtime_decisions\":{\"after_success_reconnect_attempt_0\":%s,\"after_success_reconnect_attempt_1\":%s,\"after_success_reconnect_attempt_2\":%s,\"uses_fresh_sessions\":%s,\"session_resume_supported\":false}",
+                   should_reconnect_policy_after_success(effective_session_policy, 0, BB_RSHELL_RETRY_COUNT) ? "true" : "false",
+                   should_reconnect_policy_after_success(effective_session_policy, 1, BB_RSHELL_RETRY_COUNT) ? "true" : "false",
+                   should_reconnect_policy_after_success(effective_session_policy, 2, BB_RSHELL_RETRY_COUNT) ? "true" : "false",
                    policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false");
             printf(",\"operator_host\":");
             json_string_main(stdout, BB_OPERATOR_SERVER_HOST);

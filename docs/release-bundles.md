@@ -305,10 +305,13 @@ starts fresh sessions after disconnect up to the configured retry count, and
 `rshell status --json` includes `session_semantics` and
 `session_policy_summary` so operator tooling can distinguish first-connect
 retry, post-disconnect reconnects, persistent lifecycle, and fresh-session
-reconnect behavior without parsing prose. The human `rshell status` output
-also prints the same key booleans, including `stop_after_first_success`,
+reconnect behavior without parsing prose. It also includes `runtime_decisions`
+for representative post-disconnect reconnect attempts, using the same bounded
+retry logic as the runtime loop. The human `rshell status` output also prints
+the same key booleans, including `stop_after_first_success`,
 `reconnect_after_disconnect`, `persistent_lifecycle`,
-`fresh_session_on_reconnect`, and `session_resume_supported`. Runtime
+`fresh_session_on_reconnect`, `session_resume_supported`, and
+`would_reconnect_after_success_attempt_N`. Runtime
 `rshell.status` files also persist those evaluated fields, retry scope, and
 pre/post-disconnect retry counts so postmortem evidence can be read without
 reconstructing policy semantics from compiled defaults. SSH reverse-forward

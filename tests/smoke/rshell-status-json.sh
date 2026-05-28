@@ -30,7 +30,7 @@ reconnect_attempts=1
 connected_once=yes
 EOF
 
-BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json --transport ssh >"$tmp/status.json"
+BB_RSHELL_RETRY_COUNT=2 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json --transport ssh >"$tmp/status.json"
 python3 -m json.tool "$tmp/status.json" >/dev/null
 python3 - "$tmp/status.json" "$tmp/guard" <<'PY'
 import json
@@ -77,6 +77,7 @@ if data["session_policy"] != "reconnect":
     raise SystemExit("session policy from status file missing")
 sem = data.get("session_semantics") or {}
 summary = data.get("session_policy_summary") or {}
+decisions = data.get("runtime_decisions") or {}
 if sem.get("retry_until_first_connection") is not True:
     raise SystemExit("retry-until-first-connection semantic missing")
 if sem.get("stop_after_first_success") is not False:
@@ -103,6 +104,16 @@ if summary.get("fresh_session_on_reconnect") is not True:
     raise SystemExit("summary should report fresh sessions on reconnect")
 if summary.get("session_resume_supported") is not False:
     raise SystemExit("summary should not claim session resume")
+if decisions.get("after_success_reconnect_attempt_0") is not True:
+    raise SystemExit("reconnect policy should reconnect after successful disconnect attempt 0")
+if decisions.get("after_success_reconnect_attempt_1") is not True:
+    raise SystemExit("reconnect policy should reconnect after successful disconnect attempt 1 when retry_count=2")
+if decisions.get("after_success_reconnect_attempt_2") is not False:
+    raise SystemExit("reconnect policy should stop after bounded post-disconnect retry count")
+if decisions.get("uses_fresh_sessions") is not True:
+    raise SystemExit("reconnect policy should mark post-disconnect attempts as fresh sessions")
+if decisions.get("session_resume_supported") is not False:
+    raise SystemExit("runtime decisions should not claim session resume")
 fields = data.get("fields") or {}
 for key, expected in {
     "session_policy_valid": "yes",
@@ -167,17 +178,22 @@ grep -q '^retry_until_first_connection=yes$' "$tmp/status-human.out"
 grep -q '^session_resume_supported=no$' "$tmp/status-human.out"
 grep -q '^pre_connect_retry_count=' "$tmp/status-human.out"
 grep -q '^post_disconnect_retry_count=' "$tmp/status-human.out"
+grep -q '^would_reconnect_after_success_attempt_0=' "$tmp/status-human.out"
+grep -q '^would_reconnect_after_success_attempt_1=' "$tmp/status-human.out"
+grep -q '^would_reconnect_after_success_attempt_2=' "$tmp/status-human.out"
 grep -q '^target_dropbear=' "$tmp/status-human.out"
 grep -q '^server_listener=scripts/busierbox-server --transport ssh --ssh-port ' "$tmp/status-human.out"
 grep -q '^zero_arg_autorun=' "$tmp/status-human.out"
 
-BB_RSHELL_SESSION_POLICY=reconnect BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --transport ssh >"$tmp/status-human-reconnect.out"
+BB_RSHELL_SESSION_POLICY=reconnect BB_RSHELL_RETRY_COUNT=1 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --transport ssh >"$tmp/status-human-reconnect.out"
 grep -q '^session_policy=reconnect$' "$tmp/status-human-reconnect.out"
 grep -q '^stop_after_first_success=no$' "$tmp/status-human-reconnect.out"
 grep -q '^reconnect_after_disconnect=yes$' "$tmp/status-human-reconnect.out"
 grep -q '^fresh_session_on_reconnect=yes$' "$tmp/status-human-reconnect.out"
 grep -q '^session_resume_supported=no$' "$tmp/status-human-reconnect.out"
 grep -q '^post_disconnect_retry_count=' "$tmp/status-human-reconnect.out"
+grep -q '^would_reconnect_after_success_attempt_0=yes$' "$tmp/status-human-reconnect.out"
+grep -q '^would_reconnect_after_success_attempt_1=no$' "$tmp/status-human-reconnect.out"
 
 rm -f "$tmp/guard/rshell.status"
 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/inactive.json"
@@ -218,6 +234,7 @@ with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 sem = data.get("session_semantics") or {}
 summary = data.get("session_policy_summary") or {}
+decisions = data.get("runtime_decisions") or {}
 if data["session_policy"] != "single":
     raise SystemExit("env single policy not reflected in status")
 if sem.get("stop_after_first_success") is not True:
@@ -234,6 +251,10 @@ if summary.get("fresh_session_on_reconnect") is not False:
     raise SystemExit("single policy summary should not report fresh reconnect sessions")
 if sem.get("session_resume_supported") is not False:
     raise SystemExit("single policy should not claim session resume")
+if decisions.get("after_success_reconnect_attempt_0") is not False:
+    raise SystemExit("single policy should not reconnect after successful disconnect")
+if decisions.get("uses_fresh_sessions") is not False:
+    raise SystemExit("single policy should not report fresh reconnect sessions")
 PY
 BB_RSHELL_SESSION_POLICY=single BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status >"$tmp/status-human-single.out"
 grep -q '^session_policy=single$' "$tmp/status-human-single.out"
@@ -254,6 +275,7 @@ with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 sem = data.get("session_semantics") or {}
 summary = data.get("session_policy_summary") or {}
+decisions = data.get("runtime_decisions") or {}
 if data["session_policy"] != "persistent":
     raise SystemExit("env persistent policy not reflected in status")
 if sem.get("persistent_lifecycle") is not True:
@@ -272,6 +294,12 @@ if summary.get("fresh_session_on_reconnect") is not True:
     raise SystemExit("persistent policy summary should report fresh sessions on reconnect")
 if sem.get("session_resume_supported") is not False:
     raise SystemExit("persistent policy should not claim session resume")
+if decisions.get("after_success_reconnect_attempt_0") is not True:
+    raise SystemExit("persistent policy should reconnect after successful disconnect attempt 0")
+if decisions.get("after_success_reconnect_attempt_2") is not True:
+    raise SystemExit("persistent policy should keep reconnecting without a post-disconnect retry limit")
+if decisions.get("uses_fresh_sessions") is not True:
+    raise SystemExit("persistent policy should report fresh sessions on reconnect")
 PY
 
 BB_RSHELL_SESSION_POLICY=bogus BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/invalid-policy.json"
@@ -290,12 +318,15 @@ if "unsupported rshell session policy" not in data.get("session_policy_errors", 
     raise SystemExit("invalid policy error missing")
 sem = data.get("session_semantics") or {}
 summary = data.get("session_policy_summary") or {}
+decisions = data.get("runtime_decisions") or {}
 if summary.get("valid") is not False:
     raise SystemExit("invalid policy summary should report valid=false")
 if summary.get("session_resume_supported") is not False:
     raise SystemExit("invalid policy summary should not claim session resume")
 if sem.get("session_resume_supported") is not False:
     raise SystemExit("invalid policy should not claim session resume")
+if decisions.get("after_success_reconnect_attempt_0") is not False:
+    raise SystemExit("invalid policy should not reconnect after successful disconnect")
 PY
 BB_RSHELL_SESSION_POLICY=bogus BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status >"$tmp/invalid-policy.txt"
 grep -q '^session_policy_valid=no$' "$tmp/invalid-policy.txt"
