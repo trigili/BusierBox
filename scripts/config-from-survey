@@ -393,6 +393,16 @@ if noexec_tmp:
     compatibility_reasons.append("/tmp noexec constraint")
 if reality_by_name:
     compatibility_reasons.append("reality-test data applied")
+if reality_detected("rootfs_read_only"):
+    compatibility_label = "likely" if compatibility_label == "exact" else compatibility_label
+    compatibility_reasons.append("read-only rootfs constraint")
+if reality_detected("procfs_partial"):
+    if compatibility_label in ("exact", "likely"):
+        compatibility_label = "heuristic"
+    compatibility_reasons.append("procfs partial/broken: survey evidence may be incomplete")
+if reality_failed("ptrace"):
+    compatibility_label = "likely" if compatibility_label == "exact" else compatibility_label
+    compatibility_reasons.append("ptrace unavailable: avoid debugger payloads")
 if reality_failed("runtime_root_executable"):
     compatibility_label = "unsafe"
     compatibility_reasons.append("runtime root execution failed in reality-test")
@@ -494,6 +504,8 @@ result = {
             "tmp_noexec_detected": reality_detected("tmp_noexec"),
             "rootfs_read_only_detected": reality_detected("rootfs_read_only"),
             "procfs_partial_detected": reality_detected("procfs_partial"),
+            "ptrace": reality_check("ptrace").get("status", ""),
+            "dmesg_readable": reality_check("dmesg_readable").get("status", ""),
             "operator_pass": reality_summary.get("operator_pass", ""),
             "operator_fail": reality_summary.get("operator_fail", ""),
             "operator_skipped": reality_summary.get("operator_skipped", ""),

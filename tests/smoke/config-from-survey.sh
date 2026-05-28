@@ -70,6 +70,9 @@ doc = json.load(open(sys.argv[1], encoding="utf-8"))
 assert doc["compatibility"]["label"] == "unsafe"
 assert "runtime root execution failed in reality-test" in doc["compatibility"]["reasons"]
 assert "core payload extraction failed in reality-test" in doc["compatibility"]["reasons"]
+assert "read-only rootfs constraint" in doc["compatibility"]["reasons"]
+assert "procfs partial/broken: survey evidence may be incomplete" in doc["compatibility"]["reasons"]
+assert "ptrace unavailable: avoid debugger payloads" in doc["compatibility"]["reasons"]
 assert doc["recommendations"]["BB_RUNTIME_MODE"] == "core-only"
 facts = doc["facts"]
 assert facts["payload_possible"] is False
@@ -77,6 +80,7 @@ assert facts["reality"]["runtime_root_executable"] == "fail"
 assert facts["reality"]["tmp_noexec_detected"] is True
 assert facts["reality"]["rootfs_read_only_detected"] is True
 assert facts["reality"]["procfs_partial_detected"] is True
+assert facts["reality"]["ptrace"] == "fail"
 assert facts["reality"]["operator_skipped"] == 3
 PY
 
@@ -139,6 +143,8 @@ facts = doc["facts"]["reality"]
 assert facts["tmp_noexec_detected"] is True
 assert facts["rootfs_read_only_detected"] is True
 assert facts["procfs_partial_detected"] is True
+assert "read-only rootfs constraint" in doc["compatibility"]["reasons"]
+assert "procfs partial/broken: survey evidence may be incomplete" in doc["compatibility"]["reasons"]
 assert facts["operator_skipped"] == 3
 PY
 
