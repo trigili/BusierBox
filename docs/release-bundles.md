@@ -480,15 +480,21 @@ command-created and result-received timestamps, mirrored into `summary`, so
 dashboards can show queue recency without recomputing it. Compact safety booleans such as
 `command_queue_enabled`, `command_queue_configured_for_polling`,
 `command_queue_active_control_channel`, `command_queue_execution_supported`,
+`command_queue_delivery_supported`, `command_queue_result_upload_supported`,
+`command_queue_poll_transport_supported`, `command_queue_live_polling_supported`,
 `command_queue_arbitrary_policy_requested`,
 `command_queue_arbitrary_execution_allowed`, and
 `command_queue_safe_disabled_default` are also mirrored for UI badges that must
-not scan the full queue policy object. `command_queue.mode_semantics` and
+not scan the full queue policy object. The configured
+`command_queue_poll_interval_sec` and `command_queue_max_polls` are mirrored for
+interval-polling controls. `command_queue.mode_semantics` and
 `command_queue.mode_summary` expose the same target-side `status`, `poll`,
-`once`, and `daemon` lifecycle labels and non-execution booleans used by the
-target applet; compact counts are mirrored into `summary` as
+`once`, and `daemon` lifecycle labels, live-poll support flags, and
+non-execution booleans used by the target applet; compact counts are mirrored
+into `summary` as
 `command_queue_mode_count`, `command_queue_polling_mode_count`,
 `command_queue_operator_host_required_mode_count`,
+`command_queue_live_supported_mode_count`,
 `command_queue_execution_supported_mode_count`,
 `command_queue_active_control_channel_mode_count`, and
 `command_queue_operator_supplied_command_execution_mode_count`.

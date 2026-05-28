@@ -492,6 +492,12 @@ def main():
                 queue_summary.get("policy_errors") != [] or
                 queue_summary.get("arbitrary_policy_requested") is not False or
                 queue_summary.get("arbitrary_execution_allowed") is not False or
+                queue_summary.get("poll_interval_sec") != "5" or
+                queue_summary.get("max_polls") != "0" or
+                queue_summary.get("poll_transport_supported") is not True or
+                queue_summary.get("live_polling_supported") is not True or
+                queue_summary.get("delivery_supported") is not False or
+                queue_summary.get("result_upload_supported") is not False or
                 queue_summary.get("executes_commands") is not False or
                 queue_summary.get("operator_queue_records_only") is not True or
                 queue_summary.get("active_control_channel") is not False):
@@ -502,6 +508,10 @@ def main():
         if (queue_policy_summary.get("safe_disabled_default") is not True or
                 queue_policy_summary.get("operator_queue_records_only") is not True or
                 queue_policy_summary.get("execution_supported") is not False or
+                queue_policy_summary.get("poll_transport_supported") is not True or
+                queue_policy_summary.get("live_polling_supported") is not True or
+                queue_policy_summary.get("poll_interval_sec") != "5" or
+                queue_policy_summary.get("max_polls") != "0" or
                 queue_policy_summary.get("active_control_channel") is not False or
                 queue_policy_summary.get("error_count") != 0):
             print("json command queue listing missing compact policy summary", file=sys.stderr)
@@ -513,10 +523,15 @@ def main():
                 queue_modes.get("poll", {}).get("lifecycle") != "single-poll" or
                 queue_modes.get("once", {}).get("lifecycle") != "single-cycle" or
                 queue_modes.get("daemon", {}).get("lifecycle") != "long-running" or
+                queue_modes.get("daemon", {}).get("dry_run_default") is not True or
+                queue_modes.get("daemon", {}).get("dry_run_only") is not False or
+                queue_modes.get("daemon", {}).get("live_supported") is not True or
+                queue_modes.get("daemon", {}).get("live_would_contact_operator") is not True or
                 queue_modes.get("daemon", {}).get("execution_supported") is not False or
                 queue_modes.get("daemon", {}).get("active_control_channel") is not False or
                 queue_mode_summary.get("mode_count") != 4 or
                 queue_mode_summary.get("polling_mode_count") != 3 or
+                queue_mode_summary.get("live_supported_mode_count") != 3 or
                 queue_mode_summary.get("execution_supported_mode_count") != 0):
             print("json command queue listing missing mode semantics", file=sys.stderr)
             print(queue_list.stdout, file=sys.stderr)
@@ -952,6 +967,12 @@ def main():
                 queue_status_json["summary"].get("command_queue_configured_for_polling") is not False or
                 queue_status_json["summary"].get("command_queue_active_control_channel") is not False or
                 queue_status_json["summary"].get("command_queue_execution_supported") is not False or
+                queue_status_json["summary"].get("command_queue_delivery_supported") is not False or
+                queue_status_json["summary"].get("command_queue_result_upload_supported") is not False or
+                queue_status_json["summary"].get("command_queue_poll_transport_supported") is not True or
+                queue_status_json["summary"].get("command_queue_live_polling_supported") is not True or
+                queue_status_json["summary"].get("command_queue_poll_interval_sec") != "5" or
+                queue_status_json["summary"].get("command_queue_max_polls") != "0" or
                 queue_status_json["summary"].get("command_queue_arbitrary_policy_requested") is not False or
                 queue_status_json["summary"].get("command_queue_arbitrary_execution_allowed") is not False or
                 queue_status_json["summary"].get("command_queue_safe_disabled_default") is not True or
@@ -960,15 +981,21 @@ def main():
                 command_queue_modes.get("poll", {}).get("lifecycle") != "single-poll" or
                 command_queue_modes.get("once", {}).get("lifecycle") != "single-cycle" or
                 command_queue_modes.get("daemon", {}).get("lifecycle") != "long-running" or
+                command_queue_modes.get("daemon", {}).get("dry_run_default") is not True or
+                command_queue_modes.get("daemon", {}).get("dry_run_only") is not False or
+                command_queue_modes.get("daemon", {}).get("live_supported") is not True or
+                command_queue_modes.get("daemon", {}).get("live_would_contact_operator") is not True or
                 command_queue_modes.get("daemon", {}).get("execution_supported") is not False or
                 command_queue_modes.get("daemon", {}).get("active_control_channel") is not False or
                 command_queue_mode_summary.get("mode_count") != 4 or
                 command_queue_mode_summary.get("polling_mode_count") != 3 or
                 command_queue_mode_summary.get("operator_host_required_mode_count") != 3 or
+                command_queue_mode_summary.get("live_supported_mode_count") != 3 or
                 command_queue_mode_summary.get("execution_supported_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_mode_count") != 4 or
                 queue_status_json["summary"].get("command_queue_polling_mode_count") != 3 or
                 queue_status_json["summary"].get("command_queue_operator_host_required_mode_count") != 3 or
+                queue_status_json["summary"].get("command_queue_live_supported_mode_count") != 3 or
                 queue_status_json["summary"].get("command_queue_execution_supported_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_active_control_channel_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_operator_supplied_command_execution_mode_count") != 0):

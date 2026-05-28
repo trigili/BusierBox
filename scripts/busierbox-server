@@ -323,6 +323,8 @@ DEFAULTS = {
     "command_queue_token_source": "manual",
     "command_queue_allowed_commands": "none",
     "command_queue_allow_arbitrary": "no",
+    "command_queue_poll_interval_sec": "5",
+    "command_queue_max_polls": "0",
     "rshell_session_policy": "single",
 }
 
@@ -1622,6 +1624,10 @@ def command_queue_policy_errors(cfg):
         errors.append("invalid command queue enable value")
     if not valid_uint_string(cfg.get("command_queue_port", "22205")):
         errors.append("invalid command queue port")
+    if not valid_uint_string(cfg.get("command_queue_poll_interval_sec", "5")):
+        errors.append("invalid command queue poll interval")
+    if not valid_uint_string(cfg.get("command_queue_max_polls", "0")):
+        errors.append("invalid command queue max polls")
     if not valid_yes_no(cfg.get("command_queue_tls", "yes")):
         errors.append("invalid command queue TLS value")
     if not valid_yes_no(cfg.get("command_queue_require_token", "yes")):
@@ -1666,10 +1672,14 @@ def command_queue_mode_semantics():
         },
     }
     for rec in modes.values():
+        live_supported = bool(rec.get("would_poll_if_configured"))
         rec.update({
-            "dry_run_only": True,
+            "dry_run_default": True,
+            "dry_run_only": False if live_supported else True,
+            "live_supported": live_supported,
             "requires_explicit_target_action": True,
             "would_contact_operator": False,
+            "live_would_contact_operator": live_supported,
             "delivery_supported": False,
             "result_upload_supported": False,
             "execution_supported": False,
@@ -1686,6 +1696,7 @@ def command_queue_mode_summary(mode_semantics):
         "mode_count": len(records),
         "polling_mode_count": len([rec for rec in records if rec.get("would_poll_if_configured")]),
         "operator_host_required_mode_count": len([rec for rec in records if rec.get("requires_operator_host")]),
+        "live_supported_mode_count": len([rec for rec in records if rec.get("live_supported")]),
         "execution_supported_mode_count": len([rec for rec in records if rec.get("execution_supported")]),
         "active_control_channel_mode_count": len([rec for rec in records if rec.get("active_control_channel")]),
         "operator_supplied_command_execution_mode_count": len([
@@ -1745,6 +1756,8 @@ def command_queue_summary(cfg):
     enabled = str(cfg.get("command_queue_enable", "no"))
     allowed_commands = str(cfg.get("command_queue_allowed_commands", "none"))
     allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
+    poll_interval_sec = str(cfg.get("command_queue_poll_interval_sec", "5"))
+    max_polls = str(cfg.get("command_queue_max_polls", "0"))
     policy_errors = command_queue_policy_errors(cfg)
     policy_valid = not policy_errors
     arbitrary_policy_requested = policy_valid and enabled == "yes" and allowed_commands == "custom" and allow_arbitrary == "yes"
@@ -1760,7 +1773,13 @@ def command_queue_summary(cfg):
         "operator_queue_records_only": True,
         "execution_supported": False,
         "executes_commands": False,
+        "delivery_supported": False,
+        "result_upload_supported": False,
+        "poll_transport_supported": True,
+        "live_polling_supported": True,
         "active_control_channel": False,
+        "poll_interval_sec": poll_interval_sec,
+        "max_polls": max_polls,
         "arbitrary_policy_requested": arbitrary_policy_requested,
         "arbitrary_execution_allowed": False,
         "safe_disabled_default": enabled == "no" and policy_valid and allowed_commands == "none" and allow_arbitrary == "no",
@@ -1775,6 +1794,8 @@ def command_queue_summary(cfg):
         "token_source": str(cfg.get("command_queue_token_source", "manual")),
         "allowed_commands": allowed_commands,
         "allow_arbitrary": allow_arbitrary,
+        "poll_interval_sec": poll_interval_sec,
+        "max_polls": max_polls,
         "policy_valid": policy_valid,
         "policy_errors": policy_errors,
         "policy_summary": policy_summary,
@@ -1797,6 +1818,9 @@ def command_queue_summary(cfg):
         "total_count": len(commands),
         "execution_supported": False,
         "delivery_supported": False,
+        "result_upload_supported": False,
+        "poll_transport_supported": True,
+        "live_polling_supported": True,
         "executes_commands": False,
         "operator_queue_records_only": True,
         "active_control_channel": False,
@@ -4688,12 +4712,19 @@ def status_document(cfg):
         "command_queue_configured_for_polling": bool(command_queue_policy_summary.get("configured_for_polling", False)),
         "command_queue_active_control_channel": bool(command_queue_policy_summary.get("active_control_channel", False)),
         "command_queue_execution_supported": bool(command_queue_policy_summary.get("execution_supported", False)),
+        "command_queue_delivery_supported": bool(command_queue_policy_summary.get("delivery_supported", False)),
+        "command_queue_result_upload_supported": bool(command_queue_policy_summary.get("result_upload_supported", False)),
+        "command_queue_poll_transport_supported": bool(command_queue_policy_summary.get("poll_transport_supported", False)),
+        "command_queue_live_polling_supported": bool(command_queue_policy_summary.get("live_polling_supported", False)),
+        "command_queue_poll_interval_sec": command_queue_policy_summary.get("poll_interval_sec", "5"),
+        "command_queue_max_polls": command_queue_policy_summary.get("max_polls", "0"),
         "command_queue_arbitrary_policy_requested": bool(command_queue_policy_summary.get("arbitrary_policy_requested", False)),
         "command_queue_arbitrary_execution_allowed": bool(command_queue_policy_summary.get("arbitrary_execution_allowed", False)),
         "command_queue_safe_disabled_default": bool(command_queue_policy_summary.get("safe_disabled_default", False)),
         "command_queue_mode_count": command_queue_mode_summary.get("mode_count", 0),
         "command_queue_polling_mode_count": command_queue_mode_summary.get("polling_mode_count", 0),
         "command_queue_operator_host_required_mode_count": command_queue_mode_summary.get("operator_host_required_mode_count", 0),
+        "command_queue_live_supported_mode_count": command_queue_mode_summary.get("live_supported_mode_count", 0),
         "command_queue_execution_supported_mode_count": command_queue_mode_summary.get("execution_supported_mode_count", 0),
         "command_queue_active_control_channel_mode_count": command_queue_mode_summary.get("active_control_channel_mode_count", 0),
         "command_queue_operator_supplied_command_execution_mode_count": command_queue_mode_summary.get("operator_supplied_command_execution_mode_count", 0),
