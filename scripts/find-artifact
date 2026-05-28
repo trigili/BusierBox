@@ -171,6 +171,17 @@ def match_indexes(rows):
     return indexes
 
 
+def api_collection_record(name, count, indexes, summary_key, primary_key=""):
+    return {
+        "name": name,
+        "count": count,
+        "count_summary_key": summary_key,
+        "primary_key": primary_key,
+        "indexes": list(indexes),
+        "summary_key": summary_key,
+    }
+
+
 def recommendation_document(index, rows, args):
     selected = rows[0] if rows else None
     selected_sha = (selected or {}).get("sha256") or ""
@@ -195,11 +206,10 @@ def recommendation_document(index, rows, args):
         "matches": visible_matches,
         **indexes,
         "api_collections": {
-            "matches": {
-                "name": "matches",
-                "count": len(visible_matches),
-                "summary_key": "visible_match_count",
-                "indexes": [
+            "matches": api_collection_record(
+                "matches",
+                len(visible_matches),
+                [
                     "matches_by_release",
                     "matches_by_tuple_path",
                     "matches_by_payload_preset",
@@ -211,13 +221,16 @@ def recommendation_document(index, rows, args):
                     "matches_by_doom_wad_filename",
                     "matches_by_doom_wad_sha256",
                 ],
-            },
-            "dedupe_alternatives": {
-                "name": "dedupe_alternatives",
-                "count": len(dedupe),
-                "summary_key": "dedupe_count",
-                "indexes": [],
-            },
+                "visible_match_count",
+                "artifact_path",
+            ),
+            "dedupe_alternatives": api_collection_record(
+                "dedupe_alternatives",
+                len(dedupe),
+                [],
+                "dedupe_count",
+                "artifact_path",
+            ),
         },
         "index": {
             "release_count": index.get("release_count", 0),

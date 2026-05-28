@@ -192,12 +192,15 @@ same lookup through `--doom-wad` and `--doom-wad-sha256`. You can search by cano
 target compatibility tuple. The index also publishes normalized
 `device_records` and `tuple_records` with release, alias, and tuple-path lookup
 maps, plus `api_collections` metadata for artifacts, dedupe records, devices,
-tuples, and precomputed recommendations. Future TUI/web clients can use those
-fields to discover record counts and lookup maps without hard-coding the JSON
-shape. It does not download or rebuild anything.
+tuples, and precomputed recommendations. Each collection descriptor includes
+`count`, `summary_key`, `count_summary_key`, `primary_key`, and index names.
+Future TUI/web clients can use those fields to discover record counts and
+lookup maps without hard-coding the JSON shape. It does not download or rebuild
+anything.
 `--recommendation-json` returns the selected artifact plus active filters,
 match count, visible match count, match lookup maps, `api_collections`
-metadata, index counts, and the selection policy. Lookup maps include
+metadata with the same count/primary-key fields, index counts, and the
+selection policy. Lookup maps include
 `matches_by_release`, `matches_by_tuple_path`, `matches_by_payload_preset`,
 `matches_by_compatibility`, `matches_by_tool`, `matches_by_feature`,
 `matches_by_provider_tool`, `matches_by_provider_status`,

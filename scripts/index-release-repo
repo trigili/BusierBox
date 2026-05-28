@@ -195,10 +195,12 @@ def recommendations_from_indexes(devices, indexes):
     }
 
 
-def api_collection_record(name, count, indexes, summary_key):
+def api_collection_record(name, count, indexes, summary_key, primary_key=""):
     return {
         "name": name,
         "count": count,
+        "count_summary_key": summary_key,
+        "primary_key": primary_key,
         "indexes": list(indexes),
         "summary_key": summary_key,
     }
@@ -429,30 +431,35 @@ def build_repo_index(paths):
                 len(artifacts),
                 artifact_index_names,
                 "artifact_count",
+                "artifact_path",
             ),
             "dedupe": api_collection_record(
                 "dedupe",
                 len(by_sha),
                 [],
                 "deduplicated_artifact_count",
+                "sha256",
             ),
             "devices": api_collection_record(
                 "devices",
                 len(device_records),
                 device_record_index_names,
                 "device_record_count",
+                "alias",
             ),
             "tuples": api_collection_record(
                 "tuples",
                 len(tuple_records),
                 tuple_record_index_names,
                 "tuple_record_count",
+                "tuple_path",
             ),
             "recommendations": api_collection_record(
                 "recommendations",
                 recommendation_count,
                 recommendation_index_names,
                 "recommendation_count",
+                "key",
             ),
         },
     }
