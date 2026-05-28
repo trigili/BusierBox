@@ -7849,6 +7849,14 @@ def print_activity_summary(summary):
         f"fetch={summary.get('latest_fetch_at') or '-'} "
         f"session={summary.get('latest_session_updated_at') or '-'}"
     )
+    print(
+        "  service lifecycle: "
+        f"actual={format_counts(summary.get('service_actual_counts') or {})} "
+        f"configured={format_counts(summary.get('service_configured_counts') or {})} "
+        f"stale={format_counts(summary.get('service_stale_counts') or {})} "
+        f"errors={format_counts(summary.get('service_has_error_counts') or {})} "
+        f"stopped_reasons={format_counts(summary.get('service_stopped_reason_counts') or {})}"
+    )
 
 
 def print_warning_summary(summary):

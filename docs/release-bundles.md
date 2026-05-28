@@ -435,6 +435,8 @@ state, and port in `services_by_name`, `services_by_actual`,
 reconstructing their own maps. `services_by_stopped_reason` and
 `summary.service_stopped_reason_counts` let clients summarize clean exits,
 signals, and operator stop actions without rescanning every service row.
+Human `--status` mirrors the same stopped-reason counts in its service
+lifecycle summary.
 Listener ports are exposed as `ports`,
 `ports_by_number`, `ports_by_service`, and `ports_by_actual`. Service and port
 records carry `warning_count` and `warning_types` fields, and are grouped in
