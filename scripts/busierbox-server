@@ -2855,6 +2855,9 @@ def target_command_record_summary(records):
 
 def warning_stats(warnings):
     (by_type,
+     by_severity,
+     by_remediation_class,
+     by_type_severity,
      by_service,
      by_port,
      by_pid,
@@ -2868,6 +2871,9 @@ def warning_stats(warnings):
     return {
         "total_count": len(warnings or []),
         "by_type": count_records(by_type),
+        "by_severity": count_records(by_severity),
+        "by_remediation_class": count_records(by_remediation_class),
+        "by_type_severity": count_records(by_type_severity),
         "by_service": count_records(by_service),
         "by_port": count_records(by_port),
         "by_pid": count_records(by_pid),
@@ -2889,8 +2895,40 @@ def warning_record_paths(item):
     return paths
 
 
+def warning_classification(warning_type):
+    mapping = {
+        "service_error": ("error", "stop_or_reconfigure_service"),
+        "stale_state": ("warning", "stop_or_clean_state"),
+        "unexpected_listener": ("warning", "inspect_listener"),
+        "listener_bind_mismatch": ("warning", "inspect_listener"),
+        "unmanaged_recorded_pid": ("warning", "inspect_process"),
+        "operator_path_kind_mismatch": ("error", "fix_operator_path"),
+        "invalid_server_state": ("error", "repair_operator_state"),
+        "invalid_staged_files_state": ("error", "repair_operator_state"),
+        "invalid_command_queue_state": ("error", "repair_operator_state"),
+        "invalid_release_state": ("error", "repair_release_state"),
+        "invalid_event_log": ("warning", "inspect_event_log"),
+        "invalid_command_queue_policy": ("error", "fix_policy"),
+        "invalid_rshell_session_policy": ("error", "fix_policy"),
+    }
+    return mapping.get(str(warning_type or ""), ("warning", "inspect"))
+
+
+def annotate_warning_records(warnings):
+    for item in warnings or []:
+        if not isinstance(item, dict):
+            continue
+        severity, remediation = warning_classification(item.get("type"))
+        item.setdefault("severity", severity)
+        item.setdefault("remediation_class", remediation)
+        item.setdefault("requires_operator_action", item.get("severity") in ("error", "warning"))
+
+
 def warning_record_indexes(warnings):
     by_type = {}
+    by_severity = {}
+    by_remediation_class = {}
+    by_type_severity = {}
     by_service = {}
     by_port = {}
     by_pid = {}
@@ -2904,12 +2942,20 @@ def warning_record_indexes(warnings):
         if not isinstance(item, dict):
             continue
         warning_type = str(item.get("type") or "")
+        severity = str(item.get("severity") or "")
+        remediation_class = str(item.get("remediation_class") or "")
         service = str(item.get("service") or "")
         port = item.get("port")
         port_key = str(port) if port not in (None, "", 0) else ""
         pid = str(item.get("pid") or "")
         if warning_type:
             by_type.setdefault(warning_type, []).append(item)
+        if severity:
+            by_severity.setdefault(severity, []).append(item)
+        if remediation_class:
+            by_remediation_class.setdefault(remediation_class, []).append(item)
+        if warning_type and severity:
+            by_type_severity.setdefault(f"{warning_type}:{severity}", []).append(item)
         if service:
             by_service.setdefault(service, []).append(item)
         if port_key:
@@ -2937,6 +2983,9 @@ def warning_record_indexes(warnings):
                 by_type_path.setdefault(f"{warning_type}:{path}", []).append(item)
     return (
         by_type,
+        by_severity,
+        by_remediation_class,
+        by_type_severity,
         by_service,
         by_port,
         by_pid,
@@ -7088,7 +7137,11 @@ def status_document(cfg):
             "message": "rshell session policy is invalid; generated target command metadata is not usable for reconnect decisions",
             "suggested_action": "set rshell_session_policy to single, reconnect, or persistent",
         })
+    annotate_warning_records(warnings)
     (warnings_by_type,
+     warnings_by_severity,
+     warnings_by_remediation_class,
+     warnings_by_type_severity,
      warnings_by_service,
      warnings_by_port,
      warnings_by_pid,
@@ -7184,6 +7237,9 @@ def status_document(cfg):
         "port_actual_counts": record_count_by_key(ports, "actual"),
         "warning_count": warning_summary.get("total_count", 0),
         "warning_type_counts": warning_summary.get("by_type") or {},
+        "warning_severity_counts": warning_summary.get("by_severity") or {},
+        "warning_remediation_class_counts": warning_summary.get("by_remediation_class") or {},
+        "warning_type_severity_counts": warning_summary.get("by_type_severity") or {},
         "warning_service_counts": warning_summary.get("by_service") or {},
         "warning_port_counts": warning_summary.get("by_port") or {},
         "warning_pid_counts": warning_summary.get("by_pid") or {},
@@ -7483,7 +7539,9 @@ def status_document(cfg):
         ),
         "warnings": api_collection_record(
             "warnings", warnings, "type", (
-                "warnings_by_type", "warnings_by_service", "warnings_by_port",
+                "warnings_by_type", "warnings_by_severity",
+                "warnings_by_remediation_class", "warnings_by_type_severity",
+                "warnings_by_service", "warnings_by_port",
                 "warnings_by_pid", "warnings_by_listener_pid", "warnings_by_owner_pid",
                 "warnings_by_path", "warnings_by_type_path",
                 "warnings_by_service_port", "warnings_by_type_service_port",
@@ -7749,6 +7807,9 @@ def status_document(cfg):
         "summary": summary,
         "warnings": warnings,
         "warnings_by_type": warnings_by_type,
+        "warnings_by_severity": warnings_by_severity,
+        "warnings_by_remediation_class": warnings_by_remediation_class,
+        "warnings_by_type_severity": warnings_by_type_severity,
         "warnings_by_service": warnings_by_service,
         "warnings_by_port": warnings_by_port,
         "warnings_by_pid": warnings_by_pid,
@@ -7982,6 +8043,8 @@ def print_warning_summary(summary):
         "Warning summary: "
         f"total={summary.get('warning_count', 0)} "
         f"types={format_counts(summary.get('warning_type_counts') or {})} "
+        f"severity={format_counts(summary.get('warning_severity_counts') or {})} "
+        f"remediation={format_counts(summary.get('warning_remediation_class_counts') or {})} "
         f"services={format_counts(summary.get('warning_service_counts') or {})} "
         f"ports={format_counts(summary.get('warning_port_counts') or {})}"
     )

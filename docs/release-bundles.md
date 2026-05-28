@@ -813,10 +813,15 @@ Structured `warnings` use stable `type` values such as `service_error`,
 `operator_path_kind_mismatch`, `invalid_server_state`,
 `invalid_staged_files_state`, `invalid_command_queue_state`,
 `invalid_release_state`, `invalid_event_log`, and
-`invalid_command_queue_policy`, and `invalid_rshell_session_policy`.
+`invalid_command_queue_policy`, and `invalid_rshell_session_policy`. Each
+warning also carries `severity`, `remediation_class`, and
+`requires_operator_action`, so clients can badge warning rows by urgency and
+next-action class without parsing prose messages.
 `warning_stats`
-summarizes warnings by type, service, port, recorded PID, listener PID, and
-possible owner PID. `warnings_by_type`, `warnings_by_service`,
+summarizes warnings by type, severity, remediation class, type/severity,
+service, port, recorded PID, listener PID, and possible owner PID.
+`warnings_by_type`, `warnings_by_severity`, `warnings_by_remediation_class`,
+`warnings_by_type_severity`, `warnings_by_service`,
 `warnings_by_port`, `warnings_by_pid`, `warnings_by_listener_pid`, and
 `warnings_by_owner_pid` provide full warning records grouped for direct
 frontend lookups. `warnings_by_service_port` and
@@ -827,8 +832,10 @@ grid lookups. Path-carrying warnings are also grouped in
 in `warning_path_counts` and `warning_type_path_counts`, so browser panes can
 jump from a state file, event log, release manifest, or operator path directly
 to relevant warnings. The same compact warning counters are mirrored into `summary`
-as `warning_count`, `warning_type_counts`, `warning_service_counts`,
-`warning_port_counts`, `warning_pid_counts`, `warning_listener_pid_counts`, and
+as `warning_count`, `warning_type_counts`, `warning_severity_counts`,
+`warning_remediation_class_counts`, `warning_type_severity_counts`,
+`warning_service_counts`, `warning_port_counts`, `warning_pid_counts`,
+`warning_listener_pid_counts`, and
 `warning_owner_pid_counts`, plus `warning_service_port_counts` and
 `warning_type_service_port_counts`; summary
 fields also include `command_queue_policy_valid` and

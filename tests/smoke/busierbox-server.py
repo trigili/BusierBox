@@ -2762,6 +2762,9 @@ def main():
         bind_fail_ports_api = (bind_fail_doc.get("api_collections") or {}).get("ports") or {}
         if (not bind_fail_warnings or
                 not bind_fail_warnings[-1].get("error") or
+                bind_fail_warnings[-1].get("severity") != "error" or
+                bind_fail_warnings[-1].get("remediation_class") != "stop_or_reconfigure_service" or
+                bind_fail_warnings[-1].get("requires_operator_action") is not True or
                 bind_fail_warnings[-1].get("bind_address") != "127.0.0.1" or
                 bind_fail_warnings[-1].get("port") != bind_fail_port or
                 not bind_fail_warnings[-1].get("owners") or
@@ -2784,10 +2787,16 @@ def main():
         bind_summary = bind_fail_doc.get("summary") or {}
         if (bind_warning_stats.get("total_count", 0) < 1 or
                 bind_warning_stats.get("by_type", {}).get("service_error", 0) < 1 or
+                bind_warning_stats.get("by_severity", {}).get("error", 0) < 1 or
+                bind_warning_stats.get("by_remediation_class", {}).get("stop_or_reconfigure_service", 0) < 1 or
+                bind_warning_stats.get("by_type_severity", {}).get("service_error:error", 0) < 1 or
                 bind_warning_stats.get("by_service", {}).get("file-service", 0) < 1 or
                 bind_warning_stats.get("by_port", {}).get(str(bind_fail_port), 0) < 1 or
                 bind_summary.get("warning_count", 0) < 1 or
                 bind_summary.get("warning_type_counts", {}).get("service_error", 0) < 1 or
+                bind_summary.get("warning_severity_counts", {}).get("error", 0) < 1 or
+                bind_summary.get("warning_remediation_class_counts", {}).get("stop_or_reconfigure_service", 0) < 1 or
+                bind_summary.get("warning_type_severity_counts", {}).get("service_error:error", 0) < 1 or
                 bind_summary.get("warning_service_counts", {}).get("file-service", 0) < 1 or
                 bind_summary.get("warning_port_counts", {}).get(str(bind_fail_port), 0) < 1 or
                 bind_summary.get("service_warning_count", 0) < 1 or
@@ -2798,10 +2807,16 @@ def main():
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
         warnings_by_type = bind_fail_doc.get("warnings_by_type") or {}
+        warnings_by_severity = bind_fail_doc.get("warnings_by_severity") or {}
+        warnings_by_remediation_class = bind_fail_doc.get("warnings_by_remediation_class") or {}
+        warnings_by_type_severity = bind_fail_doc.get("warnings_by_type_severity") or {}
         warnings_by_service = bind_fail_doc.get("warnings_by_service") or {}
         warnings_by_port = bind_fail_doc.get("warnings_by_port") or {}
         if (not warnings_by_type.get("service_error") or
                 warnings_by_type["service_error"][-1].get("service") != "file-service" or
+                not any(item.get("type") == "service_error" for item in warnings_by_severity.get("error", [])) or
+                not any(item.get("service") == "file-service" for item in warnings_by_remediation_class.get("stop_or_reconfigure_service", [])) or
+                not any(item.get("port") == bind_fail_port for item in warnings_by_type_severity.get("service_error:error", [])) or
                 not warnings_by_service.get("file-service") or
                 warnings_by_service["file-service"][-1].get("type") != "service_error" or
                 not warnings_by_port.get(str(bind_fail_port)) or
@@ -2828,6 +2843,13 @@ def main():
                 bind_fail_doc.get("warnings_by_service_port", {}).get(service_port_key, [{}])[-1].get("type") != "service_error" or
                 bind_fail_doc.get("warnings_by_type_service_port", {}).get(type_service_port_key, [{}])[-1].get("service") != "file-service"):
             print("bind failure status missing service:port warning indexes", file=sys.stderr)
+            print(bind_fail_status.stdout, file=sys.stderr)
+            return 1
+        warning_api = (bind_fail_doc.get("api_collections") or {}).get("warnings") or {}
+        if ("warnings_by_severity" not in (warning_api.get("indexes") or []) or
+                "warnings_by_remediation_class" not in (warning_api.get("indexes") or []) or
+                "warnings_by_type_severity" not in (warning_api.get("indexes") or [])):
+            print("bind failure status missing warning classification API indexes", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
         bind_fail_text_status = run(
