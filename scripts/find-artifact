@@ -145,6 +145,10 @@ def match_indexes(rows):
         "matches_by_compatibility": {},
         "matches_by_tool": {},
         "matches_by_feature": {},
+        "matches_by_provider_tool": {},
+        "matches_by_provider_status": {},
+        "matches_by_doom_wad_filename": {},
+        "matches_by_doom_wad_sha256": {},
     }
     for row in rows:
         add_index(indexes, "matches_by_release", row.get("release_name"), row)
@@ -155,6 +159,15 @@ def match_indexes(rows):
             add_index(indexes, "matches_by_tool", tool, row)
         for feature in row.get("features") or []:
             add_index(indexes, "matches_by_feature", feature, row)
+        for tool, status in sorted((row.get("tool_provider_status") or {}).items()):
+            if isinstance(status, dict):
+                add_index(indexes, "matches_by_provider_tool", tool, row)
+                add_index(indexes, "matches_by_provider_status", f"{tool}:{status.get('overall') or status.get('status') or 'unknown'}", row)
+        for wad in row.get("doom_wads") or []:
+            if not isinstance(wad, dict):
+                continue
+            add_index(indexes, "matches_by_doom_wad_filename", wad.get("filename"), row)
+            add_index(indexes, "matches_by_doom_wad_sha256", wad.get("sha256"), row)
     return indexes
 
 
@@ -193,6 +206,10 @@ def recommendation_document(index, rows, args):
                     "matches_by_compatibility",
                     "matches_by_tool",
                     "matches_by_feature",
+                    "matches_by_provider_tool",
+                    "matches_by_provider_status",
+                    "matches_by_doom_wad_filename",
+                    "matches_by_doom_wad_sha256",
                 ],
             },
             "dedupe_alternatives": {

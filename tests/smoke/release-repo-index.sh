@@ -186,9 +186,12 @@ assert doc["visible_match_count"] == 1
 assert doc["selected"]["release_name"] == "two"
 assert doc["api_collections"]["matches"]["summary_key"] == "visible_match_count"
 assert "matches_by_payload_preset" in doc["api_collections"]["matches"]["indexes"]
+assert "matches_by_provider_status" in doc["api_collections"]["matches"]["indexes"]
 assert doc["matches_by_release"]["two"][0]["release_name"] == "two"
 assert doc["matches_by_payload_preset"]["ssh-operator"][0]["release_name"] == "two"
 assert doc["matches_by_compatibility"]["exact"][0]["release_name"] == "two"
+assert doc["matches_by_provider_tool"]["strace"][0]["release_name"] == "two"
+assert doc["matches_by_provider_status"]["strace:found"][0]["release_name"] == "two"
 assert doc["index"]["deduplicated_artifact_count"] == 2
 assert doc["index"]["artifacts_by_sha_count"] == 2
 assert doc["index"]["artifacts_by_release_count"] == 3
@@ -230,6 +233,9 @@ assert doc["visible_match_count"] == 3
 assert doc["selected"]["tuple_path"] == "by-tuple/mipsel/musl/4.x/mips32r2-24kc"
 assert len(doc["matches_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]) == 3
 assert doc["matches_by_tool"]["gdbserver"][0]["release_name"] == "three"
+assert doc["matches_by_provider_status"]["gdbserver:found"][0]["release_name"] == "three"
+assert doc["matches_by_doom_wad_filename"]["doom.wad"][0]["release_name"] == "one"
+assert doc["matches_by_doom_wad_sha256"]["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"][0]["payload_preset"] == "survey-core"
 assert doc["matches_by_feature"]["reverse-ssh"]
 PY
 grep -q -- '--recommendation-json' docs/release-bundles.md
