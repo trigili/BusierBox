@@ -285,6 +285,24 @@ if (queue.get("enabled") != "no" or
         queue.get("result_upload_supported") is not True or
         queue.get("executes_commands") is not False):
     raise SystemExit(f"tuple summary command queue policy unsafe/missing: {queue!r}")
+mode_records = queue.get("mode_records") or []
+mode_summary = queue.get("mode_summary") or {}
+mode_api = (queue.get("api_collections") or {}).get("mode_records") or {}
+if (len(mode_records) != 5 or
+        mode_records[1].get("mode") != "poll" or
+        mode_records[1].get("target_polling_supported") is not True or
+        mode_records[1].get("execution_supported") is not False or
+        queue.get("mode_records_by_mode", {}).get("poll") != [1] or
+        queue.get("mode_records_by_lifecycle", {}).get("single-poll") != [1] or
+        queue.get("mode_records_by_would_poll_if_configured", {}).get("true") != [1, 2, 3] or
+        queue.get("mode_records_by_target_polling_supported", {}).get("true") != [1, 2, 3] or
+        queue.get("mode_records_by_execution_supported", {}).get("false") != [0, 1, 2, 3, 4] or
+        queue.get("mode_records_by_active_control_channel", {}).get("false") != [0, 1, 2, 3, 4] or
+        mode_summary.get("mode_count") != 5 or
+        mode_summary.get("target_polling_supported_mode_count") != 3 or
+        mode_summary.get("execution_supported_mode_count") != 0 or
+        mode_api.get("primary_key") != "mode"):
+    raise SystemExit(f"tuple summary command queue mode metadata missing: {queue!r}")
 noresidue = summary.get("noresidue_policy") or {}
 if noresidue.get("best_effort_cleanup") is not True or noresidue.get("forensic_no_trace") is not False:
     raise SystemExit(f"tuple summary no-residue policy unsafe/missing: {noresidue!r}")
@@ -368,6 +386,24 @@ if (queue.get("enabled") != "no" or
         queue.get("result_upload_supported") is not True or
         queue.get("executes_commands") is not False):
     raise SystemExit(f"tuple manifest command queue policy unsafe/missing: {queue!r}")
+mode_records = queue.get("mode_records") or []
+mode_summary = queue.get("mode_summary") or {}
+mode_api = (queue.get("api_collections") or {}).get("mode_records") or {}
+if (len(mode_records) != 5 or
+        mode_records[1].get("mode") != "poll" or
+        mode_records[1].get("target_polling_supported") is not True or
+        mode_records[1].get("execution_supported") is not False or
+        queue.get("mode_records_by_mode", {}).get("poll") != [1] or
+        queue.get("mode_records_by_lifecycle", {}).get("single-poll") != [1] or
+        queue.get("mode_records_by_would_poll_if_configured", {}).get("true") != [1, 2, 3] or
+        queue.get("mode_records_by_target_polling_supported", {}).get("true") != [1, 2, 3] or
+        queue.get("mode_records_by_execution_supported", {}).get("false") != [0, 1, 2, 3, 4] or
+        queue.get("mode_records_by_active_control_channel", {}).get("false") != [0, 1, 2, 3, 4] or
+        mode_summary.get("mode_count") != 5 or
+        mode_summary.get("target_polling_supported_mode_count") != 3 or
+        mode_summary.get("execution_supported_mode_count") != 0 or
+        mode_api.get("primary_key") != "mode"):
+    raise SystemExit(f"tuple manifest command queue mode metadata missing: {queue!r}")
 noresidue = summary.get("noresidue_policy") or {}
 if noresidue.get("best_effort_cleanup") is not True or noresidue.get("forensic_no_trace") is not False:
     raise SystemExit(f"tuple manifest no-residue policy unsafe/missing: {noresidue!r}")

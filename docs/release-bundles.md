@@ -528,14 +528,15 @@ not scan the full queue policy object. The configured
 `command_queue_poll_interval_sec`, `command_queue_poll_jitter_pct`,
 `command_queue_poll_backoff`, `command_queue_poll_max_interval_sec`, and
 `command_queue_max_polls` are mirrored for interval-polling controls.
-Target manifests and `plan command-queue --json` also expose
+Target manifests, tuple summaries, release manifests, and
+`plan command-queue --json` also expose
 `daemon_state_file`, `daemon_state_file_supported`,
 `daemon_status_supported`, and `daemon_stop_supported` so operator tooling can
 show the target-side daemon lifecycle contract without starting a poll loop.
-`command_queue.mode_semantics`,
+`command_queue.mode_semantics`, `command_queue.mode_records`, tuple-summary
 `command_queue.mode_records`, and top-level `command_queue_mode_records` expose
 the same target-side `status`, `poll`, `once`, `daemon`, and `stop` lifecycle
-labels, live-poll support flags, and non-execution booleans used by the target
+labels, polling support flags, and non-execution booleans used by the target
 applet. The top-level API view also includes lookup maps such as
 `command_queue_modes_by_mode`, `command_queue_modes_by_lifecycle`,
 `command_queue_modes_by_would_poll_if_configured`,
