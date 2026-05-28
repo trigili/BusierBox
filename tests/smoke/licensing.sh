@@ -14,6 +14,7 @@ test -f LICENSES/miniz.txt
 grep -q 'third_party/miniz/LICENSE' LICENSES/miniz.txt
 test -f manifests/license-policy.json
 scripts/check-licensing
+make check-licensing
 
 tmp=${TMPDIR:-/tmp}/busierbox-licensing.$$
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
@@ -54,7 +55,7 @@ grep -q 'BusierBox is not a BusyBox replacement and is not a BusyBox fork' READM
 grep -q 'GPL-2.0-or-later' docs/licensing.md
 grep -q 'LICENSE.busierbox' docs/licensing.md
 grep -q 'GPL compatibility summary' docs/licensing.md
-grep -q 'scripts/check-licensing' docs/licensing.md
+grep -q 'make check-licensing' docs/licensing.md
 grep -q 'manifests/license-policy.json' docs/licensing.md
 grep -q 'BusyBox' docs/licensing.md
 grep -q 'Buildroot' docs/licensing.md

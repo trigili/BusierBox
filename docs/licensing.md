@@ -13,7 +13,7 @@ compatible choice for that combined artifact.
 The top-level `NOTICE` file repeats the repository-level license declaration in
 a short form for release bundles, package inventories, and repository scanners.
 `manifests/license-policy.json` is the machine-readable form of the same policy,
-and `scripts/check-licensing` validates the policy against the project grant,
+and `make check-licensing` validates the policy against the project grant,
 pinned source metadata, and bundled notice files. This document is an
 engineering license inventory, not legal advice.
 
@@ -65,3 +65,9 @@ notices for included components:
   filename, license, and homepage metadata.
 - Treat optional Buildroot packages as separately licensed payload components;
   their package licenses do not change BusierBox's own license.
+
+## Validation
+
+Run `make check-licensing` before adding or changing third-party components.
+The check verifies the project GPL declaration, release notice files, pinned
+source license metadata, and the current compatibility inventory.
