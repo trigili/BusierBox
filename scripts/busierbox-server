@@ -6497,6 +6497,39 @@ def run_curses_tui(cfg):
             return rec.get("path") or record.get("filesystem_path") or record.get("path") or (artifact_paths[0] if artifact_paths else "") or release.get("release_json", "")
         return ""
 
+    def stage_release_nav_item(cfg, rec):
+        kind = rec.get("kind", "")
+        record = rec.get("record") if isinstance(rec.get("record"), dict) else {}
+        if kind == "recommendation":
+            recommendation_id = record.get("id")
+            if recommendation_id:
+                return stage_release_artifact(cfg, recommendation_id)
+            artifact = record.get("artifact") or rec.get("path")
+            if artifact:
+                return stage_release_artifact(cfg, artifact)
+        if kind == "device":
+            name = record.get("name", "")
+            if name:
+                try:
+                    return stage_release_artifact(cfg, f"by_device:{name}")
+                except ValueError:
+                    pass
+        if kind == "tuple":
+            tuple_path = record.get("path", "")
+            if tuple_path:
+                try:
+                    return stage_release_artifact(cfg, f"by_tuple_path:{tuple_path}")
+                except ValueError:
+                    pass
+        artifact_paths = record.get("artifacts") or record.get("artifact_paths") or []
+        for artifact in artifact_paths:
+            if artifact:
+                return stage_release_artifact(cfg, artifact)
+        path = rec.get("path") or record.get("path") or record.get("filesystem_path") or ""
+        if path:
+            return stage_release_artifact(cfg, path)
+        raise ValueError("no release artifact to stage")
+
     def draw(stdscr):
         curses.curs_set(0)
         stdscr.keypad(True)
@@ -6654,6 +6687,7 @@ def run_curses_tui(cfg):
                     f"tuples: {len(release_tuples)}",
                     f"recommendations: {len(release.get('recommendation_records') or [])}",
                     f"selected_artifacts: {source.get('artifact_count', len(source.get('artifacts') or []))}",
+                    "enter/s stages recommended artifact when available",
                     "v opens selected local path in pager",
                 ]
                 if rec.get("kind") == "recommendation":
@@ -6728,7 +6762,13 @@ def run_curses_tui(cfg):
                 elif pane == 6 and release_artifacts:
                     rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
                     try:
-                        stage_file(cfg, rec.get("path", ""), rec.get("request_name") or rec.get("name", ""))
+                        stage_release_artifact(cfg, rec.get("release_path") or rec.get("name") or rec.get("path", ""))
+                    except ValueError:
+                        pass
+                elif pane == 7 and release_nav:
+                    rec = release_nav[min(selected, len(release_nav) - 1)]
+                    try:
+                        stage_release_nav_item(cfg, rec)
                     except ValueError:
                         pass
             elif key == ord("5"):
@@ -6741,7 +6781,13 @@ def run_curses_tui(cfg):
             elif key in (ord("6"), ord("s")) and pane == 6 and release_artifacts:
                 rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
                 try:
-                    stage_file(cfg, rec.get("path", ""), rec.get("request_name") or rec.get("name", ""))
+                    stage_release_artifact(cfg, rec.get("release_path") or rec.get("name") or rec.get("path", ""))
+                except ValueError:
+                    pass
+            elif key in (ord("6"), ord("s")) and pane == 7 and release_nav:
+                rec = release_nav[min(selected, len(release_nav) - 1)]
+                try:
+                    stage_release_nav_item(cfg, rec)
                 except ValueError:
                     pass
             elif key in (ord("6"), ord("s")):

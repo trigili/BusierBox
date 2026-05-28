@@ -111,6 +111,10 @@ def main():
         if word not in src:
             print(f"busierbox-server: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
+    for word in ("stage_release_nav_item", "by_device:", "by_tuple_path:", "enter/s stages recommended artifact when available"):
+        if word not in src:
+            print(f"busierbox-server: release device/tuple staging missing: {word}", file=sys.stderr)
+            return 1
     for word in ("tty.setraw", "tcsetattr", "SSLWantReadError", "SSLWantWriteError",
                  "bytearray", "--one-shot", "listener remains open", 'reason = "active"',
                  "TLSVersion.TLSv1_2"):
@@ -2958,6 +2962,25 @@ def main():
             print("--stage-release-artifact did not stage release recommendation", file=sys.stderr)
             print(staged_release_recommendation.stdout, file=sys.stderr)
             print(staged_release_recommendation.stderr, file=sys.stderr)
+            return 1
+        staged_release_tuple_recommendation = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--stage-release-artifact", "by_tuple_path:by-tuple/native/host/host/host",
+                "--list-staged",
+            ],
+            cwd=release_dir,
+            text=True,
+            capture_output=True,
+        )
+        if (staged_release_tuple_recommendation.returncode != 0 or
+                "busierbox fetch busierbox-test" not in staged_release_tuple_recommendation.stdout):
+            print("--stage-release-artifact did not stage tuple recommendation", file=sys.stderr)
+            print(staged_release_tuple_recommendation.stdout, file=sys.stderr)
+            print(staged_release_tuple_recommendation.stderr, file=sys.stderr)
             return 1
         staged_status = subprocess.run(
             [
