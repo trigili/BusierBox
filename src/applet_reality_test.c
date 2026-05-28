@@ -686,7 +686,7 @@ static void print_json(struct check_result checks[], size_t n)
     }
     printf("]");
     print_check_indexes(checks, n);
-    printf(",\"api_collections\":{\"checks\":{\"name\":\"checks\",\"count_summary_key\":\"summary.check_count\",\"indexes\":[\"checks_by_name\",\"checks_by_status\",\"checks_by_type\"]}}");
+    printf(",\"api_collections\":{\"checks\":{\"name\":\"checks\",\"count\":%zu,\"count_summary_key\":\"summary.check_count\",\"summary_key\":\"summary.check_count\",\"indexes\":[\"checks_by_name\",\"checks_by_status\",\"checks_by_type\"]}}", n);
     printf(",\"summary\":{\"check_count\":%zu,\"pass\":%d,\"fail\":%d,\"skipped\":%d", n, pass, fail, skip);
     printf(",\"capability_pass\":%d,\"capability_fail\":%d", capability_pass, capability_fail);
     printf(",\"operator_pass\":%d,\"operator_fail\":%d,\"operator_skipped\":%d", operator_pass, operator_fail, operator_skip);

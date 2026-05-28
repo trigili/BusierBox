@@ -85,8 +85,12 @@ if summary.get("check_count") != len(checks):
 if summary.get("pass", 0) + summary.get("fail", 0) + summary.get("skipped", 0) != len(checks):
     raise SystemExit("reality-test: summary counts do not match checks")
 api = (doc.get("api_collections") or {}).get("checks") or {}
+if api.get("count") != len(checks):
+    raise SystemExit("reality-test: checks api collection count drift")
 if api.get("count_summary_key") != "summary.check_count":
     raise SystemExit("reality-test: checks api collection missing summary key")
+if api.get("summary_key") != "summary.check_count":
+    raise SystemExit("reality-test: checks api collection missing normalized summary key")
 if set(api.get("indexes") or []) < {"checks_by_name", "checks_by_status", "checks_by_type"}:
     raise SystemExit("reality-test: checks api collection missing indexes")
 if doc.get("checks_by_name", {}).get("spawn_sh") != [required.index("spawn_sh")]:
