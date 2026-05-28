@@ -3,10 +3,11 @@ set -eu
 
 usage() {
     cat <<'EOF'
-usage: scripts/release-self-test [--release-dir DIR] [--help]
+usage: scripts/release-self-test [--release-dir DIR] [--json] [--help]
 
 Run a release bundle's scripts/release-self-test helper from the source checkout.
 When --release-dir is omitted, the newest dist/releases/* directory is used.
+Additional arguments such as --json are forwarded to the bundle helper.
 EOF
 }
 

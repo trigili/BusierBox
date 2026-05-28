@@ -5,6 +5,7 @@
   "target_preset": "glinet-mt7621-openwrt-musl",
   "log_dir": "local/integration-runs/new",
   "event_log": "new-events.jsonl",
+  "release_self_test_json": "new-release-self-test.json",
   "cases": [
     {
       "case": "survey-core",

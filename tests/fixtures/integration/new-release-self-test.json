@@ -1,0 +1,26 @@
+{
+  "artifact_config_roundtrip_count": 1,
+  "checked_artifact_count": 1,
+  "checksum_original_verified": true,
+  "command_queue_enabled_count": 0,
+  "command_queue_execution_supported_count": 0,
+  "command_queue_mode_count": 5,
+  "compatibility_counts": {
+    "exact": 1
+  },
+  "device_alias_count": 1,
+  "helper_count": 7,
+  "index_artifact_count": 1,
+  "index_tuple_count": 1,
+  "payload_preset_counts": {
+    "default": 1
+  },
+  "release_artifact_count": 1,
+  "release_device_count": 1,
+  "release_dir": "local/integration-runs/new/release",
+  "release_name": "fixture-release",
+  "release_tuple_count": 1,
+  "schema": 1,
+  "status": "pass",
+  "tuple_manifest_count": 1
+}

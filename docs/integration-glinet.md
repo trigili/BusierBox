@@ -177,11 +177,13 @@ validation, cleanup, final status, duration, artifact size/hash, log path, and
 failure reason. When an operator `events.jsonl` is attached to the run summary,
 the report also shows structured event totals, invalid-line count, first/latest
 event timestamps, event counts, level counts, service counts, service/event
-counts, and a recent-event tail. The JSON report exposes the same aggregate
-fields plus remote and session count maps for automation. The compare tool
-classifies regressions, new failures, fixed cases, new or removed cases,
-artifact hash changes, artifact size deltas, and duration deltas when both
-summaries include timing data.
+counts, and a recent-event tail. If the summary includes
+`release_self_test_json`, the report also surfaces generated release self-test
+diagnostics, including artifact/tuple/device counts and command-queue safety
+counters. The JSON report exposes the same aggregate fields plus remote and
+session count maps for automation. The compare tool classifies regressions, new
+failures, fixed cases, new or removed cases, artifact hash changes, artifact
+size deltas, and duration deltas when both summaries include timing data.
 
 When a release bundle is produced as part of an integration run, run the
 generated `scripts/release-self-test` inside that bundle before copying

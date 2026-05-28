@@ -49,6 +49,21 @@ def event_log_ref(data):
     return None
 
 
+def release_self_test_ref(data):
+    for key in ("release_self_test_json", "release_self_test", "release_self_test_diagnostics"):
+        value = data.get(key)
+        if isinstance(value, str) and value:
+            return value
+        if isinstance(value, dict) and value.get("path"):
+            return value.get("path")
+    release = data.get("release") or {}
+    if isinstance(release, dict):
+        for key in ("self_test_json", "release_self_test_json"):
+            if release.get(key):
+                return release.get(key)
+    return None
+
+
 def load_event_summary(summary_path, data, limit=8):
     ref = event_log_ref(data)
     path = resolve_existing_path(summary_path, ref)
@@ -125,11 +140,39 @@ def load_event_summary(summary_path, data, limit=8):
     }
 
 
+def load_release_self_test_summary(summary_path, data):
+    ref = release_self_test_ref(data)
+    path = resolve_existing_path(summary_path, ref)
+    if not path:
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            "path": str(path),
+            "valid": False,
+            "error": str(exc),
+        }
+    if not isinstance(raw, dict):
+        return {
+            "path": str(path),
+            "valid": False,
+            "error": "release self-test JSON is not an object",
+        }
+    summary = dict(raw)
+    summary["path"] = str(path)
+    summary["valid"] = True
+    return summary
+
+
 def report_document(path, data):
     doc = dict(data)
     events = load_event_summary(path, data)
     if events:
         doc["operator_events"] = events
+    release_self_test = load_release_self_test_summary(path, data)
+    if release_self_test:
+        doc["release_self_test"] = release_self_test
     return doc
 
 
@@ -224,6 +267,22 @@ def print_table(path, data):
             print("recent_events:")
             for event in events["recent"]:
                 print(f"  {event.get('ts', '')} {event.get('level', '')} {event.get('service', '')}:{event.get('event', '')}")
+    release_self_test = load_release_self_test_summary(path, data)
+    if release_self_test:
+        print(f"release_self_test={release_self_test.get('path', '')}")
+        if not release_self_test.get("valid", False):
+            print(f"release_self_test_valid=no error={release_self_test.get('error', '')}")
+        else:
+            print(
+                "release_self_test_status="
+                f"{release_self_test.get('status', '')} "
+                f"release={release_self_test.get('release_name', '')} "
+                f"artifacts={release_self_test.get('checked_artifact_count', 0)} "
+                f"tuples={release_self_test.get('release_tuple_count', 0)} "
+                f"devices={release_self_test.get('release_device_count', 0)} "
+                f"command_queue_enabled={release_self_test.get('command_queue_enabled_count', 0)} "
+                f"command_queue_exec={release_self_test.get('command_queue_execution_supported_count', 0)}"
+            )
     if failures:
         print("failure_reasons:")
         for item in failures:
