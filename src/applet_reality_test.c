@@ -679,6 +679,30 @@ static void print_check_indexes(struct check_result checks[], size_t n)
     putchar('}');
 }
 
+static void print_api_resource_object(size_t n)
+{
+    fputs("{\"name\":\"checks\",\"records_key\":\"checks\",\"count\":", stdout);
+    printf("%zu", n);
+    fputs(",\"count_summary_key\":\"summary.check_count\",\"summary_key\":\"summary.check_count\",\"primary_key\":\"name\",\"indexes\":[", stdout);
+    fputs("\"checks_by_name\",\"checks_by_status\",\"checks_by_type\",\"checks_by_skipped\",\"checks_by_available\",\"checks_by_detected\"]}", stdout);
+}
+
+static void print_api_resources(size_t n)
+{
+    fputs(",\"api\":{\"schema\":1,\"resources_key\":\"api_resources\",\"collections_key\":\"api_collections\",\"resource_count\":1}", stdout);
+    fputs(",\"api_resources\":[", stdout);
+    print_api_resource_object(n);
+    fputs("],\"api_resources_by_name\":{\"checks\":", stdout);
+    print_api_resource_object(n);
+    fputs("},\"api_resources_by_records_key\":{\"checks\":", stdout);
+    print_api_resource_object(n);
+    fputs("},\"api_resources_by_summary_key\":{\"summary.check_count\":", stdout);
+    print_api_resource_object(n);
+    fputs("},\"api_resources_by_primary_key\":{\"name\":[", stdout);
+    print_api_resource_object(n);
+    fputs("]}", stdout);
+}
+
 static void print_json(struct check_result checks[], size_t n)
 {
     size_t i;
@@ -735,6 +759,7 @@ static void print_json(struct check_result checks[], size_t n)
     }
     printf("]");
     print_check_indexes(checks, n);
+    print_api_resources(n);
     printf(",\"api_collections\":{\"checks\":{\"name\":\"checks\",\"count\":%zu,\"count_summary_key\":\"summary.check_count\",\"primary_key\":\"name\",\"summary_key\":\"summary.check_count\",\"indexes\":[\"checks_by_name\",\"checks_by_status\",\"checks_by_type\",\"checks_by_skipped\",\"checks_by_available\",\"checks_by_detected\"]}}", n);
     printf(",\"summary\":{\"check_count\":%zu,\"pass\":%d,\"fail\":%d,\"skipped\":%d", n, pass, fail, skip);
     printf(",\"capability_pass\":%d,\"capability_fail\":%d", capability_pass, capability_fail);

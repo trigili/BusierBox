@@ -103,6 +103,40 @@ if set(api.get("indexes") or []) < {
     "checks_by_detected",
 }:
     raise SystemExit("reality-test: checks api collection missing indexes")
+catalog = doc.get("api") or {}
+if catalog.get("schema") != 1:
+    raise SystemExit("reality-test: missing api catalog schema")
+if catalog.get("resources_key") != "api_resources":
+    raise SystemExit("reality-test: api catalog missing resources key")
+if catalog.get("collections_key") != "api_collections":
+    raise SystemExit("reality-test: api catalog missing collections key")
+if catalog.get("resource_count") != 1:
+    raise SystemExit("reality-test: api catalog resource count drift")
+resources = doc.get("api_resources") or []
+if len(resources) != 1:
+    raise SystemExit("reality-test: expected one api resource")
+resource = resources[0]
+if resource.get("name") != "checks" or resource.get("records_key") != "checks":
+    raise SystemExit("reality-test: checks api resource missing record keys")
+if resource.get("count") != len(checks):
+    raise SystemExit("reality-test: checks api resource count drift")
+if resource.get("summary_key") != "summary.check_count":
+    raise SystemExit("reality-test: checks api resource missing summary key")
+if resource.get("count_summary_key") != "summary.check_count":
+    raise SystemExit("reality-test: checks api resource missing count summary key")
+if resource.get("primary_key") != "name":
+    raise SystemExit("reality-test: checks api resource missing primary key")
+if resource.get("indexes") != api.get("indexes"):
+    raise SystemExit("reality-test: checks api resource indexes drift")
+if (doc.get("api_resources_by_name") or {}).get("checks") != resource:
+    raise SystemExit("reality-test: api_resources_by_name drift")
+if (doc.get("api_resources_by_records_key") or {}).get("checks") != resource:
+    raise SystemExit("reality-test: api_resources_by_records_key drift")
+if (doc.get("api_resources_by_summary_key") or {}).get("summary.check_count") != resource:
+    raise SystemExit("reality-test: api_resources_by_summary_key drift")
+primary_resources = (doc.get("api_resources_by_primary_key") or {}).get("name") or []
+if primary_resources != [resource]:
+    raise SystemExit("reality-test: api_resources_by_primary_key drift")
 if doc.get("checks_by_name", {}).get("spawn_sh") != [required.index("spawn_sh")]:
     raise SystemExit("reality-test: checks_by_name lookup is wrong")
 status_indexes = doc.get("checks_by_status") or {}
