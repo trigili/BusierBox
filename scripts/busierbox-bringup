@@ -419,6 +419,36 @@ if recommendation_path and os.path.exists(recommendation_path):
     except Exception as exc:
         recommendation_summary = {"warning": f"could not parse recommendation JSON: {exc}"}
 
+reality_summary = {}
+reality_path = env("REALITY_JSON")
+if reality_path and os.path.exists(reality_path):
+    try:
+        with open(reality_path, "r", encoding="utf-8") as fh:
+            reality_doc = json.load(fh)
+        if isinstance(reality_doc, dict):
+            checks = reality_doc.get("checks") if isinstance(reality_doc.get("checks"), list) else []
+            summary_obj = reality_doc.get("summary") if isinstance(reality_doc.get("summary"), dict) else {}
+            api_obj = reality_doc.get("api_collections") if isinstance(reality_doc.get("api_collections"), dict) else {}
+            reality_summary = {
+                "source": reality_path,
+                "check_count": int(summary_obj.get("check_count") or len(checks)),
+                "pass": int(summary_obj.get("pass") or 0),
+                "fail": int(summary_obj.get("fail") or 0),
+                "skipped": int(summary_obj.get("skipped") or 0),
+                "capability_pass": int(summary_obj.get("capability_pass") or 0),
+                "capability_fail": int(summary_obj.get("capability_fail") or 0),
+                "operator_pass": int(summary_obj.get("operator_pass") or 0),
+                "operator_fail": int(summary_obj.get("operator_fail") or 0),
+                "operator_skipped": int(summary_obj.get("operator_skipped") or 0),
+                "constraints": summary_obj.get("constraints") if isinstance(summary_obj.get("constraints"), dict) else {},
+                "checks_by_name": reality_doc.get("checks_by_name") if isinstance(reality_doc.get("checks_by_name"), dict) else {},
+                "checks_by_status": reality_doc.get("checks_by_status") if isinstance(reality_doc.get("checks_by_status"), dict) else {},
+                "checks_by_type": reality_doc.get("checks_by_type") if isinstance(reality_doc.get("checks_by_type"), dict) else {},
+                "api_collections": api_obj,
+            }
+    except Exception as exc:
+        reality_summary = {"source": reality_path, "warning": f"could not parse reality-test JSON: {exc}"}
+
 doc = {
     "schema": 1,
     "status": env("STATUS"),
@@ -433,6 +463,7 @@ doc = {
     "recommendation_json": env("RECOMMENDATION_JSON"),
     "recommended_config": env("RECOMMENDED_CONFIG"),
     "recommendation": recommendation_summary,
+    "reality_summary": reality_summary,
     "recommended_target_preset": env("TARGET_PRESET_PATH"),
     "release_dir": env("RELEASE_DIR"),
     "max_compatibility": env("MAX_COMPATIBILITY"),

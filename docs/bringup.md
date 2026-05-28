@@ -144,7 +144,11 @@ records like `target:file-service` or
 rescanning every command. `command_record_summary` includes operator/target,
 networked target action, listener, staged fetch, execution-safety counts, and
 booleans that state whether all next commands require explicit operator/target
-action. The summary also includes `run_files`, flat `run_file_records`, and
+action. When reality-test JSON is present, `reality_summary` mirrors its check
+counts, constraints, `checks_by_name`, `checks_by_status`, `checks_by_type`,
+and `api_collections` metadata so consumers can show active probe status
+without separately opening `reality-test.json`. The summary also includes
+`run_files`, flat `run_file_records`, and
 `run_file_summary` records for the local run directory, survey JSON, reality-test JSON, recommendation JSON,
 recommended config, generated target preset, release-find result, and
 selected/recommended artifacts. Those file records include path, expected kind,
