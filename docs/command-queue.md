@@ -206,16 +206,19 @@ execute it. The `command_delivered` operator event includes the same delivery
 policy snapshot.
 
 The operator JSON status API indexes queue records by snapshot posture with
+`commands_by_timeout_sec`, `commands_by_max_output_bytes`,
 `commands_by_queue_policy_enabled`, `commands_by_queue_policy_valid`,
 `commands_by_queue_policy_execution_mode`,
 `commands_by_queue_policy_allowed_commands`,
 `commands_by_delivery_policy_enabled`, `commands_by_delivery_policy_valid`,
 and `commands_by_delivery_policy_execution_mode`. Matching compact counts are
 mirrored under `summary.command_queue_*_counts`, and the indexes are listed in
-`api_collections.command_queue_commands` for frontend discovery. Result uploads
-are also grouped by `commands_by_result_output_size_bucket` (`zero`, `small`,
-`medium`, `large`) with matching `command_queue_result_output_size_bucket_counts`
-for dashboards that need to highlight unexpectedly large output.
+`api_collections.command_queue_commands` for frontend discovery. Timeout and
+maximum-output counts let operator UIs show queued command limits without
+rescanning every command. Result uploads are also grouped by
+`commands_by_result_output_size_bucket` (`zero`, `small`, `medium`, `large`)
+with matching `command_queue_result_output_size_bucket_counts` for dashboards
+that need to highlight unexpectedly large output.
 
 When the command-queue listener is running with `command_queue_tls=no`, it also
 accepts structured result JSON with `POST /command-queue/result`. The JSON must

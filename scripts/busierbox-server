@@ -3176,6 +3176,8 @@ def command_queue_summary(cfg):
     delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
     commands_by_id = {}
     commands_by_status = {}
+    commands_by_timeout_sec = {}
+    commands_by_max_output_bytes = {}
     commands_by_execution_decision = {}
     commands_by_result_status = {}
     commands_by_result_exit_code = {}
@@ -3208,6 +3210,14 @@ def command_queue_summary(cfg):
         if status:
             commands_by_status.setdefault(status, []).append(rec)
             status_counts[status] = status_counts.get(status, 0) + 1
+        timeout_sec = rec.get("timeout_sec")
+        if timeout_sec not in (None, ""):
+            key = str(timeout_sec)
+            commands_by_timeout_sec.setdefault(key, []).append(rec)
+        max_output_bytes = rec.get("max_output_bytes")
+        if max_output_bytes not in (None, ""):
+            key = str(max_output_bytes)
+            commands_by_max_output_bytes.setdefault(key, []).append(rec)
         if execution_decision:
             commands_by_execution_decision.setdefault(execution_decision, []).append(rec)
             execution_decision_counts[execution_decision] = execution_decision_counts.get(execution_decision, 0) + 1
@@ -3318,6 +3328,8 @@ def command_queue_summary(cfg):
         "commands": commands,
         "commands_by_id": commands_by_id,
         "commands_by_status": commands_by_status,
+        "commands_by_timeout_sec": commands_by_timeout_sec,
+        "commands_by_max_output_bytes": commands_by_max_output_bytes,
         "commands_by_execution_decision": commands_by_execution_decision,
         "commands_by_result_status": commands_by_result_status,
         "commands_by_result_exit_code": commands_by_result_exit_code,
@@ -3331,6 +3343,8 @@ def command_queue_summary(cfg):
         "commands_by_delivery_policy_valid": commands_by_delivery_policy_valid,
         "commands_by_delivery_policy_execution_mode": commands_by_delivery_policy_execution_mode,
         "status_counts": status_counts,
+        "timeout_sec_counts": record_count_by_key(commands, "timeout_sec"),
+        "max_output_bytes_counts": record_count_by_key(commands, "max_output_bytes"),
         "execution_decision_counts": execution_decision_counts,
         "result_status_counts": result_status_counts,
         "result_exit_code_counts": result_exit_code_counts,
@@ -3377,6 +3391,7 @@ def print_command_queue(cfg, json_output=False):
         print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
         for error in summary["policy_errors"]:
             print(f"  policy_error={error}")
+        print(f"  command_limits: timeouts={format_counts(summary.get('timeout_sec_counts') or {})} max_output={format_counts(summary.get('max_output_bytes_counts') or {})}")
         print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
         print_command_queue_mode_lines(summary)
         print("  no queued commands")
@@ -3388,6 +3403,7 @@ def print_command_queue(cfg, json_output=False):
     print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
     for error in summary["policy_errors"]:
         print(f"  policy_error={error}")
+    print(f"  command_limits: timeouts={format_counts(summary.get('timeout_sec_counts') or {})} max_output={format_counts(summary.get('max_output_bytes_counts') or {})}")
     print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
     print_command_queue_mode_lines(summary)
     for rec in summary["commands"]:
@@ -6707,6 +6723,8 @@ def status_document(cfg):
         "command_queue_result_count": command_queue.get("result_count", 0),
         "command_queue_result_output_exceeded_count": command_queue.get("result_output_exceeded_count", 0),
         "command_queue_status_counts": command_queue.get("status_counts") or {},
+        "command_queue_timeout_sec_counts": command_queue.get("timeout_sec_counts") or {},
+        "command_queue_max_output_bytes_counts": command_queue.get("max_output_bytes_counts") or {},
         "command_queue_execution_decision_counts": command_queue.get("execution_decision_counts") or {},
         "command_queue_result_status_counts": command_queue.get("result_status_counts") or {},
         "command_queue_result_exit_code_counts": command_queue.get("result_exit_code_counts") or {},
@@ -6939,7 +6957,8 @@ def status_document(cfg):
         ),
         "command_queue_commands": api_collection_record(
             "command_queue_commands", command_queue.get("commands") or [], "id", (
-                "commands_by_id", "commands_by_status", "commands_by_execution_decision",
+                "commands_by_id", "commands_by_status", "commands_by_timeout_sec",
+                "commands_by_max_output_bytes", "commands_by_execution_decision",
                 "commands_by_result_status",
                 "commands_by_result_exit_code", "commands_by_result_output_exceeded",
                 "commands_by_result_output_size_bucket",
@@ -7160,6 +7179,8 @@ def status_document(cfg):
         "release_state": release_state,
         "release": release,
         "command_queue": command_queue,
+        "commands_by_timeout_sec": command_queue.get("commands_by_timeout_sec") or {},
+        "commands_by_max_output_bytes": command_queue.get("commands_by_max_output_bytes") or {},
         "commands_by_queue_policy_enabled": command_queue.get("commands_by_queue_policy_enabled") or {},
         "commands_by_queue_policy_valid": command_queue.get("commands_by_queue_policy_valid") or {},
         "commands_by_queue_policy_execution_mode": command_queue.get("commands_by_queue_policy_execution_mode") or {},
@@ -7648,6 +7669,7 @@ def print_status(cfg, json_output=False):
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no result_upload_supported=yes")
+    print(f"  command_limits: timeouts={format_counts(queue.get('timeout_sec_counts') or {})} max_output={format_counts(queue.get('max_output_bytes_counts') or {})}")
     print(f"  result_size_buckets: {format_counts(queue.get('result_output_size_bucket_counts') or {})}")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
     print_command_queue_mode_lines(queue)
@@ -7935,6 +7957,7 @@ def print_workbench(cfg):
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no result_upload_supported=yes")
+    print(f"  command_limits: timeouts={format_counts(queue.get('timeout_sec_counts') or {})} max_output={format_counts(queue.get('max_output_bytes_counts') or {})}")
     print(f"  result_size_buckets: {format_counts(queue.get('result_output_size_bucket_counts') or {})}")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
     print_command_queue_mode_lines(queue)

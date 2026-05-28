@@ -846,6 +846,10 @@ def main():
         if (queue_summary.get("commands_by_id", {}).get(queued_id, {}).get("command") != "busierbox reality-test --json" or
                 len(queue_summary.get("commands_by_status", {}).get("queued", [])) != 1 or
                 queue_summary["commands_by_status"]["queued"][0].get("id") != queued_id or
+                queue_summary.get("commands_by_timeout_sec", {}).get("9", [{}])[0].get("id") != queued_id or
+                queue_summary.get("commands_by_max_output_bytes", {}).get("1234", [{}])[0].get("id") != queued_id or
+                queue_summary.get("timeout_sec_counts", {}).get("9") != 1 or
+                queue_summary.get("max_output_bytes_counts", {}).get("1234") != 1 or
                 queue_summary.get("commands_by_queue_policy_enabled", {}).get("false", [{}])[0].get("id") != queued_id or
                 queue_summary.get("commands_by_queue_policy_valid", {}).get("true", [{}])[0].get("id") != queued_id or
                 queue_summary.get("commands_by_queue_policy_execution_mode", {}).get("metadata-only", [{}])[0].get("id") != queued_id or
@@ -1195,7 +1199,13 @@ def main():
                 status_queue.get("commands_by_result_exit_code", {}).get("0", [{}])[0].get("id") != command_id or
                 status_queue.get("commands_by_result_output_exceeded", {}).get("no", [{}])[0].get("id") != command_id or
                 status_queue.get("commands_by_result_output_size_bucket", {}).get("small", [{}])[0].get("id") != command_id or
+                status_queue.get("commands_by_timeout_sec", {}).get("9", [{}])[0].get("id") != command_id or
+                status_queue.get("commands_by_max_output_bytes", {}).get("1234", [{}])[0].get("id") != command_id or
                 status_queue.get("commands_by_id", {}).get(command_id, {}).get("result_output_size_bucket") != "small" or
+                queue_status_json.get("summary", {}).get("command_queue_timeout_sec_counts", {}).get("9") != 1 or
+                queue_status_json.get("summary", {}).get("command_queue_max_output_bytes_counts", {}).get("1234") != 1 or
+                "commands_by_timeout_sec" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or
+                "commands_by_max_output_bytes" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or
                 "commands_by_result_output_size_bucket" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or
                 status_queue.get("status_counts", {}).get("result-received") != 1):
             print("server json status missing command queue lookup indexes", file=sys.stderr)
@@ -1957,6 +1967,7 @@ def main():
                 "busierbox reality-test --json" not in queue_status_text.stdout or
                 "result-received" not in queue_status_text.stdout or
                 "result_output=12 limit=1234 exceeded_limit=no" not in queue_status_text.stdout or
+                "command_limits: timeouts=9=1 max_output=1234=1" not in queue_status_text.stdout or
                 "result_size_buckets: small=1" not in queue_status_text.stdout or
                 "latest_created=" not in queue_status_text.stdout or
                 "latest_result=" not in queue_status_text.stdout or
