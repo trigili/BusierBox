@@ -3972,6 +3972,8 @@ def main():
                 "detail_statuses: ok=" not in upload_status_text.stdout or
                 "detail_operations: upload=" not in upload_status_text.stdout or
                 "detail_http_statuses: 200=" not in upload_status_text.stdout or
+                f"detail_sha256: {upload_sha256}=" not in upload_status_text.stdout or
+                f"operation=upload status=ok filename=evidence.txt sha256={upload_sha256}" not in upload_status_text.stdout or
                 "operation=upload status=ok http=200 filename=evidence.txt" not in upload_status_text.stdout or
                 "Command queue:" not in upload_status_text.stdout or
                 "Generated target commands:" not in upload_status_text.stdout or

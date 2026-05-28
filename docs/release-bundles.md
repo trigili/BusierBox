@@ -817,9 +817,10 @@ session/event, service/level, event/level, session/level, remote/event,
 remote/level, detail status, detail operation,
 detail HTTP status, detail reason, detail command id, event/status,
 service/status, event/reason, service/reason, event/command id, and
-service/command id, plus detail job id, event/job id, and service/job id so API
-consumers can tell whether there is more history to page or inspect from disk
-while still rendering compact diagnostics. Workbench action ids get the same
+service/command id, plus file detail SHA-256, event/file SHA-256, service/file
+SHA-256, detail job id, event/job id, and service/job id so API consumers can
+tell whether there is more history to page or inspect from disk while still
+rendering compact diagnostics. Workbench action ids get the same
 detail/action id, event/action id, and service/action id counters. Workbench
 configuration updates are also counted by detail key, detail config path,
 event/key, service/key, event/config path, and service/config path.
@@ -836,6 +837,7 @@ Those aggregate maps are also mirrored into `summary` as
 `event_detail_key_counts`, `event_detail_config_path_counts`,
 `event_type_detail_status_counts`, `event_service_detail_status_counts`,
 `event_type_detail_reason_counts`, `event_service_detail_reason_counts`,
+`event_type_detail_sha256_counts`, `event_service_detail_sha256_counts`,
 `event_type_detail_command_id_counts`, and
 `event_service_detail_command_id_counts`, plus
 `event_type_detail_job_id_counts`, `event_service_detail_job_id_counts`,
@@ -845,7 +847,8 @@ Those aggregate maps are also mirrored into `summary` as
 `event_service_detail_config_path_counts`;
 `first_event_at` and
 `latest_event_at` are mirrored for dashboard clients that only need compact
-status counters and event recency.
+status counters and event recency. The human `--status` event summary prints
+both `detail_sha256` and `detail_command_sha256` count lines.
 
 Structured `warnings` use stable `type` values such as `service_error`,
 `stale_state`, `unexpected_listener`, `listener_bind_mismatch`, `unmanaged_recorded_pid`,

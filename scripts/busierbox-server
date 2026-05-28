@@ -2894,7 +2894,7 @@ def compact_event_details(event):
     if not isinstance(details, dict):
         return ""
     pieces = []
-    for key in ("operation", "status", "http_status", "request_name", "filename", "reason", "command_id", "command_sha256"):
+    for key in ("operation", "status", "http_status", "request_name", "filename", "sha256", "reason", "command_id", "command_sha256"):
         value = details.get(key)
         if value in (None, ""):
             continue
@@ -8992,6 +8992,7 @@ def print_status(cfg, json_output=False):
     print(f"  detail_operations: {format_counts(stats.get('by_detail_operation') or {})}")
     print(f"  detail_http_statuses: {format_counts(stats.get('by_detail_http_status') or {})}")
     print(f"  detail_reasons: {format_counts(stats.get('by_detail_reason') or {})}")
+    print(f"  detail_sha256: {format_counts(stats.get('by_detail_sha256') or {})}")
     print(f"  detail_command_ids: {format_counts(stats.get('by_detail_command_id') or {})}")
     print(f"  detail_command_sha256: {format_counts(stats.get('by_detail_command_sha256') or {})}")
     if doc["events"]:
@@ -9287,6 +9288,7 @@ def print_workbench(cfg, include_api_summary=True):
     print(f"  detail_operations: {format_counts(stats.get('by_detail_operation') or {})}")
     print(f"  detail_http_statuses: {format_counts(stats.get('by_detail_http_status') or {})}")
     print(f"  detail_reasons: {format_counts(stats.get('by_detail_reason') or {})}")
+    print(f"  detail_sha256: {format_counts(stats.get('by_detail_sha256') or {})}")
     print(f"  detail_command_ids: {format_counts(stats.get('by_detail_command_id') or {})}")
     print(f"  detail_command_sha256: {format_counts(stats.get('by_detail_command_sha256') or {})}")
     if snap["events"]:
