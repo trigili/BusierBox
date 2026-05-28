@@ -504,6 +504,29 @@ static int operator_reverse_ssh_possible(void)
     return !strcmp(bb_config_get("BB_RSHELL_TRANSPORT"), "ssh");
 }
 
+static void print_noresidue_policy_json(FILE *out)
+{
+    const char *runtime_mode = bb_config_get("BB_RUNTIME_MODE");
+    const char *level = bb_config_get("BB_NORESIDUE_LEVEL");
+    int active = !strcmp(runtime_mode, "no-residue");
+    int aggressive = !strcmp(level, "aggressive");
+
+    fprintf(out, "{\"active\":%s,\"level\":", active ? "true" : "false");
+    bb_json_string(out, level);
+    fprintf(out, ",\"runtime_mode\":");
+    bb_json_string(out, runtime_mode);
+    fprintf(out, ",\"cleanup_scope\":\"BusierBox-owned runtime roots and ledgered files only\"");
+    fprintf(out, ",\"best_effort\":true");
+    fprintf(out, ",\"aggressive_minimizes_runtime_residue\":%s", aggressive ? "true" : "false");
+    fprintf(out, ",\"forensic_no_trace\":false");
+    fprintf(out, ",\"external_writes_require_explicit_apply\":true");
+    fprintf(out, ",\"guarantee\":");
+    bb_json_string(out, aggressive ?
+        "aggressive minimizes BusierBox runtime residue but cannot guarantee absence of residue" :
+        "best-effort cleanup removes owned runtime state where reasonable");
+    fprintf(out, "}");
+}
+
 void bb_print_autoexec_config(void)
 {
     const char *zero_arg_custom_command = bb_config_get("BB_ZERO_ARG_CUSTOM_COMMAND");
@@ -702,6 +725,8 @@ int applet_runtime_config_main(int argc, char **argv)
         bb_config_print_compiled_json(stdout, bb_json_string);
         fputs(",\"effective_config\":", stdout);
         bb_config_print_effective_json(stdout, bb_json_string);
+        fputs(",\"noresidue_policy\":", stdout);
+        print_noresidue_policy_json(stdout);
         fputs(",\"command_queue_policy\":{\"valid\":", stdout);
         fputs(command_queue_policy_valid ? "true" : "false", stdout);
         fputs(",\"errors\":[", stdout);

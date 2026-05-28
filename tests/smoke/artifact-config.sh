@@ -28,6 +28,19 @@ grep -q '^effective_config_source=compiled$' "$work/runtime.none"
 grep -q '^trailer_present=no$' "$work/runtime.none"
 "$work/busierbox" runtime-config --json >"$work/runtime.none.json"
 python3 -m json.tool "$work/runtime.none.json" >/dev/null
+python3 - "$work/runtime.none.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+p = r["noresidue_policy"]
+assert p["active"] is False
+assert p["runtime_mode"] == r["effective_config"]["BB_RUNTIME_MODE"]
+assert p["level"] == r["effective_config"]["BB_NORESIDUE_LEVEL"]
+assert p["best_effort"] is True
+assert p["aggressive_minimizes_runtime_residue"] is False
+assert p["forensic_no_trace"] is False
+assert p["external_writes_require_explicit_apply"] is True
+assert "BusierBox-owned runtime roots" in p["cleanup_scope"]
+PY
 
 scripts/artifact-config set "$work/busierbox" \
     BB_RSHELL_TRANSPORT=ssh \
@@ -74,6 +87,12 @@ assert r["effective_config"]["BB_OPERATOR_FILE_SERVICE_ENABLE"] == "yes"
 assert r["effective_config"]["BB_OPERATOR_FILE_SERVICE_PORT"] == "22244"
 assert r["effective_config"]["BB_OPERATOR_FILE_SERVICE_TLS"] == "no"
 assert r["effective_config"]["BB_NORESIDUE_LEVEL"] == "aggressive"
+p = r["noresidue_policy"]
+assert p["active"] is False
+assert p["runtime_mode"] == r["effective_config"]["BB_RUNTIME_MODE"]
+assert p["level"] == "aggressive"
+assert p["aggressive_minimizes_runtime_residue"] is True
+assert p["forensic_no_trace"] is False
 PY
 "$work/busierbox" rshell status --json >"$work/rshell.status.trailer.json"
 python3 - "$work/rshell.status.trailer.json" <<'PY'
@@ -94,6 +113,7 @@ r = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert r["effective_config_source"] == "env"
 assert r["environment_override_count"] >= 1
 assert r["effective_config"]["BB_OPERATOR_SERVER_HOST"] == "203.0.113.9"
+assert r["noresidue_policy"]["level"] == r["effective_config"]["BB_NORESIDUE_LEVEL"]
 PY
 "$work/busierbox" manifest --json >"$work/manifest.set.json"
 python3 - "$work/manifest.set.json" <<'PY'
