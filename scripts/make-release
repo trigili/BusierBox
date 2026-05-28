@@ -1570,6 +1570,8 @@ def artifact_summary(release_dir, rec, include_missing=False):
             "tls": command_queue.get("tls", ""),
             "require_token": command_queue.get("require_token", ""),
             "token_source": command_queue.get("token_source", ""),
+            "token_required": command_queue.get("token_required", False),
+            "token_configured": command_queue.get("token_configured", False),
             "allowed_commands": command_queue.get("allowed_commands", "none"),
             "allow_arbitrary": command_queue.get("allow_arbitrary", "no"),
             "poll_interval_sec": command_queue.get("poll_interval_sec", "5"),

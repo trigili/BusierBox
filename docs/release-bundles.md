@@ -548,6 +548,9 @@ not scan the full queue policy object. The configured
 `command_queue_poll_interval_sec`, `command_queue_poll_jitter_pct`,
 `command_queue_poll_backoff`, `command_queue_poll_max_interval_sec`, and
 `command_queue_max_polls` are mirrored for interval-polling controls.
+`command_queue.token_required` and `command_queue.token_configured` are also
+preserved in tuple summaries so release browsers can show whether polling
+requires a token without exposing the token value.
 Target manifests, tuple summaries, release manifests, and
 `plan command-queue --json` also expose
 `daemon_state_file`, `daemon_state_file_supported`,

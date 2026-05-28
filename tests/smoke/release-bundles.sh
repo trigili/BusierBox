@@ -266,6 +266,8 @@ if (reverse.get("session_policy") != "single" or
 queue = summary.get("command_queue") or {}
 if (queue.get("enabled") != "no" or
         queue.get("default_enabled") is not False or
+        queue.get("token_required") is not True or
+        queue.get("token_configured") is not False or
         queue.get("policy_valid") is not True or
         queue.get("policy_errors") != [] or
         queue.get("arbitrary_policy_requested") is not False or
@@ -367,6 +369,8 @@ if (reverse.get("session_policy") != "single" or
 queue = summary.get("command_queue") or {}
 if (queue.get("enabled") != "no" or
         queue.get("default_enabled") is not False or
+        queue.get("token_required") is not True or
+        queue.get("token_configured") is not False or
         queue.get("policy_valid") is not True or
         queue.get("policy_errors") != [] or
         queue.get("arbitrary_policy_requested") is not False or
