@@ -66,6 +66,11 @@ ALLOWED_KEYS = {
     "BB_COMMAND_QUEUE_MAX_POLLS",
 }
 
+VALUE_CHOICES = {
+    "BB_RUNTIME_MODE": {"extract", "core-only", "no-residue"},
+    "BB_NORESIDUE_LEVEL": {"best-effort", "aggressive"},
+}
+
 
 def die(msg, code=1):
     print(f"artifact-config: {msg}", file=sys.stderr)
@@ -110,9 +115,18 @@ def parse_kv(text, reject_unknown=True):
             if reject_unknown:
                 die(f"key is not trailer-overridable: {key}")
             continue
+        validate_value(key, val)
         reject_secret_like_value(key, val)
         vals[key] = val
     return vals
+
+
+def validate_value(key, val):
+    choices = VALUE_CHOICES.get(key)
+    if choices is None or val in choices:
+        return
+    expected = " or ".join(sorted(choices))
+    die(f"invalid value for {key}: {val} (expected {expected})")
 
 
 def reject_secret_like_value(key, val):

@@ -554,6 +554,18 @@ if scripts/artifact-config set "$work/busierbox" BB_TARGET_ARCH=mipsel >"$work/u
 fi
 grep -q 'not trailer-overridable' "$work/unknown.out"
 
+if scripts/artifact-config set "$work/busierbox" BB_NORESIDUE_LEVEL=maximum >"$work/bad-noresidue.out" 2>&1; then
+    printf '%s\n' "artifact-config smoke: invalid no-residue level was accepted" >&2
+    exit 1
+fi
+grep -q 'invalid value for BB_NORESIDUE_LEVEL' "$work/bad-noresidue.out"
+
+if scripts/artifact-config set "$work/busierbox" BB_RUNTIME_MODE=temporary >"$work/bad-runtime-mode.out" 2>&1; then
+    printf '%s\n' "artifact-config smoke: invalid runtime mode was accepted" >&2
+    exit 1
+fi
+grep -q 'invalid value for BB_RUNTIME_MODE' "$work/bad-runtime-mode.out"
+
 if scripts/artifact-config set "$work/busierbox" 'BB_ZERO_ARG_CUSTOM_COMMAND=TOKEN=abc123' >"$work/secret.out" 2>&1; then
     printf '%s\n' "artifact-config smoke: secret-like trailer value was accepted" >&2
     exit 1
