@@ -76,6 +76,25 @@ def main():
                     "BB_OPERATOR_FILE_SERVICE_TLS": "no",
                 }
             )
+            help_checks = [
+                ([str(bb), "config-push", "--help"], "usage: busierbox config-push"),
+                ([str(bb), "evidence", "push", "--help"], "usage: busierbox evidence push"),
+                ([str(bb), "survey", "push", "--help"], "usage: busierbox survey push"),
+                ([str(bb), "manifest", "push", "--help"], "usage: busierbox manifest push"),
+                ([str(bb), "reality-test", "push", "--help"], "usage: busierbox reality-test push"),
+            ]
+            for cmd, expected in help_checks:
+                result = subprocess.run(
+                    cmd,
+                    cwd=ROOT,
+                    env=env,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                if expected not in result.stdout:
+                    raise SystemExit(f"operator-upload: help output missing {expected!r}")
             commands = [
                 [str(bb), "put", str(sample), "--quiet"],
                 [str(bb), "config-push", "--quiet"],
@@ -137,7 +156,19 @@ def main():
             if len(matches) != 1:
                 raise SystemExit(f"operator-upload: {expected} not found")
             doc = json.loads(matches[0].read_text(encoding="utf-8"))
-            if expected == "busierbox-reality-test.json":
+            if expected == "busierbox-config.json":
+                if doc.get("schema") != 1 or doc.get("kind") != "config" or "runtime" not in doc or "effective_config" not in doc:
+                    raise SystemExit("operator-upload: config-push uploaded invalid report")
+            elif expected == "busierbox-evidence.json":
+                if doc.get("schema") != 1 or doc.get("kind") != "evidence" or "runtime" not in doc or "rshell" not in doc:
+                    raise SystemExit("operator-upload: evidence push uploaded invalid report")
+            elif expected == "busierbox-survey.json":
+                if doc.get("schema") != 2 or "busierbox" not in doc or "recommendations" not in doc:
+                    raise SystemExit("operator-upload: survey push uploaded invalid report")
+            elif expected == "busierbox-manifest.json":
+                if doc.get("schema") != 1 or "busierbox" not in doc or "payload" not in doc or "operator_services" not in doc:
+                    raise SystemExit("operator-upload: manifest push uploaded invalid report")
+            elif expected == "busierbox-reality-test.json":
                 if doc.get("schema") != 1 or "checks" not in doc or "summary" not in doc:
                     raise SystemExit("operator-upload: reality-test push uploaded invalid report")
     print("operator-upload ok")

@@ -503,11 +503,22 @@ static int write_evidence_json(FILE *out)
     return 0;
 }
 
+static void config_push_usage(void)
+{
+    puts("usage: busierbox config-push [--host HOST] [--port PORT] [--tls yes|no]");
+    puts("Generate effective config JSON and upload it to the receive-only operator file service.");
+}
+
 int applet_upload_main(int argc, char **argv)
 {
     const char *cmd = argc > 0 ? argv[0] : "upload";
     const char *path;
 
+    if (!strcmp(cmd, "config-push") &&
+        argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
+        config_push_usage();
+        return 0;
+    }
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
         usage();
         return 0;
