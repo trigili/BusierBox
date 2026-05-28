@@ -3056,6 +3056,11 @@ def main():
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
             "rshell_session_policy": "reconnect",
+            "rshell_retry_count": "2",
+            "rshell_retry_interval_sec": "3",
+            "rshell_retry_jitter_pct": "10",
+            "rshell_retry_backoff": "linear",
+            "rshell_retry_max_interval_sec": "8",
         }), encoding="utf-8")
         proc = subprocess.Popen(
             [
@@ -3258,6 +3263,8 @@ def main():
         rshell_metadata = rshell_record.get("metadata") or {}
         rshell_semantics = rshell_metadata.get("session_semantics") or {}
         rshell_policy_summary = rshell_metadata.get("session_policy_summary") or {}
+        rshell_retry = rshell_metadata.get("retry") or {}
+        rshell_retry_timing = rshell_metadata.get("retry_timing") or {}
         rshell_purpose = "start the configured reverse shell transport from the target"
         if (len(target_commands_by_service.get("file-service") or []) < 6 or
                 len(target_commands_by_side.get("target") or []) != len(target_records) or
@@ -3276,8 +3283,19 @@ def main():
                 rshell_semantics.get("fresh_session_on_reconnect") is not True or
                 rshell_semantics.get("session_resume_supported") is not False or
                 rshell_policy_summary.get("retry_scope") != "pre-connect+post-disconnect" or
+                rshell_policy_summary.get("pre_connect_retry_count") != "2" or
+                rshell_policy_summary.get("post_disconnect_retry_count") != "2" or
                 rshell_policy_summary.get("fresh_session_on_reconnect") is not True or
                 rshell_policy_summary.get("session_resume_supported") is not False or
+                rshell_retry.get("count") != "2" or
+                rshell_retry.get("pre_connect_count") != "2" or
+                rshell_retry.get("post_disconnect_count") != "2" or
+                rshell_retry.get("interval_sec") != "3" or
+                rshell_retry.get("jitter_pct") != "10" or
+                rshell_retry.get("backoff") != "linear" or
+                rshell_retry.get("max_interval_sec") != "8" or
+                rshell_retry_timing.get("sample_delays_sec") != [3, 6, 8] or
+                rshell_retry_timing.get("sample_delays_exclude_jitter") is not True or
                 target_summary.get("by_service", {}).get("file-service", 0) < 6 or
                 target_summary.get("by_service", {}).get("rshell") != 1):
             print("server json status missing generated command service/session-policy lookup", file=sys.stderr)
