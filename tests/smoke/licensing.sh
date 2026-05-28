@@ -10,6 +10,8 @@ grep -q 'Unless a file states a different license' LICENSE.busierbox
 test -f NOTICE
 grep -q 'GPL-2.0-or-later' NOTICE
 grep -q 'LICENSE.busierbox' NOTICE
+test -f LICENSES/miniz.txt
+grep -q 'third_party/miniz/LICENSE' LICENSES/miniz.txt
 test -f manifests/license-policy.json
 scripts/check-licensing
 

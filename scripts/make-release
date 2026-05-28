@@ -1316,6 +1316,9 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
         src = ROOT / name
         if src.exists():
             shutil.copy2(src, release_dir / name)
+    license_notices = ROOT / "LICENSES"
+    if license_notices.exists():
+        shutil.copytree(license_notices, release_dir / "LICENSES", dirs_exist_ok=True)
     shutil.copy2(ROOT / "scripts" / "artifact-config", script_dir / "artifact-config")
     (script_dir / "artifact-config").chmod(0o755)
     shutil.copy2(ROOT / "scripts" / "busierbox-server", script_dir / "busierbox-server")

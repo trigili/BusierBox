@@ -124,6 +124,8 @@ for name, license_id in lock_expected.items():
 
 if not Path("third_party/miniz/LICENSE").is_file():
     raise SystemExit("check-licensing: missing miniz vendored license")
+if not Path("LICENSES/miniz.txt").is_file():
+    raise SystemExit("check-licensing: missing miniz repository notice")
 if not Path("third_party/busybox/LICENSE").is_file():
     raise SystemExit("check-licensing: missing BusyBox submodule license")
 

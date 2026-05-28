@@ -28,8 +28,10 @@ Each release contains:
 - `scripts/`: copied `artifact-config` plus wrapper helpers, release
   self-test, index, and finder tools.
 - `docs/`: release, licensing, and runtime override notes.
-- `LICENSE` and `NOTICE`: BusierBox GPL license text and short project license
-  notice.
+- `LICENSE`, `LICENSE.busierbox`, and `NOTICE`: BusierBox GPL license text,
+  explicit project grant, and short project license notice.
+- `LICENSES/`: repository-maintained third-party notice summaries for vendored
+  helpers.
 - `manifests/license-policy.json`: machine-readable BusierBox license and
   third-party GPL compatibility policy for repository scanners and release
   consumers.
