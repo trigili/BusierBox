@@ -68,6 +68,9 @@ grep -q 'Buildroot' docs/licensing.md
 grep -q 'doom-ascii' docs/licensing.md
 grep -q 'miniz' docs/licensing.md
 grep -q 'BB_DOOM_WAD_PATH' docs/licensing.md
+grep -q 'GPLv2-compatible combined distributions' docs/licensing.md
+grep -q 'Buildroot-selected package keeps its own upstream' docs/licensing.md
+grep -q "not part of BusierBox's license grant" docs/licensing.md
 grep -q 'release bundles include it as both `sources.lock.json` and' docs/licensing.md
 grep -q 'Release bundles always copy' docs/release-bundles.md
 
@@ -93,6 +96,19 @@ for name, license_id in expected.items():
         raise SystemExit(f"{name}: missing homepage")
 
 policy = json.load(open("manifests/license-policy.json", encoding="utf-8"))
+artifact_distribution = policy.get("artifact_distribution") or {}
+if artifact_distribution.get("busierbox_project_terms") != "GPL-2.0-or-later":
+    raise SystemExit("artifact distribution project terms missing")
+if artifact_distribution.get("ok_for_current_default_stack") is not True:
+    raise SystemExit("artifact distribution compatibility flag missing")
+for key, needle in {
+    "combined_release_terms_when_busybox_included": "GPL-2.0",
+    "buildroot_role": "selected packages keep their own licenses",
+    "payload_license_rule": "every bundled payload component",
+    "user_supplied_data_rule": "Doom WAD",
+}.items():
+    if needle not in str(artifact_distribution.get(key, "")):
+        raise SystemExit(f"artifact distribution {key} missing {needle}")
 guidance = "\n".join(policy.get("distribution_guidance") or [])
 for expected_text in ("LICENSE.busierbox", "LICENSES/", "manifests/sources.lock.json", "sources.lock.json"):
     if expected_text not in guidance:

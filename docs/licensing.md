@@ -53,6 +53,16 @@ posture:
   `BB_DOOM_WAD_PATH`, are not downloaded or bundled by BusierBox and must be
   supplied under terms the user is allowed to use.
 
+In practical distribution terms, the BusierBox-maintained repository content is
+GPL-2.0-or-later. Release artifacts that include BusyBox should be treated as
+GPLv2-compatible combined distributions, with source availability and notices
+preserved for BusierBox, BusyBox, and every bundled payload component. Buildroot
+is a build system and package integrator here; using it is compatible with the
+project's GPL posture, but any Buildroot-selected package keeps its own upstream
+license and notice/source obligations. User-supplied data, including Doom WAD
+files, is not part of BusierBox's license grant and is not bundled by the
+project.
+
 ## Artifact guidance
 
 BusierBox release artifacts should preserve source availability and license
