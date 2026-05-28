@@ -174,6 +174,10 @@ render a bringup run without separately probing the filesystem. Lookup maps
 `run_files_by_exists`, and `run_files_by_readable` let frontends jump directly
 to a generated artifact or group missing/readable files without rescanning the
 flat record list. The summary
+also preserves `release_self_test_summary` when a release selection is used,
+including command-queue token, execution-supported, and
+operator-supplied-command execution counters from the selected release bundle.
+The summary
 publishes `api_collections` metadata with `count`, `summary_key`,
 `count_summary_key`, `primary_key`, and index names for `next_command_records`,
 `run_file_records`, selected tool provider records, and selected Doom WAD
