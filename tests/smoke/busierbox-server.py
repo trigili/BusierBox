@@ -972,7 +972,8 @@ def main():
             if (collection.get("count") != expected_count or
                     collection.get("name") != collection_name or
                     expected_index not in (collection.get("indexes") or []) or
-                    not collection.get("summary_key")):
+                    not collection.get("summary_key") or
+                    collection.get("count_summary_key") != collection.get("summary_key")):
                 print(f"server json status missing api collection metadata for {collection_name}", file=sys.stderr)
                 print(queue_status_doc.stdout, file=sys.stderr)
                 return 1

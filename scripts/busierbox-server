@@ -1701,6 +1701,7 @@ def api_collection_record(name, records, primary_key="", indexes=None, summary_k
         "name": name,
         "count": len(records or []),
         "primary_key": primary_key,
+        "count_summary_key": summary_key,
         "summary_key": summary_key,
         "indexes": sorted(indexes or []),
     }
