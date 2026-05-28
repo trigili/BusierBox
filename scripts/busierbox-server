@@ -1981,6 +1981,7 @@ def command_queue_mode_summary(mode_semantics):
         "polling_mode_count": len([rec for rec in records if rec.get("would_poll_if_configured")]),
         "operator_host_required_mode_count": len([rec for rec in records if rec.get("requires_operator_host")]),
         "live_supported_mode_count": len([rec for rec in records if rec.get("live_supported")]),
+        "result_upload_supported_mode_count": len([rec for rec in records if rec.get("result_upload_supported")]),
         "execution_supported_mode_count": len([rec for rec in records if rec.get("execution_supported")]),
         "active_control_channel_mode_count": len([rec for rec in records if rec.get("active_control_channel")]),
         "operator_supplied_command_execution_mode_count": len([
@@ -5260,6 +5261,7 @@ def status_document(cfg):
         "command_queue_polling_mode_count": command_queue_mode_summary.get("polling_mode_count", 0),
         "command_queue_operator_host_required_mode_count": command_queue_mode_summary.get("operator_host_required_mode_count", 0),
         "command_queue_live_supported_mode_count": command_queue_mode_summary.get("live_supported_mode_count", 0),
+        "command_queue_result_upload_supported_mode_count": command_queue_mode_summary.get("result_upload_supported_mode_count", 0),
         "command_queue_execution_supported_mode_count": command_queue_mode_summary.get("execution_supported_mode_count", 0),
         "command_queue_active_control_channel_mode_count": command_queue_mode_summary.get("active_control_channel_mode_count", 0),
         "command_queue_operator_supplied_command_execution_mode_count": command_queue_mode_summary.get("operator_supplied_command_execution_mode_count", 0),
@@ -5526,6 +5528,7 @@ def print_command_queue_mode_lines(queue):
         f"total={mode_summary.get('mode_count', 0)} "
         f"would_poll_if_configured={mode_summary.get('polling_mode_count', 0)} "
         f"operator_host_required={mode_summary.get('operator_host_required_mode_count', 0)} "
+        f"result_upload_supported={mode_summary.get('result_upload_supported_mode_count', 0)} "
         f"execution_supported={mode_summary.get('execution_supported_mode_count', 0)} "
         f"active_control_channel={mode_summary.get('active_control_channel_mode_count', 0)}"
     )

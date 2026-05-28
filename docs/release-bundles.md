@@ -525,6 +525,7 @@ into `summary` as
 `command_queue_mode_count`, `command_queue_polling_mode_count`,
 `command_queue_operator_host_required_mode_count`,
 `command_queue_live_supported_mode_count`,
+`command_queue_result_upload_supported_mode_count`,
 `command_queue_execution_supported_mode_count`,
 `command_queue_active_control_channel_mode_count`, and
 `command_queue_operator_supplied_command_execution_mode_count`.

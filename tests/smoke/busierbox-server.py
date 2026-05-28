@@ -544,6 +544,7 @@ def main():
                 queue_mode_summary.get("mode_count") != 5 or
                 queue_mode_summary.get("polling_mode_count") != 3 or
                 queue_mode_summary.get("live_supported_mode_count") != 3 or
+                queue_mode_summary.get("result_upload_supported_mode_count") != 5 or
                 queue_mode_summary.get("execution_supported_mode_count") != 0):
             print("json command queue listing missing mode semantics", file=sys.stderr)
             print(queue_list.stdout, file=sys.stderr)
@@ -589,7 +590,7 @@ def main():
         if (invalid_queue_text.returncode != 0 or
                 "policy_valid=no" not in invalid_queue_text.stdout or
                 "arbitrary_execution_allowed=no" not in invalid_queue_text.stdout or
-                "modes: total=5 would_poll_if_configured=3 operator_host_required=3 execution_supported=0 active_control_channel=0" not in invalid_queue_text.stdout or
+                "modes: total=5 would_poll_if_configured=3 operator_host_required=3 result_upload_supported=5 execution_supported=0 active_control_channel=0" not in invalid_queue_text.stdout or
                 "mode daemon: lifecycle=long-running requires_operator_host=yes would_poll_if_configured=yes execution_supported=no active_control_channel=no" not in invalid_queue_text.stdout or
                 "mode stop: lifecycle=stop requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in invalid_queue_text.stdout or
                 "policy_error=disabled command queue must keep allowed commands policy none" not in invalid_queue_text.stdout):
@@ -1087,11 +1088,13 @@ def main():
                 command_queue_mode_summary.get("polling_mode_count") != 3 or
                 command_queue_mode_summary.get("operator_host_required_mode_count") != 3 or
                 command_queue_mode_summary.get("live_supported_mode_count") != 3 or
+                command_queue_mode_summary.get("result_upload_supported_mode_count") != 5 or
                 command_queue_mode_summary.get("execution_supported_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_mode_count") != 5 or
                 queue_status_json["summary"].get("command_queue_polling_mode_count") != 3 or
                 queue_status_json["summary"].get("command_queue_operator_host_required_mode_count") != 3 or
                 queue_status_json["summary"].get("command_queue_live_supported_mode_count") != 3 or
+                queue_status_json["summary"].get("command_queue_result_upload_supported_mode_count") != 5 or
                 queue_status_json["summary"].get("command_queue_execution_supported_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_active_control_channel_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_operator_supplied_command_execution_mode_count") != 0):
@@ -1223,7 +1226,7 @@ def main():
                 "result_output=12 limit=1234 exceeded_limit=no" not in queue_status_text.stdout or
                 "latest_created=" not in queue_status_text.stdout or
                 "latest_result=" not in queue_status_text.stdout or
-                "modes: total=5 would_poll_if_configured=3 operator_host_required=3 execution_supported=0 active_control_channel=0" not in queue_status_text.stdout or
+                "modes: total=5 would_poll_if_configured=3 operator_host_required=3 result_upload_supported=5 execution_supported=0 active_control_channel=0" not in queue_status_text.stdout or
                 "mode status: lifecycle=inspect requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
                 "mode daemon: lifecycle=long-running requires_operator_host=yes would_poll_if_configured=yes execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
                 "mode stop: lifecycle=stop requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
