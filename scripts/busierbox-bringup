@@ -385,6 +385,49 @@ def api_collection_record(name, records, indexes, summary_key):
         "summary_key": summary_key,
     }
 
+def records_by_key(records, key):
+    grouped = {}
+    for rec in records:
+        value = rec.get(key)
+        if value in (None, ""):
+            continue
+        grouped.setdefault(str(value), []).append(rec)
+    return grouped
+
+selected_tool_provider_status_records = []
+for tool, status in sorted(selected_tool_provider_status.items()):
+    record = {
+        "tool": str(tool),
+        "overall": "",
+        "status": "",
+        "selected_artifact": env("SELECTED_ARTIFACT"),
+    }
+    if isinstance(status, dict):
+        record.update(status)
+        record["overall"] = str(status.get("overall") or status.get("status") or "unknown")
+        record["status"] = str(status.get("status") or status.get("overall") or "unknown")
+    else:
+        record["overall"] = str(status)
+        record["status"] = str(status)
+        record["value"] = status
+    selected_tool_provider_status_records.append(record)
+
+selected_tool_provider_status_by_tool = records_by_key(selected_tool_provider_status_records, "tool")
+selected_tool_provider_status_by_overall = records_by_key(selected_tool_provider_status_records, "overall")
+selected_doom_wad_records = []
+for index, wad in enumerate(selected_doom_wads):
+    if isinstance(wad, dict):
+        record = dict(wad)
+    else:
+        record = {"value": wad}
+    record["index"] = index
+    record["filename"] = str(record.get("filename") or "")
+    record["sha256"] = str(record.get("sha256") or "")
+    record["selected_artifact"] = env("SELECTED_ARTIFACT")
+    selected_doom_wad_records.append(record)
+selected_doom_wads_by_filename = records_by_key(selected_doom_wad_records, "filename")
+selected_doom_wads_by_sha256 = records_by_key(selected_doom_wad_records, "sha256")
+
 recommendation_summary = {}
 recommendation_path = env("RECOMMENDATION_JSON")
 if recommendation_path and os.path.exists(recommendation_path):
@@ -471,7 +514,13 @@ doc = {
     "selected_artifact": env("SELECTED_ARTIFACT"),
     "selected_artifact_summary": selected_artifact_summary,
     "selected_tool_provider_status": selected_tool_provider_status,
+    "selected_tool_provider_status_records": selected_tool_provider_status_records,
+    "selected_tool_provider_status_by_tool": selected_tool_provider_status_by_tool,
+    "selected_tool_provider_status_by_overall": selected_tool_provider_status_by_overall,
     "selected_doom_wads": selected_doom_wads,
+    "selected_doom_wad_records": selected_doom_wad_records,
+    "selected_doom_wads_by_filename": selected_doom_wads_by_filename,
+    "selected_doom_wads_by_sha256": selected_doom_wads_by_sha256,
     "compatibility": {
         "label": env("COMPATIBILITY_LABEL"),
         "reasons": reasons,
@@ -562,6 +611,33 @@ doc["api_collections"] = {
         ),
         "run_file_summary.total_count",
     ),
+    "selected_tool_provider_status_records": api_collection_record(
+        "selected_tool_provider_status_records",
+        selected_tool_provider_status_records,
+        (
+            "selected_tool_provider_status_by_tool",
+            "selected_tool_provider_status_by_overall",
+        ),
+        "selected_artifact_detail_summary.tool_provider_status_count",
+    ),
+    "selected_doom_wad_records": api_collection_record(
+        "selected_doom_wad_records",
+        selected_doom_wad_records,
+        (
+            "selected_doom_wads_by_filename",
+            "selected_doom_wads_by_sha256",
+        ),
+        "selected_artifact_detail_summary.doom_wad_count",
+    ),
+}
+doc["selected_artifact_detail_summary"] = {
+    "tool_provider_status_count": len(selected_tool_provider_status_records),
+    "tool_provider_overall_counts": {
+        key: len(value) for key, value in selected_tool_provider_status_by_overall.items()
+    },
+    "doom_wad_count": len(selected_doom_wad_records),
+    "doom_wad_filename_count": len(selected_doom_wads_by_filename),
+    "doom_wad_sha256_count": len(selected_doom_wads_by_sha256),
 }
 path = env("SUMMARY_PATH")
 with open(path, "w", encoding="utf-8") as fh:

@@ -133,8 +133,11 @@ selection, maximum compatibility threshold, compatibility label/reasons,
 selected artifact provider status, generated trailer command, staged fetch
 command, selected artifact Doom WAD metadata, selected artifact release
 summary metadata, next operator commands, and next target commands. The JSON also
-includes `next_operator_command_records` and `next_target_command_records`
-with side/effect metadata, a combined `next_command_records` list,
+includes normalized `selected_tool_provider_status_records` and
+`selected_doom_wad_records` with lookup maps by provider tool, provider status,
+WAD filename, and WAD sha256. It also includes
+`next_operator_command_records` and `next_target_command_records` with
+side/effect metadata, a combined `next_command_records` list,
 `next_command_records_by_side`, `next_command_records_by_service`, and
 `next_command_records_by_purpose` lookup maps. Composite maps
 `next_command_records_by_side_service` and
@@ -154,10 +157,11 @@ recommended config, generated target preset, release-find result, and
 selected/recommended artifacts. Those file records include path, expected kind,
 existence, readability, writability, and size so dashboards and audits can
 render a bringup run without separately probing the filesystem. The summary
-publishes `api_collections` metadata for `next_command_records` and
-`run_file_records`, mirroring the collection/index discovery pattern used by
+publishes `api_collections` metadata for `next_command_records`,
+`run_file_records`, selected tool provider records, and selected Doom WAD
+records, mirroring the collection/index discovery pattern used by
 `scripts/busierbox-server --api-status`.
-also includes a `safety_boundary` object that states that bringup does not
+It also includes a `safety_boundary` object that states that bringup does not
 enable network autorun, hidden control channels, command queue execution, or
 default remote command execution.
 
