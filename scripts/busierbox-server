@@ -1188,6 +1188,7 @@ def workbench_action_indexes(records):
         "workbench_actions_by_writes_config": records_by_key(records, "writes_config"),
         "workbench_actions_by_runs_build": records_by_key(records, "runs_build"),
         "workbench_actions_by_execution_default": records_by_key(records, "execution_default"),
+        "workbench_actions_by_target_execution": records_by_key(records, "target_execution"),
     }
 
 
@@ -6753,6 +6754,7 @@ def status_document(cfg):
                 "workbench_actions_by_script", "workbench_actions_by_background_supported",
                 "workbench_actions_by_long_running", "workbench_actions_by_writes_config",
                 "workbench_actions_by_runs_build", "workbench_actions_by_execution_default",
+                "workbench_actions_by_target_execution",
             ), "workbench_action_count",
         ),
         "workbench_config_fields": api_collection_record(

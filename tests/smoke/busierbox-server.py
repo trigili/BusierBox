@@ -1418,6 +1418,7 @@ def main():
         actions_by_category = queue_status_json.get("workbench_actions_by_category") or {}
         actions_by_script = queue_status_json.get("workbench_actions_by_script") or {}
         actions_by_background = queue_status_json.get("workbench_actions_by_background_supported") or {}
+        actions_by_target_execution = queue_status_json.get("workbench_actions_by_target_execution") or {}
         workbench_summary = queue_status_json.get("summary") or {}
         if (len(workbench_config_fields) < 12 or
                 workbench_summary.get("workbench_config_field_count") != len(workbench_config_fields) or
@@ -1440,7 +1441,10 @@ def main():
                 actions_by_id.get("configure-trailer", {}).get("script") != "scripts/artifact-config" or
                 not actions_by_category.get("configuration") or
                 not actions_by_script.get("scripts/busierbox-bringup") or
-                not actions_by_background.get("True")):
+                not actions_by_background.get("True") or
+                actions_by_target_execution.get("True", []) != [] or
+                len(actions_by_target_execution.get("False", [])) != len(workbench_actions) or
+                "workbench_actions_by_target_execution" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", [])):
             print("server json status missing operator workflow action descriptors", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
