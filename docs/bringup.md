@@ -11,9 +11,9 @@ harness for known cases.
 
 ## What It Does
 
-- Creates `local/bringup-runs/<timestamp>/`.
+- Creates `local/bringup-runs/<timestamp>-<pid>/`.
 - Builds a conservative survey artifact unless `--survey-json` is supplied.
-- Copies that artifact to `/tmp/busierbox-bringup-<timestamp>/` on the target.
+- Copies that artifact to `/tmp/busierbox-bringup-<timestamp>-<pid>/` on the target.
 - Runs `./busierbox survey --json` and `./busierbox config-info`.
 - Runs `./busierbox reality-test --json` when the survey artifact includes the
   applet.
@@ -118,7 +118,7 @@ scripts/busierbox-bringup \
 Each run writes:
 
 ```text
-local/bringup-runs/<timestamp>/
+local/bringup-runs/<timestamp>-<pid>/
   build.log
   ssh.log
   survey.json

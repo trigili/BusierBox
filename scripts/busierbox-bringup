@@ -11,9 +11,9 @@ the survey into a recommended BusierBox config, and can then build that
 recommended artifact.
 
 What it does:
-  - writes local run files under local/bringup-runs/<timestamp>/
+  - writes local run files under local/bringup-runs/<timestamp>-<pid>/
   - builds a survey artifact unless --survey-json is supplied
-  - transfers only to /tmp/busierbox-bringup-<timestamp>/ on the target
+  - transfers only to /tmp/busierbox-bringup-<timestamp>-<pid>/ on the target
   - runs ./busierbox survey --json and ./busierbox config-info
   - runs ./busierbox reality-test --json when the artifact supports it
   - writes recommended.conf, recommendation.json, and summary.json
@@ -134,9 +134,25 @@ done
 }
 
 ts=$(date -u +%Y%m%d-%H%M%S)
-run_dir="local/bringup-runs/$ts"
-remote_dir="/tmp/busierbox-bringup-$ts"
-mkdir -p "$run_dir"
+run_id="$ts-$$"
+run_dir="local/bringup-runs/$run_id"
+remote_dir="/tmp/busierbox-bringup-$run_id"
+if ! mkdir "$run_dir" 2>/dev/null; then
+    i=1
+    while :; do
+        run_id="$ts-$$-$i"
+        run_dir="local/bringup-runs/$run_id"
+        remote_dir="/tmp/busierbox-bringup-$run_id"
+        if mkdir "$run_dir" 2>/dev/null; then
+            break
+        fi
+        i=$((i + 1))
+        if [ "$i" -gt 100 ]; then
+            printf '%s\n' "bringup: unable to create unique run directory under local/bringup-runs" >&2
+            exit 1
+        fi
+    done
+fi
 
 summary="$run_dir/summary.json"
 config="$run_dir/survey-core.conf"
