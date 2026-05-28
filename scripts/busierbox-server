@@ -2998,8 +2998,15 @@ def update_server_state(cfg, action, status="configured", extra=None):
     return data
 
 
-def mark_service_stopped(cfg, action):
-    return update_server_state(cfg, action, "stopped", {"pid": "", "managed_by": "", "stopped_at": utc_now()})
+def mark_service_stopped(cfg, action, reason=""):
+    extra = {"pid": "", "managed_by": "", "stopped_at": utc_now()}
+    if reason:
+        extra["stopped_reason"] = str(reason)
+    return update_server_state(cfg, action, "stopped", extra)
+
+
+def current_stop_reason(default="complete"):
+    return SHUTDOWN_REASON or default
 
 
 def mark_service_error(cfg, action, reason, extra=None, event_name="service_error"):
@@ -4508,7 +4515,7 @@ def serve_ssh(cfg, timeout):
                 pass
         if bound:
             record_shutdown_event(cfg, service, session=log_dir)
-            mark_service_stopped(cfg, service)
+            mark_service_stopped(cfg, service, current_stop_reason())
             finish_session_record(cfg, service, log_dir)
             append_event(cfg, service, "service_stop", session=str(log_dir))
     return 0
@@ -5261,7 +5268,14 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
                 sock.close()
             except OSError:
                 pass
-        update_server_state(cfg, service, "stopped", {"session_log": str(log_dir), "command_queue_file": str(command_queue_path(cfg))})
+        update_server_state(cfg, service, "stopped", {
+            "session_log": str(log_dir),
+            "command_queue_file": str(command_queue_path(cfg)),
+            "pid": "",
+            "managed_by": "",
+            "stopped_at": utc_now(),
+            "stopped_reason": current_stop_reason(),
+        })
         update_session_record(log_dir, state="ended", exit_reason="shutdown" if SHUTDOWN.is_set() else "complete")
         upsert_state_session(cfg, log_dir, service, "ended", exit_reason="shutdown" if SHUTDOWN.is_set() else "complete")
         append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port})
@@ -5372,7 +5386,7 @@ def serve_file_service(cfg, timeout, max_sessions=0):
                 pass
         if bound:
             record_shutdown_event(cfg, service, session=log_dir)
-            mark_service_stopped(cfg, service)
+            mark_service_stopped(cfg, service, current_stop_reason())
             finish_session_record(cfg, service, log_dir)
             append_event(cfg, service, "service_stop", session=str(log_dir))
     return 0
@@ -5457,7 +5471,7 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=N
                 pass
         if bound:
             record_shutdown_event(cfg, service, session=log_dir)
-            mark_service_stopped(cfg, service)
+            mark_service_stopped(cfg, service, current_stop_reason())
             finish_session_record(cfg, service, log_dir, exit_reason=exit_reason_for(log_dir))
             append_event(cfg, service, "service_stop", session=str(log_dir))
     return 0
@@ -5522,7 +5536,7 @@ def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes
                 pass
         if bound:
             record_shutdown_event(cfg, service, session=log_dir)
-            mark_service_stopped(cfg, service)
+            mark_service_stopped(cfg, service, current_stop_reason())
             finish_session_record(cfg, service, log_dir, exit_reason=exit_reason_for(log_dir))
             append_event(cfg, service, "service_stop", session=str(log_dir))
     return 0
@@ -5703,6 +5717,8 @@ def service_status_rows(cfg):
             ],
             "stale": stale,
             "error": rec.get("error", ""),
+            "stopped_at": rec.get("stopped_at", ""),
+            "stopped_reason": rec.get("stopped_reason", ""),
             "owners": rec.get("owners", []),
             "session_log": rec.get("session_log", ""),
             "process_log": rec.get("process_log", ""),
@@ -5919,6 +5935,8 @@ def status_document(cfg):
             "listener_bind_mismatch": row.get("listener_bind_mismatch", False),
             "stale": row.get("stale", False),
             "error": row.get("error", ""),
+            "stopped_at": row.get("stopped_at", ""),
+            "stopped_reason": row.get("stopped_reason", ""),
             "process_log": row.get("process_log", ""),
             "session_log": row.get("session_log", ""),
         }
@@ -6848,6 +6866,8 @@ def print_status(cfg, json_output=False):
                 print(f"    recorded_owner_pid={owner.get('pid', '')} {owner.get('cmdline', '')}")
         if row["error"]:
             print(f"    error: {row['error']}")
+        if row.get("stopped_reason"):
+            print(f"    stopped_reason: {row.get('stopped_reason', '')} at {row.get('stopped_at', '')}")
         if row["process_log"]:
             print(f"    process_log: {row['process_log']}")
         if row["session_log"]:
@@ -7037,13 +7057,13 @@ def stop_managed_services(cfg):
             skipped += 1
             continue
         if not pid:
-            mark_service_stopped(cfg, name)
+            mark_service_stopped(cfg, name, "server-stop:no-pid")
             append_event(cfg, name, "service_stop", details={"reason": "no-pid", "via": "server-stop"})
             print(f"{name}: no pid recorded; marked stopped")
             skipped += 1
             continue
         if not pid_alive(pid):
-            mark_service_stopped(cfg, name)
+            mark_service_stopped(cfg, name, "server-stop:stale-pid")
             append_event(cfg, name, "service_stop", details={"pid": pid, "reason": "stale-pid", "via": "server-stop"})
             print(f"{name}: stale pid {pid}; marked stopped")
             skipped += 1
@@ -7059,7 +7079,7 @@ def stop_managed_services(cfg):
             os.kill(int(pid), signal.SIGTERM)
             if wait_service_port_released(cfg, name, pid=pid):
                 stopped += 1
-                mark_service_stopped(cfg, name)
+                mark_service_stopped(cfg, name, "server-stop:SIGTERM")
                 append_event(cfg, name, "service_stop", details={"pid": pid, "via": "server-stop", "ownership_evidence": ownership_evidence, "port_released": True})
                 print(f"{name}: stopped pid {pid}; port released")
             else:
@@ -7366,12 +7386,12 @@ def stop_recorded_service(cfg, service):
     pid = rec.get("pid")
     if not pid:
         print(f"{service}: no recorded pid")
-        mark_service_stopped(cfg, service)
+        mark_service_stopped(cfg, service, "workbench-stop:no-pid")
         append_event(cfg, service, "service_stop", details={"reason": "no-pid", "via": "workbench-stop"})
         return
     if not pid_alive(pid):
         print(f"{service}: stale pid {pid}; marked stopped")
-        mark_service_stopped(cfg, service)
+        mark_service_stopped(cfg, service, "workbench-stop:stale-pid")
         append_event(cfg, service, "service_stop", details={"pid": pid, "reason": "stale-pid", "via": "workbench-stop"})
         return
     ownership_evidence = managed_server_evidence(pid, cfg=cfg, rec=rec)
@@ -7384,7 +7404,7 @@ def stop_recorded_service(cfg, service):
         os.kill(int(pid), signal.SIGTERM)
         if wait_service_port_released(cfg, service, pid=pid):
             print(f"stopped {service}: pid={pid}; port released")
-            mark_service_stopped(cfg, service)
+            mark_service_stopped(cfg, service, "workbench-stop:SIGTERM")
             append_event(cfg, service, "service_stop", details={"pid": pid, "via": "workbench-stop", "ownership_evidence": ownership_evidence, "port_released": True})
         else:
             raise TimeoutError(f"listener port {service_port(cfg, service)} still appears bound after SIGTERM")
@@ -7423,7 +7443,7 @@ def run_line_tui(cfg):
         print("  q quit")
         choice = input("> ").strip()
         if choice == "q":
-            mark_service_stopped(cfg, "workbench")
+            mark_service_stopped(cfg, "workbench", "quit")
             return 0
         if choice in {"1", "2", "3", "4"}:
             service = {"1": "ssh", "2": "tls-shell", "3": "plain-shell", "4": "file-service"}[choice]
@@ -7932,7 +7952,7 @@ def run_tui(cfg):
         return run_line_tui(cfg)
     finally:
         stop_workbench_started_services(cfg)
-        mark_service_stopped(cfg, "workbench")
+        mark_service_stopped(cfg, "workbench", SHUTDOWN_REASON or "quit")
         append_event(cfg, "workbench", "shutdown", details={"reason": SHUTDOWN_REASON or "quit"})
 
 
@@ -8259,7 +8279,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         print("busierbox-server: interrupted, shutting down", file=sys.stderr)
         request_shutdown("keyboard_interrupt")
         record_shutdown_event(cfg, action)
-        mark_service_stopped(cfg, action)
+        mark_service_stopped(cfg, action, "keyboard_interrupt")
         return 130
     except OSError:
         return 1

@@ -2486,9 +2486,17 @@ def main():
             "--staged-file", str(sigint_staged),
             "--json-status",
         )
-        sigint_rows = {row["name"]: row for row in json.loads(sigint_after.stdout)["services"]}
+        sigint_after_doc = json.loads(sigint_after.stdout)
+        sigint_rows = {row["name"]: row for row in sigint_after_doc["services"]}
         if sigint_rows["file-service"]["actual"] == "listening" or sigint_rows["file-service"]["configured"] != "stopped":
             print("SIGINT foreground listener did not stop and release its port", file=sys.stderr)
+            print(sigint_after.stdout, file=sys.stderr)
+            return 1
+        sigint_state_rec = sigint_after_doc.get("server_state", {}).get("services", {}).get("file-service") or {}
+        if (sigint_state_rec.get("stopped_reason") != "SIGINT" or
+                sigint_rows["file-service"].get("stopped_reason") != "SIGINT" or
+                not sigint_state_rec.get("stopped_at")):
+            print("SIGINT foreground listener did not preserve stopped reason in status", file=sys.stderr)
             print(sigint_after.stdout, file=sys.stderr)
             return 1
         sigint_events_path = Path(tmp) / "operator-session" / "events.jsonl"
@@ -2501,6 +2509,86 @@ def main():
         ]
         if not sigint_shutdowns:
             print("SIGINT foreground listener did not record structured shutdown event", file=sys.stderr)
+            return 1
+
+        sigterm_port = free_port()
+        sigterm_cfg = Path(tmp) / "server-config-sigterm.json"
+        sigterm_state = Path(tmp) / "operator-session" / "sigterm-state.json"
+        sigterm_staged = Path(tmp) / "operator-session" / "sigterm-staged.json"
+        sigterm_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "file_service_port": sigterm_port,
+            "session_root": str(Path(tmp) / "sessions-sigterm"),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+            "file_service_tls": "no",
+            "operator_session_dir": str(Path(tmp) / "operator-session"),
+        }), encoding="utf-8")
+        sigterm_proc = subprocess.Popen(
+            [
+                str(server), "--config", str(sigterm_cfg),
+                "--state-file", str(sigterm_state),
+                "--staged-file", str(sigterm_staged),
+                "--transport", "file-service",
+                "--file-service-tls", "no",
+                "--timeout", "30",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            sigterm_status = run(
+                "scripts/busierbox-server", "--config", str(sigterm_cfg),
+                "--state-file", str(sigterm_state),
+                "--staged-file", str(sigterm_staged),
+                "--json-status",
+            )
+            if sigterm_status.returncode == 0:
+                rows = {row["name"]: row for row in json.loads(sigterm_status.stdout)["services"]}
+                if rows["file-service"]["actual"] == "listening":
+                    break
+            time.sleep(0.05)
+        else:
+            print("SIGTERM lifecycle file-service did not reach listening state", file=sys.stderr)
+            sigterm_proc.terminate()
+            sigterm_proc.communicate(timeout=2)
+            return 1
+        sigterm_proc.terminate()
+        sigterm_stdout, sigterm_stderr = sigterm_proc.communicate(timeout=5)
+        sigterm_combined = sigterm_stdout + sigterm_stderr
+        if sigterm_proc.returncode not in (0, 143, -signal.SIGTERM) or "Traceback" in sigterm_combined:
+            print("SIGTERM foreground listener did not exit cleanly", file=sys.stderr)
+            print(sigterm_combined, file=sys.stderr)
+            return 1
+        sigterm_after = run(
+            "scripts/busierbox-server", "--config", str(sigterm_cfg),
+            "--state-file", str(sigterm_state),
+            "--staged-file", str(sigterm_staged),
+            "--json-status",
+        )
+        sigterm_after_doc = json.loads(sigterm_after.stdout)
+        sigterm_rows = {row["name"]: row for row in sigterm_after_doc["services"]}
+        sigterm_state_rec = sigterm_after_doc.get("server_state", {}).get("services", {}).get("file-service") or {}
+        if (sigterm_rows["file-service"]["actual"] == "listening" or
+                sigterm_rows["file-service"]["configured"] != "stopped" or
+                sigterm_state_rec.get("stopped_reason") != "SIGTERM" or
+                sigterm_rows["file-service"].get("stopped_reason") != "SIGTERM" or
+                not sigterm_state_rec.get("stopped_at")):
+            print("SIGTERM foreground listener did not stop and preserve stopped reason", file=sys.stderr)
+            print(sigterm_after.stdout, file=sys.stderr)
+            return 1
+        sigterm_events = [json.loads(line) for line in sigint_events_path.read_text(encoding="utf-8").splitlines()]
+        sigterm_shutdowns = [
+            event for event in sigterm_events
+            if event.get("service") == "file-service"
+            and event.get("event") == "shutdown"
+            and event.get("details", {}).get("reason") == "SIGTERM"
+        ]
+        if not sigterm_shutdowns:
+            print("SIGTERM foreground listener did not record structured shutdown event", file=sys.stderr)
             return 1
 
         unmanaged_state = {
