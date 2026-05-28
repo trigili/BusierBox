@@ -1,8 +1,8 @@
 # Command Queue
 
-The command queue is reserved for a future explicit advanced mode where a target
-polls an operator service for queued work. It is separate from file upload,
-fetch, evidence push, and reverse shells.
+The command queue is an explicit advanced mode where a target can poll an
+operator service for queued work. It is separate from file upload, fetch,
+evidence push, and reverse shells.
 
 Current behavior is intentionally non-executing:
 
@@ -21,8 +21,8 @@ Current behavior is intentionally non-executing:
   commands or upload results in this build.
 - `scripts/busierbox-server --queue-command ...` records explicit operator
   queue entries in `local/operator-session/command-queue.json` for inspection
-  and future tooling. The command-queue listener can mark a queued entry
-  delivered to a polling target, but execution remains unsupported.
+  and tooling. The command-queue listener can mark a queued entry delivered to
+  a polling target, but execution remains unsupported.
 - `scripts/busierbox-server --json-status` or `--api-status` includes the
   command queue path, counts, entries, `commands_by_id`,
   `commands_by_status`, result lookup maps, latest queue/result timestamps,
@@ -30,8 +30,8 @@ Current behavior is intentionally non-executing:
   boundary.
 - Human `--status`, `--list-command-queue`, and the line-oriented workbench
   print the same mode lifecycle and non-execution flags so operators do not
-  need JSON tooling to see that `poll`, `once`, and `daemon` are dry-run-only
-  planning modes in this build.
+  need JSON tooling to distinguish default dry-run planning from explicit
+  `--live` metadata polling.
 - `busierbox plan command-queue --json` and `manifest --json` expose the same
   policy validity fields so release tooling and frontends do not treat an
   inconsistent policy as ready to poll.
@@ -92,10 +92,12 @@ Safety boundary:
   `policy_summary` so frontend and integration tooling can distinguish
   policy/planning from explicit live polling. Live `delivery_supported=true`
   means the target can receive queued metadata; it does not imply command
-  execution. They also expose a compact `poll_plan`
-  object with mode, status, endpoint, explicit-target-action, dry-run-only,
-  would-contact-operator, queued-command availability, delivery/result upload,
-  execution, and hidden-control-channel fields.
+  execution. Disabled or invalid policy keeps `would_contact_operator=false`
+  and `active_control_channel=false` even when a user passes `--live`. They
+  also expose a compact `poll_plan` object with mode, status, endpoint,
+  explicit-target-action, dry-run-only, would-contact-operator, queued-command
+  availability, delivery/result upload, execution, and hidden-control-channel
+  fields.
 - `command-queue --json` also includes `mode_semantics` for `status`, `poll`,
   `once`, and `daemon`. Each entry declares whether the mode is selected,
   whether it needs an operator host, its lifecycle label (`inspect`,

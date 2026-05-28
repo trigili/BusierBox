@@ -211,6 +211,8 @@ grep -q 'BB_COMMAND_QUEUE_ENABLE="no"' configs/busierbox.conf.example
 grep -q 'Advanced / Explicit command queue' scripts/menuconfig
 grep -q 'target-side polling for operator-supplied commands' scripts/menuconfig
 grep -q 'execute queued commands' docs/command-queue.md
+grep -q '`--live` metadata polling' docs/command-queue.md
+grep -q 'active_control_channel=false' docs/command-queue.md
 grep -q 'BB_COMMAND_QUEUE_ALLOWED_COMMANDS' scripts/menuconfig
 grep -q 'BB_COMMAND_QUEUE_POLL_INTERVAL_SEC' scripts/menuconfig
 grep -q 'invalid command queue allowed commands policy' scripts/package-target
