@@ -216,7 +216,7 @@ execute it. The `command_delivered` operator event includes the same delivery
 policy snapshot.
 
 The operator JSON status API indexes queue records by snapshot posture with
-`commands_by_created_at`, `commands_by_delivered_at`,
+`commands_by_command_sha256`, `commands_by_created_at`, `commands_by_delivered_at`,
 `commands_by_result_received_at`, `commands_by_result_source_path`,
 `commands_by_timeout_sec`, `commands_by_max_output_bytes`,
 `commands_by_queue_policy_enabled`, `commands_by_queue_policy_valid`,

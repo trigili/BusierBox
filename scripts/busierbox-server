@@ -3381,6 +3381,7 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
         "created_at": now,
         "status": "queued",
         "command": text,
+        "command_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "timeout_sec": timeout_value,
         "max_output_bytes": max_output_value,
         "execution_supported": False,
@@ -3633,6 +3634,7 @@ def command_queue_summary(cfg):
     delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
     commands_by_id = {}
     commands_by_status = {}
+    commands_by_command_sha256 = {}
     commands_by_created_at = {}
     commands_by_delivered_at = {}
     commands_by_result_received_at = {}
@@ -3666,6 +3668,11 @@ def command_queue_summary(cfg):
             continue
         command_id = str(rec.get("id") or "")
         status = str(rec.get("status") or "")
+        command_text = str(rec.get("command") or "")
+        command_sha256 = str(rec.get("command_sha256") or "")
+        if command_text and not command_sha256:
+            command_sha256 = hashlib.sha256(command_text.encode("utf-8")).hexdigest()
+            rec["command_sha256"] = command_sha256
         execution_decision = str(rec.get("execution_decision") or "")
         created_at = str(rec.get("created_at") or "")
         delivered_at = str(rec.get("delivered_at") or "")
@@ -3676,6 +3683,8 @@ def command_queue_summary(cfg):
         if status:
             commands_by_status.setdefault(status, []).append(rec)
             status_counts[status] = status_counts.get(status, 0) + 1
+        if command_sha256:
+            commands_by_command_sha256.setdefault(command_sha256, []).append(rec)
         if created_at:
             commands_by_created_at.setdefault(created_at, []).append(rec)
         if delivered_at:
@@ -3805,6 +3814,7 @@ def command_queue_summary(cfg):
         "commands": commands,
         "commands_by_id": commands_by_id,
         "commands_by_status": commands_by_status,
+        "commands_by_command_sha256": commands_by_command_sha256,
         "commands_by_created_at": commands_by_created_at,
         "commands_by_delivered_at": commands_by_delivered_at,
         "commands_by_result_received_at": commands_by_result_received_at,
@@ -7827,7 +7837,8 @@ def status_document(cfg):
         ),
         "command_queue_commands": api_collection_record(
             "command_queue_commands", command_queue.get("commands") or [], "id", (
-                "commands_by_id", "commands_by_status", "commands_by_created_at",
+                "commands_by_id", "commands_by_status", "commands_by_command_sha256",
+                "commands_by_created_at",
                 "commands_by_delivered_at", "commands_by_result_received_at",
                 "commands_by_result_source_path", "commands_by_timeout_sec",
                 "commands_by_max_output_bytes", "commands_by_execution_decision",

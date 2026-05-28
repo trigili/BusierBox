@@ -694,7 +694,7 @@ commands.
 Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
 `command_queue_status_counts`. Queue records are also indexed by
-`commands_by_created_at`, `commands_by_delivered_at`,
+`commands_by_command_sha256`, `commands_by_created_at`, `commands_by_delivered_at`,
 `commands_by_result_received_at`, `commands_by_result_source_path`,
 `commands_by_timeout_sec`, and `commands_by_max_output_bytes`, with mirrored
 `command_queue_timeout_sec_counts` and
