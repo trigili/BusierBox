@@ -2850,6 +2850,19 @@ def main():
             capture_output=True,
         )
         staged_doc = json.loads(staged_status.stdout)
+        release_staged = staged_doc.get("staged", {}).get("busierbox-test", {})
+        release_staged_by_kind = staged_doc.get("staged_by_kind") or {}
+        release_staged_summary = staged_doc.get("summary") or {}
+        if (release_staged.get("stage_kind") != "release-artifact" or
+                release_staged.get("release_path") != "bin/busierbox-test" or
+                release_staged.get("tuple_path") != "by-tuple/native/host/host/host" or
+                release_staged.get("payload_preset") != "default" or
+                (release_staged.get("compatibility") or {}).get("label") != "exact" or
+                release_staged_by_kind.get("release-artifact", [{}])[0].get("request_name") != "busierbox-test" or
+                release_staged_summary.get("staged_kind_counts", {}).get("release-artifact") != 1):
+            print("json status missing release artifact staged metadata", file=sys.stderr)
+            print(staged_status.stdout, file=sys.stderr)
+            return 1
         fetch_records = [
             rec for rec in staged_doc.get("target_command_records") or []
             if rec.get("request_name") == "busierbox-test"
@@ -3077,6 +3090,7 @@ def main():
         staged_records = status_doc.get("staged_records") or []
         staged_record = next((item for item in staged_records if item.get("request_name") == "/tmp/myfile"), {})
         staged_by_request = status_doc.get("staged_by_request") or {}
+        staged_by_kind = status_doc.get("staged_by_kind") or {}
         staged_by_sha256 = status_doc.get("staged_by_sha256") or {}
         staged_by_source_path = status_doc.get("staged_by_source_path") or {}
         staged_files_state = status_doc.get("staged_files_state") or {}
@@ -3084,20 +3098,24 @@ def main():
         staged_summary = status_doc.get("summary") or {}
         if (not staged_status or
                 staged_status.get("request_name") != "/tmp/myfile" or
+                staged_status.get("stage_kind") != "file" or
                 "fetch /tmp/myfile" not in staged_status.get("fetch_command", "") or
                 "--force" not in staged_status.get("fetch_command_force", "") or
                 staged_status.get("source_exists") is not True or
                 staged_summary.get("staged_count", 0) < 1 or
+                staged_summary.get("staged_kind_counts", {}).get("file", 0) < 1 or
                 staged_summary.get("staged_source_exists_count", 0) < 1 or
                 staged_summary.get("staged_source_missing_count") != 0 or
                 staged_summary.get("staged_total_size", 0) < staged_source.stat().st_size or
                 staged_summary.get("latest_staged_at") != staged_record.get("staged_at") or
                 not staged_record or
                 staged_record.get("name") != "/tmp/myfile" or
+                staged_record.get("stage_kind") != "file" or
                 staged_record.get("source_path") != str(staged_source) or
                 staged_record.get("source_exists") is not True or
                 "fetch /tmp/myfile" not in staged_record.get("fetch_command", "") or
                 staged_by_request.get("/tmp/myfile", {}).get("source_path") != str(staged_source) or
+                staged_by_kind.get("file", [{}])[0].get("request_name") != "/tmp/myfile" or
                 staged_by_source_path.get(str(staged_source), {}).get("request_name") != "/tmp/myfile" or
                 not staged_sha or
                 not any(item.get("request_name") == "/tmp/myfile" for item in staged_by_sha256.get(staged_sha, [])) or

@@ -363,10 +363,15 @@ exposes the command queue ledger path, validity, command ids, status counts,
 and raw command count. Staged files are exposed as the existing `staged`
 request map, an ordered `staged_records`
 browser list, and lookup maps
-`staged_by_request`, `staged_by_sha256`, and `staged_by_source_path`;
+`staged_by_request`, `staged_by_kind`, `staged_by_sha256`, and
+`staged_by_source_path`; release artifacts staged through the workbench keep
+their `release_path`, `tuple_path`, `payload_preset`, and `compatibility`
+metadata so file-browser panes can distinguish release artifacts from arbitrary
+local files.
 `summary` includes `staged_total_size`, `staged_source_exists_count`, and
-`staged_source_missing_count` for staged-file health, plus `latest_staged_at`
-for compact recency displays. Recent
+`staged_source_missing_count` for staged-file health, `staged_kind_counts` for
+file/release-artifact grouping, plus `latest_staged_at` for compact recency
+displays. Recent
 upload and staged-fetch activity is exposed through top-level `uploads` and
 `fetches` arrays plus lookup maps: `uploads_by_session`,
 `uploads_by_filename`, `uploads_by_kind`, `uploads_by_sha256`,

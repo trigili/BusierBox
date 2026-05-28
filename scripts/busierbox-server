@@ -677,6 +677,7 @@ def enriched_staged_records(cfg, staged=None):
         request = item.get("request_name") or name
         source_path = item.get("source_path", "")
         item["request_name"] = request
+        item["stage_kind"] = str(item.get("stage_kind") or "file")
         item["fetch_command"] = render_fetch_command(request, cfg, host=host)
         item["fetch_command_force"] = render_fetch_command(request, cfg, host=host, force=True)
         item["source_exists"] = Path(str(source_path)).is_file() if source_path else False
@@ -693,27 +694,32 @@ def staged_record_list(staged):
         item = dict(rec)
         item["name"] = name
         item["request_name"] = item.get("request_name") or name
+        item["stage_kind"] = str(item.get("stage_kind") or "file")
         records.append(item)
     return records
 
 
 def staged_record_indexes(records):
     by_request = {}
+    by_kind = {}
     by_sha256 = {}
     by_source_path = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
         request_name = str(rec.get("request_name") or rec.get("name") or "")
+        kind = str(rec.get("stage_kind") or "file")
         sha256 = str(rec.get("sha256") or "")
         source_path = str(rec.get("source_path") or "")
         if request_name:
             by_request[request_name] = rec
+        if kind:
+            by_kind.setdefault(kind, []).append(rec)
         if sha256:
             by_sha256.setdefault(sha256, []).append(rec)
         if source_path:
             by_source_path[source_path] = rec
-    return by_request, by_sha256, by_source_path
+    return by_request, by_kind, by_sha256, by_source_path
 
 
 def records_by_session(records):
@@ -2103,21 +2109,32 @@ def file_sha256(path):
     return h.hexdigest()
 
 
-def stage_file(cfg, path, request_name):
+def stage_file(cfg, path, request_name, metadata=None):
     src = Path(path).expanduser()
     if not src.is_file():
         raise ValueError(f"staged file does not exist or is not a regular file: {src}")
     request = reject_traversal_request_name(request_name)
     stat = src.stat()
     data = load_staged(cfg)
-    data["staged"][request] = {
+    record = {
         "request_name": request,
+        "stage_kind": "file",
         "source_path": str(src),
         "size": stat.st_size,
         "sha256": file_sha256(src),
         "mtime": int(stat.st_mtime),
         "staged_at": utc_now(),
     }
+    if metadata:
+        record.update(metadata)
+        record["request_name"] = request
+        record["source_path"] = str(src)
+        record["size"] = stat.st_size
+        record["sha256"] = record.get("sha256") or file_sha256(src)
+        record["mtime"] = int(stat.st_mtime)
+        record["staged_at"] = record.get("staged_at") or utc_now()
+        record["stage_kind"] = str(record.get("stage_kind") or "file")
+    data["staged"][request] = record
     atomic_write_json(staged_file_path(cfg), data)
     append_event(cfg, "file-service", "staged_file_add", details=data["staged"][request])
     return data["staged"][request]
@@ -2680,7 +2697,17 @@ def stage_release_artifact(cfg, artifact_name):
         raise ValueError(f"release artifact is ambiguous: {requested}")
     rec = matches[0]
     request = rec.get("request_name") or Path(str(rec.get("path"))).name
-    return stage_file(cfg, rec["path"], request)
+    metadata = {
+        "stage_kind": "release-artifact",
+        "release_artifact_name": rec.get("name", ""),
+        "release_artifact_path": rec.get("path", ""),
+        "release_path": rec.get("release_path", ""),
+        "tuple_path": rec.get("tuple_path", ""),
+        "payload_preset": rec.get("payload_preset", ""),
+        "compatibility": rec.get("compatibility") or {},
+        "selected_by_recommendation": requested if recommendation else "",
+    }
+    return stage_file(cfg, rec["path"], request, metadata=metadata)
 
 
 def render_fetch_command(request_name, cfg, host=None, force=False):
@@ -2725,7 +2752,9 @@ def print_staged(cfg):
         return
     for name in sorted(staged):
         rec = staged[name]
-        print(f"{name}\t{rec.get('source_path', '')}\t{rec.get('size', '')}\t{rec.get('sha256', '')}")
+        print(f"{name}\t{rec.get('stage_kind', 'file')}\t{rec.get('source_path', '')}\t{rec.get('size', '')}\t{rec.get('sha256', '')}")
+        if rec.get("release_path") or rec.get("tuple_path"):
+            print(f"  release={rec.get('release_path', '')} tuple={rec.get('tuple_path', '')} preset={rec.get('payload_preset', '')}")
         print(f"  {render_fetch_command(name, cfg)}")
 
 
@@ -4715,7 +4744,7 @@ def status_document(cfg):
     staged = enriched_staged_records(cfg, staged_raw)
     staged_records = staged_record_list(staged)
     staged_summary = staged_record_summary(staged_records)
-    staged_by_request, staged_by_sha256, staged_by_source_path = staged_record_indexes(staged_records)
+    staged_by_request, staged_by_kind, staged_by_sha256, staged_by_source_path = staged_record_indexes(staged_records)
     ips = local_ips()
     operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
     event_log_path = operator_dir / "events.jsonl"
@@ -4936,6 +4965,7 @@ def status_document(cfg):
         "command_queue_file_command_count": command_queue_state.get("command_count", 0),
         "staged_count": len(staged),
         "staged_total_size": staged_summary.get("total_size", 0),
+        "staged_kind_counts": record_count_by_key(staged_records, "stage_kind"),
         "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
         "staged_source_missing_count": staged_summary.get("source_missing_count", 0),
         "latest_staged_at": latest_record_value(staged_records, ("staged_at",)),
@@ -5106,7 +5136,7 @@ def status_document(cfg):
         ),
         "staged_records": api_collection_record(
             "staged_records", staged_records, "request_name", (
-                "staged_by_request", "staged_by_sha256", "staged_by_source_path",
+                "staged_by_request", "staged_by_kind", "staged_by_sha256", "staged_by_source_path",
             ), "staged_count",
         ),
         "uploads": api_collection_record(
@@ -5235,6 +5265,7 @@ def status_document(cfg):
         "staged": staged,
         "staged_records": staged_records,
         "staged_by_request": staged_by_request,
+        "staged_by_kind": staged_by_kind,
         "staged_by_sha256": staged_by_sha256,
         "staged_by_source_path": staged_by_source_path,
         "uploads": uploads,
@@ -5862,7 +5893,9 @@ def print_workbench(cfg):
         for name in sorted(snap["staged"]):
             rec = snap["staged"][name]
             sha = str(rec.get("sha256", ""))[:12]
-            print(f"  {name} <- {rec.get('source_path', '')} size={rec.get('size', '')} sha256={sha} staged={rec.get('staged_at', '')}")
+            print(f"  {name} kind={rec.get('stage_kind', 'file')} <- {rec.get('source_path', '')} size={rec.get('size', '')} sha256={sha} staged={rec.get('staged_at', '')}")
+            if rec.get("release_path") or rec.get("tuple_path"):
+                print(f"    release: {rec.get('release_path', '')} tuple={rec.get('tuple_path', '')} preset={rec.get('payload_preset', '')}")
             print(f"    {rec.get('fetch_command') or render_fetch_command(name, cfg)}")
     else:
         print("  none")
@@ -6238,7 +6271,7 @@ def run_curses_tui(cfg):
             for idx, name in enumerate(staged_names):
                 rec = snap["staged"][name]
                 prefix = ">" if pane == 1 and idx == selected else " "
-                staged_lines.append(f"{prefix} {name} {rec.get('size', '')}B {str(rec.get('sha256', ''))[:8]}")
+                staged_lines.append(f"{prefix} {name} {rec.get('stage_kind', 'file')} {rec.get('size', '')}B {str(rec.get('sha256', ''))[:8]}")
             staged_lines = staged_lines or [" none"]
             detail_lines = []
             if pane == 0 and services:
@@ -6259,7 +6292,11 @@ def run_curses_tui(cfg):
                 rec = snap["staged"][name]
                 detail_lines = [
                     f"request: {name}",
+                    f"kind: {rec.get('stage_kind', 'file')}",
                     f"source: {rec.get('source_path', '')}",
+                    f"release_path: {rec.get('release_path', '')}",
+                    f"tuple_path: {rec.get('tuple_path', '')}",
+                    f"payload_preset: {rec.get('payload_preset', '')}",
                     f"size: {rec.get('size', '')}",
                     f"sha256: {rec.get('sha256', '')}",
                     f"staged: {rec.get('staged_at', '')}",
