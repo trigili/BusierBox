@@ -3,18 +3,19 @@
 BusierBox's own source code, scripts, tests, and project documentation are
 licensed under GPL-2.0-or-later unless a file states a different license.
 
-The top-level `LICENSE` file contains the GNU General Public License version 2.
-Because BusierBox is GPL-2.0-or-later, recipients may use BusierBox's own code
-under GPLv2 or any later GPL version. When BusierBox is distributed together
-with GPLv2-only components, GPLv2 is the compatible choice for that combined
-artifact.
+The top-level `LICENSE.busierbox` file carries the explicit BusierBox project
+grant and SPDX expression. The top-level `LICENSE` file contains the GNU
+General Public License version 2 text. Because BusierBox is GPL-2.0-or-later,
+recipients may use BusierBox's own code under GPLv2 or any later GPL version.
+When BusierBox is distributed together with GPLv2-only components, GPLv2 is the
+compatible choice for that combined artifact.
 
 The top-level `NOTICE` file repeats the repository-level license declaration in
 a short form for release bundles, package inventories, and repository scanners.
 `manifests/license-policy.json` is the machine-readable form of the same policy,
-and `scripts/check-licensing` validates the policy against the pinned source
-metadata and bundled notice files. This document is an engineering license
-inventory, not legal advice.
+and `scripts/check-licensing` validates the policy against the project grant,
+pinned source metadata, and bundled notice files. This document is an
+engineering license inventory, not legal advice.
 
 ## Third-party components
 
@@ -56,6 +57,7 @@ BusierBox release artifacts should preserve source availability and license
 notices for included components:
 
 - Keep `manifests/sources.lock.json` current for downloaded source archives.
+- Keep `LICENSE.busierbox`, `LICENSE`, and `NOTICE` in release bundles.
 - Keep third-party license files with vendored source snippets.
 - Do not add a network-fetched component without pinned version, URL, SHA-256,
   filename, license, and homepage metadata.

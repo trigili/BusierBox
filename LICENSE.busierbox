@@ -1,0 +1,12 @@
+BusierBox project license grant
+
+SPDX-License-Identifier: GPL-2.0-or-later
+
+Unless a file states a different license, BusierBox-maintained source code,
+scripts, tests, and documentation are licensed under the GNU General Public
+License version 2 or, at your option, any later version.
+
+The complete GNU GPL version 2 text is in the top-level LICENSE file.
+Third-party components remain under their own upstream licenses; see NOTICE,
+docs/licensing.md, manifests/license-policy.json, and bundled third-party
+license files for inventory and compatibility notes.

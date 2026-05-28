@@ -1312,7 +1312,7 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
     doc_dir.mkdir(parents=True, exist_ok=True)
     config_dir.mkdir(parents=True, exist_ok=True)
     manifest_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("LICENSE", "NOTICE"):
+    for name in ("LICENSE.busierbox", "LICENSE", "NOTICE"):
         src = ROOT / name
         if src.exists():
             shutil.copy2(src, release_dir / name)

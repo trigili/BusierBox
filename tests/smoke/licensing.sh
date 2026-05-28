@@ -4,8 +4,12 @@ set -eu
 test -f LICENSE
 grep -q 'GNU GENERAL PUBLIC LICENSE' LICENSE
 grep -q 'Version 2, June 1991' LICENSE
+test -f LICENSE.busierbox
+grep -q 'SPDX-License-Identifier: GPL-2.0-or-later' LICENSE.busierbox
+grep -q 'Unless a file states a different license' LICENSE.busierbox
 test -f NOTICE
 grep -q 'GPL-2.0-or-later' NOTICE
+grep -q 'LICENSE.busierbox' NOTICE
 test -f manifests/license-policy.json
 scripts/check-licensing
 
@@ -39,12 +43,14 @@ fi
 grep -q 'source lock new-tool missing license' "$tmp/missing-license.out"
 
 grep -q 'GPL-2.0-or-later' README.md
+grep -q 'LICENSE.busierbox' README.md
 grep -q 'NOTICE' README.md
 grep -q 'docs/licensing.md' README.md
 grep -q 'manifests/license-policy.json' README.md
 grep -q 'BusierBox is not a BusyBox replacement and is not a BusyBox fork' README.md
 
 grep -q 'GPL-2.0-or-later' docs/licensing.md
+grep -q 'LICENSE.busierbox' docs/licensing.md
 grep -q 'GPL compatibility summary' docs/licensing.md
 grep -q 'scripts/check-licensing' docs/licensing.md
 grep -q 'manifests/license-policy.json' docs/licensing.md

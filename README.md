@@ -7,8 +7,9 @@ BusierBox is not a BusyBox replacement and is not a BusyBox fork. BusierBox mana
 BusierBox's own code and project-maintained scripts are licensed under
 GPL-2.0-or-later. Release artifacts can include separately licensed upstream
 payload/build components such as BusyBox, Buildroot, doom-ascii, and miniz; see
-[NOTICE](NOTICE) and [docs/licensing.md](docs/licensing.md) for the project
-license declaration, compatibility notes, and source license inventory.
+[LICENSE.busierbox](LICENSE.busierbox), [NOTICE](NOTICE), and
+[docs/licensing.md](docs/licensing.md) for the project license declaration,
+compatibility notes, and source license inventory.
 `manifests/license-policy.json` is the machine-readable compatibility policy,
 and `scripts/check-licensing` verifies that the policy, pinned source metadata,
 and bundled notices stay aligned.

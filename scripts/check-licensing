@@ -8,6 +8,10 @@ sources_lock=${2:-manifests/sources.lock.json}
     printf '%s\n' "check-licensing: missing LICENSE" >&2
     exit 1
 }
+[ -f LICENSE.busierbox ] || {
+    printf '%s\n' "check-licensing: missing LICENSE.busierbox" >&2
+    exit 1
+}
 [ -f NOTICE ] || {
     printf '%s\n' "check-licensing: missing NOTICE" >&2
     exit 1
@@ -23,7 +27,10 @@ sources_lock=${2:-manifests/sources.lock.json}
 
 grep -q 'GNU GENERAL PUBLIC LICENSE' LICENSE
 grep -q 'Version 2, June 1991' LICENSE
+grep -q 'SPDX-License-Identifier: GPL-2.0-or-later' LICENSE.busierbox
+grep -q 'Unless a file states a different license' LICENSE.busierbox
 grep -q 'GPL-2.0-or-later' NOTICE
+grep -q 'LICENSE.busierbox' NOTICE
 grep -q 'GPL-2.0-or-later' README.md
 grep -q 'GPL compatibility summary' docs/licensing.md
 
@@ -64,6 +71,8 @@ for item in sources.get("sources") or []:
 
 if project.get("license") != "GPL-2.0-or-later":
     raise SystemExit("check-licensing: project license must be GPL-2.0-or-later")
+if project.get("license_grant_file") != "LICENSE.busierbox":
+    raise SystemExit("check-licensing: project license grant file mapping is wrong")
 if project.get("license_file") != "LICENSE" or project.get("notice_file") != "NOTICE":
     raise SystemExit("check-licensing: project license/notice file mapping is wrong")
 if compat.get("combined_gplv2_compatible") is not True:

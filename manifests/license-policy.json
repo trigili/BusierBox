@@ -3,6 +3,7 @@
   "project": {
     "name": "BusierBox",
     "license": "GPL-2.0-or-later",
+    "license_grant_file": "LICENSE.busierbox",
     "license_file": "LICENSE",
     "notice_file": "NOTICE",
     "scope": "BusierBox-maintained source code, scripts, tests, and documentation unless a file states a different license",

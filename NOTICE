@@ -2,7 +2,8 @@ BusierBox project license notice
 
 BusierBox's own source code, scripts, tests, and project documentation are
 licensed under GPL-2.0-or-later unless a file states a different license.
-The full GPL version 2 text is in LICENSE.
+The explicit project grant is in LICENSE.busierbox. The full GPL version 2
+text is in LICENSE.
 
 BusierBox release artifacts may include or reference separately licensed
 third-party components, including BusyBox, Buildroot, doom-ascii, and miniz.
