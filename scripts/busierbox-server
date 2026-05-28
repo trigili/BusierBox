@@ -129,6 +129,7 @@ class EventLog:
         by_detail_reason = {}
         by_detail_command_id = {}
         by_detail_job_id = {}
+        by_detail_action_id = {}
         by_event_detail_status = {}
         by_service_detail_status = {}
         by_event_detail_reason = {}
@@ -137,6 +138,8 @@ class EventLog:
         by_service_detail_command_id = {}
         by_event_detail_job_id = {}
         by_service_detail_job_id = {}
+        by_event_detail_action_id = {}
+        by_service_detail_action_id = {}
         first_ts = ""
         latest_ts = ""
         for rec in records:
@@ -153,6 +156,7 @@ class EventLog:
             detail_reason = str(details.get("reason") or "")
             detail_command_id = str(details.get("command_id") or "")
             detail_job_id = str(details.get("job_id") or "")
+            detail_action_id = str(details.get("action_id") or "")
             if ts and (not first_ts or ts < first_ts):
                 first_ts = ts
             if ts > latest_ts:
@@ -198,6 +202,8 @@ class EventLog:
                 by_detail_command_id[detail_command_id] = by_detail_command_id.get(detail_command_id, 0) + 1
             if detail_job_id:
                 by_detail_job_id[detail_job_id] = by_detail_job_id.get(detail_job_id, 0) + 1
+            if detail_action_id:
+                by_detail_action_id[detail_action_id] = by_detail_action_id.get(detail_action_id, 0) + 1
             if event and detail_status:
                 key = f"{event}:{detail_status}"
                 by_event_detail_status[key] = by_event_detail_status.get(key, 0) + 1
@@ -222,6 +228,12 @@ class EventLog:
             if service and detail_job_id:
                 key = f"{service}:{detail_job_id}"
                 by_service_detail_job_id[key] = by_service_detail_job_id.get(key, 0) + 1
+            if event and detail_action_id:
+                key = f"{event}:{detail_action_id}"
+                by_event_detail_action_id[key] = by_event_detail_action_id.get(key, 0) + 1
+            if service and detail_action_id:
+                key = f"{service}:{detail_action_id}"
+                by_service_detail_action_id[key] = by_service_detail_action_id.get(key, 0) + 1
         return {
             "path": str(self.path),
             "total_count": len(records),
@@ -249,6 +261,7 @@ class EventLog:
             "by_detail_reason": by_detail_reason,
             "by_detail_command_id": by_detail_command_id,
             "by_detail_job_id": by_detail_job_id,
+            "by_detail_action_id": by_detail_action_id,
             "by_event_detail_status": by_event_detail_status,
             "by_service_detail_status": by_service_detail_status,
             "by_event_detail_reason": by_event_detail_reason,
@@ -257,6 +270,8 @@ class EventLog:
             "by_service_detail_command_id": by_service_detail_command_id,
             "by_event_detail_job_id": by_event_detail_job_id,
             "by_service_detail_job_id": by_service_detail_job_id,
+            "by_event_detail_action_id": by_event_detail_action_id,
+            "by_service_detail_action_id": by_service_detail_action_id,
             "tail": tail,
         }
 
@@ -2619,6 +2634,7 @@ def event_record_indexes(records):
     by_detail_reason = {}
     by_detail_command_id = {}
     by_detail_job_id = {}
+    by_detail_action_id = {}
     by_event_detail_status = {}
     by_service_detail_status = {}
     by_event_detail_reason = {}
@@ -2627,6 +2643,8 @@ def event_record_indexes(records):
     by_service_detail_command_id = {}
     by_event_detail_job_id = {}
     by_service_detail_job_id = {}
+    by_event_detail_action_id = {}
+    by_service_detail_action_id = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -2643,6 +2661,7 @@ def event_record_indexes(records):
         detail_reason = str(details.get("reason") or "")
         detail_command_id = str(details.get("command_id") or "")
         detail_job_id = str(details.get("job_id") or "")
+        detail_action_id = str(details.get("action_id") or "")
         if event_id:
             by_id[event_id] = rec
         if session_id:
@@ -2681,6 +2700,8 @@ def event_record_indexes(records):
             by_detail_command_id.setdefault(detail_command_id, []).append(rec)
         if detail_job_id:
             by_detail_job_id.setdefault(detail_job_id, []).append(rec)
+        if detail_action_id:
+            by_detail_action_id.setdefault(detail_action_id, []).append(rec)
         if event and detail_status:
             by_event_detail_status.setdefault(f"{event}:{detail_status}", []).append(rec)
         if service and detail_status:
@@ -2697,16 +2718,21 @@ def event_record_indexes(records):
             by_event_detail_job_id.setdefault(f"{event}:{detail_job_id}", []).append(rec)
         if service and detail_job_id:
             by_service_detail_job_id.setdefault(f"{service}:{detail_job_id}", []).append(rec)
+        if event and detail_action_id:
+            by_event_detail_action_id.setdefault(f"{event}:{detail_action_id}", []).append(rec)
+        if service and detail_action_id:
+            by_service_detail_action_id.setdefault(f"{service}:{detail_action_id}", []).append(rec)
     return (
         by_id, by_session, by_service, by_event, by_level, by_remote,
         by_service_event, by_session_event, by_service_level, by_event_level,
         by_session_level, by_remote_event, by_remote_level, by_detail_status,
         by_detail_operation, by_detail_http_status, by_detail_reason,
-        by_detail_command_id, by_detail_job_id,
+        by_detail_command_id, by_detail_job_id, by_detail_action_id,
         by_event_detail_status, by_service_detail_status,
         by_event_detail_reason, by_service_detail_reason,
         by_event_detail_command_id, by_service_detail_command_id,
         by_event_detail_job_id, by_service_detail_job_id,
+        by_event_detail_action_id, by_service_detail_action_id,
     )
 
 
@@ -6965,6 +6991,7 @@ def status_document(cfg):
      events_by_detail_reason,
      events_by_detail_command_id,
      events_by_detail_job_id,
+     events_by_detail_action_id,
      events_by_event_detail_status,
      events_by_service_detail_status,
      events_by_event_detail_reason,
@@ -6972,7 +6999,9 @@ def status_document(cfg):
      events_by_event_detail_command_id,
      events_by_service_detail_command_id,
      events_by_event_detail_job_id,
-     events_by_service_detail_job_id) = event_record_indexes(events)
+     events_by_service_detail_job_id,
+     events_by_event_detail_action_id,
+     events_by_service_detail_action_id) = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
     release = release_context(cfg)
     release_state = release_state_record(release)
@@ -7396,6 +7425,7 @@ def status_document(cfg):
         "event_detail_reason_counts": event_stats.get("by_detail_reason") or {},
         "event_detail_command_id_counts": event_stats.get("by_detail_command_id") or {},
         "event_detail_job_id_counts": event_stats.get("by_detail_job_id") or {},
+        "event_detail_action_id_counts": event_stats.get("by_detail_action_id") or {},
         "event_type_detail_status_counts": event_stats.get("by_event_detail_status") or {},
         "event_service_detail_status_counts": event_stats.get("by_service_detail_status") or {},
         "event_type_detail_reason_counts": event_stats.get("by_event_detail_reason") or {},
@@ -7404,6 +7434,8 @@ def status_document(cfg):
         "event_service_detail_command_id_counts": event_stats.get("by_service_detail_command_id") or {},
         "event_type_detail_job_id_counts": event_stats.get("by_event_detail_job_id") or {},
         "event_service_detail_job_id_counts": event_stats.get("by_service_detail_job_id") or {},
+        "event_type_detail_action_id_counts": event_stats.get("by_event_detail_action_id") or {},
+        "event_service_detail_action_id_counts": event_stats.get("by_service_detail_action_id") or {},
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_delivered_count": command_queue.get("delivered_count", 0),
@@ -7665,6 +7697,8 @@ def status_document(cfg):
                 "events_by_service_detail_reason", "events_by_event_detail_command_id",
                 "events_by_service_detail_command_id", "events_by_detail_job_id",
                 "events_by_event_detail_job_id", "events_by_service_detail_job_id",
+                "events_by_detail_action_id", "events_by_event_detail_action_id",
+                "events_by_service_detail_action_id",
             ), "event_tail_count",
         ),
         "release_artifacts": api_collection_record(
@@ -7967,6 +8001,7 @@ def status_document(cfg):
         "events_by_detail_reason": events_by_detail_reason,
         "events_by_detail_command_id": events_by_detail_command_id,
         "events_by_detail_job_id": events_by_detail_job_id,
+        "events_by_detail_action_id": events_by_detail_action_id,
         "events_by_event_detail_status": events_by_event_detail_status,
         "events_by_service_detail_status": events_by_service_detail_status,
         "events_by_event_detail_reason": events_by_event_detail_reason,
@@ -7975,6 +8010,8 @@ def status_document(cfg):
         "events_by_service_detail_command_id": events_by_service_detail_command_id,
         "events_by_event_detail_job_id": events_by_event_detail_job_id,
         "events_by_service_detail_job_id": events_by_service_detail_job_id,
+        "events_by_event_detail_action_id": events_by_event_detail_action_id,
+        "events_by_service_detail_action_id": events_by_service_detail_action_id,
         "event_log_state": event_log_state,
         "event_log_stats": {
             key: value for key, value in event_stats.items() if key != "tail"

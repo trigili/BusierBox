@@ -771,19 +771,21 @@ Composite maps `events_by_service_event`, `events_by_session_event`,
 `events_by_remote_event`, `events_by_remote_level`, `events_by_detail_status`,
 `events_by_detail_operation`, `events_by_detail_http_status`,
 `events_by_detail_reason`, `events_by_detail_command_id`,
-`events_by_detail_job_id`,
+`events_by_detail_job_id`, `events_by_detail_action_id`,
 `events_by_event_detail_status`, `events_by_service_detail_status`,
 `events_by_event_detail_reason`, `events_by_service_detail_reason`,
 `events_by_event_detail_command_id`, and
 `events_by_service_detail_command_id`, plus
-`events_by_event_detail_job_id` and `events_by_service_detail_job_id`
+`events_by_event_detail_job_id`, `events_by_service_detail_job_id`,
+`events_by_event_detail_action_id`, and `events_by_service_detail_action_id`
 support direct timeline and outcome
 lookups such as `file-service:upload_complete`, `<session-id>:connection_close`,
 `file-service:error`, `bind_error:error`, `<remote>:upload_complete`,
 `upload`, `200`, `clean shutdown`, `cq-...`, `upload_complete:ok`,
 `file-service:ok`, `service_stop:clean shutdown`, or
 `command_result_received:cq-...`, `workbench_job_completed:job-...`, or
-`workbench:job-...` without filtering broader event groups or
+`workbench:job-...`, `workbench_job_completed:bringup-recommend`, or
+`workbench:package-artifact` without filtering broader event groups or
 parsing each event detail payload.
 `event_log_state` reports the event log path, existence, validity, size, total
 valid event count, invalid JSONL line count, tail count, tail limit, and
@@ -799,7 +801,8 @@ detail HTTP status, detail reason, detail command id, event/status,
 service/status, event/reason, service/reason, event/command id, and
 service/command id, plus detail job id, event/job id, and service/job id so API
 consumers can tell whether there is more history to page or inspect from disk
-while still rendering compact diagnostics.
+while still rendering compact diagnostics. Workbench action ids get the same
+detail/action id, event/action id, and service/action id counters.
 Those aggregate maps are also mirrored into `summary` as
 `event_service_counts`, `event_type_counts`, `event_level_counts`, and
 `event_remote_counts`, plus `event_service_event_counts` and
@@ -808,12 +811,14 @@ Those aggregate maps are also mirrored into `summary` as
 `event_detail_status_counts`,
 `event_detail_operation_counts`, `event_detail_http_status_counts`,
 `event_detail_reason_counts`, `event_detail_command_id_counts`,
-`event_detail_job_id_counts`,
+`event_detail_job_id_counts`, `event_detail_action_id_counts`,
 `event_type_detail_status_counts`, `event_service_detail_status_counts`,
 `event_type_detail_reason_counts`, `event_service_detail_reason_counts`,
 `event_type_detail_command_id_counts`, and
 `event_service_detail_command_id_counts`, plus
-`event_type_detail_job_id_counts` and `event_service_detail_job_id_counts`;
+`event_type_detail_job_id_counts`, `event_service_detail_job_id_counts`,
+`event_type_detail_action_id_counts`, and
+`event_service_detail_action_id_counts`;
 `first_event_at` and
 `latest_event_at` are mirrored for dashboard clients that only need compact
 status counters and event recency.

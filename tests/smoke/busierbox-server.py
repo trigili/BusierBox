@@ -516,18 +516,28 @@ def main():
                 quick_status.get("summary", {}).get("event_detail_job_id_counts", {}).get(quick_job_id, 0) < 1 or
                 quick_status.get("summary", {}).get("event_type_detail_job_id_counts", {}).get(f"workbench_job_completed:{quick_job_id}", 0) != 1 or
                 quick_status.get("summary", {}).get("event_service_detail_job_id_counts", {}).get(f"workbench:{quick_job_id}", 0) < 1 or
+                quick_status.get("summary", {}).get("event_detail_action_id_counts", {}).get("bringup-recommend", 0) < 1 or
+                quick_status.get("summary", {}).get("event_type_detail_action_id_counts", {}).get("workbench_job_completed:bringup-recommend", 0) != 1 or
+                quick_status.get("summary", {}).get("event_service_detail_action_id_counts", {}).get("workbench:bringup-recommend", 0) < 1 or
                 (quick_status.get("workbench_jobs_by_duration_known") or {}).get("True", [{}])[-1].get("id") != quick_job_id or
                 (quick_status.get("workbench_jobs_by_finished_at_known") or {}).get("True", [{}])[-1].get("id") != quick_job_id or
                 (quick_status.get("workbench_jobs_by_outcome") or {}).get("failed", [{}])[-1].get("id") != quick_job_id or
                 (quick_status.get("workbench_jobs_by_exit_status") or {}).get("7", [{}])[-1].get("id") != quick_job_id or
                 (quick_status.get("event_log_stats") or {}).get("by_event", {}).get("workbench_job_completed", 0) != 1 or
                 (quick_status.get("event_log_stats") or {}).get("by_detail_job_id", {}).get(quick_job_id, 0) < 1 or
+                (quick_status.get("event_log_stats") or {}).get("by_detail_action_id", {}).get("bringup-recommend", 0) < 1 or
                 (quick_status.get("events_by_detail_job_id") or {}).get(quick_job_id, [{}])[-1].get("details", {}).get("job_id") != quick_job_id or
+                (quick_status.get("events_by_detail_action_id") or {}).get("bringup-recommend", [{}])[-1].get("details", {}).get("action_id") != "bringup-recommend" or
                 (quick_status.get("events_by_event_detail_job_id") or {}).get(f"workbench_job_completed:{quick_job_id}", [{}])[-1].get("event") != "workbench_job_completed" or
                 (quick_status.get("events_by_service_detail_job_id") or {}).get(f"workbench:{quick_job_id}", [{}])[-1].get("details", {}).get("job_id") != quick_job_id or
+                (quick_status.get("events_by_event_detail_action_id") or {}).get("workbench_job_completed:bringup-recommend", [{}])[-1].get("event") != "workbench_job_completed" or
+                (quick_status.get("events_by_service_detail_action_id") or {}).get("workbench:bringup-recommend", [{}])[-1].get("details", {}).get("action_id") != "bringup-recommend" or
                 "events_by_detail_job_id" not in (((quick_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
                 "events_by_event_detail_job_id" not in (((quick_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
-                "events_by_service_detail_job_id" not in (((quick_status.get("api_collections") or {}).get("events") or {}).get("indexes") or [])):
+                "events_by_service_detail_job_id" not in (((quick_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
+                "events_by_detail_action_id" not in (((quick_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
+                "events_by_event_detail_action_id" not in (((quick_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
+                "events_by_service_detail_action_id" not in (((quick_status.get("api_collections") or {}).get("events") or {}).get("indexes") or [])):
             print("completed workbench background job missing exit metadata", file=sys.stderr)
             print(json.dumps(quick_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
