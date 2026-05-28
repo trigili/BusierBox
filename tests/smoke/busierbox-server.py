@@ -655,6 +655,8 @@ def main():
         invalid_warnings_by_type = invalid_state_doc.get("warnings_by_type") or {}
         invalid_warnings_by_path = invalid_state_doc.get("warnings_by_path") or {}
         invalid_warnings_by_type_path = invalid_state_doc.get("warnings_by_type_path") or {}
+        invalid_path_api = (invalid_state_doc.get("api_collections") or {}).get("path_status_records") or {}
+        invalid_browser_api = (invalid_state_doc.get("api_collections") or {}).get("browser_paths") or {}
         if (invalid_state_doc.get("summary", {}).get("server_state_valid") is not False or
                 invalid_state_doc.get("summary", {}).get("staged_files_valid") is not False or
                 invalid_state_doc.get("summary", {}).get("command_queue_file_valid") is not False or
@@ -673,9 +675,15 @@ def main():
                 "invalid_server_state" not in invalid_state_path_status.get("state_file", {}).get("warning_types", []) or
                 "invalid_staged_files_state" not in invalid_state_path_status.get("staged_files", {}).get("warning_types", []) or
                 "invalid_command_queue_state" not in invalid_state_path_status.get("command_queue_file", {}).get("warning_types", []) or
+                invalid_state_doc.get("path_status_by_has_warnings", {}).get("yes", [{}])[0].get("name") != "state_file" or
+                invalid_state_doc.get("path_status_by_warning_type", {}).get("invalid_server_state", [{}])[0].get("name") != "state_file" or
+                invalid_state_doc.get("summary", {}).get("path_warning_count") != 3 or
+                invalid_state_doc.get("summary", {}).get("path_warning_type_counts", {}).get("invalid_server_state") != 1 or
                 invalid_state_browser_by_path.get(str(invalid_state_file), [{}])[0].get("warning_count") != 1 or
                 invalid_state_browser_by_path.get(str(invalid_staged_file), [{}])[0].get("warning_count") != 1 or
                 invalid_state_browser_by_path.get(str(invalid_queue_file), [{}])[0].get("warning_count") != 1 or
+                invalid_state_doc.get("browser_paths_by_has_warnings", {}).get("yes", [{}])[0].get("path") != str(invalid_state_file) or
+                invalid_state_doc.get("browser_paths_by_warning_type", {}).get("invalid_server_state", [{}])[0].get("path") != str(invalid_state_file) or
                 invalid_state_doc.get("summary", {}).get("browser_path_warning_count") != 3 or
                 invalid_state_doc.get("summary", {}).get("browser_path_warning_kind_counts", {}).get("server-state") != 1 or
                 invalid_state_doc.get("summary", {}).get("browser_path_warning_kind_counts", {}).get("staged-ledger") != 1 or
@@ -688,7 +696,11 @@ def main():
                 invalid_warnings_by_path.get(str(invalid_state_file), [{}])[0].get("type") != "invalid_server_state" or
                 invalid_warnings_by_path.get(str(invalid_staged_file), [{}])[0].get("type") != "invalid_staged_files_state" or
                 invalid_warnings_by_path.get(str(invalid_queue_file), [{}])[0].get("type") != "invalid_command_queue_state" or
-                invalid_warnings_by_type_path.get(f"invalid_server_state:{invalid_state_file}", [{}])[0].get("path") != str(invalid_state_file)):
+                invalid_warnings_by_type_path.get(f"invalid_server_state:{invalid_state_file}", [{}])[0].get("path") != str(invalid_state_file) or
+                "path_status_by_has_warnings" not in (invalid_path_api.get("indexes") or []) or
+                "path_status_by_warning_type" not in (invalid_path_api.get("indexes") or []) or
+                "browser_paths_by_has_warnings" not in (invalid_browser_api.get("indexes") or []) or
+                "browser_paths_by_warning_type" not in (invalid_browser_api.get("indexes") or [])):
             print("server json status missing invalid operator state warnings", file=sys.stderr)
             print(invalid_state_status.stdout, file=sys.stderr)
             return 1

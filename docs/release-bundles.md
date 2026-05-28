@@ -422,8 +422,10 @@ into `summary` as `path_status_count`, `path_missing_count`,
 of the same path health data, with lookup maps such as `path_status_by_name`,
 `path_status_by_path`, `path_status_by_expected_kind`, `path_status_by_exists`,
 `path_status_by_parent_exists`, `path_status_by_writable`, and
-`path_status_by_expected_kind_mismatch` plus `api_collections.path_status_records`
-metadata for clients that render every operator path as a table. `browser_paths` provides a normalized operator file
+`path_status_by_expected_kind_mismatch`, plus warning-health maps
+`path_status_by_has_warnings` and `path_status_by_warning_type`.
+`api_collections.path_status_records` lists those indexes for clients that
+render every operator path as a table. `browser_paths` provides a normalized operator file
 browser list for future TUI/web clients, covering operator ledgers, session
 directories, upload/fetch metadata, staged sources, event logs, TLS files,
 release bundle files, and release recommendation artifact targets. The same records are grouped in `browser_paths_by_kind`,
@@ -446,6 +448,11 @@ or the reverse, without reimplementing path-kind inference. Operator path kind
 mismatches also emit an `operator_path_kind_mismatch` warning in `warnings` and
 the human `--status` output. `path_status` and `browser_paths` records carry
 `warning_count` and `warning_types` fields after status warnings are indexed, so
+they are also grouped in `browser_paths_by_has_warnings` and
+`browser_paths_by_warning_type`. Summary fields `path_warning_count`,
+`path_warning_type_counts`, `browser_path_warning_count`, and
+`browser_path_warning_type_counts` let path browsers render health badges
+without rescanning the full warning list.
 path and file-browser panes can show warning badges without joining separate
 maps first. The same warning annotations are aggregated in
 `browser_path_summary.warning_count`, `browser_path_summary.warning_by_kind`,

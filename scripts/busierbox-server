@@ -6441,6 +6441,8 @@ def status_document(cfg):
      warnings_by_service_port,
      warnings_by_type_service_port) = warning_record_indexes(warnings)
     annotate_path_records_with_warnings(path_status, browser_paths, warnings_by_path)
+    path_status_by_has_warnings, path_status_by_warning_type = warning_health_indexes(path_status_records)
+    browser_paths_by_has_warnings, browser_paths_by_warning_type = warning_health_indexes(browser_paths)
     browser_summary = browser_path_summary(browser_paths)
     annotate_service_port_records_with_warnings(
         services,
@@ -6468,6 +6470,9 @@ def status_document(cfg):
         "path_parent_missing_count": path_summary.get("path_parent_missing_count", 0),
         "path_not_writable_count": path_summary.get("path_not_writable_count", 0),
         "path_kind_mismatch_count": path_summary.get("path_kind_mismatch_count", 0),
+        "path_warning_count": len(path_status_by_has_warnings.get("yes") or []),
+        "path_without_warning_count": len(path_status_by_has_warnings.get("no") or []),
+        "path_warning_type_counts": {key: len(value) for key, value in path_status_by_warning_type.items()},
         "browser_path_count": browser_summary.get("total_count", 0),
         "browser_path_exists_count": browser_summary.get("exists_count", 0),
         "browser_path_missing_count": browser_summary.get("missing_count", 0),
@@ -6732,6 +6737,7 @@ def status_document(cfg):
                 "path_status_by_expected_kind", "path_status_by_exists",
                 "path_status_by_parent_exists", "path_status_by_writable",
                 "path_status_by_expected_kind_mismatch",
+                "path_status_by_has_warnings", "path_status_by_warning_type",
             ), "path_status_count",
         ),
         "browser_paths": api_collection_record(
@@ -6741,6 +6747,7 @@ def status_document(cfg):
                 "browser_paths_by_release_path", "browser_paths_by_kind_source_id",
                 "browser_paths_by_exists", "browser_paths_by_readable",
                 "browser_paths_by_writable", "browser_paths_by_expected_kind_mismatch",
+                "browser_paths_by_has_warnings", "browser_paths_by_warning_type",
             ), "browser_path_count",
         ),
         "warnings": api_collection_record(
@@ -6913,6 +6920,8 @@ def status_document(cfg):
         "path_status": path_status,
         "path_status_records": path_status_records,
         **path_status_indexes,
+        "path_status_by_has_warnings": path_status_by_has_warnings,
+        "path_status_by_warning_type": path_status_by_warning_type,
         "browser_paths": browser_paths,
         "browser_paths_by_kind": browser_paths_by_kind,
         "browser_paths_by_path": browser_paths_by_path,
@@ -6924,6 +6933,8 @@ def status_document(cfg):
         "browser_paths_by_readable": browser_paths_by_readable,
         "browser_paths_by_writable": browser_paths_by_writable,
         "browser_paths_by_expected_kind_mismatch": browser_paths_by_expected_kind_mismatch,
+        "browser_paths_by_has_warnings": browser_paths_by_has_warnings,
+        "browser_paths_by_warning_type": browser_paths_by_warning_type,
         "browser_path_summary": browser_summary,
         "server_state": server_state,
         "staged_files_state": staged_files_state,
