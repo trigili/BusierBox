@@ -1126,6 +1126,8 @@ def write_release_helpers(script_dir):
             "device_alias_count": 0,
             "broken_symlink_count": 0,
             "command_queue_enabled_count": 0,
+            "command_queue_token_required_count": 0,
+            "command_queue_token_configured_count": 0,
             "command_queue_execution_supported_count": 0,
             "command_queue_mode_count": 0,
             "compatibility_counts": {},
@@ -1155,6 +1157,10 @@ def write_release_helpers(script_dir):
             queue = summary.get("command_queue") or {}
             if queue.get("enabled") == "yes" or queue.get("enabled") is True:
                 diagnostics["command_queue_enabled_count"] += 1
+            if queue.get("token_required") is True or queue.get("require_token") == "yes":
+                diagnostics["command_queue_token_required_count"] += 1
+            if queue.get("token_configured") is True:
+                diagnostics["command_queue_token_configured_count"] += 1
             if queue.get("execution_supported") is True or queue.get("executes_commands") is True:
                 diagnostics["command_queue_execution_supported_count"] += 1
             diagnostics["command_queue_mode_count"] += len(queue.get("mode_records") or [])
