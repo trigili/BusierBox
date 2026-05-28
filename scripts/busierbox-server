@@ -2197,10 +2197,12 @@ def command_queue_summary(cfg):
     delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
     commands_by_id = {}
     commands_by_status = {}
+    commands_by_execution_decision = {}
     commands_by_result_status = {}
     commands_by_result_exit_code = {}
     commands_by_result_output_exceeded = {}
     status_counts = {}
+    execution_decision_counts = {}
     result_status_counts = {}
     result_exit_code_counts = {}
     latest_created_at = ""
@@ -2210,6 +2212,7 @@ def command_queue_summary(cfg):
             continue
         command_id = str(rec.get("id") or "")
         status = str(rec.get("status") or "")
+        execution_decision = str(rec.get("execution_decision") or "")
         created_at = str(rec.get("created_at") or "")
         result_received_at = str(rec.get("result_received_at") or "")
         if command_id:
@@ -2217,6 +2220,9 @@ def command_queue_summary(cfg):
         if status:
             commands_by_status.setdefault(status, []).append(rec)
             status_counts[status] = status_counts.get(status, 0) + 1
+        if execution_decision:
+            commands_by_execution_decision.setdefault(execution_decision, []).append(rec)
+            execution_decision_counts[execution_decision] = execution_decision_counts.get(execution_decision, 0) + 1
         if created_at > latest_created_at:
             latest_created_at = created_at
         if result_received_at > latest_result_received_at:
@@ -2308,10 +2314,12 @@ def command_queue_summary(cfg):
         "commands": commands,
         "commands_by_id": commands_by_id,
         "commands_by_status": commands_by_status,
+        "commands_by_execution_decision": commands_by_execution_decision,
         "commands_by_result_status": commands_by_result_status,
         "commands_by_result_exit_code": commands_by_result_exit_code,
         "commands_by_result_output_exceeded": commands_by_result_output_exceeded,
         "status_counts": status_counts,
+        "execution_decision_counts": execution_decision_counts,
         "result_status_counts": result_status_counts,
         "result_exit_code_counts": result_exit_code_counts,
         "latest_created_at": latest_created_at,
@@ -5573,6 +5581,7 @@ def status_document(cfg):
         "command_queue_result_count": command_queue.get("result_count", 0),
         "command_queue_result_output_exceeded_count": command_queue.get("result_output_exceeded_count", 0),
         "command_queue_status_counts": command_queue.get("status_counts") or {},
+        "command_queue_execution_decision_counts": command_queue.get("execution_decision_counts") or {},
         "command_queue_result_status_counts": command_queue.get("result_status_counts") or {},
         "command_queue_result_exit_code_counts": command_queue.get("result_exit_code_counts") or {},
         "command_queue_latest_created_at": command_queue.get("latest_created_at", ""),
@@ -5745,7 +5754,8 @@ def status_document(cfg):
         ),
         "command_queue_commands": api_collection_record(
             "command_queue_commands", command_queue.get("commands") or [], "id", (
-                "commands_by_id", "commands_by_status", "commands_by_result_status",
+                "commands_by_id", "commands_by_status", "commands_by_execution_decision",
+                "commands_by_result_status",
                 "commands_by_result_exit_code", "commands_by_result_output_exceeded",
             ), "command_queue_total_count",
         ),

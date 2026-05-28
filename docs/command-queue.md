@@ -169,6 +169,9 @@ Safety boundary:
 - Delivered live poll metadata is exposed as `queued_command` and mirrored in
   `poll_run.last_command*` fields, so clients can show what the target received
   without scraping the operator-side queue ledger.
+- Operator JSON queue/status output also indexes delivered commands by
+  `execution_decision` and mirrors `execution_decision_counts`, so dashboards
+  can audit rejected delivery decisions without scanning every command record.
 - `allow_arbitrary=yes` is reported as an explicit policy request, not an
   execution grant; `arbitrary_execution_allowed=false` remains false while this
   build has `execution_supported=false`.
