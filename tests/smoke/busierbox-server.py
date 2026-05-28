@@ -284,6 +284,9 @@ def main():
         guided_by_key = guided_status.get("workbench_config_fields_by_key") or {}
         guided_by_category = guided_status.get("workbench_config_fields_by_category") or {}
         guided_fixed = guided_status.get("workbench_config_fields_by_fixed_options") or {}
+        guided_writes_config = guided_status.get("workbench_config_fields_by_writes_config") or {}
+        guided_target_execution = guided_status.get("workbench_config_fields_by_target_execution") or {}
+        guided_source_format = guided_status.get("workbench_config_fields_by_source_format") or {}
         if (len(guided_fields) < 12 or
                 guided_status.get("summary", {}).get("workbench_config_field_count") != len(guided_fields) or
                 guided_by_key.get("BB_NORESIDUE_LEVEL", {}).get("value") != "aggressive" or
@@ -293,10 +296,15 @@ def main():
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("option_count") != 3 or
                 guided_status.get("summary", {}).get("workbench_config_field_fixed_option_count", 0) < 10 or
                 not guided_fixed.get("True") or
+                len(guided_writes_config.get("True", [])) != len(guided_fields) or
+                guided_target_execution.get("True", []) != [] or
+                len(guided_target_execution.get("False", [])) != len(guided_fields) or
+                len(guided_source_format.get("shell-assignment", [])) != len(guided_fields) or
                 not guided_by_category.get("target") or
                 not guided_by_category.get("command-queue") or
                 guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("primary_key") != "key" or
-                "workbench_config_fields_by_fixed_options" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", [])):
+                "workbench_config_fields_by_fixed_options" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", []) or
+                "workbench_config_fields_by_target_execution" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", [])):
             print("server json status missing guided build config field records", file=sys.stderr)
             print(json.dumps(guided_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
@@ -1414,6 +1422,7 @@ def main():
         workbench_config_fields = queue_status_json.get("workbench_config_fields") or []
         config_fields_by_key = queue_status_json.get("workbench_config_fields_by_key") or {}
         config_fields_by_category = queue_status_json.get("workbench_config_fields_by_category") or {}
+        config_fields_by_target_execution = queue_status_json.get("workbench_config_fields_by_target_execution") or {}
         actions_by_id = queue_status_json.get("workbench_actions_by_id") or {}
         actions_by_category = queue_status_json.get("workbench_actions_by_category") or {}
         actions_by_script = queue_status_json.get("workbench_actions_by_script") or {}
@@ -1429,7 +1438,9 @@ def main():
                 not config_fields_by_key.get("BB_COMMAND_QUEUE_ENABLE") or
                 config_fields_by_key.get("BB_COMMAND_QUEUE_ENABLE", {}).get("fixed_options") is not True or
                 not config_fields_by_category.get("runtime") or
-                not config_fields_by_category.get("rshell")):
+                not config_fields_by_category.get("rshell") or
+                config_fields_by_target_execution.get("True", []) != [] or
+                len(config_fields_by_target_execution.get("False", [])) != len(workbench_config_fields)):
             print("server json status missing guided build config descriptors", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1

@@ -1023,6 +1023,9 @@ def workbench_config_field_indexes(records):
         "workbench_config_fields_by_category": records_by_key(records, "category"),
         "workbench_config_fields_by_configured": records_by_key(records, "configured"),
         "workbench_config_fields_by_fixed_options": records_by_key(records, "fixed_options"),
+        "workbench_config_fields_by_writes_config": records_by_key(records, "writes_config"),
+        "workbench_config_fields_by_target_execution": records_by_key(records, "target_execution"),
+        "workbench_config_fields_by_source_format": records_by_key(records, "source_format"),
     }
 
 
@@ -6761,6 +6764,8 @@ def status_document(cfg):
             "workbench_config_fields", workbench_config_fields, "key", (
                 "workbench_config_fields_by_key", "workbench_config_fields_by_category",
                 "workbench_config_fields_by_configured", "workbench_config_fields_by_fixed_options",
+                "workbench_config_fields_by_writes_config", "workbench_config_fields_by_target_execution",
+                "workbench_config_fields_by_source_format",
             ), "workbench_config_field_count",
         ),
         "workbench_jobs": api_collection_record(
