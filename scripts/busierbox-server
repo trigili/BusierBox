@@ -935,7 +935,7 @@ def browser_path_status(path_text, expected_kind="file"):
     return rec
 
 
-def add_browser_path(records, kind, label, path_text, expected_kind="file", source_id="", description=""):
+def add_browser_path(records, kind, label, path_text, expected_kind="file", source_id="", description="", metadata=None):
     path_text = str(path_text or "")
     if not path_text:
         return
@@ -947,6 +947,10 @@ def add_browser_path(records, kind, label, path_text, expected_kind="file", sour
         "source_id": str(source_id or ""),
         "description": str(description or ""),
     }
+    if isinstance(metadata, dict):
+        for key, value in metadata.items():
+            if value not in (None, ""):
+                rec[key] = value
     rec.update(browser_path_status(path_text, expected_kind=expected_kind))
     records.append(rec)
 
@@ -975,7 +979,23 @@ def operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, 
         )
     for rec in staged_records or []:
         request = rec.get("request_name") or rec.get("name") or ""
-        add_browser_path(records, "staged-source", request, rec.get("source_path", ""), source_id=request)
+        metadata = {
+            "stage_kind": rec.get("stage_kind") or "file",
+            "release_path": rec.get("release_path"),
+            "tuple_path": rec.get("tuple_path"),
+            "payload_preset": rec.get("payload_preset"),
+            "selected_by_recommendation": rec.get("selected_by_recommendation"),
+            "compatibility": rec.get("compatibility"),
+        }
+        add_browser_path(
+            records,
+            "staged-source",
+            request,
+            rec.get("source_path", ""),
+            source_id=request,
+            description=str(rec.get("stage_kind") or "file"),
+            metadata=metadata,
+        )
     for rec in uploads or []:
         filename = rec.get("filename") or rec.get("stored_path") or "upload"
         add_browser_path(records, "upload-metadata", filename, rec.get("metadata_path") or rec.get("_metadata_path", ""), source_id=rec.get("session_id", ""))
@@ -1389,6 +1409,7 @@ def compact_event_details(event):
 def target_command_record_indexes(records):
     by_service = {}
     by_request_name = {}
+    by_stage_kind = {}
     by_side = {}
     by_purpose = {}
     by_service_purpose = {}
@@ -1398,12 +1419,15 @@ def target_command_record_indexes(records):
             continue
         service = str(rec.get("service") or "")
         request_name = str(rec.get("request_name") or "")
+        stage_kind = str(rec.get("stage_kind") or "")
         side = str(rec.get("side") or "")
         purpose = str(rec.get("purpose") or "")
         if service:
             by_service.setdefault(service, []).append(rec)
         if request_name:
             by_request_name[request_name] = rec
+        if stage_kind:
+            by_stage_kind.setdefault(stage_kind, []).append(rec)
         if side:
             by_side.setdefault(side, []).append(rec)
         if purpose:
@@ -1412,7 +1436,7 @@ def target_command_record_indexes(records):
             by_service_purpose.setdefault(f"{service}:{purpose}", []).append(rec)
         if side and purpose:
             by_side_purpose.setdefault(f"{side}:{purpose}", []).append(rec)
-    return by_service, by_request_name, by_side, by_purpose, by_service_purpose, by_side_purpose
+    return by_service, by_request_name, by_stage_kind, by_side, by_purpose, by_service_purpose, by_side_purpose
 
 
 def target_command_record_summary(records):
@@ -1422,6 +1446,7 @@ def target_command_record_summary(records):
     explicit_target_action_count = 0
     operator_supplied_command_execution_count = 0
     by_service = {}
+    by_stage_kind = {}
     by_side = {}
     by_purpose = {}
     for rec in records or []:
@@ -1429,10 +1454,13 @@ def target_command_record_summary(records):
             continue
         total += 1
         service = str(rec.get("service") or "")
+        stage_kind = str(rec.get("stage_kind") or "")
         side = str(rec.get("side") or "")
         purpose = str(rec.get("purpose") or "")
         if service:
             by_service[service] = by_service.get(service, 0) + 1
+        if stage_kind:
+            by_stage_kind[stage_kind] = by_stage_kind.get(stage_kind, 0) + 1
         if side:
             by_side[side] = by_side.get(side, 0) + 1
         if purpose:
@@ -1454,6 +1482,7 @@ def target_command_record_summary(records):
         "executes_operator_supplied_commands": operator_supplied_command_execution_count > 0,
         "all_require_explicit_target_action": total > 0 and explicit_target_action_count == total,
         "by_service": by_service,
+        "by_stage_kind": by_stage_kind,
         "by_side": by_side,
         "by_purpose": by_purpose,
     }
@@ -4779,6 +4808,7 @@ def status_document(cfg):
     target_command_records = generated_target_command_records(cfg, staged_raw)
     (target_commands_by_service,
      target_commands_by_request,
+     target_commands_by_stage_kind,
      target_commands_by_side,
      target_commands_by_purpose,
      target_commands_by_service_purpose,
@@ -5025,6 +5055,7 @@ def status_document(cfg):
         "target_command_all_require_explicit_target_action": bool(target_command_summary.get("all_require_explicit_target_action", False)),
         "target_command_side_counts": target_command_summary.get("by_side") or {},
         "target_command_purpose_counts": target_command_summary.get("by_purpose") or {},
+        "target_command_stage_kind_counts": target_command_summary.get("by_stage_kind") or {},
         "event_count": event_stats["total_count"],
         "event_log_exists": bool(event_log_state.get("exists", False)),
         "event_log_valid": bool(event_log_state.get("valid", False)),
@@ -5130,6 +5161,7 @@ def status_document(cfg):
         "target_command_records": api_collection_record(
             "target_command_records", target_command_records, "command", (
                 "target_commands_by_service", "target_commands_by_request",
+                "target_commands_by_stage_kind",
                 "target_commands_by_side", "target_commands_by_purpose",
                 "target_commands_by_service_purpose", "target_commands_by_side_purpose",
             ), "target_command_count",
@@ -5258,6 +5290,7 @@ def status_document(cfg):
         "target_command_summary": target_command_summary,
         "target_commands_by_service": target_commands_by_service,
         "target_commands_by_request": target_commands_by_request,
+        "target_commands_by_stage_kind": target_commands_by_stage_kind,
         "target_commands_by_side": target_commands_by_side,
         "target_commands_by_purpose": target_commands_by_purpose,
         "target_commands_by_service_purpose": target_commands_by_service_purpose,
@@ -5529,7 +5562,7 @@ def generated_target_command_records(cfg, staged=None):
     ]
     for name in sorted(staged):
         rec = staged.get(name) if isinstance(staged, dict) else {}
-        records.append({
+        record = {
             "command": render_fetch_command(name, cfg, host=host),
             "purpose": "explicitly fetch an operator-staged file",
             "side": "target",
@@ -5541,7 +5574,14 @@ def generated_target_command_records(cfg, staged=None):
             "source_path": str((rec or {}).get("source_path", "")) if isinstance(rec, dict) else "",
             "source_sha256": str((rec or {}).get("sha256", "")) if isinstance(rec, dict) else "",
             "source_size": (rec or {}).get("size", "") if isinstance(rec, dict) else "",
-        })
+            "stage_kind": str((rec or {}).get("stage_kind") or "file") if isinstance(rec, dict) else "file",
+        }
+        if isinstance(rec, dict):
+            for key in ("release_path", "tuple_path", "payload_preset", "selected_by_recommendation", "compatibility"):
+                value = rec.get(key)
+                if value not in (None, ""):
+                    record[key] = value
+        records.append(record)
     return records
 
 

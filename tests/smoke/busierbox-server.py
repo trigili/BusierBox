@@ -2869,16 +2869,34 @@ def main():
         ]
         if (not fetch_records or
                 fetch_records[0].get("source_path") != str(release_dir / "bin" / "busierbox-test") or
+                fetch_records[0].get("stage_kind") != "release-artifact" or
+                fetch_records[0].get("release_path") != "bin/busierbox-test" or
+                fetch_records[0].get("tuple_path") != "by-tuple/native/host/host/host" or
+                fetch_records[0].get("payload_preset") != "default" or
+                (fetch_records[0].get("compatibility") or {}).get("label") != "exact" or
                 fetch_records[0].get("network") is not True or
                 fetch_records[0].get("executes_operator_supplied_commands") is not False):
             print("json status missing structured staged fetch command metadata", file=sys.stderr)
             print(staged_status.stdout, file=sys.stderr)
             return 1
         staged_commands_by_request = staged_doc.get("target_commands_by_request") or {}
+        staged_commands_by_stage_kind = staged_doc.get("target_commands_by_stage_kind") or {}
         staged_commands_by_service_purpose = staged_doc.get("target_commands_by_service_purpose") or {}
         if (staged_commands_by_request.get("busierbox-test", {}).get("source_path") != str(release_dir / "bin" / "busierbox-test") or
+                staged_commands_by_request.get("busierbox-test", {}).get("release_path") != "bin/busierbox-test" or
+                staged_commands_by_stage_kind.get("release-artifact", [{}])[0].get("request_name") != "busierbox-test" or
+                staged_doc.get("summary", {}).get("target_command_stage_kind_counts", {}).get("release-artifact") != 1 or
                 staged_commands_by_service_purpose.get("file-service:explicitly fetch an operator-staged file", [{}])[0].get("request_name") != "busierbox-test"):
             print("json status missing staged fetch command request lookup", file=sys.stderr)
+            print(staged_status.stdout, file=sys.stderr)
+            return 1
+        staged_browser_by_kind_source = staged_doc.get("browser_paths_by_kind_source_id") or {}
+        staged_source_browser = staged_browser_by_kind_source.get("staged-source:busierbox-test", [{}])[0]
+        if (staged_source_browser.get("stage_kind") != "release-artifact" or
+                staged_source_browser.get("release_path") != "bin/busierbox-test" or
+                staged_source_browser.get("tuple_path") != "by-tuple/native/host/host/host" or
+                (staged_source_browser.get("compatibility") or {}).get("label") != "exact"):
+            print("json status missing staged browser release metadata", file=sys.stderr)
             print(staged_status.stdout, file=sys.stderr)
             return 1
 
