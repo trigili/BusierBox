@@ -183,6 +183,10 @@ flat record list. The summary
 also preserves `release_self_test_summary` when a release selection is used,
 including command-queue token, execution-supported, and
 operator-supplied-command execution counters from the selected release bundle.
+`release_selection_source` records whether artifact selection used a bundle
+`scripts/release-find` helper or the local release repository fallback, and
+`release_selection_command` records the exact selector command for audit and UI
+debugging.
 The summary
 publishes `api_collections` metadata with `count`, `summary_key`,
 `count_summary_key`, `primary_key`, and index names for `next_command_records`,

@@ -78,6 +78,8 @@ json_output=no
 remote_touched=no
 target_preset_path=
 release_find_json=
+release_selection_source=
+release_selection_command=
 selected_artifact=
 compatibility_label=
 compatibility_reasons_json='[]'
@@ -180,6 +182,8 @@ write_summary() {
     RELEASE_DIR="$release_dir" \
     MAX_COMPATIBILITY="$max_compatibility" \
     RELEASE_FIND_JSON="$release_find_json" \
+    RELEASE_SELECTION_SOURCE="$release_selection_source" \
+    RELEASE_SELECTION_COMMAND="$release_selection_command" \
     RELEASE_SELF_TEST_JSON="$release_self_test_json" \
     SELECTED_ARTIFACT="$selected_artifact" \
     COMPATIBILITY_LABEL="$compatibility_label" \
@@ -598,6 +602,8 @@ doc = {
     "release_dir": env("RELEASE_DIR"),
     "max_compatibility": env("MAX_COMPATIBILITY"),
     "release_find_json": maybe_file(env("RELEASE_FIND_JSON")),
+    "release_selection_source": env("RELEASE_SELECTION_SOURCE"),
+    "release_selection_command": env("RELEASE_SELECTION_COMMAND"),
     "release_self_test_json": maybe_file(env("RELEASE_SELF_TEST_JSON")),
     "release_self_test_summary": release_self_test_summary,
     "selected_artifact": env("SELECTED_ARTIFACT"),
@@ -759,6 +765,19 @@ shell_quote() {
     printf "%s" "$1" | sed "s/'/'\\\\''/g; s/^/'/; s/$/'/"
 }
 
+command_string() {
+    out=
+    for arg do
+        quoted=$(shell_quote "$arg")
+        if [ -n "$out" ]; then
+            out="$out $quoted"
+        else
+            out=$quoted
+        fi
+    done
+    printf '%s\n' "$out"
+}
+
 remote_quote() {
     printf "%s" "$1" | sed "s/'/'\\\\''/g"
 }
@@ -879,6 +898,7 @@ choose_release_artifact() {
         max_args=yes
     fi
     if [ -x "$release_dir/scripts/release-find" ]; then
+        release_selection_source=bundle-helper
         set -- scripts/release-find --release-dir "$release_dir" --survey-json "$survey"
         if [ -f "$reality" ]; then
             set -- "$@" --reality-json "$reality"
@@ -888,11 +908,13 @@ choose_release_artifact() {
         fi
         set -- "$@" --json
     else
+        release_selection_source=release-repository
         set -- scripts/find-artifact --release-root "$release_dir" --survey-json "$survey" --payload-preset "$payload_preset" --recommendation-json
         if [ "$max_args" = yes ]; then
             set -- "$@" --max-compatibility "$max_compatibility"
         fi
     fi
+    release_selection_command=$(command_string "$@")
     if "$@" >"$release_find_json" 2>"$run_dir/release-find.err"; then
         eval "$(extract_release_selection)"
     else
