@@ -18,6 +18,52 @@ def load_json(path):
         raise SystemExit(f"find-artifact: cannot read {path}: {exc}")
 
 
+def useful(value):
+    value = "" if value is None else str(value)
+    return "" if value in ("", "unknown", "auto", "none") else value
+
+
+def kernel_floor(release):
+    release = useful(release)
+    if not release:
+        return ""
+    major = release.split(".", 1)[0]
+    if major.isdigit():
+        return f"{major}.x"
+    return ""
+
+
+def survey_filter_hints(path):
+    data = load_json(pathlib.Path(path))
+    recs = data.get("recommendations") if isinstance(data.get("recommendations"), dict) else {}
+    uname = data.get("uname") if isinstance(data.get("uname"), dict) else {}
+    return {
+        "arch": useful(recs.get("target_arch_guess")) or useful(data.get("arch")) or useful(uname.get("machine")),
+        "libc": useful(recs.get("libc_guess")) or useful(data.get("libc")),
+        "kernel": useful(recs.get("kernel_floor_guess")) or kernel_floor(data.get("kernel") or uname.get("release")),
+        "cpu": useful(recs.get("target_cpu_guess")) or useful(data.get("cpu")),
+        "abi": useful(recs.get("target_abi_guess")) or useful(data.get("abi")),
+        "target_preset": useful(recs.get("target_preset_guess")),
+    }
+
+
+def apply_survey_filters(args):
+    if not args.survey_json:
+        return {}
+    hints = survey_filter_hints(args.survey_json)
+    applied = {}
+    for key in ("arch", "libc", "kernel", "cpu", "abi"):
+        value = hints.get(key)
+        if value and not getattr(args, key):
+            setattr(args, key, value)
+            applied[key] = value
+    return {
+        "path": args.survey_json,
+        "hints": hints,
+        "applied_filters": applied,
+    }
+
+
 def build_index(paths):
     cmd = [str(ROOT / "scripts" / "index-release-repo"), *paths]
     return json.loads(subprocess.check_output(cmd, text=True))
@@ -150,6 +196,7 @@ def active_filters(args):
         "doom_wad",
         "doom_wad_sha256",
         "max_compatibility",
+        "survey_json",
     )
     return {key: getattr(args, key) for key in keys if getattr(args, key)}
 
@@ -227,7 +274,7 @@ def api_collection_record(name, count, indexes, summary_key, primary_key=""):
     }
 
 
-def recommendation_document(index, rows, args):
+def recommendation_document(index, rows, args, survey_context=None):
     selected = rows[0] if rows else None
     selected_sha = (selected or {}).get("sha256") or ""
     dedupe = (index.get("dedupe", {}).get(selected_sha, {}) or {}).get("artifacts") or []
@@ -237,6 +284,7 @@ def recommendation_document(index, rows, args):
         "schema": 1,
         "command": "find-artifact",
         "filters": active_filters(args),
+        "survey": survey_context or {},
         "match_count": len(rows),
         "visible_match_count": len(visible_matches),
         "selection_policy": [
@@ -317,6 +365,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--index", help="prebuilt index from scripts/index-release-repo")
     parser.add_argument("--release-root", action="append", default=[], help="release dir or directory containing releases; repeatable")
+    parser.add_argument("--survey-json", help="derive unset arch/libc/kernel/cpu/abi filters from busierbox survey --json output")
     parser.add_argument("--release")
     parser.add_argument("--tuple-path", help="canonical release tuple path, such as by-tuple/mipsel/musl/4.x/mips32r2-24kc")
     parser.add_argument("--device")
@@ -338,6 +387,7 @@ def main(argv=None):
     parser.add_argument("--recommendation-json", action="store_true",
                         help="print selected artifact plus filters, match count, and selection policy")
     args = parser.parse_args(argv)
+    survey_context = apply_survey_filters(args)
 
     if args.index:
         index = load_json(pathlib.Path(args.index))
@@ -353,7 +403,7 @@ def main(argv=None):
     if not rows:
         raise SystemExit("find-artifact: no matching artifact")
     if args.recommendation_json:
-        print(json.dumps(recommendation_document(index, rows, args), indent=2, sort_keys=True))
+        print(json.dumps(recommendation_document(index, rows, args, survey_context), indent=2, sort_keys=True))
         return 0
     if args.json:
         payload = rows if args.all else rows[0]

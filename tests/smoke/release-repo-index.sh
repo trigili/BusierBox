@@ -268,6 +268,26 @@ grep -q '^payload_preset=survey-core$' "$tmp/find-doom-sha.out"
 scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --release one >"$tmp/find-tuple.out"
 grep -q '^release_name=one$' "$tmp/find-tuple.out"
 grep -q '^tuple_path=by-tuple/mipsel/musl/4.x/mips32r2-24kc$' "$tmp/find-tuple.out"
+cat >"$tmp/glinet-survey.json" <<'JSON'
+{
+  "schema": 2,
+  "arch": "mipsel",
+  "kernel": "4.14.241",
+  "recommendations": {
+    "libc_guess": "musl"
+  }
+}
+JSON
+scripts/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --payload-preset survey-core >"$tmp/find-survey.out"
+grep -q '^release_name=one$' "$tmp/find-survey.out"
+grep -q '^arch=mipsel$' "$tmp/find-survey.out"
+grep -q '^libc=musl$' "$tmp/find-survey.out"
+grep -q '^kernel_floor=4.x$' "$tmp/find-survey.out"
+scripts/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --payload-preset survey-core --arch x86_64 >/dev/null 2>"$tmp/find-survey-override.err" && {
+    printf '%s\n' "release-repo-index smoke: explicit arch did not override survey filter" >&2
+    exit 1
+}
+grep -q 'find-artifact: no matching artifact' "$tmp/find-survey-override.err"
 scripts/find-artifact --index "$tmp/repo-index.json" --payload-preset ssh-operator --feature reverse-ssh --json >"$tmp/find-json.out"
 python3 - "$tmp/find-json.out" <<'PY'
 import json
@@ -340,6 +360,23 @@ assert doc["selected"]["release_self_test"]["status"] == "pass"
 assert doc["dedupe_count"] == 2
 assert {item["release_name"] for item in doc["dedupe_alternatives"]} == {"one", "two"}
 assert "newest release_mtime" in doc["selection_policy"]
+PY
+scripts/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --payload-preset survey-core --recommendation-json >"$tmp/recommend-survey-json.out"
+python3 - "$tmp/recommend-survey-json.out" "$tmp/glinet-survey.json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+survey_path = sys.argv[2]
+assert doc["filters"]["survey_json"] == survey_path
+assert doc["filters"]["arch"] == "mipsel"
+assert doc["filters"]["libc"] == "musl"
+assert doc["filters"]["kernel"] == "4.x"
+assert doc["survey"]["path"] == survey_path
+assert doc["survey"]["hints"]["arch"] == "mipsel"
+assert doc["survey"]["hints"]["kernel"] == "4.x"
+assert doc["survey"]["applied_filters"] == {"arch": "mipsel", "kernel": "4.x", "libc": "musl"}
+assert doc["selected"]["release_name"] == "one"
 PY
 scripts/find-artifact --index "$tmp/repo-index.json" --device lab-router --max-compatibility likely --recommendation-json >"$tmp/recommend-safe-json.out"
 python3 - "$tmp/recommend-safe-json.out" <<'PY'
