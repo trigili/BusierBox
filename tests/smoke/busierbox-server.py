@@ -1152,6 +1152,10 @@ def main():
                 event_stats.get("tail_count") != len(queue_status_json.get("events", [])) or
                 queue_status_json["summary"].get("event_count") != event_stats.get("total_count") or
                 queue_status_json["summary"].get("event_tail_count") != event_stats.get("tail_count") or
+                event_stats.get("tail_truncated") is not False or
+                event_stats.get("tail_omitted_count") != 0 or
+                queue_status_json["summary"].get("event_tail_truncated") is not False or
+                queue_status_json["summary"].get("event_tail_omitted_count") != 0 or
                 not event_stats.get("first_event_at") or
                 not event_stats.get("latest_event_at") or
                 queue_status_json["summary"].get("first_event_at") != event_stats.get("first_event_at") or
@@ -1164,6 +1168,8 @@ def main():
                 event_log_state.get("valid") is not True or
                 event_log_state.get("event_count") != event_stats.get("total_count") or
                 event_log_state.get("invalid_count") != event_stats.get("invalid_count") or
+                event_log_state.get("tail_truncated") is not False or
+                event_log_state.get("tail_omitted_count") != 0 or
                 queue_status_json["summary"].get("event_log_exists") is not True or
                 queue_status_json["summary"].get("event_log_valid") is not True or
                 queue_status_json["summary"].get("event_log_size", 0) <= 0):
@@ -1206,6 +1212,49 @@ def main():
                 not events_by_service_event.get("command-queue:command_result_received")):
             print("server json status missing event tail lookup indexes", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        truncated_event_dir = Path(tmp) / "truncated-events"
+        truncated_event_dir.mkdir()
+        truncated_event_log = truncated_event_dir / "events.jsonl"
+        with truncated_event_log.open("w", encoding="utf-8") as fh:
+            for idx in range(15):
+                fh.write(json.dumps({
+                    "schema": 1,
+                    "id": f"evt-trunc-{idx}",
+                    "ts": f"2026-05-26T12:00:{idx:02d}Z",
+                    "service": "smoke",
+                    "session": "",
+                    "session_path": "",
+                    "event": "truncated_tail_probe",
+                    "level": "info",
+                    "remote": "",
+                    "details": {"idx": idx},
+                }, sort_keys=True) + "\n")
+        truncated_event_cfg = Path(tmp) / "server-config-truncated-events.json"
+        truncated_event_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(truncated_event_dir),
+            "session_root": str(Path(tmp) / "truncated-event-sessions"),
+        }), encoding="utf-8")
+        truncated_event_status = run(
+            "scripts/busierbox-server",
+            "--config", str(truncated_event_cfg),
+            "--json-status",
+        )
+        truncated_event_doc = json.loads(truncated_event_status.stdout)
+        truncated_stats = truncated_event_doc.get("event_log_stats") or {}
+        truncated_state = truncated_event_doc.get("event_log_state") or {}
+        if (truncated_stats.get("total_count") != 15 or
+                truncated_stats.get("tail_count") != 12 or
+                truncated_stats.get("tail_truncated") is not True or
+                truncated_stats.get("tail_omitted_count") != 3 or
+                truncated_state.get("tail_truncated") is not True or
+                truncated_state.get("tail_omitted_count") != 3 or
+                truncated_event_doc.get("summary", {}).get("event_tail_truncated") is not True or
+                truncated_event_doc.get("summary", {}).get("event_tail_omitted_count") != 3 or
+                (truncated_event_doc.get("events") or [{}])[0].get("id") != "evt-trunc-3"):
+            print("server json status missing explicit truncated event tail metadata", file=sys.stderr)
+            print(truncated_event_status.stdout, file=sys.stderr)
             return 1
         event_log_path = Path(paths["event_log"])
         previous_invalid = int(event_stats.get("invalid_count", 0))

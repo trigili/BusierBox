@@ -109,6 +109,7 @@ class EventLog:
     def stats(self, limit=12):
         records, invalid = self.records()
         tail = records[-limit:]
+        omitted = max(len(records) - len(tail), 0)
         by_service = {}
         by_event = {}
         by_level = {}
@@ -146,6 +147,8 @@ class EventLog:
             "path": str(self.path),
             "total_count": len(records),
             "tail_count": len(tail),
+            "tail_truncated": omitted > 0,
+            "tail_omitted_count": omitted,
             "invalid_count": invalid,
             "tail_limit": limit,
             "first_event_at": first_ts,
@@ -536,6 +539,8 @@ def event_log_state_record(cfg, stats=None):
         "event_count": total_count,
         "invalid_count": invalid_count,
         "tail_count": int(stats.get("tail_count", 0) or 0),
+        "tail_truncated": bool(stats.get("tail_truncated", False)),
+        "tail_omitted_count": int(stats.get("tail_omitted_count", 0) or 0),
         "tail_limit": int(stats.get("tail_limit", 0) or 0),
         "first_event_at": stats.get("first_event_at", ""),
         "latest_event_at": stats.get("latest_event_at", ""),
@@ -5395,6 +5400,8 @@ def status_document(cfg):
         "event_log_valid": bool(event_log_state.get("valid", False)),
         "event_log_size": event_log_state.get("size", 0),
         "event_tail_count": event_stats["tail_count"],
+        "event_tail_truncated": bool(event_stats.get("tail_truncated", False)),
+        "event_tail_omitted_count": event_stats.get("tail_omitted_count", 0),
         "event_invalid_count": event_stats["invalid_count"],
         "first_event_at": event_stats.get("first_event_at", ""),
         "latest_event_at": event_stats.get("latest_event_at", ""),
@@ -6115,7 +6122,7 @@ def print_status(cfg, json_output=False):
     print("Event log:")
     stats = doc.get("event_log_stats") or {}
     print(f"  path: {doc.get('event_log', '')}")
-    print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)}")
+    print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)} truncated={'yes' if stats.get('tail_truncated') else 'no'} omitted={stats.get('tail_omitted_count', 0)}")
     print(f"  first={stats.get('first_event_at', '') or '-'} latest={stats.get('latest_event_at', '') or '-'}")
     print(f"  services: {format_counts(stats.get('by_service') or {})}")
     print(f"  events: {format_counts(stats.get('by_event') or {})}")
@@ -6371,7 +6378,7 @@ def print_workbench(cfg):
     print("Event log:")
     stats = snap.get("event_log_stats") or {}
     print(f"  path: {snap.get('event_log', '')}")
-    print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)}")
+    print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)} truncated={'yes' if stats.get('tail_truncated') else 'no'} omitted={stats.get('tail_omitted_count', 0)}")
     print(f"  first={stats.get('first_event_at', '') or '-'} latest={stats.get('latest_event_at', '') or '-'}")
     print(f"  services: {format_counts(stats.get('by_service') or {})}")
     print(f"  events: {format_counts(stats.get('by_event') or {})}")

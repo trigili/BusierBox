@@ -592,9 +592,11 @@ direct timeline lookups such as `file-service:upload_complete` or
 `<session-id>:connection_close` without filtering broader event groups.
 `event_log_state` reports the event log path, existence, validity, size, total
 valid event count, invalid JSONL line count, tail count, tail limit, and
-first/latest event timestamps. `event_log_stats` reports the event log path,
-total valid event count, tail count, invalid JSONL line count, tail limit,
-first/latest event timestamps, and
+first/latest event timestamps. It also reports whether the recent tail is
+truncated and how many older valid events are omitted from the bounded status
+response. `event_log_stats` reports the event log path, total valid event count,
+tail count, invalid JSONL line count, tail limit, truncation state, omitted
+count, first/latest event timestamps, and
 aggregate counters by service, event, level, remote endpoint, service/event,
 and session/event so API
 consumers can tell whether there is more history to page or inspect from disk
