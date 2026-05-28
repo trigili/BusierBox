@@ -81,7 +81,7 @@ for needle in [
     '"root-merge"',
     '"root-copy"',
     'if (external && apply)',
-    'clean_external_from_ledger(json)',
+    'clean_external_from_ledger(json, &result)',
 ]:
     if needle not in text:
         raise SystemExit(f"rshell-external-writes: clean external path missing {needle}")

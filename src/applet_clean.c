@@ -440,7 +440,7 @@ static int remove_rshell_marked_block(const char *path)
     return 0;
 }
 
-static int clean_external_from_ledger(int quiet)
+static int clean_external_from_ledger(int quiet, struct clean_result *result)
 {
     char ledger[PATH_MAX], line[2048];
     FILE *fp = fopen(bb_ledger_path(ledger, sizeof(ledger)), "r");
@@ -459,31 +459,56 @@ static int clean_external_from_ledger(int quiet)
             continue;
         mode[0] = '\0';
         json_get_string_field(line, "mode", mode, sizeof(mode));
+        if (result)
+            result->writes_attempted++;
 
         if (!strcmp(path, "/root/.ssh/authorized_keys") &&
             !strcmp(op, "modify") && !strcmp(mode, "root-merge")) {
+            int entry_failed = 0;
             if (remove_rshell_marked_block(path) != 0) {
                 fprintf(stderr, "clean: failed to remove BusierBox rshell block from %s: %s\n", path, strerror(errno));
                 failures = 1;
+                entry_failed = 1;
+                if (result)
+                    result->paths_failed++;
             } else if (!quiet) {
                 printf("clean: removed BusierBox rshell block from %s\n", path);
             }
+            if (result && !entry_failed)
+                result->paths_cleaned++;
         } else if (!strcmp(path, "/root/.ssh/authorized_keys") &&
                    !strcmp(op, "write") && !strcmp(mode, "root-copy")) {
+            int entry_failed = 0;
             if (unlink(path) != 0 && errno != ENOENT) {
                 fprintf(stderr, "clean: failed to remove %s: %s\n", path, strerror(errno));
                 failures = 1;
+                entry_failed = 1;
+                if (result)
+                    result->paths_failed++;
             } else if (!quiet) {
                 printf("clean: removed external %s\n", path);
             }
+            if (result && !entry_failed)
+                result->paths_cleaned++;
         } else if (!strcmp(op, "backup") &&
                    !strncmp(path, "/root/.ssh/authorized_keys.busierbox.bak.", 41)) {
+            int entry_failed = 0;
             if (unlink(path) != 0 && errno != ENOENT) {
                 fprintf(stderr, "clean: failed to remove backup %s: %s\n", path, strerror(errno));
                 failures = 1;
+                entry_failed = 1;
+                if (result)
+                    result->paths_failed++;
             } else if (!quiet) {
                 printf("clean: removed external backup %s\n", path);
             }
+            if (result && !entry_failed)
+                result->paths_cleaned++;
+        } else {
+            if (result)
+                result->writes_blocked++;
+            if (!quiet)
+                printf("clean: skipped unsupported external ledger entry %s\n", path);
         }
     }
     fclose(fp);
@@ -492,7 +517,7 @@ static int clean_external_from_ledger(int quiet)
 
 int bb_clean_external_from_ledger(void)
 {
-    return clean_external_from_ledger(0);
+    return clean_external_from_ledger(0, NULL);
 }
 
 int applet_cleanup_ledger_main(int argc, char **argv)
@@ -576,9 +601,7 @@ int applet_clean_main(int argc, char **argv)
         return 2;
     }
     if (external && apply) {
-        result.writes_attempted += count_external_entries();
-        if (clean_external_from_ledger(json) != 0) {
-            result.paths_failed++;
+        if (clean_external_from_ledger(json, &result) != 0) {
             if (json) {
                 result.cleanup_warning = "external cleanup failed";
                 print_clean_json(0, external, ledger, 1, &result);
@@ -588,10 +611,6 @@ int applet_clean_main(int argc, char **argv)
     } else {
         result.writes_blocked = count_external_entries();
     }
-    if (external && apply)
-        result.paths_cleaned += count_external_entries();
-    if (external && apply && result.paths_failed)
-        return 1;
     if (ledger) {
         bb_ledger_record("remove", BB_RUNTIME_ROOT, "runtime", "clean --ledger");
         if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
@@ -630,7 +649,9 @@ int applet_clean_main(int argc, char **argv)
     }
     result.cleanup_complete = result.paths_failed == 0 && result.writes_blocked == 0;
     if (result.writes_blocked > 0)
-        result.cleanup_warning = "external ledger entries require --external --apply";
+        result.cleanup_warning = external && apply ?
+            "unsupported external ledger entries require manual cleanup" :
+            "external ledger entries require --external --apply";
     if (json) {
         print_clean_json(0, external, ledger, external && apply, &result);
         return 0;

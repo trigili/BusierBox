@@ -167,6 +167,31 @@ PY
         exit 1
     fi
     grep -q 'external cleanup requires --external --apply' external-no-apply.err
+
+    mkdir -p .busierbox/run
+    cat >.busierbox/run/cleanup-ledger.jsonl <<'EOF'
+{"op":"modify","path":"/opt/vendor/state","scope":"external","detail":"unsupported external ledger","mode":"vendor-file"}
+EOF
+    ./busierbox clean --external --apply --json >external-unsupported-apply.json
+    python3 -m json.tool external-unsupported-apply.json >/dev/null
+    python3 - external-unsupported-apply.json <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if doc.get("dry_run") is not False or doc.get("external_cleanup_applied") is not True:
+    raise SystemExit("unsupported external apply json did not identify applied external cleanup")
+if doc.get("writes_attempted", 0) < 2:
+    raise SystemExit("unsupported external apply did not count external and runtime attempts")
+if doc.get("writes_blocked") != 1:
+    raise SystemExit("unsupported external apply did not count blocked entry")
+if doc.get("paths_cleaned") != 1:
+    raise SystemExit("unsupported external apply should only count runtime root cleaned")
+if doc.get("cleanup_complete") is not False:
+    raise SystemExit("unsupported external apply overclaimed complete cleanup")
+if doc.get("cleanup_warning") != "unsupported external ledger entries require manual cleanup":
+    raise SystemExit("unsupported external apply warning missing")
+PY
 )
 
 printf '%s\n' "clean-json ok"
