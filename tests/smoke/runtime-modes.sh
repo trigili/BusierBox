@@ -138,6 +138,25 @@ PY
     grep -q '"noresidue_level": "aggressive"' manifest.json
     ../busierbox-no-residue-aggressive plan extract --json | python3 -m json.tool >plan.json
     grep -q '"noresidue_level": "aggressive"' plan.json
+    ../busierbox-no-residue-aggressive clean --dry-run --json | python3 -m json.tool >clean-plan.json
+    python3 - clean-plan.json <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+plan = doc["residue_plan"]
+disabled = set(plan["features_disabled"])
+limits = set(plan["cleanup_limits"])
+assert plan["runtime_mode"] == "no-residue"
+assert plan["noresidue_level"] == "aggressive"
+assert "runtime fallback root" in disabled
+assert "cwd scratch fallback for generated upload files" in disabled
+assert "persistent target logs by default" in disabled
+assert "forensic no-trace claims" in disabled
+assert "kernel logs" in limits
+assert "operator-side records" in limits
+assert plan["forensic_no_trace"] is False
+PY
     ../busierbox-no-residue-aggressive sh -c 'echo aggressive-ok' >out
     grep -q '^aggressive-ok$' out
     [ ! -e .bbx-aggressive ]

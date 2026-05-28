@@ -280,11 +280,23 @@ static void print_residue_plan_json(int include_external, int ledger)
     fputs("],\"features_disabled\":[", stdout);
     first = 1;
     if (aggressive) {
+        print_clean_json_string_array_item("runtime fallback root", &first);
+        print_clean_json_string_array_item("cwd scratch fallback for generated upload files", &first);
         print_clean_json_string_array_item("persistent target logs by default", &first);
         print_clean_json_string_array_item("forensic no-trace claims", &first);
     } else {
         print_clean_json_string_array_item("forensic no-trace claims", &first);
     }
+    fputs("],\"cleanup_limits\":[", stdout);
+    first = 1;
+    print_clean_json_string_array_item("kernel logs", &first);
+    print_clean_json_string_array_item("shell history", &first);
+    print_clean_json_string_array_item("filesystem journals", &first);
+    print_clean_json_string_array_item("flash wear-leveling", &first);
+    print_clean_json_string_array_item("audit logs", &first);
+    print_clean_json_string_array_item("crash dumps", &first);
+    print_clean_json_string_array_item("remote service logs", &first);
+    print_clean_json_string_array_item("operator-side records", &first);
     fputs("],\"forensic_no_trace\":false", stdout);
     fputc('}', stdout);
 }

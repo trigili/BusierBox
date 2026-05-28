@@ -32,9 +32,14 @@ busierbox rshell cleanup --dry-run
 `clean --dry-run --json` includes a `residue_plan` with intended write paths,
 cleanup commands, ledgered BusierBox-owned cleanup paths, external paths that
 cannot be cleaned without explicit `--external --apply`, and no-residue features
-disabled by policy. `ledgered_cleanup_paths` records the original ledger
-operation, path, scope, detail when available, and the cleanup action that covers
-the path. Both dry-run and applied JSON include `writes_attempted`,
+disabled by policy. In aggressive mode the plan explicitly names disabled
+fallback behaviors such as runtime fallback roots and cwd scratch fallback for
+generated upload files. `cleanup_limits` lists residue classes outside
+BusierBox control, including kernel logs, shell history, filesystem journals,
+flash wear-leveling, crash dumps, remote service logs, and operator-side
+records. `ledgered_cleanup_paths` records the original ledger operation, path,
+scope, detail when available, and the cleanup action that covers the path.
+Both dry-run and applied JSON include `writes_attempted`,
 `writes_blocked`, `paths_cleaned`, `paths_failed`, `cleanup_complete`, and
 `cleanup_warning` so operators and release tooling can distinguish a preview
 from a completed cleanup.
