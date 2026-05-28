@@ -229,6 +229,20 @@ def main():
         if "busierbox put /etc/config/network" not in copied_text:
             print("generated target command copy file has wrong content", file=sys.stderr)
             return 1
+        copied_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--json-status",
+        ).stdout)
+        copied_record = copied_status.get("command_copy") or {}
+        if (copied_record.get("path") != str(command_copy_file) or
+                copied_record.get("has_command") is not True or
+                "busierbox put /etc/config/network" not in copied_record.get("command", "") or
+                copied_status.get("command_copy_records_by_has_command", {}).get("True", [{}])[0].get("path") != str(command_copy_file) or
+                copied_status.get("summary", {}).get("command_copy_has_command_count") != 1):
+            print("json status missing last copied command record", file=sys.stderr)
+            print(json.dumps(copied_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
 
         guided_build_config = Path(tmp) / "guided-busierbox.conf"
         guided_build_config.write_text(
@@ -1462,6 +1476,7 @@ def main():
                 ("browser_paths", len(browser_paths), "browser_paths_by_expected_kind_mismatch"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
+                ("command_copy_records", len(queue_status_json.get("command_copy_records") or []), "command_copy_records_by_has_command"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_mode"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),

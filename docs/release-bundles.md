@@ -815,7 +815,10 @@ and compact outcome details from the structured event record. `v` opens the
 selected local metadata/log/artifact/event-log path in the operator's pager when
 one is available, and `c` copies the selected generated target command to the
 local clipboard when possible plus
-`local/operator-session/last-command.txt`. The `r` refresh action updates
+`local/operator-session/last-command.txt`. Status JSON exposes that file as a
+bounded `command_copy` record plus `command_copy_records_by_has_command` and
+related lookup maps, so clients can show the last copied target command without
+opening the file separately. The `r` refresh action updates
 workbench refresh counters and records a structured `workbench_refreshed` event
 instead of being only an incidental redraw. Status JSON and both workbench views
 also expose `workbench_actions` records for operator-side configuration and

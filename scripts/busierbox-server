@@ -687,6 +687,50 @@ def command_copy_path(cfg):
     return Path(str(cfg.get("command_copy_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "last-command.txt"))
 
 
+def command_copy_record(cfg):
+    path = command_copy_path(cfg)
+    rec = {
+        "schema": 1,
+        "path": str(path),
+        "exists": path.is_file(),
+        "readable": False,
+        "size": 0,
+        "line_count": 0,
+        "command": "",
+        "command_sha256": "",
+        "has_command": False,
+    }
+    if not path.is_file():
+        return rec
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        rec["error"] = str(exc)
+        return rec
+    rec["readable"] = True
+    rec["size"] = len(data)
+    text = data.decode("utf-8", errors="replace")
+    lines = text.splitlines()
+    command = lines[0] if lines else ""
+    rec.update({
+        "line_count": len(lines),
+        "command": command,
+        "command_sha256": hashlib.sha256(command.encode("utf-8")).hexdigest() if command else "",
+        "has_command": bool(command),
+    })
+    return rec
+
+
+def command_copy_indexes(records):
+    return {
+        "command_copy_records_by_path": {rec.get("path", ""): rec for rec in records or [] if rec.get("path")},
+        "command_copy_records_by_exists": records_by_key(records, "exists"),
+        "command_copy_records_by_readable": records_by_key(records, "readable"),
+        "command_copy_records_by_has_command": records_by_key(records, "has_command"),
+        "command_copy_records_by_command_sha256": records_by_key(records, "command_sha256"),
+    }
+
+
 def workbench_jobs_path(cfg):
     return Path(str(cfg.get("workbench_jobs_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "workbench-jobs.json"))
 
@@ -6733,6 +6777,9 @@ def status_document(cfg):
     server_state = server_state_record(cfg)
     staged_files_state = staged_files_state_record(cfg)
     command_queue_state = command_queue_state_record(cfg)
+    command_copy = command_copy_record(cfg)
+    command_copy_records = [command_copy]
+    command_copy_record_indexes = command_copy_indexes(command_copy_records)
     path_status = status_path_records(paths)
     path_status_records = status_path_record_list(path_status)
     path_status_indexes = status_path_record_indexes(path_status_records)
@@ -6898,6 +6945,8 @@ def status_document(cfg):
         "command_queue_file_exists": bool(command_queue_state.get("exists", False)),
         "command_queue_file_valid": bool(command_queue_state.get("valid", False)),
         "command_queue_file_command_count": command_queue_state.get("command_count", 0),
+        "command_copy_exists_count": 1 if command_copy.get("exists") is True else 0,
+        "command_copy_has_command_count": 1 if command_copy.get("has_command") is True else 0,
         "staged_count": len(staged),
         "staged_total_size": staged_summary.get("total_size", 0),
         "staged_kind_counts": record_count_by_key(staged_records, "stage_kind"),
@@ -7225,6 +7274,13 @@ def status_document(cfg):
                 "staged_by_source_exists", "staged_by_kind_source_exists",
             ), "staged_count",
         ),
+        "command_copy_records": api_collection_record(
+            "command_copy_records", command_copy_records, "path", (
+                "command_copy_records_by_path", "command_copy_records_by_exists",
+                "command_copy_records_by_readable", "command_copy_records_by_has_command",
+                "command_copy_records_by_command_sha256",
+            ), "command_copy_exists_count",
+        ),
         "uploads": api_collection_record(
             "uploads", uploads, "metadata_path", (
                 "uploads_by_session", "uploads_by_filename", "uploads_by_kind", "uploads_by_sha256",
@@ -7387,6 +7443,9 @@ def status_document(cfg):
         "staged_files": str(staged_file_path(cfg)),
         "command_queue_file": str(command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
+        "command_copy": command_copy,
+        "command_copy_records": command_copy_records,
+        **command_copy_record_indexes,
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
         "build_config": str(build_config_path(cfg)),
         "event_log": str(event_log_path),
@@ -7958,6 +8017,8 @@ def print_status(cfg, json_output=False):
     print(f"  staged_files: {doc['staged_files']}")
     print(f"  command_queue_file: {doc['command_queue_file']}")
     print(f"  command_copy_file: {doc['command_copy_file']}")
+    if (doc.get("command_copy") or {}).get("has_command"):
+        print(f"  last_copied_command: {(doc.get('command_copy') or {}).get('command', '')}")
     print(f"  workbench_jobs_file: {doc['workbench_jobs_file']}")
     print(f"  session_root: {doc['session_root']}")
     print("")
