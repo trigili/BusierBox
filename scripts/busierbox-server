@@ -2743,7 +2743,9 @@ def target_command_record_summary(records):
     by_side = {}
     by_purpose = {}
     by_session_policy = {}
+    by_session_policy_valid = {}
     by_retry_backoff = {}
+    session_policy_error_count = 0
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -2768,6 +2770,10 @@ def target_command_record_summary(records):
         if metadata.get("session_policy") not in (None, ""):
             key = str(metadata.get("session_policy"))
             by_session_policy[key] = by_session_policy.get(key, 0) + 1
+        if metadata.get("session_policy_valid") not in (None, ""):
+            key = str(metadata.get("session_policy_valid"))
+            by_session_policy_valid[key] = by_session_policy_valid.get(key, 0) + 1
+        session_policy_error_count += len(metadata.get("session_policy_errors") or [])
         if retry.get("backoff") not in (None, ""):
             key = str(retry.get("backoff"))
             by_retry_backoff[key] = by_retry_backoff.get(key, 0) + 1
@@ -2793,6 +2799,8 @@ def target_command_record_summary(records):
         "by_side": by_side,
         "by_purpose": by_purpose,
         "by_session_policy": by_session_policy,
+        "by_session_policy_valid": by_session_policy_valid,
+        "session_policy_error_count": session_policy_error_count,
         "by_retry_backoff": by_retry_backoff,
     }
 
@@ -7065,6 +7073,8 @@ def status_document(cfg):
         "target_command_stage_kind_counts": target_command_summary.get("by_stage_kind") or {},
         "target_command_release_path_counts": target_command_summary.get("by_release_path") or {},
         "target_command_session_policy_counts": target_command_summary.get("by_session_policy") or {},
+        "target_command_session_policy_valid_counts": target_command_summary.get("by_session_policy_valid") or {},
+        "target_command_session_policy_error_count": target_command_summary.get("session_policy_error_count", 0),
         "target_command_retry_backoff_counts": target_command_summary.get("by_retry_backoff") or {},
         "event_count": event_stats["total_count"],
         "event_log_exists": bool(event_log_state.get("exists", False)),

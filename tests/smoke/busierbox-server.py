@@ -1302,6 +1302,8 @@ def main():
                 invalid_rshell_warnings[-1].get("session_policy") != "bogus" or
                 "unsupported rshell session policy" not in invalid_rshell_warnings[-1].get("session_policy_errors", []) or
                 invalid_rshell_status.get("summary", {}).get("warning_type_counts", {}).get("invalid_rshell_session_policy") != 1 or
+                invalid_rshell_status.get("summary", {}).get("target_command_session_policy_valid_counts", {}).get("False") != 1 or
+                invalid_rshell_status.get("summary", {}).get("target_command_session_policy_error_count") != 1 or
                 invalid_rshell_status.get("warnings_by_type", {}).get("invalid_rshell_session_policy", [{}])[-1].get("session_policy") != "bogus"):
             print("server json status missing invalid rshell session policy warning", file=sys.stderr)
             print(invalid_rshell_status_doc.stdout, file=sys.stderr)
@@ -3438,8 +3440,12 @@ def main():
                 target_summary.get("by_service", {}).get("file-service", 0) < 6 or
                 target_summary.get("by_service", {}).get("rshell") != 1 or
                 target_summary.get("by_session_policy", {}).get("reconnect") != 1 or
+                target_summary.get("by_session_policy_valid", {}).get("True") != 1 or
+                target_summary.get("session_policy_error_count") != 0 or
                 target_summary.get("by_retry_backoff", {}).get("linear") != 1 or
                 upload_summary.get("target_command_session_policy_counts", {}).get("reconnect") != 1 or
+                upload_summary.get("target_command_session_policy_valid_counts", {}).get("True") != 1 or
+                upload_summary.get("target_command_session_policy_error_count") != 0 or
                 upload_summary.get("target_command_retry_backoff_counts", {}).get("linear") != 1):
             print("server json status missing generated command service/session-policy lookup", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)

@@ -646,7 +646,8 @@ indexes such as `target_commands_by_session_policy`,
 and `target_commands_by_retry_post_disconnect_count` let clients badge
 single/reconnect/persistent behavior and retry timing directly.
 `target_command_summary` reports total, network, explicit-target action,
-operator-supplied-command execution, session-policy, and retry-backoff counts,
+operator-supplied-command execution, session-policy, session-policy validity,
+session-policy error, and retry-backoff counts,
 with matching fields mirrored into `summary`. This lets future frontends show
 the same commands without guessing whether a command is a safe explicit
 fetch/upload helper or control-like behavior. Human `--status` and the
