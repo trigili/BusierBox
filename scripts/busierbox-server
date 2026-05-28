@@ -7762,6 +7762,9 @@ def print_target_command_summary(doc):
     print(f"  sides: {format_counts(summary.get('target_command_side_counts') or {})}")
     if summary.get("target_command_session_policy_counts"):
         print(f"  rshell policies: {format_counts(summary.get('target_command_session_policy_counts') or {})}")
+    if summary.get("target_command_session_policy_valid_counts"):
+        print(f"  rshell policy validity: {format_counts(summary.get('target_command_session_policy_valid_counts') or {})}")
+        print(f"  rshell policy errors: {summary.get('target_command_session_policy_error_count', 0)}")
     if summary.get("target_command_retry_backoff_counts"):
         print(f"  rshell retry backoff: {format_counts(summary.get('target_command_retry_backoff_counts') or {})}")
 

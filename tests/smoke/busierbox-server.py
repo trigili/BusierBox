@@ -3700,6 +3700,8 @@ def main():
                 "operator_supplied_execution=0" not in upload_status_text.stdout or
                 "executes_operator_supplied_commands=no" not in upload_status_text.stdout or
                 "all_require_explicit_target_action=yes" not in upload_status_text.stdout or
+                "rshell policy validity: True=1" not in upload_status_text.stdout or
+                "rshell policy errors: 0" not in upload_status_text.stdout or
                 "./busierbox reality-test push" not in upload_status_text.stdout or
                 "Activity summary:" not in upload_status_text.stdout or
                 "session durations:" not in upload_status_text.stdout or
@@ -3745,6 +3747,8 @@ def main():
                 "operator_supplied_execution=0" not in uploads_view.stdout or
                 "executes_operator_supplied_commands=no" not in uploads_view.stdout or
                 "all_require_explicit_target_action=yes" not in uploads_view.stdout or
+                "rshell policy validity: True=1" not in uploads_view.stdout or
+                "rshell policy errors: 0" not in uploads_view.stdout or
                 f"upload={upload_item.get('timestamp')}" not in uploads_view.stdout or
                 "stored_exists: True" not in uploads_view.stdout or
                 "session:" not in uploads_view.stdout or

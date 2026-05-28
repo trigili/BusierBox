@@ -651,8 +651,9 @@ session-policy error, and retry-backoff counts,
 with matching fields mirrored into `summary`. This lets future frontends show
 the same commands without guessing whether a command is a safe explicit
 fetch/upload helper or control-like behavior. Human `--status` and the
-line-oriented fallback print the same target-command safety summary before
-listing generated commands.
+line-oriented fallback print the same target-command safety summary, including
+rshell policy validity and policy error counts, before listing generated
+commands.
 Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
 `command_queue_status_counts`. Queue records are also indexed by
