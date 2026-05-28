@@ -589,6 +589,12 @@ static void print_check_index_array(struct check_result checks[], size_t n, cons
             candidate = check_status(&checks[i]);
         else if (!strcmp(field, "type"))
             candidate = check_type(&checks[i]);
+        else if (!strcmp(field, "skipped"))
+            candidate = checks[i].skipped ? "yes" : "no";
+        else if (!strcmp(field, "available"))
+            candidate = is_constraint_check(checks[i].name) ? "" : ((!checks[i].skipped && checks[i].ok) ? "yes" : "no");
+        else if (!strcmp(field, "detected"))
+            candidate = is_constraint_check(checks[i].name) ? (constraint_detected(&checks[i]) ? "yes" : "no") : "";
         if (strcmp(candidate, value))
             continue;
         printf("%s%zu", first ? "" : ",", i);
@@ -601,6 +607,7 @@ static void print_check_indexes(struct check_result checks[], size_t n)
 {
     static const char *statuses[] = {"pass", "fail", "skipped", NULL};
     static const char *types[] = {"capability", "operator", "constraint", NULL};
+    static const char *yes_no[] = {"yes", "no", NULL};
     size_t i;
 
     printf(",\"checks_by_name\":{");
@@ -626,6 +633,30 @@ static void print_check_indexes(struct check_result checks[], size_t n)
         bb_json_string(stdout, types[i]);
         putchar(':');
         print_check_index_array(checks, n, "type", types[i]);
+    }
+    printf("},\"checks_by_skipped\":{");
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            putchar(',');
+        bb_json_string(stdout, yes_no[i]);
+        putchar(':');
+        print_check_index_array(checks, n, "skipped", yes_no[i]);
+    }
+    printf("},\"checks_by_available\":{");
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            putchar(',');
+        bb_json_string(stdout, yes_no[i]);
+        putchar(':');
+        print_check_index_array(checks, n, "available", yes_no[i]);
+    }
+    printf("},\"checks_by_detected\":{");
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            putchar(',');
+        bb_json_string(stdout, yes_no[i]);
+        putchar(':');
+        print_check_index_array(checks, n, "detected", yes_no[i]);
     }
     putchar('}');
 }
@@ -686,7 +717,7 @@ static void print_json(struct check_result checks[], size_t n)
     }
     printf("]");
     print_check_indexes(checks, n);
-    printf(",\"api_collections\":{\"checks\":{\"name\":\"checks\",\"count\":%zu,\"count_summary_key\":\"summary.check_count\",\"summary_key\":\"summary.check_count\",\"indexes\":[\"checks_by_name\",\"checks_by_status\",\"checks_by_type\"]}}", n);
+    printf(",\"api_collections\":{\"checks\":{\"name\":\"checks\",\"count\":%zu,\"count_summary_key\":\"summary.check_count\",\"summary_key\":\"summary.check_count\",\"indexes\":[\"checks_by_name\",\"checks_by_status\",\"checks_by_type\",\"checks_by_skipped\",\"checks_by_available\",\"checks_by_detected\"]}}", n);
     printf(",\"summary\":{\"check_count\":%zu,\"pass\":%d,\"fail\":%d,\"skipped\":%d", n, pass, fail, skip);
     printf(",\"capability_pass\":%d,\"capability_fail\":%d", capability_pass, capability_fail);
     printf(",\"operator_pass\":%d,\"operator_fail\":%d,\"operator_skipped\":%d", operator_pass, operator_fail, operator_skip);

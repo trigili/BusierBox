@@ -14,10 +14,12 @@ The shell survey exists because a working native BusierBox binary only proves th
 operator upload/fetch checks as skipped unless those side-effecting services are
 explicitly configured for the run.
 Its JSON also includes `checks_by_name`, `checks_by_status`,
-`checks_by_type`, and `api_collections.checks` metadata with explicit `count`,
-`summary_key`, and backward-compatible `count_summary_key` fields. Bringup
-tools and future UIs can jump directly to failed capabilities, skipped operator
-checks, or detected constraints without scraping the text view.
+`checks_by_type`, `checks_by_skipped`, `checks_by_available`,
+`checks_by_detected`, and `api_collections.checks` metadata with explicit
+`count`, `summary_key`, and backward-compatible `count_summary_key` fields.
+Bringup tools and future UIs can jump directly to failed capabilities, skipped
+operator checks, unavailable probes, or detected constraints without scraping
+the text view.
 
 Operator file-service checks are opt-in because they create target-initiated
 network traffic and upload a small probe file:

@@ -91,12 +91,22 @@ if api.get("count_summary_key") != "summary.check_count":
     raise SystemExit("reality-test: checks api collection missing summary key")
 if api.get("summary_key") != "summary.check_count":
     raise SystemExit("reality-test: checks api collection missing normalized summary key")
-if set(api.get("indexes") or []) < {"checks_by_name", "checks_by_status", "checks_by_type"}:
+if set(api.get("indexes") or []) < {
+    "checks_by_name",
+    "checks_by_status",
+    "checks_by_type",
+    "checks_by_skipped",
+    "checks_by_available",
+    "checks_by_detected",
+}:
     raise SystemExit("reality-test: checks api collection missing indexes")
 if doc.get("checks_by_name", {}).get("spawn_sh") != [required.index("spawn_sh")]:
     raise SystemExit("reality-test: checks_by_name lookup is wrong")
 status_indexes = doc.get("checks_by_status") or {}
 type_indexes = doc.get("checks_by_type") or {}
+skipped_indexes = doc.get("checks_by_skipped") or {}
+available_indexes = doc.get("checks_by_available") or {}
+detected_indexes = doc.get("checks_by_detected") or {}
 for status in ("pass", "fail", "skipped"):
     expected = [idx for idx, item in enumerate(checks) if item["status"] == status]
     if status_indexes.get(status) != expected:
@@ -105,6 +115,23 @@ for check_type in ("capability", "operator", "constraint"):
     expected = [idx for idx, item in enumerate(checks) if item["type"] == check_type]
     if type_indexes.get(check_type) != expected:
         raise SystemExit(f"reality-test: checks_by_type drift for {check_type}")
+for value in (True, False):
+    key = "yes" if value else "no"
+    expected = [idx for idx, item in enumerate(checks) if item["skipped"] is value]
+    if skipped_indexes.get(key) != expected:
+        raise SystemExit(f"reality-test: checks_by_skipped drift for {key}")
+    expected = [
+        idx for idx, item in enumerate(checks)
+        if item["type"] != "constraint" and item.get("available") is value
+    ]
+    if available_indexes.get(key) != expected:
+        raise SystemExit(f"reality-test: checks_by_available drift for {key}")
+    expected = [
+        idx for idx, item in enumerate(checks)
+        if item["type"] == "constraint" and item.get("detected") is value
+    ]
+    if detected_indexes.get(key) != expected:
+        raise SystemExit(f"reality-test: checks_by_detected drift for {key}")
 if summary.get("operator_pass", 0) + summary.get("operator_fail", 0) + summary.get("operator_skipped", 0) != 3:
     raise SystemExit("reality-test: summary should count all operator checks")
 if by_name["upload_operator"]["status"] != "skipped":
