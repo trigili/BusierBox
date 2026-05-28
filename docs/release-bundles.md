@@ -34,7 +34,8 @@ Each release contains:
   integrated components such as BusyBox, Buildroot, doom-ascii, and miniz.
 - `manifests/license-policy.json`: machine-readable BusierBox license and
   third-party GPL compatibility policy for repository scanners and release
-  consumers.
+  consumers, including per-component GPLv2 compatibility flags and distribution
+  obligations.
 - `sources.lock.json` and `manifests/sources.lock.json`: pinned downloadable
   source metadata for GPL/source-availability review and offline rebuilds.
 - `release.json`: build status, commit, safe build-host metadata, source-lock summary, selected matrix, artifact paths, canonical tuple paths, device aliases, checksums, and failures.

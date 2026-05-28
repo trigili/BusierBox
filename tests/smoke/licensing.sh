@@ -50,6 +50,29 @@ if scripts/check-licensing manifests/license-policy.json "$tmp/sources.lock.json
     exit 1
 fi
 grep -q 'source lock new-tool missing license' "$tmp/missing-license.out"
+python3 - manifests/sources.lock.json "$tmp/unreviewed-sources.lock.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    data = json.load(fh)
+data.setdefault("sources", []).append({
+    "name": "new-tool",
+    "version": "1.0",
+    "filename": "new-tool-1.0.tar.gz",
+    "sha256": "0" * 64,
+    "urls": ["https://example.invalid/new-tool-1.0.tar.gz"],
+    "license": "GPL-2.0-or-later",
+    "homepage": "https://example.invalid/new-tool",
+})
+with open(sys.argv[2], "w", encoding="utf-8") as fh:
+    json.dump(data, fh)
+PY
+if scripts/check-licensing manifests/license-policy.json "$tmp/unreviewed-sources.lock.json" >"$tmp/unreviewed-source.out" 2>&1; then
+    printf '%s\n' "licensing smoke: source without compatibility policy was accepted" >&2
+    exit 1
+fi
+grep -q 'source lock new-tool missing compatibility policy component' "$tmp/unreviewed-source.out"
 
 grep -q 'GPL-2.0-or-later' README.md
 grep -q 'LICENSE.busierbox' README.md
@@ -61,6 +84,8 @@ grep -q 'BusierBox is not a BusyBox replacement and is not a BusyBox fork' READM
 grep -q 'GPL-2.0-or-later' docs/licensing.md
 grep -q 'LICENSE.busierbox' docs/licensing.md
 grep -q 'GPL compatibility summary' docs/licensing.md
+grep -q 'explicit GPLv2 compatibility flags' docs/licensing.md
+grep -q 'Every downloadable source lock entry must have' docs/licensing.md
 grep -q 'make check-licensing' docs/licensing.md
 grep -q 'manifests/license-policy.json' docs/licensing.md
 grep -q 'BusyBox' docs/licensing.md
@@ -96,6 +121,16 @@ for name, license_id in expected.items():
         raise SystemExit(f"{name}: missing homepage")
 
 policy = json.load(open("manifests/license-policy.json", encoding="utf-8"))
+components = {item.get("name"): item for item in policy.get("components") or []}
+lock_components = {item.get("source_lock_name"): item for item in policy.get("components") or [] if item.get("source_lock_name")}
+for source_name in sources:
+    if source_name not in lock_components:
+        raise SystemExit(f"missing compatibility policy component for {source_name}")
+for name, item in components.items():
+    if item.get("gplv2_compatible_with_current_stack") is not True:
+        raise SystemExit(f"{name}: missing GPLv2 compatibility flag")
+    if not item.get("distribution_obligations"):
+        raise SystemExit(f"{name}: missing distribution obligations")
 artifact_distribution = policy.get("artifact_distribution") or {}
 if artifact_distribution.get("busierbox_project_terms") != "GPL-2.0-or-later":
     raise SystemExit("artifact distribution project terms missing")

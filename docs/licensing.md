@@ -14,7 +14,8 @@ The top-level `NOTICE` file repeats the repository-level license declaration in
 a short form for release bundles, package inventories, and repository scanners.
 `manifests/license-policy.json` is the machine-readable form of the same policy,
 and `make check-licensing` validates the policy against the project grant,
-pinned source metadata, and bundled notice files. This document is an
+pinned source metadata, explicit GPLv2 compatibility flags, component
+distribution obligations, and bundled notice files. This document is an
 engineering license inventory, not legal advice.
 
 ## Third-party components
@@ -31,7 +32,8 @@ the supervisor:
 
 Pinned downloadable source metadata lives in `manifests/sources.lock.json`.
 Machine-readable project/component compatibility policy lives in
-`manifests/license-policy.json`.
+`manifests/license-policy.json`. Every downloadable source lock entry must have
+a matching compatibility-policy component before the licensing check passes.
 The BusyBox source tree is tracked as the `third_party/busybox` submodule.
 Repository-maintained third-party notice summaries for named integrated
 components live under `LICENSES/`; vendored upstream notices remain under
@@ -82,4 +84,6 @@ notices for included components:
 
 Run `make check-licensing` before adding or changing third-party components.
 The check verifies the project GPL declaration, release notice files, pinned
-source license metadata, and the current compatibility inventory.
+source license metadata, each locked source's compatibility-policy entry,
+per-component GPLv2 compatibility flags, distribution obligations, and the
+current compatibility inventory.

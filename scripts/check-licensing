@@ -52,6 +52,11 @@ components = {
     for item in policy.get("components") or []
     if isinstance(item, dict)
 }
+components_by_lock_name = {
+    item.get("source_lock_name"): item
+    for item in policy.get("components") or []
+    if isinstance(item, dict) and item.get("source_lock_name")
+}
 locked = {
     item.get("name"): item
     for item in sources.get("sources") or []
@@ -117,15 +122,38 @@ for name, item in components.items():
     source = item.get("source", "")
     if not source:
         raise SystemExit(f"check-licensing: {name} source reference missing")
+    if item.get("gplv2_compatible_with_current_stack") is not True:
+        raise SystemExit(f"check-licensing: {name} must explicitly be GPLv2-compatible with the current stack")
+    if not item.get("distribution_obligations"):
+        raise SystemExit(f"check-licensing: {name} distribution obligations missing")
+    source_lock_name = item.get("source_lock_name")
+    if source_lock_name:
+        if source_lock_name not in locked:
+            raise SystemExit(f"check-licensing: {name} source lock reference missing: {source_lock_name}")
+        expected_locked_license = item.get("source_lock_license")
+        if not expected_locked_license:
+            raise SystemExit(f"check-licensing: {name} source_lock_license missing")
+        locked_license = locked[source_lock_name].get("license")
+        if locked_license != expected_locked_license:
+            raise SystemExit(
+                f"check-licensing: {name} source lock license mismatch: "
+                f"{locked_license!r} != {expected_locked_license!r}"
+            )
     if source == "this repository":
         continue
     if source.startswith("manifests/sources.lock.json:name="):
         lock_name = source.split("=", 1)[1]
         if lock_name not in locked:
             raise SystemExit(f"check-licensing: {name} source lock reference missing: {lock_name}")
+        if item.get("source_lock_name") != lock_name:
+            raise SystemExit(f"check-licensing: {name} source_lock_name must be {lock_name}")
         continue
     if not Path(source).exists():
         raise SystemExit(f"check-licensing: {name} source path missing: {source}")
+
+for name in locked:
+    if name not in components_by_lock_name:
+        raise SystemExit(f"check-licensing: source lock {name} missing compatibility policy component")
 
 lock_expected = {
     "buildroot": "GPL-2.0-or-later",
