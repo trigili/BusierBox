@@ -108,6 +108,15 @@ assert safety["command_queue_enabled"] is False
 assert safety["self_reinstall"] is False
 assert safety["survives_factory_reset_claim"] is False
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
+api = data["api_collections"]["installations"]
+assert api["count_summary_key"] == "summary.installation_count"
+assert set(api["indexes"]) >= {
+    "installations_by_method",
+    "installations_by_action",
+    "installations_by_category",
+    "installations_by_method_action",
+    "installations_by_category_action",
+}
 assert data["installations_by_method"]["rc-local"] == [0]
 assert data["installations_by_action"]["status-only"] == [0]
 assert data["installations_by_category"]["status"] == [0]

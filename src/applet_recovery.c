@@ -543,6 +543,17 @@ static void recovery_print_status_indexes(const char *root, const char *name)
     fputs("}", stdout);
 }
 
+static void recovery_print_status_api_collections(void)
+{
+    fputs(",\"api_collections\":{\"installations\":{\"name\":\"installations\",\"count_summary_key\":\"summary.installation_count\",\"indexes\":[", stdout);
+    fputs("\"installations_by_method\",", stdout);
+    fputs("\"installations_by_action\",", stdout);
+    fputs("\"installations_by_category\",", stdout);
+    fputs("\"installations_by_method_action\",", stdout);
+    fputs("\"installations_by_category_action\"", stdout);
+    fputs("]}}", stdout);
+}
+
 static void recovery_print_survey(int json, const char *root)
 {
     size_t i;
@@ -938,6 +949,7 @@ int applet_recovery_main(int argc, char **argv)
         if (json) {
             fputc(']', stdout);
             recovery_print_status_indexes(root, name);
+            recovery_print_status_api_collections();
             printf(",\"summary\":{\"installation_count\":%d,\"evidence_action_count\":%d,\"evidence_upload_count\":%d,\"dmesg_action_count\":%d,\"rshell_action_count\":%d,\"rshell_after_evidence_count\":%d,\"command_action_count\":%d,\"script_action_count\":%d,\"operator_supplied_command_count\":%d,\"external_write_required_count\":%d,\"command_queue_enabled_count\":%d,\"hidden_control_channel_count\":%d,\"all_require_external_write\":%s,\"any_operator_supplied_command\":%s},\"installed\":%s}\n",
                    installed_count,
                    evidence_action_count,
