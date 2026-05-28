@@ -1,0 +1,12 @@
+BusyBox is licensed under GPL-2.0.
+
+BusierBox uses BusyBox as a separately built or staged payload binary at
+`runtime/payload/bin/busybox` and dispatches standard Unix applets to it.
+BusierBox does not fork or import BusyBox code into the native supervisor.
+
+The upstream license text is in `third_party/busybox/LICENSE` when the BusyBox
+submodule is checked out. Release source availability is tracked through the
+repository and release bundle source metadata.
+
+Upstream project:
+https://busybox.net/

@@ -33,7 +33,9 @@ Pinned downloadable source metadata lives in `manifests/sources.lock.json`.
 Machine-readable project/component compatibility policy lives in
 `manifests/license-policy.json`.
 The BusyBox source tree is tracked as the `third_party/busybox` submodule.
-Vendored third-party notices live under `third_party/` and `LICENSES/`.
+Repository-maintained third-party notice summaries for named integrated
+components live under `LICENSES/`; vendored upstream notices remain under
+`third_party/`.
 
 ## GPL compatibility summary
 

@@ -12,6 +12,12 @@ grep -q 'GPL-2.0-or-later' NOTICE
 grep -q 'LICENSE.busierbox' NOTICE
 test -f LICENSES/miniz.txt
 grep -q 'third_party/miniz/LICENSE' LICENSES/miniz.txt
+test -f LICENSES/busybox.txt
+grep -q 'third_party/busybox/LICENSE' LICENSES/busybox.txt
+test -f LICENSES/buildroot.txt
+grep -q 'manifests/sources.lock.json' LICENSES/buildroot.txt
+test -f LICENSES/doom-ascii.txt
+grep -q 'BB_DOOM_WAD_PATH' LICENSES/doom-ascii.txt
 test -f manifests/license-policy.json
 scripts/check-licensing
 make check-licensing

@@ -30,8 +30,8 @@ Each release contains:
 - `docs/`: release, licensing, and runtime override notes.
 - `LICENSE`, `LICENSE.busierbox`, and `NOTICE`: BusierBox GPL license text,
   explicit project grant, and short project license notice.
-- `LICENSES/`: repository-maintained third-party notice summaries for vendored
-  helpers.
+- `LICENSES/`: repository-maintained third-party notice summaries for named
+  integrated components such as BusyBox, Buildroot, doom-ascii, and miniz.
 - `manifests/license-policy.json`: machine-readable BusierBox license and
   third-party GPL compatibility policy for repository scanners and release
   consumers.

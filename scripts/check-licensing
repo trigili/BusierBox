@@ -128,8 +128,25 @@ for name, license_id in lock_expected.items():
 
 if not Path("third_party/miniz/LICENSE").is_file():
     raise SystemExit("check-licensing: missing miniz vendored license")
-if not Path("LICENSES/miniz.txt").is_file():
-    raise SystemExit("check-licensing: missing miniz repository notice")
+notice_files = {
+    "BusyBox": Path("LICENSES/busybox.txt"),
+    "Buildroot": Path("LICENSES/buildroot.txt"),
+    "doom-ascii": Path("LICENSES/doom-ascii.txt"),
+    "miniz": Path("LICENSES/miniz.txt"),
+}
+notice_needles = {
+    "BusyBox": ("GPL-2.0", "third_party/busybox/LICENSE"),
+    "Buildroot": ("GPL-2.0-or-later", "manifests/sources.lock.json"),
+    "doom-ascii": ("GPL-2.0-or-later", "BB_DOOM_WAD_PATH"),
+    "miniz": ("third_party/miniz/LICENSE", "MIT"),
+}
+for name, path in notice_files.items():
+    if not path.is_file():
+        raise SystemExit(f"check-licensing: missing {name} repository notice")
+    text = path.read_text(encoding="utf-8")
+    for needle in notice_needles[name]:
+        if needle not in text:
+            raise SystemExit(f"check-licensing: {name} repository notice missing {needle}")
 if not Path("third_party/busybox/LICENSE").is_file():
     raise SystemExit("check-licensing: missing BusyBox submodule license")
 

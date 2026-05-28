@@ -3837,6 +3837,9 @@ def main():
         (release_dir / "LICENSE.busierbox").write_text("BusierBox license grant\n", encoding="utf-8")
         (release_dir / "LICENSE").write_text("GNU GENERAL PUBLIC LICENSE Version 2, June 1991\n", encoding="utf-8")
         (release_dir / "NOTICE").write_text("BusierBox project license notice\n", encoding="utf-8")
+        (release_dir / "LICENSES" / "busybox.txt").write_text("BusyBox notice\n", encoding="utf-8")
+        (release_dir / "LICENSES" / "buildroot.txt").write_text("Buildroot notice\n", encoding="utf-8")
+        (release_dir / "LICENSES" / "doom-ascii.txt").write_text("doom-ascii notice\n", encoding="utf-8")
         (release_dir / "LICENSES" / "miniz.txt").write_text("miniz notice\n", encoding="utf-8")
         (release_dir / "sources.lock.json").write_text('{"schema":2,"sources":[]}\n', encoding="utf-8")
         (release_dir / "manifests" / "sources.lock.json").write_text('{"schema":2,"sources":[]}\n', encoding="utf-8")
@@ -3852,6 +3855,7 @@ def main():
                 {"name": "BusierBox", "license": "GPL-2.0-or-later"},
                 {"name": "BusyBox", "license": "GPL-2.0"},
                 {"name": "Buildroot", "license": "GPL-2.0-or-later with package exceptions"},
+                {"name": "doom-ascii", "license": "GPL-2.0-or-later"},
                 {"name": "miniz", "license": "MIT OR Unlicense"},
             ],
         }) + "\n", encoding="utf-8")
@@ -3927,7 +3931,7 @@ def main():
                 "artifacts=1 devices=1 tuples=1 total_size=9" not in release_view.stdout or
                 f"release_dir: {release_dir}" not in release_view.stdout or
                 "release_name: operator-smoke" not in release_view.stdout or
-                "license: project=GPL-2.0-or-later gplv2_compatible=yes valid=yes notices=7 missing_notices=0" not in release_view.stdout or
+                "license: project=GPL-2.0-or-later gplv2_compatible=yes valid=yes notices=10 missing_notices=0" not in release_view.stdout or
                 "busierbox-test" not in release_view.stdout or
                 "compatibility=exact" not in release_view.stdout or
                 "compatibility_reason: fixture" not in release_view.stdout or
@@ -4080,7 +4084,7 @@ def main():
                 release_licenses_by_gplv2.get("True", [{}])[0].get("project_license") != "GPL-2.0-or-later" or
                 release_licenses_by_component.get("BusyBox", [{}])[0].get("combined_gplv2_compatible") is not True or
                 release_licenses_by_component_license.get("BusyBox:GPL-2.0", [{}])[0].get("project_license") != "GPL-2.0-or-later" or
-                release_licenses_by_notice.get("LICENSE.busierbox", [{}])[0].get("notice_count") != 7):
+                release_licenses_by_notice.get("LICENSE.busierbox", [{}])[0].get("notice_count") != 10):
             print("json status missing release browser lookup maps", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
@@ -4101,7 +4105,7 @@ def main():
                 release_state.get("release_license_valid") is not True or
                 release_state.get("project_license") != "GPL-2.0-or-later" or
                 release_state.get("combined_gplv2_compatible") is not True or
-                release_state.get("license_notice_count") != 7 or
+                release_state.get("license_notice_count") != 10 or
                 release_state.get("license_missing_notice_count") != 0):
             print("json status missing explicit release state metadata", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
@@ -4162,7 +4166,7 @@ def main():
                 release_summary.get("release_artifact_doom_wad_count") != 1 or
                 release_summary.get("release_license_count") != 1 or
                 release_summary.get("release_license_valid_count") != 1 or
-                release_summary.get("release_license_notice_count") != 7 or
+                release_summary.get("release_license_notice_count") != 10 or
                 release_summary.get("release_license_missing_notice_count") != 0 or
                 release_summary.get("release_project_license_counts", {}).get("GPL-2.0-or-later") != 1 or
                 release_summary.get("release_combined_gplv2_compatible_counts", {}).get("True") != 1 or

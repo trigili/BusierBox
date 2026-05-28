@@ -1,0 +1,10 @@
+doom-ascii is licensed under GPL-2.0-or-later.
+
+BusierBox can build doom-ascii as an optional static payload provider through
+Buildroot. BusierBox does not download or bundle Doom game data; users provide a
+legally usable `.wad` path via `BB_DOOM_WAD_PATH` when they choose this feature.
+
+Pinned doom-ascii source metadata is recorded in `manifests/sources.lock.json`.
+
+Upstream project:
+https://github.com/wojciech-graj/doom-ascii

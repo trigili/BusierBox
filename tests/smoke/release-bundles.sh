@@ -185,6 +185,9 @@ test -f "$work/release/RELEASE-QUICKSTART.txt"
 test -f "$work/release/LICENSE"
 test -f "$work/release/LICENSE.busierbox"
 test -f "$work/release/NOTICE"
+test -f "$work/release/LICENSES/busybox.txt"
+test -f "$work/release/LICENSES/buildroot.txt"
+test -f "$work/release/LICENSES/doom-ascii.txt"
 test -f "$work/release/LICENSES/miniz.txt"
 test -f "$work/release/release.json"
 test -f "$work/release/release-index.json"
@@ -205,6 +208,9 @@ test -f "$work/release.tar.gz"
 grep -q 'scripts/busierbox-server --transport tls-shell' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'GPL-2.0-or-later' "$work/release/LICENSE.busierbox"
 grep -q 'GPL-2.0-or-later' "$work/release/NOTICE"
+grep -q 'third_party/busybox/LICENSE' "$work/release/LICENSES/busybox.txt"
+grep -q 'manifests/sources.lock.json' "$work/release/LICENSES/buildroot.txt"
+grep -q 'BB_DOOM_WAD_PATH' "$work/release/LICENSES/doom-ascii.txt"
 grep -q 'third_party/miniz/LICENSE' "$work/release/LICENSES/miniz.txt"
 grep -q 'GPL compatibility summary' "$work/release/docs/licensing.md"
 python3 -m json.tool "$work/release/manifests/license-policy.json" >/dev/null
@@ -663,11 +669,12 @@ if doc.get("project_license") != "GPL-2.0-or-later":
     raise SystemExit(f"release self-test project license missing: {doc!r}")
 if doc.get("combined_gplv2_compatible") is not True:
     raise SystemExit(f"release self-test GPL compatibility missing: {doc!r}")
-if doc.get("license_notice_count") != 7:
+if doc.get("license_notice_count") != 10:
     raise SystemExit(f"release self-test license notice count missing: {doc!r}")
 notice_files = doc.get("license_notice_files") or []
-if "LICENSES/miniz.txt" not in notice_files:
-    raise SystemExit(f"release self-test license notice files missing miniz: {doc!r}")
+for rel in ("LICENSES/busybox.txt", "LICENSES/buildroot.txt", "LICENSES/doom-ascii.txt", "LICENSES/miniz.txt"):
+    if rel not in notice_files:
+        raise SystemExit(f"release self-test license notice files missing {rel}: {doc!r}")
 for rel in ("sources.lock.json", "manifests/sources.lock.json"):
     if rel not in notice_files:
         raise SystemExit(f"release self-test license notice files missing {rel}: {doc!r}")
