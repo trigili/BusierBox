@@ -131,6 +131,98 @@ static int count_external_entries(void)
     return count;
 }
 
+static int path_is_under_dir(const char *path, const char *dir)
+{
+    size_t len;
+
+    if (!path || !dir || !dir[0])
+        return 0;
+    len = strlen(dir);
+    if (!strcmp(path, dir))
+        return 1;
+    return !strncmp(path, dir, len) && (dir[len - 1] == '/' || path[len] == '/');
+}
+
+static const char *ledger_cleanup_action(const char *path, const char *op, int ledger)
+{
+    if (op && !strcmp(op, "remove"))
+        return "already-recorded-remove";
+    if (path_is_under_dir(path, BB_RUNTIME_ROOT))
+        return "remove_with_runtime_root";
+    if (ledger &&
+        !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+        BB_RUNTIME_FALLBACK_ROOT[0] &&
+        strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT) &&
+        path_is_under_dir(path, BB_RUNTIME_FALLBACK_ROOT))
+        return "remove_with_fallback_root";
+    return "not_in_default_clean_scope";
+}
+
+static int count_ledgered_cleanup_paths(void)
+{
+    char path[PATH_MAX], line[2048];
+    FILE *fp = fopen(bb_ledger_path(path, sizeof(path)), "r");
+    int count = 0;
+
+    if (!fp)
+        return 0;
+    while (fgets(line, sizeof(line), fp)) {
+        char ledger_path[PATH_MAX], scope[64];
+
+        if (json_get_string_field(line, "path", ledger_path, sizeof(ledger_path)) != 0)
+            continue;
+        if (json_get_string_field(line, "scope", scope, sizeof(scope)) == 0 &&
+            !strcmp(scope, "external"))
+            continue;
+        count++;
+    }
+    fclose(fp);
+    return count;
+}
+
+static void print_ledgered_cleanup_paths_json(int ledger)
+{
+    char path[PATH_MAX], line[2048];
+    FILE *fp = fopen(bb_ledger_path(path, sizeof(path)), "r");
+    int first = 1;
+
+    fputc('[', stdout);
+    if (fp) {
+        while (fgets(line, sizeof(line), fp)) {
+            char op[64], ledger_path[PATH_MAX], scope[64], detail[512];
+
+            if (json_get_string_field(line, "path", ledger_path, sizeof(ledger_path)) != 0)
+                continue;
+            op[0] = '\0';
+            scope[0] = '\0';
+            detail[0] = '\0';
+            json_get_string_field(line, "op", op, sizeof(op));
+            json_get_string_field(line, "scope", scope, sizeof(scope));
+            json_get_string_field(line, "detail", detail, sizeof(detail));
+            if (!strcmp(scope, "external"))
+                continue;
+            if (!first)
+                fputc(',', stdout);
+            fputs("{\"op\":", stdout);
+            bb_json_string(stdout, op);
+            fputs(",\"path\":", stdout);
+            bb_json_string(stdout, ledger_path);
+            fputs(",\"scope\":", stdout);
+            bb_json_string(stdout, scope[0] ? scope : "runtime");
+            fputs(",\"cleanup_action\":", stdout);
+            bb_json_string(stdout, ledger_cleanup_action(ledger_path, op, ledger));
+            if (detail[0]) {
+                fputs(",\"detail\":", stdout);
+                bb_json_string(stdout, detail);
+            }
+            fputc('}', stdout);
+            first = 0;
+        }
+        fclose(fp);
+    }
+    fputc(']', stdout);
+}
+
 static void print_clean_json_string_array_item(const char *s, int *first)
 {
     if (!*first)
@@ -165,7 +257,11 @@ static void print_residue_plan_json(int include_external, int ledger)
     print_clean_json_string_array_item("busierbox clean --ledger --json", &first);
     if (count_external_entries() > 0)
         print_clean_json_string_array_item("busierbox clean --external --apply", &first);
-    fputs("],\"uncleanable_paths\":[", stdout);
+    printf("],\"ledgered_cleanup_path_count\":%d", count_ledgered_cleanup_paths());
+    printf(",\"external_blocked_count\":%d", include_external ? 0 : count_external_entries());
+    fputs(",\"ledgered_cleanup_paths\":", stdout);
+    print_ledgered_cleanup_paths_json(ledger);
+    fputs(",\"uncleanable_paths\":[", stdout);
     if (!include_external) {
         char path[PATH_MAX], line[2048];
         FILE *fp = fopen(bb_ledger_path(path, sizeof(path)), "r");

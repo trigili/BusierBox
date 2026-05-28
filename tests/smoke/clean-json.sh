@@ -78,6 +78,31 @@ if "extract" not in ops or "write" not in ops:
 if "payload" not in scopes:
     raise SystemExit("cleanup ledger missing payload scope")
 PY
+    ./busierbox clean --dry-run --json >dry-run-after-extract.json
+    python3 -m json.tool dry-run-after-extract.json >/dev/null
+    python3 - dry-run-after-extract.json <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+plan = doc.get("residue_plan") or {}
+paths = plan.get("ledgered_cleanup_paths")
+if not isinstance(paths, list) or not paths:
+    raise SystemExit("residue plan missing ledgered cleanup paths after extract")
+if plan.get("ledgered_cleanup_path_count") != len(paths):
+    raise SystemExit("residue plan ledgered cleanup path count mismatch")
+joined = "\n".join(item.get("path", "") for item in paths if isinstance(item, dict))
+if ".busierbox/payload" not in joined:
+    raise SystemExit("residue plan missing extracted payload path")
+scopes = {item.get("scope") for item in paths if isinstance(item, dict)}
+if "payload" not in scopes:
+    raise SystemExit("residue plan missing payload cleanup scope")
+actions = {item.get("cleanup_action") for item in paths if isinstance(item, dict)}
+if "remove_with_runtime_root" not in actions:
+    raise SystemExit("residue plan missing runtime-root cleanup action")
+if plan.get("external_blocked_count") != 0:
+    raise SystemExit("residue plan unexpectedly blocked external entries")
+PY
     ./busierbox clean --ledger --json >clean.json
     python3 -m json.tool clean.json >/dev/null
     python3 - clean.json <<'PY'
@@ -119,6 +144,10 @@ if doc.get("writes_blocked") != 1:
 plan = doc.get("residue_plan") or {}
 if "/root/.ssh/authorized_keys" not in plan.get("uncleanable_paths", []):
     raise SystemExit("blocked external ledger path missing from residue plan")
+if plan.get("external_blocked_count") != 1:
+    raise SystemExit("blocked external ledger count missing from residue plan")
+if plan.get("ledgered_cleanup_path_count") != 0:
+    raise SystemExit("external-only ledger should not create runtime cleanup paths")
 PY
     ./busierbox clean --dry-run --external --json >external-included.json
     python3 -m json.tool external-included.json >/dev/null
