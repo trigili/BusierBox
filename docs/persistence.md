@@ -29,7 +29,12 @@ It also publishes an `actions` collection with `actions_by_name`,
 `actions_by_hidden_control_channel` indexes, plus safety-gate maps such as
 `actions_by_requires_explicit_apply` and
 `actions_by_requires_external_write`. These records describe available
-recovery actions and their safety semantics before any hook is installed.
+recovery actions and their safety semantics before any hook is installed. The
+survey JSON also publishes `api`, `api_resources`,
+`api_resources_by_name`, `api_resources_by_records_key`,
+`api_resources_by_summary_key`, and `api_resources_by_primary_key` so operator
+UIs can discover the storage, method, and action collections without hard-coded
+paths.
 
 The method table covers reboot hook families such as OpenWrt/procd init
 scripts, SysV/rcS, systemd units, cron `@reboot`, at jobs, `rc.local`,
@@ -93,8 +98,10 @@ indexes cover evidence upload, `dmesg` capture, reverse-shell chaining,
 operator-supplied command execution, command queue enablement, hidden control
 channels, and external-write requirements. This lets operator UIs jump directly
 to evidence, reverse-shell, command, or status hooks without rescanning the full
-list. Summary booleans also state whether every installed hook requires an
-external write and whether any hook executes an operator-supplied command.
+list. Status JSON mirrors the same `api` and `api_resources*` discovery fields
+for installed hooks. Summary booleans also state whether every installed hook
+requires an external write and whether any hook executes an operator-supplied
+command.
 
 `busierbox recovery` remains as a deprecated compatibility alias. Internal hook
 markers still use `BUSIERBOX RECOVERY` so older cleanup/status checks keep

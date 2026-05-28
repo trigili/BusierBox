@@ -615,6 +615,109 @@ static void recovery_print_status_api_collections(int installed_count)
     fputs("]}}", stdout);
 }
 
+static void recovery_print_api_resource_object(const char *name, int count,
+                                               const char *summary_key,
+                                               const char *primary_key,
+                                               const char *indexes_json)
+{
+    fputs("{\"name\":", stdout);
+    bb_json_string(stdout, name);
+    fputs(",\"collection_key\":", stdout);
+    fputs("\"api_collections.", stdout);
+    fputs(name, stdout);
+    fputs("\"", stdout);
+    fputs(",\"records_key\":", stdout);
+    bb_json_string(stdout, name);
+    printf(",\"count\":%d", count);
+    fputs(",\"summary_key\":", stdout);
+    bb_json_string(stdout, summary_key);
+    fputs(",\"count_summary_key\":", stdout);
+    bb_json_string(stdout, summary_key);
+    fputs(",\"primary_key\":", stdout);
+    bb_json_string(stdout, primary_key);
+    fputs(",\"indexes\":[", stdout);
+    fputs(indexes_json, stdout);
+    fputs("]}", stdout);
+}
+
+static void recovery_print_api_resources(int storage_count, int method_count,
+                                         int action_count, int installed_count)
+{
+    const char *storage_indexes = "\"storage_by_class\",\"storage_by_survives_reboot\"";
+    const char *method_indexes = "\"methods_by_name\",\"methods_by_survives_reboot\",\"methods_by_intrusiveness\",\"methods_by_requires_external_write\"";
+    const char *action_indexes = "\"actions_by_name\",\"actions_by_category\",\"actions_by_uploads_evidence\",\"actions_by_collects_dmesg\",\"actions_by_starts_rshell\",\"actions_by_starts_rshell_after_evidence\",\"actions_by_executes_operator_supplied_command\",\"actions_by_command_queue_enabled\",\"actions_by_hidden_control_channel\",\"actions_by_requires_explicit_apply\",\"actions_by_requires_external_write\"";
+    const char *installation_indexes = "\"installations_by_method\",\"installations_by_action\",\"installations_by_category\",\"installations_by_method_action\",\"installations_by_category_action\",\"installations_by_uploads_evidence\",\"installations_by_collects_dmesg\",\"installations_by_starts_rshell\",\"installations_by_starts_rshell_after_evidence\",\"installations_by_executes_operator_supplied_command\",\"installations_by_command_queue_enabled\",\"installations_by_hidden_control_channel\",\"installations_by_requires_external_write\"";
+    int is_status = installed_count >= 0;
+    int resource_count = is_status ? 1 : 3;
+
+    printf(",\"api\":{\"schema\":1,\"resources_key\":\"api_resources\",\"collections_key\":\"api_collections\",\"resource_count\":%d}", resource_count);
+    fputs(",\"api_resources\":[", stdout);
+    if (is_status) {
+        recovery_print_api_resource_object("installations", installed_count, "summary.installation_count", "method", installation_indexes);
+    } else {
+        recovery_print_api_resource_object("storage", storage_count, "summary.storage_count", "path", storage_indexes);
+        fputc(',', stdout);
+        recovery_print_api_resource_object("methods", method_count, "summary.method_count", "name", method_indexes);
+        fputc(',', stdout);
+        recovery_print_api_resource_object("actions", action_count, "summary.action_count", "name", action_indexes);
+    }
+    fputs("],\"api_resources_by_name\":{", stdout);
+    if (is_status) {
+        fputs("\"installations\":", stdout);
+        recovery_print_api_resource_object("installations", installed_count, "summary.installation_count", "method", installation_indexes);
+    } else {
+        fputs("\"storage\":", stdout);
+        recovery_print_api_resource_object("storage", storage_count, "summary.storage_count", "path", storage_indexes);
+        fputs(",\"methods\":", stdout);
+        recovery_print_api_resource_object("methods", method_count, "summary.method_count", "name", method_indexes);
+        fputs(",\"actions\":", stdout);
+        recovery_print_api_resource_object("actions", action_count, "summary.action_count", "name", action_indexes);
+    }
+    fputs("},\"api_resources_by_records_key\":{", stdout);
+    if (is_status) {
+        fputs("\"installations\":[", stdout);
+        recovery_print_api_resource_object("installations", installed_count, "summary.installation_count", "method", installation_indexes);
+        fputs("]", stdout);
+    } else {
+        fputs("\"storage\":[", stdout);
+        recovery_print_api_resource_object("storage", storage_count, "summary.storage_count", "path", storage_indexes);
+        fputs("],\"methods\":[", stdout);
+        recovery_print_api_resource_object("methods", method_count, "summary.method_count", "name", method_indexes);
+        fputs("],\"actions\":[", stdout);
+        recovery_print_api_resource_object("actions", action_count, "summary.action_count", "name", action_indexes);
+        fputs("]", stdout);
+    }
+    fputs("},\"api_resources_by_summary_key\":{", stdout);
+    if (is_status) {
+        fputs("\"summary.installation_count\":[", stdout);
+        recovery_print_api_resource_object("installations", installed_count, "summary.installation_count", "method", installation_indexes);
+        fputs("]", stdout);
+    } else {
+        fputs("\"summary.storage_count\":[", stdout);
+        recovery_print_api_resource_object("storage", storage_count, "summary.storage_count", "path", storage_indexes);
+        fputs("],\"summary.method_count\":[", stdout);
+        recovery_print_api_resource_object("methods", method_count, "summary.method_count", "name", method_indexes);
+        fputs("],\"summary.action_count\":[", stdout);
+        recovery_print_api_resource_object("actions", action_count, "summary.action_count", "name", action_indexes);
+        fputs("]", stdout);
+    }
+    fputs("},\"api_resources_by_primary_key\":{", stdout);
+    if (is_status) {
+        fputs("\"method\":[", stdout);
+        recovery_print_api_resource_object("installations", installed_count, "summary.installation_count", "method", installation_indexes);
+        fputs("]", stdout);
+    } else {
+        fputs("\"path\":[", stdout);
+        recovery_print_api_resource_object("storage", storage_count, "summary.storage_count", "path", storage_indexes);
+        fputs("],\"name\":[", stdout);
+        recovery_print_api_resource_object("methods", method_count, "summary.method_count", "name", method_indexes);
+        fputc(',', stdout);
+        recovery_print_api_resource_object("actions", action_count, "summary.action_count", "name", action_indexes);
+        fputs("]", stdout);
+    }
+    fputs("}", stdout);
+}
+
 static int recovery_action_index_match(const char *field, const char *action, const char *value)
 {
     const char *candidate = "";
@@ -914,6 +1017,11 @@ static void recovery_print_survey(int json, const char *root)
         }
         fputs("]", stdout);
         recovery_print_survey_indexes();
+        recovery_print_api_resources(
+            (int)(sizeof(recovery_storage_paths) / sizeof(recovery_storage_paths[0])),
+            (int)(sizeof(recovery_methods) / sizeof(recovery_methods[0])),
+            (int)((sizeof(recovery_actions) / sizeof(recovery_actions[0])) - 1),
+            -1);
         recovery_print_survey_api_collections();
         printf(",\"summary\":{\"storage_count\":%zu,\"method_count\":%zu,\"action_count\":%zu,\"evidence_action_count\":3,\"dmesg_action_count\":1,\"rshell_action_count\":2,\"operator_supplied_action_count\":2,\"command_queue_enabled_action_count\":0,\"hidden_control_channel_action_count\":0}}\n",
                sizeof(recovery_storage_paths) / sizeof(recovery_storage_paths[0]),
@@ -1280,6 +1388,7 @@ int applet_recovery_main(int argc, char **argv)
         if (json) {
             fputc(']', stdout);
             recovery_print_status_indexes(root, name);
+            recovery_print_api_resources(0, 0, 0, installed_count);
             recovery_print_status_api_collections(installed_count);
             printf(",\"summary\":{\"installation_count\":%d,\"evidence_action_count\":%d,\"evidence_upload_count\":%d,\"dmesg_action_count\":%d,\"rshell_action_count\":%d,\"rshell_after_evidence_count\":%d,\"command_action_count\":%d,\"script_action_count\":%d,\"operator_supplied_command_count\":%d,\"external_write_required_count\":%d,\"command_queue_enabled_count\":%d,\"hidden_control_channel_count\":%d,\"all_require_external_write\":%s,\"any_operator_supplied_command\":%s},\"installed\":%s}\n",
                    installed_count,

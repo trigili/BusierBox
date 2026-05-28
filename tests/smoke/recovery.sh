@@ -41,6 +41,26 @@ assert summary["operator_supplied_action_count"] == 2
 assert summary["command_queue_enabled_action_count"] == 0
 assert summary["hidden_control_channel_action_count"] == 0
 api = data["api_collections"]
+meta = data["api"]
+resources = data["api_resources"]
+resources_by_name = data["api_resources_by_name"]
+resources_by_records_key = data["api_resources_by_records_key"]
+resources_by_summary_key = data["api_resources_by_summary_key"]
+resources_by_primary_key = data["api_resources_by_primary_key"]
+assert meta["resource_count"] == len(resources) == 3
+assert meta["resources_key"] == "api_resources"
+assert meta["collections_key"] == "api_collections"
+assert resources_by_name["storage"]["records_key"] == "storage"
+assert resources_by_name["methods"]["records_key"] == "methods"
+assert resources_by_name["actions"]["records_key"] == "actions"
+assert resources_by_records_key["storage"][0]["collection_key"] == "api_collections.storage"
+assert resources_by_records_key["methods"][0]["collection_key"] == "api_collections.methods"
+assert resources_by_records_key["actions"][0]["collection_key"] == "api_collections.actions"
+assert resources_by_summary_key["summary.storage_count"][0]["name"] == "storage"
+assert resources_by_summary_key["summary.method_count"][0]["name"] == "methods"
+assert resources_by_summary_key["summary.action_count"][0]["name"] == "actions"
+assert resources_by_primary_key["name"][0]["name"] == "methods"
+assert resources_by_primary_key["name"][1]["name"] == "actions"
 assert api["storage"]["count"] == summary["storage_count"]
 assert api["storage"]["count_summary_key"] == "summary.storage_count"
 assert api["storage"]["primary_key"] == "path"
@@ -300,6 +320,20 @@ assert data["installations_by_command_queue_enabled"]["no"] == [0]
 assert data["installations_by_hidden_control_channel"]["no"] == [0]
 assert data["installations_by_requires_external_write"]["yes"] == [0]
 api_indexes = data["api_collections"]["installations"]["indexes"]
+meta = data["api"]
+resources = data["api_resources"]
+resources_by_name = data["api_resources_by_name"]
+resources_by_records_key = data["api_resources_by_records_key"]
+resources_by_summary_key = data["api_resources_by_summary_key"]
+resources_by_primary_key = data["api_resources_by_primary_key"]
+assert meta["resource_count"] == len(resources) == 1
+assert meta["resources_key"] == "api_resources"
+assert meta["collections_key"] == "api_collections"
+assert resources_by_name["installations"]["records_key"] == "installations"
+assert resources_by_name["installations"]["collection_key"] == "api_collections.installations"
+assert resources_by_records_key["installations"][0]["name"] == "installations"
+assert resources_by_summary_key["summary.installation_count"][0]["name"] == "installations"
+assert resources_by_primary_key["method"][0]["name"] == "installations"
 assert "installations_by_uploads_evidence" in api_indexes
 assert "installations_by_collects_dmesg" in api_indexes
 assert "installations_by_hidden_control_channel" in api_indexes
