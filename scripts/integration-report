@@ -206,6 +206,44 @@ def count_text(counts):
     return ",".join(f"{name}:{counts[name]}" for name in sorted(counts))
 
 
+def api_collection_record(name, records, indexes, summary_key, primary_key):
+    return {
+        "name": name,
+        "count": len(records),
+        "summary_key": summary_key,
+        "count_summary_key": summary_key,
+        "primary_key": primary_key,
+        "indexes": indexes,
+    }
+
+
+def bool_key(value):
+    return "yes" if value else "no"
+
+
+def index_records(records, key, *, boolean=False):
+    out = {}
+    for idx, record in enumerate(records):
+        if not isinstance(record, dict):
+            continue
+        value = record.get(key)
+        if boolean:
+            value = bool_key(bool(value))
+        else:
+            value = str(value if value is not None else "")
+        out.setdefault(value, []).append(idx)
+    return out
+
+
+def index_optional_bool_records(records, key):
+    out = {}
+    for idx, record in enumerate(records):
+        if not isinstance(record, dict) or key not in record:
+            continue
+        out.setdefault(bool_key(bool(record.get(key))), []).append(idx)
+    return out
+
+
 def resolve_case_path(summary_path, case, filename):
     for key in ("logs", "case_dir", "log_dir"):
         value = case.get(key)
@@ -224,6 +262,7 @@ def resolve_case_path(summary_path, case, filename):
 
 def load_recovery_status_reports(summary_path, data):
     reports = []
+    installations_flat = []
     totals = {
         "installation_count": 0,
         "evidence_upload_count": 0,
@@ -272,6 +311,10 @@ def load_recovery_status_reports(summary_path, data):
             category = str(item.get("action_category", "unknown") or "unknown")
             action_counts[action] = action_counts.get(action, 0) + 1
             category_counts[category] = category_counts.get(category, 0) + 1
+            flat = dict(item)
+            flat["case"] = case.get("case", "")
+            flat["report_path"] = str(path)
+            installations_flat.append(flat)
         reports.append({
             "case": case.get("case", ""),
             "path": str(path),
@@ -283,19 +326,62 @@ def load_recovery_status_reports(summary_path, data):
         })
     if not reports:
         return {}
+    reports_by_case = index_records(reports, "case")
+    reports_by_valid = index_records(reports, "valid", boolean=True)
+    reports_by_installed = index_records(reports, "installed", boolean=True)
+    installations_by_case = index_records(installations_flat, "case")
+    installations_by_action = index_records(installations_flat, "action")
+    installations_by_category = index_records(installations_flat, "action_category")
+    installations_by_evidence_upload = index_records(installations_flat, "uploads_evidence", boolean=True)
+    installations_by_dmesg = index_records(installations_flat, "collects_dmesg", boolean=True)
+    installations_by_rshell = index_records(installations_flat, "starts_rshell", boolean=True)
     return {
         "reports": reports,
+        "reports_by_case": reports_by_case,
+        "reports_by_valid": reports_by_valid,
+        "reports_by_installed": reports_by_installed,
         "report_count": len(reports),
         "valid_count": sum(1 for item in reports if item.get("valid")),
         "invalid_count": sum(1 for item in reports if not item.get("valid")),
+        "installations": installations_flat,
+        "installations_by_case": installations_by_case,
+        "installations_by_action": installations_by_action,
+        "installations_by_category": installations_by_category,
+        "installations_by_uploads_evidence": installations_by_evidence_upload,
+        "installations_by_collects_dmesg": installations_by_dmesg,
+        "installations_by_starts_rshell": installations_by_rshell,
         "totals": totals,
         "action_counts": action_counts,
         "category_counts": category_counts,
+        "api_collections": {
+            "reports": api_collection_record(
+                "reports",
+                reports,
+                ["reports_by_case", "reports_by_valid", "reports_by_installed"],
+                "report_count",
+                "case",
+            ),
+            "installations": api_collection_record(
+                "installations",
+                installations_flat,
+                [
+                    "installations_by_case",
+                    "installations_by_action",
+                    "installations_by_category",
+                    "installations_by_uploads_evidence",
+                    "installations_by_collects_dmesg",
+                    "installations_by_starts_rshell",
+                ],
+                "totals.installation_count",
+                "case",
+            ),
+        },
     }
 
 
 def load_reality_test_reports(summary_path, data):
     reports = []
+    checks_flat = []
     totals = {
         "check_count": 0,
         "pass": 0,
@@ -357,6 +443,10 @@ def load_reality_test_reports(summary_path, data):
                 failed_checks.append({"case": case.get("case", ""), "name": name, "type": check_type})
             if status == "skipped" and check_type == "operator":
                 skipped_operator_checks.append({"case": case.get("case", ""), "name": name})
+            flat = dict(check)
+            flat["case"] = case.get("case", "")
+            flat["report_path"] = str(path)
+            checks_flat.append(flat)
         reports.append({
             "case": case.get("case", ""),
             "path": str(path),
@@ -366,17 +456,60 @@ def load_reality_test_reports(summary_path, data):
         })
     if not reports:
         return {}
+    reports_by_case = index_records(reports, "case")
+    reports_by_valid = index_records(reports, "valid", boolean=True)
+    checks_by_case = index_records(checks_flat, "case")
+    checks_by_name = index_records(checks_flat, "name")
+    checks_by_status = index_records(checks_flat, "status")
+    checks_by_type = index_records(checks_flat, "type")
+    checks_by_skipped = index_records(checks_flat, "skipped", boolean=True)
+    checks_by_available = index_optional_bool_records(checks_flat, "available")
+    checks_by_detected = index_optional_bool_records(checks_flat, "detected")
     return {
         "reports": reports,
+        "reports_by_case": reports_by_case,
+        "reports_by_valid": reports_by_valid,
         "report_count": len(reports),
         "valid_count": sum(1 for item in reports if item.get("valid")),
         "invalid_count": sum(1 for item in reports if not item.get("valid")),
+        "checks": checks_flat,
+        "checks_by_case": checks_by_case,
+        "checks_by_name": checks_by_name,
+        "checks_by_status": checks_by_status,
+        "checks_by_type": checks_by_type,
+        "checks_by_skipped": checks_by_skipped,
+        "checks_by_available": checks_by_available,
+        "checks_by_detected": checks_by_detected,
         "totals": totals,
         "status_counts": status_counts,
         "type_counts": type_counts,
         "detected_constraints": detected_constraints,
         "failed_checks": failed_checks,
         "skipped_operator_checks": skipped_operator_checks,
+        "api_collections": {
+            "reports": api_collection_record(
+                "reports",
+                reports,
+                ["reports_by_case", "reports_by_valid"],
+                "report_count",
+                "case",
+            ),
+            "checks": api_collection_record(
+                "checks",
+                checks_flat,
+                [
+                    "checks_by_case",
+                    "checks_by_name",
+                    "checks_by_status",
+                    "checks_by_type",
+                    "checks_by_skipped",
+                    "checks_by_available",
+                    "checks_by_detected",
+                ],
+                "totals.check_count",
+                "name",
+            ),
+        },
     }
 
 
