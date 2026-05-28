@@ -3433,6 +3433,9 @@ def command_queue_summary(cfg):
     commands_by_delivery_policy_enabled = {}
     commands_by_delivery_policy_valid = {}
     commands_by_delivery_policy_execution_mode = {}
+    commands_by_delivery_policy_delivery_supported = {}
+    commands_by_delivery_policy_result_upload_supported = {}
+    commands_by_delivery_policy_active_control_channel = {}
     status_counts = {}
     execution_decision_counts = {}
     result_status_counts = {}
@@ -3492,6 +3495,9 @@ def command_queue_summary(cfg):
     commands_by_delivery_policy_enabled = records_by_nested_key(commands, "delivery_policy_snapshot", "enabled")
     commands_by_delivery_policy_valid = records_by_nested_key(commands, "delivery_policy_snapshot", "valid")
     commands_by_delivery_policy_execution_mode = records_by_nested_key(commands, "delivery_policy_snapshot", "execution_mode")
+    commands_by_delivery_policy_delivery_supported = records_by_nested_key(commands, "delivery_policy_snapshot", "delivery_supported")
+    commands_by_delivery_policy_result_upload_supported = records_by_nested_key(commands, "delivery_policy_snapshot", "result_upload_supported")
+    commands_by_delivery_policy_active_control_channel = records_by_nested_key(commands, "delivery_policy_snapshot", "active_control_channel")
     result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
     result_exceeded_count = len([
         rec for rec in commands
@@ -3585,6 +3591,9 @@ def command_queue_summary(cfg):
         "commands_by_delivery_policy_enabled": commands_by_delivery_policy_enabled,
         "commands_by_delivery_policy_valid": commands_by_delivery_policy_valid,
         "commands_by_delivery_policy_execution_mode": commands_by_delivery_policy_execution_mode,
+        "commands_by_delivery_policy_delivery_supported": commands_by_delivery_policy_delivery_supported,
+        "commands_by_delivery_policy_result_upload_supported": commands_by_delivery_policy_result_upload_supported,
+        "commands_by_delivery_policy_active_control_channel": commands_by_delivery_policy_active_control_channel,
         "status_counts": status_counts,
         "timeout_sec_counts": record_count_by_key(commands, "timeout_sec"),
         "max_output_bytes_counts": record_count_by_key(commands, "max_output_bytes"),
@@ -3599,6 +3608,9 @@ def command_queue_summary(cfg):
         "delivery_policy_enabled_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "enabled"),
         "delivery_policy_valid_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "valid"),
         "delivery_policy_execution_mode_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "execution_mode"),
+        "delivery_policy_delivery_supported_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "delivery_supported"),
+        "delivery_policy_result_upload_supported_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "result_upload_supported"),
+        "delivery_policy_active_control_channel_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "active_control_channel"),
         "latest_created_at": latest_created_at,
         "latest_result_received_at": latest_result_received_at,
         "queued_count": len(queued),
@@ -7177,6 +7189,9 @@ def status_document(cfg):
         "command_queue_delivery_policy_enabled_counts": command_queue.get("delivery_policy_enabled_counts") or {},
         "command_queue_delivery_policy_valid_counts": command_queue.get("delivery_policy_valid_counts") or {},
         "command_queue_delivery_policy_execution_mode_counts": command_queue.get("delivery_policy_execution_mode_counts") or {},
+        "command_queue_delivery_policy_delivery_supported_counts": command_queue.get("delivery_policy_delivery_supported_counts") or {},
+        "command_queue_delivery_policy_result_upload_supported_counts": command_queue.get("delivery_policy_result_upload_supported_counts") or {},
+        "command_queue_delivery_policy_active_control_channel_counts": command_queue.get("delivery_policy_active_control_channel_counts") or {},
         "command_queue_latest_created_at": command_queue.get("latest_created_at", ""),
         "command_queue_latest_result_received_at": command_queue.get("latest_result_received_at", ""),
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
@@ -7451,6 +7466,9 @@ def status_document(cfg):
                 "commands_by_queue_policy_execution_mode", "commands_by_queue_policy_allowed_commands",
                 "commands_by_delivery_policy_enabled", "commands_by_delivery_policy_valid",
                 "commands_by_delivery_policy_execution_mode",
+                "commands_by_delivery_policy_delivery_supported",
+                "commands_by_delivery_policy_result_upload_supported",
+                "commands_by_delivery_policy_active_control_channel",
             ), "command_queue_total_count",
         ),
         "command_queue_modes": api_collection_record(
@@ -7704,6 +7722,9 @@ def status_document(cfg):
         "commands_by_delivery_policy_enabled": command_queue.get("commands_by_delivery_policy_enabled") or {},
         "commands_by_delivery_policy_valid": command_queue.get("commands_by_delivery_policy_valid") or {},
         "commands_by_delivery_policy_execution_mode": command_queue.get("commands_by_delivery_policy_execution_mode") or {},
+        "commands_by_delivery_policy_delivery_supported": command_queue.get("commands_by_delivery_policy_delivery_supported") or {},
+        "commands_by_delivery_policy_result_upload_supported": command_queue.get("commands_by_delivery_policy_result_upload_supported") or {},
+        "commands_by_delivery_policy_active_control_channel": command_queue.get("commands_by_delivery_policy_active_control_channel") or {},
         "command_queue_mode_records": command_queue.get("mode_records") or [],
         "command_queue_modes_by_mode": command_queue.get("command_queue_modes_by_mode") or {},
         "command_queue_modes_by_lifecycle": command_queue.get("command_queue_modes_by_lifecycle") or {},
