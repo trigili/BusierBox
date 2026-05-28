@@ -620,6 +620,9 @@ if reality_path and os.path.exists(reality_path):
                 "checks_by_name": reality_doc.get("checks_by_name") if isinstance(reality_doc.get("checks_by_name"), dict) else {},
                 "checks_by_status": reality_doc.get("checks_by_status") if isinstance(reality_doc.get("checks_by_status"), dict) else {},
                 "checks_by_type": reality_doc.get("checks_by_type") if isinstance(reality_doc.get("checks_by_type"), dict) else {},
+                "checks_by_skipped": reality_doc.get("checks_by_skipped") if isinstance(reality_doc.get("checks_by_skipped"), dict) else {},
+                "checks_by_available": reality_doc.get("checks_by_available") if isinstance(reality_doc.get("checks_by_available"), dict) else {},
+                "checks_by_detected": reality_doc.get("checks_by_detected") if isinstance(reality_doc.get("checks_by_detected"), dict) else {},
                 "api_collections": api_obj,
             }
     except Exception as exc:
