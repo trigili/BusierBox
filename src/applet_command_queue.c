@@ -29,6 +29,8 @@ struct poll_run_result {
     int failures;
     int delivered_commands;
     int rejected_commands;
+    int result_uploads;
+    int result_upload_failures;
     int last_delay_sec;
     int stopped_by_limit;
     int stopped_by_signal;
@@ -407,7 +409,7 @@ static void append_poll_event(const char *path, const char *event, const char *m
     bb_json_string(fh, mode);
     fputs(",\"endpoint\":", fh);
     bb_json_string(fh, endpoint ? endpoint : "");
-    fprintf(fh, ",\"attempt\":%d,\"executes_commands\":false,\"delivery_supported\":%s,\"result_upload_supported\":false",
+    fprintf(fh, ",\"attempt\":%d,\"executes_commands\":false,\"delivery_supported\":%s,\"result_upload_supported\":true",
             attempt, status && !strcmp(status, "delivered") ? "true" : "false");
     fputs(",\"status\":", fh);
     bb_json_string(fh, status ? status : "");
@@ -513,6 +515,84 @@ static int connect_operator_once(const char *host, const char *port, char *err, 
     return -1;
 }
 
+static int post_rejected_result_once(const char *host, const char *port,
+                                     const char *command_id, char *err, size_t errsz)
+{
+    struct addrinfo hints, *res = NULL, *rp;
+    int rc, fd = -1;
+    char body[512];
+    char request[1024];
+    char response[512];
+    ssize_t n;
+
+    if (errsz)
+        err[0] = '\0';
+    if (!command_id || !command_id[0]) {
+        snprintf(err, errsz, "missing command id for result upload");
+        return -1;
+    }
+    if (strcmp(BB_COMMAND_QUEUE_TLS, "no")) {
+        snprintf(err, errsz, "live command queue result upload requires BB_COMMAND_QUEUE_TLS=no in this build");
+        return -1;
+    }
+    snprintf(body, sizeof(body),
+             "{\"schema\":1,\"command_id\":\"%s\",\"status\":\"rejected\","
+             "\"exit_code\":null,\"stdout_bytes\":0,\"stderr_bytes\":0,"
+             "\"execution_supported\":false,\"executes_commands\":false,"
+             "\"reason\":\"target command execution is not implemented\"}\n",
+             command_id);
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_UNSPEC;
+    rc = getaddrinfo(host, port, &hints, &res);
+    if (rc != 0) {
+        snprintf(err, errsz, "resolve failed: %s", gai_strerror(rc));
+        return -1;
+    }
+    for (rp = res; rp; rp = rp->ai_next) {
+        fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (fd < 0)
+            continue;
+        if (connect(fd, rp->ai_addr, rp->ai_addrlen) == 0) {
+            snprintf(request, sizeof(request),
+                     "POST /command-queue/result HTTP/1.1\r\n"
+                     "Host: %s:%s\r\n"
+                     "User-Agent: busierbox-command-queue\r\n"
+                     "Content-Type: application/json\r\n"
+                     "Content-Length: %lu\r\n"
+                     "Connection: close\r\n\r\n%s",
+                     host, port, (unsigned long)strlen(body), body);
+            if (send(fd, request, strlen(request), 0) < 0) {
+                snprintf(err, errsz, "result upload failed: %s", strerror(errno));
+                close(fd);
+                freeaddrinfo(res);
+                return -1;
+            }
+            n = recv(fd, response, sizeof(response) - 1, 0);
+            if (n < 0) {
+                snprintf(err, errsz, "result upload response failed: %s", strerror(errno));
+                close(fd);
+                freeaddrinfo(res);
+                return -1;
+            }
+            response[n] = '\0';
+            close(fd);
+            freeaddrinfo(res);
+            if (!strncmp(response, "HTTP/1.1 200", 12) || !strncmp(response, "HTTP/1.0 200", 12))
+                return 0;
+            snprintf(err, errsz, "unexpected result upload response");
+            return -1;
+        }
+        snprintf(err, errsz, "connect failed: %s", strerror(errno));
+        close(fd);
+        fd = -1;
+    }
+    freeaddrinfo(res);
+    if (errsz && !err[0])
+        snprintf(err, errsz, "connect failed");
+    return -1;
+}
+
 static struct poll_run_result run_live_poll(const char *mode, const char *operator_host,
                                             int interval_sec, int jitter_pct,
                                             const char *backoff,
@@ -551,6 +631,7 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
         append_poll_event(event_log, "command_queue_poll_attempt", mode, endpoint, result.attempts, "attempt", "");
         int poll_rc = connect_operator_once(operator_host, BB_COMMAND_QUEUE_PORT, error, sizeof(error));
         if (poll_rc == 0) {
+            char upload_error[160] = "";
             result.successes++;
             result.delivered_commands++;
             result.rejected_commands++;
@@ -559,6 +640,15 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
             result.last_error[0] = '\0';
             append_poll_event(event_log, "command_queue_poll_complete", mode, endpoint, result.attempts, "delivered", "");
             append_poll_event(event_log, "command_queue_execution_decision", mode, endpoint, result.attempts, "rejected", "target command execution is not implemented");
+            if (post_rejected_result_once(operator_host, BB_COMMAND_QUEUE_PORT,
+                                          result.last_command_id, upload_error, sizeof(upload_error)) == 0) {
+                result.result_uploads++;
+                append_poll_event(event_log, "command_queue_result_upload", mode, endpoint, result.attempts, "result-uploaded", "");
+            } else {
+                result.result_upload_failures++;
+                snprintf(result.last_error, sizeof(result.last_error), "%s", upload_error);
+                append_poll_event(event_log, "command_queue_result_upload_error", mode, endpoint, result.attempts, "error", upload_error);
+            }
         } else if (poll_rc == 1) {
             result.successes++;
             snprintf(result.last_status, sizeof(result.last_status), "no-command");
@@ -665,7 +755,7 @@ static void print_mode_semantics_json(const char *name, int selected, int dry_ru
     fputs(",\"requires_explicit_target_action\":true", stdout);
     printf(",\"would_contact_operator\":%s", live_available ? "true" : "false");
     printf(",\"delivery_supported\":%s", live_available ? "true" : "false");
-    fputs(",\"result_upload_supported\":false", stdout);
+    printf(",\"result_upload_supported\":%s", live_available ? "true" : "false");
     fputs(",\"execution_supported\":false", stdout);
     fputs(",\"executes_commands\":false", stdout);
     printf(",\"active_control_channel\":%s", live_selected ? "true" : "false");
@@ -701,7 +791,7 @@ static void print_mode_summary_json(const char *mode, int dry_run, int live_woul
     fputs(",\"polling_mode_count\":3", stdout);
     fputs(",\"operator_host_required_mode_count\":3", stdout);
     printf(",\"delivery_supported_mode_count\":%d", live_delivery_modes);
-    fputs(",\"result_upload_supported_mode_count\":0", stdout);
+    printf(",\"result_upload_supported_mode_count\":%d", live_delivery_modes);
     fputs(",\"execution_supported_mode_count\":0", stdout);
     printf(",\"active_control_channel_mode_count\":%d", active_control_modes);
     fputs(",\"operator_supplied_command_execution_mode_count\":0", stdout);
@@ -717,6 +807,8 @@ static void print_poll_run_json(const struct poll_run_result *run)
     printf(",\"failures\":%d", run ? run->failures : 0);
     printf(",\"delivered_commands\":%d", run ? run->delivered_commands : 0);
     printf(",\"rejected_commands\":%d", run ? run->rejected_commands : 0);
+    printf(",\"result_uploads\":%d", run ? run->result_uploads : 0);
+    printf(",\"result_upload_failures\":%d", run ? run->result_upload_failures : 0);
     printf(",\"last_delay_sec\":%d", run ? run->last_delay_sec : 0);
     printf(",\"stopped_by_limit\":%s", run && run->stopped_by_limit ? "true" : "false");
     printf(",\"stopped_by_signal\":%s", run && run->stopped_by_signal ? "true" : "false");
@@ -728,7 +820,7 @@ static void print_poll_run_json(const struct poll_run_result *run)
     bb_json_string(stdout, run ? run->last_command_id : "");
     printf(",\"queued_command_available\":%s", run && run->delivered_commands > 0 ? "true" : "false");
     printf(",\"delivery_supported\":%s", run && run->delivered_commands > 0 ? "true" : "false");
-    fputs(",\"result_upload_supported\":false,\"execution_supported\":false,\"executes_commands\":false,\"execution_decision\":\"rejected\"}", stdout);
+    fputs(",\"result_upload_supported\":true,\"execution_supported\":false,\"executes_commands\":false,\"execution_decision\":\"rejected\"}", stdout);
 }
 
 static void print_daemon_state_json(const char *state_file, const struct daemon_state *state)
@@ -813,7 +905,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     fputs(",\"executes_commands\":false", stdout);
     printf(",\"delivery_supported\":%s", (!dry_run && would_poll) ? "true" : "false");
     printf(",\"poll_transport_supported\":%s", dry_run ? "false" : "true");
-    fputs(",\"result_upload_supported\":false", stdout);
+    printf(",\"result_upload_supported\":%s", (!dry_run && would_poll) ? "true" : "false");
     printf(",\"active_control_channel\":%s", (!dry_run && would_poll) ? "true" : "false");
     printf(",\"arbitrary_policy_requested\":%s", arbitrary_requested ? "true" : "false");
     fputs(",\"arbitrary_execution_allowed\":false", stdout);
@@ -849,7 +941,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     fputs(",\"execution_supported\":false", stdout);
     fputs(",\"executes_commands\":false", stdout);
     printf(",\"delivery_supported\":%s", (!dry_run && would_poll) ? "true" : "false");
-    fputs(",\"result_upload_supported\":false", stdout);
+    printf(",\"result_upload_supported\":%s", (!dry_run && would_poll) ? "true" : "false");
     printf(",\"poll_transport_supported\":%s", dry_run ? "false" : "true");
     printf(",\"active_control_channel\":%s", (!dry_run && would_poll) ? "true" : "false");
     printf(",\"poll_interval_sec\":%d", interval_sec);
@@ -885,7 +977,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
         bb_json_string(stdout, "");
     }
     printf(",\"delivery_supported\":%s", (!dry_run && would_poll) ? "true" : "false");
-    fputs(",\"result_upload_supported\":false", stdout);
+    printf(",\"result_upload_supported\":%s", (!dry_run && would_poll) ? "true" : "false");
     fputs(",\"execution_supported\":false", stdout);
     fputs(",\"executes_commands\":false", stdout);
     printf(",\"active_control_channel\":%s", (!dry_run && would_poll) ? "true" : "false");
@@ -940,7 +1032,7 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     puts("command_queue_execution_supported=no");
     puts("command_queue_executes_commands=no");
     printf("command_queue_delivery_supported=%s\n", (!dry_run && mode_would_poll(mode, enabled, operator_host, &policy)) ? "yes" : "no");
-    puts("command_queue_result_upload_supported=no");
+    printf("command_queue_result_upload_supported=%s\n", (!dry_run && mode_would_poll(mode, enabled, operator_host, &policy)) ? "yes" : "no");
     printf("command_queue_poll_transport_supported=%s\n", dry_run ? "no" : "yes");
     printf("command_queue_active_control_channel=%s\n", (!dry_run && mode_would_poll(mode, enabled, operator_host, &policy)) ? "yes" : "no");
     printf("command_queue_poll_interval_sec=%d\n", interval_sec);
@@ -975,6 +1067,8 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_poll_run_failures=%d\n", run ? run->failures : 0);
     printf("command_queue_poll_run_delivered_commands=%d\n", run ? run->delivered_commands : 0);
     printf("command_queue_poll_run_rejected_commands=%d\n", run ? run->rejected_commands : 0);
+    printf("command_queue_poll_run_result_uploads=%d\n", run ? run->result_uploads : 0);
+    printf("command_queue_poll_run_result_upload_failures=%d\n", run ? run->result_upload_failures : 0);
     printf("command_queue_poll_run_last_delay_sec=%d\n", run ? run->last_delay_sec : 0);
     printf("command_queue_poll_run_stopped_by_limit=%s\n", run && run->stopped_by_limit ? "yes" : "no");
     printf("command_queue_poll_run_stopped_by_signal=%s\n", run && run->stopped_by_signal ? "yes" : "no");

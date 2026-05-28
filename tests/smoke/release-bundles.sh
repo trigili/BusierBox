@@ -6,6 +6,8 @@ mkdir -p "$tmp_root"
 work=$(mktemp -d "$tmp_root/release-bundles.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
+export BB_RSHELL_SESSION_POLICY=single
+
 scripts/make-release --name smoke --targets native --payload-presets default --dry-run >"$work/dry-run.out"
 grep -q 'would build target=native payload=default format=tgz' "$work/dry-run.out"
 grep -q '^layout=symlink$' "$work/dry-run.out"
@@ -280,7 +282,7 @@ if (queue.get("enabled") != "no" or
         queue.get("poll_transport_supported") is not True or
         queue.get("live_polling_supported") is not True or
         queue.get("delivery_supported") is not False or
-        queue.get("result_upload_supported") is not False or
+        queue.get("result_upload_supported") is not True or
         queue.get("executes_commands") is not False):
     raise SystemExit(f"tuple summary command queue policy unsafe/missing: {queue!r}")
 noresidue = summary.get("noresidue_policy") or {}
@@ -363,7 +365,7 @@ if (queue.get("enabled") != "no" or
         queue.get("poll_transport_supported") is not True or
         queue.get("live_polling_supported") is not True or
         queue.get("delivery_supported") is not False or
-        queue.get("result_upload_supported") is not False or
+        queue.get("result_upload_supported") is not True or
         queue.get("executes_commands") is not False):
     raise SystemExit(f"tuple manifest command queue policy unsafe/missing: {queue!r}")
 noresidue = summary.get("noresidue_policy") or {}

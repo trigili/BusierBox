@@ -115,11 +115,13 @@ Safety boundary:
   execute queued commands.
 - Target-side `poll`, `once`, and `daemon` expose `would_poll`,
   live-mode `poll_transport_supported`, `delivery_supported`,
-  `result_upload_supported=false`, `execution_supported=false`, and a
+  `result_upload_supported`, `execution_supported=false`, and a
   `policy_summary` so frontend and integration tooling can distinguish
   policy/planning from explicit live polling. Live `delivery_supported=true`
   means the target can receive queued metadata; it does not imply command
-  execution. Disabled or invalid policy keeps `would_contact_operator=false`
+  execution. Live `result_upload_supported=true` means the target can upload
+  structured rejection/result metadata to the operator endpoint; it still does
+  not imply command execution. Disabled or invalid policy keeps `would_contact_operator=false`
   and `active_control_channel=false` even when a user passes `--live`. They
   also expose a compact `poll_plan` object with mode, status, endpoint,
   explicit-target-action, dry-run-only, would-contact-operator, queued-command

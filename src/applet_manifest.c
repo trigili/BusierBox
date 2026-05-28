@@ -391,7 +391,7 @@ static void write_manifest_json(FILE *out, int include_missing)
             fputc(',', out);
         json_string_payload(out, command_queue_policy.errors[i]);
     }
-    fprintf(out, "],\"arbitrary_policy_requested\":%s,\"arbitrary_execution_allowed\":false,\"target_polling\":true,\"poll_transport_supported\":true,\"live_polling_supported\":true,\"delivery_supported\":false,\"result_upload_supported\":false,\"executes_commands\":false,\"default_enabled\":false}",
+    fprintf(out, "],\"arbitrary_policy_requested\":%s,\"arbitrary_execution_allowed\":false,\"target_polling\":true,\"poll_transport_supported\":true,\"live_polling_supported\":true,\"delivery_supported\":false,\"result_upload_supported\":true,\"executes_commands\":false,\"default_enabled\":false}",
             command_queue_arbitrary_requested ? "true" : "false");
     fprintf(out, "},\"dotfiles\":{\"enabled\":");
     json_string_payload(out, BB_DOTFILES_ENABLE);

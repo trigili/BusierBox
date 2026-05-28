@@ -279,7 +279,7 @@ static void plan_print_command_queue(int json)
             bb_json_string(stdout, endpoint);
         }
         fputs("],\"requires_external_writes\":false", stdout);
-        printf(",\"enabled\":%s,\"policy_valid\":%s,\"configured_for_polling\":%s,\"missing_operator_host\":%s,\"execution_supported\":false",
+        printf(",\"enabled\":%s,\"policy_valid\":%s,\"configured_for_polling\":%s,\"missing_operator_host\":%s,\"execution_supported\":false,\"result_upload_supported\":true",
                enabled ? "true" : "false", valid ? "true" : "false",
                configured ? "true" : "false",
                (valid && enabled && !BB_OPERATOR_SERVER_HOST[0]) ? "true" : "false");
@@ -332,6 +332,7 @@ static void plan_print_command_queue(int json)
     puts("daemon_status_supported=yes");
     puts("daemon_stop_supported=yes");
     puts("execution_supported=no");
+    puts("result_upload_supported=yes");
     puts("safety_boundary=explicit opt-in target polling; queued command execution is not implemented");
     puts("requires_external_writes=no");
 }

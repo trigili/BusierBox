@@ -225,7 +225,7 @@ if command_queue.get("arbitrary_policy_requested") is not False or command_queue
 if (command_queue.get("poll_transport_supported") is not True or
         command_queue.get("live_polling_supported") is not True or
         command_queue.get("delivery_supported") is not False or
-        command_queue.get("result_upload_supported") is not False):
+        command_queue.get("result_upload_supported") is not True):
     raise SystemExit("manifest-metadata: command queue live-poll safety metadata missing")
 if command_queue.get("executes_commands") is not False or command_queue.get("default_enabled") is not False:
     raise SystemExit("manifest-metadata: command queue safety metadata missing")
