@@ -2099,6 +2099,8 @@ def command_queue_summary(cfg):
     max_polls = str(cfg.get("command_queue_max_polls", "0"))
     policy_errors = command_queue_policy_errors(cfg)
     policy_valid = not policy_errors
+    token_required = str(cfg.get("command_queue_require_token", "yes")) == "yes"
+    token_configured = bool(str(cfg.get("command_queue_token", "")))
     arbitrary_policy_requested = policy_valid and enabled == "yes" and allowed_commands == "custom" and allow_arbitrary == "yes"
     configured_for_polling = policy_valid and enabled == "yes"
     mode_semantics = command_queue_mode_semantics()
@@ -2119,6 +2121,8 @@ def command_queue_summary(cfg):
         "poll_transport_supported": True,
         "live_polling_supported": True,
         "active_control_channel": False,
+        "token_required": token_required,
+        "token_configured": token_configured,
         "poll_interval_sec": poll_interval_sec,
         "poll_jitter_pct": poll_jitter_pct,
         "poll_backoff": poll_backoff,
@@ -2136,7 +2140,7 @@ def command_queue_summary(cfg):
         "tls": str(cfg.get("command_queue_tls", "yes")),
         "require_token": str(cfg.get("command_queue_require_token", "yes")),
         "token_source": str(cfg.get("command_queue_token_source", "manual")),
-        "token_configured": bool(str(cfg.get("command_queue_token", ""))),
+        "token_configured": token_configured,
         "allowed_commands": allowed_commands,
         "allow_arbitrary": allow_arbitrary,
         "poll_interval_sec": poll_interval_sec,
@@ -5399,6 +5403,8 @@ def status_document(cfg):
         "command_queue_enabled": bool(command_queue_policy_summary.get("enabled", False)),
         "command_queue_configured_for_polling": bool(command_queue_policy_summary.get("configured_for_polling", False)),
         "command_queue_active_control_channel": bool(command_queue_policy_summary.get("active_control_channel", False)),
+        "command_queue_token_required": bool(command_queue_policy_summary.get("token_required", False)),
+        "command_queue_token_configured": bool(command_queue_policy_summary.get("token_configured", False)),
         "command_queue_execution_supported": bool(command_queue_policy_summary.get("execution_supported", False)),
         "command_queue_delivery_supported": bool(command_queue_policy_summary.get("delivery_supported", False)),
         "command_queue_result_upload_supported": bool(command_queue_policy_summary.get("result_upload_supported", False)),
@@ -6075,7 +6081,7 @@ def print_status(cfg, json_output=False):
     print("Command queue:")
     queue = doc["command_queue"]
     print(f"  path: {queue.get('path', '')}")
-    print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')}")
+    print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')} token_configured={'yes' if queue.get('token_configured') else 'no'} token_source={queue.get('token_source', '')}")
     print(f"  allowed_commands={queue.get('allowed_commands', '')} allow_arbitrary={queue.get('allow_arbitrary', '')} active_control_channel=no")
     print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'} arbitrary_policy_requested={'yes' if queue.get('arbitrary_policy_requested') else 'no'} arbitrary_execution_allowed=no")
     print(f"  polling: interval={queue.get('poll_interval_sec', '')} jitter_pct={queue.get('poll_jitter_pct', '')} backoff={queue.get('poll_backoff', '')} max_interval={queue.get('poll_max_interval_sec', '')} max_polls={queue.get('max_polls', '')}")
@@ -6332,7 +6338,7 @@ def print_workbench(cfg):
     print("Command queue:")
     queue = snap["command_queue"]
     print(f"  path: {queue.get('path', '')}")
-    print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')}")
+    print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')} token_configured={'yes' if queue.get('token_configured') else 'no'} token_source={queue.get('token_source', '')}")
     print(f"  allowed_commands={queue.get('allowed_commands', '')} allow_arbitrary={queue.get('allow_arbitrary', '')} active_control_channel=no")
     print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'} arbitrary_policy_requested={'yes' if queue.get('arbitrary_policy_requested') else 'no'} arbitrary_execution_allowed=no")
     for error in queue.get("policy_errors") or []:

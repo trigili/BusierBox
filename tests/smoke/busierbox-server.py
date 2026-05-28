@@ -1080,6 +1080,8 @@ def main():
                 queue_status_json["summary"].get("command_queue_enabled") is not False or
                 queue_status_json["summary"].get("command_queue_configured_for_polling") is not False or
                 queue_status_json["summary"].get("command_queue_active_control_channel") is not False or
+                queue_status_json["summary"].get("command_queue_token_required") is not True or
+                queue_status_json["summary"].get("command_queue_token_configured") is not False or
                 queue_status_json["summary"].get("command_queue_execution_supported") is not False or
                 queue_status_json["summary"].get("command_queue_delivery_supported") is not False or
                 queue_status_json["summary"].get("command_queue_result_upload_supported") is not True or
@@ -1251,6 +1253,7 @@ def main():
                 "Path health:" not in queue_status_text.stdout or
                 "state_file: exists=" not in queue_status_text.stdout or
                 "enabled=no default_enabled=no" not in queue_status_text.stdout or
+                "require_token=yes token_configured=no token_source=manual" not in queue_status_text.stdout or
                 "allowed_commands=none allow_arbitrary=no active_control_channel=no" not in queue_status_text.stdout or
                 "policy_valid=yes configured_for_polling=no arbitrary_policy_requested=no arbitrary_execution_allowed=no" not in queue_status_text.stdout or
                 "busierbox reality-test --json" not in queue_status_text.stdout or
