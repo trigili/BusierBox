@@ -1979,7 +1979,7 @@ def main():
                     "id": f"evt-trunc-{idx}",
                     "ts": f"2026-05-26T12:00:{idx:02d}Z",
                     "service": "smoke",
-                    "session": "",
+                    "session": "sess-trunc",
                     "session_path": "",
                     "event": "truncated_tail_probe",
                     "level": "info",
@@ -2004,16 +2004,20 @@ def main():
                 truncated_stats.get("tail_count") != 12 or
                 truncated_stats.get("tail_truncated") is not True or
                 truncated_stats.get("tail_omitted_count") != 3 or
+                truncated_stats.get("by_session_level", {}).get("sess-trunc:info") != 15 or
                 truncated_stats.get("by_remote_event", {}).get("198.51.100.7:1234:truncated_tail_probe") != 15 or
                 truncated_stats.get("by_remote_level", {}).get("198.51.100.7:1234:info") != 15 or
                 truncated_state.get("tail_truncated") is not True or
                 truncated_state.get("tail_omitted_count") != 3 or
                 truncated_event_doc.get("summary", {}).get("event_tail_truncated") is not True or
                 truncated_event_doc.get("summary", {}).get("event_tail_omitted_count") != 3 or
+                truncated_event_doc.get("summary", {}).get("event_session_level_counts", {}).get("sess-trunc:info") != 15 or
                 truncated_event_doc.get("summary", {}).get("event_remote_event_counts", {}).get("198.51.100.7:1234:truncated_tail_probe") != 15 or
                 truncated_event_doc.get("summary", {}).get("event_remote_level_counts", {}).get("198.51.100.7:1234:info") != 15 or
+                truncated_event_doc.get("events_by_session_level", {}).get("sess-trunc:info", [{}])[0].get("id") != "evt-trunc-3" or
                 truncated_event_doc.get("events_by_remote_event", {}).get("198.51.100.7:1234:truncated_tail_probe", [{}])[0].get("id") != "evt-trunc-3" or
                 truncated_event_doc.get("events_by_remote_level", {}).get("198.51.100.7:1234:info", [{}])[0].get("id") != "evt-trunc-3" or
+                "events_by_session_level" not in (((truncated_event_doc.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
                 (truncated_event_doc.get("events") or [{}])[0].get("id") != "evt-trunc-3"):
             print("server json status missing explicit truncated event tail metadata", file=sys.stderr)
             print(truncated_event_status.stdout, file=sys.stderr)

@@ -767,8 +767,8 @@ metadata separately. The `events` array is a bounded recent tail;
 `events_by_session`, `events_by_service`, `events_by_event`, `events_by_level`, and
 `events_by_remote` group those tail records for direct frontend lookups.
 Composite maps `events_by_service_event`, `events_by_session_event`,
-`events_by_service_level`, `events_by_event_level`, `events_by_remote_event`,
-`events_by_remote_level`, `events_by_detail_status`,
+`events_by_service_level`, `events_by_event_level`, `events_by_session_level`,
+`events_by_remote_event`, `events_by_remote_level`, `events_by_detail_status`,
 `events_by_detail_operation`, `events_by_detail_http_status`,
 `events_by_detail_reason`, `events_by_detail_command_id`,
 `events_by_event_detail_status`, `events_by_service_detail_status`,
@@ -790,7 +790,8 @@ response. `event_log_stats` reports the event log path, total valid event count,
 tail count, invalid JSONL line count, tail limit, truncation state, omitted
 count, first/latest event timestamps, and
 aggregate counters by service, event, level, remote endpoint, service/event,
-session/event, remote/event, remote/level, detail status, detail operation,
+session/event, service/level, event/level, session/level, remote/event,
+remote/level, detail status, detail operation,
 detail HTTP status, detail reason, detail command id, event/status,
 service/status, event/reason, service/reason, event/command id, and
 service/command id so API consumers can tell whether there is more history to
@@ -798,7 +799,9 @@ page or inspect from disk while still rendering compact diagnostics.
 Those aggregate maps are also mirrored into `summary` as
 `event_service_counts`, `event_type_counts`, `event_level_counts`, and
 `event_remote_counts`, plus `event_service_event_counts` and
-`event_session_event_counts`, `event_detail_status_counts`,
+`event_session_event_counts`, `event_service_level_counts`,
+`event_type_level_counts`, `event_session_level_counts`,
+`event_detail_status_counts`,
 `event_detail_operation_counts`, `event_detail_http_status_counts`,
 `event_detail_reason_counts`, `event_detail_command_id_counts`,
 `event_type_detail_status_counts`, `event_service_detail_status_counts`,
