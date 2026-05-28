@@ -3780,6 +3780,8 @@ def main():
         release_recommendation_records = rel.get("recommendation_records") or []
         release_recommendations_by_scope = rel.get("recommendations_by_scope") or {}
         release_recommendations_by_artifact = rel.get("recommendations_by_artifact") or {}
+        release_recommendations_by_payload = rel.get("recommendations_by_payload_preset") or {}
+        release_recommendations_by_compat = rel.get("recommendations_by_compatibility") or {}
         release_artifact_size = len("artifact\n")
         release_layout_artifact = "by-tuple/native/host/host/host/bin/busierbox-test"
         doom_wad_sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -3823,7 +3825,9 @@ def main():
                 release_recommendations.get("by_feature", {}).get("reverse-ssh", {}).get("name") != "busierbox-test" or
                 not release_recommendation_records or
                 release_recommendations_by_scope.get("by_device", [{}])[0].get("key") != "lab-router" or
-                release_recommendations_by_artifact.get("bin/busierbox-test", [{}])[0].get("artifact_name") != "busierbox-test"):
+                release_recommendations_by_artifact.get("bin/busierbox-test", [{}])[0].get("artifact_name") != "busierbox-test" or
+                release_recommendations_by_payload.get("default", [{}])[0].get("artifact_name") != "busierbox-test" or
+                release_recommendations_by_compat.get("exact", [{}])[0].get("payload_preset") != "default"):
             print("json status missing release browser lookup maps", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
@@ -3899,14 +3903,18 @@ def main():
                 release_summary.get("release_artifact_doom_wad_sha256_counts", {}).get(doom_wad_sha) != 1 or
                 release_summary.get("release_artifact_doom_wad_count") != 1 or
                 release_summary.get("release_recommendation_count", 0) < 1 or
-                release_summary.get("release_recommendation_scope_counts", {}).get("by_device") != 1):
+                release_summary.get("release_recommendation_scope_counts", {}).get("by_device") != 1 or
+                release_summary.get("release_recommendation_payload_preset_counts", {}).get("default", 0) < 1 or
+                release_summary.get("release_recommendation_compatibility_counts", {}).get("exact", 0) < 1):
             print("json status missing release aggregate counts", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
         release_api = release_doc.get("api_collections") or {}
         if ("devices_by_tuple_path" not in (release_api.get("release_devices", {}).get("indexes") or []) or
                 "devices_by_artifact" not in (release_api.get("release_devices", {}).get("indexes") or []) or
-                "tuples_by_artifact" not in (release_api.get("release_tuples", {}).get("indexes") or [])):
+                "tuples_by_artifact" not in (release_api.get("release_tuples", {}).get("indexes") or []) or
+                "recommendations_by_payload_preset" not in (release_api.get("release_recommendations", {}).get("indexes") or []) or
+                "recommendations_by_compatibility" not in (release_api.get("release_recommendations", {}).get("indexes") or [])):
             print("json status missing release device/tuple api collection indexes", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1

@@ -3798,6 +3798,8 @@ def release_context(cfg=None):
             "recommendations_by_id": {rec.get("id", ""): rec for rec in recommendation_records if rec.get("id")},
             "recommendations_by_scope": records_by_key(recommendation_records, "scope"),
             "recommendations_by_artifact": records_by_key(recommendation_records, "artifact"),
+            "recommendations_by_payload_preset": records_by_key(recommendation_records, "payload_preset"),
+            "recommendations_by_compatibility": records_by_nested_key(recommendation_records, "compatibility", "label"),
         }
     return {}
 
@@ -6719,6 +6721,8 @@ def status_document(cfg):
         "release_artifact_doom_wad_count": (release.get("artifact_stats") or {}).get("doom_wad_count", 0),
         "release_recommendation_count": len(release.get("recommendation_records") or []),
         "release_recommendation_scope_counts": record_count_by_key(release.get("recommendation_records") or [], "scope"),
+        "release_recommendation_payload_preset_counts": record_count_by_key(release.get("recommendation_records") or [], "payload_preset"),
+        "release_recommendation_compatibility_counts": record_count_by_nested_key(release.get("recommendation_records") or [], "compatibility", "label"),
         "workbench_action_count": workbench_action_stats.get("total_count", 0),
         "workbench_config_field_count": workbench_config_field_stats.get("total_count", 0),
         "workbench_config_field_configured_count": workbench_config_field_stats.get("configured_count", 0),
@@ -6857,6 +6861,7 @@ def status_document(cfg):
         "release_recommendations": api_collection_record(
             "release_recommendations", release.get("recommendation_records") or [], "id", (
                 "recommendations_by_id", "recommendations_by_scope", "recommendations_by_artifact",
+                "recommendations_by_payload_preset", "recommendations_by_compatibility",
             ), "release_recommendation_count",
         ),
         "release_devices": api_collection_record(
