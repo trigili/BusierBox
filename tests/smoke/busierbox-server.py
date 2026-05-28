@@ -513,11 +513,21 @@ def main():
                 quick_status.get("summary", {}).get("workbench_job_elapsed_known_count", 0) < 2 or
                 quick_status.get("summary", {}).get("workbench_job_outcome_counts", {}).get("failed", 0) < 1 or
                 quick_status.get("summary", {}).get("workbench_job_exit_status_counts", {}).get("7", 0) < 1 or
+                quick_status.get("summary", {}).get("event_detail_job_id_counts", {}).get(quick_job_id, 0) < 1 or
+                quick_status.get("summary", {}).get("event_type_detail_job_id_counts", {}).get(f"workbench_job_completed:{quick_job_id}", 0) != 1 or
+                quick_status.get("summary", {}).get("event_service_detail_job_id_counts", {}).get(f"workbench:{quick_job_id}", 0) < 1 or
                 (quick_status.get("workbench_jobs_by_duration_known") or {}).get("True", [{}])[-1].get("id") != quick_job_id or
                 (quick_status.get("workbench_jobs_by_finished_at_known") or {}).get("True", [{}])[-1].get("id") != quick_job_id or
                 (quick_status.get("workbench_jobs_by_outcome") or {}).get("failed", [{}])[-1].get("id") != quick_job_id or
                 (quick_status.get("workbench_jobs_by_exit_status") or {}).get("7", [{}])[-1].get("id") != quick_job_id or
-                (quick_status.get("event_log_stats") or {}).get("by_event", {}).get("workbench_job_completed", 0) != 1):
+                (quick_status.get("event_log_stats") or {}).get("by_event", {}).get("workbench_job_completed", 0) != 1 or
+                (quick_status.get("event_log_stats") or {}).get("by_detail_job_id", {}).get(quick_job_id, 0) < 1 or
+                (quick_status.get("events_by_detail_job_id") or {}).get(quick_job_id, [{}])[-1].get("details", {}).get("job_id") != quick_job_id or
+                (quick_status.get("events_by_event_detail_job_id") or {}).get(f"workbench_job_completed:{quick_job_id}", [{}])[-1].get("event") != "workbench_job_completed" or
+                (quick_status.get("events_by_service_detail_job_id") or {}).get(f"workbench:{quick_job_id}", [{}])[-1].get("details", {}).get("job_id") != quick_job_id or
+                "events_by_detail_job_id" not in (((quick_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
+                "events_by_event_detail_job_id" not in (((quick_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
+                "events_by_service_detail_job_id" not in (((quick_status.get("api_collections") or {}).get("events") or {}).get("indexes") or [])):
             print("completed workbench background job missing exit metadata", file=sys.stderr)
             print(json.dumps(quick_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
