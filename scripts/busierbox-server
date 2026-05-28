@@ -6403,8 +6403,17 @@ def start_service_process(cfg, service, argv_extra=None):
         proc = start_child_process(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     update_server_state(cfg, service, "starting", {"pid": proc.pid, "managed_by": os.getpid(), "process_log": str(log_path)})
     append_event(cfg, service, "service_start_requested", details={"pid": proc.pid, "process_log": str(log_path), "managed_by": os.getpid()})
+    started = cfg.setdefault("_workbench_started_services", [])
+    if service not in started:
+        started.append(service)
     print(f"started {service}: pid={proc.pid} log={log_path}")
     return proc
+
+
+def stop_workbench_started_services(cfg):
+    for service in reversed(cfg.get("_workbench_started_services") or []):
+        stop_recorded_service(cfg, service)
+    cfg["_workbench_started_services"] = []
 
 
 def stop_recorded_service(cfg, service):
@@ -6902,10 +6911,10 @@ def run_tui(cfg):
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print_workbench(cfg)
         return 0
-    if os.environ.get("TERM", "").strip().lower() in ("", "dumb"):
-        print("terminal does not support curses, using line menu", file=sys.stderr)
-        return run_line_tui(cfg)
     try:
+        if os.environ.get("TERM", "").strip().lower() in ("", "dumb"):
+            print("terminal does not support curses, using line menu", file=sys.stderr)
+            return run_line_tui(cfg)
         return run_curses_tui(cfg)
     except KeyboardInterrupt:
         request_shutdown("keyboard_interrupt")
@@ -6915,10 +6924,7 @@ def run_tui(cfg):
         print(f"curses workbench unavailable, using line menu: {exc}", file=sys.stderr)
         return run_line_tui(cfg)
     finally:
-        state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
-        for name, rec in (state.get("services") or {}).items():
-            if isinstance(rec, dict) and str(rec.get("managed_by", "")) == str(os.getpid()):
-                stop_recorded_service(cfg, name)
+        stop_workbench_started_services(cfg)
         mark_service_stopped(cfg, "workbench")
         append_event(cfg, "workbench", "shutdown", details={"reason": SHUTDOWN_REASON or "quit"})
 

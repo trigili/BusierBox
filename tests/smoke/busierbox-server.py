@@ -1537,6 +1537,98 @@ def main():
             print(stderr_rebind, file=sys.stderr)
             return 1
 
+        tui_owned_port = free_port()
+        tui_owned_cfg = Path(tmp) / "server-config-tui-owned.json"
+        tui_owned_state = Path(tmp) / "operator-session" / "tui-owned-state.json"
+        tui_owned_staged = Path(tmp) / "operator-session" / "tui-owned-staged.json"
+        tui_owned_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "file_service_port": tui_owned_port,
+            "session_root": str(Path(tmp) / "sessions-tui-owned"),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+            "file_service_tls": "no",
+            "operator_session_dir": str(Path(tmp) / "operator-session"),
+        }), encoding="utf-8")
+        tui_master, tui_slave = pty.openpty()
+        try:
+            tui_owned_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(tui_owned_cfg),
+                    "--state-file", str(tui_owned_state),
+                    "--staged-file", str(tui_owned_staged),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=tui_slave,
+                stdout=tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(tui_slave)
+            tui_slave = -1
+            time.sleep(0.3)
+            os.write(tui_master, b"4\n")
+            tui_status_doc = None
+            deadline = time.time() + 5
+            while time.time() < deadline:
+                tui_status = run(
+                    "scripts/busierbox-server", "--config", str(tui_owned_cfg),
+                    "--state-file", str(tui_owned_state),
+                    "--staged-file", str(tui_owned_staged),
+                    "--json-status",
+                )
+                if tui_status.returncode == 0:
+                    tui_status_doc = json.loads(tui_status.stdout)
+                    tui_rows = {row["name"]: row for row in tui_status_doc["services"]}
+                    if tui_rows["file-service"]["actual"] == "listening":
+                        break
+                time.sleep(0.05)
+            else:
+                print("line TUI did not start managed file-service", file=sys.stderr)
+                tui_owned_proc.terminate()
+                tui_owned_proc.communicate(timeout=2)
+                return 1
+            os.write(tui_master, b"q\n")
+            _tui_owned_stdout, tui_owned_stderr = tui_owned_proc.communicate(timeout=5)
+        finally:
+            if tui_slave != -1:
+                os.close(tui_slave)
+            try:
+                os.close(tui_master)
+            except OSError:
+                pass
+        if tui_owned_proc.returncode != 0 or "Traceback" in (tui_owned_stderr or ""):
+            print("line TUI did not quit cleanly after starting managed service", file=sys.stderr)
+            print(tui_owned_stderr or "", file=sys.stderr)
+            return 1
+        tui_after = run(
+            "scripts/busierbox-server", "--config", str(tui_owned_cfg),
+            "--state-file", str(tui_owned_state),
+            "--staged-file", str(tui_owned_staged),
+            "--json-status",
+        )
+        tui_after_doc = json.loads(tui_after.stdout)
+        tui_after_rows = {row["name"]: row for row in tui_after_doc["services"]}
+        if (tui_after_rows["file-service"]["actual"] == "listening" or
+                tui_after_doc.get("server_state", {}).get("services", {}).get("file-service", {}).get("status") != "stopped" or
+                tui_after_doc.get("server_state", {}).get("services", {}).get("workbench", {}).get("status") != "stopped"):
+            print("line TUI quit did not stop services it started", file=sys.stderr)
+            print(tui_after.stdout, file=sys.stderr)
+            return 1
+        try:
+            with socket.create_connection(("127.0.0.1", tui_owned_port), timeout=0.2):
+                print("line TUI-owned file-service port still listening after quit", file=sys.stderr)
+                return 1
+        except (ConnectionRefusedError, TimeoutError, OSError):
+            pass
+        tui_owned_events = [json.loads(line) for line in lifecycle_events_path.read_text(encoding="utf-8").splitlines()]
+        if not any(event.get("service") == "file-service" and event.get("event") == "service_stop" and event.get("details", {}).get("via") == "workbench-stop" for event in tui_owned_events):
+            print("line TUI quit did not log workbench-owned service stop", file=sys.stderr)
+            return 1
+
         bind_fail_port = free_port()
         bind_fail_cfg = Path(tmp) / "server-config-bind-fail.json"
         bind_fail_state = Path(tmp) / "operator-session" / "bind-fail-state.json"
