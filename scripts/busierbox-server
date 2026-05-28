@@ -1467,6 +1467,9 @@ def workbench_job_records(cfg, actions=None):
                 finished_at = Path(finished_at_path).read_text(encoding="utf-8").strip()
             except OSError:
                 finished_at = ""
+        started_at = str(rec.get("started_at") or "")
+        duration_sec = elapsed_seconds(started_at, finished_at) if finished_at else None
+        elapsed_sec = elapsed_seconds(started_at, utc_now()) if started_at else None
         outcome = "unknown"
         if exit_status_known:
             outcome = "succeeded" if exit_status == 0 else "failed"
@@ -1492,7 +1495,14 @@ def workbench_job_records(cfg, actions=None):
             "finished_at_path": finished_at_path,
             "exit_status": exit_status if exit_status_known else "",
             "exit_status_known": exit_status_known,
+            "started_at": started_at,
+            "started_at_known": bool(started_at),
             "finished_at": finished_at,
+            "finished_at_known": bool(finished_at),
+            "duration_sec": duration_sec if duration_sec is not None else "",
+            "duration_known": duration_sec is not None,
+            "elapsed_sec": elapsed_sec if elapsed_sec is not None else "",
+            "elapsed_known": elapsed_sec is not None,
             "outcome": outcome,
             "log_exists": bool(log_tail.get("exists", False)),
             "log_size": int(log_tail.get("size", 0) or 0),
@@ -1567,6 +1577,10 @@ def workbench_job_indexes(records):
         "workbench_jobs_by_cancel_supported": records_by_key(records, "cancel_supported"),
         "workbench_jobs_by_log_exists": records_by_key(records, "log_exists"),
         "workbench_jobs_by_exit_status_known": records_by_key(records, "exit_status_known"),
+        "workbench_jobs_by_started_at_known": records_by_key(records, "started_at_known"),
+        "workbench_jobs_by_finished_at_known": records_by_key(records, "finished_at_known"),
+        "workbench_jobs_by_duration_known": records_by_key(records, "duration_known"),
+        "workbench_jobs_by_elapsed_known": records_by_key(records, "elapsed_known"),
         "workbench_jobs_by_background_supported": records_by_key(records, "background_supported"),
         "workbench_jobs_by_long_running": records_by_key(records, "long_running"),
         "workbench_jobs_by_outcome": records_by_key(records, "outcome"),
@@ -1585,6 +1599,12 @@ def workbench_job_summary(records):
         "log_total_size": record_sum_by_key(records, "log_size"),
         "last_output_tail_truncated_count": len([rec for rec in records or [] if rec.get("last_output_tail_truncated") is True]),
         "exit_status_known_count": len([rec for rec in records or [] if rec.get("exit_status_known") is True]),
+        "started_at_known_count": len([rec for rec in records or [] if rec.get("started_at_known") is True]),
+        "finished_at_known_count": len([rec for rec in records or [] if rec.get("finished_at_known") is True]),
+        "duration_known_count": len([rec for rec in records or [] if rec.get("duration_known") is True]),
+        "elapsed_known_count": len([rec for rec in records or [] if rec.get("elapsed_known") is True]),
+        "duration_total_sec": record_sum_by_key(records, "duration_sec"),
+        "elapsed_total_sec": record_sum_by_key(records, "elapsed_sec"),
         "background_supported_count": len([rec for rec in records or [] if rec.get("background_supported") is True]),
         "long_running_count": len([rec for rec in records or [] if rec.get("long_running") is True]),
         "state_counts": record_count_by_key(records, "state"),
@@ -7097,6 +7117,12 @@ def status_document(cfg):
         "workbench_job_log_total_size": workbench_job_stats.get("log_total_size", 0),
         "workbench_job_last_output_tail_truncated_count": workbench_job_stats.get("last_output_tail_truncated_count", 0),
         "workbench_job_exit_status_known_count": workbench_job_stats.get("exit_status_known_count", 0),
+        "workbench_job_started_at_known_count": workbench_job_stats.get("started_at_known_count", 0),
+        "workbench_job_finished_at_known_count": workbench_job_stats.get("finished_at_known_count", 0),
+        "workbench_job_duration_known_count": workbench_job_stats.get("duration_known_count", 0),
+        "workbench_job_elapsed_known_count": workbench_job_stats.get("elapsed_known_count", 0),
+        "workbench_job_duration_total_sec": workbench_job_stats.get("duration_total_sec", 0),
+        "workbench_job_elapsed_total_sec": workbench_job_stats.get("elapsed_total_sec", 0),
         "workbench_job_background_supported_count": workbench_job_stats.get("background_supported_count", 0),
         "workbench_job_long_running_count": workbench_job_stats.get("long_running_count", 0),
         "workbench_job_state_counts": workbench_job_stats.get("state_counts") or {},
@@ -7300,6 +7326,8 @@ def status_document(cfg):
                 "workbench_jobs_by_pid", "workbench_jobs_by_pid_managed",
                 "workbench_jobs_by_cancel_supported", "workbench_jobs_by_log_exists",
                 "workbench_jobs_by_exit_status_known",
+                "workbench_jobs_by_started_at_known", "workbench_jobs_by_finished_at_known",
+                "workbench_jobs_by_duration_known", "workbench_jobs_by_elapsed_known",
                 "workbench_jobs_by_background_supported", "workbench_jobs_by_long_running",
                 "workbench_jobs_by_outcome", "workbench_jobs_by_exit_status",
                 "workbench_jobs_by_last_output_tail_truncated",
@@ -7653,6 +7681,8 @@ def print_workbench_job_summary(doc):
         f"log_bytes={summary.get('workbench_job_log_total_size', 0)} "
         f"tail_truncated={summary.get('workbench_job_last_output_tail_truncated_count', 0)} "
         f"exit_status_known={summary.get('workbench_job_exit_status_known_count', 0)} "
+        f"duration_known={summary.get('workbench_job_duration_known_count', 0)} "
+        f"elapsed_known={summary.get('workbench_job_elapsed_known_count', 0)} "
         f"background={summary.get('workbench_job_background_supported_count', 0)} "
         f"long_running={summary.get('workbench_job_long_running_count', 0)}"
     )
@@ -8044,7 +8074,11 @@ def print_status(cfg, json_output=False):
         cancel = "yes" if rec.get("cancel_supported") else "no"
         exit_status = rec.get("exit_status", "")
         exit_suffix = f" exit_status={exit_status} outcome={rec.get('outcome', '')}" if rec.get("exit_status_known") else ""
-        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} cancel_supported={cancel}{exit_suffix}")
+        duration = rec.get("duration_sec", "")
+        elapsed = rec.get("elapsed_sec", "")
+        duration_suffix = f" duration_sec={duration}" if rec.get("duration_known") else ""
+        elapsed_suffix = f" elapsed_sec={elapsed}" if rec.get("elapsed_known") else ""
+        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} cancel_supported={cancel}{exit_suffix}{duration_suffix}{elapsed_suffix}")
         print(f"    command: {rec.get('command', '')}")
         print(f"    log: {rec.get('log_path', '')}")
         if rec.get("finished_at"):

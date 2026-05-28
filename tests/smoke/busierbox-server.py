@@ -398,6 +398,10 @@ def main():
         if (job.get("action_id") != "package-artifact" or
                 job.get("effective_state") != "running" or
                 job.get("cancel_supported") is not True or
+                job.get("started_at_known") is not True or
+                job.get("finished_at_known") is not False or
+                job.get("duration_known") is not False or
+                job.get("elapsed_known") is not True or
                 "environ:job-id" not in (job.get("ownership_evidence") or []) or
                 "environ:action-id" not in (job.get("ownership_evidence") or []) or
                 "job ready" not in "\n".join(job.get("last_output_tail") or []) or
@@ -479,10 +483,20 @@ def main():
                 quick.get("outcome") != "failed" or
                 quick.get("finished_at", "") == "" or
                 quick.get("completed_event_at", "") == "" or
+                quick.get("started_at_known") is not True or
+                quick.get("finished_at_known") is not True or
+                quick.get("duration_known") is not True or
+                quick.get("elapsed_known") is not True or
                 quick.get("last_output_tail", [])[-1:] != ["quick job done"] or
                 quick_status.get("summary", {}).get("workbench_job_exit_status_known_count", 0) < 1 or
+                quick_status.get("summary", {}).get("workbench_job_started_at_known_count", 0) < 2 or
+                quick_status.get("summary", {}).get("workbench_job_finished_at_known_count", 0) < 1 or
+                quick_status.get("summary", {}).get("workbench_job_duration_known_count", 0) < 1 or
+                quick_status.get("summary", {}).get("workbench_job_elapsed_known_count", 0) < 2 or
                 quick_status.get("summary", {}).get("workbench_job_outcome_counts", {}).get("failed", 0) < 1 or
                 quick_status.get("summary", {}).get("workbench_job_exit_status_counts", {}).get("7", 0) < 1 or
+                (quick_status.get("workbench_jobs_by_duration_known") or {}).get("True", [{}])[-1].get("id") != quick_job_id or
+                (quick_status.get("workbench_jobs_by_finished_at_known") or {}).get("True", [{}])[-1].get("id") != quick_job_id or
                 (quick_status.get("workbench_jobs_by_outcome") or {}).get("failed", [{}])[-1].get("id") != quick_job_id or
                 (quick_status.get("workbench_jobs_by_exit_status") or {}).get("7", [{}])[-1].get("id") != quick_job_id or
                 (quick_status.get("event_log_stats") or {}).get("by_event", {}).get("workbench_job_completed", 0) != 1):
@@ -496,6 +510,9 @@ def main():
         )
         if ("exit_status=7 outcome=failed" not in quick_text.stdout or
                 "exit_status_known=" not in quick_text.stdout or
+                "duration_known=" not in quick_text.stdout or
+                "elapsed_known=" not in quick_text.stdout or
+                "duration_sec=" not in quick_text.stdout or
                 "managed=" not in quick_text.stdout or
                 "background=" not in quick_text.stdout or
                 "long_running=" not in quick_text.stdout or
@@ -1544,6 +1561,10 @@ def main():
         jobs_by_pid_managed = queue_status_json.get("workbench_jobs_by_pid_managed") or {}
         jobs_by_log_exists = queue_status_json.get("workbench_jobs_by_log_exists") or {}
         jobs_by_exit_status_known = queue_status_json.get("workbench_jobs_by_exit_status_known") or {}
+        jobs_by_started_at_known = queue_status_json.get("workbench_jobs_by_started_at_known") or {}
+        jobs_by_finished_at_known = queue_status_json.get("workbench_jobs_by_finished_at_known") or {}
+        jobs_by_duration_known = queue_status_json.get("workbench_jobs_by_duration_known") or {}
+        jobs_by_elapsed_known = queue_status_json.get("workbench_jobs_by_elapsed_known") or {}
         jobs_by_background_supported = queue_status_json.get("workbench_jobs_by_background_supported") or {}
         jobs_by_long_running = queue_status_json.get("workbench_jobs_by_long_running") or {}
         jobs_api = (queue_status_json.get("api_collections") or {}).get("workbench_jobs") or {}
@@ -1555,6 +1576,10 @@ def main():
                 queue_status_json.get("summary", {}).get("workbench_job_log_exists_count") != 1 or
                 queue_status_json.get("summary", {}).get("workbench_job_log_total_size") != workbench_job_log.stat().st_size or
                 queue_status_json.get("summary", {}).get("workbench_job_last_output_tail_truncated_count") != 1 or
+                queue_status_json.get("summary", {}).get("workbench_job_started_at_known_count") != 1 or
+                queue_status_json.get("summary", {}).get("workbench_job_finished_at_known_count") != 0 or
+                queue_status_json.get("summary", {}).get("workbench_job_duration_known_count") != 0 or
+                queue_status_json.get("summary", {}).get("workbench_job_elapsed_known_count") != 1 or
                 queue_status_json.get("summary", {}).get("workbench_job_background_supported_count") != 1 or
                 queue_status_json.get("summary", {}).get("workbench_job_long_running_count") != 1 or
                 job.get("effective_state") != "exited" or
@@ -1563,6 +1588,10 @@ def main():
                 job.get("cancel_supported") is not False or
                 job.get("log_exists") is not True or
                 job.get("exit_status_known") is not False or
+                job.get("started_at_known") is not True or
+                job.get("finished_at_known") is not False or
+                job.get("duration_known") is not False or
+                job.get("elapsed_known") is not True or
                 job.get("background_supported") is not True or
                 job.get("long_running") is not True or
                 job.get("last_output_tail", [])[-1:] != ["package complete"] or
@@ -1577,12 +1606,20 @@ def main():
                 jobs_by_pid_managed.get("False", [{}])[0].get("id") != "job-smoke" or
                 jobs_by_log_exists.get("True", [{}])[0].get("id") != "job-smoke" or
                 jobs_by_exit_status_known.get("False", [{}])[0].get("id") != "job-smoke" or
+                jobs_by_started_at_known.get("True", [{}])[0].get("id") != "job-smoke" or
+                jobs_by_finished_at_known.get("False", [{}])[0].get("id") != "job-smoke" or
+                jobs_by_duration_known.get("False", [{}])[0].get("id") != "job-smoke" or
+                jobs_by_elapsed_known.get("True", [{}])[0].get("id") != "job-smoke" or
                 jobs_by_background_supported.get("True", [{}])[0].get("id") != "job-smoke" or
                 jobs_by_long_running.get("True", [{}])[0].get("id") != "job-smoke" or
                 (queue_status_json.get("workbench_jobs_by_last_output_tail_truncated") or {}).get("True", [{}])[0].get("id") != "job-smoke" or
                 "workbench_jobs_by_pid_managed" not in (jobs_api.get("indexes") or []) or
                 "workbench_jobs_by_log_exists" not in (jobs_api.get("indexes") or []) or
                 "workbench_jobs_by_exit_status_known" not in (jobs_api.get("indexes") or []) or
+                "workbench_jobs_by_started_at_known" not in (jobs_api.get("indexes") or []) or
+                "workbench_jobs_by_finished_at_known" not in (jobs_api.get("indexes") or []) or
+                "workbench_jobs_by_duration_known" not in (jobs_api.get("indexes") or []) or
+                "workbench_jobs_by_elapsed_known" not in (jobs_api.get("indexes") or []) or
                 "workbench_jobs_by_background_supported" not in (jobs_api.get("indexes") or []) or
                 "workbench_jobs_by_long_running" not in (jobs_api.get("indexes") or []) or
                 "workbench_jobs_by_last_output_tail_truncated" not in (jobs_api.get("indexes") or [])):

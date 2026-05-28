@@ -855,12 +855,14 @@ line/byte limits and truncation status. Job indexes such as
 `workbench_jobs_by_cancel_supported` let operator UIs show or cancel only jobs
 that are clearly owned by the workbench/runtime manager. Job health and safety
 maps such as `workbench_jobs_by_pid_managed`, `workbench_jobs_by_log_exists`,
-`workbench_jobs_by_exit_status_known`,
+`workbench_jobs_by_exit_status_known`, `workbench_jobs_by_started_at_known`,
+`workbench_jobs_by_finished_at_known`, `workbench_jobs_by_duration_known`,
+`workbench_jobs_by_elapsed_known`,
 `workbench_jobs_by_background_supported`, and
 `workbench_jobs_by_long_running` let clients filter stale, completed, logless,
-or background-capable work without scanning every record. Completed managed jobs
-are also indexed by outcome, exit status, and whether the displayed output tail
-is truncated. `--start-workbench-job ACTION`
+timed, or background-capable work without scanning every record. Completed
+managed jobs are also indexed by outcome, exit status, duration availability,
+and whether the displayed output tail is truncated. `--start-workbench-job ACTION`
 starts a background-capable operator workflow action, records the exact command
 and log path, and marks the spawned process with workbench environment ownership
 tokens. `--cancel-workbench-job JOB` only requests cancellation when
