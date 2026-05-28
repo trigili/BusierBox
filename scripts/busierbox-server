@@ -345,6 +345,10 @@ class SessionManager:
                 meta["upload_count"] = len(meta.get("uploads") or [])
                 meta["fetch_count"] = len(meta.get("fetches") or [])
                 meta["artifact_count"] = len(meta.get("artifacts") or [])
+                meta["has_uploads"] = meta["upload_count"] > 0
+                meta["has_fetches"] = meta["fetch_count"] > 0
+                meta["has_events"] = meta["event_count"] > 0
+                meta["has_artifacts"] = meta["artifact_count"] > 0
                 out.append(meta)
                 continue
             exit_reason = ""
@@ -353,15 +357,21 @@ class SessionManager:
             except OSError:
                 pass
             service = path.name.split("-", 2)[-1] if "-" in path.name else "unknown"
+            event_count = count_file_lines(events_path)
+            upload_count = len(list(path.glob("files/*.metadata.json")))
             out.append({
                 "service": service,
                 "path": str(path),
                 "metadata_path": str(metadata_path) if metadata_path.is_file() else "",
                 "event_log": str(events_path) if events_path.is_file() else "",
-                "event_count": count_file_lines(events_path),
-                "upload_count": len(list(path.glob("files/*.metadata.json"))),
+                "event_count": event_count,
+                "upload_count": upload_count,
                 "fetch_count": 0,
                 "artifact_count": 0,
+                "has_uploads": upload_count > 0,
+                "has_fetches": False,
+                "has_events": event_count > 0,
+                "has_artifacts": False,
                 "exit_reason": exit_reason,
                 "updated_at": utc_now_from_mtime(path.stat().st_mtime),
             })
@@ -749,6 +759,13 @@ def records_by_session(records):
             continue
         grouped.setdefault(session_id, []).append(rec)
     return grouped
+
+
+def int_value(value):
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def record_count_by_key(records, key):
@@ -1379,6 +1396,10 @@ def session_record_indexes(records):
     by_service_state = {}
     by_service_exit_reason = {}
     by_service_remote = {}
+    by_has_uploads = {"yes": [], "no": []}
+    by_has_fetches = {"yes": [], "no": []}
+    by_has_events = {"yes": [], "no": []}
+    by_has_artifacts = {"yes": [], "no": []}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1403,6 +1424,10 @@ def session_record_indexes(records):
             by_service_exit_reason.setdefault(f"{service}:{exit_reason}", []).append(rec)
         if service and remote:
             by_service_remote.setdefault(f"{service}:{remote}", []).append(rec)
+        by_has_uploads["yes" if rec.get("has_uploads") is True or int_value(rec.get("upload_count")) > 0 else "no"].append(rec)
+        by_has_fetches["yes" if rec.get("has_fetches") is True or int_value(rec.get("fetch_count")) > 0 else "no"].append(rec)
+        by_has_events["yes" if rec.get("has_events") is True or int_value(rec.get("event_count")) > 0 else "no"].append(rec)
+        by_has_artifacts["yes" if rec.get("has_artifacts") is True or int_value(rec.get("artifact_count")) > 0 else "no"].append(rec)
     return (
         by_id,
         by_service,
@@ -1412,6 +1437,10 @@ def session_record_indexes(records):
         by_service_state,
         by_service_exit_reason,
         by_service_remote,
+        by_has_uploads,
+        by_has_fetches,
+        by_has_events,
+        by_has_artifacts,
     )
 
 
@@ -1420,6 +1449,14 @@ def session_root_record(cfg, records):
     session_ids = []
     service_counts = {}
     state_counts = {}
+    total_upload_count = 0
+    total_fetch_count = 0
+    total_event_count = 0
+    total_artifact_count = 0
+    sessions_with_uploads = 0
+    sessions_with_fetches = 0
+    sessions_with_events = 0
+    sessions_with_artifacts = 0
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1432,6 +1469,22 @@ def session_root_record(cfg, records):
             service_counts[service] = service_counts.get(service, 0) + 1
         if state:
             state_counts[state] = state_counts.get(state, 0) + 1
+        upload_count = int_value(rec.get("upload_count"))
+        fetch_count = int_value(rec.get("fetch_count"))
+        event_count = int_value(rec.get("event_count"))
+        artifact_count = int_value(rec.get("artifact_count"))
+        total_upload_count += upload_count
+        total_fetch_count += fetch_count
+        total_event_count += event_count
+        total_artifact_count += artifact_count
+        if upload_count > 0:
+            sessions_with_uploads += 1
+        if fetch_count > 0:
+            sessions_with_fetches += 1
+        if event_count > 0:
+            sessions_with_events += 1
+        if artifact_count > 0:
+            sessions_with_artifacts += 1
     return {
         "path": str(path),
         "exists": path.is_dir(),
@@ -1439,6 +1492,14 @@ def session_root_record(cfg, records):
         "recent_session_count": len(session_ids),
         "service_counts": service_counts,
         "state_counts": state_counts,
+        "total_upload_count": total_upload_count,
+        "total_fetch_count": total_fetch_count,
+        "total_event_count": total_event_count,
+        "total_artifact_count": total_artifact_count,
+        "sessions_with_uploads_count": sessions_with_uploads,
+        "sessions_with_fetches_count": sessions_with_fetches,
+        "sessions_with_events_count": sessions_with_events,
+        "sessions_with_artifacts_count": sessions_with_artifacts,
         "latest_session_updated_at": latest_record_value(records, ("updated_at", "ended_at", "started_at")),
     }
 
@@ -5192,7 +5253,11 @@ def status_document(cfg):
      sessions_by_remote,
      sessions_by_service_state,
      sessions_by_service_exit_reason,
-     sessions_by_service_remote) = session_record_indexes(sessions)
+     sessions_by_service_remote,
+     sessions_by_has_uploads,
+     sessions_by_has_fetches,
+     sessions_by_has_events,
+     sessions_by_has_artifacts) = session_record_indexes(sessions)
     event_stats = event_log_stats(cfg, event_limit)
     event_log_state = event_log_state_record(cfg, event_stats)
     events = event_stats["tail"]
@@ -5461,6 +5526,18 @@ def status_document(cfg):
         "session_service_state_counts": {key: len(value) for key, value in sessions_by_service_state.items()},
         "session_service_exit_reason_counts": {key: len(value) for key, value in sessions_by_service_exit_reason.items()},
         "session_service_remote_counts": {key: len(value) for key, value in sessions_by_service_remote.items()},
+        "session_has_uploads_counts": {key: len(value) for key, value in sessions_by_has_uploads.items()},
+        "session_has_fetches_counts": {key: len(value) for key, value in sessions_by_has_fetches.items()},
+        "session_has_events_counts": {key: len(value) for key, value in sessions_by_has_events.items()},
+        "session_has_artifacts_counts": {key: len(value) for key, value in sessions_by_has_artifacts.items()},
+        "session_total_upload_count": session_root_state.get("total_upload_count", 0),
+        "session_total_fetch_count": session_root_state.get("total_fetch_count", 0),
+        "session_total_event_count": session_root_state.get("total_event_count", 0),
+        "session_total_artifact_count": session_root_state.get("total_artifact_count", 0),
+        "sessions_with_uploads_count": session_root_state.get("sessions_with_uploads_count", 0),
+        "sessions_with_fetches_count": session_root_state.get("sessions_with_fetches_count", 0),
+        "sessions_with_events_count": session_root_state.get("sessions_with_events_count", 0),
+        "sessions_with_artifacts_count": session_root_state.get("sessions_with_artifacts_count", 0),
         "latest_session_updated_at": latest_record_value(sessions, ("updated_at", "ended_at", "started_at")),
         "target_command_count": target_command_summary.get("total_count", 0),
         "target_command_network_count": target_command_summary.get("network_count", 0),
@@ -5627,7 +5704,9 @@ def status_document(cfg):
                 "sessions_by_id", "sessions_by_service", "sessions_by_state",
                 "sessions_by_exit_reason", "sessions_by_remote",
                 "sessions_by_service_state", "sessions_by_service_exit_reason",
-                "sessions_by_service_remote",
+                "sessions_by_service_remote", "sessions_by_has_uploads",
+                "sessions_by_has_fetches", "sessions_by_has_events",
+                "sessions_by_has_artifacts",
             ), "session_count",
         ),
         "events": api_collection_record(
@@ -5799,6 +5878,10 @@ def status_document(cfg):
         "sessions_by_service_state": sessions_by_service_state,
         "sessions_by_service_exit_reason": sessions_by_service_exit_reason,
         "sessions_by_service_remote": sessions_by_service_remote,
+        "sessions_by_has_uploads": sessions_by_has_uploads,
+        "sessions_by_has_fetches": sessions_by_has_fetches,
+        "sessions_by_has_events": sessions_by_has_events,
+        "sessions_by_has_artifacts": sessions_by_has_artifacts,
         "events": events,
         "events_by_id": events_by_id,
         "events_by_session": events_by_session,

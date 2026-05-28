@@ -1028,6 +1028,7 @@ def main():
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_id"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_mode"),
+                ("sessions", len(queue_status_json.get("sessions") or []), "sessions_by_has_uploads"),
                 ("events", len(queue_status_json.get("events") or []), "events_by_id"),
         ):
             collection = api_collections.get(collection_name) or {}
@@ -2586,6 +2587,10 @@ def main():
         session_root_state = upload_doc.get("session_root_state") or {}
         if (upload_session.get("upload_count") != 1 or
                 upload_session.get("event_count", 0) < 1 or
+                upload_session.get("fetch_count") != 0 or
+                upload_session.get("has_uploads") is not True or
+                upload_session.get("has_fetches") is not False or
+                upload_session.get("has_events") is not True or
                 upload_session.get("metadata_path") != str(session_json_paths[0]) or
                 upload_session.get("event_log") != str(session_json_paths[0].parent / "events.jsonl")):
             print("server json status missing session browser counts and paths", file=sys.stderr)
@@ -2596,8 +2601,20 @@ def main():
                 session_root_state.get("recent_session_count") != 1 or
                 session_root_state.get("recent_session_ids") != [session_json_paths[0].parent.name] or
                 session_root_state.get("service_counts", {}).get("file-service") != 1 or
+                session_root_state.get("total_upload_count") != 1 or
+                session_root_state.get("total_fetch_count") != 0 or
+                session_root_state.get("total_event_count", 0) < 1 or
+                session_root_state.get("sessions_with_uploads_count") != 1 or
+                session_root_state.get("sessions_with_fetches_count") != 0 or
+                session_root_state.get("sessions_with_events_count") != 1 or
                 upload_summary.get("session_root_exists") is not True or
-                upload_summary.get("session_root_recent_count") != 1):
+                upload_summary.get("session_root_recent_count") != 1 or
+                upload_summary.get("session_total_upload_count") != 1 or
+                upload_summary.get("session_total_fetch_count") != 0 or
+                upload_summary.get("session_total_event_count", 0) < 1 or
+                upload_summary.get("sessions_with_uploads_count") != 1 or
+                upload_summary.get("sessions_with_fetches_count") != 0 or
+                upload_summary.get("sessions_with_events_count") != 1):
             print("server json status missing session root browser state", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
@@ -2609,6 +2626,9 @@ def main():
         sessions_by_service_state = upload_doc.get("sessions_by_service_state") or {}
         sessions_by_service_exit_reason = upload_doc.get("sessions_by_service_exit_reason") or {}
         sessions_by_service_remote = upload_doc.get("sessions_by_service_remote") or {}
+        sessions_by_has_uploads = upload_doc.get("sessions_by_has_uploads") or {}
+        sessions_by_has_fetches = upload_doc.get("sessions_by_has_fetches") or {}
+        sessions_by_has_events = upload_doc.get("sessions_by_has_events") or {}
         events_by_session = upload_doc.get("events_by_session") or {}
         events_by_session_event = upload_doc.get("events_by_session_event") or {}
         upload_events_by_service_event = upload_doc.get("events_by_service_event") or {}
@@ -2632,9 +2652,15 @@ def main():
                 sessions_by_service_state.get(session_service_state_key, [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_service_exit_reason.get(session_service_exit_key, [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_service_remote.get(session_service_remote_key, [{}])[0].get("session_id") != uploaded_session_id or
+                sessions_by_has_uploads.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
+                sessions_by_has_fetches.get("no", [{}])[0].get("session_id") != uploaded_session_id or
+                sessions_by_has_events.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
                 upload_summary.get("session_service_state_counts", {}).get(session_service_state_key) != 1 or
                 upload_summary.get("session_service_exit_reason_counts", {}).get(session_service_exit_key) != 1 or
-                upload_summary.get("session_service_remote_counts", {}).get(session_service_remote_key) != 1):
+                upload_summary.get("session_service_remote_counts", {}).get(session_service_remote_key) != 1 or
+                upload_summary.get("session_has_uploads_counts", {}).get("yes") != 1 or
+                upload_summary.get("session_has_fetches_counts", {}).get("no") != 1 or
+                upload_summary.get("session_has_events_counts", {}).get("yes") != 1):
             print("server json status missing session/event lookup indexes", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1

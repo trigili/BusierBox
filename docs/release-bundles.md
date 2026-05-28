@@ -454,10 +454,13 @@ upload and staged-fetch activity is exposed through top-level `uploads` and
 session browser records are exposed as `sessions`, `sessions_by_id`,
 `sessions_by_service`, `sessions_by_state`, and
 `sessions_by_exit_reason`, `sessions_by_remote`, `sessions_by_service_state`,
-`sessions_by_service_exit_reason`, and `sessions_by_service_remote`.
+`sessions_by_service_exit_reason`, `sessions_by_service_remote`,
+`sessions_by_has_uploads`, `sessions_by_has_fetches`,
+`sessions_by_has_events`, and `sessions_by_has_artifacts`.
 `session_root_state`
-summarizes the session directory, recent session ids, service counts, and state
-counts for file-browser views; aggregate counts remain in `summary`, including
+summarizes the session directory, recent session ids, service/state counts,
+session activity totals, and counts of sessions with uploads, fetches, events,
+or artifacts for file-browser views; aggregate counts remain in `summary`, including
 `upload_total_size`, `fetch_total_size`, `upload_stored_exists_count`,
 `upload_stored_missing_count`, `fetch_source_exists_count`,
 `fetch_source_missing_count`, `upload_kind_counts`, `upload_status_counts`,
