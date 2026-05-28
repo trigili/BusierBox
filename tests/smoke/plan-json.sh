@@ -124,34 +124,70 @@ assert "mode_records_by_planned" in api_modes["indexes"]
 assert recovery["command"] == "recovery install"
 assert recovery["method"] == "openwrt-procd"
 assert recovery["action"] == "rshell"
+assert recovery["action_category"] == "reverse-shell"
+assert recovery["starts_rshell"] is True
+assert recovery["uploads_evidence"] is False
+assert recovery["executes_operator_supplied_command"] is False
+assert recovery["action_semantics"]["category"] == "reverse-shell"
+assert recovery["action_semantics"]["starts_rshell"] is True
+assert recovery["action_semantics"]["command_queue_enabled"] is False
+assert recovery["action_semantics"]["hidden_control_channel"] is False
+assert recovery["action_semantics"]["self_reinstall"] is False
+assert recovery["action_semantics"]["survives_factory_reset_claim"] is False
+assert recovery["action_semantics"]["requires_explicit_apply"] is True
 assert recovery["requires_external_writes"] is True
 assert recovery["binary_path"].endswith("/usr/bin/busierbox_recovery")
 assert recovery["generated_command"] == "/usr/bin/busierbox_recovery rshell start"
 assert recovery["generated_command"].endswith("rshell start")
 
 assert evidence["action"] == "evidence-push"
+assert evidence["action_category"] == "evidence"
+assert evidence["uploads_evidence"] is True
+assert evidence["collects_dmesg"] is False
+assert evidence["starts_rshell"] is False
+assert evidence["starts_rshell_after_evidence"] is False
+assert evidence["executes_operator_supplied_command"] is False
+assert evidence["action_semantics"]["uploads_evidence"] is True
 assert evidence["requires_external_writes"] is False
 assert evidence["generated_command"] == "/usr/bin/bbx_recovery evidence push --quiet"
 assert evidence["would_connect"] == ["192.0.2.77"]
 
 assert evidence_rshell["action"] == "evidence-then-rshell"
+assert evidence_rshell["action_category"] == "evidence"
+assert evidence_rshell["uploads_evidence"] is True
+assert evidence_rshell["starts_rshell"] is True
+assert evidence_rshell["starts_rshell_after_evidence"] is True
+assert evidence_rshell["action_semantics"]["starts_rshell_after_evidence"] is True
 assert "evidence push --quiet" in evidence_rshell["generated_command"]
 assert evidence_rshell["generated_command"].endswith("rshell start")
 assert evidence_rshell["would_connect"] == ["192.0.2.77"]
 
 assert dmesg["action"] == "dmesg-push"
+assert dmesg["action_category"] == "evidence"
+assert dmesg["uploads_evidence"] is True
+assert dmesg["collects_dmesg"] is True
+assert dmesg["starts_rshell"] is False
+assert dmesg["action_semantics"]["collects_dmesg"] is True
 assert 'dmesg >"$bbx_dmesg"' in dmesg["generated_command"]
 assert "--dest bbx_recovery-dmesg.txt" in dmesg["generated_command"]
 assert 'rm -f "$bbx_dmesg"' in dmesg["generated_command"]
 assert dmesg["would_connect"] == ["192.0.2.77"]
 
 assert command["action"] == "command"
+assert command["action_category"] == "command"
+assert command["executes_operator_supplied_command"] is True
+assert command["action_semantics"]["executes_operator_supplied_command"] is True
+assert command["command_queue_enabled"] is False
+assert command["hidden_control_channel"] is False
 assert command["binary_path"].endswith("/usr/bin/busierbox_recovery")
 assert command["generated_command"] == "busierbox rshell start"
 assert command_argv["action"] == "command"
 assert command_argv["generated_command"] == "busierbox rshell start"
 
 assert script["action"] == "script"
+assert script["action_category"] == "script"
+assert script["executes_operator_supplied_command"] is True
+assert script["action_semantics"]["category"] == "script"
 assert script["requires_external_writes"] is False
 assert script["script_source_path"].endswith("/recover.sh")
 assert script["script_dest_path"].endswith("/root/usr/bin/bbx_recovery.recovery.sh")
@@ -168,6 +204,13 @@ grep -q "^script_dest_path=$work/root/usr/bin/bbx_recovery.recovery.sh$" "$work/
 grep -q "  $work/root/usr/bin/bbx_recovery.recovery.sh" "$work/recovery-script.txt"
 "$work/busierbox" plan recovery install --method rc-local --action dmesg-push --root "$work/root" --name bbx_recovery >"$work/recovery-dmesg.txt"
 grep -q '^action=dmesg-push$' "$work/recovery-dmesg.txt"
+grep -q '^action_category=evidence$' "$work/recovery-dmesg.txt"
+grep -q '^uploads_evidence=yes$' "$work/recovery-dmesg.txt"
+grep -q '^collects_dmesg=yes$' "$work/recovery-dmesg.txt"
+grep -q '^starts_rshell=no$' "$work/recovery-dmesg.txt"
+grep -q '^executes_operator_supplied_command=no$' "$work/recovery-dmesg.txt"
+grep -q '^command_queue_enabled=no$' "$work/recovery-dmesg.txt"
+grep -q '^hidden_control_channel=no$' "$work/recovery-dmesg.txt"
 grep -q 'dmesg >"$bbx_dmesg"' "$work/recovery-dmesg.txt"
 grep -q -- '--dest bbx_recovery-dmesg.txt' "$work/recovery-dmesg.txt"
 

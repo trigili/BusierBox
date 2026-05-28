@@ -43,6 +43,11 @@ logic.
 The `command-queue` JSON plan includes flat `mode_records`, lookup maps, a
 `mode_summary`, and `api_collections.mode_records` metadata so operator UIs can
 show which polling mode would be started without inferring behavior from prose.
+The `recovery install` JSON plan includes `action_category`, evidence/dmesg,
+rshell-chaining, operator-supplied command, command-queue, hidden-channel, and
+self-reinstall booleans, plus an `action_semantics` object with the same fields.
+This lets operator tooling distinguish evidence upload hooks from reverse-shell
+or operator-command hooks before any `--apply` operation.
 
 Plan mode uses the effective runtime config, so post-build trailer overrides are
 reflected in the output. Config precedence remains compiled defaults, trailer

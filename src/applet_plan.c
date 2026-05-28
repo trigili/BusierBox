@@ -554,6 +554,62 @@ static void plan_recovery_bin_path(char *out, size_t outsz, const char *root, co
     plan_recovery_join(out, outsz, root, rel);
 }
 
+static const char *plan_recovery_action_category(const char *action)
+{
+    if (!strcmp(action, "evidence-push") || !strcmp(action, "evidence-then-rshell") || !strcmp(action, "dmesg-push"))
+        return "evidence";
+    if (!strcmp(action, "rshell"))
+        return "reverse-shell";
+    if (!strcmp(action, "command"))
+        return "command";
+    if (!strcmp(action, "script"))
+        return "script";
+    return "status";
+}
+
+static int plan_recovery_action_uploads_evidence(const char *action)
+{
+    return !strcmp(action, "evidence-push") || !strcmp(action, "evidence-then-rshell") || !strcmp(action, "dmesg-push");
+}
+
+static int plan_recovery_action_collects_dmesg(const char *action)
+{
+    return !strcmp(action, "dmesg-push");
+}
+
+static int plan_recovery_action_starts_rshell(const char *action)
+{
+    return !strcmp(action, "rshell") || !strcmp(action, "evidence-then-rshell");
+}
+
+static int plan_recovery_action_starts_rshell_after_evidence(const char *action)
+{
+    return !strcmp(action, "evidence-then-rshell");
+}
+
+static int plan_recovery_action_executes_operator_supplied_command(const char *action)
+{
+    return !strcmp(action, "command") || !strcmp(action, "script");
+}
+
+static void plan_recovery_print_action_semantics_json(const char *action)
+{
+    fputs("\"action_semantics\":{", stdout);
+    fputs("\"category\":", stdout); bb_json_string(stdout, plan_recovery_action_category(action));
+    printf(",\"uploads_evidence\":%s", plan_recovery_action_uploads_evidence(action) ? "true" : "false");
+    printf(",\"collects_dmesg\":%s", plan_recovery_action_collects_dmesg(action) ? "true" : "false");
+    printf(",\"starts_rshell\":%s", plan_recovery_action_starts_rshell(action) ? "true" : "false");
+    printf(",\"starts_rshell_after_evidence\":%s", plan_recovery_action_starts_rshell_after_evidence(action) ? "true" : "false");
+    printf(",\"executes_operator_supplied_command\":%s", plan_recovery_action_executes_operator_supplied_command(action) ? "true" : "false");
+    fputs(",\"command_queue_enabled\":false", stdout);
+    fputs(",\"hidden_control_channel\":false", stdout);
+    fputs(",\"self_reinstall\":false", stdout);
+    fputs(",\"survives_factory_reset_claim\":false", stdout);
+    fputs(",\"requires_explicit_apply\":true", stdout);
+    fputs(",\"requires_external_write\":true", stdout);
+    fputs("}", stdout);
+}
+
 static int plan_recovery_install(int argc, char **argv, int json)
 {
     const char *root = "/";
@@ -671,6 +727,18 @@ static int plan_recovery_install(int argc, char **argv, int json)
         fputs(",\"root\":", stdout); bb_json_string(stdout, root);
         fputs(",\"method\":", stdout); bb_json_string(stdout, m->name);
         fputs(",\"action\":", stdout); bb_json_string(stdout, action);
+        fputs(",\"action_category\":", stdout); bb_json_string(stdout, plan_recovery_action_category(action));
+        printf(",\"uploads_evidence\":%s", plan_recovery_action_uploads_evidence(action) ? "true" : "false");
+        printf(",\"collects_dmesg\":%s", plan_recovery_action_collects_dmesg(action) ? "true" : "false");
+        printf(",\"starts_rshell\":%s", plan_recovery_action_starts_rshell(action) ? "true" : "false");
+        printf(",\"starts_rshell_after_evidence\":%s", plan_recovery_action_starts_rshell_after_evidence(action) ? "true" : "false");
+        printf(",\"executes_operator_supplied_command\":%s", plan_recovery_action_executes_operator_supplied_command(action) ? "true" : "false");
+        fputs(",\"command_queue_enabled\":false", stdout);
+        fputs(",\"hidden_control_channel\":false", stdout);
+        fputs(",\"self_reinstall\":false", stdout);
+        fputs(",\"survives_factory_reset_claim\":false", stdout);
+        fputc(',', stdout);
+        plan_recovery_print_action_semantics_json(action);
         fputs(",\"hook_path\":", stdout); bb_json_string(stdout, hook);
         fputs(",\"binary_path\":", stdout); bb_json_string(stdout, bin);
         if (script_dst[0]) {
@@ -689,6 +757,14 @@ static int plan_recovery_install(int argc, char **argv, int json)
     printf("root=%s\n", root);
     printf("method=%s\n", m->name);
     printf("action=%s\n", action);
+    printf("action_category=%s\n", plan_recovery_action_category(action));
+    printf("uploads_evidence=%s\n", plan_recovery_action_uploads_evidence(action) ? "yes" : "no");
+    printf("collects_dmesg=%s\n", plan_recovery_action_collects_dmesg(action) ? "yes" : "no");
+    printf("starts_rshell=%s\n", plan_recovery_action_starts_rshell(action) ? "yes" : "no");
+    printf("starts_rshell_after_evidence=%s\n", plan_recovery_action_starts_rshell_after_evidence(action) ? "yes" : "no");
+    printf("executes_operator_supplied_command=%s\n", plan_recovery_action_executes_operator_supplied_command(action) ? "yes" : "no");
+    puts("command_queue_enabled=no");
+    puts("hidden_control_channel=no");
     printf("hook_path=%s\n", hook);
     printf("binary_path=%s\n", bin);
     if (script_dst[0]) {
