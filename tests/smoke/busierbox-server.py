@@ -3377,9 +3377,11 @@ def main():
                 target_commands_by_retry_post_disconnect.get("2", [{}])[0].get("service") != "rshell" or
                 rshell_metadata.get("session_policy") != "reconnect" or
                 rshell_metadata.get("session_policy_valid") is not True or
+                rshell_metadata.get("session_policy_errors") != [] or
                 rshell_semantics.get("reconnect_after_disconnect") is not True or
                 rshell_semantics.get("fresh_session_on_reconnect") is not True or
                 rshell_semantics.get("session_resume_supported") is not False or
+                rshell_policy_summary.get("errors") != [] or
                 rshell_policy_summary.get("retry_scope") != "pre-connect+post-disconnect" or
                 rshell_policy_summary.get("pre_connect_retry_count") != "2" or
                 rshell_policy_summary.get("post_disconnect_retry_count") != "2" or

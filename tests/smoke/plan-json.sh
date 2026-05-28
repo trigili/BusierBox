@@ -287,6 +287,7 @@ data = json.loads(open(sys.argv[1], "r", encoding="utf-8").read())
 assert data["session_policy"] == "bogus"
 assert data["session_policy_valid"] is False
 assert "unsupported rshell session policy" in data["session_policy_errors"]
+assert "unsupported rshell session policy" in data["session_policy_summary"]["errors"]
 assert data["session_semantics"]["session_resume_supported"] is False
 PY
 BB_RSHELL_SESSION_POLICY=bogus "$work/busierbox" plan rshell >"$work/rshell-invalid-policy.txt"

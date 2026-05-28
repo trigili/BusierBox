@@ -7886,6 +7886,7 @@ def rshell_session_policy_record(cfg):
     }
     summary = {
         "valid": valid,
+        "errors": [] if valid else ["unsupported rshell session policy"],
         "retry_scope": "pre-connect+post-disconnect" if reconnects else "pre-connect",
         "pre_connect_retry_count": retry_count,
         "post_disconnect_retry_count": post_disconnect_count,
