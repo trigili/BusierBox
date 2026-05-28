@@ -19,6 +19,13 @@ backward-compatible `count_summary_key` fields, plus index maps such as `storage
 `storage_by_survives_reboot`, `methods_by_name`,
 `methods_by_intrusiveness`, and `methods_by_requires_external_write` so
 operator UIs can filter survey results without scraping the human table.
+It also publishes an `actions` collection with `actions_by_name`,
+`actions_by_category`, `actions_by_uploads_evidence`,
+`actions_by_collects_dmesg`, `actions_by_starts_rshell`,
+`actions_by_executes_operator_supplied_command`,
+`actions_by_command_queue_enabled`, and
+`actions_by_hidden_control_channel` indexes. These records describe available
+recovery actions and their safety semantics before any hook is installed.
 
 The method table covers reboot hook families such as OpenWrt/procd init
 scripts, SysV/rcS, systemd units, cron `@reboot`, at jobs, `rc.local`,
@@ -65,11 +72,12 @@ Evidence actions are explicit crash/reboot workflows for lab targets that panic
 or reboot during testing. They do not add a hidden control channel, do not
 execute operator-supplied commands, and still require the target artifact to be
 configured with an operator host/file-service before upload can succeed.
+`persistence --survey --json` reports all available action semantics, while
 `persistence status --json` reports each installed action's category and
 semantics, including whether it uploads evidence, captures `dmesg`, starts
-`rshell` after evidence upload, executes an operator-supplied command, enables a
-command queue, or creates a hidden control channel. The summary mirrors compact
-counts such as evidence uploads, `dmesg` actions, `rshell` actions, and
+`rshell` after evidence upload, executes an operator-supplied command, enables
+a command queue, or creates a hidden control channel. The summary mirrors compact
+counts such as available/installed evidence uploads, `dmesg` actions, `rshell` actions, and
 operator-supplied command actions for audits. The JSON also includes
 `api_collections.installations` with the same count and summary-key metadata,
 `installations_by_method`, `installations_by_action`, and

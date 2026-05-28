@@ -33,6 +33,13 @@ data = json.load(open(sys.argv[1], encoding="utf-8"))
 summary = data["summary"]
 assert summary["storage_count"] == len(data["storage"])
 assert summary["method_count"] == len(data["methods"])
+assert summary["action_count"] == len(data["actions"])
+assert summary["evidence_action_count"] == 3
+assert summary["dmesg_action_count"] == 1
+assert summary["rshell_action_count"] == 2
+assert summary["operator_supplied_action_count"] == 2
+assert summary["command_queue_enabled_action_count"] == 0
+assert summary["hidden_control_channel_action_count"] == 0
 api = data["api_collections"]
 assert api["storage"]["count"] == summary["storage_count"]
 assert api["storage"]["count_summary_key"] == "summary.storage_count"
@@ -40,6 +47,9 @@ assert api["storage"]["summary_key"] == "summary.storage_count"
 assert api["methods"]["count"] == summary["method_count"]
 assert api["methods"]["count_summary_key"] == "summary.method_count"
 assert api["methods"]["summary_key"] == "summary.method_count"
+assert api["actions"]["count"] == summary["action_count"]
+assert api["actions"]["count_summary_key"] == "summary.action_count"
+assert api["actions"]["summary_key"] == "summary.action_count"
 assert set(api["storage"]["indexes"]) >= {
     "storage_by_class",
     "storage_by_survives_reboot",
@@ -49,6 +59,16 @@ assert set(api["methods"]["indexes"]) >= {
     "methods_by_survives_reboot",
     "methods_by_intrusiveness",
     "methods_by_requires_external_write",
+}
+assert set(api["actions"]["indexes"]) >= {
+    "actions_by_name",
+    "actions_by_category",
+    "actions_by_uploads_evidence",
+    "actions_by_collects_dmesg",
+    "actions_by_starts_rshell",
+    "actions_by_executes_operator_supplied_command",
+    "actions_by_command_queue_enabled",
+    "actions_by_hidden_control_channel",
 }
 assert data["storage_by_class"]["persistent"] == [0, 1, 2, 3]
 assert data["storage_by_class"]["volatile"] == [4, 6]
@@ -66,6 +86,32 @@ assert data["methods_by_intrusiveness"]["medium"] == [0, 1, 2, 3, 6]
 assert data["methods_by_intrusiveness"]["high"] == [4]
 assert data["methods_by_requires_external_write"]["yes"] == list(range(len(data["methods"])))
 assert data["methods_by_requires_external_write"]["no"] == []
+assert data["actions_by_name"]["evidence-push"] == [2]
+assert data["actions_by_name"]["evidence-then-rshell"] == [3]
+assert data["actions_by_name"]["dmesg-push"] == [4]
+assert data["actions_by_category"]["evidence"] == [2, 3, 4]
+assert data["actions_by_category"]["command"] == [5]
+assert data["actions_by_category"]["script"] == [6]
+assert data["actions_by_uploads_evidence"]["yes"] == [2, 3, 4]
+assert data["actions_by_collects_dmesg"]["yes"] == [4]
+assert data["actions_by_starts_rshell"]["yes"] == [1, 3]
+assert data["actions_by_executes_operator_supplied_command"]["yes"] == [5, 6]
+assert data["actions_by_command_queue_enabled"]["yes"] == []
+assert data["actions_by_command_queue_enabled"]["no"] == list(range(len(data["actions"])))
+assert data["actions_by_hidden_control_channel"]["yes"] == []
+assert data["actions_by_hidden_control_channel"]["no"] == list(range(len(data["actions"])))
+actions = {item["name"]: item for item in data["actions"]}
+assert actions["evidence-push"]["uploads_evidence"] is True
+assert actions["evidence-then-rshell"]["starts_rshell_after_evidence"] is True
+assert actions["dmesg-push"]["collects_dmesg"] is True
+assert actions["command"]["executes_operator_supplied_command"] is True
+assert actions["script"]["executes_operator_supplied_command"] is True
+assert all(item["requires_explicit_apply"] is True for item in data["actions"])
+assert all(item["requires_external_write"] is True for item in data["actions"])
+assert all(item["command_queue_enabled"] is False for item in data["actions"])
+assert all(item["hidden_control_channel"] is False for item in data["actions"])
+assert all(item["self_reinstall"] is False for item in data["actions"])
+assert all(item["survives_factory_reset_claim"] is False for item in data["actions"])
 PY
 "$bb" recovery --survey --json --root "$tmp/root" | python3 -m json.tool >/dev/null
 "$bb" persistence --plan --root "$tmp/root" >"$tmp/plan"

@@ -29,3 +29,7 @@ body and status JSON, and do not add a command queue or hidden control channel.
 JSON status also exposes per-action semantics such as evidence upload, `dmesg`
 capture, `rshell` chaining, and whether the action executes an
 operator-supplied command.
+`busierbox persistence --survey --json` exposes the same available actions as
+normalized `actions` records with lookup maps for evidence upload, `dmesg`,
+reverse-shell chaining, operator-supplied command execution, command queue
+enablement, and hidden control channel status.

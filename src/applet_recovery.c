@@ -58,6 +58,17 @@ static const struct recovery_storage recovery_storage_paths[] = {
     {"/dev/shm", "volatile", "no", "tmpfs shared memory"},
 };
 
+static const char *recovery_actions[] = {
+    "status-only",
+    "rshell",
+    "evidence-push",
+    "evidence-then-rshell",
+    "dmesg-push",
+    "command",
+    "script",
+    NULL
+};
+
 static int is_help(int argc, char **argv)
 {
     return argc > 1 && (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help") || !strcmp(argv[1], "help"));
@@ -461,10 +472,6 @@ static int recovery_status_index_has_match(const char *root, const char *name,
 
 static void recovery_print_status_indexes(const char *root, const char *name)
 {
-    static const char *actions[] = {
-        "status-only", "rshell", "evidence-push", "evidence-then-rshell",
-        "dmesg-push", "command", "script", "unknown", NULL
-    };
     static const char *categories[] = {
         "status", "reverse-shell", "evidence", "command", "script", NULL
     };
@@ -485,13 +492,13 @@ static void recovery_print_status_indexes(const char *root, const char *name)
     fputs("}", stdout);
     fputs(",\"installations_by_action\":{", stdout);
     first = 1;
-    for (i = 0; actions[i]; i++) {
-        if (!recovery_status_index_has_match(root, name, "action", actions[i]))
+    for (i = 0; recovery_actions[i]; i++) {
+        if (!recovery_status_index_has_match(root, name, "action", recovery_actions[i]))
             continue;
         fputs(first ? "" : ",", stdout);
-        bb_json_string(stdout, actions[i]);
+        bb_json_string(stdout, recovery_actions[i]);
         fputc(':', stdout);
-        recovery_print_status_index_array(root, name, "action", actions[i]);
+        recovery_print_status_index_array(root, name, "action", recovery_actions[i]);
         first = 0;
     }
     fputs("}", stdout);
@@ -511,9 +518,9 @@ static void recovery_print_status_indexes(const char *root, const char *name)
     first = 1;
     for (i = 0; i < sizeof(recovery_methods) / sizeof(recovery_methods[0]); i++) {
         size_t a;
-        for (a = 0; actions[a]; a++) {
+        for (a = 0; recovery_actions[a]; a++) {
             char key[128];
-            snprintf(key, sizeof(key), "%s:%s", recovery_methods[i].name, actions[a]);
+            snprintf(key, sizeof(key), "%s:%s", recovery_methods[i].name, recovery_actions[a]);
             if (!recovery_status_index_has_match(root, name, "method_action", key))
                 continue;
             fputs(first ? "" : ",", stdout);
@@ -528,9 +535,9 @@ static void recovery_print_status_indexes(const char *root, const char *name)
     first = 1;
     for (i = 0; categories[i]; i++) {
         size_t a;
-        for (a = 0; actions[a]; a++) {
+        for (a = 0; recovery_actions[a]; a++) {
             char key[128];
-            snprintf(key, sizeof(key), "%s:%s", categories[i], actions[a]);
+            snprintf(key, sizeof(key), "%s:%s", categories[i], recovery_actions[a]);
             if (!recovery_status_index_has_match(root, name, "category_action", key))
                 continue;
             fputs(first ? "" : ",", stdout);
@@ -552,6 +559,48 @@ static void recovery_print_status_api_collections(int installed_count)
     fputs("\"installations_by_method_action\",", stdout);
     fputs("\"installations_by_category_action\"", stdout);
     fputs("]}}", stdout);
+}
+
+static int recovery_action_index_match(const char *field, const char *action, const char *value)
+{
+    const char *candidate = "";
+    if (!strcmp(field, "name"))
+        candidate = action;
+    else if (!strcmp(field, "category"))
+        candidate = recovery_action_category(action);
+    else if (!strcmp(field, "uploads_evidence"))
+        candidate = recovery_action_uploads_evidence(action) ? "yes" : "no";
+    else if (!strcmp(field, "collects_dmesg"))
+        candidate = recovery_action_collects_dmesg(action) ? "yes" : "no";
+    else if (!strcmp(field, "starts_rshell"))
+        candidate = recovery_action_starts_rshell(action) ? "yes" : "no";
+    else if (!strcmp(field, "starts_rshell_after_evidence"))
+        candidate = recovery_action_starts_rshell_after_evidence(action) ? "yes" : "no";
+    else if (!strcmp(field, "executes_operator_supplied_command"))
+        candidate = recovery_action_executes_operator_supplied_command(action) ? "yes" : "no";
+    else if (!strcmp(field, "command_queue_enabled"))
+        candidate = "no";
+    else if (!strcmp(field, "hidden_control_channel"))
+        candidate = "no";
+    else if (!strcmp(field, "requires_explicit_apply"))
+        candidate = "yes";
+    else if (!strcmp(field, "requires_external_write"))
+        candidate = "yes";
+    return !strcmp(candidate, value);
+}
+
+static void recovery_print_action_index_array(const char *field, const char *value)
+{
+    size_t i;
+    int first = 1;
+    fputc('[', stdout);
+    for (i = 0; recovery_actions[i]; i++) {
+        if (!recovery_action_index_match(field, recovery_actions[i], value))
+            continue;
+        printf("%s%zu", first ? "" : ",", i);
+        first = 0;
+    }
+    fputc(']', stdout);
 }
 
 static void recovery_print_survey_index_array(const char *collection, const char *field, const char *value)
@@ -599,6 +648,8 @@ static void recovery_print_survey_indexes(void)
     static const char *method_survives[] = {"yes", "event", "login-only", "maybe", NULL};
     static const char *method_intrusiveness[] = {"low", "medium", "high", NULL};
     static const char *method_external_write[] = {"yes", "no", NULL};
+    static const char *action_categories[] = {"status", "reverse-shell", "evidence", "command", "script", NULL};
+    static const char *yes_no[] = {"yes", "no", NULL};
     size_t i;
 
     fputs(",\"storage_by_class\":{", stdout);
@@ -649,6 +700,70 @@ static void recovery_print_survey_indexes(void)
         fputc(':', stdout);
         recovery_print_survey_index_array("methods", "requires_external_write", method_external_write[i]);
     }
+    fputs("},\"actions_by_name\":{", stdout);
+    for (i = 0; recovery_actions[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, recovery_actions[i]);
+        fputc(':', stdout);
+        recovery_print_action_index_array("name", recovery_actions[i]);
+    }
+    fputs("},\"actions_by_category\":{", stdout);
+    for (i = 0; action_categories[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, action_categories[i]);
+        fputc(':', stdout);
+        recovery_print_action_index_array("category", action_categories[i]);
+    }
+    fputs("},\"actions_by_uploads_evidence\":{", stdout);
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, yes_no[i]);
+        fputc(':', stdout);
+        recovery_print_action_index_array("uploads_evidence", yes_no[i]);
+    }
+    fputs("},\"actions_by_collects_dmesg\":{", stdout);
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, yes_no[i]);
+        fputc(':', stdout);
+        recovery_print_action_index_array("collects_dmesg", yes_no[i]);
+    }
+    fputs("},\"actions_by_starts_rshell\":{", stdout);
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, yes_no[i]);
+        fputc(':', stdout);
+        recovery_print_action_index_array("starts_rshell", yes_no[i]);
+    }
+    fputs("},\"actions_by_executes_operator_supplied_command\":{", stdout);
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, yes_no[i]);
+        fputc(':', stdout);
+        recovery_print_action_index_array("executes_operator_supplied_command", yes_no[i]);
+    }
+    fputs("},\"actions_by_command_queue_enabled\":{", stdout);
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, yes_no[i]);
+        fputc(':', stdout);
+        recovery_print_action_index_array("command_queue_enabled", yes_no[i]);
+    }
+    fputs("},\"actions_by_hidden_control_channel\":{", stdout);
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, yes_no[i]);
+        fputc(':', stdout);
+        recovery_print_action_index_array("hidden_control_channel", yes_no[i]);
+    }
     fputs("}", stdout);
 }
 
@@ -661,6 +776,9 @@ static void recovery_print_survey_api_collections(void)
     printf("]},\"methods\":{\"name\":\"methods\",\"count\":%zu,\"count_summary_key\":\"summary.method_count\",\"summary_key\":\"summary.method_count\",\"indexes\":[",
            sizeof(recovery_methods) / sizeof(recovery_methods[0]));
     fputs("\"methods_by_name\",\"methods_by_survives_reboot\",\"methods_by_intrusiveness\",\"methods_by_requires_external_write\"", stdout);
+    printf("]},\"actions\":{\"name\":\"actions\",\"count\":%zu,\"count_summary_key\":\"summary.action_count\",\"summary_key\":\"summary.action_count\",\"indexes\":[",
+           (sizeof(recovery_actions) / sizeof(recovery_actions[0])) - 1);
+    fputs("\"actions_by_name\",\"actions_by_category\",\"actions_by_uploads_evidence\",\"actions_by_collects_dmesg\",\"actions_by_starts_rshell\",\"actions_by_executes_operator_supplied_command\",\"actions_by_command_queue_enabled\",\"actions_by_hidden_control_channel\"", stdout);
     fputs("]}}", stdout);
 }
 
@@ -697,12 +815,32 @@ static void recovery_print_survey(int json, const char *root)
             fputs(",\"requires_external_write\":", stdout); bb_json_string(stdout, recovery_methods[i].requires_external_write);
             fputc('}', stdout);
         }
+        fputs("],\"actions\":[", stdout);
+        for (i = 0; recovery_actions[i]; i++) {
+            const char *action = recovery_actions[i];
+            printf("%s{\"name\":", i ? "," : "");
+            bb_json_string(stdout, action);
+            fputs(",\"category\":", stdout); bb_json_string(stdout, recovery_action_category(action));
+            fputs(",\"uploads_evidence\":", stdout); fputs(recovery_action_uploads_evidence(action) ? "true" : "false", stdout);
+            fputs(",\"collects_dmesg\":", stdout); fputs(recovery_action_collects_dmesg(action) ? "true" : "false", stdout);
+            fputs(",\"starts_rshell\":", stdout); fputs(recovery_action_starts_rshell(action) ? "true" : "false", stdout);
+            fputs(",\"starts_rshell_after_evidence\":", stdout); fputs(recovery_action_starts_rshell_after_evidence(action) ? "true" : "false", stdout);
+            fputs(",\"executes_operator_supplied_command\":", stdout); fputs(recovery_action_executes_operator_supplied_command(action) ? "true" : "false", stdout);
+            fputs(",\"command_queue_enabled\":false", stdout);
+            fputs(",\"hidden_control_channel\":false", stdout);
+            fputs(",\"requires_explicit_apply\":true", stdout);
+            fputs(",\"requires_external_write\":true", stdout);
+            fputs(",\"self_reinstall\":false", stdout);
+            fputs(",\"survives_factory_reset_claim\":false", stdout);
+            fputc('}', stdout);
+        }
         fputs("]", stdout);
         recovery_print_survey_indexes();
         recovery_print_survey_api_collections();
-        printf(",\"summary\":{\"storage_count\":%zu,\"method_count\":%zu}}\n",
+        printf(",\"summary\":{\"storage_count\":%zu,\"method_count\":%zu,\"action_count\":%zu,\"evidence_action_count\":3,\"dmesg_action_count\":1,\"rshell_action_count\":2,\"operator_supplied_action_count\":2,\"command_queue_enabled_action_count\":0,\"hidden_control_channel_action_count\":0}}\n",
                sizeof(recovery_storage_paths) / sizeof(recovery_storage_paths[0]),
-               sizeof(recovery_methods) / sizeof(recovery_methods[0]));
+               sizeof(recovery_methods) / sizeof(recovery_methods[0]),
+               (sizeof(recovery_actions) / sizeof(recovery_actions[0])) - 1);
         return;
     }
     puts("Persistence survey");
