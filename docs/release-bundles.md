@@ -727,10 +727,12 @@ status output also exposes `workbench_config_fields` for guided edits of the exi
 `configs/busierbox.conf` shell assignment file, grouped by target, payload,
 build/static policy, runtime/trailer defaults, recovery, reverse shell policy,
 command queue policy, and no-residue behavior. Operators can inspect those
-fields with `--list-build-config` and update supported keys with
-`--set-build-config KEY=VALUE`; the line-oriented workbench shows the exact
-underlying command before writing the same config file that `scripts/menuconfig`
-and noninteractive builds consume. Background-capable
+fields with `--list-build-config`; field records include examples and
+structured fixed `options` where the underlying config accepts a bounded choice.
+Operators can update supported keys with `--set-build-config KEY=VALUE`; fixed
+choice values are validated before writing. The line-oriented workbench shows
+the exact underlying command before writing the same config file that
+`scripts/menuconfig` and noninteractive builds consume. Background-capable
 workflow tasks are represented in `workbench_jobs` with start time, command, PID
 ownership metadata, log path, effective state, exit status when recorded, and a
 bounded last-output tail. Job indexes such as `workbench_jobs_by_id`,

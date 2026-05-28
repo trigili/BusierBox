@@ -283,15 +283,33 @@ def main():
         guided_fields = guided_status.get("workbench_config_fields") or []
         guided_by_key = guided_status.get("workbench_config_fields_by_key") or {}
         guided_by_category = guided_status.get("workbench_config_fields_by_category") or {}
+        guided_fixed = guided_status.get("workbench_config_fields_by_fixed_options") or {}
         if (len(guided_fields) < 12 or
                 guided_status.get("summary", {}).get("workbench_config_field_count") != len(guided_fields) or
                 guided_by_key.get("BB_NORESIDUE_LEVEL", {}).get("value") != "aggressive" or
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("value") != "reconnect" or
+                guided_by_key.get("BB_RSHELL_TRANSPORT", {}).get("options") != ["ssh", "socat", "builtin", "none"] or
+                guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("fixed_options") is not True or
+                guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("option_count") != 3 or
+                guided_status.get("summary", {}).get("workbench_config_field_fixed_option_count", 0) < 10 or
+                not guided_fixed.get("True") or
                 not guided_by_category.get("target") or
                 not guided_by_category.get("command-queue") or
-                guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("primary_key") != "key"):
+                guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("primary_key") != "key" or
+                "workbench_config_fields_by_fixed_options" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", [])):
             print("server json status missing guided build config field records", file=sys.stderr)
             print(json.dumps(guided_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        bad_build_config = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--build-config", str(guided_build_config),
+            "--set-build-config", "BB_RSHELL_SESSION_POLICY=resume",
+        )
+        if bad_build_config.returncode == 0 or "unsupported value for BB_RSHELL_SESSION_POLICY" not in (bad_build_config.stdout + bad_build_config.stderr):
+            print("guided build config accepted invalid fixed-option value", file=sys.stderr)
+            print(bad_build_config.stdout, file=sys.stderr)
+            print(bad_build_config.stderr, file=sys.stderr)
             return 1
         guided_events = [
             json.loads(line)
@@ -1296,9 +1314,12 @@ def main():
         workbench_summary = queue_status_json.get("summary") or {}
         if (len(workbench_config_fields) < 12 or
                 workbench_summary.get("workbench_config_field_count") != len(workbench_config_fields) or
+                workbench_summary.get("workbench_config_field_fixed_option_count", 0) < 10 or
                 not config_fields_by_key.get("BB_TARGET_PRESET") or
                 not config_fields_by_key.get("BB_STATIC_POLICY") or
+                config_fields_by_key.get("BB_STATIC_POLICY", {}).get("options") != ["static-preferred", "static-only", "dynamic-ok"] or
                 not config_fields_by_key.get("BB_COMMAND_QUEUE_ENABLE") or
+                config_fields_by_key.get("BB_COMMAND_QUEUE_ENABLE", {}).get("fixed_options") is not True or
                 not config_fields_by_category.get("runtime") or
                 not config_fields_by_category.get("rshell")):
             print("server json status missing guided build config descriptors", file=sys.stderr)

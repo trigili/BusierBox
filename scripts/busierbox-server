@@ -841,6 +841,22 @@ WORKBENCH_BUILD_CONFIG_FIELDS = [
     ("command-queue", "BB_COMMAND_QUEUE_ALLOW_ARBITRARY", "allow arbitrary command queue commands", "no yes"),
 ]
 
+WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS = {
+    "BB_STATIC_POLICY": ("static-preferred", "static-only", "dynamic-ok"),
+    "BB_BUILD_INTERNAL_CORE": ("no", "yes"),
+    "BB_NORESIDUE_LEVEL": ("best-effort", "aggressive"),
+    "BB_RUNTIME_ALLOW_EXTERNAL_WRITES": ("no", "yes"),
+    "BB_TRAILER_OVERRIDES_ENABLE": ("yes", "no"),
+    "BB_AUTORUN_GUARD_ENABLE": ("yes", "no"),
+    "BB_RSHELL_TRANSPORT": ("ssh", "socat", "builtin", "none"),
+    "BB_RSHELL_RUN_MODE": ("auto", "foreground", "background"),
+    "BB_RSHELL_SESSION_POLICY": ("single", "reconnect", "persistent"),
+    "BB_COMMAND_QUEUE_ENABLE": ("no", "yes"),
+    "BB_COMMAND_QUEUE_ALLOWED_COMMANDS": ("none", "busierbox-only", "allowlist", "custom"),
+    "BB_COMMAND_QUEUE_EXECUTION": ("metadata-only", "execute"),
+    "BB_COMMAND_QUEUE_ALLOW_ARBITRARY": ("no", "yes"),
+}
+
 
 def build_config_path(cfg):
     return Path(str(cfg.get("_build_config_path") or cfg.get("build_config") or "configs/busierbox.conf"))
@@ -907,6 +923,8 @@ def workbench_config_field_records(cfg):
     values = parsed.get("values") or {}
     records = []
     for category, key, label, examples in WORKBENCH_BUILD_CONFIG_FIELDS:
+        example_values = examples.split()
+        fixed_options = list(WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS.get(key, ()))
         records.append({
             "key": key,
             "category": category,
@@ -917,7 +935,10 @@ def workbench_config_field_records(cfg):
             "writes_config": True,
             "target_execution": False,
             "source_format": "shell-assignment",
-            "examples": examples.split(),
+            "examples": example_values,
+            "options": fixed_options,
+            "fixed_options": bool(fixed_options),
+            "option_count": len(fixed_options),
             "set_command": "scripts/busierbox-server --build-config "
                            + shquote(str(path)) + " --set-build-config "
                            + shquote(f"{key}=VALUE"),
@@ -930,6 +951,7 @@ def workbench_config_field_indexes(records):
         "workbench_config_fields_by_key": {rec.get("key", ""): rec for rec in records or [] if rec.get("key")},
         "workbench_config_fields_by_category": records_by_key(records, "category"),
         "workbench_config_fields_by_configured": records_by_key(records, "configured"),
+        "workbench_config_fields_by_fixed_options": records_by_key(records, "fixed_options"),
     }
 
 
@@ -937,6 +959,7 @@ def workbench_config_field_summary(records):
     return {
         "total_count": len(records or []),
         "configured_count": len([rec for rec in records or [] if rec.get("configured") is True]),
+        "fixed_option_count": len([rec for rec in records or [] if rec.get("fixed_options") is True]),
         "category_counts": record_count_by_key(records, "category"),
     }
 
@@ -948,6 +971,9 @@ def set_workbench_build_config(cfg, assignment):
     key = key.strip()
     if not any(rec[1] == key for rec in WORKBENCH_BUILD_CONFIG_FIELDS):
         raise ValueError(f"unsupported guided build config key: {key}")
+    options = WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS.get(key)
+    if options and value not in options:
+        raise ValueError(f"unsupported value for {key}: {value}; expected one of: {', '.join(options)}")
     path = build_config_path(cfg)
     old_value = parse_build_config(path).get("values", {}).get(key, "")
     write_build_config_value(path, key, value)
@@ -6227,6 +6253,7 @@ def status_document(cfg):
         "workbench_action_count": workbench_action_stats.get("total_count", 0),
         "workbench_config_field_count": workbench_config_field_stats.get("total_count", 0),
         "workbench_config_field_configured_count": workbench_config_field_stats.get("configured_count", 0),
+        "workbench_config_field_fixed_option_count": workbench_config_field_stats.get("fixed_option_count", 0),
         "workbench_config_field_category_counts": workbench_config_field_stats.get("category_counts") or {},
         "workbench_action_background_supported_count": workbench_action_stats.get("background_supported_count", 0),
         "workbench_action_long_running_count": workbench_action_stats.get("long_running_count", 0),
@@ -6381,7 +6408,7 @@ def status_document(cfg):
         "workbench_config_fields": api_collection_record(
             "workbench_config_fields", workbench_config_fields, "key", (
                 "workbench_config_fields_by_key", "workbench_config_fields_by_category",
-                "workbench_config_fields_by_configured",
+                "workbench_config_fields_by_configured", "workbench_config_fields_by_fixed_options",
             ), "workbench_config_field_count",
         ),
         "workbench_jobs": api_collection_record(
@@ -6642,7 +6669,8 @@ def print_workbench_action_summary(doc):
     print(
         "Build config field summary: "
         f"total={summary.get('workbench_config_field_count', 0)} "
-        f"configured={summary.get('workbench_config_field_configured_count', 0)}"
+        f"configured={summary.get('workbench_config_field_configured_count', 0)} "
+        f"fixed_options={summary.get('workbench_config_field_fixed_option_count', 0)}"
     )
     print(f"  config categories: {format_counts(summary.get('workbench_config_field_category_counts') or {})}")
     print(
