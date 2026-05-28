@@ -773,12 +773,15 @@ Composite maps `events_by_service_event`, `events_by_session_event`,
 `events_by_service_level`, `events_by_event_level`, `events_by_session_level`,
 `events_by_remote_event`, `events_by_remote_level`, `events_by_detail_status`,
 `events_by_detail_operation`, `events_by_detail_http_status`,
+`events_by_detail_request_name`, `events_by_detail_filename`,
 `events_by_detail_reason`, `events_by_detail_sha256`, `events_by_detail_command_id`,
 `events_by_detail_command_sha256`, `events_by_detail_job_id`, `events_by_detail_action_id`,
 `events_by_detail_key`, `events_by_detail_config_path`,
 `events_by_event_detail_status`, `events_by_service_detail_status`,
 `events_by_event_detail_operation`, `events_by_service_detail_operation`,
 `events_by_event_detail_http_status`, `events_by_service_detail_http_status`,
+`events_by_event_detail_request_name`, `events_by_service_detail_request_name`,
+`events_by_event_detail_filename`, `events_by_service_detail_filename`,
 `events_by_event_detail_reason`, `events_by_service_detail_reason`,
 `events_by_event_detail_sha256`, `events_by_service_detail_sha256`,
 `events_by_event_detail_command_id`, `events_by_service_detail_command_id`,
@@ -793,6 +796,7 @@ lookups such as `file-service:upload_complete`, `<session-id>:connection_close`,
 `file-service:error`, `bind_error:error`, `<remote>:upload_complete`,
 `upload`, `200`, `clean shutdown`, `cq-...`, `upload_complete:ok`,
 `file-service:ok`, `upload_complete:upload`, `file-service:200`,
+`fetch_complete:/tmp/myfile`, `file-service:evidence.txt`,
 `upload_complete:<file-sha256>`, `file-service:<file-sha256>`,
 `service_stop:clean shutdown`, `command_result_received:cq-...`,
 `command_queue_poll_delivered:<command-sha256>`,
@@ -815,12 +819,14 @@ count, first/latest event timestamps, and
 aggregate counters by service, event, level, remote endpoint, service/event,
 session/event, service/level, event/level, session/level, remote/event,
 remote/level, detail status, detail operation,
-detail HTTP status, detail reason, detail command id, event/status,
+detail HTTP status, detail request name, detail filename, detail reason,
+detail command id, event/status,
 service/status, event/reason, service/reason, event/command id, and
-service/command id, plus file detail SHA-256, event/file SHA-256, service/file
-SHA-256, detail job id, event/job id, and service/job id so API consumers can
-tell whether there is more history to page or inspect from disk while still
-rendering compact diagnostics. Workbench action ids get the same
+service/command id, plus event/request name, service/request name,
+event/filename, service/filename, file detail SHA-256, event/file SHA-256,
+service/file SHA-256, detail job id, event/job id, and service/job id so API
+consumers can tell whether there is more history to page or inspect from disk
+while still rendering compact diagnostics. Workbench action ids get the same
 detail/action id, event/action id, and service/action id counters. Workbench
 configuration updates are also counted by detail key, detail config path,
 event/key, service/key, event/config path, and service/config path.
@@ -831,12 +837,15 @@ Those aggregate maps are also mirrored into `summary` as
 `event_type_level_counts`, `event_session_level_counts`,
 `event_detail_status_counts`,
 `event_detail_operation_counts`, `event_detail_http_status_counts`,
+`event_detail_request_name_counts`, `event_detail_filename_counts`,
 `event_detail_reason_counts`, `event_detail_sha256_counts`,
 `event_detail_command_id_counts`,
 `event_detail_job_id_counts`, `event_detail_action_id_counts`,
 `event_detail_key_counts`, `event_detail_config_path_counts`,
 `event_type_detail_status_counts`, `event_service_detail_status_counts`,
 `event_type_detail_reason_counts`, `event_service_detail_reason_counts`,
+`event_type_detail_request_name_counts`, `event_service_detail_request_name_counts`,
+`event_type_detail_filename_counts`, `event_service_detail_filename_counts`,
 `event_type_detail_sha256_counts`, `event_service_detail_sha256_counts`,
 `event_type_detail_command_id_counts`, and
 `event_service_detail_command_id_counts`, plus

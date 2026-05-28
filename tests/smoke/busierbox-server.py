@@ -3855,6 +3855,7 @@ def main():
         upload_events_by_detail_status = upload_doc.get("events_by_detail_status") or {}
         upload_events_by_detail_operation = upload_doc.get("events_by_detail_operation") or {}
         upload_events_by_detail_http_status = upload_doc.get("events_by_detail_http_status") or {}
+        upload_events_by_detail_filename = upload_doc.get("events_by_detail_filename") or {}
         upload_events_by_detail_sha256 = upload_doc.get("events_by_detail_sha256") or {}
         upload_events_by_event_detail_status = upload_doc.get("events_by_event_detail_status") or {}
         upload_events_by_service_detail_status = upload_doc.get("events_by_service_detail_status") or {}
@@ -3862,6 +3863,8 @@ def main():
         upload_events_by_service_detail_operation = upload_doc.get("events_by_service_detail_operation") or {}
         upload_events_by_event_detail_http_status = upload_doc.get("events_by_event_detail_http_status") or {}
         upload_events_by_service_detail_http_status = upload_doc.get("events_by_service_detail_http_status") or {}
+        upload_events_by_event_detail_filename = upload_doc.get("events_by_event_detail_filename") or {}
+        upload_events_by_service_detail_filename = upload_doc.get("events_by_service_detail_filename") or {}
         upload_events_by_event_detail_sha256 = upload_doc.get("events_by_event_detail_sha256") or {}
         upload_events_by_service_detail_sha256 = upload_doc.get("events_by_service_detail_sha256") or {}
         upload_events_api = (upload_doc.get("api_collections") or {}).get("events") or {}
@@ -3883,6 +3886,7 @@ def main():
                 upload_events_by_detail_status.get("ok", [{}])[0].get("event") not in ("upload_complete", "connection_close") or
                 upload_events_by_detail_operation.get("upload", [{}])[0].get("service") != "file-service" or
                 upload_events_by_detail_http_status.get("200", [{}])[0].get("service") != "file-service" or
+                upload_events_by_detail_filename.get("evidence.txt", [{}])[0].get("event") not in ("upload_start", "upload_complete", "connection_close") or
                 upload_events_by_detail_sha256.get(upload_sha256, [{}])[0].get("event") != "upload_complete" or
                 not upload_events_by_event_detail_status.get("upload_complete:ok") or
                 not upload_events_by_service_detail_status.get("file-service:ok") or
@@ -3890,11 +3894,14 @@ def main():
                 not upload_events_by_service_detail_operation.get("file-service:upload") or
                 not upload_events_by_event_detail_http_status.get("connection_close:200") or
                 not upload_events_by_service_detail_http_status.get("file-service:200") or
+                not upload_events_by_event_detail_filename.get("upload_complete:evidence.txt") or
+                not upload_events_by_service_detail_filename.get("file-service:evidence.txt") or
                 upload_events_by_event_detail_sha256.get(f"upload_complete:{upload_sha256}", [{}])[0].get("details", {}).get("filename") != "evidence.txt" or
                 upload_events_by_service_detail_sha256.get(f"file-service:{upload_sha256}", [{}])[0].get("event") != "upload_complete" or
                 "events_by_detail_status" not in (upload_events_api.get("indexes") or []) or
                 "events_by_detail_operation" not in (upload_events_api.get("indexes") or []) or
                 "events_by_detail_http_status" not in (upload_events_api.get("indexes") or []) or
+                "events_by_detail_filename" not in (upload_events_api.get("indexes") or []) or
                 "events_by_detail_sha256" not in (upload_events_api.get("indexes") or []) or
                 "events_by_event_detail_status" not in (upload_events_api.get("indexes") or []) or
                 "events_by_service_detail_status" not in (upload_events_api.get("indexes") or []) or
@@ -3902,6 +3909,8 @@ def main():
                 "events_by_service_detail_operation" not in (upload_events_api.get("indexes") or []) or
                 "events_by_event_detail_http_status" not in (upload_events_api.get("indexes") or []) or
                 "events_by_service_detail_http_status" not in (upload_events_api.get("indexes") or []) or
+                "events_by_event_detail_filename" not in (upload_events_api.get("indexes") or []) or
+                "events_by_service_detail_filename" not in (upload_events_api.get("indexes") or []) or
                 "events_by_event_detail_sha256" not in (upload_events_api.get("indexes") or []) or
                 "events_by_service_detail_sha256" not in (upload_events_api.get("indexes") or []) or
                 not upload_remote or
@@ -3937,20 +3946,26 @@ def main():
                 upload_event_stats.get("by_detail_status", {}).get("ok", 0) < 1 or
                 upload_event_stats.get("by_detail_operation", {}).get("upload", 0) < 1 or
                 upload_event_stats.get("by_detail_http_status", {}).get("200", 0) < 1 or
+                upload_event_stats.get("by_detail_filename", {}).get("evidence.txt", 0) < 1 or
                 upload_event_stats.get("by_detail_sha256", {}).get(upload_sha256, 0) < 1 or
                 upload_event_stats.get("by_event_detail_status", {}).get("upload_complete:ok", 0) < 1 or
                 upload_event_stats.get("by_service_detail_status", {}).get("file-service:ok", 0) < 1 or
                 upload_event_stats.get("by_event_detail_sha256", {}).get(f"upload_complete:{upload_sha256}", 0) < 1 or
                 upload_event_stats.get("by_service_detail_sha256", {}).get(f"file-service:{upload_sha256}", 0) < 1 or
+                upload_event_stats.get("by_event_detail_filename", {}).get("upload_complete:evidence.txt", 0) < 1 or
+                upload_event_stats.get("by_service_detail_filename", {}).get("file-service:evidence.txt", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_remote_counts", {}).get(upload_remote, 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_status_counts", {}).get("ok", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_operation_counts", {}).get("upload", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_http_status_counts", {}).get("200", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_detail_filename_counts", {}).get("evidence.txt", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_sha256_counts", {}).get(upload_sha256, 0) < 1 or
                 upload_doc.get("summary", {}).get("event_type_detail_status_counts", {}).get("upload_complete:ok", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_service_detail_status_counts", {}).get("file-service:ok", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_type_detail_sha256_counts", {}).get(f"upload_complete:{upload_sha256}", 0) < 1 or
-                upload_doc.get("summary", {}).get("event_service_detail_sha256_counts", {}).get(f"file-service:{upload_sha256}", 0) < 1):
+                upload_doc.get("summary", {}).get("event_service_detail_sha256_counts", {}).get(f"file-service:{upload_sha256}", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_type_detail_filename_counts", {}).get("upload_complete:evidence.txt", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_service_detail_filename_counts", {}).get("file-service:evidence.txt", 0) < 1):
             print("server json status missing upload event log stats", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
@@ -4199,6 +4214,7 @@ def main():
             "listen_host": "127.0.0.1",
             "file_service_port": fetch_port,
             "session_root": str(Path(tmp) / "sessions-fetch"),
+            "operator_session_dir": str(Path(tmp) / "operator-session-fetch"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
             "file_service_tls": "no",
@@ -4952,6 +4968,9 @@ def main():
                 fetch_summary.get("fetch_source_missing_count") != 0 or
                 fetch_summary.get("fetch_status_counts", {}).get("served") != 1 or
                 fetch_summary.get("fetch_http_status_counts", {}).get("200") != 1 or
+                fetch_summary.get("event_detail_request_name_counts", {}).get("/tmp/myfile", 0) < 1 or
+                fetch_summary.get("event_type_detail_request_name_counts", {}).get("fetch_complete:/tmp/myfile", 0) < 1 or
+                fetch_summary.get("event_service_detail_request_name_counts", {}).get("file-service:/tmp/myfile", 0) < 1 or
                 len(fetch_items) != 1 or
                 fetch_items[0].get("request_name") != "/tmp/myfile" or
                 fetch_items[0].get("status") != "served" or
@@ -4985,6 +5004,7 @@ def main():
         fetches_by_status_source_exists = fetch_status_doc.get("fetches_by_status_source_exists") or {}
         fetches_by_status_remote = fetch_status_doc.get("fetches_by_status_remote_addr") or {}
         fetches_by_http_status_remote = fetch_status_doc.get("fetches_by_http_status_remote_addr") or {}
+        events_api = (fetch_status_doc.get("api_collections") or {}).get("events") or {}
         fetch_sha = fetch_items[0].get("sha256", "")
         fetch_remote = fetch_items[0].get("remote_addr", "")
         fetch_request_status_key = "/tmp/myfile:served"
@@ -5005,7 +5025,10 @@ def main():
                 fetches_by_request_status.get(fetch_request_status_key, [{}])[0].get("source_path") != str(staged_source) or
                 fetches_by_status_source_exists.get(fetch_status_source_exists_key, [{}])[0].get("request_name") != "/tmp/myfile" or
                 fetches_by_status_remote.get(fetch_status_remote_key, [{}])[0].get("request_name") != "/tmp/myfile" or
-                fetches_by_http_status_remote.get(fetch_http_status_remote_key, [{}])[0].get("status") != "served"):
+                fetches_by_http_status_remote.get(fetch_http_status_remote_key, [{}])[0].get("status") != "served" or
+                "events_by_detail_request_name" not in (events_api.get("indexes") or []) or
+                "events_by_event_detail_request_name" not in (events_api.get("indexes") or []) or
+                "events_by_service_detail_request_name" not in (events_api.get("indexes") or [])):
             print("server json status missing fetch browser lookup maps", file=sys.stderr)
             print(fetch_status.stdout, file=sys.stderr)
             return 1
