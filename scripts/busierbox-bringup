@@ -377,10 +377,12 @@ for item in next_command_records:
     if service and purpose:
         next_command_records_by_service_purpose.setdefault(f"{service}:{purpose}", []).append(item)
 
-def api_collection_record(name, records, indexes, summary_key):
+def api_collection_record(name, records, indexes, summary_key, primary_key=""):
     return {
         "name": name,
         "count": len(records),
+        "count_summary_key": summary_key,
+        "primary_key": primary_key,
         "indexes": list(indexes),
         "summary_key": summary_key,
     }
@@ -609,6 +611,7 @@ doc["api_collections"] = {
             "next_command_records_by_source_path",
         ),
         "command_record_summary.total_count",
+        "command",
     ),
     "run_file_records": api_collection_record(
         "run_file_records",
@@ -622,6 +625,7 @@ doc["api_collections"] = {
             "run_files_by_readable",
         ),
         "run_file_summary.total_count",
+        "name",
     ),
     "selected_tool_provider_status_records": api_collection_record(
         "selected_tool_provider_status_records",
@@ -631,6 +635,7 @@ doc["api_collections"] = {
             "selected_tool_provider_status_by_overall",
         ),
         "selected_artifact_detail_summary.tool_provider_status_count",
+        "tool",
     ),
     "selected_doom_wad_records": api_collection_record(
         "selected_doom_wad_records",
@@ -640,6 +645,7 @@ doc["api_collections"] = {
             "selected_doom_wads_by_sha256",
         ),
         "selected_artifact_detail_summary.doom_wad_count",
+        "filename",
     ),
 }
 doc["selected_artifact_detail_summary"] = {

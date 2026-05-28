@@ -161,10 +161,11 @@ render a bringup run without separately probing the filesystem. Lookup maps
 `run_files_by_exists`, and `run_files_by_readable` let frontends jump directly
 to a generated artifact or group missing/readable files without rescanning the
 flat record list. The summary
-publishes `api_collections` metadata for `next_command_records`,
+publishes `api_collections` metadata with `count`, `summary_key`,
+`count_summary_key`, `primary_key`, and index names for `next_command_records`,
 `run_file_records`, selected tool provider records, and selected Doom WAD
-records, mirroring the collection/index discovery pattern used by
-`scripts/busierbox-server --api-status`.
+records. This mirrors the collection/index discovery pattern used by
+`scripts/busierbox-server --api-status` and the native JSON applets.
 It also includes a `safety_boundary` object that states that bringup does not
 enable network autorun, hidden control channels, command queue execution, or
 default remote command execution.
