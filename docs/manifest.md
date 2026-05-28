@@ -20,6 +20,8 @@ The JSON manifest includes:
 - runtime mode, no-residue level, no-residue policy summary, root, and fallback settings
 - zero-arg mode and log mode
 - rshell transport, encryption, run mode, and shell provider
+- command-queue policy, interval polling settings, daemon state support, and
+  mode records/indexes for status/poll/once/daemon/stop behavior
 - dotfile modes and user overlay policy
 - artifact licensing posture: BusierBox GPL license, combined GPLv2
   compatibility, BusyBox fork boundary, and third-party component license

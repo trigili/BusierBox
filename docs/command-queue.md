@@ -33,8 +33,8 @@ Current behavior is intentionally non-executing:
   need JSON tooling to distinguish default dry-run planning from explicit
   `--live` metadata polling.
 - `busierbox plan command-queue --json` and `manifest --json` expose the same
-  policy validity fields so release tooling and frontends do not treat an
-  inconsistent policy as ready to poll.
+  policy validity fields and normalized mode records so release tooling and
+  frontends do not treat an inconsistent policy as ready to poll.
 
 Configuration keys:
 

@@ -272,6 +272,38 @@ if (command_queue.get("poll_transport_supported") is not True or
     raise SystemExit("manifest-metadata: command queue live-poll safety metadata missing")
 if command_queue.get("executes_commands") is not False or command_queue.get("default_enabled") is not False:
     raise SystemExit("manifest-metadata: command queue safety metadata missing")
+mode_records = command_queue.get("mode_records") or []
+mode_summary = command_queue.get("mode_summary") or {}
+mode_api = (command_queue.get("api_collections") or {}).get("mode_records") or {}
+if len(mode_records) != 5:
+    raise SystemExit("manifest-metadata: command queue mode records missing")
+if mode_records[1].get("mode") != "poll" or mode_records[1].get("target_polling_supported") is not True:
+    raise SystemExit("manifest-metadata: command queue poll mode record missing")
+if mode_records[1].get("execution_supported") is not False or mode_records[1].get("active_control_channel") is not False:
+    raise SystemExit("manifest-metadata: command queue mode safety metadata missing")
+if command_queue.get("mode_records_by_mode", {}).get("poll") != [1]:
+    raise SystemExit("manifest-metadata: command queue mode index missing")
+if command_queue.get("mode_records_by_lifecycle", {}).get("single-poll") != [1]:
+    raise SystemExit("manifest-metadata: command queue lifecycle index missing")
+if command_queue.get("mode_records_by_would_poll_if_configured", {}).get("true") != [1, 2, 3]:
+    raise SystemExit("manifest-metadata: command queue polling index missing")
+if command_queue.get("mode_records_by_target_polling_supported", {}).get("true") != [1, 2, 3]:
+    raise SystemExit("manifest-metadata: command queue target polling index missing")
+if command_queue.get("mode_records_by_execution_supported", {}).get("false") != [0, 1, 2, 3, 4]:
+    raise SystemExit("manifest-metadata: command queue execution-support index missing")
+if command_queue.get("mode_records_by_active_control_channel", {}).get("false") != [0, 1, 2, 3, 4]:
+    raise SystemExit("manifest-metadata: command queue active-control index missing")
+if (mode_summary.get("mode_count") != 5 or
+        mode_summary.get("target_polling_supported_mode_count") != 3 or
+        mode_summary.get("execution_supported_mode_count") != 0 or
+        mode_summary.get("active_control_channel_mode_count") != 0):
+    raise SystemExit("manifest-metadata: command queue mode summary missing")
+if (mode_api.get("count") != 5 or
+        mode_api.get("summary_key") != "mode_summary.mode_count" or
+        mode_api.get("count_summary_key") != "mode_summary.mode_count" or
+        mode_api.get("primary_key") != "mode" or
+        "mode_records_by_target_polling_supported" not in mode_api.get("indexes", [])):
+    raise SystemExit("manifest-metadata: command queue mode api collection missing")
 
 retry = manifest["rshell"]["retry"]
 for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec"]:

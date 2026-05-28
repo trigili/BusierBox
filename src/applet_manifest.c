@@ -26,6 +26,165 @@ static int rshell_session_policy_valid(const char *policy)
            !strcmp(policy, "persistent");
 }
 
+static const char *command_queue_mode_lifecycle(const char *mode)
+{
+    if (!strcmp(mode, "status"))
+        return "inspect";
+    if (!strcmp(mode, "poll"))
+        return "single-poll";
+    if (!strcmp(mode, "once"))
+        return "single-cycle";
+    if (!strcmp(mode, "daemon"))
+        return "long-running";
+    if (!strcmp(mode, "stop"))
+        return "stop";
+    return "unknown";
+}
+
+static int command_queue_mode_polls(const char *mode)
+{
+    return strcmp(mode, "status") && strcmp(mode, "stop");
+}
+
+static void print_command_queue_mode_record(FILE *out, const char *mode)
+{
+    int polls = command_queue_mode_polls(mode);
+
+    fprintf(out, "{\"mode\":");
+    json_string_payload(out, mode);
+    fprintf(out, ",\"requires_operator_host\":%s", polls ? "true" : "false");
+    fprintf(out, ",\"would_poll_if_configured\":%s", polls ? "true" : "false");
+    fprintf(out, ",\"target_polling_supported\":%s", polls ? "true" : "false");
+    fprintf(out, ",\"requires_explicit_target_action\":true");
+    fprintf(out, ",\"delivery_supported\":false");
+    fprintf(out, ",\"result_upload_supported\":true");
+    fprintf(out, ",\"execution_supported\":false");
+    fprintf(out, ",\"executes_commands\":false");
+    fprintf(out, ",\"operator_supplied_command_execution\":false");
+    fprintf(out, ",\"active_control_channel\":false");
+    fprintf(out, ",\"lifecycle\":");
+    json_string_payload(out, command_queue_mode_lifecycle(mode));
+    fprintf(out, "}");
+}
+
+static void print_command_queue_mode_records(FILE *out)
+{
+    fprintf(out, ",\"mode_records\":[");
+    print_command_queue_mode_record(out, "status");
+    fprintf(out, ",");
+    print_command_queue_mode_record(out, "poll");
+    fprintf(out, ",");
+    print_command_queue_mode_record(out, "once");
+    fprintf(out, ",");
+    print_command_queue_mode_record(out, "daemon");
+    fprintf(out, ",");
+    print_command_queue_mode_record(out, "stop");
+    fprintf(out, "]");
+}
+
+static void print_command_queue_mode_index_array(FILE *out, const char *field, const char *value)
+{
+    static const char *modes[] = {"status", "poll", "once", "daemon", "stop"};
+    size_t i;
+    int first = 1;
+
+    fprintf(out, "[");
+    for (i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+        const char *mode = modes[i];
+        int polls = command_queue_mode_polls(mode);
+        const char *candidate = "";
+        if (!strcmp(field, "mode"))
+            candidate = mode;
+        else if (!strcmp(field, "lifecycle"))
+            candidate = command_queue_mode_lifecycle(mode);
+        else if (!strcmp(field, "would_poll_if_configured"))
+            candidate = polls ? "true" : "false";
+        else if (!strcmp(field, "target_polling_supported"))
+            candidate = polls ? "true" : "false";
+        else if (!strcmp(field, "execution_supported"))
+            candidate = "false";
+        else if (!strcmp(field, "active_control_channel"))
+            candidate = "false";
+        if (strcmp(candidate, value))
+            continue;
+        fprintf(out, "%s%zu", first ? "" : ",", i);
+        first = 0;
+    }
+    fprintf(out, "]");
+}
+
+static void print_command_queue_mode_indexes(FILE *out)
+{
+    static const char *modes[] = {"status", "poll", "once", "daemon", "stop"};
+    static const char *lifecycles[] = {"inspect", "single-poll", "single-cycle", "long-running", "stop"};
+    static const char *bools[] = {"true", "false"};
+    size_t i;
+
+    fprintf(out, ",\"mode_records_by_mode\":{");
+    for (i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+        if (i)
+            fprintf(out, ",");
+        json_string_payload(out, modes[i]);
+        fprintf(out, ":");
+        print_command_queue_mode_index_array(out, "mode", modes[i]);
+    }
+    fprintf(out, "},\"mode_records_by_lifecycle\":{");
+    for (i = 0; i < sizeof(lifecycles) / sizeof(lifecycles[0]); i++) {
+        if (i)
+            fprintf(out, ",");
+        json_string_payload(out, lifecycles[i]);
+        fprintf(out, ":");
+        print_command_queue_mode_index_array(out, "lifecycle", lifecycles[i]);
+    }
+    fprintf(out, "},\"mode_records_by_would_poll_if_configured\":{");
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fprintf(out, ",");
+        json_string_payload(out, bools[i]);
+        fprintf(out, ":");
+        print_command_queue_mode_index_array(out, "would_poll_if_configured", bools[i]);
+    }
+    fprintf(out, "},\"mode_records_by_target_polling_supported\":{");
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fprintf(out, ",");
+        json_string_payload(out, bools[i]);
+        fprintf(out, ":");
+        print_command_queue_mode_index_array(out, "target_polling_supported", bools[i]);
+    }
+    fprintf(out, "},\"mode_records_by_execution_supported\":{");
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fprintf(out, ",");
+        json_string_payload(out, bools[i]);
+        fprintf(out, ":");
+        print_command_queue_mode_index_array(out, "execution_supported", bools[i]);
+    }
+    fprintf(out, "},\"mode_records_by_active_control_channel\":{");
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fprintf(out, ",");
+        json_string_payload(out, bools[i]);
+        fprintf(out, ":");
+        print_command_queue_mode_index_array(out, "active_control_channel", bools[i]);
+    }
+    fprintf(out, "}");
+}
+
+static void print_command_queue_mode_summary(FILE *out)
+{
+    fprintf(out, ",\"mode_summary\":{\"mode_count\":5,\"polling_mode_count\":3,\"operator_host_required_mode_count\":3");
+    fprintf(out, ",\"target_polling_supported_mode_count\":3,\"result_upload_supported_mode_count\":5");
+    fprintf(out, ",\"execution_supported_mode_count\":0,\"active_control_channel_mode_count\":0,\"operator_supplied_command_execution_mode_count\":0}");
+}
+
+static void print_command_queue_mode_api_collections(FILE *out)
+{
+    fprintf(out, ",\"api_collections\":{\"mode_records\":{\"name\":\"mode_records\",\"count\":5");
+    fprintf(out, ",\"count_summary_key\":\"mode_summary.mode_count\",\"primary_key\":\"mode\",\"summary_key\":\"mode_summary.mode_count\"");
+    fprintf(out, ",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_target_polling_supported\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\"]}}");
+}
+
 #ifndef BUSIERBOX_PAYLOAD_VERSION
 #define BUSIERBOX_PAYLOAD_VERSION "dev"
 #endif
@@ -392,8 +551,13 @@ static void write_manifest_json(FILE *out, int include_missing)
             fputc(',', out);
         json_string_payload(out, command_queue_policy.errors[i]);
     }
-    fprintf(out, "],\"arbitrary_policy_requested\":%s,\"arbitrary_execution_allowed\":false,\"target_polling\":true,\"poll_transport_supported\":true,\"live_polling_supported\":true,\"delivery_supported\":false,\"result_upload_supported\":true,\"executes_commands\":false,\"default_enabled\":false}",
+    fprintf(out, "],\"arbitrary_policy_requested\":%s,\"arbitrary_execution_allowed\":false,\"target_polling\":true,\"poll_transport_supported\":true,\"live_polling_supported\":true,\"delivery_supported\":false,\"result_upload_supported\":true,\"executes_commands\":false,\"default_enabled\":false",
             command_queue_arbitrary_requested ? "true" : "false");
+    print_command_queue_mode_records(out);
+    print_command_queue_mode_indexes(out);
+    print_command_queue_mode_summary(out);
+    print_command_queue_mode_api_collections(out);
+    fprintf(out, "}");
     fprintf(out, "},\"dotfiles\":{\"enabled\":");
     json_string_payload(out, BB_DOTFILES_ENABLE);
     fprintf(out, ",\"zsh\":");
