@@ -1300,6 +1300,51 @@ def workbench_job_records(cfg, actions=None):
     return records
 
 
+def reconcile_workbench_job_completion_events(cfg):
+    data = load_workbench_jobs(cfg)
+    changed = False
+    completion_events = []
+    for rec in data.get("jobs") or []:
+        if not isinstance(rec, dict) or rec.get("completed_event_at"):
+            continue
+        exit_status = rec.get("exit_status")
+        if exit_status in (None, ""):
+            exit_status = read_workbench_job_exit_status(rec.get("exit_status_path", ""))
+        if not isinstance(exit_status, int):
+            continue
+        finished_at = str(rec.get("finished_at") or "")
+        finished_at_path = str(rec.get("finished_at_path") or "")
+        if not finished_at and finished_at_path and Path(finished_at_path).is_file():
+            try:
+                finished_at = Path(finished_at_path).read_text(encoding="utf-8").strip()
+            except OSError:
+                finished_at = ""
+        if not finished_at:
+            finished_at = utc_now()
+        outcome = "succeeded" if exit_status == 0 else "failed"
+        event_at = utc_now()
+        rec.update({
+            "state": "exited",
+            "exit_status": exit_status,
+            "finished_at": finished_at,
+            "outcome": outcome,
+            "completed_event_at": event_at,
+        })
+        changed = True
+        completion_events.append({
+            "job_id": rec.get("id", ""),
+            "action_id": rec.get("action_id", ""),
+            "exit_status": exit_status,
+            "outcome": outcome,
+            "finished_at": finished_at,
+            "log_path": rec.get("log_path", ""),
+        })
+    if changed:
+        write_workbench_jobs(cfg, data)
+        for details in completion_events:
+            append_event(cfg, "workbench", "workbench_job_completed", details=details)
+
+
 def workbench_job_indexes(records):
     return {
         "workbench_jobs_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
@@ -5936,6 +5981,7 @@ def status_document(cfg):
     fetches = recent_fetch_metadata(cfg)
     sessions = recent_session_records(cfg)
     session_root_state = session_root_record(cfg, sessions)
+    reconcile_workbench_job_completion_events(cfg)
     (sessions_by_id,
      sessions_by_service,
      sessions_by_state,

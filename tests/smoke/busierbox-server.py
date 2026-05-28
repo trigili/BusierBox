@@ -442,12 +442,14 @@ def main():
                 quick.get("exit_status") != 7 or
                 quick.get("outcome") != "failed" or
                 quick.get("finished_at", "") == "" or
+                quick.get("completed_event_at", "") == "" or
                 quick.get("last_output_tail", [])[-1:] != ["quick job done"] or
                 quick_status.get("summary", {}).get("workbench_job_exit_status_known_count", 0) < 1 or
                 quick_status.get("summary", {}).get("workbench_job_outcome_counts", {}).get("failed", 0) < 1 or
                 quick_status.get("summary", {}).get("workbench_job_exit_status_counts", {}).get("7", 0) < 1 or
                 (quick_status.get("workbench_jobs_by_outcome") or {}).get("failed", [{}])[-1].get("id") != quick_job_id or
-                (quick_status.get("workbench_jobs_by_exit_status") or {}).get("7", [{}])[-1].get("id") != quick_job_id):
+                (quick_status.get("workbench_jobs_by_exit_status") or {}).get("7", [{}])[-1].get("id") != quick_job_id or
+                (quick_status.get("event_log_stats") or {}).get("by_event", {}).get("workbench_job_completed", 0) != 1):
             print("completed workbench background job missing exit metadata", file=sys.stderr)
             print(json.dumps(quick_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
@@ -461,6 +463,20 @@ def main():
                 "outcomes:" not in quick_text.stdout):
             print("text status missing completed workbench job exit metadata", file=sys.stderr)
             print(quick_text.stdout, file=sys.stderr)
+            return 1
+        quick_events = [
+            json.loads(line)
+            for line in (workbench_job_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        completion_events = [
+            event for event in quick_events
+            if event.get("event") == "workbench_job_completed" and event.get("details", {}).get("job_id") == quick_job_id
+        ]
+        if (len(completion_events) != 1 or
+                completion_events[0].get("details", {}).get("exit_status") != 7 or
+                completion_events[0].get("details", {}).get("outcome") != "failed"):
+            print("completed workbench background job event missing or duplicated", file=sys.stderr)
+            print(json.dumps(quick_events, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         forged_dir = Path(tmp) / "operator-session-forged-job"
