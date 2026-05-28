@@ -1821,15 +1821,8 @@ def clear_command_queue(cfg):
     return count
 
 
-def record_command_result(cfg, command_id, result_path):
+def record_command_result_payload(cfg, command_id, result, result_source_path=""):
     data = load_command_queue(cfg)
-    path = Path(result_path).expanduser()
-    if not path.is_file():
-        raise ValueError(f"command result JSON does not exist: {path}")
-    try:
-        result = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"command result JSON is invalid: {exc}") from exc
     if not isinstance(result, dict):
         raise ValueError("command result JSON must be an object")
     result_command_id = str(result.get("command_id", "")).strip()
@@ -1847,7 +1840,7 @@ def record_command_result(cfg, command_id, result_path):
             rec["result_received_at"] = utc_now()
             rec["result"] = result
             rec["result_command_id"] = str(command_id)
-            rec["result_source_path"] = str(path)
+            rec["result_source_path"] = str(result_source_path)
             rec["result_stdout_bytes"] = stdout_bytes
             rec["result_stderr_bytes"] = stderr_bytes
             rec["result_output_bytes"] = output_bytes
@@ -1861,7 +1854,7 @@ def record_command_result(cfg, command_id, result_path):
                 details={
                     "id": command_id,
                     "command_id": command_id,
-                    "result_source_path": str(path),
+                    "result_source_path": str(result_source_path),
                     "status": result.get("status", ""),
                     "exit_code": result.get("exit_code", ""),
                     "stdout_bytes": stdout_bytes,
@@ -1873,6 +1866,17 @@ def record_command_result(cfg, command_id, result_path):
             )
             return rec
     raise ValueError(f"command queue id not found: {command_id}")
+
+
+def record_command_result(cfg, command_id, result_path):
+    path = Path(result_path).expanduser()
+    if not path.is_file():
+        raise ValueError(f"command result JSON does not exist: {path}")
+    try:
+        result = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"command result JSON is invalid: {exc}") from exc
+    return record_command_result_payload(cfg, command_id, result, str(path))
 
 
 def valid_yes_no(value):
@@ -1961,7 +1965,7 @@ def command_queue_mode_semantics():
             "would_contact_operator": False,
             "live_would_contact_operator": live_supported,
             "delivery_supported": False,
-            "result_upload_supported": False,
+            "result_upload_supported": True,
             "execution_supported": False,
             "executes_commands": False,
             "active_control_channel": False,
@@ -2058,7 +2062,7 @@ def command_queue_summary(cfg):
         "execution_supported": False,
         "executes_commands": False,
         "delivery_supported": False,
-        "result_upload_supported": False,
+        "result_upload_supported": True,
         "poll_transport_supported": True,
         "live_polling_supported": True,
         "active_control_channel": False,
@@ -2109,7 +2113,7 @@ def command_queue_summary(cfg):
         "total_count": len(commands),
         "execution_supported": False,
         "delivery_supported": False,
-        "result_upload_supported": False,
+        "result_upload_supported": True,
         "poll_transport_supported": True,
         "live_polling_supported": True,
         "executes_commands": False,
@@ -2130,7 +2134,7 @@ def print_command_queue(cfg, json_output=False):
     if not summary["commands"]:
         print(f"Command queue: {summary['path']}")
         print(f"  enabled={summary['enabled']} default_enabled=no port={summary['port']} tls={summary['tls']} require_token={summary['require_token']}")
-        print(f"  allowed_commands={summary['allowed_commands']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no")
+        print(f"  allowed_commands={summary['allowed_commands']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no result_upload_supported=yes")
         print(f"  arbitrary_policy_requested={'yes' if summary['arbitrary_policy_requested'] else 'no'} arbitrary_execution_allowed=no")
         print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
         for error in summary["policy_errors"]:
@@ -2141,7 +2145,7 @@ def print_command_queue(cfg, json_output=False):
         return
     print(f"Command queue: {summary['path']}")
     print(f"  enabled={summary['enabled']} default_enabled=no port={summary['port']} tls={summary['tls']} require_token={summary['require_token']}")
-    print(f"  allowed_commands={summary['allowed_commands']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no")
+    print(f"  allowed_commands={summary['allowed_commands']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no result_upload_supported=yes")
     print(f"  arbitrary_policy_requested={'yes' if summary['arbitrary_policy_requested'] else 'no'} arbitrary_execution_allowed=no")
     print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
     for error in summary["policy_errors"]:
@@ -3986,6 +3990,26 @@ def read_http_headers(conn):
     return request[0], request[1], request[2], headers, body
 
 
+def read_http_body(conn, headers, initial_body):
+    if "content-length" not in headers:
+        raise ValueError("missing Content-Length")
+    try:
+        expected = int(headers["content-length"])
+    except ValueError as exc:
+        raise ValueError("invalid Content-Length") from exc
+    if expected < 0:
+        raise ValueError("invalid Content-Length")
+    body = bytearray(initial_body[:expected])
+    while len(body) < expected:
+        chunk = conn.recv(min(65536, expected - len(body)))
+        if not chunk:
+            break
+        body.extend(chunk)
+    if len(body) != expected:
+        raise ValueError("truncated request body")
+    return bytes(body)
+
+
 def send_http_response(conn, status_code, body=b"", content_type="application/octet-stream", headers=None):
     reason = {
         204: "No Content",
@@ -4117,6 +4141,74 @@ def handle_file_service_http(cfg, conn, files_dir, addr):
     return metadata, status_code
 
 
+def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
+    remote = f"{addr[0]}:{addr[1]}"
+    if method not in {"PUT", "POST"}:
+        payload = {"schema": 1, "status": "rejected", "reason": "command queue result accepts only PUT or POST"}
+        send_json_response(conn, 405, payload)
+        return {"operation": "command_queue_result", "status": "rejected", "http_status": 405, "method": method, "remote_addr": remote}
+    parsed = urllib.parse.urlparse(target)
+    if parsed.path not in {"/command-queue/result", "/command-queue/result/"}:
+        payload = {"schema": 1, "status": "rejected", "reason": "unknown command queue result endpoint"}
+        send_json_response(conn, 404, payload)
+        return {"operation": "command_queue_result", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint"}
+    try:
+        payload_body = read_http_body(conn, headers, body)
+        result = json.loads(payload_body.decode("utf-8"))
+        if not isinstance(result, dict):
+            raise ValueError("command result JSON must be an object")
+        command_id = str(result.get("command_id", "") or "").strip()
+        if not command_id:
+            raise ValueError("command result JSON must include command_id")
+        rec = record_command_result_payload(cfg, command_id, result, f"http:{remote}{parsed.path}")
+    except json.JSONDecodeError as exc:
+        payload = {"schema": 1, "status": "rejected", "reason": f"invalid command result JSON: {exc}"}
+        send_json_response(conn, 400, payload)
+        return {"operation": "command_queue_result", "status": "rejected", "http_status": 400, "method": method, "remote_addr": remote, "reason": payload["reason"]}
+    except ValueError as exc:
+        payload = {"schema": 1, "status": "rejected", "reason": str(exc)}
+        send_json_response(conn, 400, payload)
+        return {"operation": "command_queue_result", "status": "rejected", "http_status": 400, "method": method, "remote_addr": remote, "reason": str(exc)}
+    response = {
+        "schema": 1,
+        "status": "result-received",
+        "id": rec.get("id", command_id),
+        "command_id": command_id,
+        "result_status": (rec.get("result") or {}).get("status", ""),
+        "result_exit_code": (rec.get("result") or {}).get("exit_code", ""),
+        "result_output_bytes": rec.get("result_output_bytes", 0),
+        "result_output_limit_bytes": rec.get("result_output_limit_bytes", 0),
+        "result_output_exceeded_limit": bool(rec.get("result_output_exceeded_limit")),
+        "execution_supported": False,
+        "executes_commands": False,
+        "result_upload_supported": True,
+    }
+    send_json_response(conn, 200, response)
+    return {
+        "operation": "command_queue_result",
+        "status": "result-received",
+        "http_status": 200,
+        "method": method,
+        "remote_addr": remote,
+        "command_id": command_id,
+        "result_status": response["result_status"],
+        "result_exit_code": response["result_exit_code"],
+        "result_output_bytes": response["result_output_bytes"],
+        "result_output_limit_bytes": response["result_output_limit_bytes"],
+        "result_output_exceeded_limit": response["result_output_exceeded_limit"],
+        "execution_supported": False,
+        "executes_commands": False,
+        "result_upload_supported": True,
+    }
+
+
+def handle_command_queue_http(cfg, conn, method, target, headers, body, addr):
+    parsed = urllib.parse.urlparse(target)
+    if parsed.path in {"/command-queue/result", "/command-queue/result/"}:
+        return handle_command_queue_result(cfg, conn, method, target, headers, body, addr)
+    return handle_command_queue_poll(cfg, conn, method, target, addr)
+
+
 def handle_command_queue_poll(cfg, conn, method, target, addr):
     remote = f"{addr[0]}:{addr[1]}"
     if method not in {"GET", "HEAD"}:
@@ -4148,7 +4240,7 @@ def handle_command_queue_poll(cfg, conn, method, target, addr):
             "delivery_supported": True,
             "execution_supported": False,
             "executes_commands": False,
-            "result_upload_supported": False,
+            "result_upload_supported": True,
             "execution_decision": "rejected",
             "execution_decision_reason": "target command execution is not implemented",
         }
@@ -4157,6 +4249,7 @@ def handle_command_queue_poll(cfg, conn, method, target, addr):
             "X-BusierBox-Command-Queue-Status": "delivered",
             "X-BusierBox-Command-Id": str(command.get("id")),
             "X-BusierBox-Delivery-Supported": "yes",
+            "X-BusierBox-Result-Upload-Supported": "yes",
             "X-BusierBox-Execution-Supported": "no",
             "X-BusierBox-Executes-Commands": "no",
         }
@@ -4175,7 +4268,7 @@ def handle_command_queue_poll(cfg, conn, method, target, addr):
             "delivery_supported": True,
             "execution_supported": False,
             "executes_commands": False,
-            "result_upload_supported": False,
+            "result_upload_supported": True,
             "execution_decision": "rejected",
         }
     payload = {
@@ -4185,7 +4278,7 @@ def handle_command_queue_poll(cfg, conn, method, target, addr):
         "delivery_supported": False,
         "execution_supported": False,
         "executes_commands": False,
-        "result_upload_supported": False,
+        "result_upload_supported": True,
         "message": "no queued command available; target poll recorded only",
     }
     body = b""
@@ -4193,6 +4286,7 @@ def handle_command_queue_poll(cfg, conn, method, target, addr):
         "X-BusierBox-Command-Queue-Status": "no-command",
         "X-BusierBox-Queued-Count": str(queued_count),
         "X-BusierBox-Delivery-Supported": "no",
+        "X-BusierBox-Result-Upload-Supported": "yes",
         "X-BusierBox-Execution-Supported": "no",
     }
     if method == "HEAD":
@@ -4208,7 +4302,7 @@ def handle_command_queue_poll(cfg, conn, method, target, addr):
         "delivery_supported": False,
         "execution_supported": False,
         "executes_commands": False,
-        "result_upload_supported": False,
+        "result_upload_supported": True,
     }
 
 
@@ -4269,12 +4363,17 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
                     append_event(cfg, service, "connection_open", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
                     update_session_record(log_dir, state="active", remote=f"{addr[0]}:{addr[1]}")
                     upsert_state_session(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}")
-                    method, target, _version, _headers, _body = read_http_headers(conn)
-                    metadata = handle_command_queue_poll(cfg, conn, method, target, addr)
-                    append_session_list_item(log_dir, "command_queue_polls", metadata)
-                    append_event(cfg, service, "command_queue_poll", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
-                    queued_display = metadata.get("queued_count", metadata.get("queued_count_before", 0))
-                    print(f"command-queue poll {metadata.get('status')}: queued={queued_display}")
+                    method, target, _version, headers, body = read_http_headers(conn)
+                    metadata = handle_command_queue_http(cfg, conn, method, target, headers, body, addr)
+                    if metadata.get("operation") == "command_queue_result":
+                        append_session_list_item(log_dir, "command_queue_results", metadata)
+                        append_event(cfg, service, "command_queue_result_upload", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
+                        print(f"command-queue result {metadata.get('status')}: id={metadata.get('command_id', '')}")
+                    else:
+                        append_session_list_item(log_dir, "command_queue_polls", metadata)
+                        append_event(cfg, service, "command_queue_poll", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
+                        queued_display = metadata.get("queued_count", metadata.get("queued_count_before", 0))
+                        print(f"command-queue poll {metadata.get('status')}: queued={queued_display}")
             except Exception as exc:
                 metadata = {"operation": "command_queue_poll", "status": "error", "reason": str(exc)}
                 try:
@@ -5801,7 +5900,7 @@ def print_status(cfg, json_output=False):
     print(f"  polling: interval={queue.get('poll_interval_sec', '')} jitter_pct={queue.get('poll_jitter_pct', '')} backoff={queue.get('poll_backoff', '')} max_interval={queue.get('poll_max_interval_sec', '')} max_polls={queue.get('max_polls', '')}")
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
-    print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
+    print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no result_upload_supported=yes")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
     print_command_queue_mode_lines(queue)
     for rec in (queue.get("commands") or [])[:8]:
@@ -6057,7 +6156,7 @@ def print_workbench(cfg):
     print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'} arbitrary_policy_requested={'yes' if queue.get('arbitrary_policy_requested') else 'no'} arbitrary_execution_allowed=no")
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
-    print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
+    print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no result_upload_supported=yes")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
     print_command_queue_mode_lines(queue)
     for rec in (queue.get("commands") or [])[:8]:

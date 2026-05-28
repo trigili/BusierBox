@@ -502,7 +502,7 @@ def main():
                 queue_summary.get("poll_transport_supported") is not True or
                 queue_summary.get("live_polling_supported") is not True or
                 queue_summary.get("delivery_supported") is not False or
-                queue_summary.get("result_upload_supported") is not False or
+                queue_summary.get("result_upload_supported") is not True or
                 queue_summary.get("executes_commands") is not False or
                 queue_summary.get("operator_queue_records_only") is not True or
                 queue_summary.get("active_control_channel") is not False):
@@ -513,6 +513,7 @@ def main():
         if (queue_policy_summary.get("safe_disabled_default") is not True or
                 queue_policy_summary.get("operator_queue_records_only") is not True or
                 queue_policy_summary.get("execution_supported") is not False or
+                queue_policy_summary.get("result_upload_supported") is not True or
                 queue_policy_summary.get("poll_transport_supported") is not True or
                 queue_policy_summary.get("live_polling_supported") is not True or
                 queue_policy_summary.get("poll_interval_sec") != "5" or
@@ -664,6 +665,83 @@ def main():
                 result_events[-1].get("details", {}).get("output_exceeded_limit") is not False):
             print("operator command queue result event missing command id", file=sys.stderr)
             return 1
+
+        result_port = free_port()
+        http_queue_dir = Path(tmp) / "operator-session-command-result-http"
+        http_queue_file = http_queue_dir / "command-queue.json"
+        http_result_cfg = Path(tmp) / "server-config-command-result-http.json"
+        http_result_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(http_queue_dir),
+            "command_queue_file": str(http_queue_file),
+            "command_queue_enable": "yes",
+            "command_queue_tls": "no",
+            "command_queue_port": str(result_port),
+            "command_queue_allowed_commands": "busierbox-only",
+            "command_queue_allow_arbitrary": "no",
+        }), encoding="utf-8")
+        http_queued = run(
+            "scripts/busierbox-server",
+            "--config", str(http_result_cfg),
+            "--queue-command", "busierbox survey --json",
+            "--queue-timeout", "3",
+            "--queue-max-output", "10",
+        )
+        if http_queued.returncode != 0:
+            print("http result queue command setup failed", file=sys.stderr)
+            print(http_queued.stderr, file=sys.stderr)
+            return 1
+        http_command_id = json.loads(http_queue_file.read_text(encoding="utf-8"))["commands"][0]["id"]
+        http_server = subprocess.Popen(
+            ["scripts/busierbox-server", "--config", str(http_result_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        http_result = json.dumps({
+            "schema": 1,
+            "command_id": http_command_id,
+            "status": "completed",
+            "exit_code": 7,
+            "stdout_bytes": 9,
+            "stderr_bytes": 2,
+        }).encode("utf-8")
+        request = (
+            b"POST /command-queue/result HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Content-Length: " + str(len(http_result)).encode("ascii") + b"\r\n"
+            b"Connection: close\r\n\r\n" + http_result
+        )
+        response = connect_with_retry(result_port, request)
+        http_stdout, http_stderr = http_server.communicate(timeout=15)
+        if http_server.returncode != 0 or b"HTTP/1.1 200 OK" not in response or b'"status": "result-received"' not in response:
+            print("command queue HTTP result upload failed", file=sys.stderr)
+            print(response.decode("utf-8", errors="replace"), file=sys.stderr)
+            print(http_stdout, file=sys.stderr)
+            print(http_stderr, file=sys.stderr)
+            return 1
+        http_queue = json.loads(http_queue_file.read_text(encoding="utf-8"))
+        http_command = http_queue["commands"][0]
+        if (http_command.get("status") != "result-received" or
+                http_command.get("result", {}).get("exit_code") != 7 or
+                http_command.get("result_output_bytes") != 11 or
+                http_command.get("result_output_limit_bytes") != 10 or
+                http_command.get("result_output_exceeded_limit") is not True or
+                not str(http_command.get("result_source_path", "")).startswith("http:")):
+            print("command queue HTTP result metadata missing", file=sys.stderr)
+            print(json.dumps(http_command, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        http_events = [
+            json.loads(line)
+            for line in (http_queue_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        if (not any(event.get("event") == "command_result_received" and event.get("details", {}).get("command_id") == http_command_id for event in http_events) or
+                not any(event.get("event") == "command_queue_result_upload" and event.get("details", {}).get("result_output_exceeded_limit") is True for event in http_events)):
+            print("command queue HTTP result events missing", file=sys.stderr)
+            return 1
+
         queue_status_doc = run(
             "scripts/busierbox-server",
             "--config", str(cfg),
@@ -980,7 +1058,7 @@ def main():
                 queue_status_json["summary"].get("command_queue_active_control_channel") is not False or
                 queue_status_json["summary"].get("command_queue_execution_supported") is not False or
                 queue_status_json["summary"].get("command_queue_delivery_supported") is not False or
-                queue_status_json["summary"].get("command_queue_result_upload_supported") is not False or
+                queue_status_json["summary"].get("command_queue_result_upload_supported") is not True or
                 queue_status_json["summary"].get("command_queue_poll_transport_supported") is not True or
                 queue_status_json["summary"].get("command_queue_live_polling_supported") is not True or
                 queue_status_json["summary"].get("command_queue_poll_interval_sec") != "5" or

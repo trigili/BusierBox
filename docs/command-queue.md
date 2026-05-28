@@ -157,6 +157,12 @@ maximum output metadata, status, and explicit `execution_supported=false` /
 queued entry `delivered`, return its command metadata to the target, and record
 `execution_decision=rejected`; the target does not execute it.
 
+When the command-queue listener is running with `command_queue_tls=no`, it also
+accepts structured result JSON with `POST /command-queue/result`. The JSON must
+include `command_id`; the listener updates the matching command record, computes
+stdout/stderr byte totals against the queued `max_output_bytes`, and logs both
+`command_result_received` and `command_queue_result_upload`.
+
 `--record-command-result` attaches a structured JSON result object to an
 existing queued command, records `result_command_id`, `result_received_at`,
 `result_source_path`, result stdout/stderr byte counts, the queued
