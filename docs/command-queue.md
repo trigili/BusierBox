@@ -215,9 +215,12 @@ timeout, maximum output limit, delivery/execution support flags, and the queue
 policy snapshot. Live target polling responses and operator poll metadata include
 the same command SHA-256. A poll can mark a queued entry `delivered`, attach a
 `delivery_policy_snapshot`, return its command metadata to the target, and record
-`execution_decision=rejected`; the target does not execute it. The
-`command_delivered` operator event includes the command SHA-256, queue limits,
-and the same delivery policy snapshot.
+`execution_decision=rejected`; the target does not execute it. The operator event
+log keeps the stable `command_queue_poll` event and also emits outcome-specific
+`command_queue_poll_delivered`, `command_queue_poll_no_command`,
+`command_queue_poll_rejected`, or `command_queue_poll_error` records for direct
+timeline filtering. The `command_delivered` operator event includes the command
+SHA-256, queue limits, and the same delivery policy snapshot.
 
 The operator JSON status API indexes queue records by snapshot posture with
 `commands_by_command_sha256`, `commands_by_created_at`, `commands_by_delivered_at`,

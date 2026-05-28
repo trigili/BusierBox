@@ -202,7 +202,7 @@ cfg = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 operator_events = Path(cfg["operator_session_dir"]) / "events.jsonl"
 operator = [json.loads(line) for line in operator_events.open(encoding="utf-8")]
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" for event in operator)
-assert any(event["service"] == "command-queue" and event["details"].get("status") == "no-command" for event in operator)
+assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll_no_command" and event["details"].get("status") == "no-command" for event in operator)
 PY
 rm -f "$cq_cfg" "$cq_out" "$cq_err" "$cq_events"
 token_port=$(python3 - <<'PY'
@@ -443,6 +443,7 @@ operator_events = Path(cfg["operator_session_dir"]) / "events.jsonl"
 operator = [json.loads(line) for line in operator_events.open(encoding="utf-8")]
 assert any(event["service"] == "command-queue" and event["event"] == "command_delivered" and event["details"]["delivery_supported"] is True and event["details"]["result_upload_supported"] is True and event["details"]["policy_snapshot"]["delivery_supported"] is True and event["details"]["policy_snapshot"]["execution_supported"] is False for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" and event["details"].get("command_sha256") == expected_sha for event in operator)
+assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll_delivered" and event["details"].get("command_sha256") == expected_sha for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_result_received" for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_result_upload" for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" and event["details"].get("status") == "delivered" for event in operator)
