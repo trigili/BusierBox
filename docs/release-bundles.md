@@ -756,10 +756,10 @@ counts are mirrored into `summary` as
 `command_queue_operator_supplied_command_execution_mode_count`.
 Target-side `command-queue --json` also summarizes the current live poll run's
 structured target events in `poll_run.event_count`,
-`poll_run.event_counts_by_event`, and `poll_run.event_counts_by_level`, letting
-frontends show poll attempts, no-command responses, rejected execution
-decisions, result uploads, errors, and shutdown without parsing the target
-event JSONL first.
+`poll_run.event_counts_by_event`, and `poll_run.event_counts_by_level`, plus the
+last delivered command id and command SHA-256, letting frontends show poll
+attempts, no-command responses, rejected execution decisions, result uploads,
+errors, and shutdown without parsing the target event JSONL first.
 Event log entries include stable `id`, `session`, and `session_path` fields so
 frontend and integration tooling can correlate global operator events with
 per-session logs. File-service `connection_close` entries include the observed

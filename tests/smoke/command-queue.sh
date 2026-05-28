@@ -382,10 +382,11 @@ scripts/busierbox-server --config "$queued_cfg" --queue-command 'busierbox reali
 scripts/busierbox-server --config "$queued_cfg" --transport command-queue --timeout 2 >"$queued_out" 2>"$queued_err" &
 queued_pid=$!
 sleep 0.5
-BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_REQUIRE_TOKEN=no BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_COMMAND_QUEUE_TLS=no BB_COMMAND_QUEUE_PORT="$queued_port" BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --event-log "$queued_events" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d["poll_run"]; p=d["poll_plan"]; q=d["queued_command"]; assert d["dry_run"] is False; assert d["status"] == "polling"; assert d["poll_transport_supported"] is True; assert d["delivery_supported"] is True; assert d["execution_supported"] is False; assert d["executes_commands"] is False; assert d["result_upload_supported"] is True; assert p["result_upload_supported"] is True; assert p["queued_command_available"] is True; assert q["id"].startswith("cq-"); assert q["command"] == "busierbox reality-test --json"; assert q["timeout_sec"] == 30; assert q["max_output_bytes"] == 65536; assert q["execution_supported"] is False; assert q["executes_commands"] is False; assert r["queued_command_available"] is True; assert r["execution_decision"] == "rejected"; assert r["attempted"] is True; assert r["attempts"] == 1; assert r["successes"] == 1; assert r["failures"] == 0; assert r["delivered_commands"] == 1; assert r["rejected_commands"] == 1; assert r["result_uploads"] == 1; assert r["result_upload_failures"] == 0; assert r["last_status"] == "delivered-rejected"; assert r["last_error"] == ""; assert r["last_command_id"] == q["id"]; assert r["last_command"] == q["command"]; assert r["last_timeout_sec"] == 30; assert r["last_max_output_bytes"] == 65536; assert r["event_count"] == 5; assert r["event_info_count"] == 4; assert r["event_warning_count"] == 1; assert r["event_counts_by_event"]["command_queue_poll_attempt"] == 1; assert r["event_counts_by_event"]["command_queue_poll_complete"] == 1; assert r["event_counts_by_event"]["command_queue_execution_decision"] == 1; assert r["event_counts_by_event"]["command_queue_result_upload"] == 1; assert r["event_counts_by_event"]["command_queue_poll_shutdown"] == 1'
+BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_REQUIRE_TOKEN=no BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_COMMAND_QUEUE_TLS=no BB_COMMAND_QUEUE_PORT="$queued_port" BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --event-log "$queued_events" --json | python3 -c 'import hashlib,json,sys; d=json.load(sys.stdin); expected=hashlib.sha256(b"busierbox reality-test --json").hexdigest(); r=d["poll_run"]; p=d["poll_plan"]; q=d["queued_command"]; assert d["dry_run"] is False; assert d["status"] == "polling"; assert d["poll_transport_supported"] is True; assert d["delivery_supported"] is True; assert d["execution_supported"] is False; assert d["executes_commands"] is False; assert d["result_upload_supported"] is True; assert p["result_upload_supported"] is True; assert p["queued_command_available"] is True; assert q["id"].startswith("cq-"); assert q["command"] == "busierbox reality-test --json"; assert q["command_sha256"] == expected; assert q["timeout_sec"] == 30; assert q["max_output_bytes"] == 65536; assert q["execution_supported"] is False; assert q["executes_commands"] is False; assert r["queued_command_available"] is True; assert r["execution_decision"] == "rejected"; assert r["attempted"] is True; assert r["attempts"] == 1; assert r["successes"] == 1; assert r["failures"] == 0; assert r["delivered_commands"] == 1; assert r["rejected_commands"] == 1; assert r["result_uploads"] == 1; assert r["result_upload_failures"] == 0; assert r["last_status"] == "delivered-rejected"; assert r["last_error"] == ""; assert r["last_command_id"] == q["id"]; assert r["last_command_sha256"] == expected; assert r["last_command"] == q["command"]; assert r["last_timeout_sec"] == 30; assert r["last_max_output_bytes"] == 65536; assert r["event_count"] == 5; assert r["event_info_count"] == 4; assert r["event_warning_count"] == 1; assert r["event_counts_by_event"]["command_queue_poll_attempt"] == 1; assert r["event_counts_by_event"]["command_queue_poll_complete"] == 1; assert r["event_counts_by_event"]["command_queue_execution_decision"] == 1; assert r["event_counts_by_event"]["command_queue_result_upload"] == 1; assert r["event_counts_by_event"]["command_queue_poll_shutdown"] == 1'
 wait "$queued_pid"
 grep -q 'command-queue poll delivered' "$queued_out"
 python3 - "$queued_events" "$queued_cfg" <<'PY'
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -394,6 +395,7 @@ events = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
 cfg = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 queue = json.loads(Path(cfg["command_queue_file"]).read_text(encoding="utf-8"))
 command = queue["commands"][0]
+expected_sha = hashlib.sha256(command["command"].encode("utf-8")).hexdigest()
 assert all(event.get("id", "").startswith("cqevt-") for event in events)
 assert all(event.get("session", None) == "" for event in events)
 assert all("remote" in event for event in events)
@@ -403,6 +405,7 @@ assert any(event["event"] == "command_queue_result_upload" and event["details"][
 for event in events:
     if event["event"] in {"command_queue_poll_complete", "command_queue_execution_decision", "command_queue_result_upload"}:
         assert event["details"]["command_id"] == command["id"]
+        assert event["details"]["command_sha256"] == expected_sha
         assert event["details"]["command"] == command["command"]
         assert event["details"]["timeout_sec"] == 30
         assert event["details"]["max_output_bytes"] == 65536
@@ -439,6 +442,7 @@ assert command["delivered_to"]
 operator_events = Path(cfg["operator_session_dir"]) / "events.jsonl"
 operator = [json.loads(line) for line in operator_events.open(encoding="utf-8")]
 assert any(event["service"] == "command-queue" and event["event"] == "command_delivered" and event["details"]["delivery_supported"] is True and event["details"]["result_upload_supported"] is True and event["details"]["policy_snapshot"]["delivery_supported"] is True and event["details"]["policy_snapshot"]["execution_supported"] is False for event in operator)
+assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" and event["details"].get("command_sha256") == expected_sha for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_result_received" for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_result_upload" for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" and event["details"].get("status") == "delivered" for event in operator)
@@ -447,6 +451,7 @@ scripts/busierbox-server --config "$queued_cfg" --json-command-queue | python3 -
 queued_status_file="${TMPDIR:-/tmp}/busierbox-command-queue-status.$$.json"
 scripts/busierbox-server --config "$queued_cfg" --json-status >"$queued_status_file"
 python3 - "$queued_status_file" <<'PY'
+import hashlib
 import json
 import sys
 
@@ -454,9 +459,12 @@ d = json.load(open(sys.argv[1], encoding="utf-8"))
 q = d["command_queue"]
 summary = d["summary"]
 api = d["api_collections"]["command_queue_commands"]
+events_api = d["api_collections"]["events"]
 commands = q["commands"]
 assert len(commands) == 1
 command_id = commands[0]["id"]
+command_sha = hashlib.sha256(commands[0]["command"].encode("utf-8")).hexdigest()
+assert commands[0]["command_sha256"] == command_sha
 assert summary["command_queue_execution_decision_counts"]["rejected"] == 1
 assert summary["command_queue_queue_policy_enabled_counts"]["true"] == 1
 assert summary["command_queue_queue_policy_valid_counts"]["true"] == 1
@@ -484,12 +492,18 @@ assert d["commands_by_delivery_policy_valid"]["true"][0]["id"] == command_id
 assert d["commands_by_delivery_policy_delivery_supported"]["true"][0]["id"] == command_id
 assert d["commands_by_delivery_policy_result_upload_supported"]["true"][0]["id"] == command_id
 assert d["commands_by_delivery_policy_active_control_channel"]["true"][0]["id"] == command_id
+assert any(event["event"] == "command_queue_result_upload" for event in d["events_by_detail_command_sha256"][command_sha])
+assert d["events_by_event_detail_command_sha256"][f"command_queue_poll:{command_sha}"][0]["details"]["status"] == "delivered"
+assert d["events_by_service_detail_command_sha256"][f"command-queue:{command_sha}"]
 assert "commands_by_execution_decision" in api["indexes"]
 assert "commands_by_queue_policy_execution_mode" in api["indexes"]
 assert "commands_by_delivery_policy_valid" in api["indexes"]
 assert "commands_by_delivery_policy_delivery_supported" in api["indexes"]
 assert "commands_by_delivery_policy_result_upload_supported" in api["indexes"]
 assert "commands_by_delivery_policy_active_control_channel" in api["indexes"]
+assert "events_by_detail_command_sha256" in events_api["indexes"]
+assert "events_by_event_detail_command_sha256" in events_api["indexes"]
+assert "events_by_service_detail_command_sha256" in events_api["indexes"]
 PY
 rm -f "$queued_status_file"
 queued_text_file="${TMPDIR:-/tmp}/busierbox-command-queue-status.$$.txt"

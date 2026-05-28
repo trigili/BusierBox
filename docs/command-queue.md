@@ -104,8 +104,8 @@ operator events: `schema`, `id`, `ts`, `service`, `session`, `event`, `level`,
 HTTP polling/result path is available for that event; `status=no-command` means
 the queue was empty, not that delivery is unsupported. Delivered-command,
 execution-decision, and result-upload events also include `command_id`,
-`command`, `timeout_sec`, and `max_output_bytes` when the operator supplied
-that metadata. JSON output also mirrors the current invocation's structured
+`command_sha256`, `command`, `timeout_sec`, and `max_output_bytes` when the
+operator supplied that metadata. JSON output also mirrors the current invocation's structured
 target events under `poll_run` with
 `event_count`, level counts, and `event_counts_by_event`, so API clients can
 show poll attempts, empty polls, delivery decisions, result uploads, errors,
@@ -212,9 +212,10 @@ Each entry also stores a `queue_policy_snapshot` so old queue records remain
 auditable if the operator configuration changes later. The
 `command_queue_queued` operator event records the command id, command SHA-256,
 timeout, maximum output limit, delivery/execution support flags, and the queue
-policy snapshot. Live target polling can mark a queued entry `delivered`, attach
-a `delivery_policy_snapshot`, return its command metadata to the target, and
-record `execution_decision=rejected`; the target does not execute it. The
+policy snapshot. Live target polling responses and operator poll metadata include
+the same command SHA-256. A poll can mark a queued entry `delivered`, attach a
+`delivery_policy_snapshot`, return its command metadata to the target, and record
+`execution_decision=rejected`; the target does not execute it. The
 `command_delivered` operator event includes the command SHA-256, queue limits,
 and the same delivery policy snapshot.
 

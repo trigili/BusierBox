@@ -49,6 +49,7 @@ struct poll_run_result {
     char last_status[64];
     char last_error[160];
     char last_command_id[96];
+    char last_command_sha256[65];
     char last_command[512];
     int last_timeout_sec;
     int last_max_output_bytes;
@@ -411,7 +412,7 @@ static void utc_timestamp(char *out, size_t outsz)
 static void append_poll_event(const char *path, const char *event, const char *mode,
                               const char *endpoint, int attempt, const char *status,
                               const char *error, const char *command_id,
-                              const char *command, int timeout_sec,
+                              const char *command_sha256, const char *command, int timeout_sec,
                               int max_output_bytes)
 {
     FILE *fh;
@@ -455,6 +456,10 @@ static void append_poll_event(const char *path, const char *event, const char *m
     if (command_id && command_id[0]) {
         fputs(",\"command_id\":", fh);
         bb_json_string(fh, command_id);
+    }
+    if (command_sha256 && command_sha256[0]) {
+        fputs(",\"command_sha256\":", fh);
+        bb_json_string(fh, command_sha256);
     }
     if (command && command[0]) {
         fputs(",\"command\":", fh);
@@ -508,7 +513,7 @@ static void append_run_poll_event(const char *path, struct poll_run_result *run,
 {
     count_poll_run_event(run, event, error);
     append_poll_event(path, event, mode, endpoint, attempt, status, error,
-                      NULL, NULL, 0, 0);
+                      NULL, NULL, NULL, 0, 0);
 }
 
 static void append_run_poll_command_event(const char *path, struct poll_run_result *run,
@@ -519,6 +524,7 @@ static void append_run_poll_command_event(const char *path, struct poll_run_resu
     count_poll_run_event(run, event, error);
     append_poll_event(path, event, mode, endpoint, attempt, status, error,
                       run ? run->last_command_id : NULL,
+                      run ? run->last_command_sha256 : NULL,
                       run ? run->last_command : NULL,
                       run ? run->last_timeout_sec : 0,
                       run ? run->last_max_output_bytes : 0);
@@ -732,6 +738,9 @@ static int connect_operator_once(const char *host, const char *port, struct poll
                 const char *body = http_body(response);
                 parse_header_value(response, "X-BusierBox-Command-Id", err, errsz);
                 if (run) {
+                    parse_header_value(response, "X-BusierBox-Command-Sha256", run->last_command_sha256, sizeof(run->last_command_sha256));
+                    if (!run->last_command_sha256[0])
+                        json_get_string_field(body, "command_sha256", run->last_command_sha256, sizeof(run->last_command_sha256));
                     json_get_string_field(body, "command", run->last_command, sizeof(run->last_command));
                     run->last_timeout_sec = json_get_int_field(body, "timeout_sec", 0);
                     run->last_max_output_bytes = json_get_int_field(body, "max_output_bytes", 0);
@@ -921,7 +930,7 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
     if (!state->present) {
         stop->missing = 1;
         append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "missing", "",
-                          NULL, NULL, 0, 0);
+                          NULL, NULL, NULL, 0, 0);
         return;
     }
     if (!state->valid) {
@@ -929,7 +938,7 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
         snprintf(stop->status, sizeof(stop->status), "invalid_state");
         snprintf(stop->error, sizeof(stop->error), "%s", state->error);
         append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "invalid_state", state->error,
-                          NULL, NULL, 0, 0);
+                          NULL, NULL, NULL, 0, 0);
         return;
     }
     if (!state->running) {
@@ -937,7 +946,7 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
         snprintf(stop->status, sizeof(stop->status), "stale");
         unlink(state_file);
         append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "stale", "",
-                          NULL, NULL, 0, 0);
+                          NULL, NULL, NULL, 0, 0);
         return;
     }
     if (!state->ownership_verified) {
@@ -945,7 +954,7 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
         snprintf(stop->status, sizeof(stop->status), "ownership_unverified");
         snprintf(stop->error, sizeof(stop->error), "refusing to signal unverified pid");
         append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0,
-                          "ownership_unverified", stop->error, NULL, NULL, 0, 0);
+                          "ownership_unverified", stop->error, NULL, NULL, NULL, 0, 0);
         return;
     }
     stop->attempted = 1;
@@ -953,7 +962,7 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
         snprintf(stop->status, sizeof(stop->status), "signal_failed");
         snprintf(stop->error, sizeof(stop->error), "%s", strerror(errno));
         append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0,
-                          "signal_failed", stop->error, NULL, NULL, 0, 0);
+                          "signal_failed", stop->error, NULL, NULL, NULL, 0, 0);
         return;
     }
     stop->signaled = 1;
@@ -972,7 +981,7 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
         nanosleep(&ts, NULL);
     }
     append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, stop->status, stop->error,
-                      NULL, NULL, 0, 0);
+                      NULL, NULL, NULL, 0, 0);
 }
 
 static void print_mode_record_json(const char *name, int selected, int dry_run, int live_would_poll)
@@ -1205,6 +1214,8 @@ static void print_poll_run_json(const struct poll_run_result *run)
     bb_json_string(stdout, run ? run->last_error : "");
     fputs(",\"last_command_id\":", stdout);
     bb_json_string(stdout, run ? run->last_command_id : "");
+    fputs(",\"last_command_sha256\":", stdout);
+    bb_json_string(stdout, run ? run->last_command_sha256 : "");
     fputs(",\"last_command\":", stdout);
     bb_json_string(stdout, run ? run->last_command : "");
     printf(",\"last_timeout_sec\":%d", run ? run->last_timeout_sec : 0);
@@ -1414,6 +1425,8 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
         bb_json_string(stdout, run->last_command_id);
         fputs(",\"command\":", stdout);
         bb_json_string(stdout, run->last_command);
+        fputs(",\"command_sha256\":", stdout);
+        bb_json_string(stdout, run->last_command_sha256);
         printf(",\"timeout_sec\":%d,\"max_output_bytes\":%d", run->last_timeout_sec, run->last_max_output_bytes);
         fputs(",\"execution_mode\":", stdout);
         bb_json_string(stdout, BB_COMMAND_QUEUE_EXECUTION);
@@ -1511,6 +1524,7 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_poll_run_last_status=%s\n", run ? run->last_status : "not_run");
     printf("command_queue_poll_run_last_error=%s\n", run ? run->last_error : "");
     printf("command_queue_poll_run_last_command_id=%s\n", run ? run->last_command_id : "");
+    printf("command_queue_poll_run_last_command_sha256=%s\n", run ? run->last_command_sha256 : "");
     printf("command_queue_poll_run_last_command=%s\n", run ? run->last_command : "");
     printf("command_queue_poll_run_last_timeout_sec=%d\n", run ? run->last_timeout_sec : 0);
     printf("command_queue_poll_run_last_max_output_bytes=%d\n", run ? run->last_max_output_bytes : 0);
