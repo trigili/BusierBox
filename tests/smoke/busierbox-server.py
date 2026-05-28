@@ -1086,7 +1086,10 @@ def main():
 
         workbench_jobs_file = queue_operator_dir / "workbench-jobs.json"
         workbench_job_log = queue_operator_dir / "package-job.log"
-        workbench_job_log.write_text("configure\nbuild\npackage complete\n", encoding="utf-8")
+        workbench_job_log.write_text(
+            "\n".join([f"line {idx}" for idx in range(1, 25)] + ["package complete"]) + "\n",
+            encoding="utf-8",
+        )
         workbench_jobs_file.write_text(json.dumps({
             "schema": 1,
             "jobs": [
@@ -1443,12 +1446,22 @@ def main():
                 queue_status_json.get("summary", {}).get("workbench_job_count") != 1 or
                 queue_status_json.get("summary", {}).get("workbench_job_running_count") != 0 or
                 queue_status_json.get("summary", {}).get("workbench_job_log_exists_count") != 1 or
+                queue_status_json.get("summary", {}).get("workbench_job_log_total_size") != workbench_job_log.stat().st_size or
+                queue_status_json.get("summary", {}).get("workbench_job_last_output_tail_truncated_count") != 1 or
                 job.get("effective_state") != "exited" or
                 job.get("pid_alive") is not False or
                 job.get("cancel_supported") is not False or
                 job.get("last_output_tail", [])[-1:] != ["package complete"] or
+                job.get("last_output_tail_count") != 20 or
+                job.get("last_output_tail_truncated") is not True or
+                job.get("last_output_tail_line_limit") != 20 or
+                job.get("last_output_tail_byte_limit") != 8192 or
+                job.get("log_line_count") != 25 or
+                job.get("log_size") != workbench_job_log.stat().st_size or
                 not jobs_by_action.get("package-artifact") or
-                not jobs_by_state.get("exited")):
+                not jobs_by_state.get("exited") or
+                (queue_status_json.get("workbench_jobs_by_last_output_tail_truncated") or {}).get("True", [{}])[0].get("id") != "job-smoke" or
+                "workbench_jobs_by_last_output_tail_truncated" not in ((queue_status_json.get("api_collections") or {}).get("workbench_jobs") or {}).get("indexes", [])):
             print("server json status missing workbench background job records", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1

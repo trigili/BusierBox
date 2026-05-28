@@ -1213,6 +1213,41 @@ def tail_text_file(path_text, line_limit=20, byte_limit=8192):
     return text.splitlines()[-int(line_limit or 20):]
 
 
+def workbench_job_log_tail_record(path_text, line_limit=20, byte_limit=8192):
+    path = Path(str(path_text or ""))
+    line_limit = int(line_limit or 20)
+    byte_limit = int(byte_limit or 8192)
+    rec = {
+        "exists": False,
+        "size": 0,
+        "tail": [],
+        "tail_count": 0,
+        "tail_line_limit": line_limit,
+        "tail_byte_limit": byte_limit,
+        "tail_truncated": False,
+        "line_count": 0,
+    }
+    if not path.is_file():
+        return rec
+    rec["exists"] = True
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return rec
+    rec["size"] = len(data)
+    truncated_by_bytes = len(data) > byte_limit
+    tail_data = data[-byte_limit:] if truncated_by_bytes else data
+    text = tail_data.decode("utf-8", errors="replace")
+    lines = text.splitlines()
+    if not truncated_by_bytes:
+        rec["line_count"] = len(lines)
+    tail = lines[-line_limit:]
+    rec["tail"] = tail
+    rec["tail_count"] = len(tail)
+    rec["tail_truncated"] = truncated_by_bytes or len(lines) > line_limit
+    return rec
+
+
 def load_workbench_jobs(cfg):
     data = read_json_file(workbench_jobs_path(cfg), {"schema": 1, "jobs": []})
     if not isinstance(data, dict):
@@ -1307,7 +1342,8 @@ def workbench_job_records(cfg, actions=None):
         outcome = "unknown"
         if exit_status_known:
             outcome = "succeeded" if exit_status == 0 else "failed"
-        output_tail = tail_text_file(log_path, rec.get("tail_limit", 20))
+        log_tail = workbench_job_log_tail_record(log_path, rec.get("tail_limit", 20))
+        output_tail = log_tail.get("tail") or []
         ownership_evidence = workbench_job_ownership_evidence(pid, rec)
         cancel_ownership = workbench_job_has_cancel_ownership(ownership_evidence)
         cancel_supported = bool(pid and pid_is_alive and cancel_ownership and action.get("background_supported") is True)
@@ -1330,9 +1366,14 @@ def workbench_job_records(cfg, actions=None):
             "exit_status_known": exit_status_known,
             "finished_at": finished_at,
             "outcome": outcome,
-            "log_exists": Path(log_path).is_file() if log_path else False,
+            "log_exists": bool(log_tail.get("exists", False)),
+            "log_size": int(log_tail.get("size", 0) or 0),
             "last_output_tail": output_tail,
             "last_output_tail_count": len(output_tail),
+            "last_output_tail_truncated": bool(log_tail.get("tail_truncated", False)),
+            "last_output_tail_line_limit": int(log_tail.get("tail_line_limit", 20) or 20),
+            "last_output_tail_byte_limit": int(log_tail.get("tail_byte_limit", 8192) or 8192),
+            "log_line_count": int(log_tail.get("line_count", 0) or 0),
             "background_supported": bool(action.get("background_supported", False)),
             "long_running": bool(action.get("long_running", False)),
         })
@@ -1397,6 +1438,7 @@ def workbench_job_indexes(records):
         "workbench_jobs_by_cancel_supported": records_by_key(records, "cancel_supported"),
         "workbench_jobs_by_outcome": records_by_key(records, "outcome"),
         "workbench_jobs_by_exit_status": records_by_key(records, "exit_status"),
+        "workbench_jobs_by_last_output_tail_truncated": records_by_key(records, "last_output_tail_truncated"),
     }
 
 
@@ -1406,6 +1448,8 @@ def workbench_job_summary(records):
         "running_count": len([rec for rec in records or [] if rec.get("effective_state") in ("starting", "running")]),
         "cancel_supported_count": len([rec for rec in records or [] if rec.get("cancel_supported") is True]),
         "log_exists_count": len([rec for rec in records or [] if rec.get("log_exists") is True]),
+        "log_total_size": record_sum_by_key(records, "log_size"),
+        "last_output_tail_truncated_count": len([rec for rec in records or [] if rec.get("last_output_tail_truncated") is True]),
         "exit_status_known_count": len([rec for rec in records or [] if rec.get("exit_status_known") is True]),
         "state_counts": record_count_by_key(records, "state"),
         "effective_state_counts": record_count_by_key(records, "effective_state"),
@@ -6528,6 +6572,8 @@ def status_document(cfg):
         "workbench_job_running_count": workbench_job_stats.get("running_count", 0),
         "workbench_job_cancel_supported_count": workbench_job_stats.get("cancel_supported_count", 0),
         "workbench_job_log_exists_count": workbench_job_stats.get("log_exists_count", 0),
+        "workbench_job_log_total_size": workbench_job_stats.get("log_total_size", 0),
+        "workbench_job_last_output_tail_truncated_count": workbench_job_stats.get("last_output_tail_truncated_count", 0),
         "workbench_job_exit_status_known_count": workbench_job_stats.get("exit_status_known_count", 0),
         "workbench_job_state_counts": workbench_job_stats.get("state_counts") or {},
         "workbench_job_effective_state_counts": workbench_job_stats.get("effective_state_counts") or {},
@@ -6688,6 +6734,7 @@ def status_document(cfg):
                 "workbench_jobs_by_category", "workbench_jobs_by_script",
                 "workbench_jobs_by_pid", "workbench_jobs_by_cancel_supported",
                 "workbench_jobs_by_outcome", "workbench_jobs_by_exit_status",
+                "workbench_jobs_by_last_output_tail_truncated",
             ), "workbench_job_count",
         ),
     }
@@ -6981,6 +7028,8 @@ def print_workbench_job_summary(doc):
         f"running={summary.get('workbench_job_running_count', 0)} "
         f"cancel_supported={summary.get('workbench_job_cancel_supported_count', 0)} "
         f"logs={summary.get('workbench_job_log_exists_count', 0)} "
+        f"log_bytes={summary.get('workbench_job_log_total_size', 0)} "
+        f"tail_truncated={summary.get('workbench_job_last_output_tail_truncated_count', 0)} "
         f"exit_status_known={summary.get('workbench_job_exit_status_known_count', 0)}"
     )
     print(f"  states: {format_counts(summary.get('workbench_job_effective_state_counts') or {})}")

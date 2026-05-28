@@ -742,12 +742,14 @@ the exact underlying command before writing the same config file that
 `scripts/menuconfig` and noninteractive builds consume. Background-capable
 workflow tasks are represented in `workbench_jobs` with start time, command, PID
 ownership metadata, log path, effective state, managed exit-status sidecars,
-finish time, outcome, and a bounded last-output tail. Job indexes such as
+finish time, outcome, log size, and a bounded last-output tail with explicit
+line/byte limits and truncation status. Job indexes such as
 `workbench_jobs_by_id`,
 `workbench_jobs_by_action`, `workbench_jobs_by_effective_state`, and
 `workbench_jobs_by_cancel_supported` let operator UIs show or cancel only jobs
 that are clearly owned by the workbench/runtime manager. Completed managed jobs
-are also indexed by outcome and exit status. `--start-workbench-job ACTION`
+are also indexed by outcome, exit status, and whether the displayed output tail
+is truncated. `--start-workbench-job ACTION`
 starts a background-capable operator workflow action, records the exact command
 and log path, and marks the spawned process with workbench environment ownership
 tokens. `--cancel-workbench-job JOB` only requests cancellation when
