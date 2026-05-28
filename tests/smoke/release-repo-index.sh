@@ -103,7 +103,8 @@ JSON
   "command_queue_enabled_count": 0,
   "command_queue_token_required_count": 1,
   "command_queue_token_configured_count": 0,
-  "command_queue_execution_supported_count": 0
+  "command_queue_execution_supported_count": 0,
+  "command_queue_operator_supplied_command_execution_count": 0
 }
 JSON
 }
@@ -125,6 +126,8 @@ assert index["artifact_count"] == 3
 assert index["release_self_test_count"] == 3
 assert index["release_self_test_command_queue_token_required_count"] == 3
 assert index["release_self_test_command_queue_token_configured_count"] == 0
+assert index["release_self_test_command_queue_execution_supported_count"] == 0
+assert index["release_self_test_command_queue_operator_supplied_command_execution_count"] == 0
 assert index["deduplicated_artifact_count"] == 2
 assert index["device_count"] == 2
 assert index["device_record_count"] == 3
@@ -241,6 +244,8 @@ grep -q '^release_self_test_status=pass$' "$tmp/find-device.out"
 grep -q '^release_self_test_path=release-self-test.json$' "$tmp/find-device.out"
 grep -q '^release_self_test_command_queue_token_required_count=1$' "$tmp/find-device.out"
 grep -q '^release_self_test_command_queue_token_configured_count=0$' "$tmp/find-device.out"
+grep -q '^release_self_test_command_queue_execution_supported_count=0$' "$tmp/find-device.out"
+grep -q '^release_self_test_command_queue_operator_supplied_command_execution_count=0$' "$tmp/find-device.out"
 grep -q '^dedupe_count=2$' "$tmp/find-device.out"
 grep -q '^provider_status_tcpdump=found$' "$tmp/find-device.out"
 grep -q '^doom_wad=doom.wad size=9 sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef$' "$tmp/find-device.out"
@@ -262,6 +267,7 @@ assert row["payload_preset"] == "ssh-operator"
 assert "reverse-ssh" in row["features"]
 assert row["release_self_test_status"] == "pass"
 assert row["release_self_test"]["command_queue_execution_supported_count"] == 0
+assert row["release_self_test"]["command_queue_operator_supplied_command_execution_count"] == 0
 assert row["release_self_test"]["command_queue_token_required_count"] == 1
 assert row["release_self_test"]["command_queue_token_configured_count"] == 0
 PY
@@ -293,6 +299,8 @@ assert doc["index"]["deduplicated_artifact_count"] == 2
 assert doc["index"]["release_self_test_count"] == 3
 assert doc["index"]["release_self_test_command_queue_token_required_count"] == 3
 assert doc["index"]["release_self_test_command_queue_token_configured_count"] == 0
+assert doc["index"]["release_self_test_command_queue_execution_supported_count"] == 0
+assert doc["index"]["release_self_test_command_queue_operator_supplied_command_execution_count"] == 0
 assert doc["index"]["artifacts_by_sha_count"] == 2
 assert doc["index"]["artifacts_by_release_count"] == 3
 assert doc["index"]["artifacts_by_tuple_path_count"] == 1

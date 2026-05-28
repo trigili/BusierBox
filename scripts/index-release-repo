@@ -241,6 +241,8 @@ def build_repo_index(paths):
     release_self_tests_by_status = {}
     release_self_test_command_queue_token_required_count = 0
     release_self_test_command_queue_token_configured_count = 0
+    release_self_test_command_queue_execution_supported_count = 0
+    release_self_test_command_queue_operator_supplied_command_execution_count = 0
 
     for release_dir in release_dirs:
         index = load_release_index(release_dir)
@@ -255,6 +257,10 @@ def build_repo_index(paths):
             release_self_tests_by_status.setdefault(str(release_self_test.get("status") or "unknown"), []).append(release_self_test)
             release_self_test_command_queue_token_required_count += int(release_self_test.get("command_queue_token_required_count") or 0)
             release_self_test_command_queue_token_configured_count += int(release_self_test.get("command_queue_token_configured_count") or 0)
+            release_self_test_command_queue_execution_supported_count += int(release_self_test.get("command_queue_execution_supported_count") or 0)
+            release_self_test_command_queue_operator_supplied_command_execution_count += int(
+                release_self_test.get("command_queue_operator_supplied_command_execution_count") or 0
+            )
         for alias, meta in (index.get("devices") or {}).items():
             devices.setdefault(alias, []).append({
                 "release_name": release_name,
@@ -435,6 +441,8 @@ def build_repo_index(paths):
         "release_self_test_count": len(release_self_tests),
         "release_self_test_command_queue_token_required_count": release_self_test_command_queue_token_required_count,
         "release_self_test_command_queue_token_configured_count": release_self_test_command_queue_token_configured_count,
+        "release_self_test_command_queue_execution_supported_count": release_self_test_command_queue_execution_supported_count,
+        "release_self_test_command_queue_operator_supplied_command_execution_count": release_self_test_command_queue_operator_supplied_command_execution_count,
         "deduplicated_artifact_count": len(by_sha),
         "device_count": len(devices),
         "device_record_count": len(device_records),

@@ -114,6 +114,14 @@ def print_text(row, index):
             "release_self_test_command_queue_token_configured_count="
             f"{release_self_test.get('command_queue_token_configured_count', 0)}"
         )
+        print(
+            "release_self_test_command_queue_execution_supported_count="
+            f"{release_self_test.get('command_queue_execution_supported_count', 0)}"
+        )
+        print(
+            "release_self_test_command_queue_operator_supplied_command_execution_count="
+            f"{release_self_test.get('command_queue_operator_supplied_command_execution_count', 0)}"
+        )
     for tool, status in sorted((row.get("tool_provider_status") or {}).items()):
         if isinstance(status, dict):
             print(f"provider_status_{tool}={status.get('overall') or status.get('status') or 'unknown'}")
@@ -253,6 +261,8 @@ def recommendation_document(index, rows, args):
             "release_self_test_count": index.get("release_self_test_count", 0),
             "release_self_test_command_queue_token_required_count": index.get("release_self_test_command_queue_token_required_count", 0),
             "release_self_test_command_queue_token_configured_count": index.get("release_self_test_command_queue_token_configured_count", 0),
+            "release_self_test_command_queue_execution_supported_count": index.get("release_self_test_command_queue_execution_supported_count", 0),
+            "release_self_test_command_queue_operator_supplied_command_execution_count": index.get("release_self_test_command_queue_operator_supplied_command_execution_count", 0),
             "artifacts_by_sha_count": len(index.get("artifacts_by_sha") or {}),
             "artifacts_by_release_count": len(index.get("artifacts_by_release") or {}),
             "artifacts_by_tuple_path_count": len(index.get("artifacts_by_tuple_path") or {}),
