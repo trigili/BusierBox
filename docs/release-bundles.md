@@ -416,7 +416,10 @@ browser list for future TUI/web clients, covering operator ledgers, session
 directories, upload/fetch metadata, staged sources, event logs, TLS files,
 release bundle files, and release recommendation artifact targets. The same records are grouped in `browser_paths_by_kind`,
 `browser_paths_by_path`, `browser_paths_by_source_id`, and
-`browser_paths_by_kind_source_id`. The composite kind/source map lets TUI and
+`browser_paths_by_kind_source_id`, with direct health lookups in
+`browser_paths_by_exists`, `browser_paths_by_readable`,
+`browser_paths_by_writable`, and `browser_paths_by_expected_kind_mismatch`.
+The composite kind/source map lets TUI and
 future web clients jump directly to records such as
 `upload-metadata:<session-id>`, `release-artifact:<release-path>`, or
 `release-recommendation-artifact:<scope:key>` without
@@ -444,14 +447,18 @@ and raw command count. Staged files are exposed as the existing `staged`
 request map, an ordered `staged_records`
 browser list, and lookup maps
 `staged_by_request`, `staged_by_kind`, `staged_by_sha256`, and
-`staged_by_source_path`; release artifacts staged through the workbench keep
+`staged_by_source_path`, plus `staged_by_source_exists` and
+`staged_by_kind_source_exists` for clients that need to separate ready staged
+files from stale ledger entries without rechecking operator filesystem state;
+release artifacts staged through the workbench keep
 their `release_path`, `tuple_path`, `payload_preset`, and `compatibility`
 metadata so file-browser panes can distinguish release artifacts from arbitrary
 local files.
 `summary` includes `staged_total_size`, `staged_source_exists_count`, and
 `staged_source_missing_count` for staged-file health, `staged_kind_counts` for
-file/release-artifact grouping, plus `latest_staged_at` for compact recency
-displays. Recent
+file/release-artifact grouping, `staged_source_exists_kind_counts` and
+`staged_source_missing_kind_counts` for per-kind health badges, plus
+`latest_staged_at` for compact recency displays. Recent
 upload and staged-fetch activity is exposed through top-level `uploads` and
 `fetches` arrays plus lookup maps: `uploads_by_session`,
 `uploads_by_filename`, `uploads_by_kind`, `uploads_by_sha256`,

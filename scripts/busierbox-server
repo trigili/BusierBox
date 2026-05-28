@@ -775,6 +775,8 @@ def staged_record_indexes(records):
     by_kind = {}
     by_sha256 = {}
     by_source_path = {}
+    by_source_exists = {"yes": [], "no": []}
+    by_kind_source_exists = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -782,15 +784,18 @@ def staged_record_indexes(records):
         kind = str(rec.get("stage_kind") or "file")
         sha256 = str(rec.get("sha256") or "")
         source_path = str(rec.get("source_path") or "")
+        source_exists = "yes" if rec.get("source_exists") is True else "no"
         if request_name:
             by_request[request_name] = rec
         if kind:
             by_kind.setdefault(kind, []).append(rec)
+            by_kind_source_exists.setdefault(f"{kind}:{source_exists}", []).append(rec)
         if sha256:
             by_sha256.setdefault(sha256, []).append(rec)
         if source_path:
             by_source_path[source_path] = rec
-    return by_request, by_kind, by_sha256, by_source_path
+        by_source_exists[source_exists].append(rec)
+    return by_request, by_kind, by_sha256, by_source_path, by_source_exists, by_kind_source_exists
 
 
 def records_by_session(records):
@@ -1594,21 +1599,28 @@ def staged_record_summary(records):
     total_size = 0
     source_exists_count = 0
     source_missing_count = 0
+    source_exists_by_kind = {}
+    source_missing_by_kind = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
+        kind = str(rec.get("stage_kind") or "file")
         try:
             total_size += int(rec.get("size", 0) or 0)
         except (TypeError, ValueError):
             pass
         if rec.get("source_exists") is True:
             source_exists_count += 1
+            source_exists_by_kind[kind] = source_exists_by_kind.get(kind, 0) + 1
         else:
             source_missing_count += 1
+            source_missing_by_kind[kind] = source_missing_by_kind.get(kind, 0) + 1
     return {
         "total_size": total_size,
         "source_exists_count": source_exists_count,
         "source_missing_count": source_missing_count,
+        "source_exists_by_kind": source_exists_by_kind,
+        "source_missing_by_kind": source_missing_by_kind,
     }
 
 
@@ -1879,6 +1891,10 @@ def browser_path_indexes(records):
     by_stage_kind = {}
     by_release_path = {}
     by_kind_source_id = {}
+    by_exists = records_by_bool(records, "exists")
+    by_readable = records_by_bool(records, "readable")
+    by_writable = records_by_bool(records, "writable")
+    by_expected_kind_mismatch = records_by_bool(records, "expected_kind_mismatch")
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1899,7 +1915,11 @@ def browser_path_indexes(records):
             by_release_path.setdefault(release_path, []).append(rec)
         if kind and source_id:
             by_kind_source_id.setdefault(f"{kind}:{source_id}", []).append(rec)
-    return by_kind, by_path, by_source_id, by_stage_kind, by_release_path, by_kind_source_id
+    return (
+        by_kind, by_path, by_source_id, by_stage_kind, by_release_path,
+        by_kind_source_id, by_exists, by_readable, by_writable,
+        by_expected_kind_mismatch,
+    )
 
 
 def browser_path_summary(records):
@@ -6126,7 +6146,12 @@ def status_document(cfg):
     staged = enriched_staged_records(cfg, staged_raw)
     staged_records = staged_record_list(staged)
     staged_summary = staged_record_summary(staged_records)
-    staged_by_request, staged_by_kind, staged_by_sha256, staged_by_source_path = staged_record_indexes(staged_records)
+    (staged_by_request,
+     staged_by_kind,
+     staged_by_sha256,
+     staged_by_source_path,
+     staged_by_source_exists,
+     staged_by_kind_source_exists) = staged_record_indexes(staged_records)
     ips = local_ips()
     operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
     event_log_path = operator_dir / "events.jsonl"
@@ -6235,7 +6260,11 @@ def status_document(cfg):
      browser_paths_by_source_id,
      browser_paths_by_stage_kind,
      browser_paths_by_release_path,
-     browser_paths_by_kind_source_id) = browser_path_indexes(browser_paths)
+     browser_paths_by_kind_source_id,
+     browser_paths_by_exists,
+     browser_paths_by_readable,
+     browser_paths_by_writable,
+     browser_paths_by_expected_kind_mismatch) = browser_path_indexes(browser_paths)
     browser_summary = browser_path_summary(browser_paths)
     services_by_name = {
         row["name"]: {
@@ -6384,6 +6413,8 @@ def status_document(cfg):
         "staged_kind_counts": record_count_by_key(staged_records, "stage_kind"),
         "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
         "staged_source_missing_count": staged_summary.get("source_missing_count", 0),
+        "staged_source_exists_kind_counts": staged_summary.get("source_exists_by_kind") or {},
+        "staged_source_missing_kind_counts": staged_summary.get("source_missing_by_kind") or {},
         "latest_staged_at": latest_record_value(staged_records, ("staged_at",)),
         "service_actual_counts": record_count_by_key(services, "actual"),
         "service_configured_counts": record_count_by_key(services, "configured"),
@@ -6607,6 +6638,8 @@ def status_document(cfg):
                 "browser_paths_by_kind", "browser_paths_by_path",
                 "browser_paths_by_source_id", "browser_paths_by_stage_kind",
                 "browser_paths_by_release_path", "browser_paths_by_kind_source_id",
+                "browser_paths_by_exists", "browser_paths_by_readable",
+                "browser_paths_by_writable", "browser_paths_by_expected_kind_mismatch",
             ), "browser_path_count",
         ),
         "warnings": api_collection_record(
@@ -6628,6 +6661,7 @@ def status_document(cfg):
         "staged_records": api_collection_record(
             "staged_records", staged_records, "request_name", (
                 "staged_by_request", "staged_by_kind", "staged_by_sha256", "staged_by_source_path",
+                "staged_by_source_exists", "staged_by_kind_source_exists",
             ), "staged_count",
         ),
         "uploads": api_collection_record(
@@ -6777,6 +6811,10 @@ def status_document(cfg):
         "browser_paths_by_stage_kind": browser_paths_by_stage_kind,
         "browser_paths_by_release_path": browser_paths_by_release_path,
         "browser_paths_by_kind_source_id": browser_paths_by_kind_source_id,
+        "browser_paths_by_exists": browser_paths_by_exists,
+        "browser_paths_by_readable": browser_paths_by_readable,
+        "browser_paths_by_writable": browser_paths_by_writable,
+        "browser_paths_by_expected_kind_mismatch": browser_paths_by_expected_kind_mismatch,
         "browser_path_summary": browser_summary,
         "server_state": server_state,
         "staged_files_state": staged_files_state,
@@ -6824,6 +6862,8 @@ def status_document(cfg):
         "staged_by_kind": staged_by_kind,
         "staged_by_sha256": staged_by_sha256,
         "staged_by_source_path": staged_by_source_path,
+        "staged_by_source_exists": staged_by_source_exists,
+        "staged_by_kind_source_exists": staged_by_kind_source_exists,
         "uploads": uploads,
         "uploads_by_session": records_by_session(uploads),
         "uploads_by_filename": uploads_by_filename,

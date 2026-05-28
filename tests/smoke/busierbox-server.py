@@ -1325,6 +1325,9 @@ def main():
         browser_by_kind = queue_status_json.get("browser_paths_by_kind") or {}
         browser_by_path = queue_status_json.get("browser_paths_by_path") or {}
         browser_by_kind_source = queue_status_json.get("browser_paths_by_kind_source_id") or {}
+        browser_by_exists = queue_status_json.get("browser_paths_by_exists") or {}
+        browser_by_writable = queue_status_json.get("browser_paths_by_writable") or {}
+        browser_by_kind_mismatch = queue_status_json.get("browser_paths_by_expected_kind_mismatch") or {}
         if (browser_summary.get("total_count") != len(browser_paths) or
                 queue_status_json["summary"].get("browser_path_count") != len(browser_paths) or
                 queue_status_json["summary"].get("browser_path_kind_counts", {}).get("server-state") != 1 or
@@ -1338,6 +1341,10 @@ def main():
                 not browser_by_kind.get("command-queue-ledger") or
                 browser_by_kind["operator-dir"][0].get("expected_kind_matches") is not True or
                 browser_by_kind["server-state"][0].get("expected_kind_mismatch") is not False or
+                not browser_by_exists.get("yes") or
+                not browser_by_writable.get("yes") or
+                browser_by_kind_mismatch.get("yes") != [] or
+                browser_by_kind_mismatch.get("no", [{}])[0].get("kind") not in ("operator-dir", "server-state") or
                 browser_by_path.get(str(queue_file), [{}])[0].get("kind") != "command-queue-ledger" or
                 browser_by_kind_source.get("command-queue-ledger:command_queue_file", [{}])[0].get("path") != str(queue_file) or
                 browser_summary.get("exists_count", 0) < 1):
@@ -1365,7 +1372,7 @@ def main():
                 ("services", len(queue_status_json.get("services") or []), "services_by_name"),
                 ("ports", len(queue_status_json.get("ports") or []), "ports_by_number"),
                 ("path_status_records", len(path_status_records), "path_status_by_name"),
-                ("browser_paths", len(browser_paths), "browser_paths_by_kind_source_id"),
+                ("browser_paths", len(browser_paths), "browser_paths_by_expected_kind_mismatch"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_mode"),
@@ -4240,6 +4247,8 @@ def main():
         staged_by_kind = status_doc.get("staged_by_kind") or {}
         staged_by_sha256 = status_doc.get("staged_by_sha256") or {}
         staged_by_source_path = status_doc.get("staged_by_source_path") or {}
+        staged_by_source_exists = status_doc.get("staged_by_source_exists") or {}
+        staged_by_kind_source_exists = status_doc.get("staged_by_kind_source_exists") or {}
         staged_files_state = status_doc.get("staged_files_state") or {}
         staged_sha = staged_record.get("sha256", "")
         staged_summary = status_doc.get("summary") or {}
@@ -4253,6 +4262,8 @@ def main():
                 staged_summary.get("staged_kind_counts", {}).get("file", 0) < 1 or
                 staged_summary.get("staged_source_exists_count", 0) < 1 or
                 staged_summary.get("staged_source_missing_count") != 0 or
+                staged_summary.get("staged_source_exists_kind_counts", {}).get("file", 0) < 1 or
+                staged_summary.get("staged_source_missing_kind_counts") != {} or
                 staged_summary.get("staged_total_size", 0) < staged_source.stat().st_size or
                 staged_summary.get("latest_staged_at") != staged_record.get("staged_at") or
                 not staged_record or
@@ -4264,6 +4275,9 @@ def main():
                 staged_by_request.get("/tmp/myfile", {}).get("source_path") != str(staged_source) or
                 staged_by_kind.get("file", [{}])[0].get("request_name") != "/tmp/myfile" or
                 staged_by_source_path.get(str(staged_source), {}).get("request_name") != "/tmp/myfile" or
+                staged_by_source_exists.get("yes", [{}])[0].get("request_name") != "/tmp/myfile" or
+                staged_by_source_exists.get("no") != [] or
+                staged_by_kind_source_exists.get("file:yes", [{}])[0].get("source_path") != str(staged_source) or
                 not staged_sha or
                 not any(item.get("request_name") == "/tmp/myfile" for item in staged_by_sha256.get(staged_sha, [])) or
                 status_doc.get("target_commands_by_request", {}).get("/tmp/myfile", {}).get("request_name") != "/tmp/myfile" or
