@@ -409,6 +409,38 @@ def api_collection_record(name, records, indexes, summary_key, primary_key=""):
         "summary_key": summary_key,
     }
 
+def api_resource_records(api_collections):
+    resources = []
+    for name in sorted(api_collections):
+        collection = api_collections.get(name) or {}
+        resources.append({
+            "name": name,
+            "collection_key": f"api_collections.{name}",
+            "records_key": name,
+            "count": int(collection.get("count") or 0),
+            "summary_key": collection.get("summary_key") or collection.get("count_summary_key") or "",
+            "count_summary_key": collection.get("count_summary_key") or collection.get("summary_key") or "",
+            "primary_key": collection.get("primary_key") or "",
+            "indexes": collection.get("indexes") or [],
+        })
+    return resources
+
+def api_resource_indexes(resources):
+    by_name = {}
+    by_records_key = {}
+    by_summary_key = {}
+    for rec in resources:
+        name = rec.get("name") or ""
+        records_key = rec.get("records_key") or ""
+        summary_key = rec.get("summary_key") or ""
+        if name:
+            by_name[name] = rec
+        if records_key:
+            by_records_key.setdefault(records_key, []).append(rec)
+        if summary_key:
+            by_summary_key.setdefault(summary_key, []).append(rec)
+    return by_name, by_records_key, by_summary_key
+
 def records_by_key(records, key):
     grouped = {}
     for rec in records:
@@ -742,6 +774,19 @@ doc["api_collections"] = {
         "filename",
     ),
 }
+api_resources = api_resource_records(doc["api_collections"])
+api_resources_by_name, api_resources_by_records_key, api_resources_by_summary_key = api_resource_indexes(api_resources)
+doc["api"] = {
+    "schema": 1,
+    "summary_path": env("SUMMARY_PATH"),
+    "resources_key": "api_resources",
+    "collections_key": "api_collections",
+    "resource_count": len(api_resources),
+}
+doc["api_resources"] = api_resources
+doc["api_resources_by_name"] = api_resources_by_name
+doc["api_resources_by_records_key"] = api_resources_by_records_key
+doc["api_resources_by_summary_key"] = api_resources_by_summary_key
 doc["selected_artifact_detail_summary"] = {
     "tool_provider_status_count": len(selected_tool_provider_status_records),
     "tool_provider_overall_counts": {
