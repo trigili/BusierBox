@@ -578,6 +578,18 @@ def record_count_by_key(records, key):
     return counts
 
 
+def records_by_key(records, key):
+    grouped = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        value = rec.get(key)
+        if value in (None, ""):
+            continue
+        grouped.setdefault(str(value), []).append(rec)
+    return grouped
+
+
 def latest_record_value(records, keys):
     latest = ""
     for rec in records or []:
@@ -1915,6 +1927,108 @@ def mark_service_error(cfg, action, reason, extra=None, event_name="service_erro
     return update_server_state(cfg, action, "error", data)
 
 
+def release_artifact_compatibility_rank(rec):
+    label = str((rec.get("compatibility") or {}).get("label") or "exact")
+    return {"exact": 0, "likely": 1, "heuristic": 2, "unsafe": 3, "incompatible": 4}.get(label, 5)
+
+
+def release_artifact_recommendation_key(rec):
+    return (
+        release_artifact_compatibility_rank(rec),
+        str(rec.get("payload_preset") or ""),
+        str(rec.get("release_path") or rec.get("path") or rec.get("name") or ""),
+    )
+
+
+def best_release_artifact(records):
+    records = [rec for rec in (records or []) if isinstance(rec, dict)]
+    if not records:
+        return None
+    return sorted(records, key=release_artifact_recommendation_key)[0]
+
+
+def release_recommendations(devices, artifact_indexes):
+    artifacts = artifact_indexes.get("artifacts") or []
+    by_device = {}
+    for device in devices or []:
+        if not isinstance(device, dict):
+            continue
+        name = str(device.get("name") or "")
+        if not name:
+            continue
+        refs = {str(item) for item in (device.get("artifacts") or []) if str(item)}
+        ref_names = {Path(item).name for item in refs}
+        tuple_path = str(device.get("tuple_path") or "")
+        selected = best_release_artifact(
+            rec for rec in artifacts
+            if (str(rec.get("release_path") or "") in refs or
+                str(rec.get("name") or "") in ref_names or
+                (tuple_path and str(rec.get("tuple_path") or "") == tuple_path))
+        )
+        if selected:
+            by_device[name] = selected
+
+    return {
+        "schema": 1,
+        "selection_policy": [
+            "lowest compatibility risk label",
+            "payload preset name",
+            "artifact path",
+        ],
+        "by_device": by_device,
+        "by_tuple_path": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_tuple_path"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_tuple_path") or {})
+        },
+        "by_tool": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_tool"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_tool") or {})
+        },
+        "by_payload_preset": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_payload_preset"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_payload_preset") or {})
+        },
+        "by_feature": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_feature"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_feature") or {})
+        },
+        "by_tool_payload_preset": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_tool_payload_preset"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_tool_payload_preset") or {})
+        },
+        "by_feature_payload_preset": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_feature_payload_preset"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_feature_payload_preset") or {})
+        },
+        "by_tuple_payload_preset": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_tuple_payload_preset"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_tuple_payload_preset") or {})
+        },
+    }
+
+
+def release_recommendation_records(recommendations):
+    records = []
+    for scope in (
+        "by_device", "by_tuple_path", "by_tool", "by_payload_preset", "by_feature",
+        "by_tool_payload_preset", "by_feature_payload_preset", "by_tuple_payload_preset",
+    ):
+        for key, artifact in sorted((recommendations.get(scope) or {}).items()):
+            if not isinstance(artifact, dict):
+                continue
+            records.append({
+                "scope": scope,
+                "key": key,
+                "id": f"{scope}:{key}",
+                "artifact": artifact.get("release_path") or artifact.get("path") or artifact.get("name") or "",
+                "artifact_name": artifact.get("name") or "",
+                "payload_preset": artifact.get("payload_preset") or "",
+                "compatibility": artifact.get("compatibility") or {},
+                "sha256": artifact.get("sha256") or "",
+            })
+    return records
+
+
 def release_context():
     here = Path.cwd()
     release_json = here / "release.json"
@@ -2005,6 +2119,7 @@ def release_context():
         artifacts_by_payload_preset = {}
         artifacts_by_compatibility = {}
         artifacts_by_source = {}
+        artifacts_by_tuple_path = {}
         artifacts_by_tool = {}
         artifacts_by_feature = {}
         artifacts_by_tool_payload_preset = {}
@@ -2037,6 +2152,7 @@ def release_context():
             sha256 = str(rec.get("sha256") or "")
             payload_preset = str(rec.get("payload_preset") or "")
             source = str(rec.get("source") or "")
+            tuple_path = str(rec.get("tuple_path") or "")
             compatibility_label = str((rec.get("compatibility") or {}).get("label") or "")
             if name:
                 artifacts_by_name.setdefault(name, []).append(rec)
@@ -2045,8 +2161,10 @@ def release_context():
             if payload_preset:
                 artifacts_by_payload_preset.setdefault(payload_preset, []).append(rec)
                 artifact_payload_preset_counts[payload_preset] = artifact_payload_preset_counts.get(payload_preset, 0) + 1
-            if rec.get("tuple_path") and payload_preset:
-                artifacts_by_tuple_payload_preset.setdefault(f"{rec.get('tuple_path')}:{payload_preset}", []).append(rec)
+            if tuple_path:
+                artifacts_by_tuple_path.setdefault(tuple_path, []).append(rec)
+            if tuple_path and payload_preset:
+                artifacts_by_tuple_payload_preset.setdefault(f"{tuple_path}:{payload_preset}", []).append(rec)
             if source:
                 artifacts_by_source.setdefault(source, []).append(rec)
                 artifact_source_counts[source] = artifact_source_counts.get(source, 0) + 1
@@ -2092,6 +2210,18 @@ def release_context():
                 if wad_sha256:
                     artifacts_by_doom_wad_sha256.setdefault(wad_sha256, []).append(rec)
                     artifact_doom_wad_sha256_counts[wad_sha256] = artifact_doom_wad_sha256_counts.get(wad_sha256, 0) + 1
+        artifact_indexes = {
+            "artifacts": artifacts,
+            "artifacts_by_tuple_path": artifacts_by_tuple_path,
+            "artifacts_by_payload_preset": artifacts_by_payload_preset,
+            "artifacts_by_tool": artifacts_by_tool,
+            "artifacts_by_feature": artifacts_by_feature,
+            "artifacts_by_tool_payload_preset": artifacts_by_tool_payload_preset,
+            "artifacts_by_feature_payload_preset": artifacts_by_feature_payload_preset,
+            "artifacts_by_tuple_payload_preset": artifacts_by_tuple_payload_preset,
+        }
+        recommendations = release_recommendations(devices, artifact_indexes)
+        recommendation_records = release_recommendation_records(recommendations)
         return {
             "release_dir": str(here),
             "release_json": str(release_json),
@@ -2104,6 +2234,7 @@ def release_context():
             "artifacts_by_payload_preset": artifacts_by_payload_preset,
             "artifacts_by_compatibility": artifacts_by_compatibility,
             "artifacts_by_source": artifacts_by_source,
+            "artifacts_by_tuple_path": artifacts_by_tuple_path,
             "artifacts_by_tool": artifacts_by_tool,
             "artifacts_by_feature": artifacts_by_feature,
             "artifacts_by_tool_payload_preset": artifacts_by_tool_payload_preset,
@@ -2130,6 +2261,11 @@ def release_context():
             "devices_by_name": {rec.get("name", ""): rec for rec in devices if rec.get("name")},
             "tuples": tuples,
             "tuples_by_path": {rec.get("path", ""): rec for rec in tuples if rec.get("path")},
+            "recommendations": recommendations,
+            "recommendation_records": recommendation_records,
+            "recommendations_by_id": {rec.get("id", ""): rec for rec in recommendation_records if rec.get("id")},
+            "recommendations_by_scope": records_by_key(recommendation_records, "scope"),
+            "recommendations_by_artifact": records_by_key(recommendation_records, "artifact"),
         }
     return {}
 
@@ -4542,6 +4678,7 @@ def status_document(cfg):
         "release_artifact_compatibility_counts": (release.get("artifact_stats") or {}).get("by_compatibility") or {},
         "release_artifact_payload_preset_counts": (release.get("artifact_stats") or {}).get("by_payload_preset") or {},
         "release_artifact_source_counts": (release.get("artifact_stats") or {}).get("by_source") or {},
+        "release_artifact_tuple_path_counts": record_count_by_key(release.get("artifacts") or [], "tuple_path"),
         "release_artifact_tool_counts": (release.get("artifact_stats") or {}).get("by_tool") or {},
         "release_artifact_feature_counts": (release.get("artifact_stats") or {}).get("by_feature") or {},
         "release_artifact_tool_payload_preset_combo_count": len(release.get("artifacts_by_tool_payload_preset") or {}),
@@ -4552,6 +4689,8 @@ def status_document(cfg):
         "release_artifact_doom_wad_filename_counts": (release.get("artifact_stats") or {}).get("by_doom_wad_filename") or {},
         "release_artifact_doom_wad_sha256_counts": (release.get("artifact_stats") or {}).get("by_doom_wad_sha256") or {},
         "release_artifact_doom_wad_count": (release.get("artifact_stats") or {}).get("doom_wad_count", 0),
+        "release_recommendation_count": len(release.get("recommendation_records") or []),
+        "release_recommendation_scope_counts": record_count_by_key(release.get("recommendation_records") or [], "scope"),
     })
     api_collections = {
         "services": api_collection_record(
@@ -4625,11 +4764,17 @@ def status_document(cfg):
             "release_artifacts", release.get("artifacts") or [], "path", (
                 "artifacts_by_release_path", "artifacts_by_name", "artifacts_by_sha256",
                 "artifacts_by_payload_preset", "artifacts_by_tool", "artifacts_by_feature",
-                "artifacts_by_compatibility", "artifacts_by_source", "artifacts_by_tuple_payload_preset",
+                "artifacts_by_compatibility", "artifacts_by_source", "artifacts_by_tuple_path",
+                "artifacts_by_tuple_payload_preset",
                 "artifacts_by_tool_payload_preset", "artifacts_by_feature_payload_preset",
                 "artifacts_by_provider_tool", "artifacts_by_provider_status",
                 "artifacts_by_doom_wad_filename", "artifacts_by_doom_wad_sha256",
             ), "release_artifact_count",
+        ),
+        "release_recommendations": api_collection_record(
+            "release_recommendations", release.get("recommendation_records") or [], "id", (
+                "recommendations_by_id", "recommendations_by_scope", "recommendations_by_artifact",
+            ), "release_recommendation_count",
         ),
         "release_devices": api_collection_record(
             "release_devices", release.get("devices") or [], "name", (

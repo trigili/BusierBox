@@ -2508,6 +2508,7 @@ def main():
         release_artifacts_by_preset = rel.get("artifacts_by_payload_preset") or {}
         release_artifacts_by_compat = rel.get("artifacts_by_compatibility") or {}
         release_artifacts_by_source = rel.get("artifacts_by_source") or {}
+        release_artifacts_by_tuple_path = rel.get("artifacts_by_tuple_path") or {}
         release_artifacts_by_tool = rel.get("artifacts_by_tool") or {}
         release_artifacts_by_feature = rel.get("artifacts_by_feature") or {}
         release_artifacts_by_tool_preset = rel.get("artifacts_by_tool_payload_preset") or {}
@@ -2519,6 +2520,10 @@ def main():
         release_artifacts_by_doom_wad_sha256 = rel.get("artifacts_by_doom_wad_sha256") or {}
         release_device_map = rel.get("devices_by_name") or {}
         release_tuple_map = rel.get("tuples_by_path") or {}
+        release_recommendations = rel.get("recommendations") or {}
+        release_recommendation_records = rel.get("recommendation_records") or []
+        release_recommendations_by_scope = rel.get("recommendations_by_scope") or {}
+        release_recommendations_by_artifact = rel.get("recommendations_by_artifact") or {}
         release_artifact_size = len("artifact\n")
         doom_wad_sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
         if (release_artifact_map.get("bin/busierbox-test", {}).get("name") != "busierbox-test" or
@@ -2527,6 +2532,7 @@ def main():
                 release_artifacts_by_preset.get("default", [{}])[0].get("sha256") != "abc123" or
                 release_artifacts_by_compat.get("exact", [{}])[0].get("payload_preset") != "default" or
                 release_artifacts_by_source.get("release-index", [{}])[0].get("release_path") != "bin/busierbox-test" or
+                release_artifacts_by_tuple_path.get("by-tuple/native/host/host/host", [{}])[0].get("name") != "busierbox-test" or
                 release_artifacts_by_tool.get("sh", [{}])[0].get("payload_preset") != "default" or
                 release_artifacts_by_feature.get("reverse-ssh", [{}])[0].get("release_path") != "bin/busierbox-test" or
                 release_artifacts_by_tool_preset.get("sh:default", [{}])[0].get("release_path") != "bin/busierbox-test" or
@@ -2549,7 +2555,15 @@ def main():
                 rel.get("artifact_stats", {}).get("by_doom_wad_sha256", {}).get(doom_wad_sha) != 1 or
                 rel.get("artifact_stats", {}).get("doom_wad_count") != 1 or
                 release_device_map.get("lab-router", {}).get("tuple_path") != "by-tuple/native/host/host/host" or
-                release_tuple_map.get("by-tuple/native/host/host/host", {}).get("artifact_count") != 1):
+                release_tuple_map.get("by-tuple/native/host/host/host", {}).get("artifact_count") != 1 or
+                release_recommendations.get("by_device", {}).get("lab-router", {}).get("name") != "busierbox-test" or
+                release_recommendations.get("by_tuple_path", {}).get("by-tuple/native/host/host/host", {}).get("sha256") != "abc123" or
+                release_recommendations.get("by_tool", {}).get("sh", {}).get("payload_preset") != "default" or
+                release_recommendations.get("by_payload_preset", {}).get("default", {}).get("name") != "busierbox-test" or
+                release_recommendations.get("by_feature", {}).get("reverse-ssh", {}).get("name") != "busierbox-test" or
+                not release_recommendation_records or
+                release_recommendations_by_scope.get("by_device", [{}])[0].get("key") != "lab-router" or
+                release_recommendations_by_artifact.get("bin/busierbox-test", [{}])[0].get("artifact_name") != "busierbox-test"):
             print("json status missing release browser lookup maps", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
@@ -2600,6 +2614,7 @@ def main():
                 release_summary.get("release_artifact_compatibility_counts", {}).get("exact") != 1 or
                 release_summary.get("release_artifact_payload_preset_counts", {}).get("default") != 1 or
                 release_summary.get("release_artifact_source_counts", {}).get("release-index") != 1 or
+                release_summary.get("release_artifact_tuple_path_counts", {}).get("by-tuple/native/host/host/host") != 1 or
                 release_summary.get("release_artifact_tool_counts", {}).get("sh") != 1 or
                 release_summary.get("release_artifact_feature_counts", {}).get("reverse-ssh") != 1 or
                 release_summary.get("release_artifact_tool_payload_preset_combo_count") != 1 or
@@ -2609,7 +2624,9 @@ def main():
                 release_summary.get("release_artifact_provider_status_counts", {}).get("gdbserver:found") != 1 or
                 release_summary.get("release_artifact_doom_wad_filename_counts", {}).get("doom.wad") != 1 or
                 release_summary.get("release_artifact_doom_wad_sha256_counts", {}).get(doom_wad_sha) != 1 or
-                release_summary.get("release_artifact_doom_wad_count") != 1):
+                release_summary.get("release_artifact_doom_wad_count") != 1 or
+                release_summary.get("release_recommendation_count", 0) < 1 or
+                release_summary.get("release_recommendation_scope_counts", {}).get("by_device") != 1):
             print("json status missing release aggregate counts", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1

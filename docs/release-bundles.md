@@ -391,12 +391,17 @@ when available.
 When running inside a release bundle, `release` includes artifact, device, and
 tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `artifacts_by_sha256`, `artifacts_by_payload_preset`,
-`artifacts_by_compatibility`, `artifacts_by_source`, `artifacts_by_tool`,
+`artifacts_by_compatibility`, `artifacts_by_source`,
+`artifacts_by_tuple_path`, `artifacts_by_tool`,
 `artifacts_by_feature`, `artifacts_by_provider_tool`, `artifacts_by_provider_status`,
 `artifacts_by_tool_payload_preset`, `artifacts_by_feature_payload_preset`,
 `artifacts_by_tuple_payload_preset`,
 `artifacts_by_doom_wad_filename`, `artifacts_by_doom_wad_sha256`,
-`devices_by_name`, and `tuples_by_path` lookup maps. Release artifact
+`devices_by_name`, and `tuples_by_path` lookup maps. It also includes
+`recommendations`, flattened `recommendation_records`, and recommendation
+lookup maps by id, scope, and artifact so TUI/API clients can present the best
+current artifact for a device, tuple path, tool, payload preset, feature, or
+combined key without rerunning release search logic. Release artifact
 state is exposed separately as `release_state` with release directory,
 `release.json` and `release-index.json` paths, presence, validity, parse
 health, `bin`/`scripts` directory health, browser counts, release name, and
