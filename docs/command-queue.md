@@ -264,5 +264,8 @@ such as `events_by_event_detail_operation`,
 `events_by_service_detail_operation`, `events_by_event_detail_http_status`, and
 `events_by_service_detail_http_status`, allowing direct lookup of accepted or
 rejected result submissions by endpoint operation and response code.
+The same event detail indexing also includes `details.sha256` for file-transfer
+events, so file-service uploads and fetches can be correlated by content digest
+separately from command text digests.
 This is still operator-side bookkeeping; it does not poll, deliver, or execute
 commands.

@@ -127,6 +127,7 @@ class EventLog:
         by_detail_operation = {}
         by_detail_http_status = {}
         by_detail_reason = {}
+        by_detail_sha256 = {}
         by_detail_command_id = {}
         by_detail_command_sha256 = {}
         by_detail_job_id = {}
@@ -141,6 +142,8 @@ class EventLog:
         by_service_detail_http_status = {}
         by_event_detail_reason = {}
         by_service_detail_reason = {}
+        by_event_detail_sha256 = {}
+        by_service_detail_sha256 = {}
         by_event_detail_command_id = {}
         by_service_detail_command_id = {}
         by_event_detail_command_sha256 = {}
@@ -167,6 +170,7 @@ class EventLog:
             detail_operation = str(details.get("operation") or "")
             detail_http_status = str(details.get("http_status") or "")
             detail_reason = str(details.get("reason") or "")
+            detail_sha256 = str(details.get("sha256") or "")
             detail_command_id = str(details.get("command_id") or "")
             detail_command_sha256 = str(details.get("command_sha256") or "")
             detail_job_id = str(details.get("job_id") or "")
@@ -214,6 +218,8 @@ class EventLog:
                 by_detail_http_status[detail_http_status] = by_detail_http_status.get(detail_http_status, 0) + 1
             if detail_reason:
                 by_detail_reason[detail_reason] = by_detail_reason.get(detail_reason, 0) + 1
+            if detail_sha256:
+                by_detail_sha256[detail_sha256] = by_detail_sha256.get(detail_sha256, 0) + 1
             if detail_command_id:
                 by_detail_command_id[detail_command_id] = by_detail_command_id.get(detail_command_id, 0) + 1
             if detail_command_sha256:
@@ -250,6 +256,12 @@ class EventLog:
             if service and detail_reason:
                 key = f"{service}:{detail_reason}"
                 by_service_detail_reason[key] = by_service_detail_reason.get(key, 0) + 1
+            if event and detail_sha256:
+                key = f"{event}:{detail_sha256}"
+                by_event_detail_sha256[key] = by_event_detail_sha256.get(key, 0) + 1
+            if service and detail_sha256:
+                key = f"{service}:{detail_sha256}"
+                by_service_detail_sha256[key] = by_service_detail_sha256.get(key, 0) + 1
             if event and detail_command_id:
                 key = f"{event}:{detail_command_id}"
                 by_event_detail_command_id[key] = by_event_detail_command_id.get(key, 0) + 1
@@ -311,6 +323,7 @@ class EventLog:
             "by_detail_operation": by_detail_operation,
             "by_detail_http_status": by_detail_http_status,
             "by_detail_reason": by_detail_reason,
+            "by_detail_sha256": by_detail_sha256,
             "by_detail_command_id": by_detail_command_id,
             "by_detail_command_sha256": by_detail_command_sha256,
             "by_detail_job_id": by_detail_job_id,
@@ -325,6 +338,8 @@ class EventLog:
             "by_service_detail_http_status": by_service_detail_http_status,
             "by_event_detail_reason": by_event_detail_reason,
             "by_service_detail_reason": by_service_detail_reason,
+            "by_event_detail_sha256": by_event_detail_sha256,
+            "by_service_detail_sha256": by_service_detail_sha256,
             "by_event_detail_command_id": by_event_detail_command_id,
             "by_service_detail_command_id": by_service_detail_command_id,
             "by_event_detail_command_sha256": by_event_detail_command_sha256,
@@ -2697,6 +2712,7 @@ def event_record_indexes(records):
     by_detail_operation = {}
     by_detail_http_status = {}
     by_detail_reason = {}
+    by_detail_sha256 = {}
     by_detail_command_id = {}
     by_detail_command_sha256 = {}
     by_detail_job_id = {}
@@ -2711,6 +2727,8 @@ def event_record_indexes(records):
     by_service_detail_http_status = {}
     by_event_detail_reason = {}
     by_service_detail_reason = {}
+    by_event_detail_sha256 = {}
+    by_service_detail_sha256 = {}
     by_event_detail_command_id = {}
     by_service_detail_command_id = {}
     by_event_detail_command_sha256 = {}
@@ -2737,6 +2755,7 @@ def event_record_indexes(records):
         detail_operation = str(details.get("operation") or "")
         detail_http_status = str(details.get("http_status") or "")
         detail_reason = str(details.get("reason") or "")
+        detail_sha256 = str(details.get("sha256") or "")
         detail_command_id = str(details.get("command_id") or "")
         detail_command_sha256 = str(details.get("command_sha256") or "")
         detail_job_id = str(details.get("job_id") or "")
@@ -2777,6 +2796,8 @@ def event_record_indexes(records):
             by_detail_http_status.setdefault(detail_http_status, []).append(rec)
         if detail_reason:
             by_detail_reason.setdefault(detail_reason, []).append(rec)
+        if detail_sha256:
+            by_detail_sha256.setdefault(detail_sha256, []).append(rec)
         if detail_command_id:
             by_detail_command_id.setdefault(detail_command_id, []).append(rec)
         if detail_command_sha256:
@@ -2805,6 +2826,10 @@ def event_record_indexes(records):
             by_event_detail_reason.setdefault(f"{event}:{detail_reason}", []).append(rec)
         if service and detail_reason:
             by_service_detail_reason.setdefault(f"{service}:{detail_reason}", []).append(rec)
+        if event and detail_sha256:
+            by_event_detail_sha256.setdefault(f"{event}:{detail_sha256}", []).append(rec)
+        if service and detail_sha256:
+            by_service_detail_sha256.setdefault(f"{service}:{detail_sha256}", []).append(rec)
         if event and detail_command_id:
             by_event_detail_command_id.setdefault(f"{event}:{detail_command_id}", []).append(rec)
         if service and detail_command_id:
@@ -2834,12 +2859,14 @@ def event_record_indexes(records):
         by_service_event, by_session_event, by_service_level, by_event_level,
         by_session_level, by_remote_event, by_remote_level, by_detail_status,
         by_detail_operation, by_detail_http_status, by_detail_reason,
-        by_detail_command_id, by_detail_command_sha256, by_detail_job_id, by_detail_action_id,
+        by_detail_sha256, by_detail_command_id, by_detail_command_sha256,
+        by_detail_job_id, by_detail_action_id,
         by_detail_key, by_detail_config_path,
         by_event_detail_status, by_service_detail_status,
         by_event_detail_operation, by_service_detail_operation,
         by_event_detail_http_status, by_service_detail_http_status,
         by_event_detail_reason, by_service_detail_reason,
+        by_event_detail_sha256, by_service_detail_sha256,
         by_event_detail_command_id, by_service_detail_command_id,
         by_event_detail_command_sha256, by_service_detail_command_sha256,
         by_event_detail_job_id, by_service_detail_job_id,
@@ -7188,6 +7215,7 @@ def status_document(cfg):
      events_by_detail_operation,
      events_by_detail_http_status,
      events_by_detail_reason,
+     events_by_detail_sha256,
      events_by_detail_command_id,
      events_by_detail_command_sha256,
      events_by_detail_job_id,
@@ -7202,6 +7230,8 @@ def status_document(cfg):
      events_by_service_detail_http_status,
      events_by_event_detail_reason,
      events_by_service_detail_reason,
+     events_by_event_detail_sha256,
+     events_by_service_detail_sha256,
      events_by_event_detail_command_id,
      events_by_service_detail_command_id,
      events_by_event_detail_command_sha256,
@@ -7635,6 +7665,7 @@ def status_document(cfg):
         "event_detail_operation_counts": event_stats.get("by_detail_operation") or {},
         "event_detail_http_status_counts": event_stats.get("by_detail_http_status") or {},
         "event_detail_reason_counts": event_stats.get("by_detail_reason") or {},
+        "event_detail_sha256_counts": event_stats.get("by_detail_sha256") or {},
         "event_detail_command_id_counts": event_stats.get("by_detail_command_id") or {},
         "event_detail_command_sha256_counts": event_stats.get("by_detail_command_sha256") or {},
         "event_detail_job_id_counts": event_stats.get("by_detail_job_id") or {},
@@ -7649,6 +7680,8 @@ def status_document(cfg):
         "event_service_detail_http_status_counts": event_stats.get("by_service_detail_http_status") or {},
         "event_type_detail_reason_counts": event_stats.get("by_event_detail_reason") or {},
         "event_service_detail_reason_counts": event_stats.get("by_service_detail_reason") or {},
+        "event_type_detail_sha256_counts": event_stats.get("by_event_detail_sha256") or {},
+        "event_service_detail_sha256_counts": event_stats.get("by_service_detail_sha256") or {},
         "event_type_detail_command_id_counts": event_stats.get("by_event_detail_command_id") or {},
         "event_service_detail_command_id_counts": event_stats.get("by_service_detail_command_id") or {},
         "event_type_detail_command_sha256_counts": event_stats.get("by_event_detail_command_sha256") or {},
@@ -7921,7 +7954,9 @@ def status_document(cfg):
                 "events_by_service_detail_status", "events_by_event_detail_operation",
                 "events_by_service_detail_operation", "events_by_event_detail_http_status",
                 "events_by_service_detail_http_status", "events_by_event_detail_reason",
-                "events_by_service_detail_reason", "events_by_event_detail_command_id",
+                "events_by_service_detail_reason", "events_by_detail_sha256",
+                "events_by_event_detail_sha256", "events_by_service_detail_sha256",
+                "events_by_event_detail_command_id",
                 "events_by_service_detail_command_id", "events_by_detail_command_sha256",
                 "events_by_event_detail_command_sha256", "events_by_service_detail_command_sha256",
                 "events_by_detail_job_id",
@@ -8234,6 +8269,7 @@ def status_document(cfg):
         "events_by_detail_operation": events_by_detail_operation,
         "events_by_detail_http_status": events_by_detail_http_status,
         "events_by_detail_reason": events_by_detail_reason,
+        "events_by_detail_sha256": events_by_detail_sha256,
         "events_by_detail_command_id": events_by_detail_command_id,
         "events_by_detail_command_sha256": events_by_detail_command_sha256,
         "events_by_detail_job_id": events_by_detail_job_id,
@@ -8248,6 +8284,8 @@ def status_document(cfg):
         "events_by_service_detail_http_status": events_by_service_detail_http_status,
         "events_by_event_detail_reason": events_by_event_detail_reason,
         "events_by_service_detail_reason": events_by_service_detail_reason,
+        "events_by_event_detail_sha256": events_by_event_detail_sha256,
+        "events_by_service_detail_sha256": events_by_service_detail_sha256,
         "events_by_event_detail_command_id": events_by_event_detail_command_id,
         "events_by_service_detail_command_id": events_by_service_detail_command_id,
         "events_by_event_detail_command_sha256": events_by_event_detail_command_sha256,
