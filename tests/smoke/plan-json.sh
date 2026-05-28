@@ -15,6 +15,8 @@ cp "$artifact" "$work/busierbox"
 chmod 0755 "$work/busierbox"
 scripts/artifact-config set "$work/busierbox" \
     BB_RUNTIME_ROOT="$work/runtime" \
+    BB_RUNTIME_MODE=no-residue \
+    BB_NORESIDUE_LEVEL=aggressive \
     BB_OPERATOR_SERVER_HOST=192.0.2.77 \
     BB_RSHELL_TRANSPORT=builtin \
     BB_RSHELL_SESSION_POLICY=reconnect \
@@ -58,6 +60,17 @@ script = json.loads((root / "recovery-script.json").read_text())
 
 assert extract["command"] == "extract"
 assert extract["runtime_root"].endswith("/runtime")
+assert extract["runtime_mode"] == "no-residue"
+assert extract["noresidue_level"] == "aggressive"
+extract_policy = extract["noresidue_policy"]
+assert extract_policy["active"] is True
+assert extract_policy["level"] == "aggressive"
+assert extract_policy["best_effort"] is True
+assert extract_policy["aggressive_minimizes_runtime_residue"] is True
+assert extract_policy["forensic_no_trace"] is False
+assert extract_policy["external_writes_require_explicit_apply"] is True
+assert "BusierBox-owned runtime roots" in extract_policy["cleanup_scope"]
+assert "cannot guarantee absence of residue" in extract_policy["guarantee"]
 assert extract["config"]["effective_config_source"] == "trailer"
 assert extract["config"]["trailer_present"] is True
 assert extract["config"]["trailer_valid"] is True
@@ -86,8 +99,26 @@ assert rshell["retry"]["post_disconnect_count"] == "1"
 assert rshell["operator_host"] == "192.0.2.77"
 assert rshell["requires_external_writes"] is False
 assert "192.0.2.77" in rshell["would_connect"][0]
+assert rshell["no_residue_cleanup"] is True
+rshell_policy = rshell["noresidue_policy"]
+assert rshell_policy["active"] is True
+assert rshell_policy["level"] == "aggressive"
+assert rshell_policy["best_effort"] is True
+assert rshell_policy["aggressive_minimizes_runtime_residue"] is True
+assert rshell_policy["forensic_no_trace"] is False
+assert rshell_policy["external_writes_require_explicit_apply"] is True
 
 assert clean["command"] == "clean"
+assert clean["runtime_root"].endswith("/runtime")
+assert clean["runtime_mode"] == "no-residue"
+assert clean["noresidue_level"] == "aggressive"
+clean_policy = clean["noresidue_policy"]
+assert clean_policy["active"] is True
+assert clean_policy["level"] == "aggressive"
+assert clean_policy["best_effort"] is True
+assert clean_policy["aggressive_minimizes_runtime_residue"] is True
+assert clean_policy["forensic_no_trace"] is False
+assert clean_policy["external_writes_require_explicit_apply"] is True
 assert any(path.endswith("/runtime") for path in clean["would_remove"])
 
 assert command_queue["command"] == "command-queue"
@@ -198,6 +229,19 @@ PY
 "$work/busierbox" plan extract >"$work/extract.txt"
 grep -q '^Plan: extract$' "$work/extract.txt"
 grep -q '^effective_config_source=trailer$' "$work/extract.txt"
+grep -q '^runtime_mode=no-residue$' "$work/extract.txt"
+grep -q '^noresidue_level=aggressive$' "$work/extract.txt"
+grep -q '^noresidue_policy_active=yes$' "$work/extract.txt"
+grep -q '^noresidue_policy_aggressive_minimizes_runtime_residue=yes$' "$work/extract.txt"
+grep -q '^noresidue_policy_forensic_no_trace=no$' "$work/extract.txt"
+grep -q '^noresidue_policy_external_writes_require_explicit_apply=yes$' "$work/extract.txt"
+"$work/busierbox" plan clean >"$work/clean.txt"
+grep -q '^runtime_mode=no-residue$' "$work/clean.txt"
+grep -q '^noresidue_level=aggressive$' "$work/clean.txt"
+grep -q '^noresidue_policy_active=yes$' "$work/clean.txt"
+grep -q '^noresidue_policy_aggressive_minimizes_runtime_residue=yes$' "$work/clean.txt"
+grep -q '^noresidue_policy_forensic_no_trace=no$' "$work/clean.txt"
+grep -q '^noresidue_policy_external_writes_require_explicit_apply=yes$' "$work/clean.txt"
 "$work/busierbox" plan recovery install --method rc-local --action script --file "$work/recover.sh" --root "$work/root" --name bbx_recovery >"$work/recovery-script.txt"
 grep -q "^script_source_path=$work/recover.sh$" "$work/recovery-script.txt"
 grep -q "^script_dest_path=$work/root/usr/bin/bbx_recovery.recovery.sh$" "$work/recovery-script.txt"

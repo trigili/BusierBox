@@ -25,7 +25,7 @@ The command is read-only. It reports:
 - rshell session policy (`single`, `reconnect`, or `persistent`)
 - whether real-root external writes would be required
 - runtime root and cleanup ledger paths
-- no-residue cleanup implications where relevant
+- no-residue cleanup policy and limits where relevant
 - command-queue polling interval and mode-record implications where relevant
 - recovery method/action implications
 - trailer override state and effective config source
@@ -35,6 +35,12 @@ JSON output is intended for integration harnesses:
 ```sh
 busierbox plan rshell --json | python3 -m json.tool
 ```
+
+The `extract`, `clean`, and `rshell` JSON plans include a `noresidue_policy`
+object with the active state, configured level, cleanup scope, best-effort
+guarantee, aggressive-mode residue-minimization flag, forensic-no-trace
+disclaimer, and external-write boundary. Text plans expose the same fields as
+`noresidue_policy_*` lines.
 
 The `rshell` JSON plan includes both `session_semantics` and
 `session_policy_summary`, matching `rshell status --json` so operator tooling

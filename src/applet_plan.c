@@ -48,6 +48,53 @@ static void plan_print_config_source_json(void)
     fputc('}', stdout);
 }
 
+static int noresidue_active(void)
+{
+    return !strcmp(BB_RUNTIME_MODE, "no-residue");
+}
+
+static int noresidue_aggressive(void)
+{
+    return !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+}
+
+static const char *noresidue_guarantee_text(void)
+{
+    return noresidue_aggressive() ?
+        "aggressive minimizes BusierBox runtime residue but cannot guarantee absence of residue" :
+        "best-effort cleanup removes owned runtime state where reasonable";
+}
+
+static void plan_print_noresidue_policy_json(void)
+{
+    fputs("{\"active\":", stdout);
+    fputs(noresidue_active() ? "true" : "false", stdout);
+    fputs(",\"level\":", stdout);
+    bb_json_string(stdout, BB_NORESIDUE_LEVEL);
+    fputs(",\"cleanup_scope\":", stdout);
+    bb_json_string(stdout, "BusierBox-owned runtime roots and ledgered files only");
+    fputs(",\"best_effort\":true", stdout);
+    fputs(",\"aggressive_minimizes_runtime_residue\":", stdout);
+    fputs(noresidue_aggressive() ? "true" : "false", stdout);
+    fputs(",\"forensic_no_trace\":false", stdout);
+    fputs(",\"external_writes_require_explicit_apply\":true", stdout);
+    fputs(",\"guarantee\":", stdout);
+    bb_json_string(stdout, noresidue_guarantee_text());
+    fputc('}', stdout);
+}
+
+static void plan_print_noresidue_policy_text(void)
+{
+    printf("noresidue_policy_active=%s\n", noresidue_active() ? "yes" : "no");
+    printf("noresidue_policy_level=%s\n", BB_NORESIDUE_LEVEL);
+    puts("noresidue_policy_cleanup_scope=BusierBox-owned runtime roots and ledgered files only");
+    puts("noresidue_policy_best_effort=yes");
+    printf("noresidue_policy_aggressive_minimizes_runtime_residue=%s\n", noresidue_aggressive() ? "yes" : "no");
+    puts("noresidue_policy_forensic_no_trace=no");
+    puts("noresidue_policy_external_writes_require_explicit_apply=yes");
+    printf("noresidue_policy_guarantee=%s\n", noresidue_guarantee_text());
+}
+
 static void plan_print_extract(int json)
 {
     char payload[PATH_MAX], ledger[PATH_MAX];
@@ -70,6 +117,7 @@ static void plan_print_extract(int json)
         fputs(",\"runtime_root\":", stdout); bb_json_string(stdout, BB_RUNTIME_ROOT);
         fputs(",\"runtime_mode\":", stdout); bb_json_string(stdout, BB_RUNTIME_MODE);
         fputs(",\"noresidue_level\":", stdout); bb_json_string(stdout, BB_NORESIDUE_LEVEL);
+        fputs(",\"noresidue_policy\":", stdout); plan_print_noresidue_policy_json();
         fputs(",\"fallback_root\":", stdout); bb_json_string(stdout, BB_RUNTIME_FALLBACK_ROOT);
         printf(",\"fallback_enabled\":%s", !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "true" : "false");
         fputs(",\"cleanup_ledger_path\":", stdout);
@@ -86,6 +134,7 @@ static void plan_print_extract(int json)
     printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
     printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
     printf("noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
+    plan_print_noresidue_policy_text();
     printf("fallback_root=%s\n", BB_RUNTIME_FALLBACK_ROOT);
     printf("fallback_enabled=%s\n", !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "yes" : "no");
     printf("cleanup_ledger_path=%s\n", bb_ledger_path(ledger, sizeof(ledger)));
@@ -111,6 +160,10 @@ static void plan_print_clean(int json)
             bb_json_string(stdout, BB_RUNTIME_FALLBACK_ROOT);
         }
         fputs("],\"would_start\":[],\"would_connect\":[],\"requires_external_writes\":false", stdout);
+        fputs(",\"runtime_root\":", stdout); bb_json_string(stdout, BB_RUNTIME_ROOT);
+        fputs(",\"runtime_mode\":", stdout); bb_json_string(stdout, BB_RUNTIME_MODE);
+        fputs(",\"noresidue_level\":", stdout); bb_json_string(stdout, BB_NORESIDUE_LEVEL);
+        fputs(",\"noresidue_policy\":", stdout); plan_print_noresidue_policy_json();
         fputs(",\"cleanup_ledger_path\":", stdout); bb_json_string(stdout, bb_ledger_path(ledger, sizeof(ledger)));
         plan_print_config_source_json();
         puts("}");
@@ -118,6 +171,10 @@ static void plan_print_clean(int json)
     }
     puts("Plan: clean");
     plan_print_config_source_text();
+    printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
+    printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
+    printf("noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
+    plan_print_noresidue_policy_text();
     printf("cleanup_ledger_path=%s\n", bb_ledger_path(ledger, sizeof(ledger)));
     puts("would_remove:");
     printf("  %s\n", BB_RUNTIME_ROOT);
@@ -226,6 +283,7 @@ static void plan_print_rshell(int json)
         printf(",\"zero_arg_autorun\":%s", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "true" : "false");
         printf(",\"no_residue_cleanup\":%s", !strcmp(BB_RUNTIME_MODE, "no-residue") ? "true" : "false");
         fputs(",\"noresidue_level\":", stdout); bb_json_string(stdout, BB_NORESIDUE_LEVEL);
+        fputs(",\"noresidue_policy\":", stdout); plan_print_noresidue_policy_json();
         plan_print_config_source_json();
         puts("}");
         return;
@@ -250,6 +308,7 @@ static void plan_print_rshell(int json)
     printf("zero_arg_autorun=%s\n", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "yes" : "no");
     printf("no_residue_cleanup=%s\n", !strcmp(BB_RUNTIME_MODE, "no-residue") ? "yes" : "no");
     printf("noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
+    plan_print_noresidue_policy_text();
     puts("would_create:");
     printf("  %s\n", guard);
     printf("  %s\n", log_path);
