@@ -23,6 +23,9 @@ harness for known cases.
 - Can write a local generated target preset from the survey.
 - Can ask a release bundle to select a compatible artifact and report the
   compatibility label/reasons.
+- Runs a release bundle's `scripts/release-self-test --json` before release
+  artifact selection when the helper exists, then records the diagnostics in
+  the bringup summary.
 - Can print the exact trailer override, operator, target, and staged fetch
   commands to run next.
 - Builds the recommended artifact unless stopped with `--survey-only` or
@@ -123,6 +126,8 @@ local/bringup-runs/<timestamp>/
   config-info.out
   recommendation.json
   recommended.conf
+  release-find.json
+  release-self-test.json
   recommended-build.log
   summary.json
 ```
@@ -131,8 +136,9 @@ local/bringup-runs/<timestamp>/
 host, target preset, payload preset, generated target preset path, release
 selection, maximum compatibility threshold, compatibility label/reasons,
 selected artifact provider status, generated trailer command, staged fetch
-command, selected artifact Doom WAD metadata, selected artifact release
-summary metadata, next operator commands, and next target commands. The local
+command, selected artifact Doom WAD metadata, release self-test diagnostics when
+a release bundle helper is present, selected artifact release summary metadata,
+next operator commands, and next target commands. The local
 survey-derived recommendation also carries `recommendation_compatibility` and
 the same object under `recommendation.compatibility`; this is separate from the
 top-level `compatibility`, which describes the selected release artifact when

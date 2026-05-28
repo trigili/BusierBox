@@ -88,6 +88,7 @@ trailer_command=
 staged_fetch_command=
 staged_request_name=
 recommended_artifact=
+release_self_test_json=
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -163,6 +164,7 @@ write_summary() {
     RELEASE_DIR="$release_dir" \
     MAX_COMPATIBILITY="$max_compatibility" \
     RELEASE_FIND_JSON="$release_find_json" \
+    RELEASE_SELF_TEST_JSON="$release_self_test_json" \
     SELECTED_ARTIFACT="$selected_artifact" \
     COMPATIBILITY_LABEL="$compatibility_label" \
     COMPATIBILITY_REASONS_JSON="$compatibility_reasons_json" \
@@ -507,6 +509,25 @@ if reality_path and os.path.exists(reality_path):
     except Exception as exc:
         reality_summary = {"source": reality_path, "warning": f"could not parse reality-test JSON: {exc}"}
 
+release_self_test_summary = {}
+release_self_test_path = env("RELEASE_SELF_TEST_JSON")
+if release_self_test_path and os.path.exists(release_self_test_path):
+    try:
+        with open(release_self_test_path, "r", encoding="utf-8") as fh:
+            release_self_test_doc = json.load(fh)
+        if isinstance(release_self_test_doc, dict):
+            release_self_test_summary = dict(release_self_test_doc)
+            release_self_test_summary["source"] = release_self_test_path
+            release_self_test_summary["valid"] = True
+        else:
+            release_self_test_summary = {
+                "source": release_self_test_path,
+                "valid": False,
+                "warning": "release self-test JSON is not an object",
+            }
+    except Exception as exc:
+        release_self_test_summary = {"source": release_self_test_path, "valid": False, "warning": f"could not parse release self-test JSON: {exc}"}
+
 doc = {
     "schema": 1,
     "status": env("STATUS"),
@@ -527,6 +548,8 @@ doc = {
     "release_dir": env("RELEASE_DIR"),
     "max_compatibility": env("MAX_COMPATIBILITY"),
     "release_find_json": maybe_file(env("RELEASE_FIND_JSON")),
+    "release_self_test_json": maybe_file(env("RELEASE_SELF_TEST_JSON")),
+    "release_self_test_summary": release_self_test_summary,
     "selected_artifact": env("SELECTED_ARTIFACT"),
     "selected_artifact_summary": selected_artifact_summary,
     "selected_tool_provider_status": selected_tool_provider_status,
@@ -576,6 +599,7 @@ run_files = {
     "recommended_config": file_record("recommended_config", env("RECOMMENDED_CONFIG")),
     "recommended_target_preset": file_record("recommended_target_preset", env("TARGET_PRESET_PATH")),
     "release_find_json": file_record("release_find_json", env("RELEASE_FIND_JSON")),
+    "release_self_test_json": file_record("release_self_test_json", env("RELEASE_SELF_TEST_JSON")),
     "selected_artifact": file_record("selected_artifact", env("SELECTED_ARTIFACT")),
     "recommended_artifact": file_record("recommended_artifact", env("RECOMMENDED_ARTIFACT")),
 }
@@ -764,6 +788,16 @@ PY
 
 choose_release_artifact() {
     [ -n "$release_dir" ] || return 0
+    release_self_test_json="$run_dir/release-self-test.json"
+    if [ -x "$release_dir/scripts/release-self-test" ]; then
+        if ! "$release_dir/scripts/release-self-test" --json >"$release_self_test_json" 2>"$run_dir/release-self-test.err"; then
+            write_summary fail "release self-test failed"
+            printf '%s\n' "bringup: release self-test failed; see $run_dir/release-self-test.err" >&2
+            exit 1
+        fi
+    else
+        release_self_test_json=
+    fi
     release_find_json="$run_dir/release-find.json"
     max_args=
     case "$max_compatibility" in
