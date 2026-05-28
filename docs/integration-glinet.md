@@ -194,9 +194,12 @@ detected constraints, failed checks, and skipped operator-side probes from
 `reality-test-json.log`. The JSON report blocks for recovery and reality-test
 data include flat record lists, lookup maps by case/status/action/check type,
 and `api_collections` metadata so TUI or future web clients can render those
-tables without hard-coded scans. The compare tool classifies regressions, new
-failures, fixed cases, new or removed cases, artifact hash changes, artifact
-size deltas, and duration deltas when both summaries include timing data.
+tables without hard-coded scans. The top-level JSON report also publishes an
+`api` catalog plus `api_resources` records for cases, failure reasons, recent
+operator events, release self-test diagnostics, recovery evidence, and
+reality-test evidence. The compare tool classifies regressions, new failures,
+fixed cases, new or removed cases, artifact hash changes, artifact size deltas,
+and duration deltas when both summaries include timing data.
 
 When a release bundle is produced as part of an integration run, run the
 generated `scripts/release-self-test` inside that bundle before copying
