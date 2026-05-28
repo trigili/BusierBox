@@ -11,6 +11,10 @@ if grep -q '^test-qemu-\(user\|system\): package$' "$ROOT/Makefile"; then
     printf '%s\n' "qemu-matrix: QEMU tests must not build the active configured target before matrix skips" >&2
     exit 1
 fi
+grep -q 'summary.json' "$ROOT/tests/qemu-user/run-qemu-user-matrix"
+grep -q '"records_by_status"' "$ROOT/tests/qemu-user/run-qemu-user-matrix"
+grep -q 'summary.json' "$ROOT/tests/qemu-system/run-qemu-system-matrix"
+grep -q '"records_by_status"' "$ROOT/tests/qemu-system/run-qemu-system-matrix"
 
 if ! command -v python3 >/dev/null 2>&1; then
     printf '%s\n' "skip: python3 qemu matrix smoke unavailable"

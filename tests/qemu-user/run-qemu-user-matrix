@@ -15,6 +15,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 summary="$ARTIFACT_ROOT/summary.txt"
+summary_json="$ARTIFACT_ROOT/summary.json"
 : >"$summary"
 
 python3 - "$MATRIX" <<'PY' | while IFS='	' read -r name arch binary qemu
@@ -58,3 +59,57 @@ done
 
 cat "$summary"
 
+python3 - "$MATRIX" "$summary" "$summary_json" "$ARTIFACT_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+matrix_path, summary_path, summary_json_path, artifact_root = sys.argv[1:]
+with open(matrix_path, "r", encoding="utf-8") as fh:
+    matrix = json.load(fh)
+
+entries = {
+    item.get("name", ""): item
+    for item in matrix.get("targets", [])
+    if isinstance(item, dict)
+}
+records = []
+status_counts = {}
+with open(summary_path, "r", encoding="utf-8") as fh:
+    for line in fh:
+        parts = line.strip().split(" ", 2)
+        if len(parts) < 2:
+            continue
+        status = parts[0].lower()
+        name = parts[1]
+        reason = parts[2] if len(parts) > 2 else ""
+        target = entries.get(name, {})
+        rec = {
+            "name": name,
+            "arch": target.get("arch", ""),
+            "binary": target.get("binary", ""),
+            "qemu_user": target.get("qemu_user", ""),
+            "status": status,
+            "reason": reason,
+            "artifact_dir": str(Path(artifact_root) / name),
+        }
+        records.append(rec)
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+doc = {
+    "schema": 1,
+    "kind": "qemu-user",
+    "matrix": matrix_path,
+    "artifact_root": artifact_root,
+    "summary_text": summary_path,
+    "total_count": len(records),
+    "status_counts": status_counts,
+    "records": records,
+    "records_by_name": {rec["name"]: idx for idx, rec in enumerate(records)},
+    "records_by_status": {
+        status: [idx for idx, rec in enumerate(records) if rec["status"] == status]
+        for status in sorted(status_counts)
+    },
+}
+Path(summary_json_path).write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY

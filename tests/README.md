@@ -7,8 +7,13 @@ The test harness is layered so developers can get useful signal without propriet
 `make smoke-test` builds `dist/busierbox-native-full`, runs `scripts/verify-artifact`, runs the native host binary, and validates the Tier 0 applet contract. It also checks artifact tier behavior, target tuple resolution, generated mipsel musl Buildroot config creation, payload manifest reality for missing tools, placeholder regression, menuconfig serialization, reverse-access server CLI behavior, `survey --json` parsing, `scripts/config-from-survey`, and copy-only self-extraction outside the repository.
 
 `make test-qemu-user` runs target binaries under qemu-user when both the target binary and qemu interpreter exist. Missing cross binaries or interpreters are reported as `SKIP`, not as hard failures. This layer validates ELF compatibility, basic syscall compatibility, and applet behavior.
+The runner writes `tests/artifacts/qemu-user/summary.txt` and
+`tests/artifacts/qemu-user/summary.json`; the JSON form includes per-target
+records, `status_counts`, and lookup maps for reports and dashboards.
 
 `make test-qemu-system` boots locally supplied Buildroot/OpenWrt-style QEMU environments when enabled in `tests/matrix/environments.example.json`. All entries are disabled by default and no kernel/rootfs images are committed. Missing QEMU binaries, kernels, rootfses, or BusierBox binaries are reported as `SKIP`.
+The system runner mirrors the same text and JSON summary files under
+`tests/artifacts/qemu-system/`.
 
 `tests/smoke/qemu-matrix.sh` is the cheap metadata gate for the QEMU layer. It validates that the committed qemu-user matrix keeps host, x86, ARM, AArch64, little-endian MIPS, big-endian MIPS, musl, uClibc, and old/current kernel-floor coverage, and that the qemu-system example matrix keeps representative disabled environments with boot metadata plus architecture, libc, endian, and kernel-floor coverage.
 

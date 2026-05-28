@@ -17,6 +17,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 summary="$ARTIFACT_ROOT/summary.txt"
+summary_json="$ARTIFACT_ROOT/summary.json"
 : >"$summary"
 
 python3 - "$MATRIX" <<'PY' | while IFS='	' read -r name arch kernel rootfs busierbox qemu machine cpu append enabled
@@ -106,3 +107,63 @@ do
 done
 
 cat "$summary"
+
+python3 - "$MATRIX" "$summary" "$summary_json" "$ARTIFACT_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+matrix_path, summary_path, summary_json_path, artifact_root = sys.argv[1:]
+with open(matrix_path, "r", encoding="utf-8") as fh:
+    matrix = json.load(fh)
+
+entries = {
+    item.get("name", ""): item
+    for item in matrix.get("environments", [])
+    if isinstance(item, dict)
+}
+records = []
+status_counts = {}
+with open(summary_path, "r", encoding="utf-8") as fh:
+    for line in fh:
+        parts = line.strip().split(" ", 2)
+        if len(parts) < 2:
+            continue
+        status = parts[0].lower()
+        name = parts[1]
+        reason = parts[2] if len(parts) > 2 else ""
+        env = entries.get(name, {})
+        rec = {
+            "name": name,
+            "arch": env.get("arch", ""),
+            "kernel_path": env.get("kernel_path", ""),
+            "rootfs_path": env.get("rootfs_path", ""),
+            "busierbox_path": env.get("busierbox_path", ""),
+            "qemu_binary": env.get("qemu_binary", ""),
+            "qemu_machine": env.get("qemu_machine", ""),
+            "qemu_cpu": env.get("qemu_cpu", ""),
+            "enabled": bool(env.get("enabled", False)),
+            "status": status,
+            "reason": reason,
+            "artifact_dir": str(Path(artifact_root) / name),
+        }
+        records.append(rec)
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+doc = {
+    "schema": 1,
+    "kind": "qemu-system",
+    "matrix": matrix_path,
+    "artifact_root": artifact_root,
+    "summary_text": summary_path,
+    "total_count": len(records),
+    "status_counts": status_counts,
+    "records": records,
+    "records_by_name": {rec["name"]: idx for idx, rec in enumerate(records)},
+    "records_by_status": {
+        status: [idx for idx, rec in enumerate(records) if rec["status"] == status]
+        for status in sorted(status_counts)
+    },
+}
+Path(summary_json_path).write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
