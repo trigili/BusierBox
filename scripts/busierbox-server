@@ -827,6 +827,36 @@ def records_by_key(records, key):
     return grouped
 
 
+def nested_index_key(value):
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    return str(value)
+
+
+def records_by_nested_key(records, parent_key, child_key):
+    grouped = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        parent = rec.get(parent_key)
+        if not isinstance(parent, dict):
+            continue
+        value = parent.get(child_key)
+        if value in (None, ""):
+            continue
+        grouped.setdefault(nested_index_key(value), []).append(rec)
+    return grouped
+
+
+def record_count_by_nested_key(records, parent_key, child_key):
+    counts = {}
+    for key, value in records_by_nested_key(records, parent_key, child_key).items():
+        counts[key] = len(value)
+    return counts
+
+
 def records_by_list_item(records, key):
     grouped = {}
     for rec in records or []:
@@ -2913,6 +2943,13 @@ def command_queue_summary(cfg):
     commands_by_result_status = {}
     commands_by_result_exit_code = {}
     commands_by_result_output_exceeded = {}
+    commands_by_queue_policy_enabled = {}
+    commands_by_queue_policy_valid = {}
+    commands_by_queue_policy_execution_mode = {}
+    commands_by_queue_policy_allowed_commands = {}
+    commands_by_delivery_policy_enabled = {}
+    commands_by_delivery_policy_valid = {}
+    commands_by_delivery_policy_execution_mode = {}
     status_counts = {}
     execution_decision_counts = {}
     result_status_counts = {}
@@ -2952,6 +2989,13 @@ def command_queue_summary(cfg):
         if status == "result-received":
             output_key = "yes" if rec.get("result_output_exceeded_limit") is True else "no"
             commands_by_result_output_exceeded.setdefault(output_key, []).append(rec)
+    commands_by_queue_policy_enabled = records_by_nested_key(commands, "queue_policy_snapshot", "enabled")
+    commands_by_queue_policy_valid = records_by_nested_key(commands, "queue_policy_snapshot", "valid")
+    commands_by_queue_policy_execution_mode = records_by_nested_key(commands, "queue_policy_snapshot", "execution_mode")
+    commands_by_queue_policy_allowed_commands = records_by_nested_key(commands, "queue_policy_snapshot", "allowed_commands")
+    commands_by_delivery_policy_enabled = records_by_nested_key(commands, "delivery_policy_snapshot", "enabled")
+    commands_by_delivery_policy_valid = records_by_nested_key(commands, "delivery_policy_snapshot", "valid")
+    commands_by_delivery_policy_execution_mode = records_by_nested_key(commands, "delivery_policy_snapshot", "execution_mode")
     result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
     result_exceeded_count = len([
         rec for rec in commands
@@ -3035,10 +3079,24 @@ def command_queue_summary(cfg):
         "commands_by_result_status": commands_by_result_status,
         "commands_by_result_exit_code": commands_by_result_exit_code,
         "commands_by_result_output_exceeded": commands_by_result_output_exceeded,
+        "commands_by_queue_policy_enabled": commands_by_queue_policy_enabled,
+        "commands_by_queue_policy_valid": commands_by_queue_policy_valid,
+        "commands_by_queue_policy_execution_mode": commands_by_queue_policy_execution_mode,
+        "commands_by_queue_policy_allowed_commands": commands_by_queue_policy_allowed_commands,
+        "commands_by_delivery_policy_enabled": commands_by_delivery_policy_enabled,
+        "commands_by_delivery_policy_valid": commands_by_delivery_policy_valid,
+        "commands_by_delivery_policy_execution_mode": commands_by_delivery_policy_execution_mode,
         "status_counts": status_counts,
         "execution_decision_counts": execution_decision_counts,
         "result_status_counts": result_status_counts,
         "result_exit_code_counts": result_exit_code_counts,
+        "queue_policy_enabled_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "enabled"),
+        "queue_policy_valid_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "valid"),
+        "queue_policy_execution_mode_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "execution_mode"),
+        "queue_policy_allowed_commands_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "allowed_commands"),
+        "delivery_policy_enabled_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "enabled"),
+        "delivery_policy_valid_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "valid"),
+        "delivery_policy_execution_mode_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "execution_mode"),
         "latest_created_at": latest_created_at,
         "latest_result_received_at": latest_result_received_at,
         "queued_count": len(queued),
@@ -6362,6 +6420,13 @@ def status_document(cfg):
         "command_queue_execution_decision_counts": command_queue.get("execution_decision_counts") or {},
         "command_queue_result_status_counts": command_queue.get("result_status_counts") or {},
         "command_queue_result_exit_code_counts": command_queue.get("result_exit_code_counts") or {},
+        "command_queue_queue_policy_enabled_counts": command_queue.get("queue_policy_enabled_counts") or {},
+        "command_queue_queue_policy_valid_counts": command_queue.get("queue_policy_valid_counts") or {},
+        "command_queue_queue_policy_execution_mode_counts": command_queue.get("queue_policy_execution_mode_counts") or {},
+        "command_queue_queue_policy_allowed_commands_counts": command_queue.get("queue_policy_allowed_commands_counts") or {},
+        "command_queue_delivery_policy_enabled_counts": command_queue.get("delivery_policy_enabled_counts") or {},
+        "command_queue_delivery_policy_valid_counts": command_queue.get("delivery_policy_valid_counts") or {},
+        "command_queue_delivery_policy_execution_mode_counts": command_queue.get("delivery_policy_execution_mode_counts") or {},
         "command_queue_latest_created_at": command_queue.get("latest_created_at", ""),
         "command_queue_latest_result_received_at": command_queue.get("latest_result_received_at", ""),
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
@@ -6560,6 +6625,10 @@ def status_document(cfg):
                 "commands_by_id", "commands_by_status", "commands_by_execution_decision",
                 "commands_by_result_status",
                 "commands_by_result_exit_code", "commands_by_result_output_exceeded",
+                "commands_by_queue_policy_enabled", "commands_by_queue_policy_valid",
+                "commands_by_queue_policy_execution_mode", "commands_by_queue_policy_allowed_commands",
+                "commands_by_delivery_policy_enabled", "commands_by_delivery_policy_valid",
+                "commands_by_delivery_policy_execution_mode",
             ), "command_queue_total_count",
         ),
         "command_queue_modes": api_collection_record(
@@ -6738,6 +6807,13 @@ def status_document(cfg):
         "release_state": release_state,
         "release": release,
         "command_queue": command_queue,
+        "commands_by_queue_policy_enabled": command_queue.get("commands_by_queue_policy_enabled") or {},
+        "commands_by_queue_policy_valid": command_queue.get("commands_by_queue_policy_valid") or {},
+        "commands_by_queue_policy_execution_mode": command_queue.get("commands_by_queue_policy_execution_mode") or {},
+        "commands_by_queue_policy_allowed_commands": command_queue.get("commands_by_queue_policy_allowed_commands") or {},
+        "commands_by_delivery_policy_enabled": command_queue.get("commands_by_delivery_policy_enabled") or {},
+        "commands_by_delivery_policy_valid": command_queue.get("commands_by_delivery_policy_valid") or {},
+        "commands_by_delivery_policy_execution_mode": command_queue.get("commands_by_delivery_policy_execution_mode") or {},
         "command_queue_mode_records": command_queue.get("mode_records") or [],
         "command_queue_modes_by_mode": command_queue.get("command_queue_modes_by_mode") or {},
         "command_queue_modes_by_lifecycle": command_queue.get("command_queue_modes_by_lifecycle") or {},

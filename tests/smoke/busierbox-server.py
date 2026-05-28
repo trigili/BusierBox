@@ -795,6 +795,14 @@ def main():
         if (queue_summary.get("commands_by_id", {}).get(queued_id, {}).get("command") != "busierbox reality-test --json" or
                 len(queue_summary.get("commands_by_status", {}).get("queued", [])) != 1 or
                 queue_summary["commands_by_status"]["queued"][0].get("id") != queued_id or
+                queue_summary.get("commands_by_queue_policy_enabled", {}).get("false", [{}])[0].get("id") != queued_id or
+                queue_summary.get("commands_by_queue_policy_valid", {}).get("true", [{}])[0].get("id") != queued_id or
+                queue_summary.get("commands_by_queue_policy_execution_mode", {}).get("metadata-only", [{}])[0].get("id") != queued_id or
+                queue_summary.get("commands_by_queue_policy_allowed_commands", {}).get("none", [{}])[0].get("id") != queued_id or
+                queue_summary.get("queue_policy_enabled_counts", {}).get("false") != 1 or
+                queue_summary.get("queue_policy_valid_counts", {}).get("true") != 1 or
+                queue_summary.get("queue_policy_execution_mode_counts", {}).get("metadata-only") != 1 or
+                queue_summary.get("queue_policy_allowed_commands_counts", {}).get("none") != 1 or
                 queue_summary.get("latest_created_at") != queue_summary["commands"][0].get("created_at") or
                 queue_summary.get("latest_result_received_at") != ""):
             print("json command queue listing missing command lookup indexes", file=sys.stderr)
@@ -1356,7 +1364,7 @@ def main():
                 ("path_status_records", len(path_status_records), "path_status_by_name"),
                 ("browser_paths", len(browser_paths), "browser_paths_by_kind_source_id"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
-                ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_id"),
+                ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_mode"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
                 ("workbench_config_fields", len(queue_status_json.get("workbench_config_fields") or []), "workbench_config_fields_by_key"),

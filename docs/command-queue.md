@@ -35,7 +35,8 @@ Current behavior is intentionally non-executing:
   a polling target, but execution remains unsupported.
 - `scripts/busierbox-server --json-status` or `--api-status` includes the
   command queue path, counts, entries, `commands_by_id`,
-  `commands_by_status`, result lookup maps, latest queue/result timestamps,
+  `commands_by_status`, result lookup maps, queue-time and delivery-time
+  policy snapshot lookup maps, latest queue/result timestamps,
   token-required/token-configured booleans, `policy_summary`,
   `mode_semantics`, `mode_summary`, and non-execution safety boundary.
 - Human `--status`, `--list-command-queue`, and the line-oriented workbench
@@ -203,6 +204,15 @@ configuration changes later. Live target polling can mark a queued entry
 to the target, and record `execution_decision=rejected`; the target does not
 execute it. The `command_delivered` operator event includes the same delivery
 policy snapshot.
+
+The operator JSON status API indexes queue records by snapshot posture with
+`commands_by_queue_policy_enabled`, `commands_by_queue_policy_valid`,
+`commands_by_queue_policy_execution_mode`,
+`commands_by_queue_policy_allowed_commands`,
+`commands_by_delivery_policy_enabled`, `commands_by_delivery_policy_valid`,
+and `commands_by_delivery_policy_execution_mode`. Matching compact counts are
+mirrored under `summary.command_queue_*_counts`, and the indexes are listed in
+`api_collections.command_queue_commands` for frontend discovery.
 
 When the command-queue listener is running with `command_queue_tls=no`, it also
 accepts structured result JSON with `POST /command-queue/result`. The JSON must
