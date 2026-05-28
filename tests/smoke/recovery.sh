@@ -166,6 +166,41 @@ grep -q 'Would install persistence method=rc-local' "$tmp/dry-run"
 grep -q 'Action: status-only' "$tmp/dry-run"
 grep -q 'Generated command: /usr/bin/bbx_recovery persistence status' "$tmp/dry-run"
 grep -q 'Would backup existing hook' "$tmp/dry-run"
+"$bb" persistence install --method rc-local --dry-run --json --root "$tmp/root" --name bbx_recovery >"$tmp/dry-run.json"
+python3 -m json.tool "$tmp/dry-run.json" >/dev/null
+python3 - <<'PY' "$tmp/dry-run.json" "$tmp/root"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+root = sys.argv[2]
+assert data["mode"] == "dry-run"
+assert data["operation"] == "install"
+assert data["target_modified"] is False
+assert data["dry_run"] is True
+assert data["apply"] is False
+assert data["root"] == root
+assert data["real_root"] is False
+assert data["method"] == "rc-local"
+assert data["normalized_method"] == "rc-local"
+assert data["name"] == "bbx_recovery"
+assert data["action"] == "status-only"
+assert data["action_category"] == "status"
+assert data["generated_command"] == "/usr/bin/bbx_recovery persistence status"
+assert data["paths"]["hook"] == f"{root}/etc/rc.local"
+assert data["paths"]["binary"] == f"{root}/usr/bin/bbx_recovery"
+assert data["would"]["copy_binary"] is True
+assert data["would"]["write_hook"] is True
+assert data["would"]["backup_existing_hook"] is True
+assert data["would"]["remove_marked_hook"] is False
+assert data["action_semantics"]["uploads_evidence"] is False
+assert data["action_semantics"]["executes_operator_supplied_command"] is False
+assert data["action_semantics"]["command_queue_enabled"] is False
+assert data["action_semantics"]["hidden_control_channel"] is False
+assert data["safety"]["requires_apply"] is True
+assert data["safety"]["requires_external_write"] is True
+assert data["safety"]["external_write_authorized"] is False
+assert data["safety"]["visible_marked_hooks"] is True
+assert data["safety"]["uninstall_removes_marked_blocks"] is True
+PY
 
 if "$bb" persistence install --method rc-local --root "$tmp/root" --name bbx_recovery 2>"$tmp/err"; then
     printf '%s\n' "recovery: install without --apply unexpectedly succeeded" >&2
@@ -399,6 +434,24 @@ grep -q 'Action: dmesg-push' "$tmp/dmesg-dry-run"
 grep -q 'bbx_dmesg_dir=' "$tmp/dmesg-dry-run"
 grep -q 'dmesg >"$bbx_dmesg"' "$tmp/dmesg-dry-run"
 grep -q -- '--dest bbx_recovery-dmesg.txt' "$tmp/dmesg-dry-run"
+"$bb" persistence install --method rc-local --action dmesg-push --dry-run --json --root "$tmp/root" --name bbx_recovery >"$tmp/dmesg-dry-run.json"
+python3 -m json.tool "$tmp/dmesg-dry-run.json" >/dev/null
+python3 - <<'PY' "$tmp/dmesg-dry-run.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data["operation"] == "install"
+assert data["target_modified"] is False
+assert data["action"] == "dmesg-push"
+assert data["action_category"] == "evidence"
+assert data["action_semantics"]["uploads_evidence"] is True
+assert data["action_semantics"]["collects_dmesg"] is True
+assert data["action_semantics"]["starts_rshell"] is False
+assert data["action_semantics"]["executes_operator_supplied_command"] is False
+assert data["action_semantics"]["command_queue_enabled"] is False
+assert "bbx_dmesg_dir=" in data["generated_command"]
+assert "dmesg >\"$bbx_dmesg\"" in data["generated_command"]
+assert "--dest bbx_recovery-dmesg.txt" in data["generated_command"]
+PY
 "$bb" persistence install --method rc-local --action dmesg-push --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 grep -q 'action=dmesg-push' "$tmp/root/etc/rc.local"
 grep -q 'rm -f "$bbx_dmesg"' "$tmp/root/etc/rc.local"
@@ -434,6 +487,21 @@ assert "--dest bbx_recovery-dmesg.txt" in item["generated_command"]
 PY
 "$bb" persistence uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 
+"$bb" persistence uninstall --method rc-local --dry-run --json --root "$tmp/root" --name bbx_recovery >"$tmp/uninstall-dry-run.json"
+python3 -m json.tool "$tmp/uninstall-dry-run.json" >/dev/null
+python3 - <<'PY' "$tmp/uninstall-dry-run.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data["operation"] == "uninstall"
+assert data["target_modified"] is False
+assert data["dry_run"] is True
+assert data["would"]["copy_binary"] is False
+assert data["would"]["write_hook"] is False
+assert data["would"]["remove_marked_hook"] is True
+assert data["would"]["remove_binary"] is True
+assert data["would"]["remove_script"] is True
+assert data["safety"]["uninstall_removes_marked_blocks"] is True
+PY
 "$bb" persistence uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 test ! -e "$tmp/root/usr/bin/bbx_recovery"
 if grep -q 'BEGIN BUSIERBOX RECOVERY bbx_recovery' "$tmp/root/etc/rc.local"; then

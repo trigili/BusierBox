@@ -42,11 +42,15 @@ hotplug.d, and shell profile hooks. Each method reports its target path,
 intrusiveness, reversibility, and whether the hook is present.
 
 Installation requires `--method` and either `--dry-run` or `--apply`.
+`install --dry-run --json` and `uninstall --dry-run --json` emit a structured
+non-mutating plan with the operation, generated command, hook/binary/script
+paths, action semantics, expected writes/removals, and safety gates.
 The default action is `status-only`, which installs a visible no-op health
 check. Explicit recovery actions are also available:
 
 ```sh
 busierbox persistence install --method rc-local --name busierbox_recovery --dry-run
+busierbox persistence install --method rc-local --action dmesg-push --dry-run --json
 busierbox persistence install --method openwrt-procd --action rshell --external --apply
 busierbox persistence install --method rc-local --action evidence-push --dry-run
 busierbox persistence install --method rc-local --action evidence-then-rshell --external --apply

@@ -11,6 +11,7 @@ busierbox persistence --plan
 busierbox persistence install --method rc-local --dry-run
 busierbox persistence install --method openwrt-procd --action rshell --external --apply
 busierbox persistence install --method rc-local --action evidence-push --dry-run
+busierbox persistence install --method rc-local --action dmesg-push --dry-run --json
 busierbox persistence install --method rc-local --action dmesg-push --external --apply
 ```
 
@@ -21,6 +22,8 @@ Persistence/recovery is for authorized lab reboot recovery. It is visible and
 reversible: survey and plan modes do not modify the target, real-root writes
 require explicit `--external --apply`, hook blocks are marked, and uninstall
 removes only BusierBox-marked blocks and staged BusierBox files.
+Dry-run install/uninstall can also emit JSON plans with generated commands,
+paths, action semantics, expected writes/removals, and safety gates.
 
 Evidence actions (`evidence-push`, `evidence-then-rshell`, and `dmesg-push`)
 are explicit crash/reboot workflows. They upload target-initiated evidence to

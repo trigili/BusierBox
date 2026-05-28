@@ -1106,7 +1106,7 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     const char *action = "status-only";
     const char *name = BB_RECOVERY_BINARY_NAME;
     const char *script_file = NULL;
-    int dry_run = 0, apply = 0, external = 0;
+    int dry_run = 0, apply = 0, external = 0, json = 0;
     const struct recovery_method *m;
     char hook[PATH_MAX], bin[PATH_MAX], script_dst[PATH_MAX], bindir[PATH_MAX], backup[PATH_MAX];
     char generated[PATH_MAX * 2];
@@ -1121,6 +1121,8 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
             apply = 1;
         else if (!strcmp(argv[i], "--external"))
             external = 1;
+        else if (!strcmp(argv[i], "--json"))
+            json = 1;
         else if (!strcmp(argv[i], "--root") && i + 1 < argc)
             root = argv[++i];
         else if (!strcmp(argv[i], "--method") && i + 1 < argc)
@@ -1205,6 +1207,44 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
         return 2;
     }
     if (dry_run) {
+        if (json) {
+            printf("{\"schema\":1,\"mode\":\"dry-run\",\"operation\":");
+            bb_json_string(stdout, uninstall ? "uninstall" : "install");
+            fputs(",\"target_modified\":false,\"dry_run\":true,\"apply\":false,\"external\":", stdout);
+            fputs(external ? "true" : "false", stdout);
+            fputs(",\"root\":", stdout); bb_json_string(stdout, root);
+            fputs(",\"real_root\":", stdout); fputs(!strcmp(root, "/") ? "true" : "false", stdout);
+            fputs(",\"method\":", stdout); bb_json_string(stdout, method);
+            fputs(",\"normalized_method\":", stdout); bb_json_string(stdout, m->name);
+            fputs(",\"name\":", stdout); bb_json_string(stdout, name);
+            fputs(",\"action\":", stdout); bb_json_string(stdout, action);
+            fputs(",\"action_category\":", stdout); bb_json_string(stdout, recovery_action_category(action));
+            fputs(",\"generated_command\":", stdout); bb_json_string(stdout, generated);
+            fputs(",\"paths\":{\"hook\":", stdout); bb_json_string(stdout, hook);
+            fputs(",\"binary\":", stdout); bb_json_string(stdout, bin);
+            fputs(",\"script\":", stdout); bb_json_string(stdout, script_dst);
+            fputs("}", stdout);
+            fputs(",\"would\":{\"copy_binary\":", stdout); fputs(uninstall ? "false" : "true", stdout);
+            fputs(",\"copy_script\":", stdout); fputs(!uninstall && !strcmp(action, "script") ? "true" : "false", stdout);
+            fputs(",\"write_hook\":", stdout); fputs(uninstall ? "false" : "true", stdout);
+            fputs(",\"remove_marked_hook\":", stdout); fputs(uninstall ? "true" : "false", stdout);
+            fputs(",\"remove_binary\":", stdout); fputs(uninstall ? "true" : "false", stdout);
+            fputs(",\"remove_script\":", stdout); fputs(uninstall ? "true" : "false", stdout);
+            fputs(",\"backup_existing_hook\":", stdout); fputs(!uninstall && path_exists(hook) ? "true" : "false", stdout);
+            fputs("}", stdout);
+            fputs(",\"action_semantics\":{\"uploads_evidence\":", stdout); fputs(recovery_action_uploads_evidence(action) ? "true" : "false", stdout);
+            fputs(",\"collects_dmesg\":", stdout); fputs(recovery_action_collects_dmesg(action) ? "true" : "false", stdout);
+            fputs(",\"starts_rshell\":", stdout); fputs(recovery_action_starts_rshell(action) ? "true" : "false", stdout);
+            fputs(",\"starts_rshell_after_evidence\":", stdout); fputs(recovery_action_starts_rshell_after_evidence(action) ? "true" : "false", stdout);
+            fputs(",\"executes_operator_supplied_command\":", stdout); fputs(recovery_action_executes_operator_supplied_command(action) ? "true" : "false", stdout);
+            fputs(",\"command_queue_enabled\":false,\"hidden_control_channel\":false}", stdout);
+            fputs(",\"safety\":{\"requires_apply\":true,\"requires_external_write\":", stdout);
+            fputs(!strcmp(m->requires_external_write, "yes") ? "true" : "false", stdout);
+            fputs(",\"external_write_authorized\":", stdout); fputs(external ? "true" : "false", stdout);
+            fputs(",\"visible_marked_hooks\":true,\"uninstall_removes_marked_blocks\":true,\"self_reinstall\":false,\"survives_factory_reset_claim\":false}", stdout);
+            fputs("}\n", stdout);
+            return 0;
+        }
         printf("Would %s persistence method=%s name=%s root=%s\n", uninstall ? "uninstall" : "install", method, name, root);
         printf("Action: %s\n", action);
         printf("Generated command: %s\n", generated);
@@ -1297,8 +1337,8 @@ int applet_recovery_main(int argc, char **argv)
             puts("recovery is a deprecated compatibility alias for persistence.");
         puts("usage: busierbox persistence --survey|--plan [--json] [--root ROOT]");
         puts("       busierbox persistence status [--json] [--root ROOT] [--name NAME]");
-        puts("       busierbox persistence install --method METHOD [--action rshell|evidence-push|evidence-then-rshell|dmesg-push|command|script|status-only] --dry-run|--apply [--external] [--root ROOT] [--name NAME] [--file SCRIPT] [-- COMMAND]");
-        puts("       busierbox persistence uninstall --method METHOD --dry-run|--apply [--external] [--root ROOT] [--name NAME]");
+        puts("       busierbox persistence install --method METHOD [--action rshell|evidence-push|evidence-then-rshell|dmesg-push|command|script|status-only] --dry-run|--apply [--json] [--external] [--root ROOT] [--name NAME] [--file SCRIPT] [-- COMMAND]");
+        puts("       busierbox persistence uninstall --method METHOD --dry-run|--apply [--json] [--external] [--root ROOT] [--name NAME]");
         puts("Persistence is authorized lab persistence/recovery only. Survey and plan never modify the target.");
         puts("Install and uninstall require an explicit method plus --dry-run or --apply; real-root writes require --external --apply.");
         puts("Evidence actions upload target-initiated evidence to the configured receive-only operator file service.");
