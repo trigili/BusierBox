@@ -2311,6 +2311,8 @@ def main():
         bind_fail_service = (bind_fail_doc.get("services_by_name") or {}).get("file-service") or {}
         bind_fail_port_rows = (bind_fail_doc.get("ports_by_number") or {}).get(str(bind_fail_port)) or []
         bind_fail_port_row = next((row for row in bind_fail_port_rows if row.get("service") == "file-service"), {})
+        bind_fail_services_api = (bind_fail_doc.get("api_collections") or {}).get("services") or {}
+        bind_fail_ports_api = (bind_fail_doc.get("api_collections") or {}).get("ports") or {}
         if (not bind_fail_warnings or
                 not bind_fail_warnings[-1].get("error") or
                 bind_fail_warnings[-1].get("bind_address") != "127.0.0.1" or
@@ -2319,7 +2321,15 @@ def main():
                 bind_fail_service.get("warning_count") != 1 or
                 "service_error" not in bind_fail_service.get("warning_types", []) or
                 bind_fail_port_row.get("warning_count") != 1 or
-                "service_error" not in bind_fail_port_row.get("warning_types", [])):
+                "service_error" not in bind_fail_port_row.get("warning_types", []) or
+                bind_fail_doc.get("services_by_has_warnings", {}).get("yes", [{}])[-1].get("name") != "file-service" or
+                bind_fail_doc.get("services_by_warning_type", {}).get("service_error", [{}])[-1].get("name") != "file-service" or
+                bind_fail_doc.get("ports_by_has_warnings", {}).get("yes", [{}])[-1].get("service") != "file-service" or
+                bind_fail_doc.get("ports_by_warning_type", {}).get("service_error", [{}])[-1].get("service") != "file-service" or
+                "services_by_has_warnings" not in (bind_fail_services_api.get("indexes") or []) or
+                "services_by_warning_type" not in (bind_fail_services_api.get("indexes") or []) or
+                "ports_by_has_warnings" not in (bind_fail_ports_api.get("indexes") or []) or
+                "ports_by_warning_type" not in (bind_fail_ports_api.get("indexes") or [])):
             print("bind failure status warning missing bind/error/owner context", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
@@ -2332,7 +2342,11 @@ def main():
                 bind_summary.get("warning_count", 0) < 1 or
                 bind_summary.get("warning_type_counts", {}).get("service_error", 0) < 1 or
                 bind_summary.get("warning_service_counts", {}).get("file-service", 0) < 1 or
-                bind_summary.get("warning_port_counts", {}).get(str(bind_fail_port), 0) < 1):
+                bind_summary.get("warning_port_counts", {}).get(str(bind_fail_port), 0) < 1 or
+                bind_summary.get("service_warning_count", 0) < 1 or
+                bind_summary.get("service_warning_type_counts", {}).get("service_error", 0) < 1 or
+                bind_summary.get("port_warning_count", 0) < 1 or
+                bind_summary.get("port_warning_type_counts", {}).get("service_error", 0) < 1):
             print("bind failure status missing warning aggregate stats", file=sys.stderr)
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1

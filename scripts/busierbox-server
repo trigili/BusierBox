@@ -2076,6 +2076,21 @@ def port_record_indexes(records):
     return by_number, by_service, by_actual
 
 
+def warning_health_indexes(records):
+    by_has_warnings = {"yes": [], "no": []}
+    by_warning_type = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        warning_count = int_value(rec.get("warning_count"))
+        by_has_warnings["yes" if warning_count > 0 else "no"].append(rec)
+        for warning_type in rec.get("warning_types") or []:
+            warning_type = str(warning_type or "")
+            if warning_type:
+                by_warning_type.setdefault(warning_type, []).append(rec)
+    return by_has_warnings, by_warning_type
+
+
 def upload_record_indexes(records):
     by_filename = {}
     by_kind = {}
@@ -6440,6 +6455,8 @@ def status_document(cfg):
         if mapped is not None:
             mapped["warning_count"] = row.get("warning_count", 0)
             mapped["warning_types"] = row.get("warning_types", [])
+    services_by_has_warnings, services_by_warning_type = warning_health_indexes(services)
+    ports_by_has_warnings, ports_by_warning_type = warning_health_indexes(ports)
     warning_summary = warning_stats(warnings)
     command_queue_policy_summary = command_queue.get("policy_summary") or {}
     command_queue_mode_summary = command_queue.get("mode_summary") or {}
@@ -6501,6 +6518,12 @@ def status_document(cfg):
         "warning_type_path_counts": warning_summary.get("by_type_path") or {},
         "warning_service_port_counts": warning_summary.get("by_service_port") or {},
         "warning_type_service_port_counts": warning_summary.get("by_type_service_port") or {},
+        "service_warning_count": len(services_by_has_warnings.get("yes") or []),
+        "service_without_warning_count": len(services_by_has_warnings.get("no") or []),
+        "service_warning_type_counts": {key: len(value) for key, value in services_by_warning_type.items()},
+        "port_warning_count": len(ports_by_has_warnings.get("yes") or []),
+        "port_without_warning_count": len(ports_by_has_warnings.get("no") or []),
+        "port_warning_type_counts": {key: len(value) for key, value in ports_by_warning_type.items()},
         "upload_count": len(uploads),
         "upload_total_size": record_sum_by_key(uploads, "size"),
         "upload_stored_exists_count": upload_stored_exists_count,
@@ -6694,11 +6717,13 @@ def status_document(cfg):
             "services", services, "name", (
                 "services_by_name", "services_by_actual", "services_by_configured",
                 "services_by_port", "services_by_pid", "services_by_listener_pid",
+                "services_by_has_warnings", "services_by_warning_type",
             ), "service_count",
         ),
         "ports": api_collection_record(
             "ports", ports, "service", (
                 "ports_by_number", "ports_by_service", "ports_by_actual",
+                "ports_by_has_warnings", "ports_by_warning_type",
             ), "port_count",
         ),
         "path_status_records": api_collection_record(
@@ -6910,10 +6935,14 @@ def status_document(cfg):
         "services_by_port": services_by_port,
         "services_by_pid": services_by_pid,
         "services_by_listener_pid": services_by_listener_pid,
+        "services_by_has_warnings": services_by_has_warnings,
+        "services_by_warning_type": services_by_warning_type,
         "ports": ports,
         "ports_by_number": ports_by_number,
         "ports_by_service": ports_by_service,
         "ports_by_actual": ports_by_actual,
+        "ports_by_has_warnings": ports_by_has_warnings,
+        "ports_by_warning_type": ports_by_warning_type,
         "summary": summary,
         "warnings": warnings,
         "warnings_by_type": warnings_by_type,

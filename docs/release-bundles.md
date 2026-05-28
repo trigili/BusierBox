@@ -398,12 +398,17 @@ state, and port in `services_by_name`, `services_by_actual`,
 `services_by_listener_pid` for frontend clients that need direct lookup without
 reconstructing their own maps. Listener ports are exposed as `ports`,
 `ports_by_number`, `ports_by_service`, and `ports_by_actual`. Service and port
-records carry `warning_count` and `warning_types` fields, so service panes can
-badge bind errors, stale state, and PID ownership warnings without joining the
-warning maps first. Human `--status` service rows print the same compact
-warning badge as `warnings=N:type,type` when a service has warnings. `summary` also
+records carry `warning_count` and `warning_types` fields, and are grouped in
+`services_by_has_warnings`, `services_by_warning_type`,
+`ports_by_has_warnings`, and `ports_by_warning_type`, so service panes can
+badge bind errors, stale state, and PID ownership warnings without scanning or
+joining the full warning maps first. Human `--status` service rows print the
+same compact warning badge as `warnings=N:type,type` when a service has
+warnings. `summary` also
 includes `service_actual_counts`, `service_configured_counts`, `port_count`,
-and `port_actual_counts` for compact service and port dashboards.
+`port_actual_counts`, `service_warning_count`, `service_warning_type_counts`,
+`port_warning_count`, and `port_warning_type_counts` for compact service and
+port dashboards.
 The same document includes `generated_at` and a `paths` object for stable
 discovery of server state, staged files, event logs, command queue records, and
 the session root. `server_state` exposes the managed `server-state.json` path,
