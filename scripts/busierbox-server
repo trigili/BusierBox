@@ -285,7 +285,165 @@ class ServiceManager:
                 pass
 
 
+class SessionManager:
+    """Structured session metadata owner for status, TUI, and future APIs."""
+
+    def __init__(self):
+        self._lock = threading.RLock()
+
+    def root(self, cfg):
+        return Path(str(cfg.get("session_root", "local/sessions")))
+
+    def recent_paths(self, cfg, limit=8):
+        root = self.root(cfg)
+        if not root.is_dir():
+            return []
+        sessions = [p for p in root.iterdir() if p.is_dir()]
+        sessions.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return sessions[:limit]
+
+    def log_dir(self, cfg, label):
+        root = Path(str(cfg["session_root"]))
+        path = root / (time.strftime("%Y%m%d-%H%M%S") + "-" + label)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def session_id(self, log_dir):
+        return Path(log_dir).name
+
+    def metadata_path(self, log_dir):
+        return Path(log_dir) / "session.json"
+
+    def recent_records(self, cfg, limit=8):
+        out = []
+        for path in self.recent_paths(cfg, limit):
+            metadata_path = path / "session.json"
+            events_path = path / "events.jsonl"
+            meta = read_json_file(metadata_path, {})
+            if isinstance(meta, dict) and meta:
+                meta.setdefault("service", path.name.split("-", 2)[-1] if "-" in path.name else "unknown")
+                meta.setdefault("path", str(path))
+                meta.setdefault("exit_reason", "")
+                meta.setdefault("updated_at", utc_now_from_mtime(path.stat().st_mtime))
+                meta["metadata_path"] = str(metadata_path)
+                meta["event_log"] = str(events_path) if events_path.is_file() else ""
+                meta["event_count"] = count_file_lines(events_path)
+                meta["upload_count"] = len(meta.get("uploads") or [])
+                meta["fetch_count"] = len(meta.get("fetches") or [])
+                meta["artifact_count"] = len(meta.get("artifacts") or [])
+                out.append(meta)
+                continue
+            exit_reason = ""
+            try:
+                exit_reason = (path / "exit-reason").read_text(encoding="utf-8").strip()
+            except OSError:
+                pass
+            service = path.name.split("-", 2)[-1] if "-" in path.name else "unknown"
+            out.append({
+                "service": service,
+                "path": str(path),
+                "metadata_path": str(metadata_path) if metadata_path.is_file() else "",
+                "event_log": str(events_path) if events_path.is_file() else "",
+                "event_count": count_file_lines(events_path),
+                "upload_count": len(list(path.glob("files/*.metadata.json"))),
+                "fetch_count": 0,
+                "artifact_count": 0,
+                "exit_reason": exit_reason,
+                "updated_at": utc_now_from_mtime(path.stat().st_mtime),
+            })
+        return out
+
+    def write_record(self, log_dir, record):
+        path = self.metadata_path(log_dir)
+        with self._lock:
+            current = read_json_file(path, {})
+            if not isinstance(current, dict):
+                current = {}
+            current.update(record)
+            current.setdefault("schema", 1)
+            current.setdefault("session_id", self.session_id(log_dir))
+            current.setdefault("path", str(log_dir))
+            current.setdefault("artifacts", [])
+            current.setdefault("uploads", [])
+            current.setdefault("fetches", [])
+            atomic_write_json(path, current)
+            return current
+
+    def upsert_state(self, cfg, log_dir, service, state, remote="", exit_reason=""):
+        with self._lock:
+            data = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}, "sessions": []})
+            if not isinstance(data, dict):
+                data = {"schema": 1, "services": {}, "sessions": []}
+            data.setdefault("schema", 1)
+            data.setdefault("services", {})
+            sessions = data.get("sessions")
+            if not isinstance(sessions, list):
+                sessions = []
+            sid = self.session_id(log_dir)
+            summary = {
+                "session_id": sid,
+                "service": service,
+                "path": str(log_dir),
+                "state": state,
+                "remote": remote or "",
+                "exit_reason": exit_reason or "",
+                "updated_at": utc_now(),
+            }
+            replaced = False
+            for idx, item in enumerate(sessions):
+                if isinstance(item, dict) and item.get("session_id") == sid:
+                    merged = dict(item)
+                    merged.update(summary)
+                    sessions[idx] = merged
+                    replaced = True
+                    break
+            if not replaced:
+                sessions.append(summary)
+            data["sessions"] = sessions[-50:]
+            atomic_write_json(state_file_path(cfg), data)
+
+    def start_record(self, cfg, service, log_dir, remote="", state="starting", details=None):
+        self.upsert_state(cfg, log_dir, service, state, remote=remote)
+        return self.write_record(log_dir, {
+            "schema": 1,
+            "session_id": self.session_id(log_dir),
+            "service": service,
+            "path": str(log_dir),
+            "state": state,
+            "started_at": utc_now(),
+            "ended_at": "",
+            "remote": remote or "",
+            "exit_reason": "",
+            "details": details or {},
+            "artifacts": [],
+            "uploads": [],
+            "fetches": [],
+        })
+
+    def update_record(self, log_dir, **fields):
+        return self.write_record(log_dir, fields)
+
+    def append_list_item(self, log_dir, key, item):
+        path = self.metadata_path(log_dir)
+        with self._lock:
+            current = read_json_file(path, {})
+            if not isinstance(current, dict):
+                current = {}
+            values = current.get(key)
+            if not isinstance(values, list):
+                values = []
+            values.append(item)
+            current[key] = values
+        return self.write_record(log_dir, current)
+
+    def finish_record(self, cfg, service, log_dir, state="stopped", exit_reason=""):
+        current = self.write_record(log_dir, {})
+        self.upsert_state(cfg, log_dir, service, state, remote=current.get("remote", ""), exit_reason=exit_reason)
+        return self.update_record(log_dir, state=state, ended_at=utc_now(), exit_reason=exit_reason)
+
+
 SERVICE_MANAGER = ServiceManager()
+SESSION_MANAGER = SessionManager()
 
 
 DEFAULT_CONFIG = Path("local/server-config.json")
@@ -2573,12 +2731,7 @@ def unstage_file(cfg, request_name):
 
 
 def recent_sessions(cfg, limit=8):
-    root = Path(str(cfg.get("session_root", "local/sessions")))
-    if not root.is_dir():
-        return []
-    sessions = [p for p in root.iterdir() if p.is_dir()]
-    sessions.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return sessions[:limit]
+    return SESSION_MANAGER.recent_paths(cfg, limit)
 
 
 def count_file_lines(path):
@@ -2590,43 +2743,7 @@ def count_file_lines(path):
 
 
 def recent_session_records(cfg, limit=8):
-    out = []
-    for path in recent_sessions(cfg, limit):
-        metadata_path = path / "session.json"
-        events_path = path / "events.jsonl"
-        meta = read_json_file(metadata_path, {})
-        if isinstance(meta, dict) and meta:
-            meta.setdefault("service", path.name.split("-", 2)[-1] if "-" in path.name else "unknown")
-            meta.setdefault("path", str(path))
-            meta.setdefault("exit_reason", "")
-            meta.setdefault("updated_at", utc_now_from_mtime(path.stat().st_mtime))
-            meta["metadata_path"] = str(metadata_path)
-            meta["event_log"] = str(events_path) if events_path.is_file() else ""
-            meta["event_count"] = count_file_lines(events_path)
-            meta["upload_count"] = len(meta.get("uploads") or [])
-            meta["fetch_count"] = len(meta.get("fetches") or [])
-            meta["artifact_count"] = len(meta.get("artifacts") or [])
-            out.append(meta)
-            continue
-        exit_reason = ""
-        try:
-            exit_reason = (path / "exit-reason").read_text(encoding="utf-8").strip()
-        except OSError:
-            pass
-        service = path.name.split("-", 2)[-1] if "-" in path.name else "unknown"
-        out.append({
-            "service": service,
-            "path": str(path),
-            "metadata_path": str(metadata_path) if metadata_path.is_file() else "",
-            "event_log": str(events_path) if events_path.is_file() else "",
-            "event_count": count_file_lines(events_path),
-            "upload_count": len(list(path.glob("files/*.metadata.json"))),
-            "fetch_count": 0,
-            "artifact_count": 0,
-            "exit_reason": exit_reason,
-            "updated_at": utc_now_from_mtime(path.stat().st_mtime),
-        })
-    return out
+    return SESSION_MANAGER.recent_records(cfg, limit)
 
 
 def utc_now_from_mtime(mtime):
@@ -3085,109 +3202,39 @@ def local_ips():
 
 
 def session_log_dir(cfg, label):
-    root = Path(str(cfg["session_root"]))
-    path = root / (time.strftime("%Y%m%d-%H%M%S") + "-" + label)
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    return SESSION_MANAGER.log_dir(cfg, label)
 
 
 def session_id(log_dir):
-    return Path(log_dir).name
+    return SESSION_MANAGER.session_id(log_dir)
 
 
 def session_metadata_path(log_dir):
-    return Path(log_dir) / "session.json"
+    return SESSION_MANAGER.metadata_path(log_dir)
 
 
 def write_session_record(log_dir, record):
-    path = session_metadata_path(log_dir)
-    current = read_json_file(path, {})
-    if not isinstance(current, dict):
-        current = {}
-    current.update(record)
-    current.setdefault("schema", 1)
-    current.setdefault("session_id", session_id(log_dir))
-    current.setdefault("path", str(log_dir))
-    current.setdefault("artifacts", [])
-    current.setdefault("uploads", [])
-    current.setdefault("fetches", [])
-    atomic_write_json(path, current)
-    return current
+    return SESSION_MANAGER.write_record(log_dir, record)
 
 
 def upsert_state_session(cfg, log_dir, service, state, remote="", exit_reason=""):
-    data = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}, "sessions": []})
-    if not isinstance(data, dict):
-        data = {"schema": 1, "services": {}, "sessions": []}
-    data.setdefault("schema", 1)
-    data.setdefault("services", {})
-    sessions = data.get("sessions")
-    if not isinstance(sessions, list):
-        sessions = []
-    sid = session_id(log_dir)
-    summary = {
-        "session_id": sid,
-        "service": service,
-        "path": str(log_dir),
-        "state": state,
-        "remote": remote or "",
-        "exit_reason": exit_reason or "",
-        "updated_at": utc_now(),
-    }
-    replaced = False
-    for idx, item in enumerate(sessions):
-        if isinstance(item, dict) and item.get("session_id") == sid:
-            merged = dict(item)
-            merged.update(summary)
-            sessions[idx] = merged
-            replaced = True
-            break
-    if not replaced:
-        sessions.append(summary)
-    data["sessions"] = sessions[-50:]
-    atomic_write_json(state_file_path(cfg), data)
+    return SESSION_MANAGER.upsert_state(cfg, log_dir, service, state, remote=remote, exit_reason=exit_reason)
 
 
 def start_session_record(cfg, service, log_dir, remote="", state="starting", details=None):
-    upsert_state_session(cfg, log_dir, service, state, remote=remote)
-    return write_session_record(log_dir, {
-        "schema": 1,
-        "session_id": session_id(log_dir),
-        "service": service,
-        "path": str(log_dir),
-        "state": state,
-        "started_at": utc_now(),
-        "ended_at": "",
-        "remote": remote or "",
-        "exit_reason": "",
-        "details": details or {},
-        "artifacts": [],
-        "uploads": [],
-        "fetches": [],
-    })
+    return SESSION_MANAGER.start_record(cfg, service, log_dir, remote=remote, state=state, details=details)
 
 
 def update_session_record(log_dir, **fields):
-    return write_session_record(log_dir, fields)
+    return SESSION_MANAGER.update_record(log_dir, **fields)
 
 
 def append_session_list_item(log_dir, key, item):
-    path = session_metadata_path(log_dir)
-    current = read_json_file(path, {})
-    if not isinstance(current, dict):
-        current = {}
-    values = current.get(key)
-    if not isinstance(values, list):
-        values = []
-    values.append(item)
-    current[key] = values
-    write_session_record(log_dir, current)
+    return SESSION_MANAGER.append_list_item(log_dir, key, item)
 
 
 def finish_session_record(cfg, service, log_dir, state="stopped", exit_reason=""):
-    current = write_session_record(log_dir, {})
-    upsert_state_session(cfg, log_dir, service, state, remote=current.get("remote", ""), exit_reason=exit_reason)
-    return update_session_record(log_dir, state=state, ended_at=utc_now(), exit_reason=exit_reason)
+    return SESSION_MANAGER.finish_record(cfg, service, log_dir, state=state, exit_reason=exit_reason)
 
 
 def exit_reason_for(log_dir):

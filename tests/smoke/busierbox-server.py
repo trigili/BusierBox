@@ -142,7 +142,8 @@ def main():
     for word in ("class ServiceManager", "SERVICE_MANAGER = ServiceManager()", "register_transport",
                  "SERVICE_MANAGER.register_socket", "SERVICE_MANAGER.shutdown()", "register_thread",
                  "start_child_process", "register_child_process", "class EventLog", "class Service",
-                 "class Session"):
+                 "class Session", "class SessionManager", "SESSION_MANAGER = SessionManager()",
+                 "SESSION_MANAGER.start_record", "SESSION_MANAGER.finish_record"):
         if word not in src:
             print(f"busierbox-server: service/session manager primitive missing: {word}", file=sys.stderr)
             return 1
