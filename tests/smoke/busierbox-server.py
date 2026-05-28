@@ -531,6 +531,7 @@ def main():
                 "managed=" not in quick_text.stdout or
                 "background=" not in quick_text.stdout or
                 "long_running=" not in quick_text.stdout or
+                "cancel: disabled; process is not alive" not in quick_text.stdout or
                 "outcomes:" not in quick_text.stdout):
             print("text status missing completed workbench job exit metadata", file=sys.stderr)
             print(quick_text.stdout, file=sys.stderr)
@@ -578,6 +579,18 @@ def main():
         if forged_job.get("cancel_supported") is not False or forged_job.get("pid_managed") is not False:
             print("forged workbench job ledger was treated as cancellable", file=sys.stderr)
             print(json.dumps(forged_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        forged_text = run(
+            "scripts/busierbox-server",
+            "--config", str(forged_cfg),
+            "--status",
+        )
+        if ("job job-forged" not in forged_text.stdout or
+                "managed=no cancel_supported=no" not in forged_text.stdout or
+                "ownership: ledger:managed-by-workbench" not in forged_text.stdout or
+                "cancel: disabled; ownership unverified" not in forged_text.stdout):
+            print("text status missing forged workbench job ownership warning", file=sys.stderr)
+            print(forged_text.stdout, file=sys.stderr)
             return 1
         forged_cancel = run(
             "scripts/busierbox-server",

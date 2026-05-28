@@ -7971,6 +7971,22 @@ def print_workbench_job_summary(doc):
     print(f"  outcomes: {format_counts(summary.get('workbench_job_outcome_counts') or {})}")
 
 
+def print_workbench_job_ownership(rec):
+    evidence = rec.get("ownership_evidence") or []
+    if evidence:
+        print(f"    ownership: {','.join(str(item) for item in evidence)}")
+    else:
+        print("    ownership: none")
+    if rec.get("cancel_supported"):
+        return
+    if rec.get("pid") and rec.get("pid_alive") and not rec.get("pid_managed"):
+        print("    cancel: disabled; ownership unverified")
+    elif rec.get("pid"):
+        print("    cancel: disabled; process is not alive")
+    else:
+        print("    cancel: disabled; no pid")
+
+
 def print_release_summary(doc):
     doc = doc or {}
     release_state = doc.get("release_state") or {}
@@ -8367,13 +8383,15 @@ def print_status(cfg, json_output=False):
     print_workbench_job_summary(doc)
     for rec in doc.get("workbench_jobs") or []:
         cancel = "yes" if rec.get("cancel_supported") else "no"
+        managed = "yes" if rec.get("pid_managed") else "no"
         exit_status = rec.get("exit_status", "")
         exit_suffix = f" exit_status={exit_status} outcome={rec.get('outcome', '')}" if rec.get("exit_status_known") else ""
         duration = rec.get("duration_sec", "")
         elapsed = rec.get("elapsed_sec", "")
         duration_suffix = f" duration_sec={duration}" if rec.get("duration_known") else ""
         elapsed_suffix = f" elapsed_sec={elapsed}" if rec.get("elapsed_known") else ""
-        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} cancel_supported={cancel}{exit_suffix}{duration_suffix}{elapsed_suffix}")
+        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} managed={managed} cancel_supported={cancel}{exit_suffix}{duration_suffix}{elapsed_suffix}")
+        print_workbench_job_ownership(rec)
         print(f"    command: {rec.get('command', '')}")
         print(f"    log: {rec.get('log_path', '')}")
         if rec.get("finished_at"):
@@ -8664,9 +8682,11 @@ def print_workbench(cfg, include_api_summary=True):
     print_workbench_job_summary(snap)
     for rec in snap.get("workbench_jobs") or []:
         cancel = "yes" if rec.get("cancel_supported") else "no"
+        managed = "yes" if rec.get("pid_managed") else "no"
         exit_status = rec.get("exit_status", "")
         exit_suffix = f" exit_status={exit_status} outcome={rec.get('outcome', '')}" if rec.get("exit_status_known") else ""
-        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} cancel_supported={cancel}{exit_suffix}")
+        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} managed={managed} cancel_supported={cancel}{exit_suffix}")
+        print_workbench_job_ownership(rec)
         print(f"    command: {rec.get('command', '')}")
         print(f"    log: {rec.get('log_path', '')}")
         if rec.get("finished_at"):
@@ -8966,7 +8986,7 @@ def run_line_tui(cfg):
         elif choice == "13":
             snap = workbench_snapshot(cfg)
             for rec in snap.get("workbench_jobs") or []:
-                print(f"{rec.get('id', '')}: action={rec.get('action_id', '')} state={rec.get('effective_state', '')} cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}")
+                print(f"{rec.get('id', '')}: action={rec.get('action_id', '')} state={rec.get('effective_state', '')} managed={'yes' if rec.get('pid_managed') else 'no'} cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}")
             job_line = line_input("job id> ")
             job_id = job_line.strip() if job_line is not None else ""
             if job_id:

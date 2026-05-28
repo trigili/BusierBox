@@ -893,7 +893,9 @@ starts a background-capable operator workflow action, records the exact command
 and log path, and marks the spawned process with workbench environment ownership
 tokens. `--cancel-workbench-job JOB` only requests cancellation when
 those process environment tokens still match the ledger entry; a forged or stale
-ledger record is visible in status but is not cancellable. The line-oriented
+ledger record is visible in status but is not cancellable. Human status prints
+each job's managed/cancellable state and the ownership evidence or cancellation
+skip reason beside the command and log path. The line-oriented
 fallback exposes the same operator path health, compact service and activity
 summaries, recent upload/fetch activity, event aggregate counts, refresh state,
 and compact event outcome details so non-curses or non-TTY runs still show
