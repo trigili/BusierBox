@@ -234,7 +234,11 @@ def matches(row, index, args):
 
 
 def label_rank(row):
-    label = ((row.get("compatibility") or {}).get("label") or "exact")
+    label = (
+        (row.get("effective_compatibility") or {}).get("label")
+        or (row.get("compatibility") or {}).get("label")
+        or "exact"
+    )
     return {"exact": 0, "likely": 1, "heuristic": 2, "unsafe": 3, "incompatible": 4}.get(label, 5)
 
 
@@ -242,9 +246,71 @@ def compatibility_rank(label):
     return {"exact": 0, "likely": 1, "heuristic": 2, "unsafe": 3, "incompatible": 4}.get(label or "", 5)
 
 
+def degrade_label(label, new_label):
+    return new_label if compatibility_rank(new_label) > compatibility_rank(label) else label
+
+
+def effective_compatibility(row, reality=None):
+    base = row.get("compatibility") if isinstance(row.get("compatibility"), dict) else {}
+    label = base.get("label") or "exact"
+    reasons = list(base.get("reasons") or [])
+    facts = {}
+    reality = reality if isinstance(reality, dict) else {}
+    failed = set(reality.get("failed_checks") or [])
+    constraints = reality.get("constraints") if isinstance(reality.get("constraints"), dict) else {}
+    status = reality.get("status_by_check") if isinstance(reality.get("status_by_check"), dict) else {}
+
+    def add_fact(name, value=True):
+        facts[name] = value
+
+    def add_reason(new_label, reason, fact_name):
+        nonlocal label
+        label = degrade_label(label, new_label)
+        add_fact(fact_name)
+        if reason not in reasons:
+            reasons.append(reason)
+
+    if not reality:
+        return dict(base) if base else {"schema": 1, "label": label, "reasons": reasons, "facts": facts}
+    if constraints.get("tmp_noexec"):
+        add_reason("likely", "/tmp noexec: avoid /tmp extraction", "tmp_noexec")
+    if constraints.get("rootfs_read_only"):
+        add_reason("likely", "rootfs read-only: prefer runtime root or core-only modes", "rootfs_read_only")
+    if constraints.get("procfs_partial") or "read_proc" in failed:
+        add_reason("heuristic", "procfs partial/broken: static survey evidence may be incomplete", "procfs_partial")
+    if "runtime_root_executable" in failed:
+        add_reason("unsafe", "runtime root execution failed in reality-test", "runtime_exec_blocked")
+    if "temporary_file" in failed:
+        add_reason("unsafe", "runtime file creation failed in reality-test", "runtime_write_blocked")
+    if "extract_core_payload" in failed:
+        add_reason("unsafe", "payload extraction was not proven possible", "payload_possible_false")
+    if "ptrace" in failed:
+        add_reason("likely", "ptrace unavailable: debugger payloads may be limited", "ptrace_unavailable")
+    if "dmesg_readable" in failed:
+        add_reason("likely", "dmesg unreadable: crash evidence may be limited", "dmesg_unreadable")
+    if "spawn_sh" in failed:
+        add_reason("likely", "shell spawn unavailable: shell-oriented payloads may be limited", "spawn_sh_unavailable")
+    if "pty" in failed:
+        add_reason("likely", "PTY unavailable: interactive tools may be degraded", "pty_unavailable")
+    for name, value in sorted(status.items()):
+        if "low storage" in str(value).lower():
+            add_reason("likely", "storage low: prefer core-only or smaller payload preset", "low_storage")
+    if not reasons:
+        reasons.append(f"artifact tuple baseline: {row.get('tuple_path') or 'unknown'}")
+    return {
+        "schema": 1,
+        "label": label,
+        "reasons": reasons,
+        "facts": facts,
+        "source": "release-index+reality" if reality else "release-index",
+        "baseline_label": base.get("label") or "exact",
+    }
+
+
 def print_text(row, index):
     info = tuple_info(row, index)
     compatibility = row.get("compatibility") or {}
+    effective = row.get("effective_compatibility") or {}
     print(f"recommended_artifact={row.get('artifact_path') or ''}")
     print(f"release_name={row.get('release_name') or ''}")
     print(f"release_dir={row.get('release_dir') or ''}")
@@ -262,6 +328,10 @@ def print_text(row, index):
         print(f"compatibility_reason={reason}")
     if compatibility.get("note"):
         print(f"compatibility_note={compatibility.get('note')}")
+    if effective and effective.get("label") != compatibility.get("label"):
+        print(f"effective_compatibility={effective.get('label') or ''}")
+        for reason in effective.get("reasons") or []:
+            print(f"effective_compatibility_reason={reason}")
     if row.get("release_self_test_status"):
         print(f"release_self_test_status={row.get('release_self_test_status')}")
     if row.get("release_self_test_path"):
@@ -574,7 +644,7 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
         "match_count": len(rows),
         "visible_match_count": len(visible_matches),
         "selection_policy": [
-            "lowest compatibility risk label",
+            "lowest effective compatibility risk label when reality evidence is supplied",
             "newest release_mtime",
             "payload preset name",
             "artifact path",
@@ -670,6 +740,14 @@ def main(argv=None):
         index = build_index(roots)
 
     rows = [row for row in index.get("artifacts") or [] if matches(row, index, args)]
+    if reality:
+        rows = [
+            {
+                **row,
+                "effective_compatibility": effective_compatibility(row, reality),
+            }
+            for row in rows
+        ]
     if args.max_compatibility:
         max_rank = compatibility_rank(args.max_compatibility)
         rows = [row for row in rows if label_rank(row) <= max_rank]

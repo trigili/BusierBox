@@ -284,8 +284,10 @@ sorting them lower. `--survey-json` derives unset architecture, libc,
 kernel-floor, CPU, and ABI filters from `busierbox survey --json` output while
 leaving explicit CLI filters authoritative. `--reality-json` includes
 normalized reality-test checks, failed checks, and detected constraints in
-`--recommendation-json` output for audit and future UI views; repository
-compatibility labels still come from the indexed release metadata. Plain text output also prints `compatibility_reason=` lines so an
+`--recommendation-json` output, and adds an `effective_compatibility` overlay
+that can downgrade the indexed baseline for bad runtime/extraction/storage
+evidence before threshold filtering and sorting. The original repository
+`compatibility` label remains unchanged for provenance. Plain text output also prints `compatibility_reason=` lines so an
 operator can see why the selected artifact was considered exact, likely,
 heuristic, unsafe, or incompatible without parsing JSON.
 
