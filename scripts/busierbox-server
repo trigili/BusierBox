@@ -1470,7 +1470,12 @@ def workbench_job_indexes(records):
         "workbench_jobs_by_category": records_by_key(records, "category"),
         "workbench_jobs_by_script": records_by_key(records, "script"),
         "workbench_jobs_by_pid": records_by_key(records, "pid"),
+        "workbench_jobs_by_pid_managed": records_by_key(records, "pid_managed"),
         "workbench_jobs_by_cancel_supported": records_by_key(records, "cancel_supported"),
+        "workbench_jobs_by_log_exists": records_by_key(records, "log_exists"),
+        "workbench_jobs_by_exit_status_known": records_by_key(records, "exit_status_known"),
+        "workbench_jobs_by_background_supported": records_by_key(records, "background_supported"),
+        "workbench_jobs_by_long_running": records_by_key(records, "long_running"),
         "workbench_jobs_by_outcome": records_by_key(records, "outcome"),
         "workbench_jobs_by_exit_status": records_by_key(records, "exit_status"),
         "workbench_jobs_by_last_output_tail_truncated": records_by_key(records, "last_output_tail_truncated"),
@@ -1481,11 +1486,14 @@ def workbench_job_summary(records):
     return {
         "total_count": len(records or []),
         "running_count": len([rec for rec in records or [] if rec.get("effective_state") in ("starting", "running")]),
+        "pid_managed_count": len([rec for rec in records or [] if rec.get("pid_managed") is True]),
         "cancel_supported_count": len([rec for rec in records or [] if rec.get("cancel_supported") is True]),
         "log_exists_count": len([rec for rec in records or [] if rec.get("log_exists") is True]),
         "log_total_size": record_sum_by_key(records, "log_size"),
         "last_output_tail_truncated_count": len([rec for rec in records or [] if rec.get("last_output_tail_truncated") is True]),
         "exit_status_known_count": len([rec for rec in records or [] if rec.get("exit_status_known") is True]),
+        "background_supported_count": len([rec for rec in records or [] if rec.get("background_supported") is True]),
+        "long_running_count": len([rec for rec in records or [] if rec.get("long_running") is True]),
         "state_counts": record_count_by_key(records, "state"),
         "effective_state_counts": record_count_by_key(records, "effective_state"),
         "outcome_counts": record_count_by_key(records, "outcome"),
@@ -6705,11 +6713,14 @@ def status_document(cfg):
         "workbench_action_script_counts": workbench_action_stats.get("script_counts") or {},
         "workbench_job_count": workbench_job_stats.get("total_count", 0),
         "workbench_job_running_count": workbench_job_stats.get("running_count", 0),
+        "workbench_job_pid_managed_count": workbench_job_stats.get("pid_managed_count", 0),
         "workbench_job_cancel_supported_count": workbench_job_stats.get("cancel_supported_count", 0),
         "workbench_job_log_exists_count": workbench_job_stats.get("log_exists_count", 0),
         "workbench_job_log_total_size": workbench_job_stats.get("log_total_size", 0),
         "workbench_job_last_output_tail_truncated_count": workbench_job_stats.get("last_output_tail_truncated_count", 0),
         "workbench_job_exit_status_known_count": workbench_job_stats.get("exit_status_known_count", 0),
+        "workbench_job_background_supported_count": workbench_job_stats.get("background_supported_count", 0),
+        "workbench_job_long_running_count": workbench_job_stats.get("long_running_count", 0),
         "workbench_job_state_counts": workbench_job_stats.get("state_counts") or {},
         "workbench_job_effective_state_counts": workbench_job_stats.get("effective_state_counts") or {},
         "workbench_job_outcome_counts": workbench_job_stats.get("outcome_counts") or {},
@@ -6882,7 +6893,10 @@ def status_document(cfg):
                 "workbench_jobs_by_id", "workbench_jobs_by_action",
                 "workbench_jobs_by_state", "workbench_jobs_by_effective_state",
                 "workbench_jobs_by_category", "workbench_jobs_by_script",
-                "workbench_jobs_by_pid", "workbench_jobs_by_cancel_supported",
+                "workbench_jobs_by_pid", "workbench_jobs_by_pid_managed",
+                "workbench_jobs_by_cancel_supported", "workbench_jobs_by_log_exists",
+                "workbench_jobs_by_exit_status_known",
+                "workbench_jobs_by_background_supported", "workbench_jobs_by_long_running",
                 "workbench_jobs_by_outcome", "workbench_jobs_by_exit_status",
                 "workbench_jobs_by_last_output_tail_truncated",
             ), "workbench_job_count",
@@ -7199,11 +7213,14 @@ def print_workbench_job_summary(doc):
         "Workbench job summary: "
         f"total={summary.get('workbench_job_count', 0)} "
         f"running={summary.get('workbench_job_running_count', 0)} "
+        f"managed={summary.get('workbench_job_pid_managed_count', 0)} "
         f"cancel_supported={summary.get('workbench_job_cancel_supported_count', 0)} "
         f"logs={summary.get('workbench_job_log_exists_count', 0)} "
         f"log_bytes={summary.get('workbench_job_log_total_size', 0)} "
         f"tail_truncated={summary.get('workbench_job_last_output_tail_truncated_count', 0)} "
-        f"exit_status_known={summary.get('workbench_job_exit_status_known_count', 0)}"
+        f"exit_status_known={summary.get('workbench_job_exit_status_known_count', 0)} "
+        f"background={summary.get('workbench_job_background_supported_count', 0)} "
+        f"long_running={summary.get('workbench_job_long_running_count', 0)}"
     )
     print(f"  states: {format_counts(summary.get('workbench_job_effective_state_counts') or {})}")
     print(f"  outcomes: {format_counts(summary.get('workbench_job_outcome_counts') or {})}")
