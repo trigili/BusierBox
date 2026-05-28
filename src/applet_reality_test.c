@@ -216,6 +216,38 @@ static void check_readable_path(struct check_result *r, const char *path)
         set_result(r, 0, 0, "missing");
 }
 
+static int readable_nonempty_file(const char *path)
+{
+    int fd;
+    char buf[1];
+    ssize_t n;
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0)
+        return 0;
+    n = read(fd, buf, sizeof(buf));
+    close(fd);
+    return n > 0;
+}
+
+static void check_proc_read(struct check_result *r)
+{
+    if (readable_nonempty_file("/proc/self/status")) {
+        set_result(r, 1, 0, "/proc/self/status");
+        return;
+    }
+    if (readable_nonempty_file("/proc/mounts")) {
+        set_result(r, 1, 0, "/proc/mounts");
+        return;
+    }
+    if (access("/proc", F_OK) != 0)
+        set_result(r, 0, 0, "/proc missing");
+    else if (access("/proc", R_OK) != 0)
+        set_errno_result(r, "read /proc");
+    else
+        set_result(r, 0, 0, "/proc present but key procfs files are unreadable");
+}
+
 static void check_bind_localhost(struct check_result *r)
 {
     int fd;
@@ -528,7 +560,7 @@ static void run_checks(struct check_result checks[], size_t n, const struct real
         else if (!strcmp(checks[i].name, "pipes"))
             check_pipe_probe(&checks[i]);
         else if (!strcmp(checks[i].name, "read_proc"))
-            check_readable_path(&checks[i], "/proc");
+            check_proc_read(&checks[i]);
         else if (!strcmp(checks[i].name, "read_sys"))
             check_readable_path(&checks[i], "/sys");
         else if (!strcmp(checks[i].name, "bind_localhost"))

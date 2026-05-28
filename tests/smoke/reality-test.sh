@@ -80,6 +80,11 @@ if by_name["spawn_sh"].get("type") != "capability" or "available" not in by_name
     raise SystemExit("reality-test: spawn_sh should expose structured availability")
 if by_name["upload_operator"].get("type") != "operator" or "available" not in by_name["upload_operator"]:
     raise SystemExit("reality-test: upload_operator should expose structured operator availability")
+proc_detail = by_name["read_proc"].get("detail", "")
+if by_name["read_proc"].get("status") == "pass" and proc_detail not in {"/proc/self/status", "/proc/mounts"}:
+    raise SystemExit(f"reality-test: read_proc should prove a readable procfs file, got {proc_detail!r}")
+if by_name["read_proc"].get("status") == "fail" and "proc" not in proc_detail:
+    raise SystemExit(f"reality-test: read_proc failure should report procfs evidence, got {proc_detail!r}")
 summary = doc.get("summary", {})
 if summary.get("check_count") != len(checks):
     raise SystemExit("reality-test: summary check_count does not match checks")
