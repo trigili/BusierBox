@@ -477,7 +477,9 @@ aggregates are exposed as `command_queue.result_status_counts`,
 `command_queue_result_status_counts` and
 `command_queue_result_exit_code_counts`. It also exposes latest
 command-created and result-received timestamps, mirrored into `summary`, so
-dashboards can show queue recency without recomputing it. Compact safety booleans such as
+dashboards can show queue recency without recomputing it. Delivered command
+counts are mirrored as `command_queue_delivered_count` alongside queued and
+result counts. Compact safety booleans such as
 `command_queue_enabled`, `command_queue_configured_for_polling`,
 `command_queue_active_control_channel`, `command_queue_execution_supported`,
 `command_queue_delivery_supported`, `command_queue_result_upload_supported`,

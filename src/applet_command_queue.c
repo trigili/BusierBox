@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
@@ -19,10 +20,13 @@ struct poll_run_result {
     int attempts;
     int successes;
     int failures;
+    int delivered_commands;
+    int rejected_commands;
     int stopped_by_limit;
     int stopped_by_signal;
     char last_status[64];
     char last_error[160];
+    char last_command_id[96];
 };
 
 static volatile sig_atomic_t stop_daemon;
@@ -62,7 +66,7 @@ static void print_help(void)
     puts("usage: busierbox command-queue [status|poll|once|daemon] [--json] [--dry-run|--live] [--operator-host HOST]");
     puts("       busierbox command-queue daemon --live [--max-polls N] [--poll-interval-sec N] [--event-log PATH]");
     puts("Inspect explicit opt-in command queue policy and target polling state.");
-    puts("Live mode only contacts the operator endpoint and logs poll attempts; queued command delivery/execution is not implemented.");
+    puts("Live mode can receive queued command metadata; command execution is not implemented.");
 }
 
 static int mode_would_poll(const char *mode, int enabled, const char *operator_host, const struct command_queue_policy_report *report)
@@ -147,7 +151,8 @@ static void append_poll_event(const char *path, const char *event, const char *m
     bb_json_string(fh, mode);
     fputs(",\"endpoint\":", fh);
     bb_json_string(fh, endpoint ? endpoint : "");
-    fprintf(fh, ",\"attempt\":%d,\"executes_commands\":false,\"delivery_supported\":false,\"result_upload_supported\":false", attempt);
+    fprintf(fh, ",\"attempt\":%d,\"executes_commands\":false,\"delivery_supported\":%s,\"result_upload_supported\":false",
+            attempt, status && !strcmp(status, "delivered") ? "true" : "false");
     fputs(",\"status\":", fh);
     bb_json_string(fh, status ? status : "");
     if (error && error[0]) {
@@ -156,6 +161,29 @@ static void append_poll_event(const char *path, const char *event, const char *m
     }
     fputs("}}\n", fh);
     fclose(fh);
+}
+
+static void parse_header_value(const char *response, const char *name, char *out, size_t outsz)
+{
+    const char *p = response;
+    size_t name_len = strlen(name);
+
+    if (outsz)
+        out[0] = '\0';
+    while (p && *p) {
+        const char *line_end = strstr(p, "\r\n");
+        size_t line_len = line_end ? (size_t)(line_end - p) : strlen(p);
+        if (line_len > name_len + 1 && !strncasecmp(p, name, name_len) && p[name_len] == ':') {
+            const char *v = p + name_len + 1;
+            while (*v == ' ' || *v == '\t')
+                v++;
+            snprintf(out, outsz, "%.*s", (int)(line_len - (size_t)(v - p)), v);
+            return;
+        }
+        if (!line_end)
+            return;
+        p = line_end + 2;
+    }
 }
 
 static int connect_operator_once(const char *host, const char *port, char *err, size_t errsz)
@@ -212,8 +240,10 @@ static int connect_operator_once(const char *host, const char *port, char *err, 
                 snprintf(err, errsz, "no queued command");
                 return 1;
             }
-            if (!strncmp(response, "HTTP/1.1 200", 12) || !strncmp(response, "HTTP/1.0 200", 12))
+            if (!strncmp(response, "HTTP/1.1 200", 12) || !strncmp(response, "HTTP/1.0 200", 12)) {
+                parse_header_value(response, "X-BusierBox-Command-Id", err, errsz);
                 return 0;
+            }
             snprintf(err, errsz, "unexpected poll response");
             return -1;
         }
@@ -254,9 +284,13 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
         int poll_rc = connect_operator_once(operator_host, BB_COMMAND_QUEUE_PORT, error, sizeof(error));
         if (poll_rc == 0) {
             result.successes++;
-            snprintf(result.last_status, sizeof(result.last_status), "connected");
+            result.delivered_commands++;
+            result.rejected_commands++;
+            snprintf(result.last_status, sizeof(result.last_status), "delivered-rejected");
+            snprintf(result.last_command_id, sizeof(result.last_command_id), "%s", error);
             result.last_error[0] = '\0';
-            append_poll_event(event_log, "command_queue_poll_complete", mode, endpoint, result.attempts, "connected", "");
+            append_poll_event(event_log, "command_queue_poll_complete", mode, endpoint, result.attempts, "delivered", "");
+            append_poll_event(event_log, "command_queue_execution_decision", mode, endpoint, result.attempts, "rejected", "target command execution is not implemented");
         } else if (poll_rc == 1) {
             result.successes++;
             snprintf(result.last_status, sizeof(result.last_status), "no-command");
@@ -293,7 +327,7 @@ static void print_mode_semantics_json(const char *name, int selected, int dry_ru
     printf(",\"dry_run_only\":%s", dry_run ? "true" : "false");
     fputs(",\"requires_explicit_target_action\":true", stdout);
     printf(",\"would_contact_operator\":%s", (!dry_run && strcmp(name, "status")) ? "true" : "false");
-    fputs(",\"delivery_supported\":false", stdout);
+    printf(",\"delivery_supported\":%s", (!dry_run && strcmp(name, "status")) ? "true" : "false");
     fputs(",\"result_upload_supported\":false", stdout);
     fputs(",\"execution_supported\":false", stdout);
     fputs(",\"executes_commands\":false", stdout);
@@ -324,13 +358,19 @@ static void print_poll_run_json(const struct poll_run_result *run)
     printf(",\"attempts\":%d", run ? run->attempts : 0);
     printf(",\"successes\":%d", run ? run->successes : 0);
     printf(",\"failures\":%d", run ? run->failures : 0);
+    printf(",\"delivered_commands\":%d", run ? run->delivered_commands : 0);
+    printf(",\"rejected_commands\":%d", run ? run->rejected_commands : 0);
     printf(",\"stopped_by_limit\":%s", run && run->stopped_by_limit ? "true" : "false");
     printf(",\"stopped_by_signal\":%s", run && run->stopped_by_signal ? "true" : "false");
     fputs(",\"last_status\":", stdout);
     bb_json_string(stdout, run ? run->last_status : "not_run");
     fputs(",\"last_error\":", stdout);
     bb_json_string(stdout, run ? run->last_error : "");
-    fputs(",\"queued_command_available\":false,\"delivery_supported\":false,\"result_upload_supported\":false,\"execution_supported\":false,\"executes_commands\":false}", stdout);
+    fputs(",\"last_command_id\":", stdout);
+    bb_json_string(stdout, run ? run->last_command_id : "");
+    printf(",\"queued_command_available\":%s", run && run->delivered_commands > 0 ? "true" : "false");
+    printf(",\"delivery_supported\":%s", run && run->delivered_commands > 0 ? "true" : "false");
+    fputs(",\"result_upload_supported\":false,\"execution_supported\":false,\"executes_commands\":false,\"execution_decision\":\"rejected\"}", stdout);
 }
 
 static void print_json(const char *mode, int dry_run, const char *operator_host,
@@ -373,7 +413,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     printf(",\"operator_queue_records_only\":%s", dry_run ? "false" : "true");
     fputs(",\"execution_supported\":false", stdout);
     fputs(",\"executes_commands\":false", stdout);
-    fputs(",\"delivery_supported\":false", stdout);
+    printf(",\"delivery_supported\":%s", (!dry_run && would_poll) ? "true" : "false");
     printf(",\"poll_transport_supported\":%s", dry_run ? "false" : "true");
     fputs(",\"result_upload_supported\":false", stdout);
     printf(",\"active_control_channel\":%s", (!dry_run && would_poll) ? "true" : "false");
@@ -410,7 +450,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     fputs(",\"arbitrary_execution_allowed\":false", stdout);
     fputs(",\"execution_supported\":false", stdout);
     fputs(",\"executes_commands\":false", stdout);
-    fputs(",\"delivery_supported\":false", stdout);
+    printf(",\"delivery_supported\":%s", (!dry_run && would_poll) ? "true" : "false");
     fputs(",\"result_upload_supported\":false", stdout);
     printf(",\"poll_transport_supported\":%s", dry_run ? "false" : "true");
     printf(",\"active_control_channel\":%s", (!dry_run && would_poll) ? "true" : "false");
@@ -440,17 +480,17 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     } else {
         bb_json_string(stdout, "");
     }
-    fputs(",\"delivery_supported\":false", stdout);
+    printf(",\"delivery_supported\":%s", (!dry_run && would_poll) ? "true" : "false");
     fputs(",\"result_upload_supported\":false", stdout);
     fputs(",\"execution_supported\":false", stdout);
     fputs(",\"executes_commands\":false", stdout);
     printf(",\"active_control_channel\":%s", (!dry_run && would_poll) ? "true" : "false");
-    fputs(",\"queued_command_available\":false", stdout);
+    printf(",\"queued_command_available\":%s", run && run->delivered_commands > 0 ? "true" : "false");
     fputs(",\"operator_supplied_command_execution\":false", stdout);
     fputc('}', stdout);
     print_all_mode_semantics_json(mode, dry_run);
     print_poll_run_json(run);
-    fputs(",\"safety_boundary\":\"target polling is explicit; live mode contacts the operator endpoint but command delivery/execution is not implemented\"", stdout);
+    fputs(",\"safety_boundary\":\"target polling is explicit; live mode can receive queued command metadata but command execution is not implemented\"", stdout);
     fputs(",\"queued_command\":null}\n", stdout);
 }
 
@@ -490,7 +530,7 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     puts("command_queue_arbitrary_execution_allowed=no");
     puts("command_queue_execution_supported=no");
     puts("command_queue_executes_commands=no");
-    puts("command_queue_delivery_supported=no");
+    printf("command_queue_delivery_supported=%s\n", (!dry_run && mode_would_poll(mode, enabled, operator_host, &policy)) ? "yes" : "no");
     puts("command_queue_result_upload_supported=no");
     printf("command_queue_poll_transport_supported=%s\n", dry_run ? "no" : "yes");
     printf("command_queue_active_control_channel=%s\n", (!dry_run && mode_would_poll(mode, enabled, operator_host, &policy)) ? "yes" : "no");
@@ -517,11 +557,14 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_poll_run_attempts=%d\n", run ? run->attempts : 0);
     printf("command_queue_poll_run_successes=%d\n", run ? run->successes : 0);
     printf("command_queue_poll_run_failures=%d\n", run ? run->failures : 0);
+    printf("command_queue_poll_run_delivered_commands=%d\n", run ? run->delivered_commands : 0);
+    printf("command_queue_poll_run_rejected_commands=%d\n", run ? run->rejected_commands : 0);
     printf("command_queue_poll_run_stopped_by_limit=%s\n", run && run->stopped_by_limit ? "yes" : "no");
     printf("command_queue_poll_run_stopped_by_signal=%s\n", run && run->stopped_by_signal ? "yes" : "no");
     printf("command_queue_poll_run_last_status=%s\n", run ? run->last_status : "not_run");
     printf("command_queue_poll_run_last_error=%s\n", run ? run->last_error : "");
-    puts("command_queue_safety_boundary=explicit target polling; live mode contacts the operator endpoint but queued command delivery/execution is not implemented");
+    printf("command_queue_poll_run_last_command_id=%s\n", run ? run->last_command_id : "");
+    puts("command_queue_safety_boundary=explicit target polling; live mode can receive queued command metadata but execution is not implemented");
 }
 
 int applet_command_queue_main(int argc, char **argv)

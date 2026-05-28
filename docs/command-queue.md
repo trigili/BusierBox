@@ -16,11 +16,13 @@ Current behavior is intentionally non-executing:
   configured operator command-queue endpoint and can append structured poll
   events. Live polling currently requires `BB_COMMAND_QUEUE_TLS=no`; TLS
   command-queue polling is reported as unsupported instead of silently falling
-  back to plaintext. Live polls still do not fetch queue entries, upload
-  results, or execute queued commands in this build.
+  back to plaintext. Live polls can receive queued command metadata, but the
+  target records an explicit rejected execution decision and does not execute
+  commands or upload results in this build.
 - `scripts/busierbox-server --queue-command ...` records explicit operator
   queue entries in `local/operator-session/command-queue.json` for inspection
-  and future tooling. The current server does not deliver or execute them.
+  and future tooling. The command-queue listener can mark a queued entry
+  delivered to a polling target, but execution remains unsupported.
 - `scripts/busierbox-server --json-status` or `--api-status` includes the
   command queue path, counts, entries, `commands_by_id`,
   `commands_by_status`, result lookup maps, latest queue/result timestamps,
@@ -64,8 +66,10 @@ busierbox command-queue daemon --live \
 a single live poll attempt. Each live attempt sends a plain HTTP
 `GET /command-queue/poll` request when `BB_COMMAND_QUEUE_TLS=no`, records
 `command_queue_poll_attempt`, then `command_queue_poll_no_command`,
-`command_queue_poll_complete`, or `command_queue_poll_error`, and the daemon records
-`command_queue_poll_shutdown` when the loop exits.
+`command_queue_poll_complete`, or `command_queue_poll_error`. Delivered command
+metadata also records `command_queue_execution_decision` with status
+`rejected`, and the daemon records `command_queue_poll_shutdown` when the loop
+exits.
 
 Policy values for `BB_COMMAND_QUEUE_ALLOWED_COMMANDS` are `none`,
 `busierbox-only`, `allowlist`, and `custom`. `BB_COMMAND_QUEUE_ALLOW_ARBITRARY`
@@ -83,10 +87,12 @@ Safety boundary:
 - Trailer overrides alone are not an execution capability; this build does not
   execute queued commands.
 - Target-side `poll`, `once`, and `daemon` expose `would_poll`,
-  live-mode `poll_transport_supported`, `delivery_supported=false`,
+  live-mode `poll_transport_supported`, `delivery_supported`,
   `result_upload_supported=false`, `execution_supported=false`, and a
   `policy_summary` so frontend and integration tooling can distinguish
-  policy/planning from explicit live polling. They also expose a compact `poll_plan`
+  policy/planning from explicit live polling. Live `delivery_supported=true`
+  means the target can receive queued metadata; it does not imply command
+  execution. They also expose a compact `poll_plan`
   object with mode, status, endpoint, explicit-target-action, dry-run-only,
   would-contact-operator, queued-command availability, delivery/result upload,
   execution, and hidden-control-channel fields.
@@ -112,9 +118,9 @@ scripts/busierbox-server --clear-command-queue
 
 Queue entries include an id, timestamp, literal command text, timeout metadata,
 maximum output metadata, status, and explicit `execution_supported=false` /
-`delivery_supported=false` fields. They are operator-visible records only; live
-target polling currently records `command_queue_poll` events and responds
-`no-command`, but does not deliver these queued entries to the target.
+`delivery_supported=false` fields at queue time. Live target polling can mark a
+queued entry `delivered`, return its command metadata to the target, and record
+`execution_decision=rejected`; the target does not execute it.
 
 `--record-command-result` attaches a structured JSON result object to an
 existing queued command, records `result_command_id`, `result_received_at`,

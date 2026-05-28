@@ -1513,6 +1513,33 @@ def save_command_queue(cfg, data):
     atomic_write_json(command_queue_path(cfg), data)
 
 
+def mark_command_delivered(cfg, command_id, remote_addr=""):
+    data = load_command_queue(cfg)
+    for rec in data.get("commands", []):
+        if isinstance(rec, dict) and rec.get("id") == command_id:
+            rec["status"] = "delivered"
+            rec["delivered_at"] = utc_now()
+            rec["delivered_to"] = remote_addr
+            rec["execution_supported"] = False
+            rec["execution_decision"] = "rejected"
+            rec["execution_decision_reason"] = "target command execution is not implemented"
+            save_command_queue(cfg, data)
+            append_event(
+                cfg,
+                "command-queue",
+                "command_delivered",
+                details={
+                    "id": command_id,
+                    "command_id": command_id,
+                    "remote_addr": remote_addr,
+                    "execution_supported": False,
+                    "execution_decision": "rejected",
+                },
+            )
+            return rec
+    return None
+
+
 def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
     text = str(command or "").strip()
     if not text:
@@ -1709,6 +1736,7 @@ def command_queue_summary(cfg):
     data = load_command_queue(cfg)
     commands = data.get("commands", [])
     queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
+    delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
     commands_by_id = {}
     commands_by_status = {}
     commands_by_result_status = {}
@@ -1813,6 +1841,7 @@ def command_queue_summary(cfg):
         "latest_created_at": latest_created_at,
         "latest_result_received_at": latest_result_received_at,
         "queued_count": len(queued),
+        "delivered_count": len(delivered),
         "result_count": result_count,
         "result_output_exceeded_count": result_exceeded_count,
         "total_count": len(commands),
@@ -3908,6 +3937,54 @@ def handle_command_queue_poll(cfg, conn, method, target, addr):
         return {"operation": "command_queue_poll", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint"}
     queue = command_queue_summary(cfg)
     queued_count = int(queue.get("queued_count", 0) or 0)
+    queued = [
+        rec for rec in queue.get("commands", [])
+        if isinstance(rec, dict) and rec.get("status") == "queued" and rec.get("id")
+    ]
+    if queued:
+        command = queued[0]
+        delivered = mark_command_delivered(cfg, command.get("id"), remote)
+        payload = {
+            "schema": 1,
+            "status": "delivered",
+            "id": command.get("id"),
+            "command_id": command.get("id"),
+            "command": command.get("command", ""),
+            "timeout_sec": command.get("timeout_sec", 0),
+            "max_output_bytes": command.get("max_output_bytes", 0),
+            "delivery_supported": True,
+            "execution_supported": False,
+            "executes_commands": False,
+            "result_upload_supported": False,
+            "execution_decision": "rejected",
+            "execution_decision_reason": "target command execution is not implemented",
+        }
+        body = json.dumps(payload, sort_keys=True).encode("utf-8") + b"\n"
+        headers = {
+            "X-BusierBox-Command-Queue-Status": "delivered",
+            "X-BusierBox-Command-Id": str(command.get("id")),
+            "X-BusierBox-Delivery-Supported": "yes",
+            "X-BusierBox-Execution-Supported": "no",
+            "X-BusierBox-Executes-Commands": "no",
+        }
+        if method == "HEAD":
+            body = b""
+        send_http_response(conn, 200, body, "application/json", headers=headers)
+        return {
+            "operation": "command_queue_poll",
+            "status": "delivered",
+            "http_status": 200,
+            "method": method,
+            "remote_addr": remote,
+            "command_id": command.get("id"),
+            "queued_count_before": queued_count,
+            "delivered_count": 1 if delivered else 0,
+            "delivery_supported": True,
+            "execution_supported": False,
+            "executes_commands": False,
+            "result_upload_supported": False,
+            "execution_decision": "rejected",
+        }
     payload = {
         "schema": 1,
         "status": "no-command",
@@ -3916,7 +3993,7 @@ def handle_command_queue_poll(cfg, conn, method, target, addr):
         "execution_supported": False,
         "executes_commands": False,
         "result_upload_supported": False,
-        "message": "command delivery is not implemented; target poll recorded only",
+        "message": "no queued command available; target poll recorded only",
     }
     body = b""
     headers = {
@@ -3972,7 +4049,7 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
     log_dir = session_log_dir(cfg, service)
     start_session_record(cfg, service, log_dir, details={"port": port, "tls": False})
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-    print("Command queue poll listener. Records explicit target polls; command delivery/execution is not implemented.")
+    print("Command queue poll listener. Delivers queued metadata only; command execution is not implemented.")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "command_queue_file": str(command_queue_path(cfg))})
     sessions = 0
     sock = None
@@ -4003,7 +4080,8 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
                     metadata = handle_command_queue_poll(cfg, conn, method, target, addr)
                     append_session_list_item(log_dir, "command_queue_polls", metadata)
                     append_event(cfg, service, "command_queue_poll", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
-                    print(f"command-queue poll {metadata.get('status')}: queued={metadata.get('queued_count', 0)}")
+                    queued_display = metadata.get("queued_count", metadata.get("queued_count_before", 0))
+                    print(f"command-queue poll {metadata.get('status')}: queued={queued_display}")
             except Exception as exc:
                 metadata = {"operation": "command_queue_poll", "status": "error", "reason": str(exc)}
                 try:
@@ -4821,6 +4899,7 @@ def status_document(cfg):
         "event_session_event_counts": event_stats.get("by_session_event") or {},
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
+        "command_queue_delivered_count": command_queue.get("delivered_count", 0),
         "command_queue_result_count": command_queue.get("result_count", 0),
         "command_queue_result_output_exceeded_count": command_queue.get("result_output_exceeded_count", 0),
         "command_queue_status_counts": command_queue.get("status_counts") or {},
@@ -6408,7 +6487,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     parser.add_argument("--copy-target-command", type=int,
                         help="copy/export generated target command N to clipboard when available and to the command copy file")
     parser.add_argument("--queue-command",
-                        help="record an explicit operator command queue entry; this server does not deliver or execute it")
+                        help="record an explicit operator command queue entry; the poll listener may deliver metadata but will not execute it")
     parser.add_argument("--queue-timeout", type=int,
                         help="timeout metadata for --queue-command, in seconds")
     parser.add_argument("--queue-max-output", type=int,

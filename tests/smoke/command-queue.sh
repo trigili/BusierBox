@@ -111,7 +111,7 @@ PY
 scripts/busierbox-server --config "$cq_cfg" --transport command-queue --timeout 10 --one-shot >"$cq_out" 2>"$cq_err" &
 cq_pid=$!
 sleep 0.5
-BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_COMMAND_QUEUE_TLS=no BB_COMMAND_QUEUE_PORT="$port" BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --event-log "$cq_events" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d["poll_run"]; assert d["dry_run"] is False; assert d["status"] == "polling"; assert d["poll_transport_supported"] is True; assert d["delivery_supported"] is False; assert d["execution_supported"] is False; assert d["executes_commands"] is False; assert r["attempted"] is True; assert r["attempts"] == 1; assert r["successes"] == 1; assert r["failures"] == 0; assert r["last_status"] == "no-command"'
+BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_COMMAND_QUEUE_TLS=no BB_COMMAND_QUEUE_PORT="$port" BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --event-log "$cq_events" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d["poll_run"]; assert d["dry_run"] is False; assert d["status"] == "polling"; assert d["poll_transport_supported"] is True; assert d["delivery_supported"] is True; assert d["execution_supported"] is False; assert d["executes_commands"] is False; assert r["attempted"] is True; assert r["attempts"] == 1; assert r["successes"] == 1; assert r["failures"] == 0; assert r["last_status"] == "no-command"'
 wait "$cq_pid"
 grep -q 'command-queue poll no-command' "$cq_out"
 python3 - "$cq_events" "$cq_cfg" <<'PY'
@@ -128,6 +128,67 @@ assert any(event["service"] == "command-queue" and event["event"] == "command_qu
 assert any(event["service"] == "command-queue" and event["details"].get("status") == "no-command" for event in operator)
 PY
 rm -f "$cq_cfg" "$cq_out" "$cq_err" "$cq_events"
+queued_port=$(python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+queued_cfg="${TMPDIR:-/tmp}/busierbox-command-queue-delivery.$$.json"
+queued_out="${TMPDIR:-/tmp}/busierbox-command-queue-delivery.$$.out"
+queued_err="${TMPDIR:-/tmp}/busierbox-command-queue-delivery.$$.err"
+queued_events="${TMPDIR:-/tmp}/busierbox-command-queue-delivery-events.$$.jsonl"
+python3 - "$queued_cfg" "$queued_port" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+cfg = {
+    "listen_host": "127.0.0.1",
+    "operator_session_dir": str(Path(sys.argv[1]).with_suffix(".session")),
+    "server_state": str(Path(sys.argv[1]).with_suffix(".state.json")),
+    "command_queue_file": str(Path(sys.argv[1]).with_suffix(".queue.json")),
+    "command_queue_enable": "yes",
+    "command_queue_port": sys.argv[2],
+    "command_queue_tls": "no",
+    "command_queue_allowed_commands": "busierbox-only",
+    "command_queue_allow_arbitrary": "no",
+}
+Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
+PY
+scripts/busierbox-server --config "$queued_cfg" --queue-command 'busierbox reality-test --json' >/dev/null
+scripts/busierbox-server --config "$queued_cfg" --transport command-queue --timeout 10 --one-shot >"$queued_out" 2>"$queued_err" &
+queued_pid=$!
+sleep 0.5
+BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_COMMAND_QUEUE_TLS=no BB_COMMAND_QUEUE_PORT="$queued_port" BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --event-log "$queued_events" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d["poll_run"]; p=d["poll_plan"]; assert d["dry_run"] is False; assert d["status"] == "polling"; assert d["poll_transport_supported"] is True; assert d["delivery_supported"] is True; assert d["execution_supported"] is False; assert d["executes_commands"] is False; assert d["result_upload_supported"] is False; assert p["queued_command_available"] is True; assert r["queued_command_available"] is True; assert r["execution_decision"] == "rejected"; assert r["attempted"] is True; assert r["attempts"] == 1; assert r["successes"] == 1; assert r["failures"] == 0; assert r["delivered_commands"] == 1; assert r["rejected_commands"] == 1; assert r["last_status"] == "delivered-rejected"; assert r["last_error"] == ""; assert r["last_command_id"].startswith("cq-")'
+wait "$queued_pid"
+grep -q 'command-queue poll delivered' "$queued_out"
+python3 - "$queued_events" "$queued_cfg" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+events = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
+assert any(event["event"] == "command_queue_poll_complete" and event["details"]["status"] == "delivered" for event in events)
+assert any(event["event"] == "command_queue_execution_decision" and event["details"]["status"] == "rejected" for event in events)
+assert any(event["details"]["delivery_supported"] is True for event in events)
+assert all(event["details"]["executes_commands"] is False for event in events)
+cfg = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+queue = json.loads(Path(cfg["command_queue_file"]).read_text(encoding="utf-8"))
+command = queue["commands"][0]
+assert command["status"] == "delivered"
+assert command["execution_supported"] is False
+assert command["execution_decision"] == "rejected"
+assert command["delivered_at"]
+assert command["delivered_to"]
+operator_events = Path(cfg["operator_session_dir"]) / "events.jsonl"
+operator = [json.loads(line) for line in operator_events.open(encoding="utf-8")]
+assert any(event["service"] == "command-queue" and event["event"] == "command_delivered" for event in operator)
+assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" and event["details"].get("status") == "delivered" for event in operator)
+PY
+rm -f "$queued_cfg" "$queued_out" "$queued_err" "$queued_events"
 "$bb" plan command-queue --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"] == "command-queue"; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["execution_supported"] is False; assert d["requires_external_writes"] is False'
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" plan command-queue --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"] == "command-queue"; assert d["policy_valid"] is False; assert "disabled command queue must keep allowed commands policy none" in d["policy_errors"]; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["would_start"] == []; assert d["would_connect"] == []'
 "$bb" runtime-config --json | python3 -c 'import json,sys; d=json.load(sys.stdin); c=d["effective_config"]; p=d["command_queue_policy"]; assert c["BB_COMMAND_QUEUE_ENABLE"] == "no"; assert c["BB_COMMAND_QUEUE_ALLOWED_COMMANDS"] == "none"; assert c["BB_COMMAND_QUEUE_ALLOW_ARBITRARY"] == "no"; assert c["BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"] == "5"; assert c["BB_COMMAND_QUEUE_MAX_POLLS"] == "0"; assert p["valid"] is True; assert p["errors"] == []'

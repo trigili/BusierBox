@@ -206,8 +206,9 @@ and level for operator tooling.
 
 The optional command queue remains a separate advanced feature. Operator-side
 queue entries can be recorded with `scripts/busierbox-server --queue-command`
-and inspected in server status, but current queue tooling does not deliver or
-execute queued commands by default.
+and inspected in server status. Explicit live target polling can receive queued
+metadata, but current queue tooling does not execute queued commands by
+default.
 
 Reverse access is explicit and operator-controlled. BusierBox does not install persistence, daemonize by default, hide process names, delete logs, or repeatedly beacon in the background. The `rshell` applet is also available as an explicit command:
 
