@@ -3793,6 +3793,7 @@ def read_http_upload(conn, files_dir, addr):
             "remote_addr": f"{addr[0]}:{addr[1]}",
         }, 400
     source_path = headers.get("x-busierbox-source-path") or urllib.parse.urlparse(target).path
+    upload_kind = headers.get("x-busierbox-upload-kind") or "file"
     out_name = safe_upload_name(source_path)
     out_path = files_dir / out_name
     if out_path.exists():
@@ -3820,6 +3821,7 @@ def read_http_upload(conn, files_dir, addr):
         "operation": "upload",
         "status": status,
         "method": method,
+        "upload_kind": upload_kind,
         "source_path": urllib.parse.unquote(source_path),
         "stored_path": str(out_path),
         "filename": out_path.name,

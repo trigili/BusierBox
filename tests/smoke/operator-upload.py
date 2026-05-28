@@ -142,19 +142,24 @@ def main():
             raise SystemExit("operator-upload: uploaded content mismatch")
         meta = json.loads(uploaded[0].with_name("target-evidence.txt.metadata.json").read_text(encoding="utf-8"))
         assert meta["source_path"].endswith("target-evidence.txt")
+        assert meta["upload_kind"] == "file"
         assert meta["size"] == len("operator upload smoke\n")
         assert meta["transfer_status"] == "ok"
         assert len(meta["sha256"]) == 64
-        for expected in (
-            "busierbox-config.json",
-            "busierbox-evidence.json",
-            "busierbox-survey.json",
-            "busierbox-manifest.json",
-            "busierbox-reality-test.json",
-        ):
+        expected_kinds = {
+            "busierbox-config.json": "config",
+            "busierbox-evidence.json": "evidence",
+            "busierbox-survey.json": "survey",
+            "busierbox-manifest.json": "manifest",
+            "busierbox-reality-test.json": "reality-test",
+        }
+        for expected, upload_kind in expected_kinds.items():
             matches = list(session_root.glob(f"*/files/{expected}"))
             if len(matches) != 1:
                 raise SystemExit(f"operator-upload: {expected} not found")
+            generated_meta = json.loads(matches[0].with_name(f"{expected}.metadata.json").read_text(encoding="utf-8"))
+            if generated_meta.get("upload_kind") != upload_kind:
+                raise SystemExit(f"operator-upload: {expected} metadata kind mismatch")
             doc = json.loads(matches[0].read_text(encoding="utf-8"))
             if expected == "busierbox-config.json":
                 if doc.get("schema") != 1 or doc.get("kind") != "config" or "runtime" not in doc or "effective_config" not in doc:
