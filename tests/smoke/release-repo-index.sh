@@ -92,6 +92,18 @@ JSON
   ]
 }
 JSON
+    cat >"$dir/release-self-test.json" <<JSON
+{
+  "schema": 1,
+  "status": "pass",
+  "release_name": "$name",
+  "checked_artifact_count": 1,
+  "release_tuple_count": 1,
+  "release_device_count": 1,
+  "command_queue_enabled_count": 0,
+  "command_queue_execution_supported_count": 0
+}
+JSON
 }
 
 same_sha=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
@@ -108,6 +120,7 @@ import sys
 index = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert index["release_count"] == 3
 assert index["artifact_count"] == 3
+assert index["release_self_test_count"] == 3
 assert index["deduplicated_artifact_count"] == 2
 assert index["device_count"] == 2
 assert index["device_record_count"] == 3
@@ -120,6 +133,10 @@ sha, rec = next(iter(index["dedupe"].items()))
 assert rec["count"] == 2
 assert len(index["artifacts_by_sha"][sha]) == 2
 assert {item["release_name"] for item in index["artifacts_by_sha"][sha]} == {"one", "two"}
+assert index["release_self_tests_by_release"]["one"][0]["status"] == "pass"
+assert len(index["release_self_tests_by_status"]["pass"]) == 3
+assert index["artifacts_by_release"]["one"][0]["release_self_test_status"] == "pass"
+assert index["artifacts_by_release"]["one"][0]["release_self_test"]["checked_artifact_count"] == 1
 assert len(index["artifacts_by_release"]["one"]) == 1
 tuple_rows = index["artifacts_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]
 assert len(tuple_rows) == 3
@@ -175,6 +192,12 @@ assert api["artifacts"]["primary_key"] == "artifact_path"
 assert "artifacts_by_tool" in api["artifacts"]["indexes"]
 assert "artifacts_by_provider_status" in api["artifacts"]["indexes"]
 assert "artifacts_by_doom_wad_filename" in api["artifacts"]["indexes"]
+assert api["release_self_tests"]["count"] == index["release_self_test_count"]
+assert api["release_self_tests"]["summary_key"] == "release_self_test_count"
+assert api["release_self_tests"]["count_summary_key"] == "release_self_test_count"
+assert api["release_self_tests"]["primary_key"] == "release_name"
+assert "release_self_tests_by_release" in api["release_self_tests"]["indexes"]
+assert "release_self_tests_by_status" in api["release_self_tests"]["indexes"]
 assert api["dedupe"]["count"] == index["deduplicated_artifact_count"]
 assert api["dedupe"]["summary_key"] == "deduplicated_artifact_count"
 assert api["dedupe"]["count_summary_key"] == "deduplicated_artifact_count"
@@ -206,6 +229,8 @@ grep -q '^release_name=one$' "$tmp/find-device.out"
 grep -q '^payload_preset=survey-core$' "$tmp/find-device.out"
 grep -q '^compatibility=exact$' "$tmp/find-device.out"
 grep -q '^compatibility_reason=fixture$' "$tmp/find-device.out"
+grep -q '^release_self_test_status=pass$' "$tmp/find-device.out"
+grep -q '^release_self_test_path=release-self-test.json$' "$tmp/find-device.out"
 grep -q '^dedupe_count=2$' "$tmp/find-device.out"
 grep -q '^provider_status_tcpdump=found$' "$tmp/find-device.out"
 grep -q '^doom_wad=doom.wad size=9 sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef$' "$tmp/find-device.out"
@@ -225,6 +250,8 @@ row = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert row["release_name"] == "two"
 assert row["payload_preset"] == "ssh-operator"
 assert "reverse-ssh" in row["features"]
+assert row["release_self_test_status"] == "pass"
+assert row["release_self_test"]["command_queue_execution_supported_count"] == 0
 PY
 scripts/find-artifact --index "$tmp/repo-index.json" --device lab-router --recommendation-json >"$tmp/recommend-json.out"
 python3 - "$tmp/recommend-json.out" <<'PY'
@@ -251,6 +278,7 @@ assert doc["matches_by_compatibility"]["exact"][0]["release_name"] == "two"
 assert doc["matches_by_provider_tool"]["strace"][0]["release_name"] == "two"
 assert doc["matches_by_provider_status"]["strace:found"][0]["release_name"] == "two"
 assert doc["index"]["deduplicated_artifact_count"] == 2
+assert doc["index"]["release_self_test_count"] == 3
 assert doc["index"]["artifacts_by_sha_count"] == 2
 assert doc["index"]["artifacts_by_release_count"] == 3
 assert doc["index"]["artifacts_by_tuple_path_count"] == 1
@@ -264,6 +292,9 @@ assert doc["index"]["artifacts_by_provider_tool_count"] == 3
 assert doc["index"]["artifacts_by_provider_status_count"] == 3
 assert doc["index"]["artifacts_by_doom_wad_filename_count"] == 1
 assert doc["index"]["artifacts_by_doom_wad_sha256_count"] == 1
+assert doc["index"]["release_self_tests_by_release_count"] == 3
+assert doc["index"]["release_self_tests_by_status_count"] == 1
+assert doc["selected"]["release_self_test"]["status"] == "pass"
 assert doc["dedupe_count"] == 2
 assert {item["release_name"] for item in doc["dedupe_alternatives"]} == {"one", "two"}
 assert "newest release_mtime" in doc["selection_policy"]

@@ -95,6 +95,27 @@ def load_release_index(release_dir):
     }
 
 
+def load_release_self_test(release_dir):
+    for rel in (
+        "release-self-test.json",
+        "self-test.json",
+        "diagnostics/release-self-test.json",
+        "manifests/release-self-test.json",
+    ):
+        path = release_dir / rel
+        if not path.is_file():
+            continue
+        doc = load_json(path, {})
+        if not isinstance(doc, dict):
+            continue
+        record = dict(doc)
+        record["path"] = str(path)
+        record["release_self_test_path"] = rel
+        record["valid"] = True
+        return record
+    return {}
+
+
 def artifact_sha(release_dir, row):
     if row.get("sha256"):
         return row.get("sha256")
@@ -215,11 +236,21 @@ def build_repo_index(paths):
     tools = {}
     presets = {}
     features = {}
+    release_self_tests = []
+    release_self_tests_by_release = {}
+    release_self_tests_by_status = {}
 
     for release_dir in release_dirs:
         index = load_release_index(release_dir)
         release_name = index.get("release_name") or release_dir.name
         release_mtime = int((release_dir / "release.json").stat().st_mtime)
+        release_self_test = load_release_self_test(release_dir)
+        if release_self_test:
+            release_self_test["release_name"] = release_name
+            release_self_test["release_dir"] = str(release_dir)
+            release_self_tests.append(release_self_test)
+            release_self_tests_by_release.setdefault(release_name, []).append(release_self_test)
+            release_self_tests_by_status.setdefault(str(release_self_test.get("status") or "unknown"), []).append(release_self_test)
         for alias, meta in (index.get("devices") or {}).items():
             devices.setdefault(alias, []).append({
                 "release_name": release_name,
@@ -246,6 +277,9 @@ def build_repo_index(paths):
                 "artifact_path": str(release_dir / artifact) if artifact else "",
                 "sha256": sha,
                 "features": artifact_features(row),
+                "release_self_test": release_self_test,
+                "release_self_test_status": release_self_test.get("status", "") if release_self_test else "",
+                "release_self_test_path": release_self_test.get("release_self_test_path", "") if release_self_test else "",
             })
             artifacts.append(record)
             if sha:
@@ -390,6 +424,7 @@ def build_repo_index(paths):
         "schema": 1,
         "release_count": len(release_dirs),
         "artifact_count": len(artifacts),
+        "release_self_test_count": len(release_self_tests),
         "deduplicated_artifact_count": len(by_sha),
         "device_count": len(devices),
         "device_record_count": len(device_records),
@@ -397,6 +432,9 @@ def build_repo_index(paths):
         "tuple_record_count": len(tuple_records),
         "recommendation_count": recommendation_count,
         "release_dirs": [str(path) for path in release_dirs],
+        "release_self_tests": release_self_tests,
+        "release_self_tests_by_release": {key: release_self_tests_by_release[key] for key in sorted(release_self_tests_by_release)},
+        "release_self_tests_by_status": {key: release_self_tests_by_status[key] for key in sorted(release_self_tests_by_status)},
         "artifacts": artifacts,
         "artifacts_by_sha": {key: artifacts_by_sha[key] for key in sorted(artifacts_by_sha)},
         "artifacts_by_release": {key: artifacts_by_release[key] for key in sorted(artifacts_by_release)},
@@ -432,6 +470,16 @@ def build_repo_index(paths):
                 artifact_index_names,
                 "artifact_count",
                 "artifact_path",
+            ),
+            "release_self_tests": api_collection_record(
+                "release_self_tests",
+                len(release_self_tests),
+                [
+                    "release_self_tests_by_release",
+                    "release_self_tests_by_status",
+                ],
+                "release_self_test_count",
+                "release_name",
             ),
             "dedupe": api_collection_record(
                 "dedupe",

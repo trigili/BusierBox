@@ -100,6 +100,10 @@ def print_text(row, index):
         print(f"compatibility_reason={reason}")
     if compatibility.get("note"):
         print(f"compatibility_note={compatibility.get('note')}")
+    if row.get("release_self_test_status"):
+        print(f"release_self_test_status={row.get('release_self_test_status')}")
+    if row.get("release_self_test_path"):
+        print(f"release_self_test_path={row.get('release_self_test_path')}")
     for tool, status in sorted((row.get("tool_provider_status") or {}).items()):
         if isinstance(status, dict):
             print(f"provider_status_{tool}={status.get('overall') or status.get('status') or 'unknown'}")
@@ -236,6 +240,7 @@ def recommendation_document(index, rows, args):
             "release_count": index.get("release_count", 0),
             "artifact_count": index.get("artifact_count", 0),
             "deduplicated_artifact_count": index.get("deduplicated_artifact_count", 0),
+            "release_self_test_count": index.get("release_self_test_count", 0),
             "artifacts_by_sha_count": len(index.get("artifacts_by_sha") or {}),
             "artifacts_by_release_count": len(index.get("artifacts_by_release") or {}),
             "artifacts_by_tuple_path_count": len(index.get("artifacts_by_tuple_path") or {}),
@@ -249,6 +254,8 @@ def recommendation_document(index, rows, args):
             "artifacts_by_provider_status_count": len(index.get("artifacts_by_provider_status") or {}),
             "artifacts_by_doom_wad_filename_count": len(index.get("artifacts_by_doom_wad_filename") or {}),
             "artifacts_by_doom_wad_sha256_count": len(index.get("artifacts_by_doom_wad_sha256") or {}),
+            "release_self_tests_by_release_count": len(index.get("release_self_tests_by_release") or {}),
+            "release_self_tests_by_status_count": len(index.get("release_self_tests_by_status") or {}),
         },
     }
 

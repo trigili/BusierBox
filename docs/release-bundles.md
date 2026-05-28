@@ -198,10 +198,15 @@ status without opening each payload manifest. Doom audit maps
 artifacts by staged WAD basename/hash, and `scripts/find-artifact` exposes the
 same lookup through `--doom-wad` and `--doom-wad-sha256`. You can search by canonical tuple path directly with
 `--tuple-path` when a survey or release manifest has already resolved the
-target compatibility tuple. The index also publishes normalized
+target compatibility tuple. If a release directory contains
+`release-self-test.json` or a supported self-test diagnostics path, the index
+records it in `release_self_tests`, groups it by release name and status, and
+copies the compact status/path onto each artifact from that release so
+`scripts/find-artifact` can report whether the selected bundle passed its own
+self-test. The index also publishes normalized
 `device_records` and `tuple_records` with release, alias, and tuple-path lookup
-maps, plus `api_collections` metadata for artifacts, dedupe records, devices,
-tuples, and precomputed recommendations. Each collection descriptor includes
+maps, plus `api_collections` metadata for artifacts, release self-test records,
+dedupe records, devices, tuples, and precomputed recommendations. Each collection descriptor includes
 `count`, `summary_key`, `count_summary_key`, `primary_key`, and index names.
 Future TUI/web clients can use those fields to discover record counts and
 lookup maps without hard-coding the JSON shape. It does not download or rebuild
