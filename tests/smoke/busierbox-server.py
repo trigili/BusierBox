@@ -1772,7 +1772,10 @@ def main():
                 event_stats.get("by_event", {}).get("command_result_received", 0) < 1 or
                 event_stats.get("by_level", {}).get("info", 0) < 2 or
                 event_stats.get("by_service_event", {}).get("command-queue:command_queue_queued", 0) < 1 or
-                event_stats.get("by_service_event", {}).get("command-queue:command_result_received", 0) < 1):
+                event_stats.get("by_service_event", {}).get("command-queue:command_result_received", 0) < 1 or
+                event_stats.get("by_detail_command_id", {}).get(command_id, 0) < 1 or
+                event_stats.get("by_event_detail_command_id", {}).get(f"command_result_received:{command_id}", 0) < 1 or
+                event_stats.get("by_service_detail_command_id", {}).get(f"command-queue:{command_id}", 0) < 1):
             print("server json status missing event log aggregate counters", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -1784,7 +1787,10 @@ def main():
                 event_summary.get("event_service_event_counts", {}).get("command-queue:command_queue_queued", 0) < 1 or
                 event_summary.get("event_service_event_counts", {}).get("command-queue:command_result_received", 0) < 1 or
                 event_summary.get("event_service_level_counts", {}).get("command-queue:info", 0) < 2 or
-                event_summary.get("event_type_level_counts", {}).get("command_queue_queued:info", 0) < 1):
+                event_summary.get("event_type_level_counts", {}).get("command_queue_queued:info", 0) < 1 or
+                event_summary.get("event_detail_command_id_counts", {}).get(command_id, 0) < 1 or
+                event_summary.get("event_type_detail_command_id_counts", {}).get(f"command_result_received:{command_id}", 0) < 1 or
+                event_summary.get("event_service_detail_command_id_counts", {}).get(f"command-queue:{command_id}", 0) < 1):
             print("server json status missing mirrored event aggregate summary counters", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -1797,6 +1803,9 @@ def main():
         events_by_event_level = queue_status_json.get("events_by_event_level") or {}
         events_by_remote_event = queue_status_json.get("events_by_remote_event") or {}
         events_by_remote_level = queue_status_json.get("events_by_remote_level") or {}
+        events_by_detail_command_id = queue_status_json.get("events_by_detail_command_id") or {}
+        events_by_event_detail_command_id = queue_status_json.get("events_by_event_detail_command_id") or {}
+        events_by_service_detail_command_id = queue_status_json.get("events_by_service_detail_command_id") or {}
         events_api = (queue_status_json.get("api_collections") or {}).get("events") or {}
         first_tail_event = (queue_status_json.get("events") or [{}])[0]
         first_tail_event_id = first_tail_event.get("id", "")
@@ -1810,10 +1819,16 @@ def main():
                 not events_by_service_event.get("command-queue:command_result_received") or
                 not events_by_service_level.get("command-queue:info") or
                 not events_by_event_level.get("command_queue_queued:info") or
+                events_by_detail_command_id.get(command_id, [{}])[0].get("event") != "command_result_received" or
+                not events_by_event_detail_command_id.get(f"command_result_received:{command_id}") or
+                not events_by_service_detail_command_id.get(f"command-queue:{command_id}") or
                 "events_by_service_level" not in (events_api.get("indexes") or []) or
                 "events_by_event_level" not in (events_api.get("indexes") or []) or
                 "events_by_remote_event" not in (events_api.get("indexes") or []) or
-                "events_by_remote_level" not in (events_api.get("indexes") or [])):
+                "events_by_remote_level" not in (events_api.get("indexes") or []) or
+                "events_by_detail_command_id" not in (events_api.get("indexes") or []) or
+                "events_by_event_detail_command_id" not in (events_api.get("indexes") or []) or
+                "events_by_service_detail_command_id" not in (events_api.get("indexes") or [])):
             print("server json status missing event tail lookup indexes", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -1988,6 +2003,9 @@ def main():
                 "services: command-queue=" not in queue_status_text.stdout or
                 "events: command_queue_queued=" not in queue_status_text.stdout or
                 "levels: info=" not in queue_status_text.stdout or
+                "detail_command_ids:" not in queue_status_text.stdout or
+                f"{command_id}=1" not in queue_status_text.stdout or
+                f"command_id={command_id}" not in queue_status_text.stdout or
                 "first=" not in queue_status_text.stdout or
                 "latest=" not in queue_status_text.stdout or
                 "tls=yes" not in queue_status_text.stdout or

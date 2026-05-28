@@ -231,5 +231,9 @@ existing queued command, records `result_command_id`, `result_received_at`,
 `result_source_path`, result stdout/stderr byte counts, the queued
 `max_output_bytes` limit, and whether the result exceeded that limit. It also
 logs `command_result_received` with the command id and output-limit metadata.
+Status JSON exposes those event records through `events_by_detail_command_id`,
+`events_by_event_detail_command_id`, and
+`events_by_service_detail_command_id` so an operator UI can jump from a command
+record to its audit events without scanning the full event tail.
 This is still operator-side bookkeeping; it does not poll, deliver, or execute
 commands.
