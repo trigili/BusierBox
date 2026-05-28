@@ -248,6 +248,105 @@ sleep 0.5
 BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_COMMAND_QUEUE_TLS=no BB_COMMAND_QUEUE_TOKEN=server-token BB_COMMAND_QUEUE_PORT="$token_port" BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d["poll_run"]; assert d["policy_valid"] is True; assert d["token_configured"] is True; assert r["attempted"] is True; assert r["successes"] == 1; assert r["last_status"] == "no-command"'
 wait "$token_pid"
 rm -f "$token_cfg" "$token_out" "$token_err"
+split_port=$(python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+split_ready="${TMPDIR:-/tmp}/busierbox-command-queue-split.$$.ready"
+split_seen="${TMPDIR:-/tmp}/busierbox-command-queue-split.$$.seen"
+rm -f "$split_ready" "$split_seen"
+python3 - "$split_port" "$split_ready" "$split_seen" <<'PY' &
+import json
+import socket
+import sys
+import time
+from pathlib import Path
+
+port = int(sys.argv[1])
+ready = Path(sys.argv[2])
+seen = Path(sys.argv[3])
+
+def read_http(conn):
+    data = b""
+    while b"\r\n\r\n" not in data:
+        chunk = conn.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+    headers, _, body = data.partition(b"\r\n\r\n")
+    content_length = 0
+    for line in headers.decode("iso-8859-1", errors="replace").split("\r\n"):
+        if line.lower().startswith("content-length:"):
+            content_length = int(line.split(":", 1)[1].strip())
+    while len(body) < content_length:
+        chunk = conn.recv(4096)
+        if not chunk:
+            break
+        body += chunk
+    return headers.decode("iso-8859-1", errors="replace"), body
+
+server = socket.socket()
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind(("127.0.0.1", port))
+server.listen(2)
+ready.write_text("ready\n", encoding="utf-8")
+
+poll, _ = server.accept()
+with poll:
+    read_http(poll)
+    body = json.dumps({
+        "schema": 1,
+        "id": "cq-split-response",
+        "command": "busierbox list",
+        "timeout_sec": 7,
+        "max_output_bytes": 321,
+    }).encode("utf-8")
+    head = (
+        b"HTTP/1.1 200 OK\r\n"
+        b"Content-Type: application/json\r\n"
+        b"X-BusierBox-Command-Id: cq-split-response\r\n"
+        + f"Content-Length: {len(body)}\r\n".encode("ascii")
+        + b"Connection: close\r\n\r\n"
+    )
+    poll.sendall(head[:23])
+    time.sleep(0.05)
+    poll.sendall(head[23:])
+    time.sleep(0.05)
+    poll.sendall(body[:11])
+    time.sleep(0.05)
+    poll.sendall(body[11:])
+
+result, _ = server.accept()
+with result:
+    headers, body = read_http(result)
+    if b"cq-split-response" not in body:
+        raise SystemExit("result upload did not include command id")
+    seen.write_text(headers + "\n" + body.decode("utf-8", errors="replace"), encoding="utf-8")
+    result.sendall(b"HTTP/1.1 2")
+    time.sleep(0.05)
+    result.sendall(b"00 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nok\n")
+server.close()
+PY
+split_pid=$!
+i=0
+while [ ! -s "$split_ready" ] && [ "$i" -lt 50 ]; do
+    sleep 0.1
+    i=$((i + 1))
+done
+[ -s "$split_ready" ] || {
+    kill "$split_pid" 2>/dev/null || true
+    wait "$split_pid" 2>/dev/null || true
+    printf '%s\n' "command-queue: split-response test server did not start" >&2
+    exit 1
+}
+BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_REQUIRE_TOKEN=no BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_COMMAND_QUEUE_TLS=no BB_COMMAND_QUEUE_PORT="$split_port" BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d["poll_run"]; q=d["queued_command"]; assert r["attempted"] is True; assert r["successes"] == 1; assert r["failures"] == 0; assert r["delivered_commands"] == 1; assert r["result_uploads"] == 1; assert r["last_command_id"] == "cq-split-response"; assert r["last_command"] == "busierbox list"; assert r["last_timeout_sec"] == 7; assert r["last_max_output_bytes"] == 321; assert q["id"] == "cq-split-response"; assert q["command"] == "busierbox list"; assert q["timeout_sec"] == 7; assert q["max_output_bytes"] == 321'
+wait "$split_pid"
+grep -q 'cq-split-response' "$split_seen"
+rm -f "$split_ready" "$split_seen"
 queued_port=$(python3 - <<'PY'
 import socket
 s = socket.socket()

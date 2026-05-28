@@ -630,14 +630,60 @@ static int json_get_int_field(const char *json, const char *key, int fallback)
     return (int)v;
 }
 
+static int send_all(int fd, const char *buf, size_t len, char *err, size_t errsz, const char *what)
+{
+    size_t off = 0;
+
+    while (off < len) {
+        ssize_t n = send(fd, buf + off, len - off, 0);
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;
+            snprintf(err, errsz, "%s failed: %s", what, strerror(errno));
+            return -1;
+        }
+        if (n == 0) {
+            snprintf(err, errsz, "%s failed: short write", what);
+            return -1;
+        }
+        off += (size_t)n;
+    }
+    return 0;
+}
+
+static int recv_until_close(int fd, char *buf, size_t bufsz, char *err, size_t errsz, const char *what)
+{
+    size_t used = 0;
+
+    if (!bufsz)
+        return -1;
+    while (used + 1 < bufsz) {
+        ssize_t n = recv(fd, buf + used, bufsz - used - 1, 0);
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;
+            snprintf(err, errsz, "%s failed: %s", what, strerror(errno));
+            return -1;
+        }
+        if (n == 0)
+            break;
+        used += (size_t)n;
+    }
+    buf[used] = '\0';
+    if (used + 1 == bufsz) {
+        snprintf(err, errsz, "%s too large", what);
+        return -1;
+    }
+    return (int)used;
+}
+
 static int connect_operator_once(const char *host, const char *port, struct poll_run_result *run,
                                  char *err, size_t errsz)
 {
     struct addrinfo hints, *res = NULL, *rp;
     int rc, fd = -1;
     char request[512];
-    char response[4096];
-    ssize_t n;
+    char response[8192];
 
     if (errsz)
         err[0] = '\0';
@@ -666,20 +712,16 @@ static int connect_operator_once(const char *host, const char *port, struct poll
                      "X-BusierBox-Command-Queue-Token: %s\r\n"
                      "Connection: close\r\n\r\n",
                      host, port, BB_COMMAND_QUEUE_TOKEN);
-            if (send(fd, request, strlen(request), 0) < 0) {
-                snprintf(err, errsz, "poll request failed: %s", strerror(errno));
+            if (send_all(fd, request, strlen(request), err, errsz, "poll request") != 0) {
                 close(fd);
                 freeaddrinfo(res);
                 return -1;
             }
-            n = recv(fd, response, sizeof(response) - 1, 0);
-            if (n < 0) {
-                snprintf(err, errsz, "poll response failed: %s", strerror(errno));
+            if (recv_until_close(fd, response, sizeof(response), err, errsz, "poll response") < 0) {
                 close(fd);
                 freeaddrinfo(res);
                 return -1;
             }
-            response[n] = '\0';
             close(fd);
             freeaddrinfo(res);
             if (!strncmp(response, "HTTP/1.1 204", 12) || !strncmp(response, "HTTP/1.0 204", 12)) {
@@ -716,8 +758,7 @@ static int post_rejected_result_once(const char *host, const char *port,
     int rc, fd = -1;
     char body[512];
     char request[1024];
-    char response[512];
-    ssize_t n;
+    char response[1024];
 
     if (errsz)
         err[0] = '\0';
@@ -757,20 +798,16 @@ static int post_rejected_result_once(const char *host, const char *port,
                      "Content-Length: %lu\r\n"
                      "Connection: close\r\n\r\n%s",
                      host, port, BB_COMMAND_QUEUE_TOKEN, (unsigned long)strlen(body), body);
-            if (send(fd, request, strlen(request), 0) < 0) {
-                snprintf(err, errsz, "result upload failed: %s", strerror(errno));
+            if (send_all(fd, request, strlen(request), err, errsz, "result upload") != 0) {
                 close(fd);
                 freeaddrinfo(res);
                 return -1;
             }
-            n = recv(fd, response, sizeof(response) - 1, 0);
-            if (n < 0) {
-                snprintf(err, errsz, "result upload response failed: %s", strerror(errno));
+            if (recv_until_close(fd, response, sizeof(response), err, errsz, "result upload response") < 0) {
                 close(fd);
                 freeaddrinfo(res);
                 return -1;
             }
-            response[n] = '\0';
             close(fd);
             freeaddrinfo(res);
             if (!strncmp(response, "HTTP/1.1 200", 12) || !strncmp(response, "HTTP/1.0 200", 12))
