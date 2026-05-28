@@ -9,7 +9,9 @@ bb=${1:-dist/busierbox-native-full}
 }
 
 "$bb" command-queue --help >/dev/null
-"$bb" command-queue status >"${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
+status_state="${TMPDIR:-/tmp}/busierbox-command-queue-status.$$.state"
+rm -f "$status_state"
+"$bb" command-queue status --state-file "$status_state" >"${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_enable=no$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_policy_valid=yes$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_configured_for_polling=no$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
@@ -32,6 +34,9 @@ grep -q '^command_queue_poll_plan_operator_supplied_command_execution=no$' "${TM
 grep -q '^command_queue_poll_jitter_pct=0$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_poll_backoff=none$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_poll_max_interval_sec=300$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
+grep -q '^command_queue_daemon_state_present=no$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
+grep -q '^command_queue_daemon_running=no$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
+grep -q '^command_queue_stop_status=not_run$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_mode_status_lifecycle=inspect$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_mode_status_would_poll_if_configured=no$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_mode_poll_lifecycle=single-poll$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
@@ -40,11 +45,15 @@ grep -q '^command_queue_mode_once_lifecycle=single-cycle$' "${TMPDIR:-/tmp}/busi
 grep -q '^command_queue_mode_once_would_poll_if_configured=yes$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_mode_daemon_lifecycle=long-running$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_mode_daemon_would_poll_if_configured=yes$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
+grep -q '^command_queue_mode_stop_lifecycle=stop$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
+grep -q '^command_queue_mode_stop_would_poll_if_configured=no$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_modes_execute_commands=no$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 grep -q '^command_queue_modes_active_control_channel=no$' "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 rm -f "${TMPDIR:-/tmp}/busierbox-command-queue-status.$$"
 
-"$bb" command-queue poll --json | python3 -c 'import json,sys; d=json.load(sys.stdin); s=d["policy_summary"]; p=d["poll_plan"]; m=d["mode_semantics"]; assert d["enabled"] is False; assert d["dry_run"] is True; assert d["policy_valid"] is True; assert d["policy_errors"] == []; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["would_poll"] is False; assert d["execution_supported"] is False; assert d["executes_commands"] is False; assert d["active_control_channel"] is False; assert d["arbitrary_policy_requested"] is False; assert d["arbitrary_execution_allowed"] is False; assert d["delivery_supported"] is False; assert d["poll_transport_supported"] is False; assert d["poll_interval_sec"] == 5; assert d["poll_jitter_pct"] == 0; assert d["poll_backoff"] == "none"; assert d["poll_max_interval_sec"] == 300; assert d["queued_command"] is None; assert p["mode"] == "poll"; assert p["dry_run_only"] is True; assert p["requires_explicit_target_action"] is True; assert p["would_contact_operator"] is False; assert p["queued_command_available"] is False; assert p["operator_supplied_command_execution"] is False; assert p["execution_supported"] is False; assert p["active_control_channel"] is False; assert m["status"]["selected"] is False; assert m["status"]["requires_operator_host"] is False; assert m["status"]["would_poll_if_configured"] is False; assert m["status"]["lifecycle"] == "inspect"; assert m["poll"]["selected"] is True; assert m["poll"]["requires_operator_host"] is True; assert m["poll"]["would_poll_if_configured"] is True; assert m["poll"]["lifecycle"] == "single-poll"; assert m["once"]["lifecycle"] == "single-cycle"; assert m["daemon"]["lifecycle"] == "long-running"; assert all(v["execution_supported"] is False and v["executes_commands"] is False and v["active_control_channel"] is False and v["operator_supplied_command_execution"] is False for v in m.values()); assert s["enabled"] is False; assert s["default_enabled"] is False; assert s["valid"] is True; assert s["error_count"] == 0; assert s["configured_for_polling"] is False; assert s["would_poll"] is False; assert s["execution_supported"] is False; assert s["executes_commands"] is False; assert s["active_control_channel"] is False; assert s["safe_disabled_default"] is True'
+poll_state="${TMPDIR:-/tmp}/busierbox-command-queue-poll.$$.state"
+rm -f "$poll_state"
+"$bb" command-queue poll --state-file "$poll_state" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); s=d["policy_summary"]; p=d["poll_plan"]; m=d["mode_semantics"]; st=d["daemon_state"]; stop=d["stop_result"]; assert d["enabled"] is False; assert d["dry_run"] is True; assert d["policy_valid"] is True; assert d["policy_errors"] == []; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["would_poll"] is False; assert d["execution_supported"] is False; assert d["executes_commands"] is False; assert d["active_control_channel"] is False; assert d["arbitrary_policy_requested"] is False; assert d["arbitrary_execution_allowed"] is False; assert d["delivery_supported"] is False; assert d["poll_transport_supported"] is False; assert d["poll_interval_sec"] == 5; assert d["poll_jitter_pct"] == 0; assert d["poll_backoff"] == "none"; assert d["poll_max_interval_sec"] == 300; assert d["queued_command"] is None; assert st["present"] is False; assert st["running"] is False; assert stop["status"] == "not_run"; assert p["mode"] == "poll"; assert p["dry_run_only"] is True; assert p["requires_explicit_target_action"] is True; assert p["would_contact_operator"] is False; assert p["queued_command_available"] is False; assert p["operator_supplied_command_execution"] is False; assert p["execution_supported"] is False; assert p["active_control_channel"] is False; assert m["status"]["selected"] is False; assert m["status"]["requires_operator_host"] is False; assert m["status"]["would_poll_if_configured"] is False; assert m["status"]["lifecycle"] == "inspect"; assert m["poll"]["selected"] is True; assert m["poll"]["requires_operator_host"] is True; assert m["poll"]["would_poll_if_configured"] is True; assert m["poll"]["lifecycle"] == "single-poll"; assert m["once"]["lifecycle"] == "single-cycle"; assert m["daemon"]["lifecycle"] == "long-running"; assert m["stop"]["lifecycle"] == "stop"; assert m["stop"]["requires_operator_host"] is False; assert m["stop"]["would_poll_if_configured"] is False; assert all(v["execution_supported"] is False and v["executes_commands"] is False and v["active_control_channel"] is False and v["operator_supplied_command_execution"] is False for v in m.values()); assert s["enabled"] is False; assert s["default_enabled"] is False; assert s["valid"] is True; assert s["error_count"] == 0; assert s["configured_for_polling"] is False; assert s["would_poll"] is False; assert s["execution_supported"] is False; assert s["executes_commands"] is False; assert s["active_control_channel"] is False; assert s["safe_disabled_default"] is True'
 BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_OPERATOR_SERVER_HOST=127.0.0.1 BB_COMMAND_QUEUE_POLL_BACKOFF=linear BB_COMMAND_QUEUE_POLL_JITTER_PCT=7 BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC=19 "$bb" command-queue daemon --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["poll_backoff"] == "linear"; assert d["poll_jitter_pct"] == 7; assert d["poll_max_interval_sec"] == 19; assert d["max_polls"] == 0'
 "$bb" command-queue poll --live --json | python3 -c 'import json,sys; d=json.load(sys.stdin); m=d["mode_semantics"]; assert d["enabled"] is False; assert d["dry_run"] is False; assert d["would_poll"] is False; assert d["active_control_channel"] is False; assert d["delivery_supported"] is False; assert d["poll_plan"]["active_control_channel"] is False; assert m["poll"]["selected"] is True; assert m["poll"]["would_contact_operator"] is False; assert m["poll"]["delivery_supported"] is False; assert m["poll"]["active_control_channel"] is False; assert all(v["active_control_channel"] is False for v in m.values())'
 "$bb" command-queue poll --live >"${TMPDIR:-/tmp}/busierbox-command-queue-disabled-live.$$"
@@ -89,6 +98,42 @@ assert all(event["details"]["executes_commands"] is False for event in events)
 assert all(event["details"]["delivery_supported"] is False for event in events)
 PY
 rm -f "${TMPDIR:-/tmp}/busierbox-command-queue-events.$$"
+cq_state="${TMPDIR:-/tmp}/busierbox-command-queue-daemon.$$.state"
+cq_daemon_out="${TMPDIR:-/tmp}/busierbox-command-queue-daemon.$$.json"
+cq_stop_events="${TMPDIR:-/tmp}/busierbox-command-queue-stop-events.$$.jsonl"
+rm -f "$cq_state" "$cq_daemon_out" "$cq_stop_events"
+BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue daemon --live --poll-interval-sec 5 --state-file "$cq_state" --event-log "$cq_stop_events" --json >"$cq_daemon_out" &
+cq_daemon_pid=$!
+i=0
+while [ ! -s "$cq_state" ] && [ "$i" -lt 50 ]; do
+    sleep 0.1
+    i=$((i + 1))
+done
+[ -s "$cq_state" ] || {
+    kill "$cq_daemon_pid" 2>/dev/null || true
+    wait "$cq_daemon_pid" 2>/dev/null || true
+    printf '%s\n' "command-queue: daemon state was not written" >&2
+    exit 1
+}
+"$bb" command-queue status --state-file "$cq_state" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); st=d["daemon_state"]; assert st["present"] is True; assert st["valid"] is True; assert st["running"] is True; assert st["ownership_verified"] is True; assert st["pid"] > 1'
+"$bb" command-queue stop --state-file "$cq_state" --event-log "$cq_stop_events" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); st=d["daemon_state"]; stop=d["stop_result"]; assert d["mode"] == "stop"; assert stop["attempted"] is True; assert stop["signaled"] is True; assert stop["skipped"] is False; assert st["valid"] is True; assert st["ownership_verified"] is True'
+wait "$cq_daemon_pid"
+python3 - "$cq_daemon_out" <<'PY'
+import json
+import sys
+
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+assert d["poll_run"]["stopped_by_signal"] is True
+PY
+python3 - "$cq_stop_events" <<'PY'
+import json
+import sys
+
+events = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
+assert any(event["event"] == "command_queue_daemon_stop" for event in events)
+assert any(event["event"] == "command_queue_poll_shutdown" and event["details"]["status"] == "signal" for event in events)
+PY
+rm -f "$cq_state" "$cq_daemon_out" "$cq_stop_events"
 port=$(python3 - <<'PY'
 import socket
 s = socket.socket()

@@ -70,6 +70,7 @@ busierbox command-queue daemon --live \
   --poll-jitter-pct 10 \
   --poll-max-interval-sec 60 \
   --max-polls 3 \
+  --state-file ./command-queue-daemon.state \
   --event-log ./command-queue-events.jsonl
 ```
 
@@ -84,6 +85,15 @@ delay. Each live attempt sends a plain HTTP
 metadata also records `command_queue_execution_decision` with status
 `rejected`, and the daemon records `command_queue_poll_shutdown` when the loop
 exits.
+
+The live daemon writes a target-side state file, defaulting to
+`$BB_RUNTIME_ROOT/run/command-queue-daemon.state`. `command-queue status`
+reports that file, the recorded PID, whether the process is currently alive,
+whether the state is stale, and whether `/proc/<pid>/cmdline` verifies it as a
+command-queue process. `command-queue stop` reads the same state file and sends
+SIGTERM only when the state is valid and the recorded PID is verified as a
+BusierBox command-queue process. Use `--state-file PATH` to put this state in a
+specific runtime-owned location.
 
 Policy values for `BB_COMMAND_QUEUE_ALLOWED_COMMANDS` are `none`,
 `busierbox-only`, `allowlist`, and `custom`. `BB_COMMAND_QUEUE_ALLOW_ARBITRARY`
@@ -113,10 +123,13 @@ Safety boundary:
   availability, delivery/result upload, execution, and hidden-control-channel
   fields.
 - `command-queue --json` also includes `mode_semantics` for `status`, `poll`,
-  `once`, and `daemon`. Each entry declares whether the mode is selected,
+  `once`, `daemon`, and `stop`. Each entry declares whether the mode is selected,
   whether it needs an operator host, its lifecycle label (`inspect`,
-  `single-poll`, `single-cycle`, or `long-running`), and the same
+  `single-poll`, `single-cycle`, `long-running`, or `stop`), and the same
   non-execution safety booleans so UIs do not infer mode behavior from strings.
+- `command-queue --json` includes `daemon_state` and `stop_result` objects so
+  operator tooling can show whether a live polling loop is visible, stale,
+  stopped, or skipped because ownership could not be verified.
 - `allow_arbitrary=yes` is reported as an explicit policy request, not an
   execution grant; `arbitrary_execution_allowed=false` remains false while this
   build has `execution_supported=false`.

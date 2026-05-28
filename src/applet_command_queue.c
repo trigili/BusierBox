@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <errno.h>
+#include <limits.h>
 #include <netdb.h>
 #include <signal.h>
 #include <stdio.h>
@@ -8,12 +9,18 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
+#include "applets.h"
 #include "effective_config.h"
 #include "command_queue_policy.h"
 #include "json_helpers.h"
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
 struct poll_run_result {
     int attempted;
@@ -30,7 +37,33 @@ struct poll_run_result {
     char last_command_id[96];
 };
 
+struct daemon_state {
+    int present;
+    int valid;
+    int running;
+    int ownership_verified;
+    int stale;
+    int pid;
+    char status[64];
+    char error[160];
+    char started_at[32];
+    char endpoint[512];
+};
+
+struct stop_result {
+    int attempted;
+    int signaled;
+    int stopped;
+    int missing;
+    int stale;
+    int skipped;
+    char status[64];
+    char error[160];
+};
+
 static volatile sig_atomic_t stop_daemon;
+
+static void utc_timestamp(char *out, size_t outsz);
 
 static int yes_value(const char *s)
 {
@@ -53,6 +86,20 @@ static int parse_nonnegative_int(const char *s, int fallback)
     v = strtol(s, &end, 10);
     if (errno || !end || *end || v < 0 || v > 86400)
         return fallback;
+    return (int)v;
+}
+
+static int parse_pid_value(const char *s)
+{
+    char *end = NULL;
+    long v;
+
+    if (!s || !s[0])
+        return 0;
+    errno = 0;
+    v = strtol(s, &end, 10);
+    if (errno || !end || *end || v <= 1 || v > 4194304)
+        return 0;
     return (int)v;
 }
 
@@ -101,15 +148,16 @@ static int is_help(int argc, char **argv)
 
 static void print_help(void)
 {
-    puts("usage: busierbox command-queue [status|poll|once|daemon] [--json] [--dry-run|--live] [--operator-host HOST]");
-    puts("       busierbox command-queue daemon --live [--max-polls N] [--poll-interval-sec N] [--poll-backoff none|linear|exponential] [--poll-jitter-pct N] [--poll-max-interval-sec N] [--event-log PATH]");
+    puts("usage: busierbox command-queue [status|poll|once|daemon|stop] [--json] [--dry-run|--live] [--operator-host HOST]");
+    puts("       busierbox command-queue daemon --live [--max-polls N] [--poll-interval-sec N] [--poll-backoff none|linear|exponential] [--poll-jitter-pct N] [--poll-max-interval-sec N] [--event-log PATH] [--state-file PATH]");
     puts("Inspect explicit opt-in command queue policy and target polling state.");
     puts("Live mode can receive queued command metadata; command execution is not implemented.");
 }
 
 static int mode_would_poll(const char *mode, int enabled, const char *operator_host, const struct command_queue_policy_report *report)
 {
-    return bb_command_queue_policy_valid(report) && enabled && operator_host && operator_host[0] && (strcmp(mode, "status") != 0);
+    return bb_command_queue_policy_valid(report) && enabled && operator_host && operator_host[0] &&
+           strcmp(mode, "status") != 0 && strcmp(mode, "stop") != 0;
 }
 
 static const char *mode_status(const char *mode, int enabled, const char *operator_host,
@@ -117,12 +165,14 @@ static const char *mode_status(const char *mode, int enabled, const char *operat
 {
     if (!bb_command_queue_policy_valid(report))
         return "invalid_policy";
+    if (!strcmp(mode, "stop"))
+        return "stop_requested";
     if (!enabled)
         return "disabled";
-    if (!operator_host || !operator_host[0])
-        return "missing_operator_host";
     if (!strcmp(mode, "status"))
         return "configured";
+    if (!operator_host || !operator_host[0])
+        return "missing_operator_host";
     if (!dry_run)
         return "polling";
     if (!strcmp(mode, "poll"))
@@ -136,13 +186,15 @@ static const char *mode_status(const char *mode, int enabled, const char *operat
 
 static int mode_requires_operator_host(const char *mode)
 {
-    return strcmp(mode, "status") != 0;
+    return strcmp(mode, "status") != 0 && strcmp(mode, "stop") != 0;
 }
 
 static const char *mode_lifecycle(const char *mode)
 {
     if (!strcmp(mode, "status"))
         return "inspect";
+    if (!strcmp(mode, "stop"))
+        return "stop";
     if (!strcmp(mode, "poll"))
         return "single-poll";
     if (!strcmp(mode, "once"))
@@ -150,6 +202,172 @@ static const char *mode_lifecycle(const char *mode)
     if (!strcmp(mode, "daemon"))
         return "long-running";
     return "unknown";
+}
+
+static void default_state_path(char *out, size_t outsz)
+{
+    snprintf(out, outsz, "%s/run/command-queue-daemon.state", BB_RUNTIME_ROOT);
+}
+
+static int ensure_parent_dir(const char *path)
+{
+    char dir[PATH_MAX];
+    char *slash;
+
+    if (!path || !path[0])
+        return -1;
+    snprintf(dir, sizeof(dir), "%s", path);
+    slash = strrchr(dir, '/');
+    if (!slash)
+        return 0;
+    if (slash == dir)
+        slash[1] = '\0';
+    else
+        *slash = '\0';
+    return bb_mkdir_p(dir, 0700);
+}
+
+static void kv_value(const char *line, const char *key, char *out, size_t outsz)
+{
+    size_t key_len = strlen(key);
+
+    if (outsz)
+        out[0] = '\0';
+    if (strncmp(line, key, key_len) || line[key_len] != '=')
+        return;
+    snprintf(out, outsz, "%s", line + key_len + 1);
+    if (outsz && out[0]) {
+        size_t len = strlen(out);
+        while (len > 0 && (out[len - 1] == '\n' || out[len - 1] == '\r')) {
+            out[len - 1] = '\0';
+            len--;
+        }
+    }
+}
+
+static int command_line_looks_owned(int pid)
+{
+    char path[64];
+    FILE *fh;
+    char buf[512];
+    size_t n, i;
+    int saw_command_queue = 0;
+
+    if (pid <= 1)
+        return 0;
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
+    fh = fopen(path, "rb");
+    if (!fh)
+        return 0;
+    n = fread(buf, 1, sizeof(buf) - 1, fh);
+    fclose(fh);
+    buf[n] = '\0';
+    for (i = 0; i < n; i++) {
+        if (buf[i] == '\0')
+            buf[i] = ' ';
+    }
+    if (strstr(buf, "command-queue") || strstr(buf, "command_queue"))
+        saw_command_queue = 1;
+    return saw_command_queue;
+}
+
+static void read_daemon_state(const char *path, struct daemon_state *state)
+{
+    FILE *fh;
+    char line[768];
+    int saw_schema = 0, saw_service = 0;
+
+    memset(state, 0, sizeof(*state));
+    snprintf(state->status, sizeof(state->status), "missing");
+    if (!path || !path[0]) {
+        snprintf(state->error, sizeof(state->error), "missing state path");
+        return;
+    }
+    fh = fopen(path, "r");
+    if (!fh) {
+        if (errno != ENOENT)
+            snprintf(state->error, sizeof(state->error), "%s", strerror(errno));
+        return;
+    }
+    state->present = 1;
+    while (fgets(line, sizeof(line), fh)) {
+        char value[512];
+
+        kv_value(line, "schema", value, sizeof(value));
+        if (value[0] && !strcmp(value, "1"))
+            saw_schema = 1;
+        kv_value(line, "service", value, sizeof(value));
+        if (value[0] && !strcmp(value, "command-queue"))
+            saw_service = 1;
+        kv_value(line, "pid", value, sizeof(value));
+        if (value[0])
+            state->pid = parse_pid_value(value);
+        kv_value(line, "started_at", value, sizeof(value));
+        if (value[0])
+            snprintf(state->started_at, sizeof(state->started_at), "%s", value);
+        kv_value(line, "endpoint", value, sizeof(value));
+        if (value[0])
+            snprintf(state->endpoint, sizeof(state->endpoint), "%s", value);
+    }
+    fclose(fh);
+    state->valid = saw_schema && saw_service && state->pid > 1;
+    if (!state->valid) {
+        snprintf(state->status, sizeof(state->status), "invalid");
+        snprintf(state->error, sizeof(state->error), "invalid command queue daemon state");
+        return;
+    }
+    if (kill((pid_t)state->pid, 0) == 0) {
+        state->running = 1;
+        state->ownership_verified = command_line_looks_owned(state->pid);
+        snprintf(state->status, sizeof(state->status), "running");
+    } else {
+        state->stale = 1;
+        snprintf(state->status, sizeof(state->status), "stale");
+        snprintf(state->error, sizeof(state->error), "%s", strerror(errno));
+    }
+}
+
+static int write_daemon_state(const char *path, const char *mode, const char *endpoint,
+                              int interval_sec, int jitter_pct, const char *backoff,
+                              int max_interval_sec, int max_polls, const char *event_log,
+                              char *err, size_t errsz)
+{
+    FILE *fh;
+    char ts[32];
+
+    if (!path || !path[0])
+        return 0;
+    if (ensure_parent_dir(path) != 0) {
+        snprintf(err, errsz, "state directory failed: %s", strerror(errno));
+        return -1;
+    }
+    fh = fopen(path, "w");
+    if (!fh) {
+        snprintf(err, errsz, "state write failed: %s", strerror(errno));
+        return -1;
+    }
+    utc_timestamp(ts, sizeof(ts));
+    fprintf(fh, "schema=1\nservice=command-queue\npid=%ld\nmode=%s\nstarted_at=%s\n",
+            (long)getpid(), mode, ts);
+    fprintf(fh, "endpoint=%s\npoll_interval_sec=%d\npoll_jitter_pct=%d\npoll_backoff=%s\npoll_max_interval_sec=%d\nmax_polls=%d\n",
+            endpoint ? endpoint : "", interval_sec, jitter_pct, backoff ? backoff : "", max_interval_sec, max_polls);
+    fprintf(fh, "event_log=%s\n", event_log ? event_log : "");
+    if (fclose(fh) != 0) {
+        snprintf(err, errsz, "state close failed: %s", strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+
+static void remove_daemon_state_if_ours(const char *path)
+{
+    struct daemon_state state;
+
+    if (!path || !path[0])
+        return;
+    read_daemon_state(path, &state);
+    if (state.valid && state.pid == (int)getpid())
+        unlink(path);
 }
 
 static void utc_timestamp(char *out, size_t outsz)
@@ -299,10 +517,11 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
                                             int interval_sec, int jitter_pct,
                                             const char *backoff,
                                             int backoff_max_interval_sec, int max_polls,
-                                            const char *event_log)
+                                            const char *event_log, const char *state_file)
 {
     struct poll_run_result result;
     char endpoint[512];
+    char state_error[160] = "";
     int limit = (!strcmp(mode, "daemon")) ? max_polls : 1;
 
     memset(&result, 0, sizeof(result));
@@ -316,6 +535,15 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
         limit = 1;
     signal(SIGINT, handle_stop);
     signal(SIGTERM, handle_stop);
+    if (!strcmp(mode, "daemon") &&
+        write_daemon_state(state_file, mode, endpoint, interval_sec, jitter_pct, backoff,
+                           backoff_max_interval_sec, max_polls, event_log,
+                           state_error, sizeof(state_error)) != 0) {
+        snprintf(result.last_status, sizeof(result.last_status), "state_error");
+        snprintf(result.last_error, sizeof(result.last_error), "%s", state_error);
+        append_poll_event(event_log, "command_queue_daemon_state_error", mode, endpoint, 0, "error", state_error);
+        return result;
+    }
     while (!stop_daemon && (limit <= 0 || result.attempts < limit)) {
         char error[160] = "";
         result.attempted = 1;
@@ -355,20 +583,84 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
     result.stopped_by_limit = (!result.stopped_by_signal && !strcmp(mode, "daemon") && limit > 0 && result.attempts >= limit);
     append_poll_event(event_log, "command_queue_poll_shutdown", mode, endpoint, result.attempts,
                       result.stopped_by_signal ? "signal" : "complete", "");
+    if (!strcmp(mode, "daemon"))
+        remove_daemon_state_if_ours(state_file);
     return result;
+}
+
+static void stop_daemon_from_state(const char *state_file, const char *event_log,
+                                   struct stop_result *stop, struct daemon_state *state)
+{
+    int i;
+
+    memset(stop, 0, sizeof(*stop));
+    snprintf(stop->status, sizeof(stop->status), "missing");
+    read_daemon_state(state_file, state);
+    if (!state->present) {
+        stop->missing = 1;
+        append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "missing", "");
+        return;
+    }
+    if (!state->valid) {
+        stop->skipped = 1;
+        snprintf(stop->status, sizeof(stop->status), "invalid_state");
+        snprintf(stop->error, sizeof(stop->error), "%s", state->error);
+        append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "invalid_state", state->error);
+        return;
+    }
+    if (!state->running) {
+        stop->stale = 1;
+        snprintf(stop->status, sizeof(stop->status), "stale");
+        unlink(state_file);
+        append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "stale", "");
+        return;
+    }
+    if (!state->ownership_verified) {
+        stop->skipped = 1;
+        snprintf(stop->status, sizeof(stop->status), "ownership_unverified");
+        snprintf(stop->error, sizeof(stop->error), "refusing to signal unverified pid");
+        append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0,
+                          "ownership_unverified", stop->error);
+        return;
+    }
+    stop->attempted = 1;
+    if (kill((pid_t)state->pid, SIGTERM) != 0) {
+        snprintf(stop->status, sizeof(stop->status), "signal_failed");
+        snprintf(stop->error, sizeof(stop->error), "%s", strerror(errno));
+        append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0,
+                          "signal_failed", stop->error);
+        return;
+    }
+    stop->signaled = 1;
+    snprintf(stop->status, sizeof(stop->status), "signaled");
+    for (i = 0; i < 20; i++) {
+        struct timespec ts;
+
+        if (kill((pid_t)state->pid, 0) != 0 && errno == ESRCH) {
+            stop->stopped = 1;
+            snprintf(stop->status, sizeof(stop->status), "stopped");
+            unlink(state_file);
+            break;
+        }
+        ts.tv_sec = 0;
+        ts.tv_nsec = 100000000L;
+        nanosleep(&ts, NULL);
+    }
+    append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, stop->status, stop->error);
 }
 
 static void print_mode_semantics_json(const char *name, int selected, int dry_run, int live_would_poll)
 {
-    int live_selected = !dry_run && selected && strcmp(name, "status") && live_would_poll;
-    int live_available = !dry_run && strcmp(name, "status") && live_would_poll;
+    int polls_operator = strcmp(name, "status") != 0 && strcmp(name, "stop") != 0;
+    int live_selected = !dry_run && selected && polls_operator && live_would_poll;
+    int live_available = !dry_run && polls_operator && live_would_poll;
 
     fputc('"', stdout);
     fputs(name, stdout);
     fputs("\":{", stdout);
     printf("\"selected\":%s", selected ? "true" : "false");
     printf(",\"requires_operator_host\":%s", mode_requires_operator_host(name) ? "true" : "false");
-    printf(",\"would_poll_if_configured\":%s", strcmp(name, "status") ? "true" : "false");
+    printf(",\"would_poll_if_configured\":%s", polls_operator ? "true" : "false");
     printf(",\"dry_run_only\":%s", dry_run ? "true" : "false");
     fputs(",\"requires_explicit_target_action\":true", stdout);
     printf(",\"would_contact_operator\":%s", live_available ? "true" : "false");
@@ -393,6 +685,8 @@ static void print_all_mode_semantics_json(const char *mode, int dry_run, int liv
     print_mode_semantics_json("once", !strcmp(mode, "once"), dry_run, live_would_poll);
     fputc(',', stdout);
     print_mode_semantics_json("daemon", !strcmp(mode, "daemon"), dry_run, live_would_poll);
+    fputc(',', stdout);
+    print_mode_semantics_json("stop", !strcmp(mode, "stop"), dry_run, live_would_poll);
     fputc('}', stdout);
 }
 
@@ -419,10 +713,49 @@ static void print_poll_run_json(const struct poll_run_result *run)
     fputs(",\"result_upload_supported\":false,\"execution_supported\":false,\"executes_commands\":false,\"execution_decision\":\"rejected\"}", stdout);
 }
 
+static void print_daemon_state_json(const char *state_file, const struct daemon_state *state)
+{
+    fputs(",\"daemon_state\":{", stdout);
+    fputs("\"state_file\":", stdout);
+    bb_json_string(stdout, state_file ? state_file : "");
+    printf(",\"present\":%s", state && state->present ? "true" : "false");
+    printf(",\"valid\":%s", state && state->valid ? "true" : "false");
+    printf(",\"running\":%s", state && state->running ? "true" : "false");
+    printf(",\"stale\":%s", state && state->stale ? "true" : "false");
+    printf(",\"ownership_verified\":%s", state && state->ownership_verified ? "true" : "false");
+    printf(",\"pid\":%d", state ? state->pid : 0);
+    fputs(",\"status\":", stdout);
+    bb_json_string(stdout, state ? state->status : "missing");
+    fputs(",\"error\":", stdout);
+    bb_json_string(stdout, state ? state->error : "");
+    fputs(",\"started_at\":", stdout);
+    bb_json_string(stdout, state ? state->started_at : "");
+    fputs(",\"endpoint\":", stdout);
+    bb_json_string(stdout, state ? state->endpoint : "");
+    fputc('}', stdout);
+}
+
+static void print_stop_result_json(const struct stop_result *stop)
+{
+    fputs(",\"stop_result\":{", stdout);
+    printf("\"attempted\":%s", stop && stop->attempted ? "true" : "false");
+    printf(",\"signaled\":%s", stop && stop->signaled ? "true" : "false");
+    printf(",\"stopped\":%s", stop && stop->stopped ? "true" : "false");
+    printf(",\"missing\":%s", stop && stop->missing ? "true" : "false");
+    printf(",\"stale\":%s", stop && stop->stale ? "true" : "false");
+    printf(",\"skipped\":%s", stop && stop->skipped ? "true" : "false");
+    fputs(",\"status\":", stdout);
+    bb_json_string(stdout, stop ? stop->status : "not_run");
+    fputs(",\"error\":", stdout);
+    bb_json_string(stdout, stop ? stop->error : "");
+    fputc('}', stdout);
+}
+
 static void print_json(const char *mode, int dry_run, const char *operator_host,
                        int interval_sec, int jitter_pct, const char *backoff,
                        int backoff_max_interval_sec, int max_polls, const char *event_log,
-                       const struct poll_run_result *run)
+                       const char *state_file, const struct daemon_state *daemon_state,
+                       const struct stop_result *stop, const struct poll_run_result *run)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
     int arbitrary_requested;
@@ -509,6 +842,8 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     printf(",\"max_polls\":%d", max_polls);
     fputs(",\"event_log\":", stdout);
     bb_json_string(stdout, event_log ? event_log : "");
+    fputs(",\"state_file\":", stdout);
+    bb_json_string(stdout, state_file ? state_file : "");
     fputs(",\"status\":", stdout);
     bb_json_string(stdout, mode_status(mode, enabled, operator_host, &policy, dry_run));
     fputs(",\"poll_plan\":{", stdout);
@@ -541,6 +876,8 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     fputc('}', stdout);
     print_all_mode_semantics_json(mode, dry_run, would_poll);
     print_poll_run_json(run);
+    print_daemon_state_json(state_file, daemon_state);
+    print_stop_result_json(stop);
     fputs(",\"safety_boundary\":\"target polling is explicit; live mode can receive queued command metadata but command execution is not implemented\"", stdout);
     fputs(",\"queued_command\":null}\n", stdout);
 }
@@ -548,7 +885,8 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
 static void print_text(const char *mode, int dry_run, const char *operator_host,
                        int interval_sec, int jitter_pct, const char *backoff,
                        int backoff_max_interval_sec, int max_polls, const char *event_log,
-                       const struct poll_run_result *run)
+                       const char *state_file, const struct daemon_state *daemon_state,
+                       const struct stop_result *stop, const struct poll_run_result *run)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
     int arbitrary_requested;
@@ -592,6 +930,7 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_poll_max_interval_sec=%d\n", backoff_max_interval_sec);
     printf("command_queue_max_polls=%d\n", max_polls);
     printf("command_queue_event_log=%s\n", event_log ? event_log : "");
+    printf("command_queue_state_file=%s\n", state_file ? state_file : "");
     printf("command_queue_status=%s\n", mode_status(mode, enabled, operator_host, &policy, dry_run));
     printf("command_queue_poll_plan_dry_run_only=%s\n", dry_run ? "yes" : "no");
     puts("command_queue_poll_plan_requires_explicit_target_action=yes");
@@ -606,6 +945,8 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     puts("command_queue_mode_once_would_poll_if_configured=yes");
     puts("command_queue_mode_daemon_lifecycle=long-running");
     puts("command_queue_mode_daemon_would_poll_if_configured=yes");
+    puts("command_queue_mode_stop_lifecycle=stop");
+    puts("command_queue_mode_stop_would_poll_if_configured=no");
     puts("command_queue_modes_execute_commands=no");
     printf("command_queue_modes_active_control_channel=%s\n",
            (!dry_run && mode_would_poll(mode, enabled, operator_host, &policy)) ? "yes" : "no");
@@ -621,6 +962,22 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_poll_run_last_status=%s\n", run ? run->last_status : "not_run");
     printf("command_queue_poll_run_last_error=%s\n", run ? run->last_error : "");
     printf("command_queue_poll_run_last_command_id=%s\n", run ? run->last_command_id : "");
+    printf("command_queue_daemon_state_present=%s\n", daemon_state && daemon_state->present ? "yes" : "no");
+    printf("command_queue_daemon_state_valid=%s\n", daemon_state && daemon_state->valid ? "yes" : "no");
+    printf("command_queue_daemon_running=%s\n", daemon_state && daemon_state->running ? "yes" : "no");
+    printf("command_queue_daemon_stale=%s\n", daemon_state && daemon_state->stale ? "yes" : "no");
+    printf("command_queue_daemon_ownership_verified=%s\n", daemon_state && daemon_state->ownership_verified ? "yes" : "no");
+    printf("command_queue_daemon_pid=%d\n", daemon_state ? daemon_state->pid : 0);
+    printf("command_queue_daemon_status=%s\n", daemon_state ? daemon_state->status : "missing");
+    printf("command_queue_daemon_error=%s\n", daemon_state ? daemon_state->error : "");
+    printf("command_queue_stop_attempted=%s\n", stop && stop->attempted ? "yes" : "no");
+    printf("command_queue_stop_signaled=%s\n", stop && stop->signaled ? "yes" : "no");
+    printf("command_queue_stop_stopped=%s\n", stop && stop->stopped ? "yes" : "no");
+    printf("command_queue_stop_missing=%s\n", stop && stop->missing ? "yes" : "no");
+    printf("command_queue_stop_stale=%s\n", stop && stop->stale ? "yes" : "no");
+    printf("command_queue_stop_skipped=%s\n", stop && stop->skipped ? "yes" : "no");
+    printf("command_queue_stop_status=%s\n", stop ? stop->status : "not_run");
+    printf("command_queue_stop_error=%s\n", stop ? stop->error : "");
     puts("command_queue_safety_boundary=explicit target polling; live mode can receive queued command metadata but execution is not implemented");
 }
 
@@ -629,8 +986,12 @@ int applet_command_queue_main(int argc, char **argv)
     const char *mode = "status";
     const char *operator_host = BB_OPERATOR_SERVER_HOST;
     const char *event_log = "";
+    char default_state[PATH_MAX];
+    const char *state_file;
     const char *backoff = BB_COMMAND_QUEUE_POLL_BACKOFF;
     struct poll_run_result run;
+    struct daemon_state daemon_state;
+    struct stop_result stop;
     int json = 0, dry_run = 1;
     int interval_sec = parse_nonnegative_int(BB_COMMAND_QUEUE_POLL_INTERVAL_SEC, 5);
     int jitter_pct = parse_nonnegative_int(BB_COMMAND_QUEUE_POLL_JITTER_PCT, 0);
@@ -639,7 +1000,12 @@ int applet_command_queue_main(int argc, char **argv)
     int i;
 
     memset(&run, 0, sizeof(run));
+    memset(&daemon_state, 0, sizeof(daemon_state));
+    memset(&stop, 0, sizeof(stop));
     snprintf(run.last_status, sizeof(run.last_status), "not_run");
+    snprintf(stop.status, sizeof(stop.status), "not_run");
+    default_state_path(default_state, sizeof(default_state));
+    state_file = default_state;
     if (is_help(argc, argv)) {
         print_help();
         return 0;
@@ -669,8 +1035,11 @@ int applet_command_queue_main(int argc, char **argv)
             max_polls = parse_nonnegative_int(argv[++i], max_polls);
         } else if (!strcmp(argv[i], "--event-log") && i + 1 < argc) {
             event_log = argv[++i];
+        } else if (!strcmp(argv[i], "--state-file") && i + 1 < argc) {
+            state_file = argv[++i];
         } else if (!strcmp(argv[i], "status") || !strcmp(argv[i], "poll") ||
-                   !strcmp(argv[i], "once") || !strcmp(argv[i], "daemon")) {
+                   !strcmp(argv[i], "once") || !strcmp(argv[i], "daemon") ||
+                   !strcmp(argv[i], "stop")) {
             mode = argv[i];
         } else {
             fprintf(stderr, "command-queue: unknown option %s\n", argv[i]);
@@ -679,6 +1048,12 @@ int applet_command_queue_main(int argc, char **argv)
     }
     if (!strcmp(mode, "status"))
         dry_run = 1;
+    if (!strcmp(mode, "stop")) {
+        dry_run = 1;
+        stop_daemon_from_state(state_file, event_log, &stop, &daemon_state);
+    } else {
+        read_daemon_state(state_file, &daemon_state);
+    }
     if (!dry_run) {
         struct command_queue_policy_report policy = bb_command_queue_validate_policy();
         if (!bb_command_queue_policy_valid(&policy)) {
@@ -689,14 +1064,17 @@ int applet_command_queue_main(int argc, char **argv)
             snprintf(run.last_status, sizeof(run.last_status), "missing_operator_host");
         } else {
             run = run_live_poll(mode, operator_host, interval_sec, jitter_pct, backoff,
-                                backoff_max_interval_sec, max_polls, event_log);
+                                backoff_max_interval_sec, max_polls, event_log, state_file);
         }
+        read_daemon_state(state_file, &daemon_state);
     }
     if (json)
         print_json(mode, dry_run, operator_host, interval_sec, jitter_pct,
-                   backoff, backoff_max_interval_sec, max_polls, event_log, &run);
+                   backoff, backoff_max_interval_sec, max_polls, event_log,
+                   state_file, &daemon_state, &stop, &run);
     else
         print_text(mode, dry_run, operator_host, interval_sec, jitter_pct,
-                   backoff, backoff_max_interval_sec, max_polls, event_log, &run);
+                   backoff, backoff_max_interval_sec, max_polls, event_log,
+                   state_file, &daemon_state, &stop, &run);
     return 0;
 }
