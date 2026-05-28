@@ -171,12 +171,35 @@ def match_indexes(rows):
         "matches_by_provider_status": {},
         "matches_by_doom_wad_filename": {},
         "matches_by_doom_wad_sha256": {},
+        "matches_by_command_queue_enabled": {},
+        "matches_by_command_queue_execution_supported": {},
+        "matches_by_command_queue_operator_supplied_command_execution": {},
     }
     for row in rows:
         add_index(indexes, "matches_by_release", row.get("release_name"), row)
         add_index(indexes, "matches_by_tuple_path", row.get("tuple_path"), row)
         add_index(indexes, "matches_by_payload_preset", row.get("payload_preset"), row)
         add_index(indexes, "matches_by_compatibility", (row.get("compatibility") or {}).get("label") or "exact", row)
+        command_queue = row.get("command_queue") or {}
+        mode_summary = command_queue.get("mode_summary") or {}
+        add_index(
+            indexes,
+            "matches_by_command_queue_enabled",
+            "true" if command_queue.get("enabled") == "yes" or command_queue.get("enabled") is True else "false",
+            row,
+        )
+        add_index(
+            indexes,
+            "matches_by_command_queue_execution_supported",
+            "true" if command_queue.get("execution_supported") is True or command_queue.get("executes_commands") is True else "false",
+            row,
+        )
+        add_index(
+            indexes,
+            "matches_by_command_queue_operator_supplied_command_execution",
+            "true" if int(mode_summary.get("operator_supplied_command_execution_mode_count") or 0) > 0 else "false",
+            row,
+        )
         for tool in row.get("tools") or []:
             add_index(indexes, "matches_by_tool", tool, row)
         for feature in row.get("features") or []:
@@ -242,6 +265,9 @@ def recommendation_document(index, rows, args):
                     "matches_by_provider_status",
                     "matches_by_doom_wad_filename",
                     "matches_by_doom_wad_sha256",
+                    "matches_by_command_queue_enabled",
+                    "matches_by_command_queue_execution_supported",
+                    "matches_by_command_queue_operator_supplied_command_execution",
                 ],
                 "visible_match_count",
                 "artifact_path",
@@ -278,6 +304,9 @@ def recommendation_document(index, rows, args):
             "artifacts_by_provider_status_count": len(index.get("artifacts_by_provider_status") or {}),
             "artifacts_by_doom_wad_filename_count": len(index.get("artifacts_by_doom_wad_filename") or {}),
             "artifacts_by_doom_wad_sha256_count": len(index.get("artifacts_by_doom_wad_sha256") or {}),
+            "artifacts_by_command_queue_enabled_count": len(index.get("artifacts_by_command_queue_enabled") or {}),
+            "artifacts_by_command_queue_execution_supported_count": len(index.get("artifacts_by_command_queue_execution_supported") or {}),
+            "artifacts_by_command_queue_operator_supplied_command_execution_count": len(index.get("artifacts_by_command_queue_operator_supplied_command_execution") or {}),
             "release_self_tests_by_release_count": len(index.get("release_self_tests_by_release") or {}),
             "release_self_tests_by_status_count": len(index.get("release_self_tests_by_status") or {}),
         },

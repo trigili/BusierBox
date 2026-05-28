@@ -86,6 +86,14 @@ JSON
       "tools": ["sh", "$tool"],
       "tool_provider_status": {"$tool": {"schema": 1, "overall": "found", "search_paths": []}},
       "doom_wads": $doom_wads_json,
+      "command_queue": {
+        "enabled": "no",
+        "execution_supported": false,
+        "executes_commands": false,
+        "mode_summary": {
+          "operator_supplied_command_execution_mode_count": 0
+        }
+      },
       "trailer_support": true,
       "compatibility": {"schema": 1, "label": "$compatibility_label", "reasons": ["fixture"]}
     }
@@ -161,6 +169,9 @@ assert index["artifacts_by_provider_tool"]["gdbserver"][0]["release_name"] == "t
 assert index["artifacts_by_provider_status"]["gdbserver:found"][0]["payload_preset"] == "full-debug"
 assert index["artifacts_by_doom_wad_filename"]["doom.wad"][0]["release_name"] == "one"
 assert index["artifacts_by_doom_wad_sha256"]["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"][0]["payload_preset"] == "survey-core"
+assert len(index["artifacts_by_command_queue_enabled"]["false"]) == 3
+assert len(index["artifacts_by_command_queue_execution_supported"]["false"]) == 3
+assert len(index["artifacts_by_command_queue_operator_supplied_command_execution"]["false"]) == 3
 assert len(index["device_records"]) == 3
 assert index["device_records_by_alias"]["lab-router"][0]["alias"] == "lab-router"
 assert len(index["device_records_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]) == 3
@@ -203,6 +214,7 @@ assert "artifacts_by_tool" in api["artifacts"]["indexes"]
 assert "artifacts_by_compatibility" in api["artifacts"]["indexes"]
 assert "artifacts_by_provider_status" in api["artifacts"]["indexes"]
 assert "artifacts_by_doom_wad_filename" in api["artifacts"]["indexes"]
+assert "artifacts_by_command_queue_operator_supplied_command_execution" in api["artifacts"]["indexes"]
 assert api["release_self_tests"]["count"] == index["release_self_test_count"]
 assert api["release_self_tests"]["summary_key"] == "release_self_test_count"
 assert api["release_self_tests"]["count_summary_key"] == "release_self_test_count"
@@ -295,6 +307,9 @@ assert doc["matches_by_payload_preset"]["ssh-operator"][0]["release_name"] == "t
 assert doc["matches_by_compatibility"]["exact"][0]["release_name"] == "two"
 assert doc["matches_by_provider_tool"]["strace"][0]["release_name"] == "two"
 assert doc["matches_by_provider_status"]["strace:found"][0]["release_name"] == "two"
+assert doc["matches_by_command_queue_enabled"]["false"][0]["release_name"] == "two"
+assert doc["matches_by_command_queue_execution_supported"]["false"][0]["release_name"] == "two"
+assert doc["matches_by_command_queue_operator_supplied_command_execution"]["false"][0]["release_name"] == "two"
 assert doc["index"]["deduplicated_artifact_count"] == 2
 assert doc["index"]["release_self_test_count"] == 3
 assert doc["index"]["release_self_test_command_queue_token_required_count"] == 3
@@ -316,6 +331,9 @@ assert doc["index"]["artifacts_by_provider_tool_count"] == 3
 assert doc["index"]["artifacts_by_provider_status_count"] == 3
 assert doc["index"]["artifacts_by_doom_wad_filename_count"] == 1
 assert doc["index"]["artifacts_by_doom_wad_sha256_count"] == 1
+assert doc["index"]["artifacts_by_command_queue_enabled_count"] == 1
+assert doc["index"]["artifacts_by_command_queue_execution_supported_count"] == 1
+assert doc["index"]["artifacts_by_command_queue_operator_supplied_command_execution_count"] == 1
 assert doc["index"]["release_self_tests_by_release_count"] == 3
 assert doc["index"]["release_self_tests_by_status_count"] == 1
 assert doc["selected"]["release_self_test"]["status"] == "pass"
@@ -349,11 +367,13 @@ assert doc["matches_by_tool"]["gdbserver"][0]["release_name"] == "three"
 assert doc["matches_by_provider_status"]["gdbserver:found"][0]["release_name"] == "three"
 assert doc["matches_by_doom_wad_filename"]["doom.wad"][0]["release_name"] == "one"
 assert doc["matches_by_doom_wad_sha256"]["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"][0]["payload_preset"] == "survey-core"
+assert len(doc["matches_by_command_queue_operator_supplied_command_execution"]["false"]) == 3
 assert doc["matches_by_feature"]["reverse-ssh"]
 PY
 grep -q -- '--recommendation-json' docs/release-bundles.md
 grep -q -- '--tuple-path by-tuple/' docs/release-bundles.md
 grep -q 'policy used to prefer lower-risk compatibility labels' docs/release-bundles.md
 grep -q 'recommendations' docs/release-bundles.md
+grep -q 'artifacts_by_command_queue_operator_supplied_command_execution' docs/release-bundles.md
 
 printf '%s\n' "release-repo-index ok"

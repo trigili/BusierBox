@@ -204,7 +204,12 @@ status without opening each payload manifest. Doom audit maps
 artifacts by staged WAD basename/hash, and `scripts/find-artifact` exposes the
 same lookup through `--doom-wad` and `--doom-wad-sha256`. You can search by canonical tuple path directly with
 `--tuple-path` when a survey or release manifest has already resolved the
-target compatibility tuple. If a release directory contains
+target compatibility tuple. Command-queue safety maps
+`artifacts_by_command_queue_enabled`,
+`artifacts_by_command_queue_execution_supported`, and
+`artifacts_by_command_queue_operator_supplied_command_execution` let offline
+browsers render explicit safety buckets without opening every artifact
+manifest. If a release directory contains
 `release-self-test.json` or a supported self-test diagnostics path, the index
 records it in `release_self_tests`, groups it by release name and status, and
 copies the compact status/path onto each artifact from that release so
@@ -226,7 +231,10 @@ selection policy. Lookup maps include
 `matches_by_release`, `matches_by_tuple_path`, `matches_by_payload_preset`,
 `matches_by_compatibility`, `matches_by_tool`, `matches_by_feature`,
 `matches_by_provider_tool`, `matches_by_provider_status`,
-`matches_by_doom_wad_filename`, and `matches_by_doom_wad_sha256` for artifact
+`matches_by_doom_wad_filename`, `matches_by_doom_wad_sha256`,
+`matches_by_command_queue_enabled`,
+`matches_by_command_queue_execution_supported`, and
+`matches_by_command_queue_operator_supplied_command_execution` for artifact
 browser views. The policy used to prefer lower-risk compatibility labels also prefers newer release metadata. Use
 `--max-compatibility exact|likely|heuristic|unsafe|incompatible`
 to reject artifacts above an operator-selected risk threshold instead of only

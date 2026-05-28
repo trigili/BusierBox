@@ -347,6 +347,9 @@ def build_repo_index(paths):
     artifacts_by_provider_status = {}
     artifacts_by_doom_wad_filename = {}
     artifacts_by_doom_wad_sha256 = {}
+    artifacts_by_command_queue_enabled = {}
+    artifacts_by_command_queue_execution_supported = {}
+    artifacts_by_command_queue_operator_supplied_command_execution = {}
     for record in artifacts:
         sha = record.get("sha256") or ""
         release_name = record.get("release_name") or ""
@@ -362,6 +365,16 @@ def build_repo_index(paths):
             artifacts_by_payload_preset.setdefault(payload_preset, []).append(record)
         compatibility = ((record.get("compatibility") or {}).get("label") or "exact")
         artifacts_by_compatibility.setdefault(compatibility, []).append(record)
+        command_queue = record.get("command_queue") or {}
+        mode_summary = command_queue.get("mode_summary") or {}
+        command_queue_enabled = "true" if command_queue.get("enabled") == "yes" or command_queue.get("enabled") is True else "false"
+        command_queue_execution_supported = "true" if command_queue.get("execution_supported") is True or command_queue.get("executes_commands") is True else "false"
+        command_queue_operator_supplied = (
+            "true" if int(mode_summary.get("operator_supplied_command_execution_mode_count") or 0) > 0 else "false"
+        )
+        artifacts_by_command_queue_enabled.setdefault(command_queue_enabled, []).append(record)
+        artifacts_by_command_queue_execution_supported.setdefault(command_queue_execution_supported, []).append(record)
+        artifacts_by_command_queue_operator_supplied_command_execution.setdefault(command_queue_operator_supplied, []).append(record)
         if tuple_path and payload_preset:
             artifacts_by_tuple_payload_preset.setdefault(f"{tuple_path}:{payload_preset}", []).append(record)
         for tool in record.get("tools") or []:
@@ -412,6 +425,9 @@ def build_repo_index(paths):
         "artifacts_by_provider_status",
         "artifacts_by_doom_wad_filename",
         "artifacts_by_doom_wad_sha256",
+        "artifacts_by_command_queue_enabled",
+        "artifacts_by_command_queue_execution_supported",
+        "artifacts_by_command_queue_operator_supplied_command_execution",
     ]
     recommendation_index_names = [
         "by_device",
@@ -468,6 +484,9 @@ def build_repo_index(paths):
         "artifacts_by_provider_status": {key: artifacts_by_provider_status[key] for key in sorted(artifacts_by_provider_status)},
         "artifacts_by_doom_wad_filename": {key: artifacts_by_doom_wad_filename[key] for key in sorted(artifacts_by_doom_wad_filename)},
         "artifacts_by_doom_wad_sha256": {key: artifacts_by_doom_wad_sha256[key] for key in sorted(artifacts_by_doom_wad_sha256)},
+        "artifacts_by_command_queue_enabled": {key: artifacts_by_command_queue_enabled[key] for key in sorted(artifacts_by_command_queue_enabled)},
+        "artifacts_by_command_queue_execution_supported": {key: artifacts_by_command_queue_execution_supported[key] for key in sorted(artifacts_by_command_queue_execution_supported)},
+        "artifacts_by_command_queue_operator_supplied_command_execution": {key: artifacts_by_command_queue_operator_supplied_command_execution[key] for key in sorted(artifacts_by_command_queue_operator_supplied_command_execution)},
         "dedupe": {key: by_sha[key] for key in sorted(by_sha)},
         "devices": {key: devices[key] for key in sorted(devices)},
         "device_records": device_records,
