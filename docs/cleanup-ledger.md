@@ -27,6 +27,13 @@ busierbox clean --dry-run --json
 busierbox rshell cleanup --dry-run
 ```
 
+`clean --dry-run --json` includes a `residue_plan` with intended write paths,
+cleanup commands, external paths that cannot be cleaned without explicit
+`--external --apply`, and no-residue features disabled by policy. Both dry-run
+and applied JSON include `writes_attempted`, `writes_blocked`, `paths_cleaned`,
+`paths_failed`, `cleanup_complete`, and `cleanup_warning` so operators and
+release tooling can distinguish a preview from a completed cleanup.
+
 Apply runtime cleanup:
 
 ```sh

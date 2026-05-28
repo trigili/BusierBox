@@ -15,6 +15,17 @@
 #define PATH_MAX 4096
 #endif
 
+struct clean_result {
+    int writes_attempted;
+    int writes_blocked;
+    int paths_cleaned;
+    int paths_failed;
+    int cleanup_complete;
+    const char *cleanup_warning;
+};
+
+static int json_get_string_field(const char *line, const char *key, char *out, size_t outsz);
+
 static int is_help(int argc, char **argv)
 {
     return argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"));
@@ -105,7 +116,96 @@ static void print_clean_json_external_entries(int include_external)
     fputc(']', stdout);
 }
 
-static void print_clean_json(int dry_run, int include_external, int ledger, int external_applied)
+static int count_external_entries(void)
+{
+    char path[PATH_MAX], line[2048];
+    FILE *fp = fopen(bb_ledger_path(path, sizeof(path)), "r");
+    int count = 0;
+
+    if (!fp)
+        return 0;
+    while (fgets(line, sizeof(line), fp))
+        if (strstr(line, "\"scope\":\"external\""))
+            count++;
+    fclose(fp);
+    return count;
+}
+
+static void print_clean_json_string_array_item(const char *s, int *first)
+{
+    if (!*first)
+        fputc(',', stdout);
+    bb_json_string(stdout, s);
+    *first = 0;
+}
+
+static void print_residue_plan_json(int include_external, int ledger)
+{
+    char ledger_path_buf[PATH_MAX];
+    int first = 1;
+    int aggressive = !strcmp(BB_RUNTIME_MODE, "no-residue") && !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+
+    fputs("{\"runtime_mode\":", stdout);
+    bb_json_string(stdout, BB_RUNTIME_MODE);
+    fputs(",\"noresidue_level\":", stdout);
+    bb_json_string(stdout, BB_NORESIDUE_LEVEL);
+    fputs(",\"intended_write_paths\":[", stdout);
+    print_clean_json_string_array_item(BB_RUNTIME_ROOT, &first);
+    if (ledger) {
+        first = 0;
+        if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+            BB_RUNTIME_FALLBACK_ROOT[0] &&
+            strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT))
+            print_clean_json_string_array_item(BB_RUNTIME_FALLBACK_ROOT, &first);
+    }
+    print_clean_json_string_array_item(bb_ledger_path(ledger_path_buf, sizeof(ledger_path_buf)), &first);
+    fputs("],\"cleanup_commands\":[", stdout);
+    first = 1;
+    print_clean_json_string_array_item("busierbox clean --dry-run --json", &first);
+    print_clean_json_string_array_item("busierbox clean --ledger --json", &first);
+    if (count_external_entries() > 0)
+        print_clean_json_string_array_item("busierbox clean --external --apply", &first);
+    fputs("],\"uncleanable_paths\":[", stdout);
+    if (!include_external) {
+        char path[PATH_MAX], line[2048];
+        FILE *fp = fopen(bb_ledger_path(path, sizeof(path)), "r");
+        first = 1;
+        if (fp) {
+            while (fgets(line, sizeof(line), fp)) {
+                char external_path[PATH_MAX];
+                if (!strstr(line, "\"scope\":\"external\""))
+                    continue;
+                if (json_get_string_field(line, "path", external_path, sizeof(external_path)) == 0)
+                    print_clean_json_string_array_item(external_path, &first);
+            }
+            fclose(fp);
+        }
+    }
+    fputs("],\"features_disabled\":[", stdout);
+    first = 1;
+    if (aggressive) {
+        print_clean_json_string_array_item("persistent target logs by default", &first);
+        print_clean_json_string_array_item("forensic no-trace claims", &first);
+    } else {
+        print_clean_json_string_array_item("forensic no-trace claims", &first);
+    }
+    fputs("],\"forensic_no_trace\":false", stdout);
+    fputc('}', stdout);
+}
+
+static void print_clean_result_json(const struct clean_result *result)
+{
+    printf(",\"writes_attempted\":%d", result ? result->writes_attempted : 0);
+    printf(",\"writes_blocked\":%d", result ? result->writes_blocked : 0);
+    printf(",\"paths_cleaned\":%d", result ? result->paths_cleaned : 0);
+    printf(",\"paths_failed\":%d", result ? result->paths_failed : 0);
+    printf(",\"cleanup_complete\":%s", result && result->cleanup_complete ? "true" : "false");
+    fputs(",\"cleanup_warning\":", stdout);
+    bb_json_string(stdout, result && result->cleanup_warning ? result->cleanup_warning : "");
+}
+
+static void print_clean_json(int dry_run, int include_external, int ledger, int external_applied,
+                             const struct clean_result *result)
 {
     char path[PATH_MAX];
 
@@ -119,6 +219,9 @@ static void print_clean_json(int dry_run, int include_external, int ledger, int 
     bb_json_string(stdout, bb_ledger_path(path, sizeof(path)));
     printf(",\"include_external\":%s,\"external_cleanup_applied\":%s",
            include_external ? "true" : "false", external_applied ? "true" : "false");
+    fputs(",\"residue_plan\":", stdout);
+    print_residue_plan_json(include_external, ledger);
+    print_clean_result_json(result);
     fputs(dry_run ? ",\"would_remove\":" : ",\"removed\":", stdout);
     print_clean_json_array_runtime_roots(dry_run || ledger);
     fputs(",\"external_entries\":", stdout);
@@ -126,10 +229,12 @@ static void print_clean_json(int dry_run, int include_external, int ledger, int 
     puts("}");
 }
 
-static int remove_runtime_root_checked(const char *path)
+static int remove_runtime_root_checked(const char *path, int *cleaned)
 {
     struct stat st;
 
+    if (cleaned)
+        *cleaned = 0;
     if (!path || !path[0])
         return 0;
     if (lstat(path, &st) != 0)
@@ -138,7 +243,11 @@ static int remove_runtime_root_checked(const char *path)
         fprintf(stderr, "clean: skipping non-directory runtime root candidate %s\n", path);
         return 0;
     }
-    return bb_rm_rf(path);
+    if (bb_rm_rf(path) != 0)
+        return -1;
+    if (cleaned)
+        *cleaned = 1;
+    return 0;
 }
 
 static int json_get_string_field(const char *line, const char *key, char *out, size_t outsz)
@@ -320,6 +429,7 @@ int applet_cleanup_ledger_main(int argc, char **argv)
 int applet_clean_main(int argc, char **argv)
 {
     int dry_run = 0, ledger = 0, external = 0, apply = 0, json = 0;
+    struct clean_result result = {0, 0, 0, 0, 0, ""};
     int i;
 
     if (is_help(argc, argv)) {
@@ -346,7 +456,9 @@ int applet_clean_main(int argc, char **argv)
     }
     if (dry_run) {
         if (json) {
-            print_clean_json(1, external, ledger, 0);
+            result.writes_blocked = external ? 0 : count_external_entries();
+            result.cleanup_warning = "dry-run only";
+            print_clean_json(1, external, ledger, 0, &result);
             return 0;
         }
         return print_clean_dry_run(external);
@@ -355,7 +467,22 @@ int applet_clean_main(int argc, char **argv)
         fputs("clean: external cleanup requires --external --apply\n", stderr);
         return 2;
     }
-    if (external && apply && clean_external_from_ledger(json) != 0)
+    if (external && apply) {
+        result.writes_attempted += count_external_entries();
+        if (clean_external_from_ledger(json) != 0) {
+            result.paths_failed++;
+            if (json) {
+                result.cleanup_warning = "external cleanup failed";
+                print_clean_json(0, external, ledger, 1, &result);
+            }
+            return 1;
+        }
+    } else {
+        result.writes_blocked = count_external_entries();
+    }
+    if (external && apply)
+        result.paths_cleaned += count_external_entries();
+    if (external && apply && result.paths_failed)
         return 1;
     if (ledger) {
         bb_ledger_record("remove", BB_RUNTIME_ROOT, "runtime", "clean --ledger");
@@ -364,22 +491,44 @@ int applet_clean_main(int argc, char **argv)
             strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT))
             bb_ledger_record("remove", BB_RUNTIME_FALLBACK_ROOT, "runtime", "clean --ledger fallback root");
     }
-    if (remove_runtime_root_checked(BB_RUNTIME_ROOT) != 0) {
-        fprintf(stderr, "clean: %s\n", strerror(errno));
-        return 1;
+    {
+        int cleaned = 0;
+        result.writes_attempted++;
+        if (remove_runtime_root_checked(BB_RUNTIME_ROOT, &cleaned) != 0) {
+            result.paths_failed++;
+            result.cleanup_warning = "runtime root cleanup failed";
+            if (json)
+                print_clean_json(0, external, ledger, external && apply, &result);
+            fprintf(stderr, "clean: %s\n", strerror(errno));
+            return 1;
+        }
+        result.paths_cleaned += cleaned;
     }
     if (ledger &&
         !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
         BB_RUNTIME_FALLBACK_ROOT[0] &&
-        strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT) &&
-        remove_runtime_root_checked(BB_RUNTIME_FALLBACK_ROOT) != 0) {
-        fprintf(stderr, "clean: fallback root %s: %s\n", BB_RUNTIME_FALLBACK_ROOT, strerror(errno));
-        return 1;
+        strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT)) {
+        int cleaned = 0;
+        result.writes_attempted++;
+        if (remove_runtime_root_checked(BB_RUNTIME_FALLBACK_ROOT, &cleaned) != 0) {
+            result.paths_failed++;
+            result.cleanup_warning = "fallback root cleanup failed";
+            if (json)
+                print_clean_json(0, external, ledger, external && apply, &result);
+            fprintf(stderr, "clean: fallback root %s: %s\n", BB_RUNTIME_FALLBACK_ROOT, strerror(errno));
+            return 1;
+        }
+        result.paths_cleaned += cleaned;
     }
+    result.cleanup_complete = result.paths_failed == 0 && result.writes_blocked == 0;
+    if (result.writes_blocked > 0)
+        result.cleanup_warning = "external ledger entries require --external --apply";
     if (json) {
-        print_clean_json(0, external, ledger, external && apply);
+        print_clean_json(0, external, ledger, external && apply, &result);
         return 0;
     }
+    if (result.writes_blocked > 0)
+        printf("clean: external cleanup blocked entries=%d; use --external --apply\n", result.writes_blocked);
     printf("clean: removed %s\n", BB_RUNTIME_ROOT);
     return 0;
 }

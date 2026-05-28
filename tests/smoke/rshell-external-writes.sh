@@ -80,7 +80,8 @@ for needle in [
     '"/root/.ssh/authorized_keys"',
     '"root-merge"',
     '"root-copy"',
-    'external && apply && clean_external_from_ledger(',
+    'if (external && apply)',
+    'clean_external_from_ledger(json)',
 ]:
     if needle not in text:
         raise SystemExit(f"rshell-external-writes: clean external path missing {needle}")

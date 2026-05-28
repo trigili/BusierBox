@@ -37,6 +37,17 @@ if ".busierbox" not in " ".join(doc.get("would_remove", [])):
     raise SystemExit("clean dry-run json missing runtime root")
 if "cleanup_ledger_path" not in doc:
     raise SystemExit("clean dry-run json missing ledger path")
+plan = doc.get("residue_plan")
+if not isinstance(plan, dict):
+    raise SystemExit("clean dry-run json missing residue plan")
+if doc.get("writes_attempted") != 0 or doc.get("paths_cleaned") != 0 or doc.get("cleanup_complete") is not False:
+    raise SystemExit("clean dry-run json cleanup result counters are wrong")
+if doc.get("cleanup_warning") != "dry-run only":
+    raise SystemExit("clean dry-run json missing dry-run cleanup warning")
+if "busierbox clean --ledger --json" not in plan.get("cleanup_commands", []):
+    raise SystemExit("clean dry-run residue plan missing cleanup command")
+if plan.get("forensic_no_trace") is not False:
+    raise SystemExit("clean dry-run residue plan made forensic no-trace claim")
 if not isinstance(doc.get("external_entries"), list):
     raise SystemExit("clean dry-run external_entries must be a list")
 PY
@@ -78,6 +89,12 @@ if doc.get("command") != "clean" or doc.get("dry_run") is not False:
     raise SystemExit("clean json did not identify applied clean")
 if ".busierbox" not in " ".join(doc.get("removed", [])):
     raise SystemExit("clean json missing removed runtime root")
+if doc.get("writes_attempted", 0) < 1:
+    raise SystemExit("clean json missing writes_attempted")
+if doc.get("paths_failed") != 0:
+    raise SystemExit("clean json reported path failures")
+if doc.get("cleanup_complete") is not True:
+    raise SystemExit("clean json did not report complete cleanup")
 PY
     test ! -d .busierbox
 
@@ -97,6 +114,11 @@ if not entries or entries[0].get("blocked_without_external_apply") is not True:
     raise SystemExit("external ledger entry was not blocked without --external")
 if entries[0].get("entry", {}).get("scope") != "external":
     raise SystemExit("blocked external ledger entry missing original entry")
+if doc.get("writes_blocked") != 1:
+    raise SystemExit("blocked external ledger did not increment writes_blocked")
+plan = doc.get("residue_plan") or {}
+if "/root/.ssh/authorized_keys" not in plan.get("uncleanable_paths", []):
+    raise SystemExit("blocked external ledger path missing from residue plan")
 PY
     ./busierbox clean --dry-run --external --json >external-included.json
     python3 -m json.tool external-included.json >/dev/null
