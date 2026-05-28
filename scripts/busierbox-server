@@ -7800,6 +7800,9 @@ def print_workbench(cfg):
     print(f"  events: {format_counts(stats.get('by_event') or {})}")
     print(f"  levels: {format_counts(stats.get('by_level') or {})}")
     print(f"  remotes: {format_counts(stats.get('by_remote') or {})}")
+    print(f"  detail_statuses: {format_counts(stats.get('by_detail_status') or {})}")
+    print(f"  detail_operations: {format_counts(stats.get('by_detail_operation') or {})}")
+    print(f"  detail_http_statuses: {format_counts(stats.get('by_detail_http_status') or {})}")
     if snap["events"]:
         for event in snap["events"][-8:]:
             suffix = compact_event_details(event)

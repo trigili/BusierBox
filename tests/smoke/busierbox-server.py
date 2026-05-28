@@ -3345,6 +3345,9 @@ def main():
                 "event_log:" not in uploads_view.stdout or
                 "tls_cert:" not in uploads_view.stdout or
                 "Event log" not in uploads_view.stdout or
+                "detail_statuses: ok=" not in uploads_view.stdout or
+                "detail_operations: upload=" not in uploads_view.stdout or
+                "detail_http_statuses: 200=" not in uploads_view.stdout or
                 "uploads=1" not in uploads_view.stdout or
                 "Target command summary:" not in uploads_view.stdout or
                 "operator_supplied_execution=0" not in uploads_view.stdout or
