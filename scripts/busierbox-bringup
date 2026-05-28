@@ -297,6 +297,18 @@ next_target_records = [
         "executes_operator_supplied_commands": False,
     },
 ]
+staged_stage_kind = ""
+staged_source_path = ""
+if env("STAGED_FETCH_COMMAND"):
+    if env("SELECTED_ARTIFACT"):
+        staged_stage_kind = "release-artifact"
+        staged_source_path = env("SELECTED_ARTIFACT")
+    elif env("RECOMMENDED_ARTIFACT"):
+        staged_stage_kind = "recommended-artifact"
+        staged_source_path = env("RECOMMENDED_ARTIFACT")
+    elif env("RECOMMENDED_CONFIG"):
+        staged_stage_kind = "config"
+        staged_source_path = env("RECOMMENDED_CONFIG")
 if env("STAGED_FETCH_COMMAND"):
     next_target_records.append({
         "command": env("STAGED_FETCH_COMMAND"),
@@ -306,6 +318,14 @@ if env("STAGED_FETCH_COMMAND"):
         "requires_explicit_target_action": True,
         "network": True,
         "executes_operator_supplied_commands": False,
+        "request_name": env("STAGED_REQUEST_NAME"),
+        "source_path": staged_source_path,
+        "stage_kind": staged_stage_kind,
+        "selected_artifact": env("SELECTED_ARTIFACT"),
+        "compatibility": {
+            "label": env("COMPATIBILITY_LABEL"),
+            "reasons": reasons,
+        },
     })
 
 command_record_summary = {
@@ -316,6 +336,7 @@ command_record_summary = {
     "target_requires_explicit_action_count": sum(1 for item in next_target_records if item.get("requires_explicit_target_action") is True),
     "target_executes_operator_supplied_commands_count": sum(1 for item in next_target_records if item.get("executes_operator_supplied_commands") is True),
     "operator_executes_on_target_count": sum(1 for item in next_operator_records if item.get("executes_on_target") is True),
+    "target_staged_fetch_count": sum(1 for item in next_target_records if item.get("request_name")),
     "all_target_commands_require_explicit_action": all(item.get("requires_explicit_target_action") is True for item in next_target_records),
     "all_operator_commands_require_explicit_action": all(item.get("requires_explicit_operator_action") is True for item in next_operator_records),
     "any_operator_command_executes_on_target": any(item.get("executes_on_target") is True for item in next_operator_records),
@@ -330,14 +351,26 @@ next_command_records_by_service = {}
 next_command_records_by_purpose = {}
 next_command_records_by_side_service = {}
 next_command_records_by_service_purpose = {}
+next_command_records_by_request = {}
+next_command_records_by_stage_kind = {}
+next_command_records_by_source_path = {}
 for item in next_command_records:
     service = item.get("service") or ""
     purpose = item.get("purpose") or ""
     side = item.get("side") or ""
+    request_name = item.get("request_name") or ""
+    stage_kind = item.get("stage_kind") or ""
+    source_path = item.get("source_path") or ""
     if service:
         next_command_records_by_service.setdefault(service, []).append(item)
     if purpose:
         next_command_records_by_purpose.setdefault(purpose, []).append(item)
+    if request_name:
+        next_command_records_by_request[request_name] = item
+    if stage_kind:
+        next_command_records_by_stage_kind.setdefault(stage_kind, []).append(item)
+    if source_path:
+        next_command_records_by_source_path.setdefault(source_path, []).append(item)
     if side and service:
         next_command_records_by_side_service.setdefault(f"{side}:{service}", []).append(item)
     if service and purpose:
@@ -416,6 +449,9 @@ doc = {
     "next_command_records_by_purpose": next_command_records_by_purpose,
     "next_command_records_by_side_service": next_command_records_by_side_service,
     "next_command_records_by_service_purpose": next_command_records_by_service_purpose,
+    "next_command_records_by_request": next_command_records_by_request,
+    "next_command_records_by_stage_kind": next_command_records_by_stage_kind,
+    "next_command_records_by_source_path": next_command_records_by_source_path,
     "command_record_summary": command_record_summary,
     "safety_boundary": {
         "network_autorun": False,
