@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -22,6 +23,16 @@ struct clean_result {
     int paths_failed;
     int cleanup_complete;
     const char *cleanup_warning;
+};
+
+#define MAX_CLEANUP_RECORDS 256
+
+struct cleanup_record {
+    char op[64];
+    char path[PATH_MAX];
+    char scope[64];
+    char detail[512];
+    char cleanup_action[64];
 };
 
 static int json_get_string_field(const char *line, const char *key, char *out, size_t outsz);
@@ -158,7 +169,7 @@ static const char *ledger_cleanup_action(const char *path, const char *op, int l
     return "not_in_default_clean_scope";
 }
 
-static int count_ledgered_cleanup_paths(void)
+static int load_ledgered_cleanup_records(struct cleanup_record *records, int max_records, int ledger)
 {
     char path[PATH_MAX], line[2048];
     FILE *fp = fopen(bb_ledger_path(path, sizeof(path)), "r");
@@ -167,60 +178,149 @@ static int count_ledgered_cleanup_paths(void)
     if (!fp)
         return 0;
     while (fgets(line, sizeof(line), fp)) {
-        char ledger_path[PATH_MAX], scope[64];
+        char ledger_path[PATH_MAX], op[64], scope[64], detail[512];
 
         if (json_get_string_field(line, "path", ledger_path, sizeof(ledger_path)) != 0)
             continue;
+        scope[0] = '\0';
         if (json_get_string_field(line, "scope", scope, sizeof(scope)) == 0 &&
             !strcmp(scope, "external"))
             continue;
+        if (!records || count >= max_records)
+            continue;
+        op[0] = '\0';
+        detail[0] = '\0';
+        json_get_string_field(line, "op", op, sizeof(op));
+        json_get_string_field(line, "detail", detail, sizeof(detail));
+        snprintf(records[count].op, sizeof(records[count].op), "%s", op);
+        snprintf(records[count].path, sizeof(records[count].path), "%s", ledger_path);
+        snprintf(records[count].scope, sizeof(records[count].scope), "%s", scope[0] ? scope : "runtime");
+        snprintf(records[count].detail, sizeof(records[count].detail), "%s", detail);
+        snprintf(records[count].cleanup_action, sizeof(records[count].cleanup_action), "%s",
+                 ledger_cleanup_action(ledger_path, op, ledger));
         count++;
     }
     fclose(fp);
     return count;
 }
 
-static void print_ledgered_cleanup_paths_json(int ledger)
+static void print_ledgered_cleanup_paths_json(const struct cleanup_record *records, int count)
 {
-    char path[PATH_MAX], line[2048];
-    FILE *fp = fopen(bb_ledger_path(path, sizeof(path)), "r");
-    int first = 1;
+    int i;
 
     fputc('[', stdout);
-    if (fp) {
-        while (fgets(line, sizeof(line), fp)) {
-            char op[64], ledger_path[PATH_MAX], scope[64], detail[512];
-
-            if (json_get_string_field(line, "path", ledger_path, sizeof(ledger_path)) != 0)
-                continue;
-            op[0] = '\0';
-            scope[0] = '\0';
-            detail[0] = '\0';
-            json_get_string_field(line, "op", op, sizeof(op));
-            json_get_string_field(line, "scope", scope, sizeof(scope));
-            json_get_string_field(line, "detail", detail, sizeof(detail));
-            if (!strcmp(scope, "external"))
-                continue;
-            if (!first)
-                fputc(',', stdout);
-            fputs("{\"op\":", stdout);
-            bb_json_string(stdout, op);
-            fputs(",\"path\":", stdout);
-            bb_json_string(stdout, ledger_path);
-            fputs(",\"scope\":", stdout);
-            bb_json_string(stdout, scope[0] ? scope : "runtime");
-            fputs(",\"cleanup_action\":", stdout);
-            bb_json_string(stdout, ledger_cleanup_action(ledger_path, op, ledger));
-            if (detail[0]) {
-                fputs(",\"detail\":", stdout);
-                bb_json_string(stdout, detail);
-            }
-            fputc('}', stdout);
-            first = 0;
+    for (i = 0; i < count; i++) {
+        if (i)
+            fputc(',', stdout);
+        fputs("{\"op\":", stdout);
+        bb_json_string(stdout, records[i].op);
+        fputs(",\"path\":", stdout);
+        bb_json_string(stdout, records[i].path);
+        fputs(",\"scope\":", stdout);
+        bb_json_string(stdout, records[i].scope);
+        fputs(",\"cleanup_action\":", stdout);
+        bb_json_string(stdout, records[i].cleanup_action);
+        if (records[i].detail[0]) {
+            fputs(",\"detail\":", stdout);
+            bb_json_string(stdout, records[i].detail);
         }
-        fclose(fp);
+        fputc('}', stdout);
     }
     fputc(']', stdout);
+}
+
+static int cleanup_record_field_equals(const struct cleanup_record *record, const char *field,
+                                       const char *value)
+{
+    if (!strcmp(field, "path"))
+        return !strcmp(record->path, value);
+    if (!strcmp(field, "scope"))
+        return !strcmp(record->scope, value);
+    if (!strcmp(field, "op"))
+        return !strcmp(record->op, value);
+    if (!strcmp(field, "cleanup_action"))
+        return !strcmp(record->cleanup_action, value);
+    return 0;
+}
+
+static const char *cleanup_record_field_value(const struct cleanup_record *record, const char *field)
+{
+    if (!strcmp(field, "path"))
+        return record->path;
+    if (!strcmp(field, "scope"))
+        return record->scope;
+    if (!strcmp(field, "op"))
+        return record->op;
+    if (!strcmp(field, "cleanup_action"))
+        return record->cleanup_action;
+    return "";
+}
+
+static void print_cleanup_record_index_json(const struct cleanup_record *records, int count,
+                                            const char *field)
+{
+    int i, first_key = 1;
+
+    fputc('{', stdout);
+    for (i = 0; i < count; i++) {
+        int j, first_index = 1, seen = 0;
+        const char *value = cleanup_record_field_value(&records[i], field);
+
+        if (!value[0])
+            continue;
+        for (j = 0; j < i; j++) {
+            if (cleanup_record_field_equals(&records[j], field, value)) {
+                seen = 1;
+                break;
+            }
+        }
+        if (seen)
+            continue;
+        if (!first_key)
+            fputc(',', stdout);
+        bb_json_string(stdout, value);
+        fputc(':', stdout);
+        fputc('[', stdout);
+        for (j = 0; j < count; j++) {
+            if (!cleanup_record_field_equals(&records[j], field, value))
+                continue;
+            if (!first_index)
+                fputc(',', stdout);
+            printf("%d", j);
+            first_index = 0;
+        }
+        fputc(']', stdout);
+        first_key = 0;
+    }
+    fputc('}', stdout);
+}
+
+static void print_residue_plan_api_json(int cleanup_count)
+{
+    fputs(",\"api\":{\"schema\":1,\"collections_key\":\"api_collections\",\"resources_key\":\"api_resources\",\"resource_count\":1}", stdout);
+    fputs(",\"api_collections\":{\"ledgered_cleanup_paths\":{\"name\":\"ledgered_cleanup_paths\",\"count\":", stdout);
+    printf("%d", cleanup_count);
+    fputs(",\"count_summary_key\":\"ledgered_cleanup_path_count\",\"summary_key\":\"ledgered_cleanup_path_count\",\"primary_key\":\"path\",\"indexes\":[", stdout);
+    bb_json_string(stdout, "ledgered_cleanup_paths_by_path");
+    fputc(',', stdout);
+    bb_json_string(stdout, "ledgered_cleanup_paths_by_scope");
+    fputc(',', stdout);
+    bb_json_string(stdout, "ledgered_cleanup_paths_by_op");
+    fputc(',', stdout);
+    bb_json_string(stdout, "ledgered_cleanup_paths_by_cleanup_action");
+    fputs("]}}", stdout);
+    fputs(",\"api_resources\":[{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
+    printf("%d", cleanup_count);
+    fputs(",\"summary_key\":\"ledgered_cleanup_path_count\",\"primary_key\":\"path\"}]", stdout);
+    fputs(",\"api_resources_by_name\":{\"ledgered_cleanup_paths\":{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
+    printf("%d", cleanup_count);
+    fputs(",\"summary_key\":\"ledgered_cleanup_path_count\",\"primary_key\":\"path\"}}", stdout);
+    fputs(",\"api_resources_by_records_key\":{\"ledgered_cleanup_paths\":[{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
+    printf("%d", cleanup_count);
+    fputs(",\"summary_key\":\"ledgered_cleanup_path_count\",\"primary_key\":\"path\"}]}", stdout);
+    fputs(",\"api_resources_by_summary_key\":{\"ledgered_cleanup_path_count\":[{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
+    printf("%d", cleanup_count);
+    fputs(",\"summary_key\":\"ledgered_cleanup_path_count\",\"primary_key\":\"path\"}]}", stdout);
 }
 
 static void print_clean_json_string_array_item(const char *s, int *first)
@@ -234,6 +334,9 @@ static void print_clean_json_string_array_item(const char *s, int *first)
 static void print_residue_plan_json(int include_external, int ledger)
 {
     char ledger_path_buf[PATH_MAX];
+    struct cleanup_record *cleanup_records = calloc(MAX_CLEANUP_RECORDS, sizeof(*cleanup_records));
+    int cleanup_count = cleanup_records ?
+        load_ledgered_cleanup_records(cleanup_records, MAX_CLEANUP_RECORDS, ledger) : 0;
     int first = 1;
     int aggressive = !strcmp(BB_RUNTIME_MODE, "no-residue") && !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
 
@@ -257,10 +360,19 @@ static void print_residue_plan_json(int include_external, int ledger)
     print_clean_json_string_array_item("busierbox clean --ledger --json", &first);
     if (count_external_entries() > 0)
         print_clean_json_string_array_item("busierbox clean --external --apply", &first);
-    printf("],\"ledgered_cleanup_path_count\":%d", count_ledgered_cleanup_paths());
+    printf("],\"ledgered_cleanup_path_count\":%d", cleanup_count);
     printf(",\"external_blocked_count\":%d", include_external ? 0 : count_external_entries());
     fputs(",\"ledgered_cleanup_paths\":", stdout);
-    print_ledgered_cleanup_paths_json(ledger);
+    print_ledgered_cleanup_paths_json(cleanup_records, cleanup_count);
+    fputs(",\"ledgered_cleanup_paths_by_path\":", stdout);
+    print_cleanup_record_index_json(cleanup_records, cleanup_count, "path");
+    fputs(",\"ledgered_cleanup_paths_by_scope\":", stdout);
+    print_cleanup_record_index_json(cleanup_records, cleanup_count, "scope");
+    fputs(",\"ledgered_cleanup_paths_by_op\":", stdout);
+    print_cleanup_record_index_json(cleanup_records, cleanup_count, "op");
+    fputs(",\"ledgered_cleanup_paths_by_cleanup_action\":", stdout);
+    print_cleanup_record_index_json(cleanup_records, cleanup_count, "cleanup_action");
+    print_residue_plan_api_json(cleanup_count);
     fputs(",\"uncleanable_paths\":[", stdout);
     if (!include_external) {
         char path[PATH_MAX], line[2048];
@@ -298,6 +410,7 @@ static void print_residue_plan_json(int include_external, int ledger)
     print_clean_json_string_array_item("remote service logs", &first);
     print_clean_json_string_array_item("operator-side records", &first);
     fputs("],\"forensic_no_trace\":false", stdout);
+    free(cleanup_records);
     fputc('}', stdout);
 }
 

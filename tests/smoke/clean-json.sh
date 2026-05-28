@@ -40,6 +40,13 @@ if "cleanup_ledger_path" not in doc:
 plan = doc.get("residue_plan")
 if not isinstance(plan, dict):
     raise SystemExit("clean dry-run json missing residue plan")
+api = (plan.get("api_collections") or {}).get("ledgered_cleanup_paths") or {}
+if api.get("count") != plan.get("ledgered_cleanup_path_count"):
+    raise SystemExit("residue plan cleanup path API count mismatch")
+if api.get("primary_key") != "path":
+    raise SystemExit("residue plan cleanup path API primary key missing")
+if "ledgered_cleanup_paths_by_scope" not in api.get("indexes", []):
+    raise SystemExit("residue plan cleanup path API indexes missing scope lookup")
 if doc.get("writes_attempted") != 0 or doc.get("paths_cleaned") != 0 or doc.get("cleanup_complete") is not False:
     raise SystemExit("clean dry-run json cleanup result counters are wrong")
 if doc.get("cleanup_warning") != "dry-run only":
@@ -100,6 +107,25 @@ if "payload" not in scopes:
 actions = {item.get("cleanup_action") for item in paths if isinstance(item, dict)}
 if "remove_with_runtime_root" not in actions:
     raise SystemExit("residue plan missing runtime-root cleanup action")
+by_scope = plan.get("ledgered_cleanup_paths_by_scope") or {}
+if not by_scope.get("payload"):
+    raise SystemExit("residue plan missing cleanup paths by scope")
+if paths[by_scope["payload"][0]].get("scope") != "payload":
+    raise SystemExit("residue plan scope index points at wrong cleanup path")
+by_action = plan.get("ledgered_cleanup_paths_by_cleanup_action") or {}
+if "remove_with_runtime_root" not in by_action:
+    raise SystemExit("residue plan missing cleanup paths by action")
+by_path = plan.get("ledgered_cleanup_paths_by_path") or {}
+if not any(".busierbox/payload" in key for key in by_path):
+    raise SystemExit("residue plan missing cleanup paths by path")
+api = (plan.get("api_collections") or {}).get("ledgered_cleanup_paths") or {}
+if api.get("count") != len(paths):
+    raise SystemExit("residue plan cleanup path API count mismatch after extract")
+if "ledgered_cleanup_paths_by_cleanup_action" not in api.get("indexes", []):
+    raise SystemExit("residue plan cleanup path API missing action index")
+resources = plan.get("api_resources_by_name") or {}
+if resources.get("ledgered_cleanup_paths", {}).get("records_key") != "ledgered_cleanup_paths":
+    raise SystemExit("residue plan cleanup path API resource missing")
 if plan.get("external_blocked_count") != 0:
     raise SystemExit("residue plan unexpectedly blocked external entries")
 PY
