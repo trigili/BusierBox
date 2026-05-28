@@ -86,4 +86,30 @@ grep -q '^TARGET_CPU=mips32r2-24kc$' "$work/resolved"
 BUSIERBOX_LOCAL_TARGET_PRESETS="$work/presets" scripts/resolve-target --list >"$work/list"
 grep -q "^$preset_name	" "$work/list"
 
+scripts/preset-from-survey \
+    --survey tests/fixtures/survey/bigendian-mips-uclibc-2.6.json \
+    --name mipseb-uclibc-lab \
+    --json >"$work/mipseb.json"
+python3 - "$work/mipseb.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data["arch"] == "mips"
+assert data["endian"] == "big"
+assert data["libc"] == "uclibc"
+assert data["kernel_floor"] == "2.6"
+assert data["cpu"] == "mips32"
+compat = data["compatibility"]
+assert compat["label"] == "exact"
+assert "arch inferred from survey evidence" in compat["reasons"]
+assert "libc inferred from survey evidence" in compat["reasons"]
+assert "kernel floor inferred from survey evidence" in compat["reasons"]
+assert "payload/runtime compatibility is scored separately" in compat["note"]
+evidence = data["evidence"]
+assert evidence["machine"] == "mips"
+assert evidence["endianness"] == "big"
+assert evidence["recommendations"]["target_cpu_guess"] == "mips32"
+PY
+
 printf '%s\n' "preset-from-survey ok"

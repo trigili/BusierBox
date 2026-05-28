@@ -1,0 +1,42 @@
+{
+  "schema": 2,
+  "uname": {
+    "sysname": "Linux",
+    "nodename": "wrt54g",
+    "release": "2.4.37",
+    "version": "#1",
+    "machine": "mipsel"
+  },
+  "arch": "mipsel",
+  "kernel": "2.4.37",
+  "endianness": "little",
+  "libc": "uClibc 0.9.28",
+  "os_markers": {
+    "vendor": "DD-WRT micro"
+  },
+  "dirs": [
+    {
+      "path": ".",
+      "writable": true,
+      "executable": true,
+      "free_bytes": 2097152
+    },
+    {
+      "path": "/tmp",
+      "writable": true,
+      "executable": true,
+      "noexec": false,
+      "free_bytes": 2097152
+    }
+  ],
+  "recommendations": {
+    "target_arch_guess": "mipsel",
+    "endian_guess": "little",
+    "target_cpu_guess": "mips32",
+    "target_abi_guess": "default",
+    "libc_guess": "uclibc",
+    "kernel_floor_guess": "2.4",
+    "payload_mode_possible": true,
+    "recommended_extract_dir": "."
+  }
+}

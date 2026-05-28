@@ -1,0 +1,43 @@
+{
+  "schema": 2,
+  "uname": {
+    "sysname": "Linux",
+    "nodename": "legacy-mipseb",
+    "release": "2.6.15",
+    "version": "#1",
+    "machine": "mips"
+  },
+  "arch": "mips",
+  "kernel": "2.6.15",
+  "endianness": "big",
+  "shell_probe": {
+    "libc_hints": "uClibc 0.9.30"
+  },
+  "os_markers": {
+    "vendor": "legacy-router"
+  },
+  "dirs": [
+    {
+      "path": ".",
+      "writable": true,
+      "executable": true,
+      "free_bytes": 8388608
+    },
+    {
+      "path": "/tmp",
+      "writable": true,
+      "executable": true,
+      "noexec": false,
+      "free_bytes": 8388608
+    }
+  ],
+  "recommendations": {
+    "target_arch_guess": "mips",
+    "endian_guess": "big",
+    "target_cpu_guess": "mips32",
+    "target_abi_guess": "default",
+    "kernel_floor_guess": "2.6",
+    "payload_mode_possible": true,
+    "recommended_extract_dir": "."
+  }
+}

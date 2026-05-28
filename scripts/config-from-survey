@@ -296,10 +296,10 @@ def guess_preset(arch, libc, kernel, machine):
         return "glinet-mt7621-openwrt-musl"
     if arch == "mipsel" and libc == "musl" and "openwrt" in text:
         return "mipsel-linux-4.x-musl"
-    if arch == "mipsel" and libc == "uclibc":
-        return "mipsel-linux-2.6-uclibc-legacy"
     if arch in {"mips", "mipsel"} and kernel.startswith("2.4"):
         return ""
+    if arch == "mipsel" and libc == "uclibc":
+        return "mipsel-linux-2.6-uclibc-legacy"
     return ""
 
 recs = data.get("recommendations", {})

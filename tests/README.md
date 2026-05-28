@@ -48,7 +48,7 @@ Every backend runs the same Tier 0 smoke contract:
 - `writable_dirs`
 - `recommendations`
 
-`scripts/config-from-survey` then converts the JSON into compatibility-oriented build settings such as target arch, endian, kernel floor, payload mode viability, extract directory, and whether Tier 1 tools like tmux/strace/gdbserver look appropriate.
+`scripts/config-from-survey` then converts the JSON into compatibility-oriented build settings such as target arch, endian, kernel floor, payload mode viability, extract directory, and whether Tier 1 tools like tmux/strace/gdbserver look appropriate. Survey fixtures include modern OpenWrt, low-storage unknown targets, ancient MIPS/uClibc 2.4, and big-endian MIPS/uClibc 2.6 cases so compatibility scoring stays conservative across old router classes.
 
 ## Target Matrix
 

@@ -30,6 +30,35 @@ assert any(reason.startswith("arch inferred ") for reason in compat["reasons"])
 assert any(reason.startswith("libc inferred ") for reason in compat["reasons"])
 PY
 
+scripts/config-from-survey --format shell tests/fixtures/survey/ancient-mipsel-uclibc-2.4.json >"$tmp/ancient.conf"
+grep -q '^BB_TARGET_PRESET='"'"''"'"'$' "$tmp/ancient.conf"
+grep -q '^BB_TARGET_ARCH=mipsel$' "$tmp/ancient.conf"
+grep -q '^BB_TARGET_ENDIAN=little$' "$tmp/ancient.conf"
+grep -q '^BB_TARGET_LIBC=uclibc$' "$tmp/ancient.conf"
+grep -q '^BB_KERNEL_FLOOR=2.4$' "$tmp/ancient.conf"
+grep -q '^# compatibility=heuristic$' "$tmp/ancient.conf"
+grep -q '^# compatibility_reason: no target preset selected$' "$tmp/ancient.conf"
+
+scripts/config-from-survey --format json tests/fixtures/survey/bigendian-mips-uclibc-2.6.json >"$tmp/mipseb.json"
+python3 - "$tmp/mipseb.json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+cfg = doc["recommendations"]
+assert cfg["BB_TARGET_PRESET"] == ""
+assert cfg["BB_TARGET_ARCH"] == "mips"
+assert cfg["BB_TARGET_ENDIAN"] == "big"
+assert cfg["BB_TARGET_LIBC"] == "uclibc"
+assert cfg["BB_KERNEL_FLOOR"] == "2.6"
+compat = doc["compatibility"]
+assert compat["label"] == "heuristic"
+assert "arch inferred mips" in compat["reasons"]
+assert "libc inferred uclibc" in compat["reasons"]
+assert "kernel floor 2.6" in compat["reasons"]
+assert "no target preset selected" in compat["reasons"]
+PY
+
 cat >"$tmp/reality-bad-runtime.json" <<'EOF'
 {
   "schema": 1,
