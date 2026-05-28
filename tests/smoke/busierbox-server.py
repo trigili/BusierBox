@@ -2422,6 +2422,93 @@ def main():
             print(stderr_rebind, file=sys.stderr)
             return 1
 
+        sigint_port = free_port()
+        sigint_cfg = Path(tmp) / "server-config-foreground-sigint.json"
+        sigint_state = Path(tmp) / "operator-session" / "foreground-sigint-state.json"
+        sigint_staged = Path(tmp) / "operator-session" / "foreground-sigint-staged.json"
+        sigint_sessions = Path(tmp) / "sessions-foreground-sigint"
+        sigint_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "file_service_port": sigint_port,
+            "session_root": str(sigint_sessions),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+            "file_service_tls": "no",
+            "operator_session_dir": str(Path(tmp) / "operator-session"),
+        }), encoding="utf-8")
+        sigint_proc = subprocess.Popen(
+            [
+                str(server),
+                "--config", str(sigint_cfg),
+                "--state-file", str(sigint_state),
+                "--staged-file", str(sigint_staged),
+                "--transport", "file-service",
+                "--file-service-tls", "no",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            sigint_status = run(
+                "scripts/busierbox-server",
+                "--config", str(sigint_cfg),
+                "--state-file", str(sigint_state),
+                "--staged-file", str(sigint_staged),
+                "--json-status",
+            )
+            if sigint_status.returncode == 0:
+                sigint_status_doc = json.loads(sigint_status.stdout)
+                sigint_rows = {row["name"]: row for row in sigint_status_doc.get("services", [])}
+                if sigint_rows.get("file-service", {}).get("actual") == "listening":
+                    break
+            time.sleep(0.05)
+        else:
+            sigint_proc.terminate()
+            print("foreground SIGINT test listener did not start", file=sys.stderr)
+            return 1
+        sigint_proc.send_signal(signal.SIGINT)
+        sigint_stdout, sigint_stderr = sigint_proc.communicate(timeout=5)
+        if sigint_proc.returncode != 0 or "Traceback" in (sigint_stderr or ""):
+            print("foreground file-service SIGINT did not exit cleanly", file=sys.stderr)
+            print(sigint_stdout, file=sys.stderr)
+            print(sigint_stderr, file=sys.stderr)
+            return 1
+        sigint_state_doc = json.loads(sigint_state.read_text(encoding="utf-8"))
+        sigint_service = sigint_state_doc.get("services", {}).get("file-service", {})
+        if (sigint_service.get("status") != "stopped" or
+                sigint_service.get("stopped_reason") != "SIGINT" or
+                sigint_service.get("pid") or
+                sigint_service.get("managed_by")):
+            print("foreground SIGINT did not persist stopped service state", file=sys.stderr)
+            print(json.dumps(sigint_state_doc, indent=2), file=sys.stderr)
+            return 1
+        sigint_session_paths = list(sigint_sessions.glob("*/session.json"))
+        if len(sigint_session_paths) != 1:
+            print("foreground SIGINT did not write one session record", file=sys.stderr)
+            return 1
+        sigint_session_doc = json.loads(sigint_session_paths[0].read_text(encoding="utf-8"))
+        if (sigint_session_doc.get("state") != "stopped" or
+                sigint_session_doc.get("exit_reason") != "SIGINT"):
+            print("foreground SIGINT session did not record exit reason", file=sys.stderr)
+            print(json.dumps(sigint_session_doc, indent=2), file=sys.stderr)
+            return 1
+        sigint_events = [
+            json.loads(line)
+            for line in (sigint_session_paths[0].parent / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        sigint_stop_events = [
+            event for event in sigint_events
+            if event.get("event") == "service_stop"
+        ]
+        if (not sigint_stop_events or
+                sigint_stop_events[-1].get("details", {}).get("reason") != "SIGINT" or
+                sigint_stop_events[-1].get("details", {}).get("port") != sigint_port):
+            print("foreground SIGINT service_stop event did not record reason and port", file=sys.stderr)
+            return 1
+
         tui_owned_port = free_port()
         tui_owned_cfg = Path(tmp) / "server-config-tui-owned.json"
         tui_owned_state = Path(tmp) / "operator-session" / "tui-owned-state.json"
