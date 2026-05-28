@@ -91,6 +91,9 @@ import sys
 
 events = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
 names = [event["event"] for event in events]
+assert all(event.get("id", "").startswith("cqevt-") for event in events)
+assert all(event.get("session", None) == "" for event in events)
+assert all("remote" in event for event in events)
 assert names.count("command_queue_poll_attempt") == 2
 assert names.count("command_queue_poll_error") == 2
 assert "command_queue_poll_shutdown" in names
@@ -131,6 +134,9 @@ import json
 import sys
 
 events = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
+assert all(event.get("id", "").startswith("cqevt-") for event in events)
+assert all(event.get("session", None) == "" for event in events)
+assert all("remote" in event for event in events)
 assert any(event["event"] == "command_queue_daemon_stop" for event in events)
 assert any(event["event"] == "command_queue_poll_shutdown" and event["details"]["status"] == "signal" for event in events)
 PY
@@ -178,6 +184,9 @@ import sys
 from pathlib import Path
 
 events = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
+assert all(event.get("id", "").startswith("cqevt-") for event in events)
+assert all(event.get("session", None) == "" for event in events)
+assert all("remote" in event for event in events)
 assert any(event["event"] == "command_queue_poll_no_command" for event in events)
 cfg = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 operator_events = Path(cfg["operator_session_dir"]) / "events.jsonl"
@@ -229,6 +238,9 @@ import sys
 from pathlib import Path
 
 events = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
+assert all(event.get("id", "").startswith("cqevt-") for event in events)
+assert all(event.get("session", None) == "" for event in events)
+assert all("remote" in event for event in events)
 assert any(event["event"] == "command_queue_poll_complete" and event["details"]["status"] == "delivered" for event in events)
 assert any(event["event"] == "command_queue_execution_decision" and event["details"]["status"] == "rejected" for event in events)
 assert any(event["event"] == "command_queue_result_upload" and event["details"]["status"] == "result-uploaded" for event in events)

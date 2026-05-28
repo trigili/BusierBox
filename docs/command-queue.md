@@ -84,7 +84,9 @@ delay. Each live attempt sends a plain HTTP
 `command_queue_poll_complete`, or `command_queue_poll_error`. Delivered command
 metadata also records `command_queue_execution_decision` with status
 `rejected`, and the daemon records `command_queue_poll_shutdown` when the loop
-exits.
+exits. Target-side JSONL events use the same structured event-bus envelope as
+operator events: `schema`, `id`, `ts`, `service`, `session`, `event`, `level`,
+`remote`, and `details`.
 
 The live daemon writes a target-side state file, defaulting to
 `$BB_RUNTIME_ROOT/run/command-queue-daemon.state`. `command-queue status`

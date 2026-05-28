@@ -392,6 +392,7 @@ static void append_poll_event(const char *path, const char *event, const char *m
 {
     FILE *fh;
     char ts[32];
+    char id[192];
 
     if (!path || !path[0])
         return;
@@ -399,12 +400,17 @@ static void append_poll_event(const char *path, const char *event, const char *m
     if (!fh)
         return;
     utc_timestamp(ts, sizeof(ts));
+    snprintf(id, sizeof(id), "cqevt-%ld-%d-%s", (long)getpid(), attempt, event ? event : "event");
     fputs("{\"schema\":1,\"ts\":", fh);
     bb_json_string(fh, ts);
+    fputs(",\"id\":", fh);
+    bb_json_string(fh, id);
     fputs(",\"service\":\"command-queue\",\"event\":", fh);
     bb_json_string(fh, event);
     fputs(",\"level\":", fh);
     bb_json_string(fh, error && error[0] ? "warning" : "info");
+    fputs(",\"session\":\"\",\"remote\":", fh);
+    bb_json_string(fh, endpoint ? endpoint : "");
     fputs(",\"details\":{\"mode\":", fh);
     bb_json_string(fh, mode);
     fputs(",\"endpoint\":", fh);
