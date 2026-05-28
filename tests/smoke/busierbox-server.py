@@ -76,7 +76,7 @@ def main():
         return 1
     for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--json-status", "--api-status", "--event-limit",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
-                 "--record-command-result", "--result-json"):
+                 "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job"):
         if word not in combined:
             print(f"busierbox-server help missing operator workbench flag: {word}", file=sys.stderr)
             return 1
@@ -227,6 +227,132 @@ def main():
         copied_text = command_copy_file.read_text(encoding="utf-8")
         if "busierbox put /etc/config/network" not in copied_text:
             print("generated target command copy file has wrong content", file=sys.stderr)
+            return 1
+
+        workbench_job_dir = Path(tmp) / "operator-session-workbench-job"
+        workbench_job_cfg = Path(tmp) / "server-config-workbench-job.json"
+        workbench_job_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(workbench_job_dir),
+            "session_root": str(Path(tmp) / "sessions-workbench-job"),
+        }), encoding="utf-8")
+        started_job = run(
+            "scripts/busierbox-server",
+            "--config", str(workbench_job_cfg),
+            "--start-workbench-job", "package-artifact",
+            "--job-command", "printf 'job ready\\n'; sleep 30",
+        )
+        if started_job.returncode != 0 or "started workbench job" not in started_job.stdout:
+            print("workbench background job did not start", file=sys.stderr)
+            print(started_job.stdout, file=sys.stderr)
+            print(started_job.stderr, file=sys.stderr)
+            return 1
+        job_id = ""
+        for token in started_job.stdout.replace(":", " ").split():
+            if token.startswith("job-"):
+                job_id = token
+                break
+        if not job_id:
+            print("workbench background job id missing", file=sys.stderr)
+            print(started_job.stdout, file=sys.stderr)
+            return 1
+        job_status = None
+        for _ in range(20):
+            job_status_doc = run(
+                "scripts/busierbox-server",
+                "--config", str(workbench_job_cfg),
+                "--json-status",
+            )
+            job_status = json.loads(job_status_doc.stdout)
+            job = (job_status.get("workbench_jobs_by_id") or {}).get(job_id) or {}
+            if job.get("cancel_supported") is True:
+                break
+            time.sleep(0.1)
+        job = (job_status.get("workbench_jobs_by_id") or {}).get(job_id) or {}
+        if (job.get("action_id") != "package-artifact" or
+                job.get("effective_state") != "running" or
+                job.get("cancel_supported") is not True or
+                "environ:job-id" not in (job.get("ownership_evidence") or []) or
+                "environ:action-id" not in (job.get("ownership_evidence") or []) or
+                "job ready" not in "\n".join(job.get("last_output_tail") or []) or
+                job_status.get("summary", {}).get("workbench_job_running_count") != 1):
+            print("workbench background job status missing live managed job", file=sys.stderr)
+            print(json.dumps(job_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        cancelled_job = run(
+            "scripts/busierbox-server",
+            "--config", str(workbench_job_cfg),
+            "--cancel-workbench-job", job_id,
+        )
+        if cancelled_job.returncode != 0 or "cancel requested" not in cancelled_job.stdout:
+            print("workbench background job did not cancel", file=sys.stderr)
+            print(cancelled_job.stdout, file=sys.stderr)
+            print(cancelled_job.stderr, file=sys.stderr)
+            return 1
+        for _ in range(20):
+            cancelled_status_doc = run(
+                "scripts/busierbox-server",
+                "--config", str(workbench_job_cfg),
+                "--json-status",
+            )
+            cancelled_status = json.loads(cancelled_status_doc.stdout)
+            cancelled = (cancelled_status.get("workbench_jobs_by_id") or {}).get(job_id) or {}
+            if cancelled.get("effective_state") != "running":
+                break
+            time.sleep(0.1)
+        if (cancelled.get("state") != "cancelling" or
+                cancelled.get("cancel_supported") is not False or
+                cancelled_status.get("summary", {}).get("workbench_job_cancel_supported_count") != 0):
+            print("workbench background job cancellation status missing", file=sys.stderr)
+            print(json.dumps(cancelled_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        job_events = [
+            json.loads(line)
+            for line in (workbench_job_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        if (not any(event.get("event") == "workbench_job_started" and event.get("details", {}).get("job_id") == job_id for event in job_events) or
+                not any(event.get("event") == "workbench_job_cancel_requested" and event.get("details", {}).get("job_id") == job_id for event in job_events)):
+            print("workbench background job events missing", file=sys.stderr)
+            return 1
+
+        forged_dir = Path(tmp) / "operator-session-forged-job"
+        forged_cfg = Path(tmp) / "server-config-forged-job.json"
+        forged_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(forged_dir),
+            "session_root": str(Path(tmp) / "sessions-forged-job"),
+        }), encoding="utf-8")
+        forged_dir.mkdir(parents=True, exist_ok=True)
+        (forged_dir / "workbench-jobs.json").write_text(json.dumps({
+            "schema": 1,
+            "jobs": [{
+                "id": "job-forged",
+                "action_id": "package-artifact",
+                "state": "running",
+                "pid": os.getpid(),
+                "managed_by": "busierbox-server-workbench",
+                "started_at": "2026-01-01T00:00:00Z",
+            }],
+        }), encoding="utf-8")
+        forged_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(forged_cfg),
+            "--json-status",
+        ).stdout)
+        forged_job = (forged_status.get("workbench_jobs_by_id") or {}).get("job-forged") or {}
+        if forged_job.get("cancel_supported") is not False or forged_job.get("pid_managed") is not False:
+            print("forged workbench job ledger was treated as cancellable", file=sys.stderr)
+            print(json.dumps(forged_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        forged_cancel = run(
+            "scripts/busierbox-server",
+            "--config", str(forged_cfg),
+            "--cancel-workbench-job", "job-forged",
+        )
+        if forged_cancel.returncode == 0 or "not cancellable" not in (forged_cancel.stdout + forged_cancel.stderr):
+            print("forged workbench job cancellation was not rejected", file=sys.stderr)
+            print(forged_cancel.stdout, file=sys.stderr)
+            print(forged_cancel.stderr, file=sys.stderr)
             return 1
 
         isolated_operator_dir = Path(tmp) / "isolated-operator-session"

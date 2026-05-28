@@ -720,15 +720,22 @@ ownership metadata, log path, effective state, exit status when recorded, and a
 bounded last-output tail. Job indexes such as `workbench_jobs_by_id`,
 `workbench_jobs_by_action`, `workbench_jobs_by_effective_state`, and
 `workbench_jobs_by_cancel_supported` let operator UIs show or cancel only jobs
-that are clearly owned by the workbench/runtime manager. The line-oriented fallback exposes
-the same operator path health, compact service and activity summaries, recent
-upload/fetch activity, event aggregate counts, refresh state, and compact event
-outcome details so non-curses or non-TTY runs still show whether listener state,
-logs, staged files, session roots, transfer activity, and recent event outcomes
-are usable. It can also list the same operator workflow actions and their exact
-underlying commands. Its release staging action accepts a displayed release row number,
-recommendation id, artifact path, `by_device:NAME`, or `by_tuple_path:PATH` and
-stages the same explicit target-side fetch record as the curses browser.
+that are clearly owned by the workbench/runtime manager. `--start-workbench-job
+ACTION` starts a background-capable operator workflow action, records the exact
+command and log path, and marks the spawned process with workbench environment
+ownership tokens. `--cancel-workbench-job JOB` only requests cancellation when
+those process environment tokens still match the ledger entry; a forged or stale
+ledger record is visible in status but is not cancellable. The line-oriented
+fallback exposes the same operator path health, compact service and activity
+summaries, recent upload/fetch activity, event aggregate counts, refresh state,
+and compact event outcome details so non-curses or non-TTY runs still show
+whether listener state, logs, staged files, session roots, transfer activity,
+and recent event outcomes are usable. It can also list the same operator
+workflow actions and their exact underlying commands, start background-capable
+jobs, and request cancellation for owned jobs. Its release staging action accepts
+a displayed release row number, recommendation id, artifact path,
+`by_device:NAME`, or `by_tuple_path:PATH` and stages the same explicit
+target-side fetch record as the curses browser.
 
 Inspect and clean BusierBox-controlled runtime state:
 

@@ -984,6 +984,46 @@ def load_workbench_jobs(cfg):
     return data
 
 
+def write_workbench_jobs(cfg, data):
+    data.setdefault("schema", 1)
+    if not isinstance(data.get("jobs"), list):
+        data["jobs"] = []
+    atomic_write_json(workbench_jobs_path(cfg), data)
+
+
+def next_workbench_job_id(data):
+    existing = {str(rec.get("id") or "") for rec in data.get("jobs") or [] if isinstance(rec, dict)}
+    base = f"job-{int(time.time())}-{os.getpid()}"
+    if base not in existing:
+        return base
+    for idx in range(2, 1000):
+        candidate = f"{base}-{idx}"
+        if candidate not in existing:
+            return candidate
+    raise ValueError("unable to allocate unique workbench job id")
+
+
+def workbench_job_ownership_evidence(pid, rec):
+    if not pid:
+        return []
+    rec = rec if isinstance(rec, dict) else {}
+    job_id = str(rec.get("id") or "")
+    action_id = str(rec.get("action_id") or "")
+    evidence = []
+    if str(rec.get("managed_by") or "") == "busierbox-server-workbench":
+        evidence.append("ledger:managed-by-workbench")
+    if job_id and pid_environ_contains(pid, "BUSIERBOX_WORKBENCH_JOB_ID", job_id):
+        evidence.append("environ:job-id")
+    if action_id and pid_environ_contains(pid, "BUSIERBOX_WORKBENCH_ACTION_ID", action_id):
+        evidence.append("environ:action-id")
+    return evidence
+
+
+def workbench_job_has_cancel_ownership(evidence):
+    evidence = set(evidence or [])
+    return "environ:job-id" in evidence and "environ:action-id" in evidence
+
+
 def workbench_job_records(cfg, actions=None):
     data = load_workbench_jobs(cfg)
     actions_by_id = {rec.get("id", ""): rec for rec in (actions or workbench_action_records(cfg)) if rec.get("id")}
@@ -1001,8 +1041,9 @@ def workbench_job_records(cfg, actions=None):
             effective_state = "exited"
         log_path = str(rec.get("log_path") or "")
         output_tail = tail_text_file(log_path, rec.get("tail_limit", 20))
-        managed_by = str(rec.get("managed_by") or "")
-        cancel_supported = bool(pid and pid_is_alive and managed_by and action.get("background_supported") is True)
+        ownership_evidence = workbench_job_ownership_evidence(pid, rec)
+        cancel_ownership = workbench_job_has_cancel_ownership(ownership_evidence)
+        cancel_supported = bool(pid and pid_is_alive and cancel_ownership and action.get("background_supported") is True)
         rec.update({
             "action_id": str(rec.get("action_id") or ""),
             "action_label": action.get("label", ""),
@@ -1012,7 +1053,8 @@ def workbench_job_records(cfg, actions=None):
             "state": state,
             "effective_state": effective_state,
             "pid_alive": pid_is_alive,
-            "pid_managed": bool(pid and managed_by),
+            "pid_managed": bool(cancel_ownership),
+            "ownership_evidence": ownership_evidence,
             "cancel_supported": cancel_supported,
             "log_path": log_path,
             "log_exists": Path(log_path).is_file() if log_path else False,
@@ -1049,6 +1091,84 @@ def workbench_job_summary(records):
         "action_counts": record_count_by_key(records, "action_id"),
         "category_counts": record_count_by_key(records, "category"),
     }
+
+
+def start_workbench_job(cfg, action_id, command_override=None):
+    actions = {rec.get("id", ""): rec for rec in workbench_action_records(cfg) if rec.get("id")}
+    action = actions.get(str(action_id or ""))
+    if not action:
+        raise ValueError(f"unknown workbench action: {action_id}")
+    if action.get("background_supported") is not True:
+        raise ValueError(f"workbench action is not background-capable: {action_id}")
+    command = str(command_override or action.get("command") or "").strip()
+    if not command:
+        raise ValueError("workbench action has no command")
+    if not command_override and any(token in command for token in (" NAME ", " ARTIFACT ", "KEY=VALUE")):
+        raise ValueError("workbench action command contains placeholders and must be configured before running")
+    data = load_workbench_jobs(cfg)
+    job_id = next_workbench_job_id(data)
+    operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
+    log_dir = operator_dir / "jobs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"{job_id}.log"
+    env = os.environ.copy()
+    env["BUSIERBOX_WORKBENCH_JOB_ID"] = job_id
+    env["BUSIERBOX_WORKBENCH_ACTION_ID"] = str(action_id)
+    env["BUSIERBOX_WORKBENCH_JOBS_FILE"] = str(workbench_jobs_path(cfg))
+    with log_path.open("ab") as log:
+        proc = subprocess.Popen(
+            ["/bin/sh", "-c", command],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            env=env,
+            start_new_session=True,
+        )
+    rec = {
+        "id": job_id,
+        "action_id": str(action_id),
+        "category": action.get("category", ""),
+        "script": action.get("script", ""),
+        "command": command,
+        "state": "running",
+        "pid": proc.pid,
+        "process_group_id": proc.pid,
+        "managed_by": "busierbox-server-workbench",
+        "managed_by_pid": os.getpid(),
+        "started_at": utc_now(),
+        "log_path": str(log_path),
+    }
+    data["jobs"].append(rec)
+    write_workbench_jobs(cfg, data)
+    append_event(cfg, "workbench", "workbench_job_started", details={"job_id": job_id, "action_id": action_id, "command": command, "pid": proc.pid, "log_path": str(log_path)})
+    return {item.get("id"): item for item in workbench_job_records(cfg, [action])}.get(job_id, rec)
+
+
+def cancel_workbench_job(cfg, job_id):
+    data = load_workbench_jobs(cfg)
+    for rec in data.get("jobs") or []:
+        if not isinstance(rec, dict) or str(rec.get("id") or "") != str(job_id):
+            continue
+        current = {item.get("id"): item for item in workbench_job_records(cfg)}.get(str(job_id), rec)
+        if not current.get("cancel_supported"):
+            raise ValueError(f"workbench job is not cancellable with current ownership evidence: {job_id}")
+        pid = int(current.get("pid"))
+        process_group = int(current.get("process_group_id") or pid)
+        try:
+            os.killpg(process_group, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except OSError as exc:
+            raise ValueError(f"unable to cancel workbench job {job_id}: {exc}") from exc
+        rec.update({
+            "state": "cancelling",
+            "cancel_requested_at": utc_now(),
+            "cancel_signal": "SIGTERM",
+        })
+        write_workbench_jobs(cfg, data)
+        append_event(cfg, "workbench", "workbench_job_cancel_requested", details={"job_id": job_id, "pid": pid, "process_group_id": process_group, "ownership_evidence": current.get("ownership_evidence") or []})
+        return current
+    raise ValueError(f"unknown workbench job: {job_id}")
 
 
 def latest_record_value(records, keys):
@@ -3577,6 +3697,19 @@ def pid_cmdline_args(pid):
         return [part.decode("utf-8", errors="replace") for part in raw.split(b"\0") if part]
     except (OSError, ValueError, TypeError):
         return []
+
+
+def pid_environ_contains(pid, key, expected):
+    try:
+        raw = Path(f"/proc/{int(pid)}/environ").read_bytes()
+    except (OSError, ValueError, TypeError):
+        return False
+    prefix = (str(key) + "=").encode("utf-8")
+    expected_bytes = str(expected).encode("utf-8")
+    for part in raw.split(b"\0"):
+        if part.startswith(prefix) and part[len(prefix):] == expected_bytes:
+            return True
+    return False
 
 
 def paths_equivalent(left, right):
@@ -7083,6 +7216,8 @@ def run_line_tui(cfg):
         print("  9 open local path in pager")
         print("  10 stage release recommendation/device/tuple")
         print("  11 show operator workflow actions")
+        print("  12 start background workflow job")
+        print("  13 cancel background workflow job")
         print("  c show/copy generated commands")
         print("  r refresh")
         print("  ? help")
@@ -7142,6 +7277,31 @@ def run_line_tui(cfg):
                 print(f"   command: {rec.get('command', '')}")
                 print(f"   category={rec.get('category', '')} background_supported={'yes' if rec.get('background_supported') else 'no'} confirm={'yes' if rec.get('requires_confirmation') else 'no'}")
             append_event(cfg, "workbench", "workbench_actions_viewed", details={"action_count": len(snap.get("workbench_actions") or [])})
+        elif choice == "12":
+            snap = workbench_snapshot(cfg)
+            runnable = [rec for rec in snap.get("workbench_actions") or [] if rec.get("background_supported")]
+            for idx, rec in enumerate(runnable, 1):
+                print(f"{idx}: {rec.get('id', '')} {rec.get('command', '')}")
+            selected = input("background action id or number> ").strip()
+            if selected:
+                try:
+                    action = runnable[int(selected) - 1]["id"] if selected.isdigit() else selected
+                    rec = start_workbench_job(cfg, action)
+                    print(f"started job {rec.get('id', '')}: pid={rec.get('pid', '')} log={rec.get('log_path', '')}")
+                    print(f"command: {rec.get('command', '')}")
+                except (ValueError, IndexError) as exc:
+                    print(exc)
+        elif choice == "13":
+            snap = workbench_snapshot(cfg)
+            for rec in snap.get("workbench_jobs") or []:
+                print(f"{rec.get('id', '')}: action={rec.get('action_id', '')} state={rec.get('effective_state', '')} cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}")
+            job_id = input("job id> ").strip()
+            if job_id:
+                try:
+                    rec = cancel_workbench_job(cfg, job_id)
+                    print(f"cancel requested for {rec.get('id', job_id)}")
+                except ValueError as exc:
+                    print(exc)
         elif choice == "r":
             rec = record_workbench_refresh(cfg)
             print(f"refreshed workbench at {rec.get('last_refresh_at', '')}")
@@ -7157,7 +7317,7 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage release item, 11 workflow actions, 8/d unstage, 9/v view, c show/copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage release item, 11 actions, 12 start job, 13 cancel job, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 
@@ -7657,6 +7817,11 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="operator last copied/generated command text path")
     parser.add_argument("--copy-target-command", type=int,
                         help="copy/export generated target command N to clipboard when available and to the command copy file")
+    parser.add_argument("--start-workbench-job",
+                        help="start a background-capable operator workflow action by id")
+    parser.add_argument("--cancel-workbench-job",
+                        help="cancel a managed workbench background job by id when ownership evidence matches")
+    parser.add_argument("--job-command", help=argparse.SUPPRESS)
     parser.add_argument("--queue-command",
                         help="record an explicit operator command queue entry; the poll listener may deliver metadata but will not execute it")
     parser.add_argument("--queue-timeout", type=int,
@@ -7738,6 +7903,18 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     cfg["_event_limit"] = args.event_limit
 
     try:
+        if args.start_workbench_job:
+            print(f"workbench action: {args.start_workbench_job}")
+            rec = start_workbench_job(cfg, args.start_workbench_job, command_override=args.job_command)
+            print(f"started workbench job {rec.get('id', '')}: pid={rec.get('pid', '')}")
+            print(f"log={rec.get('log_path', '')}")
+            print(f"command={rec.get('command', '')}")
+            return 0
+        if args.cancel_workbench_job:
+            rec = cancel_workbench_job(cfg, args.cancel_workbench_job)
+            print(f"cancel requested for workbench job {rec.get('id', args.cancel_workbench_job)}")
+            print(f"pid={rec.get('pid', '')}")
+            return 0
         if args.copy_target_command:
             rec = copy_generated_command(cfg, args.copy_target_command)
             print(f"copied target command {args.copy_target_command} to {rec['path']}")
