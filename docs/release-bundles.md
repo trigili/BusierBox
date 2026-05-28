@@ -417,8 +417,11 @@ but omits event records.
 Service rows remain available in `services`,
 and the same records are indexed by service name, actual state, configured
 state, and port in `services_by_name`, `services_by_actual`,
-`services_by_configured`, `services_by_port`, `services_by_pid`, and
-`services_by_listener_pid` for frontend clients that need direct lookup without
+`services_by_configured`, `services_by_bind_address`, `services_by_port`,
+`services_by_pid`, and `services_by_listener_pid`. Additional lifecycle indexes
+`services_by_tls`, `services_by_stale`, `services_by_pid_alive`,
+`services_by_pid_managed`, `services_by_listener_bind_mismatch`, and
+`services_by_has_error` let frontend clients filter operator rows without
 reconstructing their own maps. Listener ports are exposed as `ports`,
 `ports_by_number`, `ports_by_service`, and `ports_by_actual`. Service and port
 records carry `warning_count` and `warning_types` fields, and are grouped in

@@ -2111,17 +2111,27 @@ def service_record_indexes(records):
     by_port = {}
     by_pid = {}
     by_listener_pid = {}
+    by_bind_address = {}
+    by_tls = records_by_bool(records, "tls")
+    by_stale = records_by_bool(records, "stale")
+    by_pid_alive = records_by_bool(records, "pid_alive")
+    by_pid_managed = records_by_bool(records, "pid_managed")
+    by_listener_bind_mismatch = records_by_bool(records, "listener_bind_mismatch")
+    by_has_error = {"yes": [], "no": []}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
         actual = str(rec.get("actual") or "")
         configured = str(rec.get("configured") or "")
+        bind_address = str(rec.get("bind_address") or "")
         port = rec.get("port")
         pid = str(rec.get("pid") or "")
         if actual:
             by_actual.setdefault(actual, []).append(rec)
         if configured:
             by_configured.setdefault(configured, []).append(rec)
+        if bind_address:
+            by_bind_address.setdefault(bind_address, []).append(rec)
         if port not in (None, ""):
             by_port.setdefault(str(port), []).append(rec)
         if pid:
@@ -2129,7 +2139,12 @@ def service_record_indexes(records):
         for listener_pid in rec.get("listener_pids") or []:
             if listener_pid not in (None, ""):
                 by_listener_pid.setdefault(str(listener_pid), []).append(rec)
-    return by_actual, by_configured, by_port, by_pid, by_listener_pid
+        by_has_error["yes" if rec.get("error") else "no"].append(rec)
+    return (
+        by_actual, by_configured, by_bind_address, by_port, by_pid,
+        by_listener_pid, by_tls, by_stale, by_pid_alive, by_pid_managed,
+        by_listener_bind_mismatch, by_has_error,
+    )
 
 
 def port_records_from_services(records):
@@ -6622,7 +6637,18 @@ def status_document(cfg):
      fetches_by_status_remote_addr,
      fetches_by_http_status_remote_addr) = fetch_record_indexes(fetches)
     summary, warnings = status_summary_and_warnings(services)
-    services_by_actual, services_by_configured, services_by_port, services_by_pid, services_by_listener_pid = service_record_indexes(services)
+    (services_by_actual,
+     services_by_configured,
+     services_by_bind_address,
+     services_by_port,
+     services_by_pid,
+     services_by_listener_pid,
+     services_by_tls,
+     services_by_stale,
+     services_by_pid_alive,
+     services_by_pid_managed,
+     services_by_listener_bind_mismatch,
+     services_by_has_error) = service_record_indexes(services)
     ports = port_records_from_services(services)
     ports_by_number, ports_by_service, ports_by_actual = port_record_indexes(ports)
     paths = {
@@ -6816,6 +6842,13 @@ def status_document(cfg):
         "latest_staged_at": latest_record_value(staged_records, ("staged_at",)),
         "service_actual_counts": record_count_by_key(services, "actual"),
         "service_configured_counts": record_count_by_key(services, "configured"),
+        "service_bind_address_counts": record_count_by_key(services, "bind_address"),
+        "service_tls_counts": {key: len(value) for key, value in services_by_tls.items()},
+        "service_stale_counts": {key: len(value) for key, value in services_by_stale.items()},
+        "service_pid_alive_counts": {key: len(value) for key, value in services_by_pid_alive.items()},
+        "service_pid_managed_counts": {key: len(value) for key, value in services_by_pid_managed.items()},
+        "service_listener_bind_mismatch_counts": {key: len(value) for key, value in services_by_listener_bind_mismatch.items()},
+        "service_has_error_counts": {key: len(value) for key, value in services_by_has_error.items()},
         "port_count": len(ports),
         "port_actual_counts": record_count_by_key(ports, "actual"),
         "warning_count": warning_summary.get("total_count", 0),
@@ -7054,7 +7087,10 @@ def status_document(cfg):
         "services": api_collection_record(
             "services", services, "name", (
                 "services_by_name", "services_by_actual", "services_by_configured",
-                "services_by_port", "services_by_pid", "services_by_listener_pid",
+                "services_by_bind_address", "services_by_port", "services_by_pid",
+                "services_by_listener_pid", "services_by_tls", "services_by_stale",
+                "services_by_pid_alive", "services_by_pid_managed",
+                "services_by_listener_bind_mismatch", "services_by_has_error",
                 "services_by_has_warnings", "services_by_warning_type",
             ), "service_count",
         ),
@@ -7300,9 +7336,16 @@ def status_document(cfg):
         "services_by_name": services_by_name,
         "services_by_actual": services_by_actual,
         "services_by_configured": services_by_configured,
+        "services_by_bind_address": services_by_bind_address,
         "services_by_port": services_by_port,
         "services_by_pid": services_by_pid,
         "services_by_listener_pid": services_by_listener_pid,
+        "services_by_tls": services_by_tls,
+        "services_by_stale": services_by_stale,
+        "services_by_pid_alive": services_by_pid_alive,
+        "services_by_pid_managed": services_by_pid_managed,
+        "services_by_listener_bind_mismatch": services_by_listener_bind_mismatch,
+        "services_by_has_error": services_by_has_error,
         "services_by_has_warnings": services_by_has_warnings,
         "services_by_warning_type": services_by_warning_type,
         "ports": ports,

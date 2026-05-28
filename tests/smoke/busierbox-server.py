@@ -1439,7 +1439,7 @@ def main():
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         for collection_name, expected_count, expected_index in (
-                ("services", len(queue_status_json.get("services") or []), "services_by_name"),
+                ("services", len(queue_status_json.get("services") or []), "services_by_has_error"),
                 ("ports", len(queue_status_json.get("ports") or []), "ports_by_number"),
                 ("path_status_records", len(path_status_records), "path_status_by_name"),
                 ("browser_paths", len(browser_paths), "browser_paths_by_expected_kind_mismatch"),
@@ -2133,6 +2133,24 @@ def main():
         if ((status_doc.get("services_by_pid") or {}).get(recorded_pid, [{}])[0].get("name") != "file-service" or
                 (status_doc.get("services_by_listener_pid") or {}).get(listener_pid, [{}])[0].get("name") != "file-service"):
             print("status missing service PID lookup indexes", file=sys.stderr)
+            print(status.stdout, file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        lifecycle_summary = status_doc.get("summary") or {}
+        if (not any(row.get("name") == "file-service" for row in (status_doc.get("services_by_bind_address") or {}).get("127.0.0.1", [])) or
+                not any(row.get("name") == "tls-shell" for row in (status_doc.get("services_by_tls") or {}).get("yes", [])) or
+                not any(row.get("name") == "file-service" for row in (status_doc.get("services_by_tls") or {}).get("no", [])) or
+                not any(row.get("name") == "file-service" for row in (status_doc.get("services_by_stale") or {}).get("no", [])) or
+                not any(row.get("name") == "file-service" for row in (status_doc.get("services_by_pid_alive") or {}).get("yes", [])) or
+                not any(row.get("name") == "file-service" for row in (status_doc.get("services_by_pid_managed") or {}).get("yes", [])) or
+                not any(row.get("name") == "file-service" for row in (status_doc.get("services_by_listener_bind_mismatch") or {}).get("no", [])) or
+                len((status_doc.get("services_by_has_error") or {}).get("no", [])) != 5 or
+                lifecycle_summary.get("service_bind_address_counts", {}).get("127.0.0.1") != 5 or
+                lifecycle_summary.get("service_tls_counts", {}).get("yes") != 2 or
+                lifecycle_summary.get("service_tls_counts", {}).get("no") != 3 or
+                lifecycle_summary.get("service_pid_alive_counts", {}).get("yes") != 1 or
+                lifecycle_summary.get("service_pid_managed_counts", {}).get("yes") != 1):
+            print("status missing service lifecycle/filter indexes", file=sys.stderr)
             print(status.stdout, file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
