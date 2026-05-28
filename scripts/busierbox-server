@@ -2390,6 +2390,21 @@ def artifact_doom_wad_lines(artifact):
     return lines
 
 
+def release_recommendation_lines(release, limit=10):
+    lines = []
+    records = release.get("recommendation_records") or []
+    for rec in records[:limit]:
+        artifact = rec.get("artifact") or rec.get("artifact_name") or ""
+        compat = (rec.get("compatibility") or {}).get("label") or ""
+        suffix = f" compatibility={compat}" if compat else ""
+        preset = rec.get("payload_preset") or ""
+        preset_text = f" preset={preset}" if preset else ""
+        lines.append(f"{rec.get('scope', '')}:{rec.get('key', '')} -> {artifact}{preset_text}{suffix}")
+    if records and len(records) > limit:
+        lines.append(f"... {len(records) - limit} more recommendation(s)")
+    return lines
+
+
 def stage_release_artifact(cfg, artifact_name):
     rel = release_context()
     if not rel:
@@ -5320,6 +5335,11 @@ def print_status(cfg, json_output=False):
             print(f"  artifact {artifact.get('name', '')} tuple={artifact.get('tuple_path', '')} preset={artifact.get('payload_preset', '')}{suffix}")
             for line in artifact_compatibility_lines(artifact):
                 print(f"    {line}")
+        recommendation_lines = release_recommendation_lines(doc["release"])
+        if recommendation_lines:
+            print("  recommendations:")
+            for line in recommendation_lines:
+                print(f"    {line}")
         for device in doc["release"].get("devices", [])[:8]:
             print(f"  device {device.get('name', '')} -> {device.get('tuple_path', '')} artifacts={device.get('artifact_count', len(device.get('artifacts') or []))}")
             for path in (device.get("artifact_paths") or [])[:3]:
@@ -5577,6 +5597,13 @@ def print_workbench(cfg):
                 print(f"    stage: scripts/busierbox-server --stage-release-artifact {shquote(artifact.get('release_path') or artifact.get('name', ''))}")
         else:
             print("  artifacts: none")
+        print("Release recommendations:")
+        recommendation_lines = release_recommendation_lines(rel)
+        if recommendation_lines:
+            for line in recommendation_lines:
+                print(f"  {line}")
+        else:
+            print("  none")
         print("Release devices:")
         for device in rel.get("devices", [])[:12] or [{"name": "none", "tuple_path": ""}]:
             print(f"  {device.get('name', '')} -> {device.get('tuple_path', '')} artifacts={device.get('artifact_count', len(device.get('artifacts') or []))}")

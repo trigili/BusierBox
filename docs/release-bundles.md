@@ -413,7 +413,11 @@ broken manifest". Invalid bundle-like directories also emit an
 release-state errors. Human `--status` and the line-oriented fallback print a
 compact release summary with validity, artifact/device/tuple counts, total
 artifact size, release directory, and release name before listing release
-browser entries. Release artifact aggregates are exposed as
+browser entries. They also print compact release recommendation rows such as
+`by_device:lab-router -> bin/busierbox-target-full`, keeping the same safety
+boundary: staging remains explicit through `--stage-release-artifact` or the
+TUI action, and nothing is pushed to or executed on the target automatically.
+Release artifact aggregates are exposed as
 `release.artifact_stats` and mirrored into `summary`
 as `release_artifact_total_size`, `release_artifact_compatibility_counts`,
 `release_artifact_payload_preset_counts`, `release_artifact_source_counts`,

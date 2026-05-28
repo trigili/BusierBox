@@ -2447,6 +2447,8 @@ def main():
                 "compatibility_reason: fixture" not in release_view.stdout or
                 "provider_status_gdbserver: found" not in release_view.stdout or
                 "doom_wad: doom.wad size=9" not in release_view.stdout or
+                "Release recommendations" not in release_view.stdout or
+                "by_device:lab-router -> bin/busierbox-test" not in release_view.stdout or
                 "Release devices" not in release_view.stdout or
                 "lab-router" not in release_view.stdout or
                 "artifacts=1" not in release_view.stdout or
@@ -2470,7 +2472,9 @@ def main():
         if ("Release browser" not in release_text_status.stdout or
                 "Release summary:" not in release_text_status.stdout or
                 "present=yes valid=yes release_json_valid=yes release_index_valid=yes" not in release_text_status.stdout or
-                "artifacts=1 devices=1 tuples=1 total_size=9" not in release_text_status.stdout):
+                "artifacts=1 devices=1 tuples=1 total_size=9" not in release_text_status.stdout or
+                "recommendations:" not in release_text_status.stdout or
+                "by_device:lab-router -> bin/busierbox-test" not in release_text_status.stdout):
             print("text --status missing release summary", file=sys.stderr)
             print(release_text_status.stdout, file=sys.stderr)
             return 1
