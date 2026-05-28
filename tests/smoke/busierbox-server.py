@@ -965,6 +965,7 @@ def main():
                 ("browser_paths", len(browser_paths), "browser_paths_by_kind_source_id"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_id"),
+                ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_mode"),
                 ("events", len(queue_status_json.get("events") or []), "events_by_id"),
         ):
             collection = api_collections.get(collection_name) or {}
@@ -1047,6 +1048,14 @@ def main():
                     return 1
         command_queue_doc = queue_status_json.get("command_queue") or {}
         command_queue_modes = command_queue_doc.get("mode_semantics") or {}
+        command_queue_mode_records = queue_status_json.get("command_queue_mode_records") or []
+        command_queue_modes_by_mode = queue_status_json.get("command_queue_modes_by_mode") or {}
+        command_queue_modes_by_lifecycle = queue_status_json.get("command_queue_modes_by_lifecycle") or {}
+        command_queue_modes_by_polling = queue_status_json.get("command_queue_modes_by_would_poll_if_configured") or {}
+        command_queue_modes_by_live = queue_status_json.get("command_queue_modes_by_live_supported") or {}
+        command_queue_modes_by_execution = queue_status_json.get("command_queue_modes_by_execution_supported") or {}
+        command_queue_modes_by_control = queue_status_json.get("command_queue_modes_by_active_control_channel") or {}
+        command_queue_modes_by_operator_exec = queue_status_json.get("command_queue_modes_by_operator_supplied_command_execution") or {}
         command_queue_mode_summary = command_queue_doc.get("mode_summary") or {}
         if (queue_status_json["summary"].get("command_queue_total_count") != 1 or
                 queue_status_json["summary"].get("command_queue_result_count") != 1 or
@@ -1084,6 +1093,15 @@ def main():
                 command_queue_modes.get("daemon", {}).get("live_would_contact_operator") is not True or
                 command_queue_modes.get("daemon", {}).get("execution_supported") is not False or
                 command_queue_modes.get("daemon", {}).get("active_control_channel") is not False or
+                len(command_queue_mode_records) != 5 or
+                command_queue_modes_by_mode.get("daemon", {}).get("lifecycle") != "long-running" or
+                len(command_queue_modes_by_lifecycle.get("long-running", [])) != 1 or
+                len(command_queue_modes_by_polling.get("True", [])) != 3 or
+                len(command_queue_modes_by_polling.get("False", [])) != 2 or
+                len(command_queue_modes_by_live.get("True", [])) != 3 or
+                len(command_queue_modes_by_execution.get("False", [])) != 5 or
+                len(command_queue_modes_by_control.get("False", [])) != 5 or
+                len(command_queue_modes_by_operator_exec.get("False", [])) != 5 or
                 command_queue_mode_summary.get("mode_count") != 5 or
                 command_queue_mode_summary.get("polling_mode_count") != 3 or
                 command_queue_mode_summary.get("operator_host_required_mode_count") != 3 or

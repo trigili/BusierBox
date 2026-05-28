@@ -2005,6 +2005,30 @@ def command_queue_mode_summary(mode_semantics):
     }
 
 
+def command_queue_mode_records(mode_semantics):
+    records = []
+    for mode in sorted(mode_semantics or {}):
+        rec = dict(mode_semantics.get(mode) or {})
+        rec["mode"] = mode
+        records.append(rec)
+    return records
+
+
+def command_queue_mode_record_indexes(records):
+    return {
+        "command_queue_modes_by_mode": {rec["mode"]: rec for rec in records if rec.get("mode")},
+        "command_queue_modes_by_lifecycle": records_by_key(records, "lifecycle"),
+        "command_queue_modes_by_requires_operator_host": records_by_key(records, "requires_operator_host"),
+        "command_queue_modes_by_would_poll_if_configured": records_by_key(records, "would_poll_if_configured"),
+        "command_queue_modes_by_live_supported": records_by_key(records, "live_supported"),
+        "command_queue_modes_by_execution_supported": records_by_key(records, "execution_supported"),
+        "command_queue_modes_by_active_control_channel": records_by_key(records, "active_control_channel"),
+        "command_queue_modes_by_operator_supplied_command_execution": records_by_key(
+            records, "operator_supplied_command_execution"
+        ),
+    }
+
+
 def command_queue_summary(cfg):
     data = load_command_queue(cfg)
     commands = data.get("commands", [])
@@ -2067,6 +2091,8 @@ def command_queue_summary(cfg):
     arbitrary_policy_requested = policy_valid and enabled == "yes" and allowed_commands == "custom" and allow_arbitrary == "yes"
     configured_for_polling = policy_valid and enabled == "yes"
     mode_semantics = command_queue_mode_semantics()
+    mode_records = command_queue_mode_records(mode_semantics)
+    mode_indexes = command_queue_mode_record_indexes(mode_records)
     mode_summary = command_queue_mode_summary(mode_semantics)
     policy_summary = {
         "enabled": enabled == "yes",
@@ -2110,6 +2136,8 @@ def command_queue_summary(cfg):
         "policy_errors": policy_errors,
         "policy_summary": policy_summary,
         "mode_semantics": mode_semantics,
+        "mode_records": mode_records,
+        **mode_indexes,
         "mode_summary": mode_summary,
         "commands": commands,
         "commands_by_id": commands_by_id,
@@ -5416,6 +5444,17 @@ def status_document(cfg):
                 "commands_by_result_exit_code", "commands_by_result_output_exceeded",
             ), "command_queue_total_count",
         ),
+        "command_queue_modes": api_collection_record(
+            "command_queue_modes", command_queue.get("mode_records") or [], "mode", (
+                "command_queue_modes_by_mode", "command_queue_modes_by_lifecycle",
+                "command_queue_modes_by_requires_operator_host",
+                "command_queue_modes_by_would_poll_if_configured",
+                "command_queue_modes_by_live_supported",
+                "command_queue_modes_by_execution_supported",
+                "command_queue_modes_by_active_control_channel",
+                "command_queue_modes_by_operator_supplied_command_execution",
+            ), "command_queue_mode_count",
+        ),
     }
     return {
         "schema": 1,
@@ -5535,6 +5574,15 @@ def status_document(cfg):
         "release_state": release_state,
         "release": release,
         "command_queue": command_queue,
+        "command_queue_mode_records": command_queue.get("mode_records") or [],
+        "command_queue_modes_by_mode": command_queue.get("command_queue_modes_by_mode") or {},
+        "command_queue_modes_by_lifecycle": command_queue.get("command_queue_modes_by_lifecycle") or {},
+        "command_queue_modes_by_requires_operator_host": command_queue.get("command_queue_modes_by_requires_operator_host") or {},
+        "command_queue_modes_by_would_poll_if_configured": command_queue.get("command_queue_modes_by_would_poll_if_configured") or {},
+        "command_queue_modes_by_live_supported": command_queue.get("command_queue_modes_by_live_supported") or {},
+        "command_queue_modes_by_execution_supported": command_queue.get("command_queue_modes_by_execution_supported") or {},
+        "command_queue_modes_by_active_control_channel": command_queue.get("command_queue_modes_by_active_control_channel") or {},
+        "command_queue_modes_by_operator_supplied_command_execution": command_queue.get("command_queue_modes_by_operator_supplied_command_execution") or {},
     }
 
 

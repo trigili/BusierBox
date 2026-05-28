@@ -528,11 +528,16 @@ Target manifests and `plan command-queue --json` also expose
 `daemon_state_file`, `daemon_state_file_supported`,
 `daemon_status_supported`, and `daemon_stop_supported` so operator tooling can
 show the target-side daemon lifecycle contract without starting a poll loop.
-`command_queue.mode_semantics` and
-`command_queue.mode_summary` expose the same target-side `status`, `poll`,
-`once`, `daemon`, and `stop` lifecycle labels, live-poll support flags, and
-non-execution booleans used by the target applet; compact counts are mirrored
-into `summary` as
+`command_queue.mode_semantics`,
+`command_queue.mode_records`, and top-level `command_queue_mode_records` expose
+the same target-side `status`, `poll`, `once`, `daemon`, and `stop` lifecycle
+labels, live-poll support flags, and non-execution booleans used by the target
+applet. The top-level API view also includes lookup maps such as
+`command_queue_modes_by_mode`, `command_queue_modes_by_lifecycle`,
+`command_queue_modes_by_would_poll_if_configured`,
+`command_queue_modes_by_live_supported`, and
+`command_queue_modes_by_execution_supported` for frontend mode badges. Compact
+counts are mirrored into `summary` as
 `command_queue_mode_count`, `command_queue_polling_mode_count`,
 `command_queue_operator_host_required_mode_count`,
 `command_queue_live_supported_mode_count`,
