@@ -7,7 +7,9 @@ BusierBox has two survey paths:
 - `busierbox reality-test --json` actively checks runtime behavior such as
   writing/executing under the runtime root, forking, spawning `/bin/sh`, opening
   pipes/PTYs, reading `/proc` and `/sys`, binding localhost, and reaching a
-  configured operator endpoint.
+  configured operator endpoint. It also probes payload execution, noexec and
+  read-only constraints, ptrace, `dmesg` command or kernel-buffer readability,
+  and partial procfs behavior.
 
 The shell survey exists because a working native BusierBox binary only proves the artifact is close enough to execute. The next question is operational: where can BusierBox safely write, whether `/tmp` is executable, which tools already exist, what libc/kernel hints are visible, and whether a no-extraction workflow is safer.
 `reality-test` complements that passive survey with active checks. It reports

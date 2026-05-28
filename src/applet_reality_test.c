@@ -498,7 +498,10 @@ static void check_heavy_tool(struct check_result *r)
 
 static void check_dmesg_readable(struct check_result *r)
 {
-    if (access("/dev/kmsg", R_OK) == 0)
+    int rc = system("dmesg >/dev/null 2>&1");
+    if (rc != -1 && WIFEXITED(rc) && WEXITSTATUS(rc) == 0)
+        set_result(r, 1, 0, "dmesg command");
+    else if (access("/dev/kmsg", R_OK) == 0)
         set_result(r, 1, 0, "/dev/kmsg");
     else if (access("/proc/kmsg", R_OK) == 0)
         set_result(r, 1, 0, "/proc/kmsg");

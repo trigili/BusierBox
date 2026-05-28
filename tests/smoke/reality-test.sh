@@ -16,6 +16,7 @@ grep -q '^runtime_root=' "$tmp/reality.txt"
 grep -q '^fork ' "$tmp/reality.txt"
 grep -q '^spawn_sh ' "$tmp/reality.txt"
 grep -q '^bind_localhost ' "$tmp/reality.txt"
+grep -q '^dmesg_readable ' "$tmp/reality.txt"
 grep -q '^summary pass=' "$tmp/reality.txt"
 
 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" reality-test --json >"$tmp/reality.json"
@@ -140,6 +141,9 @@ if by_name["upload_operator"]["status"] != "skipped":
     raise SystemExit("reality-test: upload_operator should be skipped without explicit side-effect setup")
 if by_name["fetch_operator"]["status"] != "skipped":
     raise SystemExit("reality-test: fetch_operator should be skipped without staged file")
+dmesg_detail = by_name["dmesg_readable"].get("detail", "")
+if "dmesg" not in dmesg_detail and "/kmsg" not in dmesg_detail and "kernel message buffer" not in dmesg_detail:
+    raise SystemExit("reality-test: dmesg_readable should report dmesg command or kernel buffer evidence")
 if summary.get("capability_pass", 0) + summary.get("capability_fail", 0) <= 0:
     raise SystemExit("reality-test: summary should expose capability counts")
 constraints = summary.get("constraints") or {}
