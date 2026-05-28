@@ -15,6 +15,65 @@ def by_case(summary):
     return {case.get("case", ""): case for case in summary.get("cases") or [] if case.get("case")}
 
 
+def records_by_key(records, key):
+    out = {}
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        value = record.get(key)
+        if value is None:
+            continue
+        out.setdefault(str(value), []).append(record)
+    return out
+
+
+def index_records(records, key, *, boolean=False):
+    out = {}
+    for idx, record in enumerate(records):
+        if not isinstance(record, dict):
+            continue
+        value = record.get(key)
+        if boolean:
+            value = "yes" if value else "no"
+        else:
+            value = str(value if value is not None else "")
+        out.setdefault(value, []).append(idx)
+    return out
+
+
+def api_collection_record(name, records, indexes, summary_key, primary_key):
+    return {
+        "name": name,
+        "count": len(records),
+        "summary_key": summary_key,
+        "count_summary_key": summary_key,
+        "primary_key": primary_key,
+        "indexes": indexes,
+    }
+
+
+def api_resource_record(name, records_key, collection_key, count, summary_key, primary_key, indexes):
+    return {
+        "name": name,
+        "records_key": records_key,
+        "collection_key": collection_key,
+        "count": count,
+        "summary_key": summary_key,
+        "count_summary_key": summary_key,
+        "primary_key": primary_key,
+        "indexes": indexes,
+    }
+
+
+def api_resource_indexes(records):
+    return {
+        "api_resources_by_name": {rec.get("name", ""): rec for rec in records if rec.get("name")},
+        "api_resources_by_records_key": records_by_key(records, "records_key"),
+        "api_resources_by_summary_key": records_by_key(records, "summary_key"),
+        "api_resources_by_primary_key": records_by_key(records, "primary_key"),
+    }
+
+
 def size_delta(old, new):
     old_size = old.get("artifact_size") or old.get("size")
     new_size = new.get("artifact_size") or new.get("size")
@@ -112,6 +171,108 @@ def main():
         "fixed": [c for c in changes if c["classification"] == "fixed"],
         "changes": changes,
     }
+    result.update({
+        "change_count": len(changes),
+        "changed_count": sum(1 for c in changes if c.get("changed")),
+        "regression_count": len(result["regressions"]),
+        "new_failure_count": len(result["new_failures"]),
+        "fixed_count": len(result["fixed"]),
+        "changes_by_case": index_records(changes, "case"),
+        "changes_by_classification": index_records(changes, "classification"),
+        "changes_by_old_status": index_records(changes, "old_status"),
+        "changes_by_new_status": index_records(changes, "new_status"),
+        "changes_by_changed": index_records(changes, "changed", boolean=True),
+        "changes_by_old_new_status": index_records(
+            [
+                dict(change, old_new_status=f"{change.get('old_status', '')}:{change.get('new_status', '')}")
+                for change in changes
+            ],
+            "old_new_status",
+        ),
+    })
+    result["api_collections"] = {
+        "changes": api_collection_record(
+            "changes",
+            changes,
+            [
+                "changes_by_case",
+                "changes_by_classification",
+                "changes_by_old_status",
+                "changes_by_new_status",
+                "changes_by_changed",
+                "changes_by_old_new_status",
+            ],
+            "change_count",
+            "case",
+        ),
+        "regressions": api_collection_record(
+            "regressions",
+            result["regressions"],
+            ["changes_by_classification"],
+            "regression_count",
+            "case",
+        ),
+        "new_failures": api_collection_record(
+            "new_failures",
+            result["new_failures"],
+            ["changes_by_classification"],
+            "new_failure_count",
+            "case",
+        ),
+        "fixed": api_collection_record(
+            "fixed",
+            result["fixed"],
+            ["changes_by_classification"],
+            "fixed_count",
+            "case",
+        ),
+    }
+    resources = [
+        api_resource_record(
+            "changes",
+            "changes",
+            "api_collections.changes",
+            len(changes),
+            "change_count",
+            "case",
+            result["api_collections"]["changes"]["indexes"],
+        ),
+        api_resource_record(
+            "regressions",
+            "regressions",
+            "api_collections.regressions",
+            len(result["regressions"]),
+            "regression_count",
+            "case",
+            ["changes_by_classification"],
+        ),
+        api_resource_record(
+            "new_failures",
+            "new_failures",
+            "api_collections.new_failures",
+            len(result["new_failures"]),
+            "new_failure_count",
+            "case",
+            ["changes_by_classification"],
+        ),
+        api_resource_record(
+            "fixed",
+            "fixed",
+            "api_collections.fixed",
+            len(result["fixed"]),
+            "fixed_count",
+            "case",
+            ["changes_by_classification"],
+        ),
+    ]
+    result["api"] = {
+        "schema": 1,
+        "resource_count": len(resources),
+        "resources_key": "api_resources",
+        "collections_key": "api_collections",
+    }
+    result["api_resources"] = resources
+    result.update(api_resource_indexes(resources))
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:

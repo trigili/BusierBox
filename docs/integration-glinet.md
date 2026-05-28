@@ -199,7 +199,9 @@ tables without hard-coded scans. The top-level JSON report also publishes an
 operator events, release self-test diagnostics, recovery evidence, and
 reality-test evidence. The compare tool classifies regressions, new failures,
 fixed cases, new or removed cases, artifact hash changes, artifact size deltas,
-and duration deltas when both summaries include timing data.
+and duration deltas when both summaries include timing data. Its JSON output
+also exposes change counts, lookup maps by case/classification/status, and
+`api_collections`/`api_resources` metadata for regression dashboards.
 
 When a release bundle is produced as part of an integration run, run the
 generated `scripts/release-self-test` inside that bundle before copying
