@@ -1004,6 +1004,22 @@ def main():
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         api_collections = queue_status_json.get("api_collections") or {}
+        api = queue_status_json.get("api") or {}
+        api_resources = queue_status_json.get("api_resources") or []
+        api_resources_by_name = queue_status_json.get("api_resources_by_name") or {}
+        api_resources_by_records_key = queue_status_json.get("api_resources_by_records_key") or {}
+        api_resources_by_summary_key = queue_status_json.get("api_resources_by_summary_key") or {}
+        api_resources_by_primary_key = queue_status_json.get("api_resources_by_primary_key") or {}
+        if (api.get("schema") != 1 or
+                api.get("status_command") != "scripts/busierbox-server --api-status" or
+                api.get("json_status_command") != "scripts/busierbox-server --json-status" or
+                api.get("event_limit") != 12 or
+                api.get("resource_count") != len(api_resources) or
+                api.get("resources_key") != "api_resources" or
+                api.get("collections_key") != "api_collections"):
+            print("server json status missing future frontend API catalog metadata", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
         for collection_name, expected_count, expected_index in (
                 ("services", len(queue_status_json.get("services") or []), "services_by_name"),
                 ("ports", len(queue_status_json.get("ports") or []), "ports_by_number"),
@@ -1023,6 +1039,19 @@ def main():
                 print(f"server json status missing api collection metadata for {collection_name}", file=sys.stderr)
                 print(queue_status_doc.stdout, file=sys.stderr)
                 return 1
+        if (len(api_resources) != len(api_collections) or
+                api_resources_by_name.get("services", {}).get("records_key") != "services" or
+                api_resources_by_name.get("services", {}).get("collection_key") != "api_collections.services" or
+                api_resources_by_name.get("services", {}).get("count") != len(queue_status_json.get("services") or []) or
+                api_resources_by_name.get("services", {}).get("summary_key") != "service_count" or
+                "services_by_name" not in (api_resources_by_name.get("services", {}).get("indexes") or []) or
+                api_resources_by_name.get("command_queue_commands", {}).get("records_key") != "command_queue.commands" or
+                api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
+                api_resources_by_summary_key.get("event_tail_count", [{}])[0].get("name") != "events" or
+                not any(rec.get("name") == "services" for rec in api_resources_by_primary_key.get("name", []))):
+            print("server json status missing API resource catalog lookup maps", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
         if (staged_files_state.get("path") != queue_status_json.get("staged_files") or
                 staged_files_state.get("exists") != staged_path_status.get("exists") or
                 queue_status_json["summary"].get("staged_files_exists") != bool(staged_files_state.get("exists")) or

@@ -363,11 +363,14 @@ scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host
 objects for frontend and automation consumers. Stale server-state records,
 service errors, listener counts, command queue counts, command queue policy
 validity, and release artifact/device/tuple counts can be read without
-re-parsing the human status view. The same document includes `api_collections`,
-a small self-description map for frontend clients; each entry names a
-collection, record count, primary key field, `summary_key`,
-`count_summary_key`, and available lookup maps such as `services_by_name` or
-`browser_paths_by_kind_source_id`. Use `--event-limit N` to tune the structured
+re-parsing the human status view. The same document includes an `api` catalog,
+`api_resources`, and `api_collections` for frontend clients. `api_resources`
+maps each reusable collection to its record location, collection metadata key,
+primary key field, `summary_key`, `count_summary_key`, and available lookup maps
+such as `services_by_name` or `browser_paths_by_kind_source_id`; lookup maps
+such as `api_resources_by_name`, `api_resources_by_records_key`, and
+`api_resources_by_summary_key` let a client discover those records without
+hard-coding every top-level key. Use `--event-limit N` to tune the structured
 event tail included in the status document; `0` keeps aggregate event counts and
 indexes but omits event records.
 Service rows remain available in `services`,

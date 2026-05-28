@@ -1767,6 +1767,36 @@ def api_collection_record(name, records, primary_key="", indexes=None, summary_k
     }
 
 
+def api_resource_records(api_collections):
+    record_locations = {
+        "command_queue_commands": "command_queue.commands",
+        "command_queue_modes": "command_queue_mode_records",
+    }
+    records = []
+    for name in sorted(api_collections or {}):
+        collection = api_collections.get(name) or {}
+        records.append({
+            "name": name,
+            "records_key": record_locations.get(name, name),
+            "collection_key": f"api_collections.{name}",
+            "count": collection.get("count", 0),
+            "primary_key": collection.get("primary_key", ""),
+            "summary_key": collection.get("summary_key", ""),
+            "count_summary_key": collection.get("count_summary_key", ""),
+            "indexes": collection.get("indexes") or [],
+        })
+    return records
+
+
+def api_resource_record_indexes(records):
+    return {
+        "api_resources_by_name": {rec.get("name", ""): rec for rec in records or [] if rec.get("name")},
+        "api_resources_by_records_key": records_by_key(records, "records_key"),
+        "api_resources_by_summary_key": records_by_key(records, "summary_key"),
+        "api_resources_by_primary_key": records_by_key(records, "primary_key"),
+    }
+
+
 def load_command_queue(cfg):
     data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
     if not isinstance(data, dict):
@@ -5652,9 +5682,22 @@ def status_document(cfg):
             ), "command_queue_mode_count",
         ),
     }
+    api_resources = api_resource_records(api_collections)
+    api_resource_indexes = api_resource_record_indexes(api_resources)
     return {
         "schema": 1,
         "generated_at": utc_now(),
+        "api": {
+            "schema": 1,
+            "status_command": "scripts/busierbox-server --api-status",
+            "json_status_command": "scripts/busierbox-server --json-status",
+            "event_limit": int(cfg.get("_event_limit", 0) or 0),
+            "resource_count": len(api_resources),
+            "resources_key": "api_resources",
+            "collections_key": "api_collections",
+        },
+        "api_resources": api_resources,
+        **api_resource_indexes,
         "api_collections": api_collections,
         "operator_session_dir": str(operator_dir),
         "state_file": str(state_file_path(cfg)),
