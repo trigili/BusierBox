@@ -2213,10 +2213,12 @@ def upload_record_indexes(records):
     by_sha256 = {}
     by_source_path = {}
     by_stored_path = {}
+    by_stored_exists = records_by_bool(records, "stored_exists")
     by_remote_addr = {}
     by_status = {}
     by_kind_status = {}
     by_filename_status = {}
+    by_status_stored_exists = {}
     by_status_remote_addr = {}
     for rec in records or []:
         if not isinstance(rec, dict):
@@ -2246,6 +2248,9 @@ def upload_record_indexes(records):
             by_kind_status.setdefault(f"{kind}:{status}", []).append(rec)
         if filename and status:
             by_filename_status.setdefault(f"{filename}:{status}", []).append(rec)
+        if status:
+            stored_exists = "yes" if rec.get("stored_exists") is True else "no"
+            by_status_stored_exists.setdefault(f"{status}:{stored_exists}", []).append(rec)
         if status and remote_addr:
             by_status_remote_addr.setdefault(f"{status}:{remote_addr}", []).append(rec)
     return (
@@ -2254,10 +2259,12 @@ def upload_record_indexes(records):
         by_sha256,
         by_source_path,
         by_stored_path,
+        by_stored_exists,
         by_remote_addr,
         by_status,
         by_kind_status,
         by_filename_status,
+        by_status_stored_exists,
         by_status_remote_addr,
     )
 
@@ -2266,10 +2273,12 @@ def fetch_record_indexes(records):
     by_request = {}
     by_sha256 = {}
     by_source_path = {}
+    by_source_exists = records_by_bool(records, "source_exists")
     by_status = {}
     by_http_status = {}
     by_remote_addr = {}
     by_request_status = {}
+    by_status_source_exists = {}
     by_status_remote_addr = {}
     by_http_status_remote_addr = {}
     for rec in records or []:
@@ -2295,6 +2304,9 @@ def fetch_record_indexes(records):
             by_remote_addr.setdefault(remote_addr, []).append(rec)
         if request_name and status:
             by_request_status.setdefault(f"{request_name}:{status}", []).append(rec)
+        if status:
+            source_exists = "yes" if rec.get("source_exists") is True else "no"
+            by_status_source_exists.setdefault(f"{status}:{source_exists}", []).append(rec)
         if status and remote_addr:
             by_status_remote_addr.setdefault(f"{status}:{remote_addr}", []).append(rec)
         if http_status not in (None, "") and remote_addr:
@@ -2303,10 +2315,12 @@ def fetch_record_indexes(records):
         by_request,
         by_sha256,
         by_source_path,
+        by_source_exists,
         by_status,
         by_http_status,
         by_remote_addr,
         by_request_status,
+        by_status_source_exists,
         by_status_remote_addr,
         by_http_status_remote_addr,
     )
@@ -6622,18 +6636,22 @@ def status_document(cfg):
      uploads_by_sha256,
      uploads_by_source_path,
      uploads_by_stored_path,
+     uploads_by_stored_exists,
      uploads_by_remote_addr,
      uploads_by_status,
      uploads_by_kind_status,
      uploads_by_filename_status,
+     uploads_by_status_stored_exists,
      uploads_by_status_remote_addr) = upload_record_indexes(uploads)
     (fetches_by_request,
      fetches_by_sha256,
      fetches_by_source_path,
+     fetches_by_source_exists,
      fetches_by_status,
      fetches_by_http_status,
      fetches_by_remote_addr,
      fetches_by_request_status,
+     fetches_by_status_source_exists,
      fetches_by_status_remote_addr,
      fetches_by_http_status_remote_addr) = fetch_record_indexes(fetches)
     summary, warnings = status_summary_and_warnings(services)
@@ -6877,6 +6895,7 @@ def status_document(cfg):
         "upload_remote_counts": record_count_by_key(uploads, "remote_addr"),
         "upload_kind_status_counts": {key: len(value) for key, value in uploads_by_kind_status.items()},
         "upload_filename_status_counts": {key: len(value) for key, value in uploads_by_filename_status.items()},
+        "upload_status_stored_exists_counts": {key: len(value) for key, value in uploads_by_status_stored_exists.items()},
         "upload_status_remote_counts": {key: len(value) for key, value in uploads_by_status_remote_addr.items()},
         "latest_upload_at": latest_record_value(uploads, ("timestamp", "updated_at")),
         "fetch_count": len(fetches),
@@ -6887,6 +6906,7 @@ def status_document(cfg):
         "fetch_http_status_counts": record_count_by_key(fetches, "http_status"),
         "fetch_remote_counts": record_count_by_key(fetches, "remote_addr"),
         "fetch_request_status_counts": {key: len(value) for key, value in fetches_by_request_status.items()},
+        "fetch_status_source_exists_counts": {key: len(value) for key, value in fetches_by_status_source_exists.items()},
         "fetch_status_remote_counts": {key: len(value) for key, value in fetches_by_status_remote_addr.items()},
         "fetch_http_status_remote_counts": {key: len(value) for key, value in fetches_by_http_status_remote_addr.items()},
         "latest_fetch_at": latest_record_value(fetches, ("timestamp", "updated_at")),
@@ -7151,6 +7171,7 @@ def status_document(cfg):
                 "uploads_by_session", "uploads_by_filename", "uploads_by_kind", "uploads_by_sha256",
                 "uploads_by_source_path", "uploads_by_stored_path", "uploads_by_remote_addr",
                 "uploads_by_status", "uploads_by_kind_status", "uploads_by_filename_status",
+                "uploads_by_stored_exists", "uploads_by_status_stored_exists",
                 "uploads_by_status_remote_addr",
             ), "upload_count",
         ),
@@ -7158,7 +7179,8 @@ def status_document(cfg):
             "fetches", fetches, "metadata_path", (
                 "fetches_by_session", "fetches_by_request", "fetches_by_sha256",
                 "fetches_by_source_path", "fetches_by_status", "fetches_by_http_status",
-                "fetches_by_remote_addr", "fetches_by_request_status",
+                "fetches_by_source_exists", "fetches_by_remote_addr", "fetches_by_request_status",
+                "fetches_by_status_source_exists",
                 "fetches_by_status_remote_addr", "fetches_by_http_status_remote_addr",
             ), "fetch_count",
         ),
@@ -7403,20 +7425,24 @@ def status_document(cfg):
         "uploads_by_sha256": uploads_by_sha256,
         "uploads_by_source_path": uploads_by_source_path,
         "uploads_by_stored_path": uploads_by_stored_path,
+        "uploads_by_stored_exists": uploads_by_stored_exists,
         "uploads_by_remote_addr": uploads_by_remote_addr,
         "uploads_by_status": uploads_by_status,
         "uploads_by_kind_status": uploads_by_kind_status,
         "uploads_by_filename_status": uploads_by_filename_status,
+        "uploads_by_status_stored_exists": uploads_by_status_stored_exists,
         "uploads_by_status_remote_addr": uploads_by_status_remote_addr,
         "fetches": fetches,
         "fetches_by_session": records_by_session(fetches),
         "fetches_by_request": fetches_by_request,
         "fetches_by_sha256": fetches_by_sha256,
         "fetches_by_source_path": fetches_by_source_path,
+        "fetches_by_source_exists": fetches_by_source_exists,
         "fetches_by_status": fetches_by_status,
         "fetches_by_http_status": fetches_by_http_status,
         "fetches_by_remote_addr": fetches_by_remote_addr,
         "fetches_by_request_status": fetches_by_request_status,
+        "fetches_by_status_source_exists": fetches_by_status_source_exists,
         "fetches_by_status_remote_addr": fetches_by_status_remote_addr,
         "fetches_by_http_status_remote_addr": fetches_by_http_status_remote_addr,
         "sessions": sessions,
