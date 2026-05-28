@@ -6484,6 +6484,9 @@ def run_tui(cfg):
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print_workbench(cfg)
         return 0
+    if os.environ.get("TERM", "").strip().lower() in ("", "dumb"):
+        print("terminal does not support curses, using line menu", file=sys.stderr)
+        return run_line_tui(cfg)
     try:
         return run_curses_tui(cfg)
     except KeyboardInterrupt:

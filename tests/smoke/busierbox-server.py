@@ -2379,6 +2379,50 @@ def main():
             print(json.dumps(tui_sigint_doc, indent=2), file=sys.stderr)
             return 1
 
+        dumb_tui_state = Path(tmp) / "operator-session" / "tui-dumb-state.json"
+        dumb_master, dumb_slave = pty.openpty()
+        try:
+            dumb_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(upload_cfg),
+                    "--state-file", str(dumb_tui_state),
+                    "--staged-file", str(staged_file),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=dumb_slave,
+                stdout=dumb_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(dumb_slave)
+            dumb_slave = -1
+            time.sleep(0.3)
+            os.write(dumb_master, b"q\n")
+            _dumb_stdout, dumb_stderr = dumb_proc.communicate(timeout=5)
+        finally:
+            if dumb_slave != -1:
+                os.close(dumb_slave)
+            try:
+                os.close(dumb_master)
+            except OSError:
+                pass
+        if dumb_proc.returncode != 0 or "Traceback" in (dumb_stderr or ""):
+            print("TERM=dumb line-oriented TUI fallback did not exit cleanly", file=sys.stderr)
+            print(dumb_stderr or "", file=sys.stderr)
+            return 1
+        if "using line menu" not in (dumb_stderr or ""):
+            print("TERM=dumb TUI did not announce line-oriented fallback", file=sys.stderr)
+            print(dumb_stderr or "", file=sys.stderr)
+            return 1
+        dumb_tui_doc = json.loads(dumb_tui_state.read_text(encoding="utf-8"))
+        if dumb_tui_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
+            print("TERM=dumb line-oriented TUI fallback did not mark workbench stopped", file=sys.stderr)
+            print(json.dumps(dumb_tui_doc, indent=2), file=sys.stderr)
+            return 1
+
         staged_source = Path(tmp) / "operator-file.bin"
         staged_source.write_bytes(b"operator staged bytes\n")
         fetch_port = free_port()
