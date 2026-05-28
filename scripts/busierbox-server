@@ -2594,16 +2594,47 @@ def save_command_queue(cfg, data):
     atomic_write_json(command_queue_path(cfg), data)
 
 
+def command_queue_policy_snapshot(cfg):
+    errors = command_queue_policy_errors(cfg)
+    enabled = str(cfg.get("command_queue_enable", "no"))
+    allowed_commands = str(cfg.get("command_queue_allowed_commands", "none"))
+    execution_mode = str(cfg.get("command_queue_execution", "metadata-only"))
+    allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
+    token_required = str(cfg.get("command_queue_require_token", "yes")) == "yes"
+    token_configured = bool(str(cfg.get("command_queue_token", "")))
+    return {
+        "enabled": enabled == "yes",
+        "valid": not errors,
+        "errors": errors,
+        "allowed_commands": allowed_commands,
+        "execution_mode": execution_mode,
+        "metadata_only_default": execution_mode == "metadata-only",
+        "allow_arbitrary": allow_arbitrary == "yes",
+        "token_required": token_required,
+        "token_configured": token_configured,
+        "execution_supported": False,
+        "executes_commands": False,
+        "delivery_supported": False,
+        "result_upload_supported": True,
+        "active_control_channel": False,
+        "arbitrary_execution_allowed": False,
+        "operator_queue_records_only": True,
+        "safety_boundary": "explicit operator queue record; target execution is unsupported in this build",
+    }
+
+
 def mark_command_delivered(cfg, command_id, remote_addr=""):
     data = load_command_queue(cfg)
     for rec in data.get("commands", []):
         if isinstance(rec, dict) and rec.get("id") == command_id:
+            policy = command_queue_policy_snapshot(cfg)
             rec["status"] = "delivered"
             rec["delivered_at"] = utc_now()
             rec["delivered_to"] = remote_addr
             rec["execution_supported"] = False
             rec["execution_decision"] = "rejected"
             rec["execution_decision_reason"] = "target command execution is not implemented"
+            rec["delivery_policy_snapshot"] = policy
             save_command_queue(cfg, data)
             append_event(
                 cfg,
@@ -2615,6 +2646,7 @@ def mark_command_delivered(cfg, command_id, remote_addr=""):
                     "remote_addr": remote_addr,
                     "execution_supported": False,
                     "execution_decision": "rejected",
+                    "policy_snapshot": policy,
                 },
             )
             return rec
@@ -2643,6 +2675,7 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
         "max_output_bytes": max_output_value,
         "execution_supported": False,
         "delivery_supported": False,
+        "queue_policy_snapshot": command_queue_policy_snapshot(cfg),
         "safety_boundary": "operator queue record only; target execution is disabled unless future explicit command-queue execution is implemented and enabled",
     }
     data["commands"].append(rec)

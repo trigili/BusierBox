@@ -306,6 +306,19 @@ command = queue["commands"][0]
 assert command["status"] == "result-received"
 assert command["execution_supported"] is False
 assert command["execution_decision"] == "rejected"
+queue_policy = command["queue_policy_snapshot"]
+delivery_policy = command["delivery_policy_snapshot"]
+assert queue_policy["enabled"] is True
+assert queue_policy["allowed_commands"] == "busierbox-only"
+assert queue_policy["execution_mode"] == "metadata-only"
+assert queue_policy["execution_supported"] is False
+assert queue_policy["executes_commands"] is False
+assert queue_policy["active_control_channel"] is False
+assert delivery_policy["enabled"] is True
+assert delivery_policy["valid"] is True
+assert delivery_policy["execution_supported"] is False
+assert delivery_policy["executes_commands"] is False
+assert delivery_policy["arbitrary_execution_allowed"] is False
 assert command["result"]["status"] == "rejected"
 assert command["result_output_bytes"] == 0
 assert command["result_output_exceeded_limit"] is False
@@ -313,7 +326,7 @@ assert command["delivered_at"]
 assert command["delivered_to"]
 operator_events = Path(cfg["operator_session_dir"]) / "events.jsonl"
 operator = [json.loads(line) for line in operator_events.open(encoding="utf-8")]
-assert any(event["service"] == "command-queue" and event["event"] == "command_delivered" for event in operator)
+assert any(event["service"] == "command-queue" and event["event"] == "command_delivered" and event["details"]["policy_snapshot"]["execution_supported"] is False for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_result_received" for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_result_upload" for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" and event["details"].get("status") == "delivered" for event in operator)

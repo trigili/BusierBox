@@ -791,12 +791,27 @@ def main():
             return 1
         queue_summary = queue_status["command_queue"]
         queued_id = queue_summary["commands"][0]["id"]
+        queued_policy = queue_summary["commands"][0].get("queue_policy_snapshot") or {}
         if (queue_summary.get("commands_by_id", {}).get(queued_id, {}).get("command") != "busierbox reality-test --json" or
                 len(queue_summary.get("commands_by_status", {}).get("queued", [])) != 1 or
                 queue_summary["commands_by_status"]["queued"][0].get("id") != queued_id or
                 queue_summary.get("latest_created_at") != queue_summary["commands"][0].get("created_at") or
                 queue_summary.get("latest_result_received_at") != ""):
             print("json command queue listing missing command lookup indexes", file=sys.stderr)
+            print(queue_list.stdout, file=sys.stderr)
+            return 1
+        if (queued_policy.get("enabled") is not False or
+                queued_policy.get("valid") is not True or
+                queued_policy.get("allowed_commands") != "none" or
+                queued_policy.get("execution_mode") != "metadata-only" or
+                queued_policy.get("execution_supported") is not False or
+                queued_policy.get("executes_commands") is not False or
+                queued_policy.get("delivery_supported") is not False or
+                queued_policy.get("result_upload_supported") is not True or
+                queued_policy.get("active_control_channel") is not False or
+                queued_policy.get("arbitrary_execution_allowed") is not False or
+                queued_policy.get("operator_queue_records_only") is not True):
+            print("queued command missing policy snapshot", file=sys.stderr)
             print(queue_list.stdout, file=sys.stderr)
             return 1
         if (queue_summary.get("enabled") != "no" or

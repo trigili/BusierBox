@@ -196,9 +196,13 @@ scripts/busierbox-server --clear-command-queue
 
 Queue entries include an id, timestamp, literal command text, timeout metadata,
 maximum output metadata, status, and explicit `execution_supported=false` /
-`delivery_supported=false` fields at queue time. Live target polling can mark a
-queued entry `delivered`, return its command metadata to the target, and record
-`execution_decision=rejected`; the target does not execute it.
+`delivery_supported=false` fields at queue time. Each entry also stores a
+`queue_policy_snapshot` so old queue records remain auditable if the operator
+configuration changes later. Live target polling can mark a queued entry
+`delivered`, attach a `delivery_policy_snapshot`, return its command metadata
+to the target, and record `execution_decision=rejected`; the target does not
+execute it. The `command_delivered` operator event includes the same delivery
+policy snapshot.
 
 When the command-queue listener is running with `command_queue_tls=no`, it also
 accepts structured result JSON with `POST /command-queue/result`. The JSON must
