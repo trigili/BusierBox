@@ -16,10 +16,12 @@ Current behavior is intentionally non-executing:
   configured operator command-queue endpoint and can append structured poll
   events. Live polling currently requires `BB_COMMAND_QUEUE_TLS=no`; TLS
   command-queue polling is reported as unsupported instead of silently falling
-  back to plaintext. Live polls can receive queued command metadata, but the
-  target records an explicit rejected execution decision and never executes
-  queued commands in this build. It can upload the rejected-result metadata so
-  the operator ledger has a complete decision record.
+  back to plaintext. Live polls can receive queued command metadata, and
+  target-side JSON reports the delivered command id, command text, timeout, and
+  maximum-output metadata. The target still records an explicit rejected
+  execution decision and never executes queued commands in this build. It can
+  upload the rejected-result metadata so the operator ledger has a complete
+  decision record.
 - When `BB_COMMAND_QUEUE_REQUIRE_TOKEN=yes`, enabled queues require
   `BB_COMMAND_QUEUE_TOKEN` on the target and `command_queue_token` on the
   operator server config. Poll and result requests send/check
@@ -164,6 +166,9 @@ Safety boundary:
 - `command-queue --json` includes `daemon_state` and `stop_result` objects so
   operator tooling can show whether a live polling loop is visible, stale,
   stopped, or skipped because ownership could not be verified.
+- Delivered live poll metadata is exposed as `queued_command` and mirrored in
+  `poll_run.last_command*` fields, so clients can show what the target received
+  without scraping the operator-side queue ledger.
 - `allow_arbitrary=yes` is reported as an explicit policy request, not an
   execution grant; `arbitrary_execution_allowed=false` remains false while this
   build has `execution_supported=false`.

@@ -49,6 +49,9 @@ struct poll_run_result {
     char last_status[64];
     char last_error[160];
     char last_command_id[96];
+    char last_command[512];
+    int last_timeout_sec;
+    int last_max_output_bytes;
 };
 
 struct daemon_state {
@@ -507,12 +510,96 @@ static void parse_header_value(const char *response, const char *name, char *out
     }
 }
 
-static int connect_operator_once(const char *host, const char *port, char *err, size_t errsz)
+static const char *http_body(const char *response)
+{
+    const char *body;
+
+    if (!response)
+        return "";
+    body = strstr(response, "\r\n\r\n");
+    return body ? body + 4 : "";
+}
+
+static int json_get_string_field(const char *json, const char *key, char *out, size_t outsz)
+{
+    char needle[96];
+    const char *p;
+    size_t n = 0;
+
+    if (outsz)
+        out[0] = '\0';
+    if (!json || !key || !out || !outsz)
+        return -1;
+    snprintf(needle, sizeof(needle), "\"%s\"", key);
+    p = strstr(json, needle);
+    if (!p)
+        return -1;
+    p += strlen(needle);
+    while (*p == ' ' || *p == '\t')
+        p++;
+    if (*p != ':')
+        return -1;
+    p++;
+    while (*p == ' ' || *p == '\t')
+        p++;
+    if (*p != '"')
+        return -1;
+    p++;
+    while (*p && *p != '"' && n + 1 < outsz) {
+        if (*p == '\\' && p[1]) {
+            p++;
+            if (*p == 'n')
+                out[n++] = '\n';
+            else if (*p == 'r')
+                out[n++] = '\r';
+            else if (*p == 't')
+                out[n++] = '\t';
+            else
+                out[n++] = *p;
+        } else {
+            out[n++] = *p;
+        }
+        p++;
+    }
+    out[n] = '\0';
+    return *p == '"' ? 0 : -1;
+}
+
+static int json_get_int_field(const char *json, const char *key, int fallback)
+{
+    char needle[96];
+    const char *p;
+    char *end = NULL;
+    long v;
+
+    if (!json || !key)
+        return fallback;
+    snprintf(needle, sizeof(needle), "\"%s\"", key);
+    p = strstr(json, needle);
+    if (!p)
+        return fallback;
+    p += strlen(needle);
+    while (*p == ' ' || *p == '\t')
+        p++;
+    if (*p != ':')
+        return fallback;
+    p++;
+    while (*p == ' ' || *p == '\t')
+        p++;
+    errno = 0;
+    v = strtol(p, &end, 10);
+    if (errno || end == p || v < 0 || v > INT_MAX)
+        return fallback;
+    return (int)v;
+}
+
+static int connect_operator_once(const char *host, const char *port, struct poll_run_result *run,
+                                 char *err, size_t errsz)
 {
     struct addrinfo hints, *res = NULL, *rp;
     int rc, fd = -1;
     char request[512];
-    char response[512];
+    char response[4096];
     ssize_t n;
 
     if (errsz)
@@ -563,7 +650,13 @@ static int connect_operator_once(const char *host, const char *port, char *err, 
                 return 1;
             }
             if (!strncmp(response, "HTTP/1.1 200", 12) || !strncmp(response, "HTTP/1.0 200", 12)) {
+                const char *body = http_body(response);
                 parse_header_value(response, "X-BusierBox-Command-Id", err, errsz);
+                if (run) {
+                    json_get_string_field(body, "command", run->last_command, sizeof(run->last_command));
+                    run->last_timeout_sec = json_get_int_field(body, "timeout_sec", 0);
+                    run->last_max_output_bytes = json_get_int_field(body, "max_output_bytes", 0);
+                }
                 return 0;
             }
             snprintf(err, errsz, "unexpected poll response");
@@ -694,7 +787,7 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
         result.attempted = 1;
         result.attempts++;
         append_run_poll_event(event_log, &result, "command_queue_poll_attempt", mode, endpoint, result.attempts, "attempt", "");
-        int poll_rc = connect_operator_once(operator_host, BB_COMMAND_QUEUE_PORT, error, sizeof(error));
+        int poll_rc = connect_operator_once(operator_host, BB_COMMAND_QUEUE_PORT, &result, error, sizeof(error));
         if (poll_rc == 0) {
             char upload_error[160] = "";
             result.successes++;
@@ -1014,6 +1107,10 @@ static void print_poll_run_json(const struct poll_run_result *run)
     bb_json_string(stdout, run ? run->last_error : "");
     fputs(",\"last_command_id\":", stdout);
     bb_json_string(stdout, run ? run->last_command_id : "");
+    fputs(",\"last_command\":", stdout);
+    bb_json_string(stdout, run ? run->last_command : "");
+    printf(",\"last_timeout_sec\":%d", run ? run->last_timeout_sec : 0);
+    printf(",\"last_max_output_bytes\":%d", run ? run->last_max_output_bytes : 0);
     printf(",\"queued_command_available\":%s", run && run->delivered_commands > 0 ? "true" : "false");
     printf(",\"delivery_supported\":%s", run && run->delivered_commands > 0 ? "true" : "false");
     fputs(",\"result_upload_supported\":true,\"execution_supported\":false,\"executes_commands\":false,\"execution_decision\":\"rejected\"", stdout);
@@ -1207,7 +1304,18 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     print_daemon_state_json(state_file, daemon_state);
     print_stop_result_json(stop);
     fputs(",\"safety_boundary\":\"target polling is explicit; live mode can receive queued command metadata but command execution is not implemented\"", stdout);
-    fputs(",\"queued_command\":null}\n", stdout);
+    fputs(",\"queued_command\":", stdout);
+    if (run && run->delivered_commands > 0) {
+        fputs("{\"id\":", stdout);
+        bb_json_string(stdout, run->last_command_id);
+        fputs(",\"command\":", stdout);
+        bb_json_string(stdout, run->last_command);
+        printf(",\"timeout_sec\":%d,\"max_output_bytes\":%d", run->last_timeout_sec, run->last_max_output_bytes);
+        fputs(",\"execution_supported\":false,\"executes_commands\":false,\"execution_decision\":\"rejected\"}", stdout);
+    } else {
+        fputs("null", stdout);
+    }
+    fputs("}\n", stdout);
 }
 
 static void print_text(const char *mode, int dry_run, const char *operator_host,
@@ -1293,6 +1401,9 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_poll_run_last_status=%s\n", run ? run->last_status : "not_run");
     printf("command_queue_poll_run_last_error=%s\n", run ? run->last_error : "");
     printf("command_queue_poll_run_last_command_id=%s\n", run ? run->last_command_id : "");
+    printf("command_queue_poll_run_last_command=%s\n", run ? run->last_command : "");
+    printf("command_queue_poll_run_last_timeout_sec=%d\n", run ? run->last_timeout_sec : 0);
+    printf("command_queue_poll_run_last_max_output_bytes=%d\n", run ? run->last_max_output_bytes : 0);
     printf("command_queue_daemon_state_present=%s\n", daemon_state && daemon_state->present ? "yes" : "no");
     printf("command_queue_daemon_state_valid=%s\n", daemon_state && daemon_state->valid ? "yes" : "no");
     printf("command_queue_daemon_running=%s\n", daemon_state && daemon_state->running ? "yes" : "no");
