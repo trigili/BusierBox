@@ -1706,6 +1706,11 @@ def command_queue_mode_semantics():
             "requires_operator_host": True,
             "would_poll_if_configured": True,
         },
+        "stop": {
+            "lifecycle": "stop",
+            "requires_operator_host": False,
+            "would_poll_if_configured": False,
+        },
     }
     for rec in modes.values():
         live_supported = bool(rec.get("would_poll_if_configured"))
@@ -5232,7 +5237,7 @@ def print_command_queue_mode_lines(queue):
         f"execution_supported={mode_summary.get('execution_supported_mode_count', 0)} "
         f"active_control_channel={mode_summary.get('active_control_channel_mode_count', 0)}"
     )
-    for name in ("status", "poll", "once", "daemon"):
+    for name in ("status", "poll", "once", "daemon", "stop"):
         rec = (queue.get("mode_semantics") or {}).get(name) or {}
         print(
             f"  mode {name}: "

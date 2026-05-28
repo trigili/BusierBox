@@ -530,13 +530,16 @@ def main():
                 queue_modes.get("poll", {}).get("lifecycle") != "single-poll" or
                 queue_modes.get("once", {}).get("lifecycle") != "single-cycle" or
                 queue_modes.get("daemon", {}).get("lifecycle") != "long-running" or
+                queue_modes.get("stop", {}).get("lifecycle") != "stop" or
+                queue_modes.get("stop", {}).get("requires_operator_host") is not False or
+                queue_modes.get("stop", {}).get("would_poll_if_configured") is not False or
                 queue_modes.get("daemon", {}).get("dry_run_default") is not True or
                 queue_modes.get("daemon", {}).get("dry_run_only") is not False or
                 queue_modes.get("daemon", {}).get("live_supported") is not True or
                 queue_modes.get("daemon", {}).get("live_would_contact_operator") is not True or
                 queue_modes.get("daemon", {}).get("execution_supported") is not False or
                 queue_modes.get("daemon", {}).get("active_control_channel") is not False or
-                queue_mode_summary.get("mode_count") != 4 or
+                queue_mode_summary.get("mode_count") != 5 or
                 queue_mode_summary.get("polling_mode_count") != 3 or
                 queue_mode_summary.get("live_supported_mode_count") != 3 or
                 queue_mode_summary.get("execution_supported_mode_count") != 0):
@@ -584,8 +587,9 @@ def main():
         if (invalid_queue_text.returncode != 0 or
                 "policy_valid=no" not in invalid_queue_text.stdout or
                 "arbitrary_execution_allowed=no" not in invalid_queue_text.stdout or
-                "modes: total=4 would_poll_if_configured=3 operator_host_required=3 execution_supported=0 active_control_channel=0" not in invalid_queue_text.stdout or
+                "modes: total=5 would_poll_if_configured=3 operator_host_required=3 execution_supported=0 active_control_channel=0" not in invalid_queue_text.stdout or
                 "mode daemon: lifecycle=long-running requires_operator_host=yes would_poll_if_configured=yes execution_supported=no active_control_channel=no" not in invalid_queue_text.stdout or
+                "mode stop: lifecycle=stop requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in invalid_queue_text.stdout or
                 "policy_error=disabled command queue must keep allowed commands policy none" not in invalid_queue_text.stdout):
             print("invalid command queue text listing missing policy errors", file=sys.stderr)
             print(invalid_queue_text.stdout, file=sys.stderr)
@@ -991,18 +995,21 @@ def main():
                 command_queue_modes.get("poll", {}).get("lifecycle") != "single-poll" or
                 command_queue_modes.get("once", {}).get("lifecycle") != "single-cycle" or
                 command_queue_modes.get("daemon", {}).get("lifecycle") != "long-running" or
+                command_queue_modes.get("stop", {}).get("lifecycle") != "stop" or
+                command_queue_modes.get("stop", {}).get("requires_operator_host") is not False or
+                command_queue_modes.get("stop", {}).get("would_poll_if_configured") is not False or
                 command_queue_modes.get("daemon", {}).get("dry_run_default") is not True or
                 command_queue_modes.get("daemon", {}).get("dry_run_only") is not False or
                 command_queue_modes.get("daemon", {}).get("live_supported") is not True or
                 command_queue_modes.get("daemon", {}).get("live_would_contact_operator") is not True or
                 command_queue_modes.get("daemon", {}).get("execution_supported") is not False or
                 command_queue_modes.get("daemon", {}).get("active_control_channel") is not False or
-                command_queue_mode_summary.get("mode_count") != 4 or
+                command_queue_mode_summary.get("mode_count") != 5 or
                 command_queue_mode_summary.get("polling_mode_count") != 3 or
                 command_queue_mode_summary.get("operator_host_required_mode_count") != 3 or
                 command_queue_mode_summary.get("live_supported_mode_count") != 3 or
                 command_queue_mode_summary.get("execution_supported_mode_count") != 0 or
-                queue_status_json["summary"].get("command_queue_mode_count") != 4 or
+                queue_status_json["summary"].get("command_queue_mode_count") != 5 or
                 queue_status_json["summary"].get("command_queue_polling_mode_count") != 3 or
                 queue_status_json["summary"].get("command_queue_operator_host_required_mode_count") != 3 or
                 queue_status_json["summary"].get("command_queue_live_supported_mode_count") != 3 or
@@ -1137,9 +1144,10 @@ def main():
                 "result_output=12 limit=1234 exceeded_limit=no" not in queue_status_text.stdout or
                 "latest_created=" not in queue_status_text.stdout or
                 "latest_result=" not in queue_status_text.stdout or
-                "modes: total=4 would_poll_if_configured=3 operator_host_required=3 execution_supported=0 active_control_channel=0" not in queue_status_text.stdout or
+                "modes: total=5 would_poll_if_configured=3 operator_host_required=3 execution_supported=0 active_control_channel=0" not in queue_status_text.stdout or
                 "mode status: lifecycle=inspect requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
                 "mode daemon: lifecycle=long-running requires_operator_host=yes would_poll_if_configured=yes execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
+                "mode stop: lifecycle=stop requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
                 "command_result_received" not in queue_status_text.stdout or
                 "Event log:" not in queue_status_text.stdout or
                 "services: command-queue=" not in queue_status_text.stdout or

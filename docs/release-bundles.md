@@ -496,7 +496,7 @@ not scan the full queue policy object. The configured
 `command_queue_max_polls` are mirrored for interval-polling controls.
 `command_queue.mode_semantics` and
 `command_queue.mode_summary` expose the same target-side `status`, `poll`,
-`once`, and `daemon` lifecycle labels, live-poll support flags, and
+`once`, `daemon`, and `stop` lifecycle labels, live-poll support flags, and
 non-execution booleans used by the target applet; compact counts are mirrored
 into `summary` as
 `command_queue_mode_count`, `command_queue_polling_mode_count`,
