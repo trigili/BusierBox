@@ -44,8 +44,8 @@ disclaimer, and external-write boundary. Text plans expose the same fields as
 
 The `rshell` JSON plan includes both `session_semantics` and
 `session_policy_summary`, matching `rshell status --json` so operator tooling
-can render single/reconnect/persistent behavior without duplicating policy
-logic.
+can render single/reconnect/persistent behavior and policy errors without
+duplicating policy logic.
 The `command-queue` JSON plan includes flat `mode_records`, lookup maps, a
 `mode_summary`, and `api_collections.mode_records` metadata so operator UIs can
 show which polling mode would be started without inferring behavior from prose.

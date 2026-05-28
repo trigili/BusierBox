@@ -93,6 +93,8 @@ if sem.get("session_resume_supported") is not False:
     raise SystemExit("rshell should not claim session resume")
 if summary.get("valid") is not True:
     raise SystemExit("session policy summary should report valid reconnect policy")
+if summary.get("errors") != []:
+    raise SystemExit("session policy summary valid policy errors should be empty")
 if summary.get("retry_scope") != "pre-connect+post-disconnect":
     raise SystemExit("reconnect summary should report pre/post retry scope")
 if summary.get("pre_connect_retry_count") != data["retry"].get("pre_connect_count"):
@@ -345,6 +347,8 @@ summary = data.get("session_policy_summary") or {}
 decisions = data.get("runtime_decisions") or {}
 if summary.get("valid") is not False:
     raise SystemExit("invalid policy summary should report valid=false")
+if "unsupported rshell session policy" not in summary.get("errors", []):
+    raise SystemExit("invalid policy summary error missing")
 if summary.get("session_resume_supported") is not False:
     raise SystemExit("invalid policy summary should not claim session resume")
 if sem.get("session_resume_supported") is not False:

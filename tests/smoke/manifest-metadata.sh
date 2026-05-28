@@ -328,6 +328,8 @@ if semantics.get("session_resume_supported") is not False:
     raise SystemExit("manifest-metadata: rshell manifest must not claim session resume")
 if policy_summary.get("valid") is not True:
     raise SystemExit("manifest-metadata: rshell policy summary validity missing")
+if policy_summary.get("errors") != []:
+    raise SystemExit("manifest-metadata: rshell policy summary valid errors should be empty")
 if policy_summary.get("pre_connect_retry_count") != retry.get("pre_connect_count"):
     raise SystemExit("manifest-metadata: rshell policy summary pre-connect count mismatch")
 if policy_summary.get("post_disconnect_retry_count") != retry.get("post_disconnect_count"):
@@ -381,6 +383,8 @@ if "unsupported rshell session policy" not in rshell.get("session_policy_errors"
     raise SystemExit("manifest invalid policy error missing")
 if (rshell.get("session_policy_summary") or {}).get("valid") is not False:
     raise SystemExit("manifest invalid policy summary should report valid=false")
+if "unsupported rshell session policy" not in (rshell.get("session_policy_summary") or {}).get("errors", []):
+    raise SystemExit("manifest invalid policy summary error missing")
 if (rshell.get("session_semantics") or {}).get("session_resume_supported") is not False:
     raise SystemExit("manifest invalid policy should still reject session resume")
 PY

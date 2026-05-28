@@ -795,8 +795,11 @@ int applet_rshell_main(int argc, char **argv)
                    policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false",
                    policy_persistent_lifecycle(effective_session_policy) ? "true" : "false",
                    policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false");
-            printf(",\"session_policy_summary\":{\"valid\":%s,\"retry_scope\":\"pre-connect",
+            printf(",\"session_policy_summary\":{\"valid\":%s,\"errors\":[",
                    valid_session_policy_value(effective_session_policy) ? "true" : "false");
+            if (!valid_session_policy_value(effective_session_policy))
+                json_string_main(stdout, "unsupported rshell session policy");
+            printf("],\"retry_scope\":\"pre-connect");
             if (policy_reconnects_after_disconnect(effective_session_policy))
                 printf("+post-disconnect");
             printf("\",\"pre_connect_retry_count\":");

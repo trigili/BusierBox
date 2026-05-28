@@ -306,8 +306,11 @@ static void plan_print_rshell(int json)
                rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
                rshell_policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
                rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
-        printf(",\"session_policy_summary\":{\"valid\":%s,\"retry_scope\":\"pre-connect",
+        printf(",\"session_policy_summary\":{\"valid\":%s,\"errors\":[",
                rshell_policy_valid(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+        if (!rshell_policy_valid(BB_RSHELL_SESSION_POLICY))
+            bb_json_string(stdout, "unsupported rshell session policy");
+        fputs("],\"retry_scope\":\"pre-connect", stdout);
         if (rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY))
             fputs("+post-disconnect", stdout);
         fputs("\",\"post_disconnect_retry_count\":", stdout);

@@ -87,6 +87,7 @@ assert rshell["session_semantics"]["fresh_session_on_reconnect"] is True
 assert rshell["session_semantics"]["session_resume_supported"] is False
 summary = rshell["session_policy_summary"]
 assert summary["valid"] is True
+assert summary["errors"] == []
 assert summary["retry_scope"] == "pre-connect+post-disconnect"
 assert summary["post_disconnect_retry_count"] == "1"
 assert summary["stops_after_success"] is False

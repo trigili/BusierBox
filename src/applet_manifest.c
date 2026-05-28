@@ -508,6 +508,10 @@ static void write_manifest_json(FILE *out, int include_missing)
     fprintf(out, ",\"fresh_session_on_reconnect\":%s", rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
     fprintf(out, ",\"session_resume_supported\":false}");
     fprintf(out, ",\"session_policy_summary\":{\"valid\":%s", rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+    fprintf(out, ",\"errors\":[");
+    if (!rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY))
+        json_string_payload(out, "unsupported rshell session policy");
+    fprintf(out, "]");
     fprintf(out, ",\"retry_scope\":\"pre-connect");
     if (rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY))
         fprintf(out, "+post-disconnect");
