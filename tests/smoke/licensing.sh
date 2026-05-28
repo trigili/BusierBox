@@ -6,14 +6,19 @@ grep -q 'GNU GENERAL PUBLIC LICENSE' LICENSE
 grep -q 'Version 2, June 1991' LICENSE
 test -f NOTICE
 grep -q 'GPL-2.0-or-later' NOTICE
+test -f manifests/license-policy.json
+scripts/check-licensing
 
 grep -q 'GPL-2.0-or-later' README.md
 grep -q 'NOTICE' README.md
 grep -q 'docs/licensing.md' README.md
+grep -q 'manifests/license-policy.json' README.md
 grep -q 'BusierBox is not a BusyBox replacement and is not a BusyBox fork' README.md
 
 grep -q 'GPL-2.0-or-later' docs/licensing.md
 grep -q 'GPL compatibility summary' docs/licensing.md
+grep -q 'scripts/check-licensing' docs/licensing.md
+grep -q 'manifests/license-policy.json' docs/licensing.md
 grep -q 'BusyBox' docs/licensing.md
 grep -q 'Buildroot' docs/licensing.md
 grep -q 'doom-ascii' docs/licensing.md

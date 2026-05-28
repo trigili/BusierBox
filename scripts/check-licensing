@@ -1,0 +1,96 @@
+#!/bin/sh
+set -eu
+
+policy=${1:-manifests/license-policy.json}
+
+[ -f LICENSE ] || {
+    printf '%s\n' "check-licensing: missing LICENSE" >&2
+    exit 1
+}
+[ -f NOTICE ] || {
+    printf '%s\n' "check-licensing: missing NOTICE" >&2
+    exit 1
+}
+[ -f "$policy" ] || {
+    printf '%s\n' "check-licensing: missing $policy" >&2
+    exit 1
+}
+
+grep -q 'GNU GENERAL PUBLIC LICENSE' LICENSE
+grep -q 'Version 2, June 1991' LICENSE
+grep -q 'GPL-2.0-or-later' NOTICE
+grep -q 'GPL-2.0-or-later' README.md
+grep -q 'GPL compatibility summary' docs/licensing.md
+
+python3 - "$policy" manifests/sources.lock.json <<'PY'
+import json
+import sys
+from pathlib import Path
+
+policy_path = Path(sys.argv[1])
+sources_path = Path(sys.argv[2])
+policy = json.loads(policy_path.read_text(encoding="utf-8"))
+sources = json.loads(sources_path.read_text(encoding="utf-8"))
+
+project = policy.get("project") or {}
+compat = policy.get("compatibility") or {}
+components = {
+    item.get("name"): item
+    for item in policy.get("components") or []
+    if isinstance(item, dict)
+}
+locked = {
+    item.get("name"): item
+    for item in sources.get("sources") or []
+    if isinstance(item, dict)
+}
+
+if project.get("license") != "GPL-2.0-or-later":
+    raise SystemExit("check-licensing: project license must be GPL-2.0-or-later")
+if project.get("license_file") != "LICENSE" or project.get("notice_file") != "NOTICE":
+    raise SystemExit("check-licensing: project license/notice file mapping is wrong")
+if compat.get("combined_gplv2_compatible") is not True:
+    raise SystemExit("check-licensing: GPLv2 compatibility flag must be true")
+if compat.get("not_legal_advice") is not True:
+    raise SystemExit("check-licensing: policy must be marked as engineering guidance, not legal advice")
+
+expected = {
+    "BusierBox": "GPL-2.0-or-later",
+    "BusyBox": "GPL-2.0",
+    "Buildroot": "GPL-2.0-or-later with package exceptions",
+    "doom-ascii": "GPL-2.0-or-later",
+    "miniz": "MIT OR Unlicense",
+}
+for name, license_id in expected.items():
+    item = components.get(name)
+    if not item:
+        raise SystemExit(f"check-licensing: missing component policy for {name}")
+    if item.get("license") != license_id:
+        raise SystemExit(f"check-licensing: {name} license mismatch: {item.get('license')!r}")
+    if name != "BusierBox" and not item.get("compatibility"):
+        raise SystemExit(f"check-licensing: {name} compatibility note missing")
+
+lock_expected = {
+    "buildroot": "GPL-2.0-or-later",
+    "doom-ascii": "GPL-2.0-or-later",
+    "miniz": "MIT OR Unlicense",
+}
+for name, license_id in lock_expected.items():
+    item = locked.get(name)
+    if not item:
+        raise SystemExit(f"check-licensing: missing source lock entry for {name}")
+    if item.get("license") != license_id:
+        raise SystemExit(f"check-licensing: source lock license mismatch for {name}: {item.get('license')!r}")
+    for key in ("version", "sha256", "filename", "homepage"):
+        if not item.get(key):
+            raise SystemExit(f"check-licensing: source lock {name} missing {key}")
+    if not item.get("urls"):
+        raise SystemExit(f"check-licensing: source lock {name} missing urls")
+
+if not Path("third_party/miniz/LICENSE").is_file():
+    raise SystemExit("check-licensing: missing miniz vendored license")
+if not Path("third_party/busybox/LICENSE").is_file():
+    raise SystemExit("check-licensing: missing BusyBox submodule license")
+
+print("licensing ok")
+PY

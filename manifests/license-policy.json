@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "project": {
+    "name": "BusierBox",
+    "license": "GPL-2.0-or-later",
+    "license_file": "LICENSE",
+    "notice_file": "NOTICE",
+    "scope": "BusierBox-maintained source code, scripts, tests, and documentation unless a file states a different license",
+    "spdx_expression": "GPL-2.0-or-later"
+  },
+  "compatibility": {
+    "combined_gplv2_compatible": true,
+    "preferred_combined_terms_with_busybox": "GPL-2.0",
+    "not_legal_advice": true,
+    "summary": "The default integrated stack is GPLv2-compatible: BusierBox is GPL-2.0-or-later, BusyBox is GPL-2.0, Buildroot is GPL-2.0-or-later with package exceptions, doom-ascii is GPL-2.0-or-later, and miniz is permissive.",
+    "source_availability_required_for_distribution": true
+  },
+  "components": [
+    {
+      "name": "BusierBox",
+      "kind": "project",
+      "license": "GPL-2.0-or-later",
+      "source": "this repository",
+      "compatibility": "project license"
+    },
+    {
+      "name": "BusyBox",
+      "kind": "payload",
+      "license": "GPL-2.0",
+      "source": "third_party/busybox",
+      "upstream_license_url": "https://busybox.net/license.html",
+      "compatibility": "GPLv2-compatible combined distribution; BusierBox dispatches to BusyBox and is not a BusyBox fork"
+    },
+    {
+      "name": "Buildroot",
+      "kind": "build-system",
+      "license": "GPL-2.0-or-later with package exceptions",
+      "source": "manifests/sources.lock.json:name=buildroot",
+      "upstream_license_url": "https://buildroot.org/downloads/manual/manual.html",
+      "compatibility": "Compatible build system; payload packages keep their own licenses and notice/source obligations"
+    },
+    {
+      "name": "doom-ascii",
+      "kind": "optional-payload",
+      "license": "GPL-2.0-or-later",
+      "source": "manifests/sources.lock.json:name=doom-ascii",
+      "upstream_license_url": "https://github.com/wojciech-graj/doom-ascii",
+      "compatibility": "GPLv2-compatible optional payload engine; game WAD data is user-provided and not bundled"
+    },
+    {
+      "name": "miniz",
+      "kind": "vendored-helper",
+      "license": "MIT OR Unlicense",
+      "source": "third_party/miniz",
+      "upstream_license_url": "https://github.com/richgel999/miniz",
+      "compatibility": "Permissive license compatible with GPL distribution when notices are preserved"
+    }
+  ],
+  "distribution_guidance": [
+    "Keep LICENSE and NOTICE with release bundles.",
+    "Keep manifests/sources.lock.json pinned for downloaded source archives.",
+    "Preserve third-party notices in third_party/ and LICENSES/.",
+    "Treat Buildroot-selected packages as separately licensed payload components.",
+    "Do not add a network-fetched component without pinned version, URL, SHA-256, filename, license, and homepage metadata."
+  ]
+}

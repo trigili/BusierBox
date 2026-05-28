@@ -11,7 +11,10 @@ artifact.
 
 The top-level `NOTICE` file repeats the repository-level license declaration in
 a short form for release bundles, package inventories, and repository scanners.
-This document is an engineering license inventory, not legal advice.
+`manifests/license-policy.json` is the machine-readable form of the same policy,
+and `scripts/check-licensing` validates the policy against the pinned source
+metadata and bundled notice files. This document is an engineering license
+inventory, not legal advice.
 
 ## Third-party components
 
@@ -26,6 +29,8 @@ the supervisor:
 | miniz | Vendored inflate/archive helper in `third_party/miniz`. | MIT OR Unlicense-style notices | Permissive terms are compatible with GPL distribution. |
 
 Pinned downloadable source metadata lives in `manifests/sources.lock.json`.
+Machine-readable project/component compatibility policy lives in
+`manifests/license-policy.json`.
 The BusyBox source tree is tracked as the `third_party/busybox` submodule.
 Vendored third-party notices live under `third_party/` and `LICENSES/`.
 
