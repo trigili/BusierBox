@@ -82,6 +82,45 @@ if not isinstance(manifest["effective_config"], dict):
     raise SystemExit("manifest-metadata: effective_config must be an object")
 if not isinstance(manifest["trailer_override"], dict):
     raise SystemExit("manifest-metadata: trailer_override must be an object")
+config_records = manifest.get("config_records")
+if not isinstance(config_records, list) or not config_records:
+    raise SystemExit("manifest-metadata: config_records must be a non-empty list")
+summary = manifest.get("config_record_summary") or {}
+if summary.get("total_count") != len(config_records):
+    raise SystemExit("manifest-metadata: config_record_summary total mismatch")
+if summary.get("changed_count") != 0:
+    raise SystemExit("manifest-metadata: baseline config records should not be changed")
+api_config_records = (manifest.get("api_collections") or {}).get("config_records") or {}
+if api_config_records.get("count") != len(config_records):
+    raise SystemExit("manifest-metadata: api_collections config_records count mismatch")
+if api_config_records.get("summary_key") != "config_record_summary.total_count":
+    raise SystemExit("manifest-metadata: config_records api summary key missing")
+for index_name in (
+    "config_records_by_key",
+    "config_records_by_category",
+    "config_records_by_source",
+    "config_records_by_changed",
+):
+    if index_name not in api_config_records.get("indexes", []):
+        raise SystemExit(f"manifest-metadata: config_records api index missing {index_name}")
+key_index = manifest.get("config_records_by_key") or {}
+category_index = manifest.get("config_records_by_category") or {}
+source_index = manifest.get("config_records_by_source") or {}
+changed_index = manifest.get("config_records_by_changed") or {}
+runtime_indexes = key_index.get("BB_RUNTIME_MODE")
+if not isinstance(runtime_indexes, list) or len(runtime_indexes) != 1:
+    raise SystemExit("manifest-metadata: config_records_by_key missing BB_RUNTIME_MODE")
+runtime_record = config_records[runtime_indexes[0]]
+if runtime_record.get("category") != "runtime" or runtime_record.get("source") != "compiled":
+    raise SystemExit("manifest-metadata: BB_RUNTIME_MODE record metadata mismatch")
+if runtime_record.get("compiled") != runtime_record.get("effective"):
+    raise SystemExit("manifest-metadata: baseline BB_RUNTIME_MODE record changed unexpectedly")
+if not category_index.get("command_queue"):
+    raise SystemExit("manifest-metadata: command queue config category index empty")
+if len(source_index.get("compiled", [])) != len(config_records):
+    raise SystemExit("manifest-metadata: baseline compiled source index mismatch")
+if changed_index.get("yes") != [] or len(changed_index.get("no", [])) != len(config_records):
+    raise SystemExit("manifest-metadata: baseline changed index mismatch")
 licensing = manifest.get("licensing") or {}
 if licensing.get("project_license") != "GPL-2.0-or-later":
     raise SystemExit("manifest-metadata: project license missing from manifest")

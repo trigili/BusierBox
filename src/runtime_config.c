@@ -612,6 +612,33 @@ static size_t config_changed_count(void)
     return count;
 }
 
+void bb_config_print_records_json(FILE *out)
+{
+    print_config_records(out);
+}
+
+void bb_config_print_record_indexes_json(FILE *out)
+{
+    print_config_record_indexes(out);
+}
+
+void bb_config_print_record_summary_json(FILE *out)
+{
+    fprintf(out, "{\"total_count\":%zu,\"changed_count\":%zu,\"environment_override_count\":%d,\"cli_override_count\":%d,\"trailer_override_count\":%d}",
+            sizeof(cfg) / sizeof(cfg[0]),
+            config_changed_count(),
+            env_override_count(),
+            cli_override_count(),
+            bb_config_trailer_override_count());
+}
+
+void bb_config_print_record_api_collection_json(FILE *out)
+{
+    fputs("{\"name\":\"config_records\",\"count\":", out);
+    fprintf(out, "%zu", sizeof(cfg) / sizeof(cfg[0]));
+    fputs(",\"summary_key\":\"config_record_summary.total_count\",\"indexes\":[\"config_records_by_key\",\"config_records_by_category\",\"config_records_by_source\",\"config_records_by_changed\"]}", out);
+}
+
 void bb_config_print_trailer_json(FILE *out, void (*json_string)(FILE *, const char *))
 {
     fprintf(out, "{\"present\":%s,\"valid\":%s,\"encoding\":",
@@ -861,17 +888,13 @@ int applet_runtime_config_main(int argc, char **argv)
         fputs(",\"effective_config\":", stdout);
         bb_config_print_effective_json(stdout, bb_json_string);
         fputs(",\"config_records\":", stdout);
-        print_config_records(stdout);
-        print_config_record_indexes(stdout);
-        fprintf(stdout, ",\"config_record_summary\":{\"total_count\":%zu,\"changed_count\":%zu,\"environment_override_count\":%d,\"cli_override_count\":%d,\"trailer_override_count\":%d}",
-                sizeof(cfg) / sizeof(cfg[0]),
-                config_changed_count(),
-                env_override_count(),
-                cli_override_count(),
-                bb_config_trailer_override_count());
-        fputs(",\"api_collections\":{\"config_records\":{\"name\":\"config_records\",\"count\":", stdout);
-        fprintf(stdout, "%zu", sizeof(cfg) / sizeof(cfg[0]));
-        fputs(",\"summary_key\":\"config_record_summary.total_count\",\"indexes\":[\"config_records_by_key\",\"config_records_by_category\",\"config_records_by_source\",\"config_records_by_changed\"]}}", stdout);
+        bb_config_print_records_json(stdout);
+        bb_config_print_record_indexes_json(stdout);
+        fputs(",\"config_record_summary\":", stdout);
+        bb_config_print_record_summary_json(stdout);
+        fputs(",\"api_collections\":{\"config_records\":", stdout);
+        bb_config_print_record_api_collection_json(stdout);
+        fputc('}', stdout);
         fputs(",\"noresidue_policy\":", stdout);
         print_noresidue_policy_json(stdout);
         fputs(",\"rshell_readiness\":", stdout);

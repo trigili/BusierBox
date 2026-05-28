@@ -64,8 +64,9 @@ Integration runs capture manifest output next to the case logs so each validatio
 
 Post-build runtime override trailers are edited with
 `scripts/artifact-config`. They can change selected runtime/operator settings
-without rebuilding and appear under `trailer_override`, `compiled_config`, and
-`effective_config` in `manifest --json`. See
+without rebuilding and appear under `trailer_override`, `compiled_config`,
+`effective_config`, `config_records`, and the `config_records_by_*` lookup maps
+in `manifest --json`. See
 [Artifact runtime overrides](artifact-runtime-overrides.md).
 
 Payload preset metadata lives next to each built-in preset as

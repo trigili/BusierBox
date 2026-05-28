@@ -11,6 +11,7 @@
 #include "applets.h"
 #include "command_queue_policy.h"
 #include "json_helpers.h"
+#include "runtime_config.h"
 
 #define json_string_payload bb_json_string
 
@@ -425,6 +426,14 @@ static void write_manifest_json(FILE *out, int include_missing)
     bb_config_print_compiled_json(out, json_string_payload);
     fprintf(out, ",\"effective_config\":");
     bb_config_print_effective_json(out, json_string_payload);
+    fprintf(out, ",\"config_records\":");
+    bb_config_print_records_json(out);
+    bb_config_print_record_indexes_json(out);
+    fprintf(out, ",\"config_record_summary\":");
+    bb_config_print_record_summary_json(out);
+    fprintf(out, ",\"api_collections\":{\"config_records\":");
+    bb_config_print_record_api_collection_json(out);
+    fprintf(out, "}");
     fprintf(out, ",\"trailer_override\":");
     bb_config_print_trailer_json(out, json_string_payload);
     fprintf(out, ",\"native_features\":{\"survey\":%s,\"doctor\":%s,\"extract\":%s,\"config_info\":%s,\"persistence\":true,\"recovery_alias\":true",
