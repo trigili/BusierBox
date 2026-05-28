@@ -671,10 +671,14 @@ metadata separately. The `events` array is a bounded recent tail;
 `events_by_remote` group those tail records for direct frontend lookups.
 Composite maps `events_by_service_event`, `events_by_session_event`,
 `events_by_service_level`, `events_by_event_level`, `events_by_remote_event`,
-and `events_by_remote_level` support direct timeline
+`events_by_remote_level`, `events_by_detail_status`,
+`events_by_detail_operation`, `events_by_detail_http_status`,
+`events_by_event_detail_status`, and `events_by_service_detail_status`
+support direct timeline and outcome
 lookups such as `file-service:upload_complete`, `<session-id>:connection_close`,
-`file-service:error`, `bind_error:error`, or `<remote>:upload_complete`
-without filtering broader event groups.
+`file-service:error`, `bind_error:error`, `<remote>:upload_complete`,
+`upload`, `200`, `upload_complete:ok`, or `file-service:ok` without filtering
+broader event groups or parsing each event detail payload.
 `event_log_state` reports the event log path, existence, validity, size, total
 valid event count, invalid JSONL line count, tail count, tail limit, and
 first/latest event timestamps. It also reports whether the recent tail is
@@ -683,14 +687,18 @@ response. `event_log_stats` reports the event log path, total valid event count,
 tail count, invalid JSONL line count, tail limit, truncation state, omitted
 count, first/latest event timestamps, and
 aggregate counters by service, event, level, remote endpoint, service/event,
-session/event, remote/event, and remote/level so API
+session/event, remote/event, remote/level, detail status, detail operation,
+detail HTTP status, event/status, and service/status so API
 consumers can tell whether there is more history to page or inspect from disk
 while still rendering compact diagnostics.
 Those aggregate maps are also mirrored into `summary` as
 `event_service_counts`, `event_type_counts`, `event_level_counts`, and
 `event_remote_counts`, plus `event_service_event_counts` and
-`event_session_event_counts`; `first_event_at` and `latest_event_at` are mirrored for
-dashboard clients that only need compact status counters and event recency.
+`event_session_event_counts`, `event_detail_status_counts`,
+`event_detail_operation_counts`, `event_detail_http_status_counts`,
+`event_type_detail_status_counts`, and `event_service_detail_status_counts`;
+`first_event_at` and `latest_event_at` are mirrored for dashboard clients that
+only need compact status counters and event recency.
 
 Structured `warnings` use stable `type` values such as `service_error`,
 `stale_state`, `unexpected_listener`, `listener_bind_mismatch`, `unmanaged_recorded_pid`,

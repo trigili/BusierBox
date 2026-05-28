@@ -3214,6 +3214,12 @@ def main():
         events_by_session = upload_doc.get("events_by_session") or {}
         events_by_session_event = upload_doc.get("events_by_session_event") or {}
         upload_events_by_service_event = upload_doc.get("events_by_service_event") or {}
+        upload_events_by_detail_status = upload_doc.get("events_by_detail_status") or {}
+        upload_events_by_detail_operation = upload_doc.get("events_by_detail_operation") or {}
+        upload_events_by_detail_http_status = upload_doc.get("events_by_detail_http_status") or {}
+        upload_events_by_event_detail_status = upload_doc.get("events_by_event_detail_status") or {}
+        upload_events_by_service_detail_status = upload_doc.get("events_by_service_detail_status") or {}
+        upload_events_api = (upload_doc.get("api_collections") or {}).get("events") or {}
         uploaded_session_id = session_json_paths[0].parent.name
         session_service_state_key = "file-service:stopped"
         session_service_exit_key = "file-service:clean shutdown"
@@ -3229,6 +3235,16 @@ def main():
                 events_by_session[uploaded_session_id][-1].get("event") != "service_stop" or
                 not events_by_session_event.get(f"{uploaded_session_id}:upload_complete") or
                 not upload_events_by_service_event.get("file-service:upload_complete") or
+                upload_events_by_detail_status.get("ok", [{}])[0].get("event") not in ("upload_complete", "connection_close") or
+                upload_events_by_detail_operation.get("upload", [{}])[0].get("service") != "file-service" or
+                upload_events_by_detail_http_status.get("200", [{}])[0].get("service") != "file-service" or
+                not upload_events_by_event_detail_status.get("upload_complete:ok") or
+                not upload_events_by_service_detail_status.get("file-service:ok") or
+                "events_by_detail_status" not in (upload_events_api.get("indexes") or []) or
+                "events_by_detail_operation" not in (upload_events_api.get("indexes") or []) or
+                "events_by_detail_http_status" not in (upload_events_api.get("indexes") or []) or
+                "events_by_event_detail_status" not in (upload_events_api.get("indexes") or []) or
+                "events_by_service_detail_status" not in (upload_events_api.get("indexes") or []) or
                 not upload_remote or
                 sessions_by_remote.get(upload_remote, [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_service_state.get(session_service_state_key, [{}])[0].get("session_id") != uploaded_session_id or
@@ -3253,7 +3269,17 @@ def main():
                 upload_event_stats.get("tail_count") != len(upload_doc.get("events", [])) or
                 upload_doc.get("summary", {}).get("event_tail_count") != upload_event_stats.get("tail_count") or
                 upload_event_stats.get("by_remote", {}).get(upload_remote, 0) < 1 or
-                upload_doc.get("summary", {}).get("event_remote_counts", {}).get(upload_remote, 0) < 1):
+                upload_event_stats.get("by_detail_status", {}).get("ok", 0) < 1 or
+                upload_event_stats.get("by_detail_operation", {}).get("upload", 0) < 1 or
+                upload_event_stats.get("by_detail_http_status", {}).get("200", 0) < 1 or
+                upload_event_stats.get("by_event_detail_status", {}).get("upload_complete:ok", 0) < 1 or
+                upload_event_stats.get("by_service_detail_status", {}).get("file-service:ok", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_remote_counts", {}).get(upload_remote, 0) < 1 or
+                upload_doc.get("summary", {}).get("event_detail_status_counts", {}).get("ok", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_detail_operation_counts", {}).get("upload", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_detail_http_status_counts", {}).get("200", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_type_detail_status_counts", {}).get("upload_complete:ok", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_service_detail_status_counts", {}).get("file-service:ok", 0) < 1):
             print("server json status missing upload event log stats", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
@@ -3272,6 +3298,9 @@ def main():
                 "services: file-service=" not in upload_status_text.stdout or
                 "levels: info=" not in upload_status_text.stdout or
                 "remotes:" not in upload_status_text.stdout or
+                "detail_statuses: ok=" not in upload_status_text.stdout or
+                "detail_operations: upload=" not in upload_status_text.stdout or
+                "detail_http_statuses: 200=" not in upload_status_text.stdout or
                 "operation=upload status=ok http=200 filename=evidence.txt" not in upload_status_text.stdout or
                 "Command queue:" not in upload_status_text.stdout or
                 "Generated target commands:" not in upload_status_text.stdout or
