@@ -2203,6 +2203,7 @@ def service_record_indexes(records):
     by_pid = {}
     by_listener_pid = {}
     by_bind_address = {}
+    by_stopped_reason = {}
     by_tls = records_by_bool(records, "tls")
     by_stale = records_by_bool(records, "stale")
     by_pid_alive = records_by_bool(records, "pid_alive")
@@ -2227,6 +2228,9 @@ def service_record_indexes(records):
             by_port.setdefault(str(port), []).append(rec)
         if pid:
             by_pid.setdefault(pid, []).append(rec)
+        stopped_reason = str(rec.get("stopped_reason") or "")
+        if stopped_reason:
+            by_stopped_reason.setdefault(stopped_reason, []).append(rec)
         for listener_pid in rec.get("listener_pids") or []:
             if listener_pid not in (None, ""):
                 by_listener_pid.setdefault(str(listener_pid), []).append(rec)
@@ -2234,7 +2238,7 @@ def service_record_indexes(records):
     return (
         by_actual, by_configured, by_bind_address, by_port, by_pid,
         by_listener_pid, by_tls, by_stale, by_pid_alive, by_pid_managed,
-        by_listener_bind_mismatch, by_has_error,
+        by_listener_bind_mismatch, by_has_error, by_stopped_reason,
     )
 
 
@@ -6870,7 +6874,8 @@ def status_document(cfg):
      services_by_pid_alive,
      services_by_pid_managed,
      services_by_listener_bind_mismatch,
-     services_by_has_error) = service_record_indexes(services)
+     services_by_has_error,
+     services_by_stopped_reason) = service_record_indexes(services)
     ports = port_records_from_services(services)
     ports_by_number, ports_by_service, ports_by_actual = port_record_indexes(ports)
     paths = {
@@ -7091,6 +7096,7 @@ def status_document(cfg):
         "service_pid_managed_counts": {key: len(value) for key, value in services_by_pid_managed.items()},
         "service_listener_bind_mismatch_counts": {key: len(value) for key, value in services_by_listener_bind_mismatch.items()},
         "service_has_error_counts": {key: len(value) for key, value in services_by_has_error.items()},
+        "service_stopped_reason_counts": {key: len(value) for key, value in services_by_stopped_reason.items()},
         "port_count": len(ports),
         "port_actual_counts": record_count_by_key(ports, "actual"),
         "warning_count": warning_summary.get("total_count", 0),
@@ -7350,7 +7356,8 @@ def status_document(cfg):
                 "services_by_listener_pid", "services_by_tls", "services_by_stale",
                 "services_by_pid_alive", "services_by_pid_managed",
                 "services_by_listener_bind_mismatch", "services_by_has_error",
-                "services_by_has_warnings", "services_by_warning_type",
+                "services_by_stopped_reason", "services_by_has_warnings",
+                "services_by_warning_type",
             ), "service_count",
         ),
         "ports": api_collection_record(
@@ -7625,6 +7632,7 @@ def status_document(cfg):
         "services_by_pid_managed": services_by_pid_managed,
         "services_by_listener_bind_mismatch": services_by_listener_bind_mismatch,
         "services_by_has_error": services_by_has_error,
+        "services_by_stopped_reason": services_by_stopped_reason,
         "services_by_has_warnings": services_by_has_warnings,
         "services_by_warning_type": services_by_warning_type,
         "ports": ports,
