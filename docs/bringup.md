@@ -131,7 +131,8 @@ local/bringup-runs/<timestamp>/
 host, target preset, payload preset, generated target preset path, release
 selection, maximum compatibility threshold, compatibility label/reasons,
 selected artifact provider status, generated trailer command, staged fetch
-command, selected artifact Doom WAD metadata, next operator commands, and next target commands. The JSON also
+command, selected artifact Doom WAD metadata, selected artifact release
+summary metadata, next operator commands, and next target commands. The JSON also
 includes `next_operator_command_records` and `next_target_command_records`
 with side/effect metadata, a combined `next_command_records` list,
 `next_command_records_by_side`, `next_command_records_by_service`, and

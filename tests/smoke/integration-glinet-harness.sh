@@ -66,7 +66,25 @@ print(json.dumps({
                 "size": 9,
                 "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             }
-        ]
+        ],
+        "tuple_summary": {
+            "reverse_access": {
+                "session_policy": "reconnect",
+                "session_policy_valid": True,
+                "session_policy_summary": {
+                    "retry_scope": "pre-connect+post-disconnect",
+                    "reconnect_after_disconnect": True,
+                    "fresh_session_on_reconnect": True,
+                    "session_resume_supported": False
+                }
+            },
+            "command_queue": {
+                "enabled": "no",
+                "default_enabled": False,
+                "daemon_stop_supported": True,
+                "executes_commands": False
+            }
+        }
     },
     "compatibility": {"label": "likely", "reasons": ["arch exact", "libc inferred musl"]},
 }))
@@ -79,7 +97,7 @@ cat >"$release_tmp/reality.json" <<'JSON'
 ]}
 JSON
 release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --reality-json "$release_tmp/reality.json" --release-dir "$release_tmp" --max-compatibility likely --configure-trailer --json)
-printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); files=d["run_files"]; providers=d["selected_tool_provider_status"]; wads=d["selected_doom_wads"]; assert d["compatibility"]["label"] == "likely"; assert d["max_compatibility"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert providers["gdbserver"]["overall"] == "found"; assert wads[0]["filename"] == "doom.wad"; assert wads[0]["size"] == 9; assert d["reality_json"]; assert "artifact-config set" in d["generated_trailer_override_command"]; assert d["recommendation"]["config"]["BB_RUNTIME_MODE"] == "extract"; assert d["recommendation"]["facts"]["reality"]["tmp_noexec_detected"] is True; assert any("reality-test detected /tmp noexec" in w for w in d["recommendation"]["warnings"]); assert files["release_find_json"]["exists"] is True; assert files["selected_artifact"]["path"] == d["selected_artifact"]; assert files["selected_artifact"]["exists"] is True; assert files["reality_json"]["exists"] is True'
+printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); files=d["run_files"]; providers=d["selected_tool_provider_status"]; wads=d["selected_doom_wads"]; summary=d["selected_artifact_summary"]; reverse=summary["reverse_access"]; queue=summary["command_queue"]; assert d["compatibility"]["label"] == "likely"; assert d["max_compatibility"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert providers["gdbserver"]["overall"] == "found"; assert wads[0]["filename"] == "doom.wad"; assert wads[0]["size"] == 9; assert reverse["session_policy"] == "reconnect"; assert reverse["session_policy_summary"]["fresh_session_on_reconnect"] is True; assert reverse["session_policy_summary"]["session_resume_supported"] is False; assert queue["enabled"] == "no"; assert queue["daemon_stop_supported"] is True; assert queue["executes_commands"] is False; assert d["reality_json"]; assert "artifact-config set" in d["generated_trailer_override_command"]; assert d["recommendation"]["config"]["BB_RUNTIME_MODE"] == "extract"; assert d["recommendation"]["facts"]["reality"]["tmp_noexec_detected"] is True; assert any("reality-test detected /tmp noexec" in w for w in d["recommendation"]["warnings"]); assert files["release_find_json"]["exists"] is True; assert files["selected_artifact"]["path"] == d["selected_artifact"]; assert files["selected_artifact"]["exists"] is True; assert files["reality_json"]["exists"] is True'
 rm -rf "$release_tmp"
 grep -q 'BUSIERBOX_CONFIG="$recommended" make package' scripts/busierbox-bringup
 grep -q 'Bringup is a guided onboarding flow' README.md
