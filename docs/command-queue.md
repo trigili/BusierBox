@@ -95,7 +95,11 @@ operator events: `schema`, `id`, `ts`, `service`, `session`, `event`, `level`,
 `remote`, and `details`. In target-side event `details`,
 `delivery_supported` and `result_upload_supported` describe whether the live
 HTTP polling/result path is available for that event; `status=no-command` means
-the queue was empty, not that delivery is unsupported.
+the queue was empty, not that delivery is unsupported. JSON output also mirrors
+the current invocation's structured target events under `poll_run` with
+`event_count`, level counts, and `event_counts_by_event`, so API clients can
+show poll attempts, empty polls, delivery decisions, result uploads, errors,
+and shutdown outcomes without separately parsing the target-side event log.
 
 The live daemon writes a target-side state file, defaulting to
 `$BB_RUNTIME_ROOT/run/command-queue-daemon.state`. `command-queue status`

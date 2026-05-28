@@ -34,6 +34,18 @@ struct poll_run_result {
     int last_delay_sec;
     int stopped_by_limit;
     int stopped_by_signal;
+    int event_count;
+    int event_info_count;
+    int event_warning_count;
+    int event_poll_attempt_count;
+    int event_poll_complete_count;
+    int event_poll_no_command_count;
+    int event_poll_error_count;
+    int event_execution_decision_count;
+    int event_result_upload_count;
+    int event_result_upload_error_count;
+    int event_shutdown_count;
+    int event_daemon_state_error_count;
     char last_status[64];
     char last_error[160];
     char last_command_id[96];
@@ -434,6 +446,44 @@ static void append_poll_event(const char *path, const char *event, const char *m
     fclose(fh);
 }
 
+static void count_poll_run_event(struct poll_run_result *run, const char *event, const char *error)
+{
+    if (!run)
+        return;
+    run->event_count++;
+    if (error && error[0])
+        run->event_warning_count++;
+    else
+        run->event_info_count++;
+    if (!strcmp(event ? event : "", "command_queue_poll_attempt"))
+        run->event_poll_attempt_count++;
+    else if (!strcmp(event ? event : "", "command_queue_poll_complete"))
+        run->event_poll_complete_count++;
+    else if (!strcmp(event ? event : "", "command_queue_poll_no_command"))
+        run->event_poll_no_command_count++;
+    else if (!strcmp(event ? event : "", "command_queue_poll_error"))
+        run->event_poll_error_count++;
+    else if (!strcmp(event ? event : "", "command_queue_execution_decision"))
+        run->event_execution_decision_count++;
+    else if (!strcmp(event ? event : "", "command_queue_result_upload"))
+        run->event_result_upload_count++;
+    else if (!strcmp(event ? event : "", "command_queue_result_upload_error"))
+        run->event_result_upload_error_count++;
+    else if (!strcmp(event ? event : "", "command_queue_poll_shutdown"))
+        run->event_shutdown_count++;
+    else if (!strcmp(event ? event : "", "command_queue_daemon_state_error"))
+        run->event_daemon_state_error_count++;
+}
+
+static void append_run_poll_event(const char *path, struct poll_run_result *run,
+                                  const char *event, const char *mode,
+                                  const char *endpoint, int attempt,
+                                  const char *status, const char *error)
+{
+    count_poll_run_event(run, event, error);
+    append_poll_event(path, event, mode, endpoint, attempt, status, error);
+}
+
 static void parse_header_value(const char *response, const char *name, char *out, size_t outsz)
 {
     const char *p = response;
@@ -636,14 +686,14 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
                            state_error, sizeof(state_error)) != 0) {
         snprintf(result.last_status, sizeof(result.last_status), "state_error");
         snprintf(result.last_error, sizeof(result.last_error), "%s", state_error);
-        append_poll_event(event_log, "command_queue_daemon_state_error", mode, endpoint, 0, "error", state_error);
+        append_run_poll_event(event_log, &result, "command_queue_daemon_state_error", mode, endpoint, 0, "error", state_error);
         return result;
     }
     while (!stop_daemon && (limit <= 0 || result.attempts < limit)) {
         char error[160] = "";
         result.attempted = 1;
         result.attempts++;
-        append_poll_event(event_log, "command_queue_poll_attempt", mode, endpoint, result.attempts, "attempt", "");
+        append_run_poll_event(event_log, &result, "command_queue_poll_attempt", mode, endpoint, result.attempts, "attempt", "");
         int poll_rc = connect_operator_once(operator_host, BB_COMMAND_QUEUE_PORT, error, sizeof(error));
         if (poll_rc == 0) {
             char upload_error[160] = "";
@@ -653,27 +703,27 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
             snprintf(result.last_status, sizeof(result.last_status), "delivered-rejected");
             snprintf(result.last_command_id, sizeof(result.last_command_id), "%s", error);
             result.last_error[0] = '\0';
-            append_poll_event(event_log, "command_queue_poll_complete", mode, endpoint, result.attempts, "delivered", "");
-            append_poll_event(event_log, "command_queue_execution_decision", mode, endpoint, result.attempts, "rejected", "target command execution is not implemented");
+            append_run_poll_event(event_log, &result, "command_queue_poll_complete", mode, endpoint, result.attempts, "delivered", "");
+            append_run_poll_event(event_log, &result, "command_queue_execution_decision", mode, endpoint, result.attempts, "rejected", "target command execution is not implemented");
             if (post_rejected_result_once(operator_host, BB_COMMAND_QUEUE_PORT,
                                           result.last_command_id, upload_error, sizeof(upload_error)) == 0) {
                 result.result_uploads++;
-                append_poll_event(event_log, "command_queue_result_upload", mode, endpoint, result.attempts, "result-uploaded", "");
+                append_run_poll_event(event_log, &result, "command_queue_result_upload", mode, endpoint, result.attempts, "result-uploaded", "");
             } else {
                 result.result_upload_failures++;
                 snprintf(result.last_error, sizeof(result.last_error), "%s", upload_error);
-                append_poll_event(event_log, "command_queue_result_upload_error", mode, endpoint, result.attempts, "error", upload_error);
+                append_run_poll_event(event_log, &result, "command_queue_result_upload_error", mode, endpoint, result.attempts, "error", upload_error);
             }
         } else if (poll_rc == 1) {
             result.successes++;
             snprintf(result.last_status, sizeof(result.last_status), "no-command");
             result.last_error[0] = '\0';
-            append_poll_event(event_log, "command_queue_poll_no_command", mode, endpoint, result.attempts, "no-command", "");
+            append_run_poll_event(event_log, &result, "command_queue_poll_no_command", mode, endpoint, result.attempts, "no-command", "");
         } else {
             result.failures++;
             snprintf(result.last_status, sizeof(result.last_status), "error");
             snprintf(result.last_error, sizeof(result.last_error), "%s", error);
-            append_poll_event(event_log, "command_queue_poll_error", mode, endpoint, result.attempts, "error", error);
+            append_run_poll_event(event_log, &result, "command_queue_poll_error", mode, endpoint, result.attempts, "error", error);
         }
         if (strcmp(mode, "daemon"))
             break;
@@ -686,8 +736,8 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
     }
     result.stopped_by_signal = stop_daemon ? 1 : 0;
     result.stopped_by_limit = (!result.stopped_by_signal && !strcmp(mode, "daemon") && limit > 0 && result.attempts >= limit);
-    append_poll_event(event_log, "command_queue_poll_shutdown", mode, endpoint, result.attempts,
-                      result.stopped_by_signal ? "signal" : "complete", "");
+    append_run_poll_event(event_log, &result, "command_queue_poll_shutdown", mode, endpoint, result.attempts,
+                          result.stopped_by_signal ? "signal" : "complete", "");
     if (!strcmp(mode, "daemon"))
         remove_daemon_state_if_ours(state_file);
     return result;
@@ -966,7 +1016,23 @@ static void print_poll_run_json(const struct poll_run_result *run)
     bb_json_string(stdout, run ? run->last_command_id : "");
     printf(",\"queued_command_available\":%s", run && run->delivered_commands > 0 ? "true" : "false");
     printf(",\"delivery_supported\":%s", run && run->delivered_commands > 0 ? "true" : "false");
-    fputs(",\"result_upload_supported\":true,\"execution_supported\":false,\"executes_commands\":false,\"execution_decision\":\"rejected\"}", stdout);
+    fputs(",\"result_upload_supported\":true,\"execution_supported\":false,\"executes_commands\":false,\"execution_decision\":\"rejected\"", stdout);
+    printf(",\"event_count\":%d", run ? run->event_count : 0);
+    printf(",\"event_info_count\":%d", run ? run->event_info_count : 0);
+    printf(",\"event_warning_count\":%d", run ? run->event_warning_count : 0);
+    fputs(",\"event_counts_by_event\":{", stdout);
+    printf("\"command_queue_poll_attempt\":%d", run ? run->event_poll_attempt_count : 0);
+    printf(",\"command_queue_poll_complete\":%d", run ? run->event_poll_complete_count : 0);
+    printf(",\"command_queue_poll_no_command\":%d", run ? run->event_poll_no_command_count : 0);
+    printf(",\"command_queue_poll_error\":%d", run ? run->event_poll_error_count : 0);
+    printf(",\"command_queue_execution_decision\":%d", run ? run->event_execution_decision_count : 0);
+    printf(",\"command_queue_result_upload\":%d", run ? run->event_result_upload_count : 0);
+    printf(",\"command_queue_result_upload_error\":%d", run ? run->event_result_upload_error_count : 0);
+    printf(",\"command_queue_poll_shutdown\":%d", run ? run->event_shutdown_count : 0);
+    printf(",\"command_queue_daemon_state_error\":%d", run ? run->event_daemon_state_error_count : 0);
+    fputs("},\"event_counts_by_level\":{", stdout);
+    printf("\"info\":%d,\"warning\":%d", run ? run->event_info_count : 0, run ? run->event_warning_count : 0);
+    fputs("}}", stdout);
 }
 
 static void print_daemon_state_json(const char *state_file, const struct daemon_state *state)
