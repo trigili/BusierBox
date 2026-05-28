@@ -576,11 +576,14 @@ and compact outcome details from the structured event record. `v` opens the
 selected local metadata/log/artifact/event-log path in the operator's pager when
 one is available, and `c` copies the selected generated target command to the
 local clipboard when possible plus
-`local/operator-session/last-command.txt`. The line-oriented fallback exposes
+`local/operator-session/last-command.txt`. The `r` refresh action updates
+workbench refresh counters and records a structured `workbench_refreshed` event
+instead of being only an incidental redraw. The line-oriented fallback exposes
 the same operator path health, compact service and activity summaries, recent
-upload/fetch activity, event aggregate counts, and compact event outcome details so
-non-curses or non-TTY runs still show whether listener state, logs, staged
-files, session roots, transfer activity, and recent event outcomes are usable.
+upload/fetch activity, event aggregate counts, refresh state, and compact event
+outcome details so non-curses or non-TTY runs still show whether listener state,
+logs, staged files, session roots, transfer activity, and recent event outcomes
+are usable.
 
 Inspect and clean BusierBox-controlled runtime state:
 

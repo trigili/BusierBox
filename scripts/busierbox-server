@@ -4478,6 +4478,7 @@ def workbench_snapshot(cfg):
     doc = status_document(cfg)
     services = {}
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
+    workbench_state = (state.get("services") or {}).get("workbench", {})
     for row in doc["services"]:
         services[row["name"]] = {
             "port": row["port"],
@@ -4485,7 +4486,32 @@ def workbench_snapshot(cfg):
             "state": (state.get("services") or {}).get(row["name"], {}),
             "status_row": row,
         }
-    return {**doc, "state": state, "services": services}
+    return {
+        **doc,
+        "state": state,
+        "services": services,
+        "workbench": {
+            "status": workbench_state.get("status", ""),
+            "last_refresh_at": workbench_state.get("last_refresh_at", ""),
+            "refresh_count": int(workbench_state.get("refresh_count", 0) or 0),
+        },
+    }
+
+
+def record_workbench_refresh(cfg, reason="manual"):
+    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
+    services = state.setdefault("services", {})
+    rec = services.setdefault("workbench", {})
+    count = int(rec.get("refresh_count", 0) or 0) + 1
+    now = utc_now()
+    rec.update({
+        "status": rec.get("status") or "open",
+        "last_refresh_at": now,
+        "refresh_count": count,
+    })
+    atomic_write_json(state_file_path(cfg), state)
+    append_event(cfg, "workbench", "workbench_refreshed", details={"reason": reason, "refresh_count": count})
+    return rec
 
 
 def service_status_rows(cfg):
@@ -5661,6 +5687,8 @@ def print_workbench(cfg):
     print("BusierBox Operator Workbench")
     print(f"Current time: {utc_now()}")
     print(f"Selected local IP: {snap['selected_local_ip']}")
+    workbench = snap.get("workbench") or {}
+    print(f"Workbench refresh: count={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}")
     print(
         "Service summary: "
         f"listening={summary.get('listening_count', 0)} "
@@ -5987,6 +6015,9 @@ def run_line_tui(cfg):
             path = input("local path> ").strip()
             if path:
                 print(open_path_in_pager(path))
+        elif choice == "r":
+            rec = record_workbench_refresh(cfg)
+            print(f"refreshed workbench at {rec.get('last_refresh_at', '')}")
         elif choice == "c":
             commands = generated_target_commands(cfg)
             for idx, cmd in enumerate(commands, 1):
@@ -6248,7 +6279,9 @@ def run_curses_tui(cfg):
             height, width = stdscr.getmaxyx()
             active = sum(1 for row in services if row["actual"] == "listening")
             warning_count = len(snap.get("warnings") or [])
-            safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} warnings={warning_count} | ip={snap['selected_local_ip']} | {utc_now()} | tab panes j/k move enter start/stop s stage d unstage v view c copy ? help q quit", curses.A_REVERSE)
+            workbench = snap.get("workbench") or {}
+            refresh_suffix = f"refresh={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}"
+            safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} warnings={warning_count} | ip={snap['selected_local_ip']} | {utc_now()} | {refresh_suffix} | tab panes j/k move enter start/stop s stage d unstage v view c copy ? help q quit", curses.A_REVERSE)
             left_w = max(34, width // 3)
             right_w = max(20, width - left_w - 1)
             lower_y = max(12, height // 2)
@@ -6339,6 +6372,10 @@ def run_curses_tui(cfg):
                 stdscr.getch()
             elif key in (ord("?"),):
                 safe_add(stdscr, height - 2, 0, "Help: arrows/jk move, Tab panes, Enter start/stop, s stage, d unstage, v view, c copy command, r refresh, q quit")
+                stdscr.getch()
+            elif key in (ord("r"), ord("R")):
+                rec = record_workbench_refresh(cfg)
+                safe_add(stdscr, height - 2, 0, f"Refreshed workbench at {rec.get('last_refresh_at', '')}")
                 stdscr.getch()
             elif key in (ord("c"), ord("C")):
                 if snap["target_commands"]:
