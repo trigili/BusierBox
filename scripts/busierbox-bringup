@@ -625,11 +625,19 @@ stage_artifact_for_fetch() {
         exit 1
     }
     staged_request_name=$(basename "$artifact_to_stage")
-    scripts/busierbox-server --serve-file "$artifact_to_stage" --as "$staged_request_name" --list-staged >"$run_dir/staged-artifact.out" 2>"$run_dir/staged-artifact.err" || {
-        write_summary fail "artifact staging failed"
-        printf '%s\n' "bringup: artifact staging failed; see $run_dir/staged-artifact.err" >&2
-        exit 1
-    }
+    if [ -n "$selected_artifact" ] && [ -n "$release_dir" ]; then
+        scripts/busierbox-server --release-dir "$release_dir" --stage-release-artifact "$selected_artifact" --list-staged >"$run_dir/staged-artifact.out" 2>"$run_dir/staged-artifact.err" || {
+            write_summary fail "release artifact staging failed"
+            printf '%s\n' "bringup: release artifact staging failed; see $run_dir/staged-artifact.err" >&2
+            exit 1
+        }
+    else
+        scripts/busierbox-server --serve-file "$artifact_to_stage" --as "$staged_request_name" --list-staged >"$run_dir/staged-artifact.out" 2>"$run_dir/staged-artifact.err" || {
+            write_summary fail "artifact staging failed"
+            printf '%s\n' "bringup: artifact staging failed; see $run_dir/staged-artifact.err" >&2
+            exit 1
+        }
+    fi
     staged_fetch_command=$(sed -n 's/^  //p; /^busierbox fetch /p' "$run_dir/staged-artifact.out" | sed -n '1p')
     [ -n "$staged_fetch_command" ] || staged_fetch_command="busierbox fetch $staged_request_name --host OPERATOR_IP --port 22204"
 }

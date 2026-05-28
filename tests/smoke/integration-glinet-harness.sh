@@ -39,6 +39,40 @@ rm -f local/presets/targets/smoke-bringup.json
 release_tmp=$(mktemp -d "${TMPDIR:-/tmp}/busierbox-bringup-release.XXXXXX")
 mkdir -p "$release_tmp/scripts" "$release_tmp/bin"
 printf '%s\n' "fake artifact" >"$release_tmp/bin/busierbox-mipsel-full"
+cat >"$release_tmp/release.json" <<'JSON'
+{
+  "schema": 1,
+  "release_name": "bringup-smoke",
+  "layout": {
+    "devices": {},
+    "tuples": {}
+  },
+  "artifacts": []
+}
+JSON
+cat >"$release_tmp/release-index.json" <<'JSON'
+{
+  "schema": 1,
+  "release_name": "bringup-smoke",
+  "devices": {},
+  "tuples": {},
+  "artifacts": [
+    {
+      "artifact": "bin/busierbox-mipsel-full",
+      "tuple_artifact": "bin/busierbox-mipsel-full",
+      "tuple_path": "by-tuple/mipsel/musl/4.x/mips32r2-24kc",
+      "payload_preset": "default",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "size": 14,
+      "tools": ["sh", "gdbserver"],
+      "features": ["reverse-ssh"],
+      "compatibility": {"schema": 1, "label": "likely", "reasons": ["arch exact", "libc inferred musl"]},
+      "tool_provider_status": {"gdbserver": {"schema": 1, "overall": "found", "search_paths": []}},
+      "doom_wads": [{"filename": "doom.wad", "size": 9, "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}]
+    }
+  ]
+}
+JSON
 cat >"$release_tmp/scripts/release-find" <<'PY'
 #!/usr/bin/env python3
 import json
@@ -100,6 +134,7 @@ JSON
 release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --reality-json "$release_tmp/reality.json" --release-dir "$release_tmp" --max-compatibility likely --configure-trailer --stage-recommended-artifact --json)
 printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); files=d["run_files"]; providers=d["selected_tool_provider_status"]; wads=d["selected_doom_wads"]; summary=d["selected_artifact_summary"]; reverse=summary["reverse_access"]; queue=summary["command_queue"]; assert d["compatibility"]["label"] == "likely"; assert d["max_compatibility"] == "likely"; assert d["selected_artifact"].endswith("busierbox-mipsel-full"); assert providers["gdbserver"]["overall"] == "found"; assert wads[0]["filename"] == "doom.wad"; assert wads[0]["size"] == 9; assert reverse["session_policy"] == "reconnect"; assert reverse["session_policy_summary"]["fresh_session_on_reconnect"] is True; assert reverse["session_policy_summary"]["session_resume_supported"] is False; assert queue["enabled"] == "no"; assert queue["daemon_stop_supported"] is True; assert queue["executes_commands"] is False; assert d["reality_json"]; assert "artifact-config set" in d["generated_trailer_override_command"]; assert d["recommendation"]["config"]["BB_RUNTIME_MODE"] == "extract"; assert d["recommendation"]["facts"]["reality"]["tmp_noexec_detected"] is True; assert any("reality-test detected /tmp noexec" in w for w in d["recommendation"]["warnings"]); assert files["release_find_json"]["exists"] is True; assert files["selected_artifact"]["path"] == d["selected_artifact"]; assert files["selected_artifact"]["exists"] is True; assert files["reality_json"]["exists"] is True'
 printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); rec=d["next_command_records_by_request"][d["staged_request_name"]]; assert rec["stage_kind"] == "release-artifact"; assert rec["source_path"] == d["selected_artifact"]; assert rec["selected_artifact"] == d["selected_artifact"]; assert rec["compatibility"]["label"] == "likely"; assert rec["compatibility"]["reasons"] == ["arch exact", "libc inferred musl"]; assert d["next_command_records_by_stage_kind"]["release-artifact"][0]["command"] == d["staged_fetch_command"]; assert d["next_command_records_by_source_path"][d["selected_artifact"]][0]["request_name"] == d["staged_request_name"]; assert d["command_record_summary"]["target_staged_fetch_count"] == 1'
+printf '%s\n' "$release_json" | python3 -c 'import json,sys,pathlib; d=json.load(sys.stdin); out=pathlib.Path(d["run_dir"]) / "staged-artifact.out"; text=out.read_text(encoding="utf-8"); assert "release-artifact" in text; assert "release=bin/busierbox-mipsel-full" in text; assert "compatibility=likely" in text'
 rm -rf "$release_tmp"
 grep -q 'BUSIERBOX_CONFIG="$recommended" make package' scripts/busierbox-bringup
 grep -q 'Bringup is a guided onboarding flow' README.md

@@ -2367,8 +2367,8 @@ def release_recommendation_records(recommendations):
     return records
 
 
-def release_context():
-    here = Path.cwd()
+def release_context(cfg=None):
+    here = Path(str((cfg or {}).get("release_dir") or Path.cwd()))
     release_json = here / "release.json"
     if release_json.is_file() and (here / "bin").is_dir() and (here / "scripts").is_dir():
         try:
@@ -2744,7 +2744,7 @@ def release_recommendation_lines(release, limit=10):
 
 
 def stage_release_artifact(cfg, artifact_name):
-    rel = release_context()
+    rel = release_context(cfg)
     if not rel:
         raise ValueError("not running inside a release bundle")
     requested = str(artifact_name or "")
@@ -2753,9 +2753,22 @@ def stage_release_artifact(cfg, artifact_name):
     if recommendation:
         artifact_name = recommendation.get("artifact") or recommendation.get("artifact_name") or artifact_name
     matches = []
+    requested_path = Path(artifact_name).expanduser() if artifact_name else None
+    requested_resolved = ""
+    if requested_path:
+        try:
+            requested_resolved = str(requested_path.resolve())
+        except OSError:
+            requested_resolved = str(requested_path)
     for rec in rel.get("artifacts") or []:
         path = Path(str(rec.get("path", "")))
-        if artifact_name in {rec.get("name"), rec.get("release_path"), str(path)}:
+        path_resolved = ""
+        try:
+            path_resolved = str(path.resolve())
+        except OSError:
+            path_resolved = str(path)
+        if artifact_name in {rec.get("name"), rec.get("release_path"), str(path)} or (
+                requested_resolved and requested_resolved == path_resolved):
             matches.append(rec)
     if not matches:
         raise ValueError(f"release artifact not found: {requested}")
@@ -2820,7 +2833,10 @@ def print_staged(cfg):
         rec = staged[name]
         print(f"{name}\t{rec.get('stage_kind', 'file')}\t{rec.get('source_path', '')}\t{rec.get('size', '')}\t{rec.get('sha256', '')}")
         if rec.get("release_path") or rec.get("tuple_path"):
-            print(f"  release={rec.get('release_path', '')} tuple={rec.get('tuple_path', '')} preset={rec.get('payload_preset', '')}")
+            compatibility = rec.get("compatibility") if isinstance(rec.get("compatibility"), dict) else {}
+            compat_label = compatibility.get("label", "")
+            compat_text = f" compatibility={compat_label}" if compat_label else ""
+            print(f"  release={rec.get('release_path', '')} tuple={rec.get('tuple_path', '')} preset={rec.get('payload_preset', '')}{compat_text}")
         print(f"  {render_fetch_command(name, cfg)}")
 
 
@@ -4840,7 +4856,7 @@ def status_document(cfg):
      events_by_service_event,
      events_by_session_event) = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
-    release = release_context()
+    release = release_context(cfg)
     release_state = release_state_record(release)
     target_command_records = generated_target_command_records(cfg, staged_raw)
     (target_commands_by_service,
@@ -6067,7 +6083,7 @@ def print_workbench(cfg):
             print(f"  {event.get('ts', '')} {event.get('level', '')} {event.get('service', '')}:{event.get('event', '')}{suffix}")
     else:
         print("  events_tail: none")
-    rel = release_context()
+    rel = release_context(cfg)
     if rel:
         print("")
         print("Release artifact browser:")
@@ -6691,6 +6707,7 @@ File staging:
   --transport file-service --serve-file ./tool --as /tmp/tool
   --transport file-service --serve-dir local/operator-files
   --stage-release-artifact by-tuple/.../bin/busierbox-target-full
+  --release-dir dist/releases/lab --stage-release-artifact bin/busierbox-target-full
   --transport file-service --list-staged
 
 Command queue:
@@ -6729,7 +6746,9 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     parser.add_argument("--serve-dir",
                         help="stage direct child files from a local directory for explicit target fetch")
     parser.add_argument("--stage-release-artifact",
-                        help="stage an artifact from the current release bundle for explicit target fetch")
+                        help="stage an artifact from the current or configured release bundle for explicit target fetch")
+    parser.add_argument("--release-dir",
+                        help="release bundle directory to inspect for status or --stage-release-artifact")
     parser.add_argument("--list-staged", action="store_true",
                         help="list operator-staged target fetch files and commands")
     parser.add_argument("--unstage",
@@ -6813,6 +6832,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["command_queue_file"] = args.command_queue_file
     if args.command_copy_file:
         cfg["command_copy_file"] = args.command_copy_file
+    if args.release_dir:
+        cfg["release_dir"] = args.release_dir
     if args.managed_by:
         cfg["_managed_by"] = args.managed_by
     if args.process_log:
