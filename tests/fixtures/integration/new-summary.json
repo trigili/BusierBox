@@ -10,6 +10,7 @@
     {
       "case": "survey-core",
       "status": "pass",
+      "logs": "survey-core",
       "phases": {
         "build": "pass",
         "transfer": "pass",

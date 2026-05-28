@@ -188,9 +188,12 @@ plus remote and session count maps for automation. When a case log directory
 contains a captured `recovery-status-json.log`, the report summarizes installed
 recovery hook semantics across cases, including evidence upload, `dmesg`,
 reverse-shell chaining, operator-supplied command, command-queue, and hidden
-channel counts. The compare tool classifies regressions, new failures, fixed
-cases, new or removed cases, artifact hash changes, artifact size deltas, and
-duration deltas when both summaries include timing data.
+channel counts. The harness also captures `reality-test --json` for each case
+during validation; reports summarize active capability/constraint checks,
+detected constraints, failed checks, and skipped operator-side probes from
+`reality-test-json.log`. The compare tool classifies regressions, new failures,
+fixed cases, new or removed cases, artifact hash changes, artifact size deltas,
+and duration deltas when both summaries include timing data.
 
 When a release bundle is produced as part of an integration run, run the
 generated `scripts/release-self-test` inside that bundle before copying

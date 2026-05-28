@@ -313,6 +313,7 @@ def capture_busierbox_outputs(host, remote_dir, case_dir):
         ("plan-clean-json.log", "./busierbox plan clean --json"),
         ("plan-recovery-rshell-json.log", "./busierbox plan recovery install --method openwrt-procd --action rshell --json"),
         ("plan-recovery-command-json.log", "./busierbox plan recovery install --method cron-reboot --action command --json -- 'busierbox rshell start'"),
+        ("reality-test-json.log", "./busierbox reality-test --json"),
         ("clean-dry-run.log", "./busierbox clean --dry-run"),
         ("clean-dry-run-json.log", "./busierbox clean --dry-run --json"),
         ("clean-external-dry-run-json.log", "./busierbox clean --dry-run --external --json"),

@@ -294,6 +294,92 @@ def load_recovery_status_reports(summary_path, data):
     }
 
 
+def load_reality_test_reports(summary_path, data):
+    reports = []
+    totals = {
+        "check_count": 0,
+        "pass": 0,
+        "fail": 0,
+        "skipped": 0,
+        "capability_pass": 0,
+        "capability_fail": 0,
+        "operator_pass": 0,
+        "operator_fail": 0,
+        "operator_skipped": 0,
+    }
+    status_counts = {}
+    type_counts = {}
+    detected_constraints = {}
+    failed_checks = []
+    skipped_operator_checks = []
+    for case in data.get("cases") or []:
+        if not isinstance(case, dict):
+            continue
+        path = resolve_case_path(summary_path, case, "reality-test-json.log")
+        if not path:
+            continue
+        text = captured_stdout(path)
+        try:
+            raw = json.loads(text)
+        except json.JSONDecodeError as exc:
+            reports.append({
+                "case": case.get("case", ""),
+                "path": str(path),
+                "valid": False,
+                "error": str(exc),
+            })
+            continue
+        if not isinstance(raw, dict):
+            reports.append({
+                "case": case.get("case", ""),
+                "path": str(path),
+                "valid": False,
+                "error": "reality-test JSON is not an object",
+            })
+            continue
+        summary = raw.get("summary") or {}
+        checks = raw.get("checks") or []
+        for key in totals:
+            totals[key] += int(summary.get(key) or 0)
+        constraints = summary.get("constraints") or {}
+        for name, detected in constraints.items():
+            if detected is True:
+                detected_constraints[name] = detected_constraints.get(name, 0) + 1
+        for check in checks:
+            if not isinstance(check, dict):
+                continue
+            name = str(check.get("name", "unknown") or "unknown")
+            status = str(check.get("status", "unknown") or "unknown")
+            check_type = str(check.get("type", "unknown") or "unknown")
+            status_counts[status] = status_counts.get(status, 0) + 1
+            type_counts[check_type] = type_counts.get(check_type, 0) + 1
+            if status == "fail":
+                failed_checks.append({"case": case.get("case", ""), "name": name, "type": check_type})
+            if status == "skipped" and check_type == "operator":
+                skipped_operator_checks.append({"case": case.get("case", ""), "name": name})
+        reports.append({
+            "case": case.get("case", ""),
+            "path": str(path),
+            "valid": True,
+            "summary": summary,
+            "checks": checks,
+        })
+    if not reports:
+        return {}
+    return {
+        "reports": reports,
+        "report_count": len(reports),
+        "valid_count": sum(1 for item in reports if item.get("valid")),
+        "invalid_count": sum(1 for item in reports if not item.get("valid")),
+        "totals": totals,
+        "status_counts": status_counts,
+        "type_counts": type_counts,
+        "detected_constraints": detected_constraints,
+        "failed_checks": failed_checks,
+        "skipped_operator_checks": skipped_operator_checks,
+    }
+
+
 def report_document(path, data):
     doc = dict(data)
     events = load_event_summary(path, data)
@@ -305,6 +391,9 @@ def report_document(path, data):
     recovery_status = load_recovery_status_reports(path, data)
     if recovery_status:
         doc["recovery_status"] = recovery_status
+    reality_tests = load_reality_test_reports(path, data)
+    if reality_tests:
+        doc["reality_tests"] = reality_tests
     return doc
 
 
@@ -470,6 +559,34 @@ def print_table(path, data):
                 f"dmesg={summary.get('dmesg_action_count', 0)} "
                 f"rshell={summary.get('rshell_action_count', 0)}"
             )
+    reality_tests = load_reality_test_reports(path, data)
+    if reality_tests:
+        totals = reality_tests.get("totals") or {}
+        print(
+            "reality_tests="
+            f"reports={reality_tests.get('report_count', 0)} "
+            f"valid={reality_tests.get('valid_count', 0)} "
+            f"invalid={reality_tests.get('invalid_count', 0)} "
+            f"checks={totals.get('check_count', 0)} "
+            f"pass={totals.get('pass', 0)} "
+            f"fail={totals.get('fail', 0)} "
+            f"skipped={totals.get('skipped', 0)} "
+            f"operator_skipped={totals.get('operator_skipped', 0)}"
+        )
+        if reality_tests.get("status_counts"):
+            print(f"reality_test_statuses={count_text(reality_tests.get('status_counts', {}))}")
+        if reality_tests.get("type_counts"):
+            print(f"reality_test_types={count_text(reality_tests.get('type_counts', {}))}")
+        if reality_tests.get("detected_constraints"):
+            print(f"reality_test_detected_constraints={count_text(reality_tests.get('detected_constraints', {}))}")
+        if reality_tests.get("failed_checks"):
+            print("reality_test_failed_checks:")
+            for check in reality_tests.get("failed_checks", []):
+                print(f"  {check.get('case', '')}:{check.get('name', '')} type={check.get('type', '')}")
+        if reality_tests.get("skipped_operator_checks"):
+            print("reality_test_skipped_operator_checks:")
+            for check in reality_tests.get("skipped_operator_checks", [])[:8]:
+                print(f"  {check.get('case', '')}:{check.get('name', '')}")
     if failures:
         print("failure_reasons:")
         for item in failures:
