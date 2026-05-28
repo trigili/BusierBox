@@ -369,8 +369,9 @@ browser list, and lookup maps
 for compact recency displays. Recent
 upload and staged-fetch activity is exposed through top-level `uploads` and
 `fetches` arrays plus lookup maps: `uploads_by_session`,
-`uploads_by_filename`, `uploads_by_sha256`, `uploads_by_source_path`,
-`uploads_by_stored_path`, `uploads_by_remote_addr`, `uploads_by_status`,
+`uploads_by_filename`, `uploads_by_kind`, `uploads_by_sha256`,
+`uploads_by_source_path`, `uploads_by_stored_path`,
+`uploads_by_remote_addr`, `uploads_by_status`, `uploads_by_kind_status`,
 `uploads_by_filename_status`, `uploads_by_status_remote_addr`,
 `fetches_by_session`, `fetches_by_request`, `fetches_by_sha256`,
 `fetches_by_source_path`, `fetches_by_status`, `fetches_by_http_status`, and
@@ -385,11 +386,13 @@ summarizes the session directory, recent session ids, service counts, and state
 counts for file-browser views; aggregate counts remain in `summary`, including
 `upload_total_size`, `fetch_total_size`, `upload_stored_exists_count`,
 `upload_stored_missing_count`, `fetch_source_exists_count`,
-`fetch_source_missing_count`, `upload_status_counts`, `fetch_status_counts`,
+`fetch_source_missing_count`, `upload_kind_counts`, `upload_status_counts`,
+`fetch_status_counts`,
 `fetch_http_status_counts`, `upload_remote_counts`, `fetch_remote_counts`,
 `session_service_counts`, `session_state_counts`,
 `session_exit_reason_counts`, `session_remote_counts`,
-`upload_filename_status_counts`, `upload_status_remote_counts`,
+`upload_kind_status_counts`, `upload_filename_status_counts`,
+`upload_status_remote_counts`,
 `fetch_request_status_counts`, `fetch_status_remote_counts`,
 `fetch_http_status_remote_counts`, `session_service_state_counts`,
 `session_service_exit_reason_counts`, and `session_service_remote_counts` for

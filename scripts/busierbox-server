@@ -1144,17 +1144,20 @@ def port_record_indexes(records):
 
 def upload_record_indexes(records):
     by_filename = {}
+    by_kind = {}
     by_sha256 = {}
     by_source_path = {}
     by_stored_path = {}
     by_remote_addr = {}
     by_status = {}
+    by_kind_status = {}
     by_filename_status = {}
     by_status_remote_addr = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
         filename = str(rec.get("filename") or "")
+        kind = str(rec.get("upload_kind") or "file")
         sha256 = str(rec.get("sha256") or "")
         source_path = str(rec.get("source_path") or "")
         stored_path = str(rec.get("stored_path") or "")
@@ -1162,6 +1165,8 @@ def upload_record_indexes(records):
         status = str(rec.get("status") or "")
         if filename:
             by_filename.setdefault(filename, []).append(rec)
+        if kind:
+            by_kind.setdefault(kind, []).append(rec)
         if sha256:
             by_sha256.setdefault(sha256, []).append(rec)
         if source_path:
@@ -1172,17 +1177,21 @@ def upload_record_indexes(records):
             by_remote_addr.setdefault(remote_addr, []).append(rec)
         if status:
             by_status.setdefault(status, []).append(rec)
+        if kind and status:
+            by_kind_status.setdefault(f"{kind}:{status}", []).append(rec)
         if filename and status:
             by_filename_status.setdefault(f"{filename}:{status}", []).append(rec)
         if status and remote_addr:
             by_status_remote_addr.setdefault(f"{status}:{remote_addr}", []).append(rec)
     return (
         by_filename,
+        by_kind,
         by_sha256,
         by_source_path,
         by_stored_path,
         by_remote_addr,
         by_status,
+        by_kind_status,
         by_filename_status,
         by_status_remote_addr,
     )
@@ -2767,6 +2776,7 @@ def recent_upload_metadata(cfg, limit=8):
             data["stored_exists"] = Path(str(stored_path)).is_file() if stored_path else False
             data["sha256_prefix"] = str(data.get("sha256", ""))[:12]
             data["status"] = data.get("transfer_status", data.get("status", ""))
+            data["upload_kind"] = str(data.get("upload_kind") or "file")
             out.append(data)
     return out
 
@@ -4746,11 +4756,13 @@ def status_document(cfg):
      target_commands_by_side_purpose) = target_command_record_indexes(target_command_records)
     target_command_summary = target_command_record_summary(target_command_records)
     (uploads_by_filename,
+     uploads_by_kind,
      uploads_by_sha256,
      uploads_by_source_path,
      uploads_by_stored_path,
      uploads_by_remote_addr,
      uploads_by_status,
+     uploads_by_kind_status,
      uploads_by_filename_status,
      uploads_by_status_remote_addr) = upload_record_indexes(uploads)
     (fetches_by_request,
@@ -4946,8 +4958,10 @@ def status_document(cfg):
         "upload_total_size": record_sum_by_key(uploads, "size"),
         "upload_stored_exists_count": upload_stored_exists_count,
         "upload_stored_missing_count": upload_stored_missing_count,
+        "upload_kind_counts": record_count_by_key(uploads, "upload_kind"),
         "upload_status_counts": record_count_by_key(uploads, "status"),
         "upload_remote_counts": record_count_by_key(uploads, "remote_addr"),
+        "upload_kind_status_counts": {key: len(value) for key, value in uploads_by_kind_status.items()},
         "upload_filename_status_counts": {key: len(value) for key, value in uploads_by_filename_status.items()},
         "upload_status_remote_counts": {key: len(value) for key, value in uploads_by_status_remote_addr.items()},
         "latest_upload_at": latest_record_value(uploads, ("timestamp", "updated_at")),
@@ -5097,9 +5111,10 @@ def status_document(cfg):
         ),
         "uploads": api_collection_record(
             "uploads", uploads, "metadata_path", (
-                "uploads_by_session", "uploads_by_filename", "uploads_by_sha256",
+                "uploads_by_session", "uploads_by_filename", "uploads_by_kind", "uploads_by_sha256",
                 "uploads_by_source_path", "uploads_by_stored_path", "uploads_by_remote_addr",
-                "uploads_by_status", "uploads_by_filename_status", "uploads_by_status_remote_addr",
+                "uploads_by_status", "uploads_by_kind_status", "uploads_by_filename_status",
+                "uploads_by_status_remote_addr",
             ), "upload_count",
         ),
         "fetches": api_collection_record(
@@ -5225,11 +5240,13 @@ def status_document(cfg):
         "uploads": uploads,
         "uploads_by_session": records_by_session(uploads),
         "uploads_by_filename": uploads_by_filename,
+        "uploads_by_kind": uploads_by_kind,
         "uploads_by_sha256": uploads_by_sha256,
         "uploads_by_source_path": uploads_by_source_path,
         "uploads_by_stored_path": uploads_by_stored_path,
         "uploads_by_remote_addr": uploads_by_remote_addr,
         "uploads_by_status": uploads_by_status,
+        "uploads_by_kind_status": uploads_by_kind_status,
         "uploads_by_filename_status": uploads_by_filename_status,
         "uploads_by_status_remote_addr": uploads_by_status_remote_addr,
         "fetches": fetches,
@@ -5615,7 +5632,7 @@ def print_status(cfg, json_output=False):
     print("Recent uploads:")
     if doc["uploads"]:
         for meta in doc["uploads"]:
-            print(f"  {meta.get('filename', '')} size={meta.get('size', '')} sha256={meta.get('sha256_prefix', '')} status={meta.get('status', '')} stored_exists={meta.get('stored_exists', False)}")
+            print(f"  {meta.get('filename', '')} kind={meta.get('upload_kind', 'file')} size={meta.get('size', '')} sha256={meta.get('sha256_prefix', '')} status={meta.get('status', '')} stored_exists={meta.get('stored_exists', False)}")
             print(f"    source: {meta.get('source_path', '')}")
             print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
             print(f"    stored: {meta.get('stored_path', '')}")
@@ -5855,7 +5872,7 @@ def print_workbench(cfg):
     if uploads:
         for meta in uploads:
             sha = str(meta.get("sha256", ""))[:12]
-            print(f"  {meta.get('filename', '')} size={meta.get('size', '')} sha256={sha} status={meta.get('transfer_status', meta.get('status', ''))}")
+            print(f"  {meta.get('filename', '')} kind={meta.get('upload_kind', 'file')} size={meta.get('size', '')} sha256={sha} status={meta.get('transfer_status', meta.get('status', ''))}")
             print(f"    source: {meta.get('source_path', '')}")
             print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
             print(f"    stored: {meta.get('stored_path', '')}")
@@ -6255,6 +6272,7 @@ def run_curses_tui(cfg):
                 rec = snap["uploads"][min(selected, len(snap["uploads"]) - 1)]
                 detail_lines = [
                     f"upload: {rec.get('filename', '')}",
+                    f"kind: {rec.get('upload_kind', 'file')}",
                     f"source: {rec.get('source_path', '')}",
                     f"stored: {rec.get('stored_path', '')}",
                     f"metadata: {rec.get('metadata_path', rec.get('_metadata_path', ''))}",

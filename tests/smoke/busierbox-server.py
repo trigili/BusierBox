@@ -1922,6 +1922,7 @@ def main():
             "PUT /upload/evidence.txt HTTP/1.1\r\n"
             "Host: 127.0.0.1\r\n"
             "X-BusierBox-Source-Path: /tmp/evidence.txt\r\n"
+            "X-BusierBox-Upload-Kind: evidence\r\n"
             "X-BusierBox-UID: 0\r\n"
             "X-BusierBox-GID: 0\r\n"
             "X-BusierBox-Mode: 0644\r\n"
@@ -1959,8 +1960,8 @@ def main():
             return 1
         metadata_path = uploaded[0].with_name(uploaded[0].name + ".metadata.json")
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        if metadata.get("source_path") != "/tmp/evidence.txt":
-            print("file service metadata missing source path", file=sys.stderr)
+        if metadata.get("source_path") != "/tmp/evidence.txt" or metadata.get("upload_kind") != "evidence":
+            print("file service metadata missing source path/upload kind", file=sys.stderr)
             return 1
         if metadata.get("size") != len(payload) or metadata.get("transfer_status") != "ok":
             print("file service metadata has wrong size/status", file=sys.stderr)
@@ -2123,6 +2124,7 @@ def main():
                 upload_summary.get("upload_total_size") != len(payload) or
                 upload_summary.get("upload_stored_exists_count") != 1 or
                 upload_summary.get("upload_stored_missing_count") != 0 or
+                upload_summary.get("upload_kind_counts", {}).get("evidence") != 1 or
                 upload_summary.get("upload_status_counts", {}).get("ok") != 1 or
                 upload_summary.get("session_count", 0) < 1 or
                 upload_summary.get("session_service_counts", {}).get("file-service") != 1 or
@@ -2138,6 +2140,7 @@ def main():
                 upload_item.get("session_id") != session_json_paths[0].parent.name or
                 upload_item.get("session_path") != str(session_json_paths[0].parent) or
                 upload_item.get("sha256_prefix") != metadata.get("sha256", "")[:12] or
+                upload_item.get("upload_kind") != "evidence" or
                 upload_item.get("status") != "ok"):
             print("server json status missing upload browser metadata", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
@@ -2151,29 +2154,35 @@ def main():
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         uploads_by_filename = upload_doc.get("uploads_by_filename") or {}
+        uploads_by_kind = upload_doc.get("uploads_by_kind") or {}
         uploads_by_sha = upload_doc.get("uploads_by_sha256") or {}
         uploads_by_source = upload_doc.get("uploads_by_source_path") or {}
         uploads_by_stored = upload_doc.get("uploads_by_stored_path") or {}
         uploads_by_remote = upload_doc.get("uploads_by_remote_addr") or {}
         uploads_by_status = upload_doc.get("uploads_by_status") or {}
+        uploads_by_kind_status = upload_doc.get("uploads_by_kind_status") or {}
         uploads_by_filename_status = upload_doc.get("uploads_by_filename_status") or {}
         uploads_by_status_remote = upload_doc.get("uploads_by_status_remote_addr") or {}
         upload_remote = upload_item.get("remote_addr", "")
         upload_filename_status_key = "evidence.txt:ok"
+        upload_kind_status_key = "evidence:ok"
         upload_status_remote_key = f"ok:{upload_remote}"
         if (uploads_by_filename.get("evidence.txt", [{}])[0].get("metadata_path") != str(metadata_path) or
+                uploads_by_kind.get("evidence", [{}])[0].get("filename") != "evidence.txt" or
                 uploads_by_sha.get(metadata.get("sha256"), [{}])[0].get("filename") != "evidence.txt" or
                 uploads_by_source.get("/tmp/evidence.txt", [{}])[0].get("stored_path") != str(uploaded[0]) or
                 uploads_by_stored.get(str(uploaded[0]), {}).get("source_path") != "/tmp/evidence.txt" or
                 uploads_by_status.get("ok", [{}])[0].get("filename") != "evidence.txt" or
                 not upload_remote or
                 uploads_by_remote.get(upload_remote, [{}])[0].get("filename") != "evidence.txt" or
+                uploads_by_kind_status.get(upload_kind_status_key, [{}])[0].get("stored_path") != str(uploaded[0]) or
                 uploads_by_filename_status.get(upload_filename_status_key, [{}])[0].get("stored_path") != str(uploaded[0]) or
                 uploads_by_status_remote.get(upload_status_remote_key, [{}])[0].get("filename") != "evidence.txt"):
             print("server json status missing upload browser lookup maps", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         if (upload_summary.get("upload_remote_counts", {}).get(upload_remote) != 1 or
+                upload_summary.get("upload_kind_status_counts", {}).get(upload_kind_status_key) != 1 or
                 upload_summary.get("upload_filename_status_counts", {}).get(upload_filename_status_key) != 1 or
                 upload_summary.get("upload_status_remote_counts", {}).get(upload_status_remote_key) != 1 or
                 upload_summary.get("session_remote_counts", {}).get(upload_remote) != 1):
