@@ -637,6 +637,27 @@ if doc.get("compatibility_counts", {}).get("exact") != 1:
     raise SystemExit(f"release self-test compatibility counts missing: {doc!r}")
 if doc.get("payload_preset_counts", {}).get("default") != 1:
     raise SystemExit(f"release self-test payload preset counts missing: {doc!r}")
+records = doc.get("diagnostic_records") or []
+by_name = doc.get("diagnostic_records_by_name") or {}
+by_category = doc.get("diagnostic_records_by_category") or {}
+by_status = doc.get("diagnostic_records_by_status") or {}
+api = (doc.get("api_collections") or {}).get("diagnostic_records") or {}
+if doc.get("diagnostic_record_count") != len(records) or len(records) < 10:
+    raise SystemExit(f"release self-test diagnostic records missing: {doc!r}")
+if by_name.get("command_queue_safety", {}).get("status") != "pass":
+    raise SystemExit(f"release self-test command queue diagnostic missing: {by_name!r}")
+if by_name["command_queue_safety"]["details"].get("execution_supported_count") != 0:
+    raise SystemExit(f"release self-test command queue execution diagnostic unsafe: {by_name!r}")
+if by_name.get("compatibility_labels", {}).get("details", {}).get("counts", {}).get("exact") != 1:
+    raise SystemExit(f"release self-test compatibility diagnostic missing: {by_name!r}")
+if not by_category.get("command_queue") or not by_status.get("pass"):
+    raise SystemExit(f"release self-test diagnostic indexes missing: {doc!r}")
+if (api.get("count") != len(records) or
+        api.get("summary_key") != "diagnostic_record_count" or
+        api.get("count_summary_key") != "diagnostic_record_count" or
+        api.get("primary_key") != "name" or
+        "diagnostic_records_by_category" not in (api.get("indexes") or [])):
+    raise SystemExit(f"release self-test diagnostic api collection missing: {api!r}")
 PY
 scripts/release-self-test --release-dir "$work/release" --json >"$work/release-self-test-wrapper.json"
 python3 - "$work/release-self-test-wrapper.json" <<'PY'

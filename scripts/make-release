@@ -1103,6 +1103,34 @@ def write_release_helpers(script_dir):
                 fail(f"{' '.join(map(str, cmd))} failed:\n{proc.stdout}")
             return proc
 
+        def api_collection_record(name, records, primary_key="", indexes=None, summary_key=""):
+            return {
+                "name": name,
+                "count": len(records or []),
+                "primary_key": primary_key,
+                "count_summary_key": summary_key,
+                "summary_key": summary_key,
+                "indexes": sorted(indexes or []),
+            }
+
+        def records_by_key(records, key):
+            grouped = {}
+            for rec in records or []:
+                value = rec.get(key)
+                if value in (None, ""):
+                    continue
+                grouped.setdefault(str(value), []).append(rec)
+            return grouped
+
+        def diagnostic_record(name, category, status, count=0, details=None):
+            return {
+                "name": name,
+                "category": category,
+                "status": status,
+                "count": int(count or 0),
+                "details": details or {},
+            }
+
         release = load_json(root / "release.json")
         run([str(root / "scripts" / "verify-checksums"), "--original"])
         helpers = ("artifact-config", "busierbox-server", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find")
@@ -1222,6 +1250,51 @@ def write_release_helpers(script_dir):
             if path.is_symlink() and not path.exists():
                 diagnostics["broken_symlink_count"] += 1
                 fail(f"broken symlink: {path.relative_to(root)}")
+        diagnostic_records = [
+            diagnostic_record("checksum_original", "checksums", "pass", 1, {"verified": True}),
+            diagnostic_record("helpers_executable", "helpers", "pass", diagnostics["helper_count"], {"helpers": diagnostics["helpers"]}),
+            diagnostic_record("release_artifacts", "release", "pass", diagnostics["checked_artifact_count"], {"release_artifact_count": diagnostics["release_artifact_count"]}),
+            diagnostic_record("tuple_manifests", "layout", "pass", diagnostics["tuple_manifest_count"]),
+            diagnostic_record("device_aliases", "layout", "pass", diagnostics["device_alias_count"]),
+            diagnostic_record("manifest_sidecars", "manifests", "pass", diagnostics["manifest_sidecar_count"]),
+            diagnostic_record("native_manifests", "manifests", "pass", diagnostics["native_manifest_checked_count"]),
+            diagnostic_record("artifact_config_roundtrip", "configuration", "pass", diagnostics["artifact_config_roundtrip_count"]),
+            diagnostic_record("broken_symlinks", "filesystem", "pass", diagnostics["broken_symlink_count"]),
+            diagnostic_record("compatibility_labels", "compatibility", "pass", sum(diagnostics["compatibility_counts"].values()), {"counts": diagnostics["compatibility_counts"]}),
+            diagnostic_record("payload_presets", "payloads", "pass", sum(diagnostics["payload_preset_counts"].values()), {"counts": diagnostics["payload_preset_counts"]}),
+            diagnostic_record("runtime_modes", "runtime", "pass", sum(diagnostics["runtime_mode_counts"].values()), {"counts": diagnostics["runtime_mode_counts"]}),
+            diagnostic_record(
+                "command_queue_safety",
+                "command_queue",
+                "pass" if diagnostics["command_queue_execution_supported_count"] == 0 and diagnostics["command_queue_operator_supplied_command_execution_count"] == 0 else "fail",
+                diagnostics["command_queue_mode_count"],
+                {
+                    "enabled_count": diagnostics["command_queue_enabled_count"],
+                    "token_required_count": diagnostics["command_queue_token_required_count"],
+                    "token_configured_count": diagnostics["command_queue_token_configured_count"],
+                    "execution_supported_count": diagnostics["command_queue_execution_supported_count"],
+                    "operator_supplied_command_execution_count": diagnostics["command_queue_operator_supplied_command_execution_count"],
+                },
+            ),
+        ]
+        diagnostics["diagnostic_records"] = diagnostic_records
+        diagnostics["diagnostic_records_by_name"] = {rec["name"]: rec for rec in diagnostic_records}
+        diagnostics["diagnostic_records_by_category"] = records_by_key(diagnostic_records, "category")
+        diagnostics["diagnostic_records_by_status"] = records_by_key(diagnostic_records, "status")
+        diagnostics["diagnostic_record_count"] = len(diagnostic_records)
+        diagnostics["api_collections"] = {
+            "diagnostic_records": api_collection_record(
+                "diagnostic_records",
+                diagnostic_records,
+                "name",
+                (
+                    "diagnostic_records_by_name",
+                    "diagnostic_records_by_category",
+                    "diagnostic_records_by_status",
+                ),
+                "diagnostic_record_count",
+            ),
+        }
         if json_output:
             print(json.dumps(diagnostics, indent=2, sort_keys=True))
         else:
