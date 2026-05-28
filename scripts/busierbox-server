@@ -808,6 +808,151 @@ def records_by_list_item(records, key):
     return grouped
 
 
+def workbench_action_records(cfg):
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    release_dir = str(cfg.get("release_dir") or ".")
+    return [
+        {
+            "id": "configure-binary",
+            "category": "configuration",
+            "label": "Configure BusierBox binary options",
+            "script": "scripts/menuconfig",
+            "command": "scripts/menuconfig",
+            "config_path": "configs/busierbox.conf",
+            "writes_config": True,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": True,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
+        },
+        {
+            "id": "resolve-target",
+            "category": "configuration",
+            "label": "Resolve target/device preset metadata",
+            "script": "scripts/resolve-target",
+            "command": "scripts/resolve-target --config " + shquote(config_path),
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": False,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
+        },
+        {
+            "id": "package-artifact",
+            "category": "build",
+            "label": "Build/package selected artifact",
+            "script": "make",
+            "command": "make package",
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": True,
+            "long_running": True,
+            "background_supported": True,
+            "requires_confirmation": True,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_job_requested",
+        },
+        {
+            "id": "bringup-recommend",
+            "category": "bringup",
+            "label": "Generate bringup recommendation",
+            "script": "scripts/busierbox-bringup",
+            "command": "scripts/busierbox-bringup --recommend-only --json",
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": True,
+            "background_supported": True,
+            "requires_confirmation": True,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_job_requested",
+        },
+        {
+            "id": "configure-trailer",
+            "category": "trailer",
+            "label": "Configure runtime trailer overrides",
+            "script": "scripts/artifact-config",
+            "command": "scripts/artifact-config set ARTIFACT KEY=VALUE",
+            "config_path": config_path,
+            "writes_config": True,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": True,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
+        },
+        {
+            "id": "make-release",
+            "category": "release",
+            "label": "Build release bundle",
+            "script": "scripts/make-release",
+            "command": "scripts/make-release --name NAME --targets native --payload-presets survey-core,default",
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": True,
+            "long_running": True,
+            "background_supported": True,
+            "requires_confirmation": True,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_job_requested",
+        },
+        {
+            "id": "release-self-test",
+            "category": "release",
+            "label": "Validate release bundle",
+            "script": "scripts/release-self-test",
+            "command": "scripts/release-self-test --release-dir " + shquote(release_dir) + " --json",
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": False,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
+        },
+    ]
+
+
+def workbench_action_indexes(records):
+    return {
+        "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "workbench_actions_by_category": records_by_key(records, "category"),
+        "workbench_actions_by_script": records_by_key(records, "script"),
+        "workbench_actions_by_background_supported": records_by_key(records, "background_supported"),
+        "workbench_actions_by_long_running": records_by_key(records, "long_running"),
+        "workbench_actions_by_writes_config": records_by_key(records, "writes_config"),
+        "workbench_actions_by_runs_build": records_by_key(records, "runs_build"),
+        "workbench_actions_by_execution_default": records_by_key(records, "execution_default"),
+    }
+
+
+def workbench_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "background_supported_count": len([rec for rec in records or [] if rec.get("background_supported") is True]),
+        "long_running_count": len([rec for rec in records or [] if rec.get("long_running") is True]),
+        "writes_config_count": len([rec for rec in records or [] if rec.get("writes_config") is True]),
+        "runs_build_count": len([rec for rec in records or [] if rec.get("runs_build") is True]),
+        "target_execution_count": len([rec for rec in records or [] if rec.get("target_execution") is True]),
+        "category_counts": record_count_by_key(records, "category"),
+        "script_counts": record_count_by_key(records, "script"),
+    }
+
+
 def latest_record_value(records, keys):
     latest = ""
     for rec in records or []:
@@ -5282,6 +5427,9 @@ def status_document(cfg):
     command_queue = command_queue_summary(cfg)
     release = release_context(cfg)
     release_state = release_state_record(release)
+    workbench_actions = workbench_action_records(cfg)
+    workbench_action_index_maps = workbench_action_indexes(workbench_actions)
+    workbench_action_stats = workbench_action_summary(workbench_actions)
     target_command_records = generated_target_command_records(cfg, staged_raw)
     (target_commands_by_service,
      target_commands_by_request,
@@ -5643,6 +5791,14 @@ def status_document(cfg):
         "release_artifact_doom_wad_count": (release.get("artifact_stats") or {}).get("doom_wad_count", 0),
         "release_recommendation_count": len(release.get("recommendation_records") or []),
         "release_recommendation_scope_counts": record_count_by_key(release.get("recommendation_records") or [], "scope"),
+        "workbench_action_count": workbench_action_stats.get("total_count", 0),
+        "workbench_action_background_supported_count": workbench_action_stats.get("background_supported_count", 0),
+        "workbench_action_long_running_count": workbench_action_stats.get("long_running_count", 0),
+        "workbench_action_writes_config_count": workbench_action_stats.get("writes_config_count", 0),
+        "workbench_action_runs_build_count": workbench_action_stats.get("runs_build_count", 0),
+        "workbench_action_target_execution_count": workbench_action_stats.get("target_execution_count", 0),
+        "workbench_action_category_counts": workbench_action_stats.get("category_counts") or {},
+        "workbench_action_script_counts": workbench_action_stats.get("script_counts") or {},
     })
     api_collections = {
         "services": api_collection_record(
@@ -5769,6 +5925,14 @@ def status_document(cfg):
                 "command_queue_modes_by_active_control_channel",
                 "command_queue_modes_by_operator_supplied_command_execution",
             ), "command_queue_mode_count",
+        ),
+        "workbench_actions": api_collection_record(
+            "workbench_actions", workbench_actions, "id", (
+                "workbench_actions_by_id", "workbench_actions_by_category",
+                "workbench_actions_by_script", "workbench_actions_by_background_supported",
+                "workbench_actions_by_long_running", "workbench_actions_by_writes_config",
+                "workbench_actions_by_runs_build", "workbench_actions_by_execution_default",
+            ), "workbench_action_count",
         ),
     }
     api_resources = api_resource_records(api_collections)
@@ -5919,6 +6083,8 @@ def status_document(cfg):
         "command_queue_modes_by_execution_supported": command_queue.get("command_queue_modes_by_execution_supported") or {},
         "command_queue_modes_by_active_control_channel": command_queue.get("command_queue_modes_by_active_control_channel") or {},
         "command_queue_modes_by_operator_supplied_command_execution": command_queue.get("command_queue_modes_by_operator_supplied_command_execution") or {},
+        "workbench_actions": workbench_actions,
+        **workbench_action_index_maps,
     }
 
 
@@ -6004,6 +6170,21 @@ def print_target_command_summary(doc):
         f"all_require_explicit_target_action={'yes' if summary.get('target_command_all_require_explicit_target_action') else 'no'}"
     )
     print(f"  sides: {format_counts(summary.get('target_command_side_counts') or {})}")
+
+
+def print_workbench_action_summary(doc):
+    doc = doc or {}
+    summary = doc.get("summary") or {}
+    print(
+        "Workbench action summary: "
+        f"total={summary.get('workbench_action_count', 0)} "
+        f"background_supported={summary.get('workbench_action_background_supported_count', 0)} "
+        f"long_running={summary.get('workbench_action_long_running_count', 0)} "
+        f"writes_config={summary.get('workbench_action_writes_config_count', 0)} "
+        f"runs_build={summary.get('workbench_action_runs_build_count', 0)} "
+        f"target_execution={summary.get('workbench_action_target_execution_count', 0)}"
+    )
+    print(f"  categories: {format_counts(summary.get('workbench_action_category_counts') or {})}")
 
 
 def print_release_summary(doc):
@@ -6299,6 +6480,14 @@ def print_status(cfg, json_output=False):
     for cmd in doc.get("target_commands") or []:
         print(f"  {cmd}")
     print("")
+    print("Operator workflow actions:")
+    print_workbench_action_summary(doc)
+    for rec in doc.get("workbench_actions") or []:
+        bg = "yes" if rec.get("background_supported") else "no"
+        confirm = "yes" if rec.get("requires_confirmation") else "no"
+        print(f"  {rec.get('id', '')} category={rec.get('category', '')} script={rec.get('script', '')} background={bg} confirm={confirm}")
+        print(f"    {rec.get('command', '')}")
+    print("")
     print("Command queue:")
     queue = doc["command_queue"]
     print(f"  path: {queue.get('path', '')}")
@@ -6556,6 +6745,14 @@ def print_workbench(cfg):
     for cmd in snap["target_commands"]:
         print(f"  {cmd}")
     print("")
+    print("Operator workflow actions:")
+    print_workbench_action_summary(snap)
+    for rec in snap.get("workbench_actions") or []:
+        bg = "yes" if rec.get("background_supported") else "no"
+        confirm = "yes" if rec.get("requires_confirmation") else "no"
+        print(f"  {rec.get('id', '')} category={rec.get('category', '')} script={rec.get('script', '')} background={bg} confirm={confirm}")
+        print(f"    {rec.get('command', '')}")
+    print("")
     print("Command queue:")
     queue = snap["command_queue"]
     print(f"  path: {queue.get('path', '')}")
@@ -6732,6 +6929,7 @@ def run_line_tui(cfg):
         print("  8 unstage file")
         print("  9 open local path in pager")
         print("  10 stage release recommendation/device/tuple")
+        print("  11 show operator workflow actions")
         print("  c show/copy generated commands")
         print("  r refresh")
         print("  ? help")
@@ -6783,6 +6981,14 @@ def run_line_tui(cfg):
                     print(render_fetch_command(rec["request_name"], cfg))
                 except ValueError as exc:
                     print(exc)
+        elif choice == "11":
+            snap = workbench_snapshot(cfg)
+            print_workbench_action_summary(snap)
+            for idx, rec in enumerate(snap.get("workbench_actions") or [], 1):
+                print(f"{idx}: {rec.get('id', '')} {rec.get('label', '')}")
+                print(f"   command: {rec.get('command', '')}")
+                print(f"   category={rec.get('category', '')} background_supported={'yes' if rec.get('background_supported') else 'no'} confirm={'yes' if rec.get('requires_confirmation') else 'no'}")
+            append_event(cfg, "workbench", "workbench_actions_viewed", details={"action_count": len(snap.get("workbench_actions") or [])})
         elif choice == "r":
             rec = record_workbench_refresh(cfg)
             print(f"refreshed workbench at {rec.get('last_refresh_at', '')}")
@@ -6798,7 +7004,7 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage release item, 8/d unstage, 9/v view, c show/copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage release item, 11 workflow actions, 8/d unstage, 9/v view, c show/copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 

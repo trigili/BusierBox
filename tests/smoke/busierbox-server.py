@@ -1028,6 +1028,7 @@ def main():
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_id"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_mode"),
+                ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
                 ("sessions", len(queue_status_json.get("sessions") or []), "sessions_by_has_uploads"),
                 ("events", len(queue_status_json.get("events") or []), "events_by_id"),
         ):
@@ -1048,9 +1049,29 @@ def main():
                 "services_by_name" not in (api_resources_by_name.get("services", {}).get("indexes") or []) or
                 api_resources_by_name.get("command_queue_commands", {}).get("records_key") != "command_queue.commands" or
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
+                api_resources_by_name.get("workbench_actions", {}).get("records_key") != "workbench_actions" or
+                api_resources_by_summary_key.get("workbench_action_count", [{}])[0].get("name") != "workbench_actions" or
                 api_resources_by_summary_key.get("event_tail_count", [{}])[0].get("name") != "events" or
                 not any(rec.get("name") == "services" for rec in api_resources_by_primary_key.get("name", []))):
             print("server json status missing API resource catalog lookup maps", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        workbench_actions = queue_status_json.get("workbench_actions") or []
+        actions_by_id = queue_status_json.get("workbench_actions_by_id") or {}
+        actions_by_category = queue_status_json.get("workbench_actions_by_category") or {}
+        actions_by_script = queue_status_json.get("workbench_actions_by_script") or {}
+        actions_by_background = queue_status_json.get("workbench_actions_by_background_supported") or {}
+        workbench_summary = queue_status_json.get("summary") or {}
+        if (len(workbench_actions) < 6 or
+                workbench_summary.get("workbench_action_count") != len(workbench_actions) or
+                workbench_summary.get("workbench_action_target_execution_count") != 0 or
+                workbench_summary.get("workbench_action_background_supported_count", 0) < 2 or
+                actions_by_id.get("package-artifact", {}).get("command") != "make package" or
+                actions_by_id.get("configure-trailer", {}).get("script") != "scripts/artifact-config" or
+                not actions_by_category.get("configuration") or
+                not actions_by_script.get("scripts/busierbox-bringup") or
+                not actions_by_background.get("True")):
+            print("server json status missing operator workflow action descriptors", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         if (staged_files_state.get("path") != queue_status_json.get("staged_files") or
@@ -2907,7 +2928,10 @@ def main():
                 str(state_file) not in tui.stdout or
                 str(staged_file) not in tui.stdout or
                 "Workbench refresh: count=" not in tui.stdout or
-                "session_root:" not in tui.stdout):
+                "session_root:" not in tui.stdout or
+                "Operator workflow actions:" not in tui.stdout or
+                "make package" not in tui.stdout or
+                "scripts/busierbox-bringup --recommend-only --json" not in tui.stdout):
             print("noninteractive TUI/workbench missing operator path details", file=sys.stderr)
             print(tui.stdout, file=sys.stderr)
             return 1

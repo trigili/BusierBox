@@ -705,12 +705,22 @@ one is available, and `c` copies the selected generated target command to the
 local clipboard when possible plus
 `local/operator-session/last-command.txt`. The `r` refresh action updates
 workbench refresh counters and records a structured `workbench_refreshed` event
-instead of being only an incidental redraw. The line-oriented fallback exposes
+instead of being only an incidental redraw. Status JSON and both workbench views
+also expose `workbench_actions` records for operator-side configuration and
+build workflows such as `scripts/menuconfig`, `make package`,
+`scripts/busierbox-bringup --recommend-only --json`,
+`scripts/artifact-config set ARTIFACT KEY=VALUE`, and release self-tests. These
+records are show-command descriptors by default, include confirmation,
+background-job, and target-execution flags, and are indexed through
+`workbench_actions_by_id`, `workbench_actions_by_category`, and
+`workbench_actions_by_script` so future TUI/web clients can render workflow
+screens without inventing a second configuration format. The line-oriented fallback exposes
 the same operator path health, compact service and activity summaries, recent
 upload/fetch activity, event aggregate counts, refresh state, and compact event
 outcome details so non-curses or non-TTY runs still show whether listener state,
 logs, staged files, session roots, transfer activity, and recent event outcomes
-are usable. Its release staging action accepts a displayed release row number,
+are usable. It can also list the same operator workflow actions and their exact
+underlying commands. Its release staging action accepts a displayed release row number,
 recommendation id, artifact path, `by_device:NAME`, or `by_tuple_path:PATH` and
 stages the same explicit target-side fetch record as the curses browser.
 
