@@ -2421,15 +2421,20 @@ def stage_release_artifact(cfg, artifact_name):
     rel = release_context()
     if not rel:
         raise ValueError("not running inside a release bundle")
+    requested = str(artifact_name or "")
+    artifact_name = requested
+    recommendation = (rel.get("recommendations_by_id") or {}).get(requested)
+    if recommendation:
+        artifact_name = recommendation.get("artifact") or recommendation.get("artifact_name") or artifact_name
     matches = []
     for rec in rel.get("artifacts") or []:
         path = Path(str(rec.get("path", "")))
         if artifact_name in {rec.get("name"), rec.get("release_path"), str(path)}:
             matches.append(rec)
     if not matches:
-        raise ValueError(f"release artifact not found: {artifact_name}")
+        raise ValueError(f"release artifact not found: {requested}")
     if len(matches) > 1:
-        raise ValueError(f"release artifact is ambiguous: {artifact_name}")
+        raise ValueError(f"release artifact is ambiguous: {requested}")
     rec = matches[0]
     request = rec.get("request_name") or Path(str(rec.get("path"))).name
     return stage_file(cfg, rec["path"], request)

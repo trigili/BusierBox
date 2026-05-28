@@ -291,6 +291,7 @@ also browse release artifacts, device aliases, and tuple directories:
 scripts/busierbox-server --tui
 scripts/busierbox-server --json-status
 scripts/busierbox-server --api-status
+scripts/busierbox-server --stage-release-artifact by_device:lab-router --list-staged
 scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host/bin/busierbox-native-default-full --list-staged
 ```
 
@@ -555,8 +556,10 @@ evidence with `listener_bind_mismatch`, not as proof that the configured service
 is listening.
 
 `--stage-release-artifact` stages the selected artifact for explicit
-target-side `busierbox fetch`; it does not push the artifact or run it. In the
-curses workbench, the Event Log pane can be selected like the other browser
+target-side `busierbox fetch`; it accepts an artifact basename, release path,
+local path, or recommendation id such as `by_device:lab-router`, and does not
+push the artifact or run it. In the curses workbench, the Event Log pane can be
+selected like the other browser
 panes; the details pane shows the event id, session correlation fields, remote,
 and compact outcome details from the structured event record. `v` opens the
 selected local metadata/log/artifact/event-log path in the operator's pager when
