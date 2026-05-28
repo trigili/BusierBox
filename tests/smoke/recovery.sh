@@ -69,9 +69,12 @@ assert set(api["actions"]["indexes"]) >= {
     "actions_by_uploads_evidence",
     "actions_by_collects_dmesg",
     "actions_by_starts_rshell",
+    "actions_by_starts_rshell_after_evidence",
     "actions_by_executes_operator_supplied_command",
     "actions_by_command_queue_enabled",
     "actions_by_hidden_control_channel",
+    "actions_by_requires_explicit_apply",
+    "actions_by_requires_external_write",
 }
 assert data["storage_by_class"]["persistent"] == [0, 1, 2, 3]
 assert data["storage_by_class"]["volatile"] == [4, 6]
@@ -98,11 +101,17 @@ assert data["actions_by_category"]["script"] == [6]
 assert data["actions_by_uploads_evidence"]["yes"] == [2, 3, 4]
 assert data["actions_by_collects_dmesg"]["yes"] == [4]
 assert data["actions_by_starts_rshell"]["yes"] == [1, 3]
+assert data["actions_by_starts_rshell_after_evidence"]["yes"] == [3]
+assert data["actions_by_starts_rshell_after_evidence"]["no"] == [0, 1, 2, 4, 5, 6]
 assert data["actions_by_executes_operator_supplied_command"]["yes"] == [5, 6]
 assert data["actions_by_command_queue_enabled"]["yes"] == []
 assert data["actions_by_command_queue_enabled"]["no"] == list(range(len(data["actions"])))
 assert data["actions_by_hidden_control_channel"]["yes"] == []
 assert data["actions_by_hidden_control_channel"]["no"] == list(range(len(data["actions"])))
+assert data["actions_by_requires_explicit_apply"]["yes"] == list(range(len(data["actions"])))
+assert data["actions_by_requires_explicit_apply"]["no"] == []
+assert data["actions_by_requires_external_write"]["yes"] == list(range(len(data["actions"])))
+assert data["actions_by_requires_external_write"]["no"] == []
 actions = {item["name"]: item for item in data["actions"]}
 assert actions["evidence-push"]["uploads_evidence"] is True
 assert actions["evidence-then-rshell"]["starts_rshell_after_evidence"] is True

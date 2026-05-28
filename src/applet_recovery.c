@@ -740,6 +740,14 @@ static void recovery_print_survey_indexes(void)
         fputc(':', stdout);
         recovery_print_action_index_array("starts_rshell", yes_no[i]);
     }
+    fputs("},\"actions_by_starts_rshell_after_evidence\":{", stdout);
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, yes_no[i]);
+        fputc(':', stdout);
+        recovery_print_action_index_array("starts_rshell_after_evidence", yes_no[i]);
+    }
     fputs("},\"actions_by_executes_operator_supplied_command\":{", stdout);
     for (i = 0; yes_no[i]; i++) {
         if (i)
@@ -764,6 +772,22 @@ static void recovery_print_survey_indexes(void)
         fputc(':', stdout);
         recovery_print_action_index_array("hidden_control_channel", yes_no[i]);
     }
+    fputs("},\"actions_by_requires_explicit_apply\":{", stdout);
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, yes_no[i]);
+        fputc(':', stdout);
+        recovery_print_action_index_array("requires_explicit_apply", yes_no[i]);
+    }
+    fputs("},\"actions_by_requires_external_write\":{", stdout);
+    for (i = 0; yes_no[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, yes_no[i]);
+        fputc(':', stdout);
+        recovery_print_action_index_array("requires_external_write", yes_no[i]);
+    }
     fputs("}", stdout);
 }
 
@@ -778,7 +802,7 @@ static void recovery_print_survey_api_collections(void)
     fputs("\"methods_by_name\",\"methods_by_survives_reboot\",\"methods_by_intrusiveness\",\"methods_by_requires_external_write\"", stdout);
     printf("]},\"actions\":{\"name\":\"actions\",\"count\":%zu,\"count_summary_key\":\"summary.action_count\",\"primary_key\":\"name\",\"summary_key\":\"summary.action_count\",\"indexes\":[",
            (sizeof(recovery_actions) / sizeof(recovery_actions[0])) - 1);
-    fputs("\"actions_by_name\",\"actions_by_category\",\"actions_by_uploads_evidence\",\"actions_by_collects_dmesg\",\"actions_by_starts_rshell\",\"actions_by_executes_operator_supplied_command\",\"actions_by_command_queue_enabled\",\"actions_by_hidden_control_channel\"", stdout);
+    fputs("\"actions_by_name\",\"actions_by_category\",\"actions_by_uploads_evidence\",\"actions_by_collects_dmesg\",\"actions_by_starts_rshell\",\"actions_by_starts_rshell_after_evidence\",\"actions_by_executes_operator_supplied_command\",\"actions_by_command_queue_enabled\",\"actions_by_hidden_control_channel\",\"actions_by_requires_explicit_apply\",\"actions_by_requires_external_write\"", stdout);
     fputs("]}}", stdout);
 }
 
