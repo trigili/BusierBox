@@ -3259,6 +3259,11 @@ def main():
         target_commands_by_network = upload_doc.get("target_commands_by_network") or {}
         target_commands_by_explicit_action = upload_doc.get("target_commands_by_requires_explicit_target_action") or {}
         target_commands_by_operator_supplied = upload_doc.get("target_commands_by_executes_operator_supplied_commands") or {}
+        target_commands_by_session_policy = upload_doc.get("target_commands_by_session_policy") or {}
+        target_commands_by_session_policy_valid = upload_doc.get("target_commands_by_session_policy_valid") or {}
+        target_commands_by_retry_backoff = upload_doc.get("target_commands_by_retry_backoff") or {}
+        target_commands_by_retry_interval = upload_doc.get("target_commands_by_retry_interval_sec") or {}
+        target_commands_by_retry_post_disconnect = upload_doc.get("target_commands_by_retry_post_disconnect_count") or {}
         rshell_record = next((rec for rec in target_records if rec.get("service") == "rshell"), {})
         rshell_metadata = rshell_record.get("metadata") or {}
         rshell_semantics = rshell_metadata.get("session_semantics") or {}
@@ -3276,7 +3281,13 @@ def main():
                 target_commands_by_operator_supplied.get("True", []) != [] or
                 len(target_commands_by_operator_supplied.get("False") or []) != len(target_records) or
                 "target_commands_by_executes_operator_supplied_commands" not in ((upload_doc.get("api_collections") or {}).get("target_command_records") or {}).get("indexes", []) or
+                "target_commands_by_retry_backoff" not in ((upload_doc.get("api_collections") or {}).get("target_command_records") or {}).get("indexes", []) or
                 not rshell_record or
+                target_commands_by_session_policy.get("reconnect", [{}])[0].get("service") != "rshell" or
+                target_commands_by_session_policy_valid.get("True", [{}])[0].get("service") != "rshell" or
+                target_commands_by_retry_backoff.get("linear", [{}])[0].get("service") != "rshell" or
+                target_commands_by_retry_interval.get("3", [{}])[0].get("service") != "rshell" or
+                target_commands_by_retry_post_disconnect.get("2", [{}])[0].get("service") != "rshell" or
                 rshell_metadata.get("session_policy") != "reconnect" or
                 rshell_metadata.get("session_policy_valid") is not True or
                 rshell_semantics.get("reconnect_after_disconnect") is not True or
@@ -3297,7 +3308,11 @@ def main():
                 rshell_retry_timing.get("sample_delays_sec") != [3, 6, 8] or
                 rshell_retry_timing.get("sample_delays_exclude_jitter") is not True or
                 target_summary.get("by_service", {}).get("file-service", 0) < 6 or
-                target_summary.get("by_service", {}).get("rshell") != 1):
+                target_summary.get("by_service", {}).get("rshell") != 1 or
+                target_summary.get("by_session_policy", {}).get("reconnect") != 1 or
+                target_summary.get("by_retry_backoff", {}).get("linear") != 1 or
+                upload_summary.get("target_command_session_policy_counts", {}).get("reconnect") != 1 or
+                upload_summary.get("target_command_retry_backoff_counts", {}).get("linear") != 1):
             print("server json status missing generated command service/session-policy lookup", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1

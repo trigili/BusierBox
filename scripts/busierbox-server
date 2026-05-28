@@ -2560,6 +2560,11 @@ def target_command_record_indexes(records):
     by_network = records_by_key(records, "network")
     by_requires_explicit_target_action = records_by_key(records, "requires_explicit_target_action")
     by_executes_operator_supplied_commands = records_by_key(records, "executes_operator_supplied_commands")
+    by_session_policy = {}
+    by_session_policy_valid = {}
+    by_retry_backoff = {}
+    by_retry_interval_sec = {}
+    by_retry_post_disconnect_count = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -2569,6 +2574,8 @@ def target_command_record_indexes(records):
         release_path = str(rec.get("release_path") or "")
         side = str(rec.get("side") or "")
         purpose = str(rec.get("purpose") or "")
+        metadata = rec.get("metadata") if isinstance(rec.get("metadata"), dict) else {}
+        retry = metadata.get("retry") if isinstance(metadata.get("retry"), dict) else {}
         if service:
             by_service.setdefault(service, []).append(rec)
         if request_name:
@@ -2585,10 +2592,22 @@ def target_command_record_indexes(records):
             by_service_purpose.setdefault(f"{service}:{purpose}", []).append(rec)
         if side and purpose:
             by_side_purpose.setdefault(f"{side}:{purpose}", []).append(rec)
+        if metadata.get("session_policy") not in (None, ""):
+            by_session_policy.setdefault(str(metadata.get("session_policy")), []).append(rec)
+        if metadata.get("session_policy_valid") not in (None, ""):
+            by_session_policy_valid.setdefault(str(metadata.get("session_policy_valid")), []).append(rec)
+        if retry.get("backoff") not in (None, ""):
+            by_retry_backoff.setdefault(str(retry.get("backoff")), []).append(rec)
+        if retry.get("interval_sec") not in (None, ""):
+            by_retry_interval_sec.setdefault(str(retry.get("interval_sec")), []).append(rec)
+        if retry.get("post_disconnect_count") not in (None, ""):
+            by_retry_post_disconnect_count.setdefault(str(retry.get("post_disconnect_count")), []).append(rec)
     return (
         by_service, by_request_name, by_stage_kind, by_release_path, by_side,
         by_purpose, by_service_purpose, by_side_purpose, by_network,
         by_requires_explicit_target_action, by_executes_operator_supplied_commands,
+        by_session_policy, by_session_policy_valid, by_retry_backoff,
+        by_retry_interval_sec, by_retry_post_disconnect_count,
     )
 
 
@@ -2603,6 +2622,8 @@ def target_command_record_summary(records):
     by_release_path = {}
     by_side = {}
     by_purpose = {}
+    by_session_policy = {}
+    by_retry_backoff = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -2612,6 +2633,8 @@ def target_command_record_summary(records):
         release_path = str(rec.get("release_path") or "")
         side = str(rec.get("side") or "")
         purpose = str(rec.get("purpose") or "")
+        metadata = rec.get("metadata") if isinstance(rec.get("metadata"), dict) else {}
+        retry = metadata.get("retry") if isinstance(metadata.get("retry"), dict) else {}
         if service:
             by_service[service] = by_service.get(service, 0) + 1
         if stage_kind:
@@ -2622,6 +2645,12 @@ def target_command_record_summary(records):
             by_side[side] = by_side.get(side, 0) + 1
         if purpose:
             by_purpose[purpose] = by_purpose.get(purpose, 0) + 1
+        if metadata.get("session_policy") not in (None, ""):
+            key = str(metadata.get("session_policy"))
+            by_session_policy[key] = by_session_policy.get(key, 0) + 1
+        if retry.get("backoff") not in (None, ""):
+            key = str(retry.get("backoff"))
+            by_retry_backoff[key] = by_retry_backoff.get(key, 0) + 1
         if rec.get("side") == "target":
             target_count += 1
         if rec.get("network") is True:
@@ -2643,6 +2672,8 @@ def target_command_record_summary(records):
         "by_release_path": by_release_path,
         "by_side": by_side,
         "by_purpose": by_purpose,
+        "by_session_policy": by_session_policy,
+        "by_retry_backoff": by_retry_backoff,
     }
 
 
@@ -6564,7 +6595,12 @@ def status_document(cfg):
      target_commands_by_side_purpose,
      target_commands_by_network,
      target_commands_by_requires_explicit_target_action,
-     target_commands_by_executes_operator_supplied_commands) = target_command_record_indexes(target_command_records)
+     target_commands_by_executes_operator_supplied_commands,
+     target_commands_by_session_policy,
+     target_commands_by_session_policy_valid,
+     target_commands_by_retry_backoff,
+     target_commands_by_retry_interval_sec,
+     target_commands_by_retry_post_disconnect_count) = target_command_record_indexes(target_command_records)
     target_command_summary = target_command_record_summary(target_command_records)
     (uploads_by_filename,
      uploads_by_kind,
@@ -6859,6 +6895,8 @@ def status_document(cfg):
         "target_command_purpose_counts": target_command_summary.get("by_purpose") or {},
         "target_command_stage_kind_counts": target_command_summary.get("by_stage_kind") or {},
         "target_command_release_path_counts": target_command_summary.get("by_release_path") or {},
+        "target_command_session_policy_counts": target_command_summary.get("by_session_policy") or {},
+        "target_command_retry_backoff_counts": target_command_summary.get("by_retry_backoff") or {},
         "event_count": event_stats["total_count"],
         "event_log_exists": bool(event_log_state.get("exists", False)),
         "event_log_valid": bool(event_log_state.get("valid", False)),
@@ -7061,6 +7099,9 @@ def status_document(cfg):
                 "target_commands_by_service_purpose", "target_commands_by_side_purpose",
                 "target_commands_by_network", "target_commands_by_requires_explicit_target_action",
                 "target_commands_by_executes_operator_supplied_commands",
+                "target_commands_by_session_policy", "target_commands_by_session_policy_valid",
+                "target_commands_by_retry_backoff", "target_commands_by_retry_interval_sec",
+                "target_commands_by_retry_post_disconnect_count",
             ), "target_command_count",
         ),
         "staged_records": api_collection_record(
@@ -7299,6 +7340,11 @@ def status_document(cfg):
         "target_commands_by_network": target_commands_by_network,
         "target_commands_by_requires_explicit_target_action": target_commands_by_requires_explicit_target_action,
         "target_commands_by_executes_operator_supplied_commands": target_commands_by_executes_operator_supplied_commands,
+        "target_commands_by_session_policy": target_commands_by_session_policy,
+        "target_commands_by_session_policy_valid": target_commands_by_session_policy_valid,
+        "target_commands_by_retry_backoff": target_commands_by_retry_backoff,
+        "target_commands_by_retry_interval_sec": target_commands_by_retry_interval_sec,
+        "target_commands_by_retry_post_disconnect_count": target_commands_by_retry_post_disconnect_count,
         "staged": staged,
         "staged_records": staged_records,
         "staged_by_request": staged_by_request,
@@ -7492,6 +7538,10 @@ def print_target_command_summary(doc):
         f"all_require_explicit_target_action={'yes' if summary.get('target_command_all_require_explicit_target_action') else 'no'}"
     )
     print(f"  sides: {format_counts(summary.get('target_command_side_counts') or {})}")
+    if summary.get("target_command_session_policy_counts"):
+        print(f"  rshell policies: {format_counts(summary.get('target_command_session_policy_counts') or {})}")
+    if summary.get("target_command_retry_backoff_counts"):
+        print(f"  rshell retry backoff: {format_counts(summary.get('target_command_retry_backoff_counts') or {})}")
 
 
 def print_workbench_action_summary(doc):

@@ -632,14 +632,18 @@ rescanning the records. Composite indexes
 `target_commands_by_service_purpose` and `target_commands_by_side_purpose`
 support direct lookups such as `file-service:explicitly fetch an
 operator-staged file` or `target:start the configured reverse shell transport
-from the target` without scanning every generated command. `target_command_summary` reports total,
-network, explicit-target action, and operator-supplied-command execution
-counts, with side and purpose counts mirrored into `summary` as
-`target_command_side_counts` and `target_command_purpose_counts`. This lets
-future frontends show the same commands without guessing whether a command is a
-safe explicit fetch/upload helper or control-like behavior. Human `--status`
-and the line-oriented fallback print the same target-command safety summary
-before listing generated commands.
+from the target` without scanning every generated command. Rshell-specific
+indexes such as `target_commands_by_session_policy`,
+`target_commands_by_retry_backoff`, `target_commands_by_retry_interval_sec`,
+and `target_commands_by_retry_post_disconnect_count` let clients badge
+single/reconnect/persistent behavior and retry timing directly.
+`target_command_summary` reports total, network, explicit-target action,
+operator-supplied-command execution, session-policy, and retry-backoff counts,
+with matching fields mirrored into `summary`. This lets future frontends show
+the same commands without guessing whether a command is a safe explicit
+fetch/upload helper or control-like behavior. Human `--status` and the
+line-oriented fallback print the same target-command safety summary before
+listing generated commands.
 Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
 `command_queue_status_counts`. Queue records are also indexed by
