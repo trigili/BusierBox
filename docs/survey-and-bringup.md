@@ -16,7 +16,8 @@ explicitly configured for the run.
 Its JSON also includes `checks_by_name`, `checks_by_status`,
 `checks_by_type`, `checks_by_skipped`, `checks_by_available`,
 `checks_by_detected`, and `api_collections.checks` metadata with explicit
-`count`, `summary_key`, and backward-compatible `count_summary_key` fields.
+`count`, `summary_key`, backward-compatible `count_summary_key`, and
+`primary_key: name` fields.
 Bringup tools and future UIs can jump directly to failed capabilities, skipped
 operator checks, unavailable probes, or detected constraints without scraping
 the text view.

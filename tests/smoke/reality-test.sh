@@ -89,6 +89,8 @@ if api.get("count") != len(checks):
     raise SystemExit("reality-test: checks api collection count drift")
 if api.get("count_summary_key") != "summary.check_count":
     raise SystemExit("reality-test: checks api collection missing summary key")
+if api.get("primary_key") != "name":
+    raise SystemExit("reality-test: checks api collection missing primary key")
 if api.get("summary_key") != "summary.check_count":
     raise SystemExit("reality-test: checks api collection missing normalized summary key")
 if set(api.get("indexes") or []) < {
