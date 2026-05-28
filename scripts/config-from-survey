@@ -218,6 +218,9 @@ def reality_detected(name):
         return boolish(reality_constraints.get(name))
     return False
 
+def reality_procfs_broken():
+    return reality_detected("procfs_partial") or reality_failed("read_proc")
+
 def kernel_floor(release):
     release = str(release or "unknown")
     parts = release.split(".", 2)
@@ -356,7 +359,7 @@ if reality_by_name:
         warnings.append("reality-test detected /tmp noexec; avoid extracting there")
     if reality_detected("rootfs_read_only"):
         warnings.append("reality-test detected read-only rootfs; avoid external writes")
-    if reality_detected("procfs_partial"):
+    if reality_procfs_broken():
         warnings.append("reality-test detected partial/broken procfs; survey facts may be incomplete")
     if reality_failed("ptrace"):
         warnings.append("reality-test could not use ptrace; avoid gdbserver unless target policy is fixed")
@@ -396,7 +399,7 @@ if reality_by_name:
 if reality_detected("rootfs_read_only"):
     compatibility_label = "likely" if compatibility_label == "exact" else compatibility_label
     compatibility_reasons.append("read-only rootfs constraint")
-if reality_detected("procfs_partial"):
+if reality_procfs_broken():
     if compatibility_label in ("exact", "likely"):
         compatibility_label = "heuristic"
     compatibility_reasons.append("procfs partial/broken: survey evidence may be incomplete")
@@ -514,7 +517,8 @@ result = {
             "pty": reality_check("pty").get("status", ""),
             "tmp_noexec_detected": reality_detected("tmp_noexec"),
             "rootfs_read_only_detected": reality_detected("rootfs_read_only"),
-            "procfs_partial_detected": reality_detected("procfs_partial"),
+            "read_proc": reality_check("read_proc").get("status", ""),
+            "procfs_partial_detected": reality_procfs_broken(),
             "ptrace": reality_check("ptrace").get("status", ""),
             "dmesg_readable": reality_check("dmesg_readable").get("status", ""),
             "operator_pass": reality_summary.get("operator_pass", ""),

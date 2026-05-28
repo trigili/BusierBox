@@ -126,6 +126,7 @@ cat >"$tmp/reality-advisory.json" <<'EOF'
 {
   "schema": 1,
   "checks": [
+    {"name": "read_proc", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "/proc present but key procfs files are unreadable"},
     {"name": "dmesg_readable", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "not readable"},
     {"name": "spawn_sh", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "missing shell"},
     {"name": "pty", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "no devpts"}
@@ -144,10 +145,13 @@ import json
 import sys
 
 doc = json.load(open(sys.argv[1], encoding="utf-8"))
-assert doc["compatibility"]["label"] == "likely"
+assert doc["compatibility"]["label"] == "heuristic"
+assert "procfs partial/broken: survey evidence may be incomplete" in doc["compatibility"]["reasons"]
 assert "dmesg unreadable: crash evidence may be limited" in doc["compatibility"]["reasons"]
 assert "shell spawn unavailable: shell-oriented payloads may be limited" in doc["compatibility"]["reasons"]
 assert "PTY unavailable: interactive tools may be degraded" in doc["compatibility"]["reasons"]
+assert doc["facts"]["reality"]["read_proc"] == "fail"
+assert doc["facts"]["reality"]["procfs_partial_detected"] is True
 assert doc["facts"]["reality"]["dmesg_readable"] == "fail"
 assert doc["facts"]["reality"]["spawn_sh"] == "fail"
 assert doc["facts"]["reality"]["pty"] == "fail"

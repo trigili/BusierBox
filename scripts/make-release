@@ -821,6 +821,8 @@ def write_release_helpers(script_dir):
                     facts["payload_possible"] = False
                 elif name == "procfs_partial":
                     facts["procfs_partial"] = detected if "detected" in check else not ok
+                elif name == "read_proc" and not available:
+                    facts["procfs_partial"] = True
                 elif name == "temporary_file" and not available:
                     facts["runtime_write_blocked"] = True
                 elif name == "ptrace" and not available:

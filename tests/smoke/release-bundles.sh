@@ -593,6 +593,30 @@ facts = compat.get("facts") or {}
 if facts.get("ptrace_unavailable") is not True or facts.get("dmesg_unreadable") is not True:
     raise SystemExit(f"advisory reality facts missing: {facts!r}")
 PY
+cat >"$work/reality-procfs-read.json" <<'JSON'
+{
+  "schema": 1,
+  "checks": [
+    {"name": "read_proc", "status": "fail", "ok": false, "available": false, "detail": "/proc present but key procfs files are unreadable"}
+  ]
+}
+JSON
+"$work/release/scripts/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-procfs-read.json" --json >"$work/release-find-reality-procfs.json"
+python3 - "$work/release-find-reality-procfs.json" <<'PY'
+import json
+import sys
+
+row = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+compat = row.get("compatibility") or {}
+if compat.get("label") != "heuristic":
+    raise SystemExit(f"expected failed read_proc to score heuristic, got {compat!r}")
+reasons = "\n".join(compat.get("reasons") or [])
+if "procfs partial/broken: static survey evidence may be incomplete" not in reasons:
+    raise SystemExit(f"read_proc procfs reason missing: {reasons}")
+facts = compat.get("facts") or {}
+if facts.get("procfs_partial") is not True:
+    raise SystemExit(f"read_proc procfs fact missing: {facts!r}")
+PY
 cat >"$work/reality-unsafe.json" <<'JSON'
 {
   "schema": 1,
