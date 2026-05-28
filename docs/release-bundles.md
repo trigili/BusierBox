@@ -654,8 +654,11 @@ builder's local source path.
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
 purpose, service, side, network, explicit-target-action, and
-operator-supplied-command execution metadata. The generated `rshell` command
-record also carries `metadata.session_policy`, validity, errors, and
+operator-supplied-command execution metadata. Each record also carries a
+1-based `ordinal`, `copy_selector`, `copy_command`, `copy_supported`, and
+`command_sha256`, letting operator UIs copy or de-duplicate generated commands
+without relying on array position alone. The generated `rshell` command record
+also carries `metadata.session_policy`, validity, errors, and
 `session_semantics`, plus `metadata.retry` and `metadata.retry_timing`, so
 operator UIs can distinguish single-shot, reconnect, and persistent
 fresh-session behavior and show the configured retry schedule next to the
@@ -668,7 +671,9 @@ fetch rows, and command-category views. Safety indexes
 `target_commands_by_requires_explicit_target_action`, and
 `target_commands_by_executes_operator_supplied_commands` let clients separate
 network helpers, manual target actions, and command-like behavior without
-rescanning the records. Composite indexes
+rescanning the records. `target_commands_by_ordinal`,
+`target_commands_by_command_sha256`, and `target_commands_by_copy_supported`
+make command copy/export views stable and directly addressable. Composite indexes
 `target_commands_by_service_purpose` and `target_commands_by_side_purpose`
 support direct lookups such as `file-service:explicitly fetch an
 operator-staged file` or `target:start the configured reverse shell transport

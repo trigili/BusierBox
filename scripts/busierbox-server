@@ -2714,6 +2714,9 @@ def target_command_record_indexes(records):
     by_network = records_by_key(records, "network")
     by_requires_explicit_target_action = records_by_key(records, "requires_explicit_target_action")
     by_executes_operator_supplied_commands = records_by_key(records, "executes_operator_supplied_commands")
+    by_ordinal = {}
+    by_command_sha256 = {}
+    by_copy_supported = records_by_key(records, "copy_supported")
     by_session_policy = {}
     by_session_policy_valid = {}
     by_retry_backoff = {}
@@ -2730,8 +2733,14 @@ def target_command_record_indexes(records):
         purpose = str(rec.get("purpose") or "")
         metadata = rec.get("metadata") if isinstance(rec.get("metadata"), dict) else {}
         retry = metadata.get("retry") if isinstance(metadata.get("retry"), dict) else {}
+        ordinal = rec.get("ordinal")
+        command_sha256 = str(rec.get("command_sha256") or "")
         if service:
             by_service.setdefault(service, []).append(rec)
+        if ordinal not in (None, ""):
+            by_ordinal[str(ordinal)] = rec
+        if command_sha256:
+            by_command_sha256[command_sha256] = rec
         if request_name:
             by_request_name[request_name] = rec
         if stage_kind:
@@ -2760,6 +2769,7 @@ def target_command_record_indexes(records):
         by_service, by_request_name, by_stage_kind, by_release_path, by_side,
         by_purpose, by_service_purpose, by_side_purpose, by_network,
         by_requires_explicit_target_action, by_executes_operator_supplied_commands,
+        by_ordinal, by_command_sha256, by_copy_supported,
         by_session_policy, by_session_policy_valid, by_retry_backoff,
         by_retry_interval_sec, by_retry_post_disconnect_count,
     )
@@ -2780,6 +2790,7 @@ def target_command_record_summary(records):
     by_session_policy_valid = {}
     by_retry_backoff = {}
     session_policy_error_count = 0
+    copy_supported_count = 0
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -2819,12 +2830,15 @@ def target_command_record_summary(records):
             explicit_target_action_count += 1
         if rec.get("executes_operator_supplied_commands") is True:
             operator_supplied_command_execution_count += 1
+        if rec.get("copy_supported") is True:
+            copy_supported_count += 1
     return {
         "total_count": total,
         "target_count": target_count,
         "network_count": network_count,
         "explicit_target_action_count": explicit_target_action_count,
         "operator_supplied_command_execution_count": operator_supplied_command_execution_count,
+        "copy_supported_count": copy_supported_count,
         "executes_operator_supplied_commands": operator_supplied_command_execution_count > 0,
         "all_require_explicit_target_action": total > 0 and explicit_target_action_count == total,
         "by_service": by_service,
@@ -6895,6 +6909,9 @@ def status_document(cfg):
      target_commands_by_network,
      target_commands_by_requires_explicit_target_action,
      target_commands_by_executes_operator_supplied_commands,
+     target_commands_by_ordinal,
+     target_commands_by_command_sha256,
+     target_commands_by_copy_supported,
      target_commands_by_session_policy,
      target_commands_by_session_policy_valid,
      target_commands_by_retry_backoff,
@@ -7246,6 +7263,7 @@ def status_document(cfg):
         "target_command_network_count": target_command_summary.get("network_count", 0),
         "target_command_explicit_action_count": target_command_summary.get("explicit_target_action_count", 0),
         "target_command_operator_supplied_execution_count": target_command_summary.get("operator_supplied_command_execution_count", 0),
+        "target_command_copy_supported_count": target_command_summary.get("copy_supported_count", 0),
         "target_command_executes_operator_supplied_commands": bool(target_command_summary.get("executes_operator_supplied_commands", False)),
         "target_command_all_require_explicit_target_action": bool(target_command_summary.get("all_require_explicit_target_action", False)),
         "target_command_side_counts": target_command_summary.get("by_side") or {},
@@ -7479,6 +7497,8 @@ def status_document(cfg):
                 "target_commands_by_service_purpose", "target_commands_by_side_purpose",
                 "target_commands_by_network", "target_commands_by_requires_explicit_target_action",
                 "target_commands_by_executes_operator_supplied_commands",
+                "target_commands_by_ordinal", "target_commands_by_command_sha256",
+                "target_commands_by_copy_supported",
                 "target_commands_by_session_policy", "target_commands_by_session_policy_valid",
                 "target_commands_by_retry_backoff", "target_commands_by_retry_interval_sec",
                 "target_commands_by_retry_post_disconnect_count",
@@ -7755,6 +7775,9 @@ def status_document(cfg):
         "target_commands_by_network": target_commands_by_network,
         "target_commands_by_requires_explicit_target_action": target_commands_by_requires_explicit_target_action,
         "target_commands_by_executes_operator_supplied_commands": target_commands_by_executes_operator_supplied_commands,
+        "target_commands_by_ordinal": target_commands_by_ordinal,
+        "target_commands_by_command_sha256": target_commands_by_command_sha256,
+        "target_commands_by_copy_supported": target_commands_by_copy_supported,
         "target_commands_by_session_policy": target_commands_by_session_policy,
         "target_commands_by_session_policy_valid": target_commands_by_session_policy_valid,
         "target_commands_by_retry_backoff": target_commands_by_retry_backoff,
@@ -8003,6 +8026,7 @@ def print_target_command_summary(doc):
         f"network={summary.get('target_command_network_count', 0)} "
         f"explicit_target_action={summary.get('target_command_explicit_action_count', 0)} "
         f"operator_supplied_execution={summary.get('target_command_operator_supplied_execution_count', 0)} "
+        f"copy_supported={summary.get('target_command_copy_supported_count', 0)} "
         f"executes_operator_supplied_commands={'yes' if summary.get('target_command_executes_operator_supplied_commands') else 'no'} "
         f"all_require_explicit_target_action={'yes' if summary.get('target_command_all_require_explicit_target_action') else 'no'}"
     )
@@ -8302,6 +8326,13 @@ def generated_target_command_records(cfg, staged=None):
                 if value not in (None, ""):
                     record[key] = value
         records.append(record)
+    for idx, record in enumerate(records, 1):
+        command = str(record.get("command") or "")
+        record["ordinal"] = idx
+        record["copy_supported"] = bool(command)
+        record["copy_selector"] = str(idx)
+        record["copy_command"] = f"scripts/busierbox-server --copy-target-command {idx}"
+        record["command_sha256"] = hashlib.sha256(command.encode("utf-8")).hexdigest() if command else ""
     return records
 
 
