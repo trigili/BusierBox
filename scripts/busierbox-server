@@ -815,8 +815,153 @@ def records_by_list_item(records, key):
     return grouped
 
 
+WORKBENCH_BUILD_CONFIG_FIELDS = [
+    ("target", "BB_TARGET_PRESET", "target/device preset", "glinet-mt7621-openwrt-musl native"),
+    ("target", "BB_TARGETS", "target build list", "glinet-mt7621-openwrt-musl"),
+    ("payload", "BB_PAYLOAD_PRESET", "payload set", "survey-core default ssh-operator"),
+    ("payload", "BB_BUSYBOX_GROUPS", "BusyBox applet groups", "shell fileops disk process network text system"),
+    ("payload", "BB_HEAVY_TOOLS", "heavy payload tools", "tmux strace gdbserver"),
+    ("build", "BB_STATIC_POLICY", "static-first build policy", "static-preferred static-only dynamic-ok"),
+    ("build", "BB_BUILD_INTERNAL_CORE", "build internal BusierBox core", "no yes"),
+    ("runtime", "BB_RUNTIME_MODE", "runtime mode", "extract embedded"),
+    ("runtime", "BB_RUNTIME_ROOT", "runtime root", "./.busierbox"),
+    ("runtime", "BB_NORESIDUE_LEVEL", "no-residue behavior", "best-effort aggressive"),
+    ("runtime", "BB_RUNTIME_ALLOW_EXTERNAL_WRITES", "allow external writes", "no yes"),
+    ("trailer", "BB_TRAILER_OVERRIDES_ENABLE", "runtime trailer defaults", "yes no"),
+    ("trailer", "BB_TRAILER_OVERRIDE_CATEGORIES", "trailer override categories", "runtime operator launch retry"),
+    ("recovery", "BB_AUTORUN_GUARD_ENABLE", "autorun/recovery guard", "yes no"),
+    ("recovery", "BB_RECOVERY_BINARY_NAME", "recovery binary name", "busierbox_recovery"),
+    ("rshell", "BB_RSHELL_TRANSPORT", "reverse shell transport", "ssh tls-shell plain-shell none"),
+    ("rshell", "BB_RSHELL_RUN_MODE", "reverse shell run mode", "auto foreground background"),
+    ("rshell", "BB_RSHELL_SESSION_POLICY", "reverse shell session policy", "single reconnect persistent"),
+    ("command-queue", "BB_COMMAND_QUEUE_ENABLE", "command queue enable", "no yes"),
+    ("command-queue", "BB_COMMAND_QUEUE_ALLOWED_COMMANDS", "command queue policy", "none busierbox-only allowlist custom"),
+    ("command-queue", "BB_COMMAND_QUEUE_ALLOW_ARBITRARY", "allow arbitrary command queue commands", "no yes"),
+]
+
+
+def build_config_path(cfg):
+    return Path(str(cfg.get("_build_config_path") or cfg.get("build_config") or "configs/busierbox.conf"))
+
+
+def parse_build_config(path):
+    path = Path(path)
+    values = {}
+    order = []
+    lines = []
+    try:
+        raw_lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        raw_lines = []
+    for line in raw_lines:
+        lines.append(line)
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        if not key.replace("_", "A").isalnum() or not (key[0].isalpha() or key[0] == "_"):
+            continue
+        try:
+            parsed = shlex.split(value, comments=False, posix=True)
+            values[key] = parsed[0] if parsed else ""
+        except ValueError:
+            values[key] = value.strip().strip('"')
+        order.append(key)
+    return {"path": str(path), "exists": path.is_file(), "values": values, "order": order, "lines": lines}
+
+
+def shell_double_quote(value):
+    text = str(value)
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`") + '"'
+
+
+def write_build_config_value(path, key, value):
+    if not key.startswith("BB_") or not key.replace("_", "A").isalnum():
+        raise ValueError(f"unsupported build config key: {key}")
+    path = Path(path)
+    parsed = parse_build_config(path)
+    lines = list(parsed.get("lines") or [])
+    replacement = f"{key}={shell_double_quote(value)}"
+    replaced = False
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith(key + "="):
+            lines[idx] = replacement
+            replaced = True
+            break
+    if not replaced:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append(replacement)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + f".tmp.{os.getpid()}")
+    tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
+def workbench_config_field_records(cfg):
+    path = build_config_path(cfg)
+    parsed = parse_build_config(path)
+    values = parsed.get("values") or {}
+    records = []
+    for category, key, label, examples in WORKBENCH_BUILD_CONFIG_FIELDS:
+        records.append({
+            "key": key,
+            "category": category,
+            "label": label,
+            "value": values.get(key, ""),
+            "configured": key in values,
+            "config_path": str(path),
+            "writes_config": True,
+            "target_execution": False,
+            "source_format": "shell-assignment",
+            "examples": examples.split(),
+            "set_command": "scripts/busierbox-server --build-config "
+                           + shquote(str(path)) + " --set-build-config "
+                           + shquote(f"{key}=VALUE"),
+        })
+    return records
+
+
+def workbench_config_field_indexes(records):
+    return {
+        "workbench_config_fields_by_key": {rec.get("key", ""): rec for rec in records or [] if rec.get("key")},
+        "workbench_config_fields_by_category": records_by_key(records, "category"),
+        "workbench_config_fields_by_configured": records_by_key(records, "configured"),
+    }
+
+
+def workbench_config_field_summary(records):
+    return {
+        "total_count": len(records or []),
+        "configured_count": len([rec for rec in records or [] if rec.get("configured") is True]),
+        "category_counts": record_count_by_key(records, "category"),
+    }
+
+
+def set_workbench_build_config(cfg, assignment):
+    if "=" not in str(assignment):
+        raise ValueError("--set-build-config expects KEY=VALUE")
+    key, value = str(assignment).split("=", 1)
+    key = key.strip()
+    if not any(rec[1] == key for rec in WORKBENCH_BUILD_CONFIG_FIELDS):
+        raise ValueError(f"unsupported guided build config key: {key}")
+    path = build_config_path(cfg)
+    old_value = parse_build_config(path).get("values", {}).get(key, "")
+    write_build_config_value(path, key, value)
+    append_event(cfg, "workbench", "workbench_config_updated", details={
+        "config_path": str(path),
+        "key": key,
+        "old_value": old_value,
+        "new_value": value,
+        "command": "scripts/busierbox-server --build-config " + shquote(str(path)) + " --set-build-config " + shquote(f"{key}={value}"),
+    })
+    return {rec.get("key"): rec for rec in workbench_config_field_records(cfg)}.get(key, {"key": key, "value": value, "config_path": str(path)})
+
+
 def workbench_action_records(cfg):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    build_config = str(build_config_path(cfg))
     release_dir = str(cfg.get("release_dir") or ".")
     return [
         {
@@ -825,7 +970,7 @@ def workbench_action_records(cfg):
             "label": "Configure BusierBox binary options",
             "script": "scripts/menuconfig",
             "command": "scripts/menuconfig",
-            "config_path": "configs/busierbox.conf",
+            "config_path": build_config,
             "writes_config": True,
             "runs_build": False,
             "long_running": False,
@@ -5659,6 +5804,9 @@ def status_document(cfg):
     command_queue = command_queue_summary(cfg)
     release = release_context(cfg)
     release_state = release_state_record(release)
+    workbench_config_fields = workbench_config_field_records(cfg)
+    workbench_config_field_index_maps = workbench_config_field_indexes(workbench_config_fields)
+    workbench_config_field_stats = workbench_config_field_summary(workbench_config_fields)
     workbench_actions = workbench_action_records(cfg)
     workbench_action_index_maps = workbench_action_indexes(workbench_actions)
     workbench_action_stats = workbench_action_summary(workbench_actions)
@@ -5705,6 +5853,7 @@ def status_document(cfg):
         "command_queue_file": str(command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
+        "build_config": str(build_config_path(cfg)),
         "event_log": str(event_log_path),
         "session_root": session_root,
         "tls_cert": str(cfg.get("tls_cert", "")),
@@ -6028,6 +6177,9 @@ def status_document(cfg):
         "release_recommendation_count": len(release.get("recommendation_records") or []),
         "release_recommendation_scope_counts": record_count_by_key(release.get("recommendation_records") or [], "scope"),
         "workbench_action_count": workbench_action_stats.get("total_count", 0),
+        "workbench_config_field_count": workbench_config_field_stats.get("total_count", 0),
+        "workbench_config_field_configured_count": workbench_config_field_stats.get("configured_count", 0),
+        "workbench_config_field_category_counts": workbench_config_field_stats.get("category_counts") or {},
         "workbench_action_background_supported_count": workbench_action_stats.get("background_supported_count", 0),
         "workbench_action_long_running_count": workbench_action_stats.get("long_running_count", 0),
         "workbench_action_writes_config_count": workbench_action_stats.get("writes_config_count", 0),
@@ -6178,6 +6330,12 @@ def status_document(cfg):
                 "workbench_actions_by_runs_build", "workbench_actions_by_execution_default",
             ), "workbench_action_count",
         ),
+        "workbench_config_fields": api_collection_record(
+            "workbench_config_fields", workbench_config_fields, "key", (
+                "workbench_config_fields_by_key", "workbench_config_fields_by_category",
+                "workbench_config_fields_by_configured",
+            ), "workbench_config_field_count",
+        ),
         "workbench_jobs": api_collection_record(
             "workbench_jobs", workbench_jobs, "id", (
                 "workbench_jobs_by_id", "workbench_jobs_by_action",
@@ -6210,6 +6368,7 @@ def status_document(cfg):
         "command_queue_file": str(command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
+        "build_config": str(build_config_path(cfg)),
         "event_log": str(event_log_path),
         "session_root": session_root,
         "tls_cert": str(cfg.get("tls_cert", "")),
@@ -6336,6 +6495,8 @@ def status_document(cfg):
         "command_queue_modes_by_execution_supported": command_queue.get("command_queue_modes_by_execution_supported") or {},
         "command_queue_modes_by_active_control_channel": command_queue.get("command_queue_modes_by_active_control_channel") or {},
         "command_queue_modes_by_operator_supplied_command_execution": command_queue.get("command_queue_modes_by_operator_supplied_command_execution") or {},
+        "workbench_config_fields": workbench_config_fields,
+        **workbench_config_field_index_maps,
         "workbench_actions": workbench_actions,
         **workbench_action_index_maps,
         "workbench_jobs": workbench_jobs,
@@ -6430,6 +6591,12 @@ def print_target_command_summary(doc):
 def print_workbench_action_summary(doc):
     doc = doc or {}
     summary = doc.get("summary") or {}
+    print(
+        "Build config field summary: "
+        f"total={summary.get('workbench_config_field_count', 0)} "
+        f"configured={summary.get('workbench_config_field_configured_count', 0)}"
+    )
+    print(f"  config categories: {format_counts(summary.get('workbench_config_field_category_counts') or {})}")
     print(
         "Workbench action summary: "
         f"total={summary.get('workbench_action_count', 0)} "
@@ -7218,6 +7385,7 @@ def run_line_tui(cfg):
         print("  11 show operator workflow actions")
         print("  12 start background workflow job")
         print("  13 cancel background workflow job")
+        print("  14 configure BusierBox build field")
         print("  c show/copy generated commands")
         print("  r refresh")
         print("  ? help")
@@ -7302,6 +7470,26 @@ def run_line_tui(cfg):
                     print(f"cancel requested for {rec.get('id', job_id)}")
                 except ValueError as exc:
                     print(exc)
+        elif choice == "14":
+            fields = workbench_config_field_records(cfg)
+            for idx, rec in enumerate(fields, 1):
+                print(f"{idx}: {rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} category={rec.get('category', '')}")
+                print(f"   {rec.get('label', '')}")
+                print(f"   command: {rec.get('set_command', '')}")
+            selected = input("build config key or number> ").strip()
+            if selected:
+                try:
+                    rec = fields[int(selected) - 1] if selected.isdigit() else {item.get("key"): item for item in fields}.get(selected, {})
+                    key = rec.get("key")
+                    if not key:
+                        raise ValueError(f"unknown build config field: {selected}")
+                    print(f"current {key}={shell_double_quote(rec.get('value', ''))}")
+                    print(f"underlying command: scripts/busierbox-server --build-config {shquote(str(build_config_path(cfg)))} --set-build-config {shquote(key + '=VALUE')}")
+                    value = input("new value> ")
+                    updated = set_workbench_build_config(cfg, f"{key}={value}")
+                    print(f"set {updated.get('key', key)}={shell_double_quote(updated.get('value', value))}")
+                except (ValueError, IndexError) as exc:
+                    print(exc)
         elif choice == "r":
             rec = record_workbench_refresh(cfg)
             print(f"refreshed workbench at {rec.get('last_refresh_at', '')}")
@@ -7317,7 +7505,7 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage release item, 11 actions, 12 start job, 13 cancel job, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage release item, 11 actions, 12 start job, 13 cancel job, 14 config, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 
@@ -7768,11 +7956,17 @@ Command queue:
   --record-command-result cq-id --result-json result.json
   --clear-command-queue
 
+Build configuration:
+  --build-config configs/busierbox.conf --list-build-config
+  --build-config configs/busierbox.conf --set-build-config BB_NORESIDUE_LEVEL=aggressive
+
 Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
 """,
     )
     parser.add_argument("--config", default=str(DEFAULT_CONFIG),
                         help="JSON config written by menuconfig")
+    parser.add_argument("--build-config", default="configs/busierbox.conf",
+                        help="BusierBox shell build config used by scripts/menuconfig and make package")
     parser.add_argument("--transport",
                         choices=("ssh", "ssh-reverse", "tls-shell", "socat-tls",
                                  "builtin-tls", "plain-shell", "file-service", "command-queue"),
@@ -7822,6 +8016,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     parser.add_argument("--cancel-workbench-job",
                         help="cancel a managed workbench background job by id when ownership evidence matches")
     parser.add_argument("--job-command", help=argparse.SUPPRESS)
+    parser.add_argument("--list-build-config", action="store_true",
+                        help="list guided BusierBox build configuration fields")
+    parser.add_argument("--set-build-config", action="append", default=[],
+                        help="set a guided BusierBox build config value as KEY=VALUE")
     parser.add_argument("--queue-command",
                         help="record an explicit operator command queue entry; the poll listener may deliver metadata but will not execute it")
     parser.add_argument("--queue-timeout", type=int,
@@ -7870,6 +8068,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
 
     cfg = load_config(args.config)
     cfg["_config_path"] = args.config
+    cfg["_build_config_path"] = args.build_config
     if args.listen_host:
         cfg["listen_host"] = args.listen_host
     if args.ssh_port:
@@ -7914,6 +8113,18 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             rec = cancel_workbench_job(cfg, args.cancel_workbench_job)
             print(f"cancel requested for workbench job {rec.get('id', args.cancel_workbench_job)}")
             print(f"pid={rec.get('pid', '')}")
+            return 0
+        if args.list_build_config:
+            for rec in workbench_config_field_records(cfg):
+                print(f"{rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} category={rec.get('category', '')} configured={'yes' if rec.get('configured') else 'no'}")
+                print(f"  label: {rec.get('label', '')}")
+                print(f"  set: {rec.get('set_command', '')}")
+            append_event(cfg, "workbench", "workbench_config_viewed", details={"config_path": str(build_config_path(cfg)), "field_count": len(workbench_config_field_records(cfg))})
+            return 0
+        if args.set_build_config:
+            for assignment in args.set_build_config:
+                rec = set_workbench_build_config(cfg, assignment)
+                print(f"set {rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} in {rec.get('config_path', '')}")
             return 0
         if args.copy_target_command:
             rec = copy_generated_command(cfg, args.copy_target_command)

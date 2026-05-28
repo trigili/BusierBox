@@ -714,7 +714,15 @@ records are show-command descriptors by default, include confirmation,
 background-job, and target-execution flags, and are indexed through
 `workbench_actions_by_id`, `workbench_actions_by_category`, and
 `workbench_actions_by_script` so future TUI/web clients can render workflow
-screens without inventing a second configuration format. Background-capable
+screens without inventing a second configuration format. The same status output
+also exposes `workbench_config_fields` for guided edits of the existing
+`configs/busierbox.conf` shell assignment file, grouped by target, payload,
+build/static policy, runtime/trailer defaults, recovery, reverse shell policy,
+command queue policy, and no-residue behavior. Operators can inspect those
+fields with `--list-build-config` and update supported keys with
+`--set-build-config KEY=VALUE`; the line-oriented workbench shows the exact
+underlying command before writing the same config file that `scripts/menuconfig`
+and noninteractive builds consume. Background-capable
 workflow tasks are represented in `workbench_jobs` with start time, command, PID
 ownership metadata, log path, effective state, exit status when recorded, and a
 bounded last-output tail. Job indexes such as `workbench_jobs_by_id`,

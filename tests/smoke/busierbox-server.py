@@ -76,7 +76,8 @@ def main():
         return 1
     for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--json-status", "--api-status", "--event-limit",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
-                 "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job"):
+                 "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
+                 "--build-config", "--list-build-config", "--set-build-config"):
         if word not in combined:
             print(f"busierbox-server help missing operator workbench flag: {word}", file=sys.stderr)
             return 1
@@ -227,6 +228,77 @@ def main():
         copied_text = command_copy_file.read_text(encoding="utf-8")
         if "busierbox put /etc/config/network" not in copied_text:
             print("generated target command copy file has wrong content", file=sys.stderr)
+            return 1
+
+        guided_build_config = Path(tmp) / "guided-busierbox.conf"
+        guided_build_config.write_text(
+            'BB_TARGET_PRESET="native"\n'
+            'BB_PAYLOAD_PRESET="survey-core"\n'
+            'BB_STATIC_POLICY="static-preferred"\n'
+            'BB_NORESIDUE_LEVEL="best-effort"\n'
+            'BB_RSHELL_SESSION_POLICY="single"\n'
+            'BB_COMMAND_QUEUE_ENABLE="no"\n',
+            encoding="utf-8",
+        )
+        listed_build_config = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--build-config", str(guided_build_config),
+            "--list-build-config",
+        )
+        if (listed_build_config.returncode != 0 or
+                "BB_TARGET_PRESET" not in listed_build_config.stdout or
+                "BB_NORESIDUE_LEVEL" not in listed_build_config.stdout or
+                "--set-build-config" not in listed_build_config.stdout):
+            print("guided build config listing missing expected fields", file=sys.stderr)
+            print(listed_build_config.stdout, file=sys.stderr)
+            print(listed_build_config.stderr, file=sys.stderr)
+            return 1
+        set_build_config = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--build-config", str(guided_build_config),
+            "--set-build-config", "BB_NORESIDUE_LEVEL=aggressive",
+            "--set-build-config", "BB_RSHELL_SESSION_POLICY=reconnect",
+        )
+        if (set_build_config.returncode != 0 or
+                'BB_NORESIDUE_LEVEL="aggressive"' not in set_build_config.stdout or
+                'BB_RSHELL_SESSION_POLICY="reconnect"' not in set_build_config.stdout):
+            print("guided build config update failed", file=sys.stderr)
+            print(set_build_config.stdout, file=sys.stderr)
+            print(set_build_config.stderr, file=sys.stderr)
+            return 1
+        guided_text = guided_build_config.read_text(encoding="utf-8")
+        if ('BB_NORESIDUE_LEVEL="aggressive"' not in guided_text or
+                'BB_RSHELL_SESSION_POLICY="reconnect"' not in guided_text):
+            print("guided build config file was not updated", file=sys.stderr)
+            print(guided_text, file=sys.stderr)
+            return 1
+        guided_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--build-config", str(guided_build_config),
+            "--json-status",
+        ).stdout)
+        guided_fields = guided_status.get("workbench_config_fields") or []
+        guided_by_key = guided_status.get("workbench_config_fields_by_key") or {}
+        guided_by_category = guided_status.get("workbench_config_fields_by_category") or {}
+        if (len(guided_fields) < 12 or
+                guided_status.get("summary", {}).get("workbench_config_field_count") != len(guided_fields) or
+                guided_by_key.get("BB_NORESIDUE_LEVEL", {}).get("value") != "aggressive" or
+                guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("value") != "reconnect" or
+                not guided_by_category.get("target") or
+                not guided_by_category.get("command-queue") or
+                guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("primary_key") != "key"):
+            print("server json status missing guided build config field records", file=sys.stderr)
+            print(json.dumps(guided_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        guided_events = [
+            json.loads(line)
+            for line in (queue_operator_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        if not any(event.get("event") == "workbench_config_updated" and event.get("details", {}).get("key") == "BB_NORESIDUE_LEVEL" for event in guided_events):
+            print("guided build config update event missing", file=sys.stderr)
             return 1
 
         workbench_job_dir = Path(tmp) / "operator-session-workbench-job"
@@ -1176,6 +1248,7 @@ def main():
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_id"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_mode"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
+                ("workbench_config_fields", len(queue_status_json.get("workbench_config_fields") or []), "workbench_config_fields_by_key"),
                 ("workbench_jobs", len(queue_status_json.get("workbench_jobs") or []), "workbench_jobs_by_id"),
                 ("sessions", len(queue_status_json.get("sessions") or []), "sessions_by_has_uploads"),
                 ("events", len(queue_status_json.get("events") or []), "events_by_id"),
@@ -1199,6 +1272,8 @@ def main():
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
                 api_resources_by_name.get("workbench_actions", {}).get("records_key") != "workbench_actions" or
                 api_resources_by_summary_key.get("workbench_action_count", [{}])[0].get("name") != "workbench_actions" or
+                api_resources_by_name.get("workbench_config_fields", {}).get("records_key") != "workbench_config_fields" or
+                api_resources_by_summary_key.get("workbench_config_field_count", [{}])[0].get("name") != "workbench_config_fields" or
                 api_resources_by_name.get("workbench_jobs", {}).get("records_key") != "workbench_jobs" or
                 api_resources_by_summary_key.get("workbench_job_count", [{}])[0].get("name") != "workbench_jobs" or
                 api_resources_by_summary_key.get("event_tail_count", [{}])[0].get("name") != "events" or
@@ -1207,11 +1282,24 @@ def main():
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         workbench_actions = queue_status_json.get("workbench_actions") or []
+        workbench_config_fields = queue_status_json.get("workbench_config_fields") or []
+        config_fields_by_key = queue_status_json.get("workbench_config_fields_by_key") or {}
+        config_fields_by_category = queue_status_json.get("workbench_config_fields_by_category") or {}
         actions_by_id = queue_status_json.get("workbench_actions_by_id") or {}
         actions_by_category = queue_status_json.get("workbench_actions_by_category") or {}
         actions_by_script = queue_status_json.get("workbench_actions_by_script") or {}
         actions_by_background = queue_status_json.get("workbench_actions_by_background_supported") or {}
         workbench_summary = queue_status_json.get("summary") or {}
+        if (len(workbench_config_fields) < 12 or
+                workbench_summary.get("workbench_config_field_count") != len(workbench_config_fields) or
+                not config_fields_by_key.get("BB_TARGET_PRESET") or
+                not config_fields_by_key.get("BB_STATIC_POLICY") or
+                not config_fields_by_key.get("BB_COMMAND_QUEUE_ENABLE") or
+                not config_fields_by_category.get("runtime") or
+                not config_fields_by_category.get("rshell")):
+            print("server json status missing guided build config descriptors", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
         if (len(workbench_actions) < 6 or
                 workbench_summary.get("workbench_action_count") != len(workbench_actions) or
                 workbench_summary.get("workbench_action_target_execution_count") != 0 or
@@ -3539,7 +3627,24 @@ def main():
             line_slave = -1
             time.sleep(0.3)
             os.write(line_master, b"10\nby_tuple_path:by-tuple/native/host/host/host\nq\n")
-            _line_stdout, line_stderr = line_proc.communicate(timeout=5)
+            line_stdout_chunks = []
+            deadline = time.time() + 5
+            while line_proc.poll() is None and time.time() < deadline:
+                readable, _, _ = select.select([line_master], [], [], 0.1)
+                if readable:
+                    try:
+                        line_stdout_chunks.append(os.read(line_master, 65536).decode("utf-8", errors="replace"))
+                    except OSError:
+                        break
+            if line_proc.poll() is None:
+                line_proc.terminate()
+                try:
+                    line_proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    line_proc.kill()
+                    line_proc.wait(timeout=2)
+            _line_stdout = "".join(line_stdout_chunks)
+            line_stderr = line_proc.stderr.read()
         finally:
             if line_slave != -1:
                 os.close(line_slave)
