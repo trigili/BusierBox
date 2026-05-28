@@ -174,7 +174,7 @@ rescanning every command. Safety-oriented lookup maps
 execution-boundary badges without rescanning every command.
 `command_record_summary` includes operator/target, service, purpose,
 stage-kind, network, explicit-action, execution-boundary, and compatibility
-label count maps, plus listener, staged fetch, execution-safety counts, and
+label/source count maps, plus listener, staged fetch, execution-safety counts, and
 booleans that state whether all next commands require explicit operator/target
 action. When reality-test JSON is present, `reality_summary` mirrors its check
 counts, constraints, `checks_by_name`, `checks_by_status`, `checks_by_type`,
@@ -204,7 +204,9 @@ operator-supplied-command execution counters from the selected release bundle.
 debugging. When the repository fallback returns `effective_compatibility` from
 `scripts/find-artifact`, bringup uses that reality-adjusted label for the
 selected artifact, staged fetch record, and compatibility summary while leaving
-the selector's release-index baseline available in `release_find_json`.
+the selector's release-index baseline available in `release_find_json` and in
+command-record indexes by effective label, baseline label, and compatibility
+source.
 The summary
 publishes `api_collections` metadata with `count`, `summary_key`,
 `count_summary_key`, `primary_key`, and index names for `next_command_records`,
