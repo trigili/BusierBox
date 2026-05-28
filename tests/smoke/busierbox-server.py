@@ -74,7 +74,7 @@ def main():
     if "file-service" not in combined or "--file-service" not in combined:
         print("busierbox-server help missing receive-only file service", file=sys.stderr)
         return 1
-    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--json-status", "--api-status",
+    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--json-status", "--api-status", "--event-limit",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json"):
         if word not in combined:
@@ -1286,6 +1286,48 @@ def main():
                 (truncated_event_doc.get("events") or [{}])[0].get("id") != "evt-trunc-3"):
             print("server json status missing explicit truncated event tail metadata", file=sys.stderr)
             print(truncated_event_status.stdout, file=sys.stderr)
+            return 1
+        limited_event_status = run(
+            "scripts/busierbox-server",
+            "--config", str(truncated_event_cfg),
+            "--json-status",
+            "--event-limit", "5",
+        )
+        limited_event_doc = json.loads(limited_event_status.stdout)
+        limited_stats = limited_event_doc.get("event_log_stats") or {}
+        if (limited_stats.get("tail_limit") != 5 or
+                limited_stats.get("tail_count") != 5 or
+                limited_stats.get("tail_omitted_count") != 10 or
+                limited_event_doc.get("summary", {}).get("event_tail_count") != 5 or
+                (limited_event_doc.get("events") or [{}])[0].get("id") != "evt-trunc-10"):
+            print("server json status did not honor --event-limit", file=sys.stderr)
+            print(limited_event_status.stdout, file=sys.stderr)
+            return 1
+        zero_event_status = run(
+            "scripts/busierbox-server",
+            "--config", str(truncated_event_cfg),
+            "--json-status",
+            "--event-limit", "0",
+        )
+        zero_event_doc = json.loads(zero_event_status.stdout)
+        zero_stats = zero_event_doc.get("event_log_stats") or {}
+        if (zero_stats.get("tail_limit") != 0 or
+                zero_stats.get("tail_count") != 0 or
+                zero_stats.get("tail_omitted_count") != 15 or
+                zero_event_doc.get("events") != []):
+            print("server json status did not honor --event-limit 0", file=sys.stderr)
+            print(zero_event_status.stdout, file=sys.stderr)
+            return 1
+        negative_event_limit = run(
+            "scripts/busierbox-server",
+            "--config", str(truncated_event_cfg),
+            "--json-status",
+            "--event-limit", "-1",
+        )
+        if negative_event_limit.returncode != 2 or "--event-limit must be >= 0" not in negative_event_limit.stderr:
+            print("server json status did not reject a negative --event-limit", file=sys.stderr)
+            print(negative_event_limit.stdout, file=sys.stderr)
+            print(negative_event_limit.stderr, file=sys.stderr)
             return 1
         event_log_path = Path(paths["event_log"])
         previous_invalid = int(event_stats.get("invalid_count", 0))

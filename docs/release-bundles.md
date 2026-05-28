@@ -346,6 +346,7 @@ also browse release artifacts, device aliases, and tuple directories:
 scripts/busierbox-server --tui
 scripts/busierbox-server --json-status
 scripts/busierbox-server --api-status
+scripts/busierbox-server --api-status --event-limit 50
 scripts/busierbox-server --stage-release-artifact by_device:lab-router --list-staged
 scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host/bin/busierbox-native-default-full --list-staged
 ```
@@ -358,7 +359,9 @@ re-parsing the human status view. The same document includes `api_collections`,
 a small self-description map for frontend clients; each entry names a
 collection, record count, primary key field, `summary_key`,
 `count_summary_key`, and available lookup maps such as `services_by_name` or
-`browser_paths_by_kind_source_id`.
+`browser_paths_by_kind_source_id`. Use `--event-limit N` to tune the structured
+event tail included in the status document; `0` keeps aggregate event counts and
+indexes but omits event records.
 Service rows remain available in `services`,
 and the same records are indexed by service name, actual state, configured
 state, and port in `services_by_name`, `services_by_actual`,

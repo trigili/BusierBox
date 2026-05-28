@@ -108,7 +108,8 @@ class EventLog:
 
     def stats(self, limit=12):
         records, invalid = self.records()
-        tail = records[-limit:]
+        limit = max(int(limit or 0), 0)
+        tail = records[-limit:] if limit else []
         omitted = max(len(records) - len(tail), 0)
         by_service = {}
         by_event = {}
@@ -5139,6 +5140,7 @@ def status_summary_and_warnings(services):
 
 
 def status_document(cfg):
+    event_limit = int(cfg.get("_event_limit", 12))
     staged_raw = load_staged(cfg).get("staged", {})
     staged = enriched_staged_records(cfg, staged_raw)
     staged_records = staged_record_list(staged)
@@ -5161,7 +5163,7 @@ def status_document(cfg):
      sessions_by_service_state,
      sessions_by_service_exit_reason,
      sessions_by_service_remote) = session_record_indexes(sessions)
-    event_stats = event_log_stats(cfg)
+    event_stats = event_log_stats(cfg, event_limit)
     event_log_state = event_log_state_record(cfg, event_stats)
     events = event_stats["tail"]
     (events_by_id,
@@ -7132,6 +7134,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="print --status information as JSON")
     parser.add_argument("--api-status", action="store_true",
                         help="alias for --json-status for future frontend/API consumers")
+    parser.add_argument("--event-limit", type=int, default=12,
+                        help="number of recent structured events to include in --status/--json-status output")
     parser.add_argument("--stop", action="store_true",
                         help="stop known managed listeners from server-state PID records")
     parser.add_argument("--serve-file",
@@ -7233,6 +7237,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["_managed_by"] = args.managed_by
     if args.process_log:
         cfg["_process_log"] = args.process_log
+    if args.event_limit < 0:
+        print("busierbox-server: --event-limit must be >= 0", file=sys.stderr)
+        return 2
+    cfg["_event_limit"] = args.event_limit
 
     try:
         if args.copy_target_command:
