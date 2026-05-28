@@ -148,6 +148,12 @@
 #ifndef BB_COMMAND_QUEUE_ALLOW_ARBITRARY
 #define BB_COMMAND_QUEUE_ALLOW_ARBITRARY "no"
 #endif
+#ifndef BB_COMMAND_QUEUE_POLL_INTERVAL_SEC
+#define BB_COMMAND_QUEUE_POLL_INTERVAL_SEC "5"
+#endif
+#ifndef BB_COMMAND_QUEUE_MAX_POLLS
+#define BB_COMMAND_QUEUE_MAX_POLLS "0"
+#endif
 #ifndef BB_BUILTIN_TLS_ENABLE
 #define BB_BUILTIN_TLS_ENABLE "no"
 #endif
@@ -206,6 +212,8 @@ static struct cfg_entry cfg[] = {
     {"BB_COMMAND_QUEUE_TOKEN_SOURCE", BB_COMMAND_QUEUE_TOKEN_SOURCE, "", 0},
     {"BB_COMMAND_QUEUE_ALLOWED_COMMANDS", BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "", 0},
     {"BB_COMMAND_QUEUE_ALLOW_ARBITRARY", BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "", 0},
+    {"BB_COMMAND_QUEUE_POLL_INTERVAL_SEC", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC, "", 0},
+    {"BB_COMMAND_QUEUE_MAX_POLLS", BB_COMMAND_QUEUE_MAX_POLLS, "", 0},
 };
 
 static int loaded;
@@ -523,6 +531,8 @@ void bb_print_autoexec_config(void)
     printf("command_queue_token_source=%s\n", bb_config_get("BB_COMMAND_QUEUE_TOKEN_SOURCE"));
     printf("command_queue_allowed_commands=%s\n", bb_config_get("BB_COMMAND_QUEUE_ALLOWED_COMMANDS"));
     printf("command_queue_allow_arbitrary=%s\n", bb_config_get("BB_COMMAND_QUEUE_ALLOW_ARBITRARY"));
+    printf("command_queue_poll_interval_sec=%s\n", bb_config_get("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"));
+    printf("command_queue_max_polls=%s\n", bb_config_get("BB_COMMAND_QUEUE_MAX_POLLS"));
     printf("autorun_guard_enabled=%s\n", bb_config_get("BB_AUTORUN_GUARD_ENABLE"));
     printf("autorun_guard_path=%s\n", bb_config_get("BB_AUTORUN_GUARD_PATH"));
     printf("autorun_reentry_action=%s\n", bb_config_get("BB_AUTORUN_REENTRY_ACTION"));

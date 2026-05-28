@@ -12,8 +12,10 @@ Current behavior is intentionally non-executing:
 - Invalid effective policy is reported as `policy_valid=false` with explicit
   `policy_errors`; invalid policy suppresses `would_poll`.
 - `busierbox command-queue poll --json`, `once`, and `daemon` report a dry-run
-  target polling plan. They do not contact the operator service, fetch queue
-  entries, upload results, or execute queued commands in this build.
+  target polling plan by default. With explicit `--live`, they contact the
+  configured operator command-queue endpoint and can append structured poll
+  events, but still do not fetch queue entries, upload results, or execute
+  queued commands in this build.
 - `scripts/busierbox-server --queue-command ...` records explicit operator
   queue entries in `local/operator-session/command-queue.json` for inspection
   and future tooling. The current server does not deliver or execute them.
@@ -42,6 +44,26 @@ BB_COMMAND_QUEUE_ALLOWED_COMMANDS="none"
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY="no"
 ```
 
+Live polling has additional target-side controls. These can be supplied as
+environment variables or CLI flags:
+
+```sh
+BB_COMMAND_QUEUE_POLL_INTERVAL_SEC=5
+BB_COMMAND_QUEUE_MAX_POLLS=0
+
+busierbox command-queue daemon --live \
+  --operator-host 192.0.2.10 \
+  --poll-interval-sec 5 \
+  --max-polls 3 \
+  --event-log ./command-queue-events.jsonl
+```
+
+`--max-polls 0` means no fixed limit for `daemon`; `poll` and `once` always run
+a single live poll attempt. Each live attempt records
+`command_queue_poll_attempt`, then either `command_queue_poll_complete` or
+`command_queue_poll_error`, and the daemon records
+`command_queue_poll_shutdown` when the loop exits.
+
 Policy values for `BB_COMMAND_QUEUE_ALLOWED_COMMANDS` are `none`,
 `busierbox-only`, `allowlist`, and `custom`. `BB_COMMAND_QUEUE_ALLOW_ARBITRARY`
 is only valid with `custom`; disabled queues must keep `allowed_commands=none`
@@ -58,10 +80,10 @@ Safety boundary:
 - Trailer overrides alone are not an execution capability; this build does not
   execute queued commands.
 - Target-side `poll`, `once`, and `daemon` expose `would_poll`,
-  `poll_transport_supported=false`, `delivery_supported=false`,
+  live-mode `poll_transport_supported`, `delivery_supported=false`,
   `result_upload_supported=false`, `execution_supported=false`, and a
   `policy_summary` so frontend and integration tooling can distinguish
-  policy/planning from active control. They also expose a compact `poll_plan`
+  policy/planning from explicit live polling. They also expose a compact `poll_plan`
   object with mode, status, endpoint, explicit-target-action, dry-run-only,
   would-contact-operator, queued-command availability, delivery/result upload,
   execution, and hidden-control-channel fields.
@@ -86,9 +108,9 @@ scripts/busierbox-server --clear-command-queue
 
 Queue entries include an id, timestamp, literal command text, timeout metadata,
 maximum output metadata, status, and explicit `execution_supported=false` /
-`delivery_supported=false` fields. They are operator-visible records only until
-a later explicitly enabled command-queue transport and target execution policy
-are implemented.
+`delivery_supported=false` fields. They are operator-visible records only; live
+target polling currently verifies endpoint reachability and logs attempts, but
+does not deliver these queued entries to the target.
 
 `--record-command-result` attaches a structured JSON result object to an
 existing queued command, records `result_command_id`, `result_received_at`,

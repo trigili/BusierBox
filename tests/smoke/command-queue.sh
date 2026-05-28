@@ -62,14 +62,31 @@ grep -q '^command_queue_execution_supported=no$' "${TMPDIR:-/tmp}/busierbox-comm
 grep -q '^command_queue_executes_commands=no$' "${TMPDIR:-/tmp}/busierbox-command-queue-daemon.$$"
 grep -q '^command_queue_active_control_channel=no$' "${TMPDIR:-/tmp}/busierbox-command-queue-daemon.$$"
 rm -f "${TMPDIR:-/tmp}/busierbox-command-queue-daemon.$$"
+rm -f "${TMPDIR:-/tmp}/busierbox-command-queue-events.$$"
+BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue daemon --live --max-polls 2 --poll-interval-sec 0 --event-log "${TMPDIR:-/tmp}/busierbox-command-queue-events.$$" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d["poll_plan"]; r=d["poll_run"]; s=d["policy_summary"]; assert d["enabled"] is True; assert d["dry_run"] is False; assert d["policy_valid"] is True; assert d["status"] == "polling"; assert d["poll_transport_supported"] is True; assert d["delivery_supported"] is False; assert d["result_upload_supported"] is False; assert d["execution_supported"] is False; assert d["executes_commands"] is False; assert d["active_control_channel"] is True; assert d["poll_interval_sec"] == 0; assert d["max_polls"] == 2; assert p["dry_run_only"] is False; assert p["would_contact_operator"] is True; assert p["queued_command_available"] is False; assert p["operator_supplied_command_execution"] is False; assert s["poll_transport_supported"] is True; assert s["active_control_channel"] is True; assert r["attempted"] is True; assert r["attempts"] == 2; assert r["successes"] + r["failures"] == 2; assert r["stopped_by_limit"] is True; assert r["delivery_supported"] is False; assert r["executes_commands"] is False'
+python3 - "${TMPDIR:-/tmp}/busierbox-command-queue-events.$$" <<'PY'
+import json
+import sys
+
+events = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
+names = [event["event"] for event in events]
+assert names.count("command_queue_poll_attempt") == 2
+assert "command_queue_poll_shutdown" in names
+assert all(event["service"] == "command-queue" for event in events)
+assert all(event["details"]["executes_commands"] is False for event in events)
+assert all(event["details"]["delivery_supported"] is False for event in events)
+PY
+rm -f "${TMPDIR:-/tmp}/busierbox-command-queue-events.$$"
 "$bb" plan command-queue --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"] == "command-queue"; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["execution_supported"] is False; assert d["requires_external_writes"] is False'
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" plan command-queue --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"] == "command-queue"; assert d["policy_valid"] is False; assert "disabled command queue must keep allowed commands policy none" in d["policy_errors"]; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["would_start"] == []; assert d["would_connect"] == []'
-"$bb" runtime-config --json | python3 -c 'import json,sys; d=json.load(sys.stdin); c=d["effective_config"]; p=d["command_queue_policy"]; assert c["BB_COMMAND_QUEUE_ENABLE"] == "no"; assert c["BB_COMMAND_QUEUE_ALLOWED_COMMANDS"] == "none"; assert c["BB_COMMAND_QUEUE_ALLOW_ARBITRARY"] == "no"; assert p["valid"] is True; assert p["errors"] == []'
+"$bb" runtime-config --json | python3 -c 'import json,sys; d=json.load(sys.stdin); c=d["effective_config"]; p=d["command_queue_policy"]; assert c["BB_COMMAND_QUEUE_ENABLE"] == "no"; assert c["BB_COMMAND_QUEUE_ALLOWED_COMMANDS"] == "none"; assert c["BB_COMMAND_QUEUE_ALLOW_ARBITRARY"] == "no"; assert c["BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"] == "5"; assert c["BB_COMMAND_QUEUE_MAX_POLLS"] == "0"; assert p["valid"] is True; assert p["errors"] == []'
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only "$bb" runtime-config --json | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d["command_queue_policy"]; assert p["valid"] is False; assert "disabled command queue must keep allowed commands policy none" in p["errors"]'
-"$bb" manifest --json | python3 -c 'import json,sys; d=json.load(sys.stdin); q=d["operator_services"]["command_queue"]; assert q["enabled"] == "no"; assert q["policy_valid"] is True; assert q["policy_errors"] == []; assert q["executes_commands"] is False; assert q["default_enabled"] is False'
+"$bb" manifest --json | python3 -c 'import json,sys; d=json.load(sys.stdin); q=d["operator_services"]["command_queue"]; assert q["enabled"] == "no"; assert q["policy_valid"] is True; assert q["policy_errors"] == []; assert q["poll_interval_sec"] == "5"; assert q["max_polls"] == "0"; assert q["executes_commands"] is False; assert q["default_enabled"] is False'
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY=yes "$bb" manifest --json | python3 -c 'import json,sys; d=json.load(sys.stdin); q=d["operator_services"]["command_queue"]; assert q["policy_valid"] is False; assert "disabled command queue must not allow arbitrary execution" in q["policy_errors"]'
 "$bb" config-info | grep -q '^effective_command_queue_enable=no$'
 "$bb" config-info | grep -q '^effective_command_queue_policy_valid=yes$'
+"$bb" config-info | grep -q '^effective_command_queue_poll_interval_sec=5$'
+"$bb" config-info | grep -q '^effective_command_queue_max_polls=0$'
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY=yes "$bb" config-info | grep -q '^effective_command_queue_policy_error=disabled command queue must not allow arbitrary execution$'
 
 grep -q 'BB_COMMAND_QUEUE_ENABLE="no"' configs/busierbox.conf.example
@@ -77,6 +94,7 @@ grep -q 'Advanced / Explicit command queue' scripts/menuconfig
 grep -q 'target-side polling for operator-supplied commands' scripts/menuconfig
 grep -q 'execute queued commands' docs/command-queue.md
 grep -q 'BB_COMMAND_QUEUE_ALLOWED_COMMANDS' scripts/menuconfig
+grep -q 'BB_COMMAND_QUEUE_POLL_INTERVAL_SEC' scripts/menuconfig
 grep -q 'invalid command queue allowed commands policy' scripts/package-target
 
 printf '%s\n' "command-queue ok"

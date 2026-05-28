@@ -158,6 +158,8 @@ for key in (
     "BB_COMMAND_QUEUE_ENABLE",
     "BB_COMMAND_QUEUE_ALLOWED_COMMANDS",
     "BB_COMMAND_QUEUE_ALLOW_ARBITRARY",
+    "BB_COMMAND_QUEUE_POLL_INTERVAL_SEC",
+    "BB_COMMAND_QUEUE_MAX_POLLS",
 ):
     if key not in manifest["compiled_config"]:
         raise SystemExit(f"manifest-metadata: compiled_config missing {key}")
@@ -196,6 +198,10 @@ if command_queue.get("enabled") != manifest["effective_config"]["BB_COMMAND_QUEU
     raise SystemExit("manifest-metadata: command queue enable does not match effective config")
 if command_queue.get("allowed_commands") != manifest["effective_config"]["BB_COMMAND_QUEUE_ALLOWED_COMMANDS"]:
     raise SystemExit("manifest-metadata: command queue policy does not match effective config")
+if command_queue.get("poll_interval_sec") != manifest["effective_config"]["BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"]:
+    raise SystemExit("manifest-metadata: command queue poll interval does not match effective config")
+if command_queue.get("max_polls") != manifest["effective_config"]["BB_COMMAND_QUEUE_MAX_POLLS"]:
+    raise SystemExit("manifest-metadata: command queue max polls does not match effective config")
 if command_queue.get("policy_valid") is not True or command_queue.get("policy_errors") != []:
     raise SystemExit("manifest-metadata: command queue policy validity metadata missing")
 if command_queue.get("arbitrary_policy_requested") is not False or command_queue.get("arbitrary_execution_allowed") is not False:

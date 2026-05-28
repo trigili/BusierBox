@@ -23,6 +23,11 @@ static int valid_port_value(const char *s)
     return 1;
 }
 
+static int valid_uint_value(const char *s)
+{
+    return valid_port_value(s);
+}
+
 static int valid_policy_value(const char *s)
 {
     return s && (!strcmp(s, "none") || !strcmp(s, "busierbox-only") ||
@@ -43,6 +48,10 @@ struct command_queue_policy_report bb_command_queue_validate_policy(void)
         policy_add_error(&report, "invalid command queue enable value");
     if (!valid_port_value(BB_COMMAND_QUEUE_PORT))
         policy_add_error(&report, "invalid command queue port");
+    if (!valid_uint_value(BB_COMMAND_QUEUE_POLL_INTERVAL_SEC))
+        policy_add_error(&report, "invalid command queue poll interval");
+    if (!valid_uint_value(BB_COMMAND_QUEUE_MAX_POLLS))
+        policy_add_error(&report, "invalid command queue max polls");
     if (!exact_value(BB_COMMAND_QUEUE_TLS, "yes", "no"))
         policy_add_error(&report, "invalid command queue TLS value");
     if (!exact_value(BB_COMMAND_QUEUE_REQUIRE_TOKEN, "yes", "no"))

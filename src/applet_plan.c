@@ -292,6 +292,8 @@ static void plan_print_command_queue(int json)
         fputc(']', stdout);
         fputs(",\"allowed_commands\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
         fputs(",\"allow_arbitrary\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+        fputs(",\"poll_interval_sec\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
+        fputs(",\"max_polls\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_MAX_POLLS);
         fputs(",\"safety_boundary\":", stdout); bb_json_string(stdout, "explicit opt-in target polling; queued command execution is not implemented");
         plan_print_config_source_json();
         puts("}");
@@ -310,6 +312,8 @@ static void plan_print_command_queue(int json)
     printf("require_token=%s\n", BB_COMMAND_QUEUE_REQUIRE_TOKEN);
     printf("allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf("poll_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
+    printf("max_polls=%s\n", BB_COMMAND_QUEUE_MAX_POLLS);
     puts("execution_supported=no");
     puts("safety_boundary=explicit opt-in target polling; queued command execution is not implemented");
     puts("requires_external_writes=no");

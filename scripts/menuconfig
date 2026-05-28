@@ -92,6 +92,8 @@ BB_COMMAND_QUEUE_REQUIRE_TOKEN="yes"
 BB_COMMAND_QUEUE_TOKEN_SOURCE="manual"
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS="none"
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY="no"
+BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="5"
+BB_COMMAND_QUEUE_MAX_POLLS="0"
 BB_SERVER_CONFIG_PATH="local/server-config.json"
 BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
 BB_HEAVY_TOOLS=""
@@ -194,6 +196,8 @@ BB_COMMAND_QUEUE_REQUIRE_TOKEN="${BB_COMMAND_QUEUE_REQUIRE_TOKEN:-yes}"
 BB_COMMAND_QUEUE_TOKEN_SOURCE="${BB_COMMAND_QUEUE_TOKEN_SOURCE:-manual}"
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS="${BB_COMMAND_QUEUE_ALLOWED_COMMANDS:-none}"
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY="${BB_COMMAND_QUEUE_ALLOW_ARBITRARY:-no}"
+BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="${BB_COMMAND_QUEUE_POLL_INTERVAL_SEC:-5}"
+BB_COMMAND_QUEUE_MAX_POLLS="${BB_COMMAND_QUEUE_MAX_POLLS:-0}"
 BB_SERVER_CONFIG_PATH="${BB_SERVER_CONFIG_PATH:-local/server-config.json}"
 BB_TARGETS="${BB_TARGETS:-${BB_TARGET_PRESET:-native}}"
 [ "$BB_TARGETS" = "native" ] && [ "${BB_TARGET_PRESET:-native}" != "native" ] && BB_TARGETS="$BB_TARGET_PRESET"
@@ -541,6 +545,8 @@ BB_COMMAND_QUEUE_REQUIRE_TOKEN="$BB_COMMAND_QUEUE_REQUIRE_TOKEN"
 BB_COMMAND_QUEUE_TOKEN_SOURCE="$BB_COMMAND_QUEUE_TOKEN_SOURCE"
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS="$BB_COMMAND_QUEUE_ALLOWED_COMMANDS"
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY="$BB_COMMAND_QUEUE_ALLOW_ARBITRARY"
+BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="$BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"
+BB_COMMAND_QUEUE_MAX_POLLS="$BB_COMMAND_QUEUE_MAX_POLLS"
 BB_SERVER_CONFIG_PATH="$BB_SERVER_CONFIG_PATH"
 BB_BUSYBOX_GROUPS="$BB_BUSYBOX_GROUPS"
 BB_HEAVY_TOOLS="$BB_HEAVY_TOOLS"
@@ -938,6 +944,8 @@ validate_config() {
     is_uint_value "$BB_RSHELL_RETRY_JITTER_PCT" || _errors="$_errors\n- BB_RSHELL_RETRY_JITTER_PCT must be a non-negative integer."
     is_uint_value "$BB_RSHELL_RETRY_MAX_INTERVAL_SEC" || _errors="$_errors\n- BB_RSHELL_RETRY_MAX_INTERVAL_SEC must be a non-negative integer."
     is_uint_value "$BB_COMMAND_QUEUE_PORT" || _errors="$_errors\n- BB_COMMAND_QUEUE_PORT must be a non-negative integer."
+    is_uint_value "$BB_COMMAND_QUEUE_POLL_INTERVAL_SEC" || _errors="$_errors\n- BB_COMMAND_QUEUE_POLL_INTERVAL_SEC must be a non-negative integer."
+    is_uint_value "$BB_COMMAND_QUEUE_MAX_POLLS" || _errors="$_errors\n- BB_COMMAND_QUEUE_MAX_POLLS must be a non-negative integer."
     if [ "$BB_COMMAND_QUEUE_ENABLE" != yes ]; then
         [ "$BB_COMMAND_QUEUE_ALLOWED_COMMANDS" = none ] || _errors="$_errors\n- command queue is disabled but allowed commands is $BB_COMMAND_QUEUE_ALLOWED_COMMANDS; keep disabled queues at policy=none."
         [ "$BB_COMMAND_QUEUE_ALLOW_ARBITRARY" = no ] || _errors="$_errors\n- command queue is disabled but arbitrary execution is allowed."
@@ -2941,7 +2949,7 @@ configure_applet_configuration() {
 configure_command_queue() {
     while :; do
         dialog --title "Advanced / Explicit command queue" \
-            --menu "This enables target-side polling for operator-supplied commands. It is not needed for normal reverse shells or file transfer. Leave disabled unless you explicitly want this behavior.\n\nCurrent builds expose policy/status only; queued command execution is not implemented." 23 92 8 \
+            --menu "This enables target-side polling for operator-supplied commands. It is not needed for normal reverse shells or file transfer. Leave disabled unless you explicitly want this behavior.\n\nLive polling can contact the operator endpoint, but queued command execution is not implemented." 25 92 10 \
             "1" "Enable command queue: $BB_COMMAND_QUEUE_ENABLE" \
             "2" "Port: $BB_COMMAND_QUEUE_PORT" \
             "3" "TLS: $BB_COMMAND_QUEUE_TLS" \
@@ -2949,6 +2957,8 @@ configure_command_queue() {
             "5" "Token source: $BB_COMMAND_QUEUE_TOKEN_SOURCE" \
             "6" "Allowed commands policy: $BB_COMMAND_QUEUE_ALLOWED_COMMANDS" \
             "7" "Allow arbitrary commands: $BB_COMMAND_QUEUE_ALLOW_ARBITRARY" \
+            "8" "Poll interval seconds: $BB_COMMAND_QUEUE_POLL_INTERVAL_SEC" \
+            "9" "Daemon max polls: $BB_COMMAND_QUEUE_MAX_POLLS" \
             "0" "Back" \
             2>"$temp_out" || return 0
         _choice=$(cat "$temp_out")
@@ -2983,6 +2993,8 @@ configure_command_queue() {
                         --yesno "Allowing arbitrary queued commands is a dangerous future mode and is not required for normal workflows.\n\nSet allow_arbitrary=yes anyway?" 10 76 && BB_COMMAND_QUEUE_ALLOW_ARBITRARY=yes || true
                 fi
                 ;;
+            8) dialog --title "Command queue poll interval" --inputbox "Seconds between explicit live daemon poll attempts." 8 70 "$BB_COMMAND_QUEUE_POLL_INTERVAL_SEC" 2>"$temp_out" || true; BB_COMMAND_QUEUE_POLL_INTERVAL_SEC=$(cat "$temp_out") ;;
+            9) dialog --title "Command queue max polls" --inputbox "Maximum explicit live daemon polls; 0 means no fixed limit." 8 70 "$BB_COMMAND_QUEUE_MAX_POLLS" 2>"$temp_out" || true; BB_COMMAND_QUEUE_MAX_POLLS=$(cat "$temp_out") ;;
             0) return 0 ;;
         esac
     done

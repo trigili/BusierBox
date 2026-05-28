@@ -367,6 +367,10 @@ static void write_manifest_json(FILE *out, int include_missing)
     json_string_payload(out, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     fprintf(out, ",\"allow_arbitrary\":");
     json_string_payload(out, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    fprintf(out, ",\"poll_interval_sec\":");
+    json_string_payload(out, BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
+    fprintf(out, ",\"max_polls\":");
+    json_string_payload(out, BB_COMMAND_QUEUE_MAX_POLLS);
     fprintf(out, ",\"policy_valid\":%s", command_queue_policy_valid ? "true" : "false");
     fprintf(out, ",\"policy_errors\":[");
     for (i = 0; i < command_queue_policy.count; i++) {
@@ -712,6 +716,8 @@ int applet_manifest_main(int argc, char **argv)
     printf("command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
     printf("command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf("command_queue_poll_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
+    printf("command_queue_max_polls=%s\n", BB_COMMAND_QUEUE_MAX_POLLS);
     printf("heavy_tools=");
     for (i = 0; heavy_tools[i]; i++)
         printf("%s%s", i ? " " : "", heavy_tools[i]);
