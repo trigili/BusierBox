@@ -1000,12 +1000,24 @@ static void recovery_print_survey_api_collections(void)
     fputs("]}}", stdout);
 }
 
-static void recovery_print_survey(int json, const char *root)
+static void recovery_print_survey(int json, const char *root, const char *mode)
 {
     size_t i;
     if (json) {
-        fputs("{\"schema\":1,\"mode\":\"survey\",\"root\":", stdout);
+        int is_plan = mode && !strcmp(mode, "plan");
+        fputs("{\"schema\":1,\"mode\":", stdout);
+        bb_json_string(stdout, is_plan ? "plan" : "survey");
+        fputs(",\"root\":", stdout);
         bb_json_string(stdout, root);
+        if (is_plan) {
+            fputs(",\"target_modified\":false,\"plan\":{\"target_modified\":false,\"requires_method\":true,\"requires_apply_for_changes\":true,\"real_root_requires_external_apply\":true,\"recommendation\":\"choose one explicit method, run install --dry-run, then install --apply only when authorized\",\"next_steps\":[", stdout);
+            bb_json_string(stdout, "choose one explicit method");
+            fputs(",", stdout);
+            bb_json_string(stdout, "run install --dry-run");
+            fputs(",", stdout);
+            bb_json_string(stdout, "run install --apply only when authorized");
+            fputs("]}", stdout);
+        }
         fputs(",\"storage\":[", stdout);
         for (i = 0; i < sizeof(recovery_storage_paths) / sizeof(recovery_storage_paths[0]); i++) {
             char path[PATH_MAX];
@@ -1362,11 +1374,11 @@ int applet_recovery_main(int argc, char **argv)
         }
     }
     if (!strcmp(cmd, "--survey") || !strcmp(cmd, "survey")) {
-        recovery_print_survey(json, root);
+        recovery_print_survey(json, root, "survey");
         return 0;
     }
     if (!strcmp(cmd, "--plan") || !strcmp(cmd, "plan")) {
-        recovery_print_survey(json, root);
+        recovery_print_survey(json, root, "plan");
         if (!json)
             puts("persistence_plan=choose one explicit method, run install --dry-run, then install --apply only when authorized");
         return 0;

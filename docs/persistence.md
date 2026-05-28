@@ -8,6 +8,7 @@ never modify the target, and writes require an explicit method plus `--apply`.
 busierbox persistence --survey
 busierbox persistence --plan
 busierbox persistence --survey --json
+busierbox persistence --plan --json
 ```
 
 The survey reports likely persistent storage (`/overlay`, `/root`, `/etc`,
@@ -35,6 +36,9 @@ survey JSON also publishes `api`, `api_resources`,
 `api_resources_by_summary_key`, and `api_resources_by_primary_key` so operator
 UIs can discover the storage, method, and action collections without hard-coded
 paths.
+`persistence --plan --json` uses the same collections, sets `mode` to `plan`,
+and adds non-mutating plan metadata with the recommended next steps and safety
+gates.
 
 The method table covers reboot hook families such as OpenWrt/procd init
 scripts, SysV/rcS, systemd units, cron `@reboot`, at jobs, `rc.local`,

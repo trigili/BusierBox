@@ -146,6 +146,23 @@ assert all(item["self_reinstall"] is False for item in data["actions"])
 assert all(item["survives_factory_reset_claim"] is False for item in data["actions"])
 PY
 "$bb" recovery --survey --json --root "$tmp/root" | python3 -m json.tool >/dev/null
+"$bb" persistence --plan --json --root "$tmp/root" >"$tmp/plan.json"
+python3 -m json.tool "$tmp/plan.json" >/dev/null
+python3 - <<'PY' "$tmp/plan.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+plan = data["plan"]
+assert data["mode"] == "plan"
+assert data["target_modified"] is False
+assert plan["target_modified"] is False
+assert plan["requires_method"] is True
+assert plan["requires_apply_for_changes"] is True
+assert plan["real_root_requires_external_apply"] is True
+assert "choose one explicit method" in plan["recommendation"]
+assert "run install --dry-run" in plan["next_steps"]
+assert data["summary"]["method_count"] == len(data["methods"])
+assert data["api_collections"]["methods"]["count"] == len(data["methods"])
+PY
 "$bb" persistence --plan --root "$tmp/root" >"$tmp/plan"
 grep -q 'openwrt-procd' "$tmp/plan"
 grep -q 'cron-reboot' "$tmp/plan"
