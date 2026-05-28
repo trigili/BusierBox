@@ -393,6 +393,11 @@ assert "commands_by_delivery_policy_result_upload_supported" in api["indexes"]
 assert "commands_by_delivery_policy_active_control_channel" in api["indexes"]
 PY
 rm -f "$queued_status_file"
+queued_text_file="${TMPDIR:-/tmp}/busierbox-command-queue-status.$$.txt"
+scripts/busierbox-server --config "$queued_cfg" --list-command-queue >"$queued_text_file"
+grep -q '^  delivery_policy_counts: .*delivery_supported=true=1.*result_upload_supported=true=1.*active_control_channel=true=1' "$queued_text_file"
+grep -q '^  delivery_policy: enabled=yes valid=yes execution_mode=metadata-only delivery_supported=yes result_upload_supported=yes active_control_channel=yes$' "$queued_text_file"
+rm -f "$queued_text_file"
 rm -f "$queued_cfg" "$queued_out" "$queued_err" "$queued_events"
 "$bb" plan command-queue --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"] == "command-queue"; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["execution_supported"] is False; assert d["requires_external_writes"] is False; assert d["poll_interval_sec"] == "5"; assert d["poll_jitter_pct"] == "0"; assert d["poll_backoff"] == "none"; assert d["poll_max_interval_sec"] == "300"; assert d["daemon_state_file"].endswith("/run/command-queue-daemon.state"); assert d["daemon_state_file_supported"] is True; assert d["daemon_status_supported"] is True; assert d["daemon_stop_supported"] is True; assert d["result_upload_supported"] is True'
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" plan command-queue --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"] == "command-queue"; assert d["policy_valid"] is False; assert "disabled command queue must keep allowed commands policy none" in d["policy_errors"]; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["would_start"] == []; assert d["would_connect"] == []'
