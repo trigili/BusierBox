@@ -417,6 +417,8 @@ browser entries. They also print compact release recommendation rows such as
 `by_device:lab-router -> bin/busierbox-target-full`, keeping the same safety
 boundary: staging remains explicit through `--stage-release-artifact` or the
 TUI action, and nothing is pushed to or executed on the target automatically.
+The curses workbench mirrors those rows in the release devices/tuples pane and
+lets `v` inspect the selected recommendation's local artifact path.
 Release artifact aggregates are exposed as
 `release.artifact_stats` and mirrored into `summary`
 as `release_artifact_total_size`, `release_artifact_compatibility_counts`,

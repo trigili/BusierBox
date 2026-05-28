@@ -5772,6 +5772,22 @@ def run_curses_tui(cfg):
         for idx, line in enumerate(lines[:max(0, height - 1)], 1):
             safe_add(stdscr, row + idx, col, line[:width - 1])
 
+    def release_nav_records(release, release_devices, release_tuples):
+        release = release or {}
+        artifacts_by_path = release.get("artifacts_by_release_path") or {}
+        out = [{"kind": "index", "label": f"index {Path(release.get('release_index', '')).name if release.get('release_index') else '-'}", "path": release.get("release_index", "")}]
+        for rec in release.get("recommendation_records") or []:
+            artifact_key = rec.get("artifact") or ""
+            artifact = artifacts_by_path.get(artifact_key) or {}
+            path = artifact.get("path") or artifact_key
+            label = f"rec {rec.get('scope', '')}:{rec.get('key', '')} -> {rec.get('artifact_name') or Path(artifact_key).name}"
+            out.append({"kind": "recommendation", "label": label, "path": path, "record": rec, "artifact": artifact})
+        for d in release_devices[:5]:
+            out.append({"kind": "device", "label": f"dev {d.get('name', '')} -> {d.get('tuple_path', '')} artifacts={d.get('artifact_count', len(d.get('artifacts') or []))}", "record": d})
+        for t in release_tuples[:5]:
+            out.append({"kind": "tuple", "label": f"tuple {t.get('path', '')} artifacts={t.get('artifact_count', len(t.get('artifacts') or []))}", "record": t})
+        return out
+
     def selected_view_path(pane, selected, snap, services, staged_names, release, release_artifacts, release_devices, release_tuples):
         if pane == 0 and services:
             row = services[min(selected, len(services) - 1)]
@@ -5793,10 +5809,11 @@ def run_curses_tui(cfg):
             rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
             return rec.get("path", "")
         if pane == 7:
-            combined = [{"path": release.get("release_index", "")}] + release_devices + release_tuples
+            combined = release_nav_records(release, release_devices, release_tuples)
             rec = combined[min(selected, len(combined) - 1)] if combined else {}
-            artifact_paths = rec.get("artifact_paths") or []
-            return rec.get("filesystem_path") or rec.get("path") or (artifact_paths[0] if artifact_paths else "") or rec.get("release_index") or release.get("release_json", "")
+            record = rec.get("record") or {}
+            artifact_paths = record.get("artifact_paths") or []
+            return rec.get("path") or record.get("filesystem_path") or record.get("path") or (artifact_paths[0] if artifact_paths else "") or release.get("release_json", "")
         return ""
 
     def draw(stdscr):
@@ -5820,18 +5837,14 @@ def run_curses_tui(cfg):
             release_artifacts = release.get("artifacts") or []
             release_devices = release.get("devices") or []
             release_tuples = release.get("tuples") or []
+            release_nav = release_nav_records(release, release_devices, release_tuples)
             release_lines = [
                 f"{'>' if pane == 6 and idx == selected else ' '} {a.get('name', '')} {a.get('payload_preset', '')} {a.get('tuple_path', '')}"
                 for idx, a in enumerate(release_artifacts[:10])
             ] or ["none"]
             device_tuple_lines = [
-                f"{'>' if pane == 7 and selected == 0 else ' '} index {Path(release.get('release_index', '')).name if release.get('release_index') else '-'}"
-            ] + [
-                f"{'>' if pane == 7 and idx == selected else ' '} dev {d.get('name', '')} -> {d.get('tuple_path', '')} artifacts={d.get('artifact_count', len(d.get('artifacts') or []))}"
-                for idx, d in enumerate(release_devices[:5], 1)
-            ] + [
-                f"{'>' if pane == 7 and idx == selected else ' '} tuple {t.get('path', '')} artifacts={t.get('artifact_count', len(t.get('artifacts') or []))}"
-                for idx, t in enumerate(release_tuples[:5], 1 + len(release_devices[:5]))
+                f"{'>' if pane == 7 and idx == selected else ' '} {rec.get('label', '')}"
+                for idx, rec in enumerate(release_nav[:12])
             ]
             device_tuple_lines = device_tuple_lines or ["none"]
             recent_events = snap["events"][-8:]
@@ -5944,17 +5957,28 @@ def run_curses_tui(cfg):
                     "v opens artifact in pager",
                 ])
             elif pane == 7:
-                combined = [{"path": release.get("release_index", "")}] + release_devices + release_tuples
-                rec = combined[min(selected, len(combined) - 1)] if combined else {}
+                nav = release_nav
+                rec = nav[min(selected, len(nav) - 1)] if nav else {}
+                source = rec.get("record") or rec
                 detail_lines = [
                     f"release: {release.get('release_name', '')}",
                     f"index: {release.get('release_index', '')}",
+                    f"selection_kind: {rec.get('kind', '')}",
                     f"devices: {len(release_devices)}",
                     f"tuples: {len(release_tuples)}",
-                    f"selected_artifacts: {rec.get('artifact_count', len(rec.get('artifacts') or []))}",
-                    "v opens release index in pager",
+                    f"recommendations: {len(release.get('recommendation_records') or [])}",
+                    f"selected_artifacts: {source.get('artifact_count', len(source.get('artifacts') or []))}",
+                    "v opens selected local path in pager",
                 ]
-                for path in (rec.get("artifact_paths") or [])[:6]:
+                if rec.get("kind") == "recommendation":
+                    recommendation = rec.get("record") or {}
+                    detail_lines.extend([
+                        f"recommendation: {recommendation.get('scope', '')}:{recommendation.get('key', '')}",
+                        f"artifact: {recommendation.get('artifact', '')}",
+                        f"payload: {recommendation.get('payload_preset', '')}",
+                    ])
+                    detail_lines.extend(artifact_compatibility_lines({"compatibility": recommendation.get("compatibility") or {}}))
+                for path in (source.get("artifact_paths") or [])[:6]:
                     detail_lines.append(f"artifact_path: {path}")
             elif pane == 5 and snap["target_commands"]:
                 command = snap["target_commands"][min(selected, len(snap["target_commands"]) - 1)]
