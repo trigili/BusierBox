@@ -46,6 +46,19 @@ if len(data.get("source", {}).get("survey_sha256", "")) != 64:
     raise SystemExit("missing survey hash")
 if data.get("confidence", {}).get("arch") not in {"high", "medium"}:
     raise SystemExit("missing confidence metadata")
+compat = data.get("compatibility") or {}
+if compat.get("label") != "exact":
+    raise SystemExit(f"unexpected compatibility label: {compat!r}")
+reasons = compat.get("reasons") or []
+if "arch inferred from survey evidence" not in reasons:
+    raise SystemExit(f"missing compatibility reasons: {reasons!r}")
+if "payload/runtime compatibility is scored separately" not in compat.get("note", ""):
+    raise SystemExit("missing target-only compatibility note")
+evidence = data.get("evidence") or {}
+if evidence.get("machine") != "mipsel":
+    raise SystemExit(f"missing survey evidence machine: {evidence!r}")
+if (evidence.get("recommendations") or {}).get("libc_guess") != "musl":
+    raise SystemExit(f"missing recommendation evidence: {evidence!r}")
 if not data.get("notes"):
     raise SystemExit("missing review notes")
 PY

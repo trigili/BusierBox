@@ -102,11 +102,14 @@ Release bundle `release-find` can combine passive survey facts with
 `scripts/preset-from-survey` writes reusable target compatibility presets under
 `local/presets/targets/`. Those generated presets intentionally contain only
 target tuple metadata such as arch, endian, libc, kernel floor, CPU/ABI, static
-policy hints, survey provenance, confidence, and review notes. Runtime mode,
-payload preset, reverse-shell transport, operator host/ports, zero-arg behavior,
-dotfiles, and overlays remain in normal payload/runtime configs. `scripts/resolve-target`
-discovers these local presets automatically, so a generated name can be used
-with `TARGET=<name>` after review.
+policy hints, survey provenance, confidence, target-tuple compatibility notes,
+the survey evidence used for inference, and review notes. Runtime mode, payload
+preset, reverse-shell transport, operator host/ports, zero-arg behavior,
+dotfiles, and overlays remain in normal payload/runtime configs. The preset
+compatibility label describes only the inferred target tuple; release artifact
+and payload/runtime compatibility are still scored by `config-from-survey` and
+`release-find`. `scripts/resolve-target` discovers these local presets
+automatically, so a generated name can be used with `TARGET=<name>` after review.
 
 For target-side debugging, prefer the provider-based gdbserver workflow in
 [gdbserver-workflow.md](gdbserver-workflow.md). Buildroot gdbserver is kept where

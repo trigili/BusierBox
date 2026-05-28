@@ -171,6 +171,32 @@ def confidence(value, *evidence):
     return "medium"
 
 
+def compatibility_label(conf):
+    values = list(conf.values())
+    if any(value == "low" for value in values):
+        return "heuristic"
+    if any(value == "medium" for value in values):
+        return "likely"
+    return "exact"
+
+
+def compatibility_reasons(arch, libc, kfloor, cpu, conf, owrt):
+    reasons = []
+    for key, value in (("arch", arch), ("libc", libc), ("kernel floor", kfloor), ("cpu", cpu)):
+        confidence_value = conf.get(key.replace(" ", "_"), conf.get(key, ""))
+        if value in ("", "unknown"):
+            reasons.append(f"{key} unknown")
+        elif confidence_value == "high":
+            reasons.append(f"{key} inferred from survey evidence")
+        elif confidence_value == "medium":
+            reasons.append(f"{key} inferred from defaults")
+        else:
+            reasons.append(f"{key} weakly inferred")
+    if owrt:
+        reasons.append("OpenWrt release hints present")
+    return reasons
+
+
 def generated_preset(data, survey_path, name):
     recs = data.get("recommendations", {})
     uname = data.get("uname", {})
@@ -190,6 +216,13 @@ def generated_preset(data, survey_path, name):
     owrt = openwrt_hints(data)
     if owrt:
         notes.append("OpenWrt hints were found in the survey output.")
+
+    conf = {
+        "arch": confidence(arch, data.get("arch"), uname.get("machine"), recs.get("target_arch_guess")),
+        "libc": confidence(libc, recs.get("libc_guess"), data.get("libc"), owrt),
+        "kernel_floor": confidence(kfloor, data.get("kernel"), uname.get("release"), recs.get("kernel_floor_guess")),
+        "cpu": confidence(cpu, recs.get("target_cpu_guess"), owrt.get("distrib_target")),
+    }
 
     preset = {
         "schema": 1,
@@ -215,11 +248,27 @@ def generated_preset(data, survey_path, name):
             "kernel": kernel,
             "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
         },
-        "confidence": {
-            "arch": confidence(arch, data.get("arch"), uname.get("machine"), recs.get("target_arch_guess")),
-            "libc": confidence(libc, recs.get("libc_guess"), data.get("libc"), owrt),
-            "kernel_floor": confidence(kfloor, data.get("kernel"), uname.get("release"), recs.get("kernel_floor_guess")),
-            "cpu": confidence(cpu, recs.get("target_cpu_guess"), owrt.get("distrib_target")),
+        "confidence": conf,
+        "compatibility": {
+            "schema": 1,
+            "label": compatibility_label(conf),
+            "reasons": compatibility_reasons(arch, libc, kfloor, cpu, conf, owrt),
+            "note": "Target tuple confidence only; payload/runtime compatibility is scored separately.",
+        },
+        "evidence": {
+            "machine": machine,
+            "kernel": kernel,
+            "endianness": useful(data.get("endianness")) or "",
+            "libc": useful(data.get("libc")) or "",
+            "recommendations": {
+                "target_arch_guess": useful(recs.get("target_arch_guess")) or "",
+                "target_abi_guess": useful(recs.get("target_abi_guess")) or "",
+                "target_cpu_guess": useful(recs.get("target_cpu_guess")) or "",
+                "kernel_floor_guess": useful(recs.get("kernel_floor_guess")) or "",
+                "libc_guess": useful(recs.get("libc_guess")) or "",
+                "static_policy": useful(recs.get("static_policy")) or "",
+            },
+            "openwrt": owrt,
         },
         "notes": notes,
     }
