@@ -786,8 +786,10 @@ command queue policy, and no-residue behavior. Operators can inspect those
 fields with `--list-build-config`; field records include examples and
 structured fixed `options` where the underlying config accepts a bounded choice.
 They are indexed by category, configured state, fixed-option state, write
-behavior, target-execution behavior, and source format so operator UIs can
-render guided edits and verify those edits only update the shared shell
+behavior, target-execution behavior, source format, safety boundary, reverse
+access relevance, command queue relevance, control-like behavior, and explicit
+operator-choice requirements so operator UIs can render guided edits, badge
+control-like settings, and verify those edits only update the shared shell
 assignment config.
 Operators can update supported keys with `--set-build-config KEY=VALUE`; fixed
 choice values are validated before writing. The line-oriented workbench shows

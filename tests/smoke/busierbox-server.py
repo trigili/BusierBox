@@ -249,6 +249,7 @@ def main():
         if (listed_build_config.returncode != 0 or
                 "BB_TARGET_PRESET" not in listed_build_config.stdout or
                 "BB_NORESIDUE_LEVEL" not in listed_build_config.stdout or
+                "safety: boundary=command-queue control_like=yes explicit_choice=yes" not in listed_build_config.stdout or
                 "--set-build-config" not in listed_build_config.stdout):
             print("guided build config listing missing expected fields", file=sys.stderr)
             print(listed_build_config.stdout, file=sys.stderr)
@@ -287,24 +288,40 @@ def main():
         guided_writes_config = guided_status.get("workbench_config_fields_by_writes_config") or {}
         guided_target_execution = guided_status.get("workbench_config_fields_by_target_execution") or {}
         guided_source_format = guided_status.get("workbench_config_fields_by_source_format") or {}
+        guided_safety = guided_status.get("workbench_config_fields_by_safety_boundary") or {}
+        guided_control_like = guided_status.get("workbench_config_fields_by_control_like") or {}
+        guided_command_queue = guided_status.get("workbench_config_fields_by_command_queue_related") or {}
+        guided_reverse_access = guided_status.get("workbench_config_fields_by_reverse_access_related") or {}
+        guided_explicit_choice = guided_status.get("workbench_config_fields_by_requires_explicit_operator_choice") or {}
         if (len(guided_fields) < 12 or
                 guided_status.get("summary", {}).get("workbench_config_field_count") != len(guided_fields) or
                 guided_by_key.get("BB_NORESIDUE_LEVEL", {}).get("value") != "aggressive" or
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("value") != "reconnect" or
+                guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("safety_boundary") != "reverse-access" or
+                guided_by_key.get("BB_COMMAND_QUEUE_ENABLE", {}).get("control_like") is not True or
+                guided_by_key.get("BB_COMMAND_QUEUE_ENABLE", {}).get("requires_explicit_operator_choice") is not True or
                 guided_by_key.get("BB_RSHELL_TRANSPORT", {}).get("options") != ["ssh", "socat", "builtin", "none"] or
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("fixed_options") is not True or
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("option_count") != 3 or
                 guided_status.get("summary", {}).get("workbench_config_field_fixed_option_count", 0) < 10 or
+                guided_status.get("summary", {}).get("workbench_config_field_control_like_count", 0) < 6 or
+                guided_status.get("summary", {}).get("workbench_config_field_safety_boundary_counts", {}).get("command-queue", 0) < 4 or
                 not guided_fixed.get("True") or
                 len(guided_writes_config.get("True", [])) != len(guided_fields) or
                 guided_target_execution.get("True", []) != [] or
                 len(guided_target_execution.get("False", [])) != len(guided_fields) or
                 len(guided_source_format.get("shell-assignment", [])) != len(guided_fields) or
+                not guided_safety.get("reverse-access") or
+                not guided_control_like.get("True") or
+                not guided_command_queue.get("True") or
+                not guided_reverse_access.get("True") or
+                not guided_explicit_choice.get("True") or
                 not guided_by_category.get("target") or
                 not guided_by_category.get("command-queue") or
                 guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("primary_key") != "key" or
                 "workbench_config_fields_by_fixed_options" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", []) or
-                "workbench_config_fields_by_target_execution" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", [])):
+                "workbench_config_fields_by_target_execution" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", []) or
+                "workbench_config_fields_by_safety_boundary" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", [])):
             print("server json status missing guided build config field records", file=sys.stderr)
             print(json.dumps(guided_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
@@ -1446,6 +1463,8 @@ def main():
         config_fields_by_key = queue_status_json.get("workbench_config_fields_by_key") or {}
         config_fields_by_category = queue_status_json.get("workbench_config_fields_by_category") or {}
         config_fields_by_target_execution = queue_status_json.get("workbench_config_fields_by_target_execution") or {}
+        config_fields_by_safety = queue_status_json.get("workbench_config_fields_by_safety_boundary") or {}
+        config_fields_by_control_like = queue_status_json.get("workbench_config_fields_by_control_like") or {}
         actions_by_id = queue_status_json.get("workbench_actions_by_id") or {}
         actions_by_category = queue_status_json.get("workbench_actions_by_category") or {}
         actions_by_script = queue_status_json.get("workbench_actions_by_script") or {}
@@ -1460,10 +1479,15 @@ def main():
                 config_fields_by_key.get("BB_STATIC_POLICY", {}).get("options") != ["static-preferred", "static-only", "dynamic-ok"] or
                 not config_fields_by_key.get("BB_COMMAND_QUEUE_ENABLE") or
                 config_fields_by_key.get("BB_COMMAND_QUEUE_ENABLE", {}).get("fixed_options") is not True or
+                config_fields_by_key.get("BB_COMMAND_QUEUE_ENABLE", {}).get("safety_boundary") != "command-queue" or
+                config_fields_by_key.get("BB_RSHELL_TRANSPORT", {}).get("safety_boundary") != "reverse-access" or
                 not config_fields_by_category.get("runtime") or
                 not config_fields_by_category.get("rshell") or
                 config_fields_by_target_execution.get("True", []) != [] or
-                len(config_fields_by_target_execution.get("False", [])) != len(workbench_config_fields)):
+                len(config_fields_by_target_execution.get("False", [])) != len(workbench_config_fields) or
+                not config_fields_by_safety.get("command-queue") or
+                not config_fields_by_control_like.get("True") or
+                workbench_summary.get("workbench_config_field_command_queue_related_count", 0) < 4):
             print("server json status missing guided build config descriptors", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1

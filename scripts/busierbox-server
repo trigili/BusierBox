@@ -955,6 +955,40 @@ WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS = {
 }
 
 
+def workbench_config_safety_metadata(category, key):
+    boundary = {
+        "target": "build-artifact",
+        "payload": "build-artifact",
+        "build": "build-artifact",
+        "runtime": "target-runtime",
+        "trailer": "target-runtime",
+        "recovery": "target-runtime",
+        "rshell": "reverse-access",
+        "command-queue": "command-queue",
+    }.get(str(category or ""), "build-config")
+    control_like = boundary in ("reverse-access", "command-queue")
+    note = {
+        "build-artifact": "affects generated artifacts or payload contents",
+        "target-runtime": "affects target runtime behavior after explicit artifact use",
+        "reverse-access": "affects explicit reverse-access behavior",
+        "command-queue": "affects explicit opt-in command queue behavior",
+        "build-config": "updates shared build configuration",
+    }.get(boundary, "updates shared build configuration")
+    return {
+        "safety_boundary": boundary,
+        "control_like": control_like,
+        "reverse_access_related": boundary == "reverse-access",
+        "command_queue_related": boundary == "command-queue",
+        "requires_explicit_operator_choice": control_like or key in (
+            "BB_NORESIDUE_LEVEL",
+            "BB_RUNTIME_ALLOW_EXTERNAL_WRITES",
+            "BB_TRAILER_OVERRIDES_ENABLE",
+            "BB_AUTORUN_GUARD_ENABLE",
+        ),
+        "safety_note": note,
+    }
+
+
 def build_config_path(cfg):
     return Path(str(cfg.get("_build_config_path") or cfg.get("build_config") or "configs/busierbox.conf"))
 
@@ -1039,6 +1073,7 @@ def workbench_config_field_records(cfg):
             "set_command": "scripts/busierbox-server --build-config "
                            + shquote(str(path)) + " --set-build-config "
                            + shquote(f"{key}=VALUE"),
+            **workbench_config_safety_metadata(category, key),
         })
     return records
 
@@ -1052,6 +1087,11 @@ def workbench_config_field_indexes(records):
         "workbench_config_fields_by_writes_config": records_by_key(records, "writes_config"),
         "workbench_config_fields_by_target_execution": records_by_key(records, "target_execution"),
         "workbench_config_fields_by_source_format": records_by_key(records, "source_format"),
+        "workbench_config_fields_by_safety_boundary": records_by_key(records, "safety_boundary"),
+        "workbench_config_fields_by_control_like": records_by_key(records, "control_like"),
+        "workbench_config_fields_by_reverse_access_related": records_by_key(records, "reverse_access_related"),
+        "workbench_config_fields_by_command_queue_related": records_by_key(records, "command_queue_related"),
+        "workbench_config_fields_by_requires_explicit_operator_choice": records_by_key(records, "requires_explicit_operator_choice"),
     }
 
 
@@ -1061,6 +1101,11 @@ def workbench_config_field_summary(records):
         "configured_count": len([rec for rec in records or [] if rec.get("configured") is True]),
         "fixed_option_count": len([rec for rec in records or [] if rec.get("fixed_options") is True]),
         "category_counts": record_count_by_key(records, "category"),
+        "safety_boundary_counts": record_count_by_key(records, "safety_boundary"),
+        "control_like_count": len([rec for rec in records or [] if rec.get("control_like") is True]),
+        "reverse_access_related_count": len([rec for rec in records or [] if rec.get("reverse_access_related") is True]),
+        "command_queue_related_count": len([rec for rec in records or [] if rec.get("command_queue_related") is True]),
+        "requires_explicit_operator_choice_count": len([rec for rec in records or [] if rec.get("requires_explicit_operator_choice") is True]),
     }
 
 
@@ -6728,6 +6773,11 @@ def status_document(cfg):
         "workbench_config_field_configured_count": workbench_config_field_stats.get("configured_count", 0),
         "workbench_config_field_fixed_option_count": workbench_config_field_stats.get("fixed_option_count", 0),
         "workbench_config_field_category_counts": workbench_config_field_stats.get("category_counts") or {},
+        "workbench_config_field_safety_boundary_counts": workbench_config_field_stats.get("safety_boundary_counts") or {},
+        "workbench_config_field_control_like_count": workbench_config_field_stats.get("control_like_count", 0),
+        "workbench_config_field_reverse_access_related_count": workbench_config_field_stats.get("reverse_access_related_count", 0),
+        "workbench_config_field_command_queue_related_count": workbench_config_field_stats.get("command_queue_related_count", 0),
+        "workbench_config_field_requires_explicit_operator_choice_count": workbench_config_field_stats.get("requires_explicit_operator_choice_count", 0),
         "workbench_action_background_supported_count": workbench_action_stats.get("background_supported_count", 0),
         "workbench_action_long_running_count": workbench_action_stats.get("long_running_count", 0),
         "workbench_action_writes_config_count": workbench_action_stats.get("writes_config_count", 0),
@@ -6912,6 +6962,9 @@ def status_document(cfg):
                 "workbench_config_fields_by_configured", "workbench_config_fields_by_fixed_options",
                 "workbench_config_fields_by_writes_config", "workbench_config_fields_by_target_execution",
                 "workbench_config_fields_by_source_format",
+                "workbench_config_fields_by_safety_boundary", "workbench_config_fields_by_control_like",
+                "workbench_config_fields_by_reverse_access_related", "workbench_config_fields_by_command_queue_related",
+                "workbench_config_fields_by_requires_explicit_operator_choice",
             ), "workbench_config_field_count",
         ),
         "workbench_jobs": api_collection_record(
@@ -7217,9 +7270,11 @@ def print_workbench_action_summary(doc):
         "Build config field summary: "
         f"total={summary.get('workbench_config_field_count', 0)} "
         f"configured={summary.get('workbench_config_field_configured_count', 0)} "
-        f"fixed_options={summary.get('workbench_config_field_fixed_option_count', 0)}"
+        f"fixed_options={summary.get('workbench_config_field_fixed_option_count', 0)} "
+        f"control_like={summary.get('workbench_config_field_control_like_count', 0)}"
     )
     print(f"  config categories: {format_counts(summary.get('workbench_config_field_category_counts') or {})}")
+    print(f"  config safety: {format_counts(summary.get('workbench_config_field_safety_boundary_counts') or {})}")
     print(
         "Workbench action summary: "
         f"total={summary.get('workbench_action_count', 0)} "
@@ -8793,6 +8848,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         if args.list_build_config:
             for rec in workbench_config_field_records(cfg):
                 print(f"{rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} category={rec.get('category', '')} configured={'yes' if rec.get('configured') else 'no'}")
+                print(f"  safety: boundary={rec.get('safety_boundary', '')} control_like={'yes' if rec.get('control_like') else 'no'} explicit_choice={'yes' if rec.get('requires_explicit_operator_choice') else 'no'}")
                 print(f"  label: {rec.get('label', '')}")
                 print(f"  set: {rec.get('set_command', '')}")
             append_event(cfg, "workbench", "workbench_config_viewed", details={"config_path": str(build_config_path(cfg)), "field_count": len(workbench_config_field_records(cfg))})
