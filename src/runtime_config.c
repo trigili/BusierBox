@@ -731,6 +731,26 @@ int applet_runtime_config_main(int argc, char **argv)
         bb_config_print_rshell_readiness_json(stdout, bb_json_string);
         fputs(",\"command_queue_policy\":{\"valid\":", stdout);
         fputs(command_queue_policy_valid ? "true" : "false", stdout);
+        fputs(",\"enabled\":", stdout);
+        fputs(!strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") ? "true" : "false", stdout);
+        fputs(",\"default_enabled\":false", stdout);
+        fputs(",\"configured_for_polling\":", stdout);
+        fputs((command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && BB_OPERATOR_SERVER_HOST[0]) ? "true" : "false", stdout);
+        fputs(",\"missing_operator_host\":", stdout);
+        fputs((command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !BB_OPERATOR_SERVER_HOST[0]) ? "true" : "false", stdout);
+        fputs(",\"poll_transport_supported\":true", stdout);
+        fputs(",\"live_polling_supported\":true", stdout);
+        fputs(",\"delivery_supported\":false", stdout);
+        fputs(",\"result_upload_supported\":true", stdout);
+        fputs(",\"execution_supported\":false", stdout);
+        fputs(",\"executes_commands\":false", stdout);
+        fputs(",\"active_control_channel\":false", stdout);
+        fputs(",\"operator_supplied_command_execution\":false", stdout);
+        fputs(",\"arbitrary_policy_requested\":", stdout);
+        fputs((command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes")) ? "true" : "false", stdout);
+        fputs(",\"arbitrary_execution_allowed\":false", stdout);
+        fputs(",\"safe_disabled_default\":", stdout);
+        fputs((command_queue_policy_valid && strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "no")) ? "true" : "false", stdout);
         fputs(",\"errors\":[", stdout);
         for (i = 0; i < command_queue_policy.count; i++) {
             if (i)
@@ -750,6 +770,19 @@ int applet_runtime_config_main(int argc, char **argv)
     printf("environment_override_count=%d\n", env_override_count());
     printf("cli_override_count=%d\n", cli_override_count());
     printf("command_queue_policy_valid=%s\n", command_queue_policy_valid ? "yes" : "no");
+    printf("command_queue_configured_for_polling=%s\n", (command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && BB_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
+    printf("command_queue_missing_operator_host=%s\n", (command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !BB_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
+    puts("command_queue_poll_transport_supported=yes");
+    puts("command_queue_live_polling_supported=yes");
+    puts("command_queue_delivery_supported=no");
+    puts("command_queue_result_upload_supported=yes");
+    puts("command_queue_execution_supported=no");
+    puts("command_queue_executes_commands=no");
+    puts("command_queue_active_control_channel=no");
+    puts("command_queue_operator_supplied_command_execution=no");
+    printf("command_queue_arbitrary_policy_requested=%s\n", (command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes")) ? "yes" : "no");
+    puts("command_queue_arbitrary_execution_allowed=no");
+    printf("command_queue_safe_disabled_default=%s\n", (command_queue_policy_valid && strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "no")) ? "yes" : "no");
     for (i = 0; i < command_queue_policy.count; i++)
         printf("command_queue_policy_error=%s\n", command_queue_policy.errors[i]);
     for (j = 0; j < sizeof(cfg) / sizeof(cfg[0]); j++) {

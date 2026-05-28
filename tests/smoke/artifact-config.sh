@@ -26,6 +26,10 @@ grep -q '^trailer_override_present=no$' "$work/config.none"
 "$work/busierbox" runtime-config >"$work/runtime.none"
 grep -q '^effective_config_source=compiled$' "$work/runtime.none"
 grep -q '^trailer_present=no$' "$work/runtime.none"
+grep -q '^command_queue_policy_valid=yes$' "$work/runtime.none"
+grep -q '^command_queue_result_upload_supported=yes$' "$work/runtime.none"
+grep -q '^command_queue_execution_supported=no$' "$work/runtime.none"
+grep -q '^command_queue_safe_disabled_default=yes$' "$work/runtime.none"
 "$work/busierbox" runtime-config --json >"$work/runtime.none.json"
 python3 -m json.tool "$work/runtime.none.json" >/dev/null
 python3 - "$work/runtime.none.json" <<'PY'
@@ -45,6 +49,23 @@ assert rshell["session_policy"] == r["effective_config"]["BB_RSHELL_SESSION_POLI
 assert rshell["session_policy_valid"] is True
 assert rshell["session_policy_errors"] == []
 assert rshell["operator_host"] == r["effective_config"]["BB_OPERATOR_SERVER_HOST"]
+cq = r["command_queue_policy"]
+assert cq["valid"] is True
+assert cq["enabled"] is False
+assert cq["default_enabled"] is False
+assert cq["configured_for_polling"] is False
+assert cq["missing_operator_host"] is False
+assert cq["poll_transport_supported"] is True
+assert cq["live_polling_supported"] is True
+assert cq["delivery_supported"] is False
+assert cq["result_upload_supported"] is True
+assert cq["execution_supported"] is False
+assert cq["executes_commands"] is False
+assert cq["active_control_channel"] is False
+assert cq["operator_supplied_command_execution"] is False
+assert cq["arbitrary_policy_requested"] is False
+assert cq["arbitrary_execution_allowed"] is False
+assert cq["safe_disabled_default"] is True
 PY
 
 scripts/artifact-config set "$work/busierbox" \
@@ -106,6 +127,11 @@ assert rshell["operator_ssh_port"] == "22022"
 assert "--ssh-port 22022" in rshell["server_listener"]
 assert "2299" in rshell["connect_hint"]
 assert rshell["session_policy_valid"] is True
+cq = r["command_queue_policy"]
+assert cq["valid"] is True
+assert cq["result_upload_supported"] is True
+assert cq["execution_supported"] is False
+assert cq["executes_commands"] is False
 PY
 "$work/busierbox" rshell status --json >"$work/rshell.status.trailer.json"
 python3 - "$work/rshell.status.trailer.json" <<'PY'
