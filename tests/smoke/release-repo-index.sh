@@ -109,6 +109,8 @@ index = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert index["release_count"] == 3
 assert index["artifact_count"] == 3
 assert index["deduplicated_artifact_count"] == 2
+assert index["device_count"] == 2
+assert index["tuple_count"] == 1
 assert "tcpdump" in index["tools_present"]
 assert "ssh-operator" in index["payload_presets"]
 assert "trailer" in index["features"]
@@ -143,6 +145,35 @@ assert recs["by_feature"]["reverse-ssh"]["release_name"] in {"one", "two"}
 assert recs["by_tool_payload_preset"]["tcpdump:survey-core"]["release_name"] == "one"
 assert recs["by_feature_payload_preset"]["reverse-ssh:ssh-operator"]["release_name"] == "two"
 assert recs["by_tuple_payload_preset"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug"]["release_name"] == "three"
+assert index["recommendation_count"] == sum(
+    len(recs[name]) for name in (
+        "by_device",
+        "by_tuple_path",
+        "by_tool",
+        "by_payload_preset",
+        "by_feature",
+        "by_tool_payload_preset",
+        "by_feature_payload_preset",
+        "by_tuple_payload_preset",
+    )
+)
+api = index["api_collections"]
+assert api["artifacts"]["name"] == "artifacts"
+assert api["artifacts"]["count"] == index["artifact_count"]
+assert api["artifacts"]["summary_key"] == "artifact_count"
+assert "artifacts_by_tool" in api["artifacts"]["indexes"]
+assert "artifacts_by_provider_status" in api["artifacts"]["indexes"]
+assert "artifacts_by_doom_wad_filename" in api["artifacts"]["indexes"]
+assert api["dedupe"]["count"] == index["deduplicated_artifact_count"]
+assert api["dedupe"]["summary_key"] == "deduplicated_artifact_count"
+assert api["devices"]["count"] == index["device_count"]
+assert api["devices"]["summary_key"] == "device_count"
+assert api["tuples"]["count"] == index["tuple_count"]
+assert api["tuples"]["summary_key"] == "tuple_count"
+assert api["recommendations"]["count"] == index["recommendation_count"]
+assert api["recommendations"]["summary_key"] == "recommendation_count"
+assert "by_device" in api["recommendations"]["indexes"]
+assert "by_tool_payload_preset" in api["recommendations"]["indexes"]
 PY
 
 scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null

@@ -195,6 +195,15 @@ def recommendations_from_indexes(devices, indexes):
     }
 
 
+def api_collection_record(name, count, indexes, summary_key):
+    return {
+        "name": name,
+        "count": count,
+        "indexes": list(indexes),
+        "summary_key": summary_key,
+    }
+
+
 def build_repo_index(paths):
     release_dirs = [pathlib.Path(path) for path in candidate_release_dirs(paths)]
     artifacts = []
@@ -314,11 +323,41 @@ def build_repo_index(paths):
         "artifacts_by_feature_payload_preset": artifacts_by_feature_payload_preset,
         "artifacts_by_tuple_payload_preset": artifacts_by_tuple_payload_preset,
     }
+    artifact_index_names = [
+        "artifacts_by_sha",
+        "artifacts_by_release",
+        "artifacts_by_tuple_path",
+        "artifacts_by_tool",
+        "artifacts_by_payload_preset",
+        "artifacts_by_feature",
+        "artifacts_by_tool_payload_preset",
+        "artifacts_by_feature_payload_preset",
+        "artifacts_by_tuple_payload_preset",
+        "artifacts_by_provider_tool",
+        "artifacts_by_provider_status",
+        "artifacts_by_doom_wad_filename",
+        "artifacts_by_doom_wad_sha256",
+    ]
+    recommendation_index_names = [
+        "by_device",
+        "by_tuple_path",
+        "by_tool",
+        "by_payload_preset",
+        "by_feature",
+        "by_tool_payload_preset",
+        "by_feature_payload_preset",
+        "by_tuple_payload_preset",
+    ]
+    recommendations = recommendations_from_indexes(devices, indexes)
+    recommendation_count = sum(len(recommendations.get(name) or {}) for name in recommendation_index_names)
     return {
         "schema": 1,
         "release_count": len(release_dirs),
         "artifact_count": len(artifacts),
         "deduplicated_artifact_count": len(by_sha),
+        "device_count": len(devices),
+        "tuple_count": len(tuples),
+        "recommendation_count": recommendation_count,
         "release_dirs": [str(path) for path in release_dirs],
         "artifacts": artifacts,
         "artifacts_by_sha": {key: artifacts_by_sha[key] for key in sorted(artifacts_by_sha)},
@@ -340,7 +379,39 @@ def build_repo_index(paths):
         "payload_presets": {key: unique(presets[key]) for key in sorted(presets)},
         "tools_present": {key: unique(tools[key]) for key in sorted(tools)},
         "features": {key: unique(features[key]) for key in sorted(features)},
-        "recommendations": recommendations_from_indexes(devices, indexes),
+        "recommendations": recommendations,
+        "api_collections": {
+            "artifacts": api_collection_record(
+                "artifacts",
+                len(artifacts),
+                artifact_index_names,
+                "artifact_count",
+            ),
+            "dedupe": api_collection_record(
+                "dedupe",
+                len(by_sha),
+                [],
+                "deduplicated_artifact_count",
+            ),
+            "devices": api_collection_record(
+                "devices",
+                len(devices),
+                [],
+                "device_count",
+            ),
+            "tuples": api_collection_record(
+                "tuples",
+                len(tuples),
+                [],
+                "tuple_count",
+            ),
+            "recommendations": api_collection_record(
+                "recommendations",
+                recommendation_count,
+                recommendation_index_names,
+                "recommendation_count",
+            ),
+        },
     }
 
 

@@ -189,7 +189,11 @@ status without opening each payload manifest. Doom audit maps
 artifacts by staged WAD basename/hash, and `scripts/find-artifact` exposes the
 same lookup through `--doom-wad` and `--doom-wad-sha256`. You can search by canonical tuple path directly with
 `--tuple-path` when a survey or release manifest has already resolved the
-target compatibility tuple. It does not download or rebuild anything.
+target compatibility tuple. The index also publishes `api_collections`
+metadata for artifacts, dedupe records, devices, tuples, and precomputed
+recommendations so future TUI/web clients can discover record counts and lookup
+maps without hard-coding the JSON shape. It does not download or rebuild
+anything.
 `--recommendation-json` returns the selected artifact plus active filters,
 match count, visible match count, match lookup maps, `api_collections`
 metadata, index counts, and the selection policy. Lookup maps include
