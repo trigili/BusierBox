@@ -171,8 +171,10 @@ rescanning every command. Safety-oriented lookup maps
 `next_command_records_by_requires_explicit_operator_action`,
 `next_command_records_by_executes_operator_supplied_commands`, and
 `next_command_records_by_executes_on_target` let UI clients render network and
-execution-boundary badges without rescanning every command. `command_record_summary` includes operator/target,
-networked target action, listener, staged fetch, execution-safety counts, and
+execution-boundary badges without rescanning every command.
+`command_record_summary` includes operator/target, service, purpose,
+stage-kind, network, explicit-action, execution-boundary, and compatibility
+label count maps, plus listener, staged fetch, execution-safety counts, and
 booleans that state whether all next commands require explicit operator/target
 action. When reality-test JSON is present, `reality_summary` mirrors its check
 counts, constraints, `checks_by_name`, `checks_by_status`, `checks_by_type`,
