@@ -145,16 +145,21 @@ static void rshell_connect_hint(char *out, size_t outsz, const char *transport)
 }
 
 static int valid_session_policy(void);
+static int valid_session_policy_value(const char *policy);
 static int policy_reconnects_after_disconnect(const char *policy);
 static int policy_stops_after_first_success(const char *policy);
 static int policy_persistent_lifecycle(const char *policy);
+static const char *policy_post_success_retry_count_for(const char *policy, const char *retry_count_text);
 static const char *policy_post_success_retry_count(const char *policy);
 static int should_reconnect_after_success(int reconnects);
 static int should_reconnect_policy_after_success(const char *policy, int reconnects, const char *retry_count_text);
 
-static void print_rshell_config_status(FILE *out, const char *transport)
+static void print_rshell_config_status_for_policy(FILE *out, const char *transport,
+        const char *session_policy, const char *retry_count_text)
 {
     char target[128], server[256], hint[256];
+    const char *policy = session_policy && *session_policy ? session_policy : BB_RSHELL_SESSION_POLICY;
+    const char *retry_count = retry_count_text && *retry_count_text ? retry_count_text : BB_RSHELL_RETRY_COUNT;
 
     snprintf(target, sizeof(target), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
     rshell_server_listener(server, sizeof(server), transport);
@@ -163,21 +168,21 @@ static void print_rshell_config_status(FILE *out, const char *transport)
     fprintf(out, "transport=%s\n", transport);
     fprintf(out, "encryption=%s\n", BB_RSHELL_ENCRYPTION);
     fprintf(out, "run_mode=%s\n", BB_RSHELL_RUN_MODE);
-    fprintf(out, "session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
-    fprintf(out, "session_policy_valid=%s\n", valid_session_policy() ? "yes" : "no");
-    if (!valid_session_policy())
+    fprintf(out, "session_policy=%s\n", policy);
+    fprintf(out, "session_policy_valid=%s\n", valid_session_policy_value(policy) ? "yes" : "no");
+    if (!valid_session_policy_value(policy))
         fputs("session_policy_error=unsupported rshell session policy\n", out);
     fprintf(out, "retry_until_first_connection=yes\n");
-    fprintf(out, "stop_after_first_success=%s\n", policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
-    fprintf(out, "reconnect_after_disconnect=%s\n", policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
-    fprintf(out, "persistent_lifecycle=%s\n", policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
-    fprintf(out, "fresh_session_on_reconnect=%s\n", policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
+    fprintf(out, "stop_after_first_success=%s\n", policy_stops_after_first_success(policy) ? "yes" : "no");
+    fprintf(out, "reconnect_after_disconnect=%s\n", policy_reconnects_after_disconnect(policy) ? "yes" : "no");
+    fprintf(out, "persistent_lifecycle=%s\n", policy_persistent_lifecycle(policy) ? "yes" : "no");
+    fprintf(out, "fresh_session_on_reconnect=%s\n", policy_reconnects_after_disconnect(policy) ? "yes" : "no");
     fprintf(out, "session_resume_supported=no\n");
-    fprintf(out, "pre_connect_retry_count=%s\n", BB_RSHELL_RETRY_COUNT);
-    fprintf(out, "post_disconnect_retry_count=%s\n", policy_post_success_retry_count(BB_RSHELL_SESSION_POLICY));
-    fprintf(out, "would_reconnect_after_success_attempt_0=%s\n", should_reconnect_after_success(0) ? "yes" : "no");
-    fprintf(out, "would_reconnect_after_success_attempt_1=%s\n", should_reconnect_after_success(1) ? "yes" : "no");
-    fprintf(out, "would_reconnect_after_success_attempt_2=%s\n", should_reconnect_after_success(2) ? "yes" : "no");
+    fprintf(out, "pre_connect_retry_count=%s\n", retry_count);
+    fprintf(out, "post_disconnect_retry_count=%s\n", policy_post_success_retry_count_for(policy, retry_count));
+    fprintf(out, "would_reconnect_after_success_attempt_0=%s\n", should_reconnect_policy_after_success(policy, 0, retry_count) ? "yes" : "no");
+    fprintf(out, "would_reconnect_after_success_attempt_1=%s\n", should_reconnect_policy_after_success(policy, 1, retry_count) ? "yes" : "no");
+    fprintf(out, "would_reconnect_after_success_attempt_2=%s\n", should_reconnect_policy_after_success(policy, 2, retry_count) ? "yes" : "no");
     fprintf(out, "operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
     fprintf(out, "operator_shell_port=%s\n", BB_RSHELL_SOCAT_PORT);
     fprintf(out, "operator_ssh_port=%s\n", BB_OPERATOR_SERVER_SSH_PORT);
@@ -192,6 +197,11 @@ static void print_rshell_config_status(FILE *out, const char *transport)
         fputs("zero_arg_note=This artifact will not initiate reverse access when run with no arguments; start explicitly with './busierbox rshell start'.\n", out);
     if (strcmp(transport, "ssh") && !strcmp(BB_RSHELL_ENCRYPTION, "none"))
         fputs("plaintext_warning=INSECURE debug-only plaintext shell transport is configured.\n", out);
+}
+
+static void print_rshell_config_status(FILE *out, const char *transport)
+{
+    print_rshell_config_status_for_policy(out, transport, BB_RSHELL_SESSION_POLICY, BB_RSHELL_RETRY_COUNT);
 }
 
 static int parse_int_default(const char *s, int def)
@@ -287,13 +297,18 @@ static int valid_session_policy_value(const char *policy)
            !strcmp(policy, "persistent");
 }
 
-static const char *policy_post_success_retry_count(const char *policy)
+static const char *policy_post_success_retry_count_for(const char *policy, const char *retry_count_text)
 {
     if (!strcmp(policy, "single"))
         return "0";
     if (!strcmp(policy, "persistent"))
         return "-1";
-    return BB_RSHELL_RETRY_COUNT;
+    return retry_count_text && *retry_count_text ? retry_count_text : BB_RSHELL_RETRY_COUNT;
+}
+
+static const char *policy_post_success_retry_count(const char *policy)
+{
+    return policy_post_success_retry_count_for(policy, BB_RSHELL_RETRY_COUNT);
 }
 
 static int connection_was_established(int rc, time_t started_at, time_t ended_at)
@@ -674,7 +689,9 @@ int applet_rshell_main(int argc, char **argv)
             char rshell_pid[64] = "", dropbear_pid[64] = "", dbclient_pid[64] = "", socat_pid[64] = "";
             char state[64] = "";
             char recorded_session_policy[64] = "";
+            char recorded_pre_connect_retry_count[64] = "";
             const char *effective_session_policy;
+            const char *effective_retry_count;
             char started_at[64] = "", last_exit_reason[256] = "";
             char initial_attempts[64] = "", reconnect_attempts[64] = "", connected_once[64] = "";
             char target_dropbear[128], server_listener[256], connect_hint[256];
@@ -703,6 +720,8 @@ int applet_rshell_main(int argc, char **argv)
                     snprintf(socat_pid, sizeof(socat_pid), "%s", eq);
                 else if (!strcmp(line, "session_policy"))
                     snprintf(recorded_session_policy, sizeof(recorded_session_policy), "%s", eq);
+                else if (!strcmp(line, "pre_connect_retry_count"))
+                    snprintf(recorded_pre_connect_retry_count, sizeof(recorded_pre_connect_retry_count), "%s", eq);
                 else if (!strcmp(line, "started_at"))
                     snprintf(started_at, sizeof(started_at), "%s", eq);
                 else if (!strcmp(line, "last_exit_reason"))
@@ -719,6 +738,7 @@ int applet_rshell_main(int argc, char **argv)
                 fp = fopen(status_path, "r");
             }
             effective_session_policy = recorded_session_policy[0] ? recorded_session_policy : BB_RSHELL_SESSION_POLICY;
+            effective_retry_count = recorded_pre_connect_retry_count[0] ? recorded_pre_connect_retry_count : BB_RSHELL_RETRY_COUNT;
             printf("{\"schema\":1,\"state\":");
             json_string_main(stdout, fp ? (state[0] ? state : "active") : "inactive");
             printf(",\"transport\":");
@@ -744,18 +764,18 @@ int applet_rshell_main(int argc, char **argv)
             if (policy_reconnects_after_disconnect(effective_session_policy))
                 printf("+post-disconnect");
             printf("\",\"pre_connect_retry_count\":");
-            json_string_main(stdout, BB_RSHELL_RETRY_COUNT);
+            json_string_main(stdout, effective_retry_count);
             printf(",\"post_disconnect_retry_count\":");
-            json_string_main(stdout, policy_post_success_retry_count(effective_session_policy));
+            json_string_main(stdout, policy_post_success_retry_count_for(effective_session_policy, effective_retry_count));
             printf(",\"stops_after_success\":%s,\"reconnects_after_disconnect\":%s,\"persistent_lifecycle\":%s,\"fresh_session_on_reconnect\":%s,\"session_resume_supported\":false}",
                    policy_stops_after_first_success(effective_session_policy) ? "true" : "false",
                    policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false",
                    policy_persistent_lifecycle(effective_session_policy) ? "true" : "false",
                    policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false");
             printf(",\"runtime_decisions\":{\"after_success_reconnect_attempt_0\":%s,\"after_success_reconnect_attempt_1\":%s,\"after_success_reconnect_attempt_2\":%s,\"uses_fresh_sessions\":%s,\"session_resume_supported\":false}",
-                   should_reconnect_policy_after_success(effective_session_policy, 0, BB_RSHELL_RETRY_COUNT) ? "true" : "false",
-                   should_reconnect_policy_after_success(effective_session_policy, 1, BB_RSHELL_RETRY_COUNT) ? "true" : "false",
-                   should_reconnect_policy_after_success(effective_session_policy, 2, BB_RSHELL_RETRY_COUNT) ? "true" : "false",
+                   should_reconnect_policy_after_success(effective_session_policy, 0, effective_retry_count) ? "true" : "false",
+                   should_reconnect_policy_after_success(effective_session_policy, 1, effective_retry_count) ? "true" : "false",
+                   should_reconnect_policy_after_success(effective_session_policy, 2, effective_retry_count) ? "true" : "false",
                    policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false");
             printf(",\"operator_host\":");
             json_string_main(stdout, BB_OPERATOR_SERVER_HOST);
@@ -782,9 +802,9 @@ int applet_rshell_main(int argc, char **argv)
             printf(",\"max_interval_sec\":");
             json_string_main(stdout, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
             printf(",\"pre_connect_count\":");
-            json_string_main(stdout, BB_RSHELL_RETRY_COUNT);
+            json_string_main(stdout, effective_retry_count);
             printf(",\"post_disconnect_count\":");
-            json_string_main(stdout, policy_post_success_retry_count(effective_session_policy));
+            json_string_main(stdout, policy_post_success_retry_count_for(effective_session_policy, effective_retry_count));
             printf("}");
             printf(",\"runtime_counters\":{\"initial_attempts\":");
             if (initial_attempts[0])
@@ -891,11 +911,23 @@ int applet_rshell_main(int argc, char **argv)
         if (access(status_path, R_OK) == 0) {
             char buf[512];
             FILE *fp = fopen(status_path, "r");
-            while (fp && fgets(buf, sizeof(buf), fp))
+            char recorded_session_policy[64] = "";
+            char recorded_pre_connect_retry_count[64] = "";
+            while (fp && fgets(buf, sizeof(buf), fp)) {
+                char key[128], val[384];
                 fputs(buf, stdout);
+                if (sscanf(buf, "%127[^=]=%383[^\n]", key, val) == 2) {
+                    if (!strcmp(key, "session_policy"))
+                        snprintf(recorded_session_policy, sizeof(recorded_session_policy), "%s", val);
+                    else if (!strcmp(key, "pre_connect_retry_count"))
+                        snprintf(recorded_pre_connect_retry_count, sizeof(recorded_pre_connect_retry_count), "%s", val);
+                }
+            }
             if (fp)
                 fclose(fp);
-            print_rshell_config_status(stdout, transport);
+            print_rshell_config_status_for_policy(stdout, transport,
+                    recorded_session_policy[0] ? recorded_session_policy : BB_RSHELL_SESSION_POLICY,
+                    recorded_pre_connect_retry_count[0] ? recorded_pre_connect_retry_count : BB_RSHELL_RETRY_COUNT);
             return 0;
         }
         if (access(lock_path, R_OK) == 0) {

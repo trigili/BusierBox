@@ -30,7 +30,7 @@ reconnect_attempts=1
 connected_once=yes
 EOF
 
-BB_RSHELL_RETRY_COUNT=2 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json --transport ssh >"$tmp/status.json"
+BB_RSHELL_RETRY_COUNT=9 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json --transport ssh >"$tmp/status.json"
 python3 -m json.tool "$tmp/status.json" >/dev/null
 python3 - "$tmp/status.json" "$tmp/guard" <<'PY'
 import json
@@ -98,6 +98,8 @@ if summary.get("pre_connect_retry_count") != data["retry"].get("pre_connect_coun
     raise SystemExit("summary pre-connect retry count mismatch")
 if summary.get("post_disconnect_retry_count") != data["retry"].get("post_disconnect_count"):
     raise SystemExit("summary post-disconnect retry count mismatch")
+if data["retry"].get("pre_connect_count") != "2" or data["retry"].get("post_disconnect_count") != "2":
+    raise SystemExit("status JSON should prefer recorded retry counts over current environment")
 if summary.get("reconnects_after_disconnect") is not True:
     raise SystemExit("summary should report reconnect after disconnect")
 if summary.get("fresh_session_on_reconnect") is not True:
@@ -177,7 +179,8 @@ grep -q '^retry_scope=pre-connect+post-disconnect$' "$tmp/status-human.out"
 grep -q '^retry_until_first_connection=yes$' "$tmp/status-human.out"
 grep -q '^session_resume_supported=no$' "$tmp/status-human.out"
 grep -q '^pre_connect_retry_count=' "$tmp/status-human.out"
-grep -q '^post_disconnect_retry_count=' "$tmp/status-human.out"
+grep -q '^pre_connect_retry_count=2$' "$tmp/status-human.out"
+grep -q '^post_disconnect_retry_count=2$' "$tmp/status-human.out"
 grep -q '^would_reconnect_after_success_attempt_0=' "$tmp/status-human.out"
 grep -q '^would_reconnect_after_success_attempt_1=' "$tmp/status-human.out"
 grep -q '^would_reconnect_after_success_attempt_2=' "$tmp/status-human.out"
@@ -185,6 +188,7 @@ grep -q '^target_dropbear=' "$tmp/status-human.out"
 grep -q '^server_listener=scripts/busierbox-server --transport ssh --ssh-port ' "$tmp/status-human.out"
 grep -q '^zero_arg_autorun=' "$tmp/status-human.out"
 
+rm -f "$tmp/guard/rshell.status"
 BB_RSHELL_SESSION_POLICY=reconnect BB_RSHELL_RETRY_COUNT=1 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --transport ssh >"$tmp/status-human-reconnect.out"
 grep -q '^session_policy=reconnect$' "$tmp/status-human-reconnect.out"
 grep -q '^stop_after_first_success=no$' "$tmp/status-human-reconnect.out"
@@ -195,7 +199,6 @@ grep -q '^post_disconnect_retry_count=' "$tmp/status-human-reconnect.out"
 grep -q '^would_reconnect_after_success_attempt_0=yes$' "$tmp/status-human-reconnect.out"
 grep -q '^would_reconnect_after_success_attempt_1=no$' "$tmp/status-human-reconnect.out"
 
-rm -f "$tmp/guard/rshell.status"
 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/inactive.json"
 python3 -m json.tool "$tmp/inactive.json" >/dev/null
 python3 - "$tmp/inactive.json" <<'PY'
