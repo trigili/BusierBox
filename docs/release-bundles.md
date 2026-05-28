@@ -253,7 +253,10 @@ pre/post-disconnect retry counts so postmortem evidence can be read without
 reconstructing policy semantics from compiled defaults. SSH reverse-forward
 mode runs `dbclient` through a guard-path supervisor so disconnect handling uses
 the same `single`, `reconnect`, and `persistent` policy semantics as the direct
-shell transports.
+shell transports. Release tuple summaries and tuple `MANIFEST.json` records
+include the reverse-access `session_policy_valid`, `session_policy_errors`, and
+`session_policy_summary` fields, so release browsers can expose reconnect
+behavior without opening each target artifact manifest.
 
 For the builtin TLS shell preset, prepare the operator listener and then run the
 artifact explicitly:

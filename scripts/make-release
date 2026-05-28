@@ -1461,6 +1461,8 @@ def artifact_summary(release_dir, rec, include_missing=False):
     doom_wads = (payload_manifest or {}).get("doom_wads") or []
     native = [key for key, value in sorted(native_features.items()) if value is True]
     noresidue_level = runtime.get("noresidue_level")
+    rshell_policy = rshell.get("session_policy")
+    rshell_policy_summary = rshell_session_policy_summary(rshell_policy, rshell.get("retry") or {})
     summary = {
         "artifact": rec.get("artifact"),
         "target": (payload_manifest or {}).get("target") or rec.get("resolved_target") or rec.get("target"),
@@ -1472,7 +1474,10 @@ def artifact_summary(release_dir, rec, include_missing=False):
         "recovery_workflows": recovery_workflows_summary(native_features),
         "reverse_access": {
             "transport": rshell.get("transport"),
-            "session_policy": rshell.get("session_policy"),
+            "session_policy": rshell_policy,
+            "session_policy_valid": rshell.get("session_policy_valid", rshell_policy_summary.get("valid")),
+            "session_policy_errors": rshell.get("session_policy_errors", rshell_policy_summary.get("errors")),
+            "session_policy_summary": rshell_policy_summary,
             "operator_host": rshell.get("operator_host"),
             "operator_shell_port": rshell.get("operator_shell_port"),
             "operator_ssh_port": rshell.get("operator_ssh_port"),
@@ -1577,6 +1582,26 @@ def noresidue_policy_summary(runtime_mode, level):
             if aggressive else
             "best-effort cleanup removes owned runtime state where reasonable"
         ),
+    }
+
+
+def rshell_session_policy_summary(policy, retry):
+    policy = policy or "single"
+    valid = policy in ("single", "reconnect", "persistent")
+    reconnects = policy in ("reconnect", "persistent")
+    persistent = policy == "persistent"
+    return {
+        "valid": valid,
+        "errors": [] if valid else ["unsupported rshell session policy"],
+        "retry_scope": "pre-connect+post-disconnect" if reconnects else "pre-connect",
+        "retry_until_first_connection": True,
+        "stop_after_first_success": policy == "single",
+        "reconnect_after_disconnect": reconnects,
+        "persistent_lifecycle": persistent,
+        "fresh_session_on_reconnect": reconnects,
+        "session_resume_supported": False,
+        "pre_connect_retry_count": str((retry or {}).get("count", "")),
+        "post_disconnect_retry_count": "-1" if persistent else ("0" if policy == "single" else str((retry or {}).get("count", ""))),
     }
 
 

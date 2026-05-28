@@ -244,6 +244,20 @@ summary = artifact.get("tuple_summary") or {}
 for key in ("payload_manifest", "native_applets", "busybox_applets", "core_extraction_behavior", "trailer_overridable_fields", "command_queue", "noresidue_policy", "recovery_workflows", "doom_wads"):
     if key not in summary:
         raise SystemExit(f"tuple summary missing {key}")
+reverse = summary.get("reverse_access") or {}
+reverse_policy = reverse.get("session_policy_summary") or {}
+if (reverse.get("session_policy") != "single" or
+        reverse.get("session_policy_valid") is not True or
+        reverse.get("session_policy_errors") != [] or
+        reverse_policy.get("retry_scope") != "pre-connect" or
+        reverse_policy.get("retry_until_first_connection") is not True or
+        reverse_policy.get("stop_after_first_success") is not True or
+        reverse_policy.get("reconnect_after_disconnect") is not False or
+        reverse_policy.get("persistent_lifecycle") is not False or
+        reverse_policy.get("fresh_session_on_reconnect") is not False or
+        reverse_policy.get("session_resume_supported") is not False or
+        reverse_policy.get("post_disconnect_retry_count") != "0"):
+    raise SystemExit(f"tuple summary reverse access policy missing: {reverse!r}")
 queue = summary.get("command_queue") or {}
 if (queue.get("enabled") != "no" or
         queue.get("default_enabled") is not False or
@@ -313,6 +327,20 @@ summary = artifacts[0]
 for key in ("payload_preset", "runtime_mode", "noresidue_level", "payload_manifest", "native_applets", "busybox_applets", "heavy_tools", "sha256", "config", "command_queue", "noresidue_policy", "recovery_workflows", "doom_wads"):
     if key not in summary:
         raise SystemExit(f"tuple artifact summary missing {key}")
+reverse = summary.get("reverse_access") or {}
+reverse_policy = reverse.get("session_policy_summary") or {}
+if (reverse.get("session_policy") != "single" or
+        reverse.get("session_policy_valid") is not True or
+        reverse.get("session_policy_errors") != [] or
+        reverse_policy.get("retry_scope") != "pre-connect" or
+        reverse_policy.get("retry_until_first_connection") is not True or
+        reverse_policy.get("stop_after_first_success") is not True or
+        reverse_policy.get("reconnect_after_disconnect") is not False or
+        reverse_policy.get("persistent_lifecycle") is not False or
+        reverse_policy.get("fresh_session_on_reconnect") is not False or
+        reverse_policy.get("session_resume_supported") is not False or
+        reverse_policy.get("post_disconnect_retry_count") != "0"):
+    raise SystemExit(f"tuple manifest reverse access policy missing: {reverse!r}")
 queue = summary.get("command_queue") or {}
 if (queue.get("enabled") != "no" or
         queue.get("default_enabled") is not False or
