@@ -329,6 +329,7 @@ if env("STAGED_FETCH_COMMAND"):
     })
 
 command_record_summary = {
+    "total_count": len(next_operator_records) + len(next_target_records),
     "operator_count": len(next_operator_records),
     "target_count": len(next_target_records),
     "target_network_count": sum(1 for item in next_target_records if item.get("network") is True),
@@ -375,6 +376,14 @@ for item in next_command_records:
         next_command_records_by_side_service.setdefault(f"{side}:{service}", []).append(item)
     if service and purpose:
         next_command_records_by_service_purpose.setdefault(f"{service}:{purpose}", []).append(item)
+
+def api_collection_record(name, records, indexes, summary_key):
+    return {
+        "name": name,
+        "count": len(records),
+        "indexes": list(indexes),
+        "summary_key": summary_key,
+    }
 
 recommendation_summary = {}
 recommendation_path = env("RECOMMENDATION_JSON")
@@ -474,7 +483,19 @@ run_files = {
     "selected_artifact": file_record("selected_artifact", env("SELECTED_ARTIFACT")),
     "recommended_artifact": file_record("recommended_artifact", env("RECOMMENDED_ARTIFACT")),
 }
+run_file_records = list(run_files.values())
+run_files_by_expected_kind = {}
+run_files_by_exists = {}
+run_files_by_readable = {}
+for item in run_file_records:
+    run_files_by_expected_kind.setdefault(str(item.get("expected_kind") or ""), []).append(item)
+    run_files_by_exists.setdefault("yes" if item.get("exists") else "no", []).append(item)
+    run_files_by_readable.setdefault("yes" if item.get("readable") else "no", []).append(item)
 doc["run_files"] = run_files
+doc["run_file_records"] = run_file_records
+doc["run_files_by_expected_kind"] = run_files_by_expected_kind
+doc["run_files_by_exists"] = run_files_by_exists
+doc["run_files_by_readable"] = run_files_by_readable
 doc["run_file_summary"] = {
     "total_count": len(run_files),
     "exists_count": sum(1 for item in run_files.values() if item.get("exists")),
@@ -482,6 +503,34 @@ doc["run_file_summary"] = {
     "readable_count": sum(1 for item in run_files.values() if item.get("readable")),
     "writable_count": sum(1 for item in run_files.values() if item.get("writable")),
     "total_size": sum(int(item.get("size") or 0) for item in run_files.values()),
+}
+doc["api_collections"] = {
+    "next_command_records": api_collection_record(
+        "next_command_records",
+        next_command_records,
+        (
+            "next_command_records_by_side",
+            "next_command_records_by_service",
+            "next_command_records_by_purpose",
+            "next_command_records_by_side_service",
+            "next_command_records_by_service_purpose",
+            "next_command_records_by_request",
+            "next_command_records_by_stage_kind",
+            "next_command_records_by_source_path",
+        ),
+        "command_record_summary.total_count",
+    ),
+    "run_file_records": api_collection_record(
+        "run_file_records",
+        run_file_records,
+        (
+            "run_files",
+            "run_files_by_expected_kind",
+            "run_files_by_exists",
+            "run_files_by_readable",
+        ),
+        "run_file_summary.total_count",
+    ),
 }
 path = env("SUMMARY_PATH")
 with open(path, "w", encoding="utf-8") as fh:

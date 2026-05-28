@@ -142,14 +142,17 @@ with side/effect metadata, a combined `next_command_records` list,
 records like `target:file-service` or
 `file-service:explicitly fetch operator-staged artifact or config` without
 rescanning every command. `command_record_summary` includes operator/target,
-networked target action, listener, execution-safety counts, and booleans that
-state whether all next commands require explicit operator/target action. The
-summary also includes `run_files` and `run_file_summary` records for the local
-run directory, survey JSON, reality-test JSON, recommendation JSON,
+networked target action, listener, staged fetch, execution-safety counts, and
+booleans that state whether all next commands require explicit operator/target
+action. The summary also includes `run_files`, flat `run_file_records`, and
+`run_file_summary` records for the local run directory, survey JSON, reality-test JSON, recommendation JSON,
 recommended config, generated target preset, release-find result, and
 selected/recommended artifacts. Those file records include path, expected kind,
 existence, readability, writability, and size so dashboards and audits can
 render a bringup run without separately probing the filesystem. The summary
+publishes `api_collections` metadata for `next_command_records` and
+`run_file_records`, mirroring the collection/index discovery pattern used by
+`scripts/busierbox-server --api-status`.
 also includes a `safety_boundary` object that states that bringup does not
 enable network autorun, hidden control channels, command queue execution, or
 default remote command execution.
