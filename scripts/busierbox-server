@@ -759,6 +759,21 @@ def records_by_key(records, key):
     return grouped
 
 
+def records_by_list_item(records, key):
+    grouped = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        values = rec.get(key) or []
+        if not isinstance(values, list):
+            values = [values]
+        for value in values:
+            if value in (None, ""):
+                continue
+            grouped.setdefault(str(value), []).append(rec)
+    return grouped
+
+
 def latest_record_value(records, keys):
     latest = ""
     for rec in records or []:
@@ -2602,8 +2617,11 @@ def release_context(cfg=None):
             },
             "devices": devices,
             "devices_by_name": {rec.get("name", ""): rec for rec in devices if rec.get("name")},
+            "devices_by_tuple_path": records_by_key(devices, "tuple_path"),
+            "devices_by_artifact": records_by_list_item(devices, "artifacts"),
             "tuples": tuples,
             "tuples_by_path": {rec.get("path", ""): rec for rec in tuples if rec.get("path")},
+            "tuples_by_artifact": records_by_list_item(tuples, "artifacts"),
             "recommendations": recommendations,
             "recommendation_records": recommendation_records,
             "recommendations_by_id": {rec.get("id", ""): rec for rec in recommendation_records if rec.get("id")},
@@ -5275,6 +5293,9 @@ def status_document(cfg):
         "release_tuple_count": len(release.get("tuples") or []),
         "release_device_artifact_reference_count": record_sum_by_key(release.get("devices") or [], "artifact_count"),
         "release_tuple_artifact_reference_count": record_sum_by_key(release.get("tuples") or [], "artifact_count"),
+        "release_device_tuple_path_counts": record_count_by_key(release.get("devices") or [], "tuple_path"),
+        "release_device_artifact_counts": {key: len(value) for key, value in (release.get("devices_by_artifact") or {}).items()},
+        "release_tuple_artifact_counts": {key: len(value) for key, value in (release.get("tuples_by_artifact") or {}).items()},
         "release_artifact_compatibility_counts": (release.get("artifact_stats") or {}).get("by_compatibility") or {},
         "release_artifact_payload_preset_counts": (release.get("artifact_stats") or {}).get("by_payload_preset") or {},
         "release_artifact_source_counts": (release.get("artifact_stats") or {}).get("by_source") or {},
@@ -5381,12 +5402,12 @@ def status_document(cfg):
         ),
         "release_devices": api_collection_record(
             "release_devices", release.get("devices") or [], "name", (
-                "devices_by_name",
+                "devices_by_name", "devices_by_tuple_path", "devices_by_artifact",
             ), "release_device_count",
         ),
         "release_tuples": api_collection_record(
             "release_tuples", release.get("tuples") or [], "path", (
-                "tuples_by_path",
+                "tuples_by_path", "tuples_by_artifact",
             ), "release_tuple_count",
         ),
         "command_queue_commands": api_collection_record(

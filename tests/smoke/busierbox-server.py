@@ -2704,12 +2704,16 @@ def main():
         release_artifacts_by_doom_wad_filename = rel.get("artifacts_by_doom_wad_filename") or {}
         release_artifacts_by_doom_wad_sha256 = rel.get("artifacts_by_doom_wad_sha256") or {}
         release_device_map = rel.get("devices_by_name") or {}
+        release_devices_by_tuple_path = rel.get("devices_by_tuple_path") or {}
+        release_devices_by_artifact = rel.get("devices_by_artifact") or {}
         release_tuple_map = rel.get("tuples_by_path") or {}
+        release_tuples_by_artifact = rel.get("tuples_by_artifact") or {}
         release_recommendations = rel.get("recommendations") or {}
         release_recommendation_records = rel.get("recommendation_records") or []
         release_recommendations_by_scope = rel.get("recommendations_by_scope") or {}
         release_recommendations_by_artifact = rel.get("recommendations_by_artifact") or {}
         release_artifact_size = len("artifact\n")
+        release_layout_artifact = "by-tuple/native/host/host/host/bin/busierbox-test"
         doom_wad_sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
         if (release_artifact_map.get("bin/busierbox-test", {}).get("name") != "busierbox-test" or
                 release_artifacts_by_name.get("busierbox-test", [{}])[0].get("release_path") != "bin/busierbox-test" or
@@ -2740,7 +2744,10 @@ def main():
                 rel.get("artifact_stats", {}).get("by_doom_wad_sha256", {}).get(doom_wad_sha) != 1 or
                 rel.get("artifact_stats", {}).get("doom_wad_count") != 1 or
                 release_device_map.get("lab-router", {}).get("tuple_path") != "by-tuple/native/host/host/host" or
+                release_devices_by_tuple_path.get("by-tuple/native/host/host/host", [{}])[0].get("name") != "lab-router" or
+                release_devices_by_artifact.get(release_layout_artifact, [{}])[0].get("tuple_path") != "by-tuple/native/host/host/host" or
                 release_tuple_map.get("by-tuple/native/host/host/host", {}).get("artifact_count") != 1 or
+                release_tuples_by_artifact.get(release_layout_artifact, [{}])[0].get("path") != "by-tuple/native/host/host/host" or
                 release_recommendations.get("by_device", {}).get("lab-router", {}).get("name") != "busierbox-test" or
                 release_recommendations.get("by_tuple_path", {}).get("by-tuple/native/host/host/host", {}).get("sha256") != "abc123" or
                 release_recommendations.get("by_tool", {}).get("sh", {}).get("payload_preset") != "default" or
@@ -2806,6 +2813,9 @@ def main():
                 release_summary.get("release_tuple_count") != 1 or
                 release_summary.get("release_device_artifact_reference_count") != 1 or
                 release_summary.get("release_tuple_artifact_reference_count") != 1 or
+                release_summary.get("release_device_tuple_path_counts", {}).get("by-tuple/native/host/host/host") != 1 or
+                release_summary.get("release_device_artifact_counts", {}).get(release_layout_artifact) != 1 or
+                release_summary.get("release_tuple_artifact_counts", {}).get(release_layout_artifact) != 1 or
                 release_summary.get("release_artifact_compatibility_counts", {}).get("exact") != 1 or
                 release_summary.get("release_artifact_payload_preset_counts", {}).get("default") != 1 or
                 release_summary.get("release_artifact_source_counts", {}).get("release-index") != 1 or
@@ -2823,6 +2833,13 @@ def main():
                 release_summary.get("release_recommendation_count", 0) < 1 or
                 release_summary.get("release_recommendation_scope_counts", {}).get("by_device") != 1):
             print("json status missing release aggregate counts", file=sys.stderr)
+            print(release_status.stdout, file=sys.stderr)
+            return 1
+        release_api = release_doc.get("api_collections") or {}
+        if ("devices_by_tuple_path" not in (release_api.get("release_devices", {}).get("indexes") or []) or
+                "devices_by_artifact" not in (release_api.get("release_devices", {}).get("indexes") or []) or
+                "tuples_by_artifact" not in (release_api.get("release_tuples", {}).get("indexes") or [])):
+            print("json status missing release device/tuple api collection indexes", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
         invalid_release_dir = Path(tmp) / "invalid-release"

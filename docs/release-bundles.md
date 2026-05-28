@@ -465,7 +465,11 @@ basename/hash in `release_artifact_doom_wad_filename_counts` and
 `release_artifact_doom_wad_count`.
 Device and tuple artifact reference totals are mirrored as
 `release_device_artifact_reference_count` and
-`release_tuple_artifact_reference_count`.
+`release_tuple_artifact_reference_count`. Release devices are grouped in
+`devices_by_name`, `devices_by_tuple_path`, and `devices_by_artifact`; release
+tuples are grouped in `tuples_by_path` and `tuples_by_artifact`. The summary
+mirrors those browser counts in `release_device_tuple_path_counts`,
+`release_device_artifact_counts`, and `release_tuple_artifact_counts`.
 Release `tuple_summary` records and generated `release-index` artifact rows
 also carry `tool_provider_status`, which mirrors payload-manifest provider
 checks such as the effective gdbserver local drop-in search path, executable
