@@ -552,7 +552,7 @@ static void recovery_print_status_indexes(const char *root, const char *name)
 
 static void recovery_print_status_api_collections(int installed_count)
 {
-    printf(",\"api_collections\":{\"installations\":{\"name\":\"installations\",\"count\":%d,\"count_summary_key\":\"summary.installation_count\",\"summary_key\":\"summary.installation_count\",\"indexes\":[", installed_count);
+    printf(",\"api_collections\":{\"installations\":{\"name\":\"installations\",\"count\":%d,\"count_summary_key\":\"summary.installation_count\",\"primary_key\":\"method\",\"summary_key\":\"summary.installation_count\",\"indexes\":[", installed_count);
     fputs("\"installations_by_method\",", stdout);
     fputs("\"installations_by_action\",", stdout);
     fputs("\"installations_by_category\",", stdout);
@@ -770,13 +770,13 @@ static void recovery_print_survey_indexes(void)
 static void recovery_print_survey_api_collections(void)
 {
     fputs(",\"api_collections\":{", stdout);
-    printf("\"storage\":{\"name\":\"storage\",\"count\":%zu,\"count_summary_key\":\"summary.storage_count\",\"summary_key\":\"summary.storage_count\",\"indexes\":[",
+    printf("\"storage\":{\"name\":\"storage\",\"count\":%zu,\"count_summary_key\":\"summary.storage_count\",\"primary_key\":\"path\",\"summary_key\":\"summary.storage_count\",\"indexes\":[",
            sizeof(recovery_storage_paths) / sizeof(recovery_storage_paths[0]));
     fputs("\"storage_by_class\",\"storage_by_survives_reboot\"", stdout);
-    printf("]},\"methods\":{\"name\":\"methods\",\"count\":%zu,\"count_summary_key\":\"summary.method_count\",\"summary_key\":\"summary.method_count\",\"indexes\":[",
+    printf("]},\"methods\":{\"name\":\"methods\",\"count\":%zu,\"count_summary_key\":\"summary.method_count\",\"primary_key\":\"name\",\"summary_key\":\"summary.method_count\",\"indexes\":[",
            sizeof(recovery_methods) / sizeof(recovery_methods[0]));
     fputs("\"methods_by_name\",\"methods_by_survives_reboot\",\"methods_by_intrusiveness\",\"methods_by_requires_external_write\"", stdout);
-    printf("]},\"actions\":{\"name\":\"actions\",\"count\":%zu,\"count_summary_key\":\"summary.action_count\",\"summary_key\":\"summary.action_count\",\"indexes\":[",
+    printf("]},\"actions\":{\"name\":\"actions\",\"count\":%zu,\"count_summary_key\":\"summary.action_count\",\"primary_key\":\"name\",\"summary_key\":\"summary.action_count\",\"indexes\":[",
            (sizeof(recovery_actions) / sizeof(recovery_actions[0])) - 1);
     fputs("\"actions_by_name\",\"actions_by_category\",\"actions_by_uploads_evidence\",\"actions_by_collects_dmesg\",\"actions_by_starts_rshell\",\"actions_by_executes_operator_supplied_command\",\"actions_by_command_queue_enabled\",\"actions_by_hidden_control_channel\"", stdout);
     fputs("]}}", stdout);

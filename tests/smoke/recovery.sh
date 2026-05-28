@@ -43,12 +43,15 @@ assert summary["hidden_control_channel_action_count"] == 0
 api = data["api_collections"]
 assert api["storage"]["count"] == summary["storage_count"]
 assert api["storage"]["count_summary_key"] == "summary.storage_count"
+assert api["storage"]["primary_key"] == "path"
 assert api["storage"]["summary_key"] == "summary.storage_count"
 assert api["methods"]["count"] == summary["method_count"]
 assert api["methods"]["count_summary_key"] == "summary.method_count"
+assert api["methods"]["primary_key"] == "name"
 assert api["methods"]["summary_key"] == "summary.method_count"
 assert api["actions"]["count"] == summary["action_count"]
 assert api["actions"]["count_summary_key"] == "summary.action_count"
+assert api["actions"]["primary_key"] == "name"
 assert api["actions"]["summary_key"] == "summary.action_count"
 assert set(api["storage"]["indexes"]) >= {
     "storage_by_class",
@@ -198,6 +201,7 @@ item = next(item for item in data["installations"] if item["method"] == "rc-loca
 api = data["api_collections"]["installations"]
 assert api["count"] == summary["installation_count"]
 assert api["count_summary_key"] == "summary.installation_count"
+assert api["primary_key"] == "method"
 assert api["summary_key"] == "summary.installation_count"
 assert set(api["indexes"]) >= {
     "installations_by_method",

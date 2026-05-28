@@ -15,8 +15,9 @@ The survey reports likely persistent storage (`/overlay`, `/root`, `/etc`,
 whether each candidate path exists and appears writable.
 `persistence --survey --json` also includes `summary` counts,
 `api_collections` metadata with explicit `count`, `summary_key`, and
-backward-compatible `count_summary_key` fields, plus index maps such as `storage_by_class`,
-`storage_by_survives_reboot`, `methods_by_name`,
+backward-compatible `count_summary_key` fields, stable `primary_key` names for
+the storage, method, and action records, plus index maps such as
+`storage_by_class`, `storage_by_survives_reboot`, `methods_by_name`,
 `methods_by_intrusiveness`, and `methods_by_requires_external_write` so
 operator UIs can filter survey results without scraping the human table.
 It also publishes an `actions` collection with `actions_by_name`,
@@ -80,7 +81,7 @@ a command queue, or creates a hidden control channel. The summary mirrors compac
 counts such as available/installed evidence uploads, `dmesg` actions, `rshell` actions, and
 operator-supplied command actions for audits. The JSON also includes
 `api_collections.installations` with the same count and summary-key metadata,
-`installations_by_method`, `installations_by_action`, and
+`primary_key: method`, `installations_by_method`, `installations_by_action`, and
 `installations_by_category` maps whose values are indexes into the
 `installations` array, plus composite `installations_by_method_action` and
 `installations_by_category_action` maps for direct lookups such as
