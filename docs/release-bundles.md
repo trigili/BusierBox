@@ -122,9 +122,11 @@ scripts/release-self-test --json
 same validation passes. The JSON includes release and index artifact counts,
 tuple/device counts, helper checks, checksum verification, manifest sidecar
 counts, artifact-config round-trip counts, compatibility and payload-preset
-counts, and command-queue safety counters. That gives release dashboards and
-integration reports a compact self-test summary without scraping the human
-`release-self-test ok` line.
+counts, and command-queue safety counters such as
+`command_queue_execution_supported_count` and
+`command_queue_operator_supplied_command_execution_count`. That gives release
+dashboards and integration reports a compact self-test summary without scraping
+the human `release-self-test ok` line.
 
 Use `scripts/release-find` to choose an artifact without reading every
 manifest:

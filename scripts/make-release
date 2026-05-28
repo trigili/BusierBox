@@ -1129,6 +1129,7 @@ def write_release_helpers(script_dir):
             "command_queue_token_required_count": 0,
             "command_queue_token_configured_count": 0,
             "command_queue_execution_supported_count": 0,
+            "command_queue_operator_supplied_command_execution_count": 0,
             "command_queue_mode_count": 0,
             "compatibility_counts": {},
             "payload_preset_counts": {},
@@ -1163,6 +1164,10 @@ def write_release_helpers(script_dir):
                 diagnostics["command_queue_token_configured_count"] += 1
             if queue.get("execution_supported") is True or queue.get("executes_commands") is True:
                 diagnostics["command_queue_execution_supported_count"] += 1
+            mode_summary = queue.get("mode_summary") or {}
+            diagnostics["command_queue_operator_supplied_command_execution_count"] += int(
+                mode_summary.get("operator_supplied_command_execution_mode_count") or 0
+            )
             diagnostics["command_queue_mode_count"] += len(queue.get("mode_records") or [])
             validate_tuple(rec.get("tuple") or {}, rec.get("artifact") or "artifact")
             for key in ("artifact", "config"):

@@ -601,7 +601,8 @@ if doc.get("artifact_config_roundtrip_count") != 1:
 if (doc.get("command_queue_enabled_count") != 0 or
         doc.get("command_queue_token_required_count") != 1 or
         doc.get("command_queue_token_configured_count") != 0 or
-        doc.get("command_queue_execution_supported_count") != 0):
+        doc.get("command_queue_execution_supported_count") != 0 or
+        doc.get("command_queue_operator_supplied_command_execution_count") != 0):
     raise SystemExit(f"release self-test command queue safety counts unsafe: {doc!r}")
 if doc.get("command_queue_mode_count", 0) < 5:
     raise SystemExit(f"release self-test command queue mode diagnostics missing: {doc!r}")

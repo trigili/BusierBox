@@ -147,6 +147,7 @@ else:
         "command_queue_token_required_count": 1,
         "command_queue_token_configured_count": 0,
         "command_queue_execution_supported_count": 0,
+        "command_queue_operator_supplied_command_execution_count": 0,
     }))
 PY
 chmod +x "$release_tmp/scripts/release-self-test"
