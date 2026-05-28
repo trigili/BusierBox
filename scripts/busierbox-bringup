@@ -33,7 +33,7 @@ Options:
   --survey-json PATH          use an existing survey JSON instead of touching target
   --reality-json PATH         use an existing reality-test JSON for release scoring
   --write-target-preset NAME  write local/presets/targets/NAME.json from survey
-  --release-dir DIR           choose a compatible artifact from a release bundle
+  --release-dir DIR           choose a compatible artifact from a release bundle or local release repository
   --max-compatibility LABEL   reject release artifacts riskier than LABEL
   --configure-trailer         print artifact-config command for operator overrides
   --stage-recommended-artifact
@@ -787,10 +787,10 @@ artifact = first_string(
 selected = data.get("selected")
 if isinstance(selected, dict):
     artifact = artifact or first_string(
-        selected.get("artifact"),
         selected.get("artifact_path"),
         selected.get("path"),
         selected.get("file"),
+        selected.get("artifact"),
     )
 
 compat = data.get("compatibility")
@@ -815,11 +815,26 @@ if isinstance(selected, dict):
     raw_summary = selected.get("tuple_summary") or selected.get("summary")
     if isinstance(raw_summary, dict):
         artifact_summary = raw_summary
+    if not artifact_summary:
+        artifact_summary = {
+            key: selected.get(key)
+            for key in ("reverse_access", "command_queue", "runtime_mode", "noresidue_level", "payload_preset")
+            if selected.get(key) not in (None, "", [], {})
+        }
+    if not compat and isinstance(selected.get("compatibility"), dict):
+        compat = selected.get("compatibility")
+        label = first_string(compat.get("label"), compat.get("score"), compat.get("status"))
+        raw = compat.get("reasons", [])
+        reasons = raw if isinstance(raw, list) else [raw]
 if not label:
     label = first_string(data.get("compatibility_label"), data.get("score"), data.get("label"))
 if not reasons:
     raw = data.get("reasons", [])
     reasons = raw if isinstance(raw, list) else [raw]
+release_self_test_json = ""
+release_self_test = selected.get("release_self_test") if isinstance(selected, dict) else None
+if isinstance(release_self_test, dict):
+    release_self_test_json = first_string(release_self_test.get("path"))
 
 import shlex
 
@@ -831,6 +846,8 @@ values = {
     "selected_doom_wads_json": json.dumps(doom_wads),
     "selected_artifact_summary_json": json.dumps(artifact_summary),
 }
+if release_self_test_json:
+    values["release_self_test_json"] = release_self_test_json
 for key, value in values.items():
     print(f"{key}={shlex.quote(str(value))}")
 PY
@@ -861,14 +878,22 @@ choose_release_artifact() {
     if [ -n "$max_compatibility" ]; then
         max_args=yes
     fi
-    set -- scripts/release-find --release-dir "$release_dir" --survey-json "$survey"
-    if [ -f "$reality" ]; then
-        set -- "$@" --reality-json "$reality"
+    if [ -x "$release_dir/scripts/release-find" ]; then
+        set -- scripts/release-find --release-dir "$release_dir" --survey-json "$survey"
+        if [ -f "$reality" ]; then
+            set -- "$@" --reality-json "$reality"
+        fi
+        if [ "$max_args" = yes ]; then
+            set -- "$@" --max-compatibility "$max_compatibility"
+        fi
+        set -- "$@" --json
+    else
+        set -- scripts/find-artifact --release-root "$release_dir" --survey-json "$survey" --payload-preset "$payload_preset" --recommendation-json
+        if [ "$max_args" = yes ]; then
+            set -- "$@" --max-compatibility "$max_compatibility"
+        fi
     fi
-    if [ "$max_args" = yes ]; then
-        set -- "$@" --max-compatibility "$max_compatibility"
-    fi
-    if "$@" --json >"$release_find_json" 2>"$run_dir/release-find.err"; then
+    if "$@" >"$release_find_json" 2>"$run_dir/release-find.err"; then
         eval "$(extract_release_selection)"
     else
         write_summary fail "release artifact selection failed"
@@ -897,7 +922,7 @@ stage_artifact_for_fetch() {
         exit 1
     }
     staged_request_name=$(basename "$artifact_to_stage")
-    if [ -n "$selected_artifact" ] && [ -n "$release_dir" ]; then
+    if [ -n "$selected_artifact" ] && [ -n "$release_dir" ] && [ -f "$release_dir/release.json" ]; then
         scripts/busierbox-server --release-dir "$release_dir" --stage-release-artifact "$selected_artifact" --list-staged >"$run_dir/staged-artifact.out" 2>"$run_dir/staged-artifact.err" || {
             write_summary fail "release artifact staging failed"
             printf '%s\n' "bringup: release artifact staging failed; see $run_dir/staged-artifact.err" >&2

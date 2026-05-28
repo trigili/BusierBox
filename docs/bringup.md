@@ -74,8 +74,9 @@ scripts/busierbox-bringup \
   --json
 ```
 
-Select a compatible artifact from a release bundle and print the trailer
-override command without executing it:
+Select a compatible artifact from a release bundle, or from a local directory
+containing multiple release bundles, and print the trailer override command
+without executing it:
 
 ```sh
 scripts/busierbox-bringup \
@@ -86,6 +87,11 @@ scripts/busierbox-bringup \
   --operator-host 192.0.2.10 \
   --configure-trailer
 ```
+
+When `--release-dir` points at a release repository instead of one bundle,
+bringup uses `scripts/find-artifact --survey-json` to derive unset tuple
+filters from the captured survey, then keeps the same explicit fetch/staging
+safety boundary.
 
 Stage the selected release artifact, or `recommended.conf` when no artifact is
 available yet, for explicit target-side fetch:

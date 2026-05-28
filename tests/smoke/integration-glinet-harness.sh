@@ -164,6 +164,81 @@ printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.std
 printf '%s\n' "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); api=d["api_collections"]; detail=d["selected_artifact_detail_summary"]; providers=d["selected_tool_provider_status_records"]; wads=d["selected_doom_wad_records"]; assert detail["tool_provider_status_count"] == len(providers) == 1; assert detail["tool_provider_overall_counts"]["found"] == 1; assert d["selected_tool_provider_status_by_tool"]["gdbserver"][0]["overall"] == "found"; assert d["selected_tool_provider_status_by_overall"]["found"][0]["tool"] == "gdbserver"; assert api["selected_tool_provider_status_records"]["count"] == 1; assert api["selected_tool_provider_status_records"]["primary_key"] == "tool"; assert api["selected_tool_provider_status_records"]["count_summary_key"] == "selected_artifact_detail_summary.tool_provider_status_count"; assert "selected_tool_provider_status_by_tool" in api["selected_tool_provider_status_records"]["indexes"]; assert detail["doom_wad_count"] == len(wads) == 1; assert detail["doom_wad_filename_count"] == 1; assert d["selected_doom_wads_by_filename"]["doom.wad"][0]["size"] == 9; assert d["selected_doom_wads_by_sha256"][wads[0]["sha256"]][0]["filename"] == "doom.wad"; assert api["selected_doom_wad_records"]["primary_key"] == "filename"; assert api["selected_doom_wad_records"]["summary_key"] == "selected_artifact_detail_summary.doom_wad_count"; assert api["selected_doom_wad_records"]["count_summary_key"] == "selected_artifact_detail_summary.doom_wad_count"'
 printf '%s\n' "$release_json" | python3 -c 'import json,sys,pathlib; d=json.load(sys.stdin); out=pathlib.Path(d["run_dir"]) / "staged-artifact.out"; text=out.read_text(encoding="utf-8"); assert "release-artifact" in text; assert "release=bin/busierbox-mipsel-full" in text; assert "compatibility=likely" in text'
 rm -rf "$release_tmp"
+release_repo_tmp=$(mktemp -d "${TMPDIR:-/tmp}/busierbox-bringup-release-repo.XXXXXX")
+release_repo_bundle="$release_repo_tmp/releases/repo-one"
+mkdir -p "$release_repo_bundle/bin"
+printf '%s\n' "repo artifact" >"$release_repo_bundle/bin/busierbox-mipsel-survey-full"
+cat >"$release_repo_bundle/release.json" <<'JSON'
+{
+  "schema": 1,
+  "release_name": "repo-one",
+  "layout": {
+    "devices": {},
+    "tuples": {}
+  },
+  "artifacts": []
+}
+JSON
+cat >"$release_repo_bundle/release-index.json" <<'JSON'
+{
+  "schema": 1,
+  "release_name": "repo-one",
+  "devices": {},
+  "tuples": {
+    "by-tuple/mipsel/musl/4.x/mips32r2-24kc": {
+      "tuple": {
+        "arch": "mipsel",
+        "libc": "musl",
+        "kernel_floor": "4.x",
+        "cpu": "mips32r2-24kc",
+        "abi": "default"
+      },
+      "artifacts": ["by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/busierbox-mipsel-survey-full"]
+    }
+  },
+  "artifacts": [
+    {
+      "artifact": "bin/busierbox-mipsel-survey-full",
+      "tuple_artifact": "bin/busierbox-mipsel-survey-full",
+      "tuple_path": "by-tuple/mipsel/musl/4.x/mips32r2-24kc",
+      "tuple": {
+        "arch": "mipsel",
+        "libc": "musl",
+        "kernel_floor": "4.x",
+        "cpu": "mips32r2-24kc",
+        "abi": "default"
+      },
+      "payload_preset": "survey-core",
+      "runtime_mode": "extract",
+      "reverse_access": {"transport": "ssh", "session_policy": "single"},
+      "command_queue": {"enabled": "no", "executes_commands": false},
+      "sha256": "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+      "size": 14,
+      "tools": ["sh"],
+      "compatibility": {"schema": 1, "label": "exact", "reasons": ["survey repo match"]}
+    }
+  ]
+}
+JSON
+cat >"$release_repo_bundle/release-self-test.json" <<'JSON'
+{
+  "schema": 1,
+  "status": "pass",
+  "release_name": "repo-one",
+  "checked_artifact_count": 1,
+  "release_tuple_count": 1,
+  "release_device_count": 0,
+  "command_queue_enabled_count": 0,
+  "command_queue_token_required_count": 1,
+  "command_queue_token_configured_count": 0,
+  "command_queue_execution_supported_count": 0,
+  "command_queue_operator_supplied_command_execution_count": 0
+}
+JSON
+repo_release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --release-dir "$release_repo_tmp/releases" --stage-recommended-artifact --json)
+printf '%s\n' "$repo_release_json" | python3 -c 'import json,sys,pathlib; d=json.load(sys.stdin); files=d["run_files"]; summary=d["selected_artifact_summary"]; assert d["selected_artifact"].endswith("busierbox-mipsel-survey-full"); assert d["compatibility"]["label"] == "exact"; assert d["compatibility"]["reasons"] == ["survey repo match"]; assert summary["command_queue"]["enabled"] == "no"; assert summary["reverse_access"]["transport"] == "ssh"; assert d["release_self_test_summary"]["release_name"] == "repo-one"; assert files["release_self_test_json"]["exists"] is True; assert files["release_find_json"]["exists"] is True; assert pathlib.Path(d["run_dir"], "staged-artifact.out").read_text(encoding="utf-8").find("busierbox fetch busierbox-mipsel-survey-full") >= 0'
+printf '%s\n' "$repo_release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); rec=d["next_command_records_by_request"][d["staged_request_name"]]; assert rec["stage_kind"] == "release-artifact"; assert rec["source_path"] == d["selected_artifact"]; assert rec["compatibility"]["label"] == "exact"; assert d["command_record_summary"]["target_staged_fetch_count"] == 1'
+rm -rf "$release_repo_tmp"
 grep -q 'BUSIERBOX_CONFIG="$recommended" make package' scripts/busierbox-bringup
 grep -q 'Bringup is a guided onboarding flow' README.md
 grep -q 'docs/bringup.md' README.md
