@@ -1044,6 +1044,23 @@ def write_release_helpers(script_dir):
         import tempfile
 
         root = pathlib.Path(__file__).resolve().parents[1]
+        json_output = False
+
+        def usage():
+            print("usage: scripts/release-self-test [--json] [--help]")
+            print("")
+            print("Validate this release bundle and optionally emit JSON diagnostics.")
+
+        for arg in sys.argv[1:]:
+            if arg == "--json":
+                json_output = True
+            elif arg in ("--help", "-h"):
+                usage()
+                raise SystemExit(0)
+            else:
+                print(f"release-self-test: unknown argument: {arg}", file=sys.stderr)
+                usage()
+                raise SystemExit(2)
 
         def fail(msg):
             print(f"release-self-test: {msg}", file=sys.stderr)
@@ -1078,22 +1095,69 @@ def write_release_helpers(script_dir):
 
         release = load_json(root / "release.json")
         run([str(root / "scripts" / "verify-checksums"), "--original"])
-        for helper in ("artifact-config", "busierbox-server", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find"):
+        helpers = ("artifact-config", "busierbox-server", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find")
+        for helper in helpers:
             path = root / "scripts" / helper
             if not os.access(path, os.X_OK):
                 fail(f"helper is not executable: scripts/{helper}")
         if not (root / "release-index.json").exists():
             run([str(root / "scripts" / "release-index"), "--write"])
         index = load_json(root / "release-index.json")
+        diagnostics = {
+            "schema": 1,
+            "status": "pass",
+            "release_name": release.get("release_name") or release.get("name", ""),
+            "release_dir": str(root),
+            "checksum_original_verified": True,
+            "helper_count": len(helpers),
+            "helpers": list(helpers),
+            "release_artifact_count": len(release.get("artifacts", []) or []),
+            "release_failure_count": len(release.get("failures", []) or []),
+            "release_tuple_count": len((release.get("layout", {}).get("tuples") or {})),
+            "release_device_count": len((release.get("layout", {}).get("devices") or {})),
+            "index_artifact_count": len(index.get("artifacts", []) or []),
+            "index_tuple_count": len(index.get("tuples") or {}),
+            "index_recommendation_count": len(index.get("recommendations") or []),
+            "manifest_sidecar_count": 0,
+            "tuple_manifest_count": 0,
+            "checked_artifact_count": 0,
+            "native_manifest_checked_count": 0,
+            "artifact_config_roundtrip_count": 0,
+            "device_alias_count": 0,
+            "broken_symlink_count": 0,
+            "command_queue_enabled_count": 0,
+            "command_queue_execution_supported_count": 0,
+            "command_queue_mode_count": 0,
+            "compatibility_counts": {},
+            "payload_preset_counts": {},
+            "runtime_mode_counts": {},
+        }
         layout_tuples = release.get("layout", {}).get("tuples") or {}
         index_tuples = index.get("tuples") or {}
         if sorted(index_tuples) != sorted(layout_tuples):
             fail("release-index tuple keys differ from release layout")
         for path in root.glob("by-tuple/**/MANIFEST.json"):
             load_json(path)
+            diagnostics["tuple_manifest_count"] += 1
         for rec in release.get("artifacts", []):
             if rec.get("build_status") == "failed":
                 continue
+            summary = rec.get("tuple_summary") or rec.get("summary") or {}
+            diagnostics["checked_artifact_count"] += 1
+            compatibility = (summary.get("compatibility") or rec.get("compatibility") or {}).get("label") or "exact"
+            diagnostics["compatibility_counts"][compatibility] = diagnostics["compatibility_counts"].get(compatibility, 0) + 1
+            payload_preset = rec.get("payload_preset") or summary.get("payload_preset") or ""
+            if payload_preset:
+                diagnostics["payload_preset_counts"][payload_preset] = diagnostics["payload_preset_counts"].get(payload_preset, 0) + 1
+            runtime_mode = rec.get("runtime_mode") or summary.get("runtime_mode") or ""
+            if runtime_mode:
+                diagnostics["runtime_mode_counts"][runtime_mode] = diagnostics["runtime_mode_counts"].get(runtime_mode, 0) + 1
+            queue = summary.get("command_queue") or {}
+            if queue.get("enabled") == "yes" or queue.get("enabled") is True:
+                diagnostics["command_queue_enabled_count"] += 1
+            if queue.get("execution_supported") is True or queue.get("executes_commands") is True:
+                diagnostics["command_queue_execution_supported_count"] += 1
+            diagnostics["command_queue_mode_count"] += len(queue.get("mode_records") or [])
             validate_tuple(rec.get("tuple") or {}, rec.get("artifact") or "artifact")
             for key in ("artifact", "config"):
                 rel = rec.get(key)
@@ -1103,6 +1167,8 @@ def write_release_helpers(script_dir):
                 rel = rec.get(key)
                 if rel and not (root / rel).exists():
                     fail(f"missing manifest sidecar: {rel}")
+                if rel:
+                    diagnostics["manifest_sidecar_count"] += 1
             artifact = root / rec["artifact"]
             run([str(root / "scripts" / "artifact-config"), "show", str(artifact)])
             if rec.get("tuple_path") and not (root / rec["tuple_path"]).is_dir():
@@ -1113,12 +1179,15 @@ def write_release_helpers(script_dir):
                 fail(f"missing tuple artifact: {rec['tuple_artifact']}")
             if rec.get("tuple", {}).get("arch") == "native" and os.access(artifact, os.X_OK):
                 run([str(artifact), "manifest", "--json"])
+                diagnostics["native_manifest_checked_count"] += 1
             with tempfile.TemporaryDirectory(prefix=".self-test-", dir=root) as tmp:
                 test_artifact = pathlib.Path(tmp) / artifact.name
                 shutil.copy2(artifact, test_artifact)
                 run([str(root / "scripts" / "artifact-config"), "set", str(test_artifact), "BB_ZERO_ARG_LOG_MODE=quiet"])
                 run([str(root / "scripts" / "artifact-config"), "clear", str(test_artifact)])
+                diagnostics["artifact_config_roundtrip_count"] += 1
         for alias, item in (release.get("layout", {}).get("devices") or {}).items():
+            diagnostics["device_alias_count"] += 1
             dev = root / item.get("path", "")
             if not dev.is_dir():
                 fail(f"missing device alias dir: {alias}")
@@ -1130,8 +1199,12 @@ def write_release_helpers(script_dir):
                 fail(f"device alias {alias} lacks artifacts pointer")
         for path in root.rglob("*"):
             if path.is_symlink() and not path.exists():
+                diagnostics["broken_symlink_count"] += 1
                 fail(f"broken symlink: {path.relative_to(root)}")
-        print("release-self-test ok")
+        if json_output:
+            print(json.dumps(diagnostics, indent=2, sort_keys=True))
+        else:
+            print("release-self-test ok")
         ''',
     )
 

@@ -571,6 +571,41 @@ fi
 grep -q 'no matching artifact within compatibility threshold' "$work/release-find-threshold.err"
 "$work/release/scripts/release-self-test" >/dev/null
 scripts/release-self-test --release-dir "$work/release" >/dev/null
+"$work/release/scripts/release-self-test" --json >"$work/release-self-test.json"
+python3 -m json.tool "$work/release-self-test.json" >/dev/null
+python3 - "$work/release-self-test.json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if doc.get("status") != "pass" or doc.get("release_name") != "smoke":
+    raise SystemExit(f"unexpected release self-test status/name: {doc!r}")
+if doc.get("checksum_original_verified") is not True:
+    raise SystemExit("release self-test did not report checksum verification")
+if doc.get("checked_artifact_count") != 1 or doc.get("native_manifest_checked_count") != 1:
+    raise SystemExit(f"release self-test artifact checks missing: {doc!r}")
+if doc.get("tuple_manifest_count") != 1 or doc.get("device_alias_count") != 1:
+    raise SystemExit(f"release self-test layout diagnostics missing: {doc!r}")
+if doc.get("artifact_config_roundtrip_count") != 1:
+    raise SystemExit(f"release self-test artifact-config roundtrip missing: {doc!r}")
+if doc.get("command_queue_enabled_count") != 0 or doc.get("command_queue_execution_supported_count") != 0:
+    raise SystemExit(f"release self-test command queue safety counts unsafe: {doc!r}")
+if doc.get("command_queue_mode_count", 0) < 5:
+    raise SystemExit(f"release self-test command queue mode diagnostics missing: {doc!r}")
+if doc.get("compatibility_counts", {}).get("exact") != 1:
+    raise SystemExit(f"release self-test compatibility counts missing: {doc!r}")
+if doc.get("payload_preset_counts", {}).get("default") != 1:
+    raise SystemExit(f"release self-test payload preset counts missing: {doc!r}")
+PY
+scripts/release-self-test --release-dir "$work/release" --json >"$work/release-self-test-wrapper.json"
+python3 - "$work/release-self-test-wrapper.json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if doc.get("status") != "pass" or doc.get("checked_artifact_count") != 1:
+    raise SystemExit("release-self-test wrapper did not forward --json diagnostics")
+PY
 
 scripts/make-release \
     --name failure-smoke \
