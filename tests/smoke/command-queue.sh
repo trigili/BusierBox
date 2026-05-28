@@ -322,9 +322,16 @@ assert queue_policy["executes_commands"] is False
 assert queue_policy["active_control_channel"] is False
 assert delivery_policy["enabled"] is True
 assert delivery_policy["valid"] is True
+assert delivery_policy["delivery_supported"] is True
+assert delivery_policy["result_upload_supported"] is True
 assert delivery_policy["execution_supported"] is False
 assert delivery_policy["executes_commands"] is False
+assert delivery_policy["active_control_channel"] is True
+assert delivery_policy["operator_queue_records_only"] is False
+assert delivery_policy["delivery_mode"] == "metadata-only"
 assert delivery_policy["arbitrary_execution_allowed"] is False
+assert command["delivery_supported"] is True
+assert command["result_upload_supported"] is True
 assert command["result"]["status"] == "rejected"
 assert command["result_output_bytes"] == 0
 assert command["result_output_exceeded_limit"] is False
@@ -332,7 +339,7 @@ assert command["delivered_at"]
 assert command["delivered_to"]
 operator_events = Path(cfg["operator_session_dir"]) / "events.jsonl"
 operator = [json.loads(line) for line in operator_events.open(encoding="utf-8")]
-assert any(event["service"] == "command-queue" and event["event"] == "command_delivered" and event["details"]["policy_snapshot"]["execution_supported"] is False for event in operator)
+assert any(event["service"] == "command-queue" and event["event"] == "command_delivered" and event["details"]["delivery_supported"] is True and event["details"]["result_upload_supported"] is True and event["details"]["policy_snapshot"]["delivery_supported"] is True and event["details"]["policy_snapshot"]["execution_supported"] is False for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_result_received" for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_result_upload" for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" and event["details"].get("status") == "delivered" for event in operator)

@@ -3105,14 +3105,29 @@ def command_queue_policy_snapshot(cfg):
     }
 
 
+def command_queue_delivery_policy_snapshot(cfg):
+    policy = command_queue_policy_snapshot(cfg)
+    policy.update({
+        "delivery_supported": True,
+        "result_upload_supported": True,
+        "delivery_mode": "metadata-only",
+        "active_control_channel": True,
+        "operator_queue_records_only": False,
+        "safety_boundary": "explicit opt-in metadata delivery on target poll; target command execution remains unsupported",
+    })
+    return policy
+
+
 def mark_command_delivered(cfg, command_id, remote_addr=""):
     data = load_command_queue(cfg)
     for rec in data.get("commands", []):
         if isinstance(rec, dict) and rec.get("id") == command_id:
-            policy = command_queue_policy_snapshot(cfg)
+            policy = command_queue_delivery_policy_snapshot(cfg)
             rec["status"] = "delivered"
             rec["delivered_at"] = utc_now()
             rec["delivered_to"] = remote_addr
+            rec["delivery_supported"] = True
+            rec["result_upload_supported"] = True
             rec["execution_supported"] = False
             rec["execution_decision"] = "rejected"
             rec["execution_decision_reason"] = "target command execution is not implemented"
@@ -3126,6 +3141,8 @@ def mark_command_delivered(cfg, command_id, remote_addr=""):
                     "id": command_id,
                     "command_id": command_id,
                     "remote_addr": remote_addr,
+                    "delivery_supported": True,
+                    "result_upload_supported": True,
                     "execution_supported": False,
                     "execution_decision": "rejected",
                     "policy_snapshot": policy,
