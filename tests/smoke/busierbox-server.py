@@ -2690,18 +2690,23 @@ def main():
             return 1
         release_browser_by_kind = release_doc.get("browser_paths_by_kind") or {}
         release_browser_by_path = release_doc.get("browser_paths_by_path") or {}
+        release_browser_by_release_path = release_doc.get("browser_paths_by_release_path") or {}
         release_browser_by_kind_source = release_doc.get("browser_paths_by_kind_source_id") or {}
         if (release_doc.get("browser_path_summary", {}).get("by_kind", {}).get("release-artifact") != 1 or
+                release_doc.get("browser_path_summary", {}).get("by_release_path", {}).get("bin/busierbox-test", 0) < 1 or
                 release_doc.get("browser_path_summary", {}).get("by_kind", {}).get("release-recommendation-artifact", 0) < 1 or
                 release_doc.get("browser_path_summary", {}).get("exists_by_kind", {}).get("release-artifact") != 1 or
                 release_doc.get("browser_path_summary", {}).get("exists_by_kind", {}).get("release-recommendation-artifact", 0) < 1 or
                 release_doc.get("browser_path_summary", {}).get("kind_mismatch_count") != 0 or
                 release_doc.get("summary", {}).get("browser_path_exists_kind_counts", {}).get("release-artifact") != 1 or
+                release_doc.get("summary", {}).get("browser_path_release_path_counts", {}).get("bin/busierbox-test", 0) < 1 or
                 release_doc.get("summary", {}).get("browser_path_exists_kind_counts", {}).get("release-recommendation-artifact", 0) < 1 or
                 release_doc.get("summary", {}).get("browser_path_kind_mismatch_count") != 0 or
                 release_browser_by_kind.get("release-json", [{}])[0].get("path") != str(release_dir / "release.json") or
+                release_browser_by_kind.get("release-artifact", [{}])[0].get("release_path") != "bin/busierbox-test" or
                 release_browser_by_kind.get("release-artifact", [{}])[0].get("source_id") != "bin/busierbox-test" or
                 release_browser_by_kind.get("release-recommendation-artifact", [{}])[0].get("source_id") != "by_device:lab-router" or
+                release_browser_by_release_path.get("bin/busierbox-test", [{}])[0].get("path") != str(release_dir / "bin" / "busierbox-test") or
                 release_browser_by_kind.get("release-artifact", [{}])[0].get("expected_kind_matches") is not True or
                 release_browser_by_path.get(str(release_dir / "bin" / "busierbox-test"), [{}])[0].get("kind") != "release-artifact" or
                 release_browser_by_kind_source.get("release-artifact:bin/busierbox-test", [{}])[0].get("path") != str(release_dir / "bin" / "busierbox-test") or
@@ -2881,21 +2886,30 @@ def main():
             return 1
         staged_commands_by_request = staged_doc.get("target_commands_by_request") or {}
         staged_commands_by_stage_kind = staged_doc.get("target_commands_by_stage_kind") or {}
+        staged_commands_by_release_path = staged_doc.get("target_commands_by_release_path") or {}
         staged_commands_by_service_purpose = staged_doc.get("target_commands_by_service_purpose") or {}
         if (staged_commands_by_request.get("busierbox-test", {}).get("source_path") != str(release_dir / "bin" / "busierbox-test") or
                 staged_commands_by_request.get("busierbox-test", {}).get("release_path") != "bin/busierbox-test" or
                 staged_commands_by_stage_kind.get("release-artifact", [{}])[0].get("request_name") != "busierbox-test" or
+                staged_commands_by_release_path.get("bin/busierbox-test", [{}])[0].get("request_name") != "busierbox-test" or
                 staged_doc.get("summary", {}).get("target_command_stage_kind_counts", {}).get("release-artifact") != 1 or
+                staged_doc.get("summary", {}).get("target_command_release_path_counts", {}).get("bin/busierbox-test") != 1 or
                 staged_commands_by_service_purpose.get("file-service:explicitly fetch an operator-staged file", [{}])[0].get("request_name") != "busierbox-test"):
             print("json status missing staged fetch command request lookup", file=sys.stderr)
             print(staged_status.stdout, file=sys.stderr)
             return 1
         staged_browser_by_kind_source = staged_doc.get("browser_paths_by_kind_source_id") or {}
+        staged_browser_by_stage_kind = staged_doc.get("browser_paths_by_stage_kind") or {}
+        staged_browser_by_release_path = staged_doc.get("browser_paths_by_release_path") or {}
         staged_source_browser = staged_browser_by_kind_source.get("staged-source:busierbox-test", [{}])[0]
         if (staged_source_browser.get("stage_kind") != "release-artifact" or
                 staged_source_browser.get("release_path") != "bin/busierbox-test" or
                 staged_source_browser.get("tuple_path") != "by-tuple/native/host/host/host" or
-                (staged_source_browser.get("compatibility") or {}).get("label") != "exact"):
+                (staged_source_browser.get("compatibility") or {}).get("label") != "exact" or
+                staged_browser_by_stage_kind.get("release-artifact", [{}])[0].get("source_id") != "busierbox-test" or
+                staged_browser_by_release_path.get("bin/busierbox-test", [{}])[0].get("source_id") != "busierbox-test" or
+                staged_doc.get("summary", {}).get("browser_path_stage_kind_counts", {}).get("release-artifact") != 1 or
+                staged_doc.get("summary", {}).get("browser_path_release_path_counts", {}).get("bin/busierbox-test", 0) < 1):
             print("json status missing staged browser release metadata", file=sys.stderr)
             print(staged_status.stdout, file=sys.stderr)
             return 1

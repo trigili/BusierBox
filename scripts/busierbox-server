@@ -1016,7 +1016,19 @@ def operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, 
         add_browser_path(records, "release-json", release.get("release_name", "release"), release.get("release_json", ""))
         add_browser_path(records, "release-index", release.get("release_name", "release"), release.get("release_index", ""))
         for rec in release.get("artifacts") or []:
-            add_browser_path(records, "release-artifact", rec.get("name", "artifact"), rec.get("path", ""), source_id=rec.get("release_path", ""))
+            add_browser_path(
+                records,
+                "release-artifact",
+                rec.get("name", "artifact"),
+                rec.get("path", ""),
+                source_id=rec.get("release_path", ""),
+                metadata={
+                    "release_path": rec.get("release_path"),
+                    "tuple_path": rec.get("tuple_path"),
+                    "payload_preset": rec.get("payload_preset"),
+                    "compatibility": rec.get("compatibility"),
+                },
+            )
         artifacts_by_path = release.get("artifacts_by_release_path") or {}
         for rec in release.get("recommendation_records") or []:
             artifact_key = rec.get("artifact") or ""
@@ -1028,6 +1040,12 @@ def operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, 
                 artifact.get("path") or artifact_key,
                 source_id=rec.get("id", ""),
                 description=f"{rec.get('scope', '')}:{rec.get('key', '')}",
+                metadata={
+                    "release_path": artifact.get("release_path") or artifact_key,
+                    "tuple_path": artifact.get("tuple_path") or rec.get("tuple_path"),
+                    "payload_preset": artifact.get("payload_preset") or rec.get("payload_preset"),
+                    "compatibility": artifact.get("compatibility") or rec.get("compatibility"),
+                },
             )
         for rec in release.get("devices") or []:
             add_browser_path(records, "release-device-dir", rec.get("name", "device"), rec.get("path", ""), expected_kind="dir", source_id=rec.get("name", ""))
@@ -1040,6 +1058,8 @@ def browser_path_indexes(records):
     by_kind = {}
     by_path = {}
     by_source_id = {}
+    by_stage_kind = {}
+    by_release_path = {}
     by_kind_source_id = {}
     for rec in records or []:
         if not isinstance(rec, dict):
@@ -1047,15 +1067,21 @@ def browser_path_indexes(records):
         kind = str(rec.get("kind") or "")
         path = str(rec.get("path") or "")
         source_id = str(rec.get("source_id") or "")
+        stage_kind = str(rec.get("stage_kind") or "")
+        release_path = str(rec.get("release_path") or "")
         if kind:
             by_kind.setdefault(kind, []).append(rec)
         if path:
             by_path.setdefault(path, []).append(rec)
         if source_id:
             by_source_id.setdefault(source_id, []).append(rec)
+        if stage_kind:
+            by_stage_kind.setdefault(stage_kind, []).append(rec)
+        if release_path:
+            by_release_path.setdefault(release_path, []).append(rec)
         if kind and source_id:
             by_kind_source_id.setdefault(f"{kind}:{source_id}", []).append(rec)
-    return by_kind, by_path, by_source_id, by_kind_source_id
+    return by_kind, by_path, by_source_id, by_stage_kind, by_release_path, by_kind_source_id
 
 
 def browser_path_summary(records):
@@ -1088,6 +1114,8 @@ def browser_path_summary(records):
         "writable_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("writable") is True),
         "kind_mismatch_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("expected_kind_mismatch") is True),
         "by_kind": record_count_by_key(records, "kind"),
+        "by_stage_kind": record_count_by_key(records, "stage_kind"),
+        "by_release_path": record_count_by_key(records, "release_path"),
         "exists_by_kind": exists_by_kind,
         "missing_by_kind": missing_by_kind,
         "readable_by_kind": readable_by_kind,
@@ -1410,6 +1438,7 @@ def target_command_record_indexes(records):
     by_service = {}
     by_request_name = {}
     by_stage_kind = {}
+    by_release_path = {}
     by_side = {}
     by_purpose = {}
     by_service_purpose = {}
@@ -1420,6 +1449,7 @@ def target_command_record_indexes(records):
         service = str(rec.get("service") or "")
         request_name = str(rec.get("request_name") or "")
         stage_kind = str(rec.get("stage_kind") or "")
+        release_path = str(rec.get("release_path") or "")
         side = str(rec.get("side") or "")
         purpose = str(rec.get("purpose") or "")
         if service:
@@ -1428,6 +1458,8 @@ def target_command_record_indexes(records):
             by_request_name[request_name] = rec
         if stage_kind:
             by_stage_kind.setdefault(stage_kind, []).append(rec)
+        if release_path:
+            by_release_path.setdefault(release_path, []).append(rec)
         if side:
             by_side.setdefault(side, []).append(rec)
         if purpose:
@@ -1436,7 +1468,7 @@ def target_command_record_indexes(records):
             by_service_purpose.setdefault(f"{service}:{purpose}", []).append(rec)
         if side and purpose:
             by_side_purpose.setdefault(f"{side}:{purpose}", []).append(rec)
-    return by_service, by_request_name, by_stage_kind, by_side, by_purpose, by_service_purpose, by_side_purpose
+    return by_service, by_request_name, by_stage_kind, by_release_path, by_side, by_purpose, by_service_purpose, by_side_purpose
 
 
 def target_command_record_summary(records):
@@ -1447,6 +1479,7 @@ def target_command_record_summary(records):
     operator_supplied_command_execution_count = 0
     by_service = {}
     by_stage_kind = {}
+    by_release_path = {}
     by_side = {}
     by_purpose = {}
     for rec in records or []:
@@ -1455,12 +1488,15 @@ def target_command_record_summary(records):
         total += 1
         service = str(rec.get("service") or "")
         stage_kind = str(rec.get("stage_kind") or "")
+        release_path = str(rec.get("release_path") or "")
         side = str(rec.get("side") or "")
         purpose = str(rec.get("purpose") or "")
         if service:
             by_service[service] = by_service.get(service, 0) + 1
         if stage_kind:
             by_stage_kind[stage_kind] = by_stage_kind.get(stage_kind, 0) + 1
+        if release_path:
+            by_release_path[release_path] = by_release_path.get(release_path, 0) + 1
         if side:
             by_side[side] = by_side.get(side, 0) + 1
         if purpose:
@@ -1483,6 +1519,7 @@ def target_command_record_summary(records):
         "all_require_explicit_target_action": total > 0 and explicit_target_action_count == total,
         "by_service": by_service,
         "by_stage_kind": by_stage_kind,
+        "by_release_path": by_release_path,
         "by_side": by_side,
         "by_purpose": by_purpose,
     }
@@ -4809,6 +4846,7 @@ def status_document(cfg):
     (target_commands_by_service,
      target_commands_by_request,
      target_commands_by_stage_kind,
+     target_commands_by_release_path,
      target_commands_by_side,
      target_commands_by_purpose,
      target_commands_by_service_purpose,
@@ -4857,6 +4895,8 @@ def status_document(cfg):
     (browser_paths_by_kind,
      browser_paths_by_path,
      browser_paths_by_source_id,
+     browser_paths_by_stage_kind,
+     browser_paths_by_release_path,
      browser_paths_by_kind_source_id) = browser_path_indexes(browser_paths)
     browser_summary = browser_path_summary(browser_paths)
     services_by_name = {
@@ -4978,6 +5018,8 @@ def status_document(cfg):
         "browser_path_writable_count": browser_summary.get("writable_count", 0),
         "browser_path_kind_mismatch_count": browser_summary.get("kind_mismatch_count", 0),
         "browser_path_kind_counts": browser_summary.get("by_kind") or {},
+        "browser_path_stage_kind_counts": browser_summary.get("by_stage_kind") or {},
+        "browser_path_release_path_counts": browser_summary.get("by_release_path") or {},
         "browser_path_exists_kind_counts": browser_summary.get("exists_by_kind") or {},
         "browser_path_missing_kind_counts": browser_summary.get("missing_by_kind") or {},
         "browser_path_readable_kind_counts": browser_summary.get("readable_by_kind") or {},
@@ -5056,6 +5098,7 @@ def status_document(cfg):
         "target_command_side_counts": target_command_summary.get("by_side") or {},
         "target_command_purpose_counts": target_command_summary.get("by_purpose") or {},
         "target_command_stage_kind_counts": target_command_summary.get("by_stage_kind") or {},
+        "target_command_release_path_counts": target_command_summary.get("by_release_path") or {},
         "event_count": event_stats["total_count"],
         "event_log_exists": bool(event_log_state.get("exists", False)),
         "event_log_valid": bool(event_log_state.get("valid", False)),
@@ -5147,7 +5190,8 @@ def status_document(cfg):
         "browser_paths": api_collection_record(
             "browser_paths", browser_paths, "id", (
                 "browser_paths_by_kind", "browser_paths_by_path",
-                "browser_paths_by_source_id", "browser_paths_by_kind_source_id",
+                "browser_paths_by_source_id", "browser_paths_by_stage_kind",
+                "browser_paths_by_release_path", "browser_paths_by_kind_source_id",
             ), "browser_path_count",
         ),
         "warnings": api_collection_record(
@@ -5161,7 +5205,7 @@ def status_document(cfg):
         "target_command_records": api_collection_record(
             "target_command_records", target_command_records, "command", (
                 "target_commands_by_service", "target_commands_by_request",
-                "target_commands_by_stage_kind",
+                "target_commands_by_stage_kind", "target_commands_by_release_path",
                 "target_commands_by_side", "target_commands_by_purpose",
                 "target_commands_by_service_purpose", "target_commands_by_side_purpose",
             ), "target_command_count",
@@ -5254,6 +5298,8 @@ def status_document(cfg):
         "browser_paths_by_kind": browser_paths_by_kind,
         "browser_paths_by_path": browser_paths_by_path,
         "browser_paths_by_source_id": browser_paths_by_source_id,
+        "browser_paths_by_stage_kind": browser_paths_by_stage_kind,
+        "browser_paths_by_release_path": browser_paths_by_release_path,
         "browser_paths_by_kind_source_id": browser_paths_by_kind_source_id,
         "browser_path_summary": browser_summary,
         "server_state": server_state,
@@ -5291,6 +5337,7 @@ def status_document(cfg):
         "target_commands_by_service": target_commands_by_service,
         "target_commands_by_request": target_commands_by_request,
         "target_commands_by_stage_kind": target_commands_by_stage_kind,
+        "target_commands_by_release_path": target_commands_by_release_path,
         "target_commands_by_side": target_commands_by_side,
         "target_commands_by_purpose": target_commands_by_purpose,
         "target_commands_by_service_purpose": target_commands_by_service_purpose,
