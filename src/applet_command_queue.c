@@ -87,6 +87,13 @@ static int yes_value(const char *s)
     return s && (!strcmp(s, "yes") || !strcmp(s, "1") || !strcmp(s, "true") || !strcmp(s, "on"));
 }
 
+static const char *execution_rejection_reason(void)
+{
+    if (!strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only"))
+        return "command queue execution mode is metadata-only";
+    return "command queue execution mode execute requested, but target command execution is not implemented";
+}
+
 static int valid_backoff_value(const char *s)
 {
     return s && (!strcmp(s, "none") || !strcmp(s, "linear") || !strcmp(s, "exponential"));
@@ -437,8 +444,10 @@ static void append_poll_event(const char *path, const char *event, const char *m
     bb_json_string(fh, mode);
     fputs(",\"endpoint\":", fh);
     bb_json_string(fh, endpoint ? endpoint : "");
-    fprintf(fh, ",\"attempt\":%d,\"executes_commands\":false,\"delivery_supported\":%s,\"result_upload_supported\":%s",
-            attempt, live_poll_supported ? "true" : "false", live_poll_supported ? "true" : "false");
+    fprintf(fh, ",\"attempt\":%d,\"executes_commands\":false,\"execution_mode\":", attempt);
+    bb_json_string(fh, BB_COMMAND_QUEUE_EXECUTION);
+    fprintf(fh, ",\"delivery_supported\":%s,\"result_upload_supported\":%s",
+            live_poll_supported ? "true" : "false", live_poll_supported ? "true" : "false");
     fputs(",\"status\":", fh);
     bb_json_string(fh, status ? status : "");
     if (error && error[0]) {
@@ -695,9 +704,9 @@ static int post_rejected_result_once(const char *host, const char *port,
     snprintf(body, sizeof(body),
              "{\"schema\":1,\"command_id\":\"%s\",\"status\":\"rejected\","
              "\"exit_code\":null,\"stdout_bytes\":0,\"stderr_bytes\":0,"
-             "\"execution_supported\":false,\"executes_commands\":false,"
-             "\"reason\":\"target command execution is not implemented\"}\n",
-             command_id);
+             "\"execution_mode\":\"%s\",\"execution_supported\":false,\"executes_commands\":false,"
+             "\"reason\":\"%s\"}\n",
+             command_id, BB_COMMAND_QUEUE_EXECUTION, execution_rejection_reason());
     memset(&hints, 0, sizeof(hints));
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_UNSPEC;
@@ -797,7 +806,7 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
             snprintf(result.last_command_id, sizeof(result.last_command_id), "%s", error);
             result.last_error[0] = '\0';
             append_run_poll_event(event_log, &result, "command_queue_poll_complete", mode, endpoint, result.attempts, "delivered", "");
-            append_run_poll_event(event_log, &result, "command_queue_execution_decision", mode, endpoint, result.attempts, "rejected", "target command execution is not implemented");
+            append_run_poll_event(event_log, &result, "command_queue_execution_decision", mode, endpoint, result.attempts, "rejected", execution_rejection_reason());
             if (post_rejected_result_once(operator_host, BB_COMMAND_QUEUE_PORT,
                                           result.last_command_id, upload_error, sizeof(upload_error)) == 0) {
                 result.result_uploads++;
@@ -1188,7 +1197,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     arbitrary_requested = valid && enabled && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
     configured_for_polling = valid && enabled && operator_host && operator_host[0];
     would_poll = mode_would_poll(mode, enabled, operator_host, &policy);
-    safe_disabled_default = !enabled && valid && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    safe_disabled_default = !enabled && valid && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") && !yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
 
     fputs("{\"schema\":1,\"command\":\"command-queue\",\"mode\":", stdout);
     bb_json_string(stdout, mode);
@@ -1210,6 +1219,9 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     printf(",\"configured_for_polling\":%s", configured_for_polling ? "true" : "false");
     printf(",\"would_poll\":%s", would_poll ? "true" : "false");
     printf(",\"operator_queue_records_only\":%s", dry_run ? "false" : "true");
+    fputs(",\"execution_mode\":", stdout);
+    bb_json_string(stdout, BB_COMMAND_QUEUE_EXECUTION);
+    printf(",\"metadata_only_default\":%s", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
     fputs(",\"execution_supported\":false", stdout);
     fputs(",\"executes_commands\":false", stdout);
     printf(",\"delivery_supported\":%s", (!dry_run && would_poll) ? "true" : "false");
@@ -1247,6 +1259,9 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     fputs(",\"allow_arbitrary\":", stdout);
     bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    fputs(",\"execution_mode\":", stdout);
+    bb_json_string(stdout, BB_COMMAND_QUEUE_EXECUTION);
+    printf(",\"metadata_only_default\":%s", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
     printf(",\"arbitrary_policy_requested\":%s", arbitrary_requested ? "true" : "false");
     fputs(",\"arbitrary_execution_allowed\":false", stdout);
     fputs(",\"execution_supported\":false", stdout);
@@ -1311,7 +1326,11 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
         fputs(",\"command\":", stdout);
         bb_json_string(stdout, run->last_command);
         printf(",\"timeout_sec\":%d,\"max_output_bytes\":%d", run->last_timeout_sec, run->last_max_output_bytes);
-        fputs(",\"execution_supported\":false,\"executes_commands\":false,\"execution_decision\":\"rejected\"}", stdout);
+        fputs(",\"execution_mode\":", stdout);
+        bb_json_string(stdout, BB_COMMAND_QUEUE_EXECUTION);
+        fputs(",\"execution_supported\":false,\"executes_commands\":false,\"execution_decision\":\"rejected\",\"execution_decision_reason\":", stdout);
+        bb_json_string(stdout, execution_rejection_reason());
+        fputc('}', stdout);
     } else {
         fputs("null", stdout);
     }
@@ -1353,6 +1372,8 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_token_configured=%s\n", BB_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
     printf("command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf("command_queue_execution_mode=%s\n", BB_COMMAND_QUEUE_EXECUTION);
+    printf("command_queue_metadata_only_default=%s\n", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "yes" : "no");
     printf("command_queue_arbitrary_policy_requested=%s\n", arbitrary_requested ? "yes" : "no");
     puts("command_queue_arbitrary_execution_allowed=no");
     puts("command_queue_execution_supported=no");

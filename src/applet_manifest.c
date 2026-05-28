@@ -577,6 +577,9 @@ static void write_manifest_json(FILE *out, int include_missing)
     json_string_payload(out, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     fprintf(out, ",\"allow_arbitrary\":");
     json_string_payload(out, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    fprintf(out, ",\"execution_mode\":");
+    json_string_payload(out, BB_COMMAND_QUEUE_EXECUTION);
+    fprintf(out, ",\"metadata_only_default\":%s", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
     fprintf(out, ",\"poll_interval_sec\":");
     json_string_payload(out, BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
     fprintf(out, ",\"poll_jitter_pct\":");
@@ -601,7 +604,7 @@ static void write_manifest_json(FILE *out, int include_missing)
             fputc(',', out);
         json_string_payload(out, command_queue_policy.errors[i]);
     }
-    fprintf(out, "],\"arbitrary_policy_requested\":%s,\"arbitrary_execution_allowed\":false,\"target_polling\":true,\"poll_transport_supported\":true,\"live_polling_supported\":true,\"delivery_supported\":false,\"result_upload_supported\":true,\"executes_commands\":false,\"default_enabled\":false",
+    fprintf(out, "],\"arbitrary_policy_requested\":%s,\"arbitrary_execution_allowed\":false,\"target_polling\":true,\"poll_transport_supported\":true,\"live_polling_supported\":true,\"delivery_supported\":false,\"result_upload_supported\":true,\"execution_supported\":false,\"executes_commands\":false,\"default_enabled\":false",
             command_queue_arbitrary_requested ? "true" : "false");
     print_command_queue_mode_records(out);
     print_command_queue_mode_indexes(out);
@@ -952,6 +955,7 @@ int applet_manifest_main(int argc, char **argv)
     printf("command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
     printf("command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf("command_queue_execution_mode=%s\n", BB_COMMAND_QUEUE_EXECUTION);
     printf("command_queue_token_configured=%s\n", BB_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
     printf("command_queue_poll_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
     printf("command_queue_poll_jitter_pct=%s\n", BB_COMMAND_QUEUE_POLL_JITTER_PCT);

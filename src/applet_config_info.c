@@ -104,6 +104,7 @@ int applet_config_info_main(int argc, char **argv)
     printf("compiled_command_queue_token_source=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_TOKEN_SOURCE"));
     printf("compiled_command_queue_token_configured=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_TOKEN")[0] ? "yes" : "no");
     printf("compiled_command_queue_allowed_commands=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_ALLOWED_COMMANDS"));
+    printf("compiled_command_queue_execution=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_EXECUTION"));
     printf("compiled_command_queue_allow_arbitrary=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_ALLOW_ARBITRARY"));
     printf("compiled_command_queue_poll_interval_sec=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"));
     printf("compiled_command_queue_poll_jitter_pct=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_POLL_JITTER_PCT"));
@@ -121,6 +122,7 @@ int applet_config_info_main(int argc, char **argv)
     printf("effective_command_queue_token_source=%s\n", BB_COMMAND_QUEUE_TOKEN_SOURCE);
     printf("effective_command_queue_token_configured=%s\n", BB_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
     printf("effective_command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
+    printf("effective_command_queue_execution=%s\n", BB_COMMAND_QUEUE_EXECUTION);
     printf("effective_command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
     printf("effective_command_queue_poll_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
     printf("effective_command_queue_poll_jitter_pct=%s\n", BB_COMMAND_QUEUE_POLL_JITTER_PCT);

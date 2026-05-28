@@ -34,6 +34,11 @@ static int valid_policy_value(const char *s)
                  !strcmp(s, "allowlist") || !strcmp(s, "custom"));
 }
 
+static int valid_execution_value(const char *s)
+{
+    return s && (!strcmp(s, "metadata-only") || !strcmp(s, "execute"));
+}
+
 static int valid_backoff_value(const char *s)
 {
     return s && (!strcmp(s, "none") || !strcmp(s, "linear") || !strcmp(s, "exponential"));
@@ -89,14 +94,21 @@ struct command_queue_policy_report bb_command_queue_validate_policy(void)
         policy_add_error(&report, "enabled command queue requires BB_COMMAND_QUEUE_TOKEN when token requirement is yes");
     if (!valid_policy_value(BB_COMMAND_QUEUE_ALLOWED_COMMANDS))
         policy_add_error(&report, "invalid command queue allowed commands policy");
+    if (!valid_execution_value(BB_COMMAND_QUEUE_EXECUTION))
+        policy_add_error(&report, "invalid command queue execution mode");
     if (!exact_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes", "no"))
         policy_add_error(&report, "invalid command queue arbitrary-execution flag");
     if (strcmp(BB_COMMAND_QUEUE_ENABLE, "yes")) {
         if (strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none"))
             policy_add_error(&report, "disabled command queue must keep allowed commands policy none");
+        if (strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only"))
+            policy_add_error(&report, "disabled command queue must keep execution mode metadata-only");
         if (strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "no"))
             policy_add_error(&report, "disabled command queue must not allow arbitrary execution");
     }
+    if (!strcmp(BB_COMMAND_QUEUE_EXECUTION, "execute") &&
+        !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none"))
+        policy_add_error(&report, "command queue execution mode execute requires a non-none allowed commands policy");
     if (!strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes") &&
         strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom"))
         policy_add_error(&report, "arbitrary command queue execution requires allowed commands policy custom");

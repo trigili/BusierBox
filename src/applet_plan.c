@@ -527,6 +527,8 @@ static void plan_print_command_queue(int json)
                BB_COMMAND_QUEUE_TOKEN[0] ? "true" : "false");
         fputs(",\"allowed_commands\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
         fputs(",\"allow_arbitrary\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+        fputs(",\"execution_mode\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_EXECUTION);
+        printf(",\"metadata_only_default\":%s", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
         fputs(",\"poll_interval_sec\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
         fputs(",\"poll_jitter_pct\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_POLL_JITTER_PCT);
         fputs(",\"poll_backoff\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_POLL_BACKOFF);
@@ -563,6 +565,8 @@ static void plan_print_command_queue(int json)
     printf("token_configured=%s\n", BB_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
     printf("allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf("execution_mode=%s\n", BB_COMMAND_QUEUE_EXECUTION);
+    printf("metadata_only_default=%s\n", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "yes" : "no");
     printf("poll_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
     printf("poll_jitter_pct=%s\n", BB_COMMAND_QUEUE_POLL_JITTER_PCT);
     printf("poll_backoff=%s\n", BB_COMMAND_QUEUE_POLL_BACKOFF);

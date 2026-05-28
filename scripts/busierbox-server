@@ -507,6 +507,7 @@ DEFAULTS = {
     "command_queue_token_source": "manual",
     "command_queue_token": "",
     "command_queue_allowed_commands": "none",
+    "command_queue_execution": "metadata-only",
     "command_queue_allow_arbitrary": "no",
     "command_queue_poll_interval_sec": "5",
     "command_queue_poll_jitter_pct": "0",
@@ -836,6 +837,7 @@ WORKBENCH_BUILD_CONFIG_FIELDS = [
     ("rshell", "BB_RSHELL_SESSION_POLICY", "reverse shell session policy", "single reconnect persistent"),
     ("command-queue", "BB_COMMAND_QUEUE_ENABLE", "command queue enable", "no yes"),
     ("command-queue", "BB_COMMAND_QUEUE_ALLOWED_COMMANDS", "command queue policy", "none busierbox-only allowlist custom"),
+    ("command-queue", "BB_COMMAND_QUEUE_EXECUTION", "command queue execution mode", "metadata-only execute"),
     ("command-queue", "BB_COMMAND_QUEUE_ALLOW_ARBITRARY", "allow arbitrary command queue commands", "no yes"),
 ]
 
@@ -2573,6 +2575,7 @@ def command_queue_policy_errors(cfg):
     errors = []
     enabled = str(cfg.get("command_queue_enable", "no"))
     allowed = str(cfg.get("command_queue_allowed_commands", "none"))
+    execution = str(cfg.get("command_queue_execution", "metadata-only"))
     allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
     if not valid_yes_no(enabled):
         errors.append("invalid command queue enable value")
@@ -2600,13 +2603,19 @@ def command_queue_policy_errors(cfg):
         errors.append("enabled command queue requires command_queue_token when token requirement is yes")
     if allowed not in ("none", "busierbox-only", "allowlist", "custom"):
         errors.append("invalid command queue allowed commands policy")
+    if execution not in ("metadata-only", "execute"):
+        errors.append("invalid command queue execution mode")
     if not valid_yes_no(allow_arbitrary):
         errors.append("invalid command queue arbitrary-execution flag")
     if enabled != "yes":
         if allowed != "none":
             errors.append("disabled command queue must keep allowed commands policy none")
+        if execution != "metadata-only":
+            errors.append("disabled command queue must keep execution mode metadata-only")
         if allow_arbitrary != "no":
             errors.append("disabled command queue must not allow arbitrary execution")
+    if execution == "execute" and allowed == "none":
+        errors.append("command queue execution mode execute requires a non-none allowed commands policy")
     if allow_arbitrary == "yes" and allowed != "custom":
         errors.append("arbitrary command queue execution requires allowed commands policy custom")
     return errors
@@ -2756,6 +2765,7 @@ def command_queue_summary(cfg):
     ])
     enabled = str(cfg.get("command_queue_enable", "no"))
     allowed_commands = str(cfg.get("command_queue_allowed_commands", "none"))
+    execution_mode = str(cfg.get("command_queue_execution", "metadata-only"))
     allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
     poll_interval_sec = str(cfg.get("command_queue_poll_interval_sec", "5"))
     poll_jitter_pct = str(cfg.get("command_queue_poll_jitter_pct", "0"))
@@ -2779,6 +2789,8 @@ def command_queue_summary(cfg):
         "error_count": len(policy_errors),
         "configured_for_polling": configured_for_polling,
         "operator_queue_records_only": True,
+        "execution_mode": execution_mode,
+        "metadata_only_default": execution_mode == "metadata-only",
         "execution_supported": False,
         "executes_commands": False,
         "delivery_supported": False,
@@ -2795,7 +2807,7 @@ def command_queue_summary(cfg):
         "max_polls": max_polls,
         "arbitrary_policy_requested": arbitrary_policy_requested,
         "arbitrary_execution_allowed": False,
-        "safe_disabled_default": enabled == "no" and policy_valid and allowed_commands == "none" and allow_arbitrary == "no",
+        "safe_disabled_default": enabled == "no" and policy_valid and allowed_commands == "none" and execution_mode == "metadata-only" and allow_arbitrary == "no",
     }
     return {
         "path": str(command_queue_path(cfg)),
@@ -2807,6 +2819,8 @@ def command_queue_summary(cfg):
         "token_source": str(cfg.get("command_queue_token_source", "manual")),
         "token_configured": token_configured,
         "allowed_commands": allowed_commands,
+        "execution_mode": execution_mode,
+        "metadata_only_default": execution_mode == "metadata-only",
         "allow_arbitrary": allow_arbitrary,
         "poll_interval_sec": poll_interval_sec,
         "poll_jitter_pct": poll_jitter_pct,
@@ -2861,7 +2875,7 @@ def print_command_queue(cfg, json_output=False):
     if not summary["commands"]:
         print(f"Command queue: {summary['path']}")
         print(f"  enabled={summary['enabled']} default_enabled=no port={summary['port']} tls={summary['tls']} require_token={summary['require_token']}")
-        print(f"  allowed_commands={summary['allowed_commands']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no result_upload_supported=yes")
+        print(f"  allowed_commands={summary['allowed_commands']} execution_mode={summary['execution_mode']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no result_upload_supported=yes")
         print(f"  arbitrary_policy_requested={'yes' if summary['arbitrary_policy_requested'] else 'no'} arbitrary_execution_allowed=no")
         print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
         for error in summary["policy_errors"]:
@@ -2872,7 +2886,7 @@ def print_command_queue(cfg, json_output=False):
         return
     print(f"Command queue: {summary['path']}")
     print(f"  enabled={summary['enabled']} default_enabled=no port={summary['port']} tls={summary['tls']} require_token={summary['require_token']}")
-    print(f"  allowed_commands={summary['allowed_commands']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no result_upload_supported=yes")
+    print(f"  allowed_commands={summary['allowed_commands']} execution_mode={summary['execution_mode']} allow_arbitrary={summary['allow_arbitrary']} execution_supported=no delivery_supported=no result_upload_supported=yes")
     print(f"  arbitrary_policy_requested={'yes' if summary['arbitrary_policy_requested'] else 'no'} arbitrary_execution_allowed=no")
     print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
     for error in summary["policy_errors"]:
@@ -5006,6 +5020,7 @@ def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
         "result_output_bytes": rec.get("result_output_bytes", 0),
         "result_output_limit_bytes": rec.get("result_output_limit_bytes", 0),
         "result_output_exceeded_limit": bool(rec.get("result_output_exceeded_limit")),
+        "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
         "execution_supported": False,
         "executes_commands": False,
         "result_upload_supported": True,
@@ -5023,6 +5038,7 @@ def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
         "result_output_bytes": response["result_output_bytes"],
         "result_output_limit_bytes": response["result_output_limit_bytes"],
         "result_output_exceeded_limit": response["result_output_exceeded_limit"],
+        "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
         "execution_supported": False,
         "executes_commands": False,
         "result_upload_supported": True,
@@ -5042,6 +5058,12 @@ def command_queue_token_valid(cfg, headers):
     expected = str(cfg.get("command_queue_token", ""))
     supplied = str((headers or {}).get("x-busierbox-command-queue-token", ""))
     return bool(expected) and supplied == expected
+
+
+def command_queue_execution_rejection_reason(cfg):
+    if str(cfg.get("command_queue_execution", "metadata-only")) == "metadata-only":
+        return "command queue execution mode is metadata-only"
+    return "command queue execution mode execute requested, but target command execution is not implemented"
 
 
 def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
@@ -5076,12 +5098,13 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
             "command": command.get("command", ""),
             "timeout_sec": command.get("timeout_sec", 0),
             "max_output_bytes": command.get("max_output_bytes", 0),
+            "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
             "delivery_supported": True,
             "execution_supported": False,
             "executes_commands": False,
             "result_upload_supported": True,
             "execution_decision": "rejected",
-            "execution_decision_reason": "target command execution is not implemented",
+            "execution_decision_reason": command_queue_execution_rejection_reason(cfg),
         }
         body = json.dumps(payload, sort_keys=True).encode("utf-8") + b"\n"
         headers = {
@@ -5105,16 +5128,19 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
             "queued_count_before": queued_count,
             "delivered_count": 1 if delivered else 0,
             "delivery_supported": True,
+            "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
             "execution_supported": False,
             "executes_commands": False,
             "result_upload_supported": True,
             "execution_decision": "rejected",
+            "execution_decision_reason": command_queue_execution_rejection_reason(cfg),
         }
     payload = {
         "schema": 1,
         "status": "no-command",
         "queued_count": queued_count,
         "delivery_supported": False,
+        "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
         "execution_supported": False,
         "executes_commands": False,
         "result_upload_supported": True,
@@ -5139,6 +5165,7 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "remote_addr": remote,
         "queued_count": queued_count,
         "delivery_supported": False,
+        "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
         "execution_supported": False,
         "executes_commands": False,
         "result_upload_supported": True,
@@ -6126,6 +6153,8 @@ def status_document(cfg):
         "command_queue_active_control_channel": bool(command_queue_policy_summary.get("active_control_channel", False)),
         "command_queue_token_required": bool(command_queue_policy_summary.get("token_required", False)),
         "command_queue_token_configured": bool(command_queue_policy_summary.get("token_configured", False)),
+        "command_queue_execution_mode": command_queue_policy_summary.get("execution_mode", "metadata-only"),
+        "command_queue_metadata_only_default": bool(command_queue_policy_summary.get("metadata_only_default", False)),
         "command_queue_execution_supported": bool(command_queue_policy_summary.get("execution_supported", False)),
         "command_queue_delivery_supported": bool(command_queue_policy_summary.get("delivery_supported", False)),
         "command_queue_result_upload_supported": bool(command_queue_policy_summary.get("result_upload_supported", False)),
@@ -6936,7 +6965,7 @@ def print_status(cfg, json_output=False):
     queue = doc["command_queue"]
     print(f"  path: {queue.get('path', '')}")
     print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')} token_configured={'yes' if queue.get('token_configured') else 'no'} token_source={queue.get('token_source', '')}")
-    print(f"  allowed_commands={queue.get('allowed_commands', '')} allow_arbitrary={queue.get('allow_arbitrary', '')} active_control_channel=no")
+    print(f"  allowed_commands={queue.get('allowed_commands', '')} execution_mode={queue.get('execution_mode', 'metadata-only')} allow_arbitrary={queue.get('allow_arbitrary', '')} active_control_channel=no")
     print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'} arbitrary_policy_requested={'yes' if queue.get('arbitrary_policy_requested') else 'no'} arbitrary_execution_allowed=no")
     print(f"  polling: interval={queue.get('poll_interval_sec', '')} jitter_pct={queue.get('poll_jitter_pct', '')} backoff={queue.get('poll_backoff', '')} max_interval={queue.get('poll_max_interval_sec', '')} max_polls={queue.get('max_polls', '')}")
     for error in queue.get("policy_errors") or []:
@@ -7210,7 +7239,7 @@ def print_workbench(cfg):
     queue = snap["command_queue"]
     print(f"  path: {queue.get('path', '')}")
     print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')} token_configured={'yes' if queue.get('token_configured') else 'no'} token_source={queue.get('token_source', '')}")
-    print(f"  allowed_commands={queue.get('allowed_commands', '')} allow_arbitrary={queue.get('allow_arbitrary', '')} active_control_channel=no")
+    print(f"  allowed_commands={queue.get('allowed_commands', '')} execution_mode={queue.get('execution_mode', 'metadata-only')} allow_arbitrary={queue.get('allow_arbitrary', '')} active_control_channel=no")
     print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'} arbitrary_policy_requested={'yes' if queue.get('arbitrary_policy_requested') else 'no'} arbitrary_execution_allowed=no")
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")

@@ -202,6 +202,7 @@ for key in (
     "BB_OPERATOR_FILE_SERVICE_PORT",
     "BB_COMMAND_QUEUE_ENABLE",
     "BB_COMMAND_QUEUE_ALLOWED_COMMANDS",
+    "BB_COMMAND_QUEUE_EXECUTION",
     "BB_COMMAND_QUEUE_ALLOW_ARBITRARY",
     "BB_COMMAND_QUEUE_POLL_INTERVAL_SEC",
     "BB_COMMAND_QUEUE_POLL_JITTER_PCT",
@@ -246,6 +247,10 @@ if command_queue.get("enabled") != manifest["effective_config"]["BB_COMMAND_QUEU
     raise SystemExit("manifest-metadata: command queue enable does not match effective config")
 if command_queue.get("allowed_commands") != manifest["effective_config"]["BB_COMMAND_QUEUE_ALLOWED_COMMANDS"]:
     raise SystemExit("manifest-metadata: command queue policy does not match effective config")
+if command_queue.get("execution_mode") != manifest["effective_config"]["BB_COMMAND_QUEUE_EXECUTION"]:
+    raise SystemExit("manifest-metadata: command queue execution mode does not match effective config")
+if command_queue.get("metadata_only_default") is not True:
+    raise SystemExit("manifest-metadata: command queue metadata-only default missing")
 if command_queue.get("poll_interval_sec") != manifest["effective_config"]["BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"]:
     raise SystemExit("manifest-metadata: command queue poll interval does not match effective config")
 if command_queue.get("poll_jitter_pct") != manifest["effective_config"]["BB_COMMAND_QUEUE_POLL_JITTER_PCT"]:
@@ -272,7 +277,7 @@ if (command_queue.get("poll_transport_supported") is not True or
         command_queue.get("delivery_supported") is not False or
         command_queue.get("result_upload_supported") is not True):
     raise SystemExit("manifest-metadata: command queue live-poll safety metadata missing")
-if command_queue.get("executes_commands") is not False or command_queue.get("default_enabled") is not False:
+if command_queue.get("execution_supported") is not False or command_queue.get("executes_commands") is not False or command_queue.get("default_enabled") is not False:
     raise SystemExit("manifest-metadata: command queue safety metadata missing")
 mode_records = command_queue.get("mode_records") or []
 mode_summary = command_queue.get("mode_summary") or {}

@@ -710,6 +710,8 @@ def main():
         if (queue_summary.get("enabled") != "no" or
                 queue_summary.get("default_enabled") is not False or
                 queue_summary.get("allowed_commands") != "none" or
+                queue_summary.get("execution_mode") != "metadata-only" or
+                queue_summary.get("metadata_only_default") is not True or
                 queue_summary.get("allow_arbitrary") != "no" or
                 queue_summary.get("policy_valid") is not True or
                 queue_summary.get("policy_errors") != [] or
@@ -733,6 +735,8 @@ def main():
         queue_policy_summary = queue_summary.get("policy_summary") or {}
         if (queue_policy_summary.get("safe_disabled_default") is not True or
                 queue_policy_summary.get("operator_queue_records_only") is not True or
+                queue_policy_summary.get("execution_mode") != "metadata-only" or
+                queue_policy_summary.get("metadata_only_default") is not True or
                 queue_policy_summary.get("execution_supported") is not False or
                 queue_policy_summary.get("result_upload_supported") is not True or
                 queue_policy_summary.get("poll_transport_supported") is not True or
@@ -1422,6 +1426,8 @@ def main():
                 queue_status_json["summary"].get("command_queue_active_control_channel") is not False or
                 queue_status_json["summary"].get("command_queue_token_required") is not True or
                 queue_status_json["summary"].get("command_queue_token_configured") is not False or
+                queue_status_json["summary"].get("command_queue_execution_mode") != "metadata-only" or
+                queue_status_json["summary"].get("command_queue_metadata_only_default") is not True or
                 queue_status_json["summary"].get("command_queue_execution_supported") is not False or
                 queue_status_json["summary"].get("command_queue_delivery_supported") is not False or
                 queue_status_json["summary"].get("command_queue_result_upload_supported") is not True or
@@ -1694,7 +1700,7 @@ def main():
                 "state_file: exists=" not in queue_status_text.stdout or
                 "enabled=no default_enabled=no" not in queue_status_text.stdout or
                 "require_token=yes token_configured=no token_source=manual" not in queue_status_text.stdout or
-                "allowed_commands=none allow_arbitrary=no active_control_channel=no" not in queue_status_text.stdout or
+                "allowed_commands=none execution_mode=metadata-only allow_arbitrary=no active_control_channel=no" not in queue_status_text.stdout or
                 "policy_valid=yes configured_for_polling=no arbitrary_policy_requested=no arbitrary_execution_allowed=no" not in queue_status_text.stdout or
                 "busierbox reality-test --json" not in queue_status_text.stdout or
                 "result-received" not in queue_status_text.stdout or

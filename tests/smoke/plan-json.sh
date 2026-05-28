@@ -127,6 +127,8 @@ assert command_queue["policy_valid"] is True
 assert command_queue["configured_for_polling"] is True
 assert command_queue["would_start"] == ["command-queue poll"]
 assert command_queue["would_connect"] == ["192.0.2.77:22205"]
+assert command_queue["execution_mode"] == "metadata-only"
+assert command_queue["metadata_only_default"] is True
 assert command_queue["execution_supported"] is False
 assert command_queue["daemon_state_file"].endswith("/runtime/run/command-queue-daemon.state")
 mode_records = command_queue["mode_records"]

@@ -148,6 +148,9 @@
 #ifndef BB_COMMAND_QUEUE_ALLOWED_COMMANDS
 #define BB_COMMAND_QUEUE_ALLOWED_COMMANDS "none"
 #endif
+#ifndef BB_COMMAND_QUEUE_EXECUTION
+#define BB_COMMAND_QUEUE_EXECUTION "metadata-only"
+#endif
 #ifndef BB_COMMAND_QUEUE_ALLOW_ARBITRARY
 #define BB_COMMAND_QUEUE_ALLOW_ARBITRARY "no"
 #endif
@@ -224,6 +227,7 @@ static struct cfg_entry cfg[] = {
     {"BB_COMMAND_QUEUE_TOKEN_SOURCE", BB_COMMAND_QUEUE_TOKEN_SOURCE, "", 0},
     {"BB_COMMAND_QUEUE_TOKEN", BB_COMMAND_QUEUE_TOKEN, "", 0},
     {"BB_COMMAND_QUEUE_ALLOWED_COMMANDS", BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "", 0},
+    {"BB_COMMAND_QUEUE_EXECUTION", BB_COMMAND_QUEUE_EXECUTION, "", 0},
     {"BB_COMMAND_QUEUE_ALLOW_ARBITRARY", BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "", 0},
     {"BB_COMMAND_QUEUE_POLL_INTERVAL_SEC", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC, "", 0},
     {"BB_COMMAND_QUEUE_POLL_JITTER_PCT", BB_COMMAND_QUEUE_POLL_JITTER_PCT, "", 0},
@@ -734,6 +738,7 @@ void bb_print_autoexec_config(void)
     printf("command_queue_token_source=%s\n", bb_config_get("BB_COMMAND_QUEUE_TOKEN_SOURCE"));
     printf("command_queue_token_set=%s\n", bb_config_get("BB_COMMAND_QUEUE_TOKEN")[0] ? "yes" : "no");
     printf("command_queue_allowed_commands=%s\n", bb_config_get("BB_COMMAND_QUEUE_ALLOWED_COMMANDS"));
+    printf("command_queue_execution=%s\n", bb_config_get("BB_COMMAND_QUEUE_EXECUTION"));
     printf("command_queue_allow_arbitrary=%s\n", bb_config_get("BB_COMMAND_QUEUE_ALLOW_ARBITRARY"));
     printf("command_queue_poll_interval_sec=%s\n", bb_config_get("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"));
     printf("command_queue_poll_jitter_pct=%s\n", bb_config_get("BB_COMMAND_QUEUE_POLL_JITTER_PCT"));
@@ -919,6 +924,10 @@ int applet_runtime_config_main(int argc, char **argv)
         fputs(!strcmp(BB_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false", stdout);
         fputs(",\"token_configured\":", stdout);
         fputs(BB_COMMAND_QUEUE_TOKEN[0] ? "true" : "false", stdout);
+        fputs(",\"execution_mode\":", stdout);
+        bb_json_string(stdout, BB_COMMAND_QUEUE_EXECUTION);
+        fputs(",\"metadata_only_default\":", stdout);
+        fputs(!strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false", stdout);
         fputs(",\"poll_transport_supported\":true", stdout);
         fputs(",\"live_polling_supported\":true", stdout);
         fputs(",\"delivery_supported\":false", stdout);
@@ -931,7 +940,7 @@ int applet_runtime_config_main(int argc, char **argv)
         fputs((command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes")) ? "true" : "false", stdout);
         fputs(",\"arbitrary_execution_allowed\":false", stdout);
         fputs(",\"safe_disabled_default\":", stdout);
-        fputs((command_queue_policy_valid && strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "no")) ? "true" : "false", stdout);
+        fputs((command_queue_policy_valid && strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "no")) ? "true" : "false", stdout);
         fputs(",\"errors\":[", stdout);
         for (i = 0; i < command_queue_policy.count; i++) {
             if (i)
@@ -953,6 +962,8 @@ int applet_runtime_config_main(int argc, char **argv)
     printf("command_queue_policy_valid=%s\n", command_queue_policy_valid ? "yes" : "no");
     printf("command_queue_configured_for_polling=%s\n", (command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && BB_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
     printf("command_queue_missing_operator_host=%s\n", (command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !BB_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
+    printf("command_queue_execution_mode=%s\n", BB_COMMAND_QUEUE_EXECUTION);
+    printf("command_queue_metadata_only_default=%s\n", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "yes" : "no");
     puts("command_queue_poll_transport_supported=yes");
     puts("command_queue_live_polling_supported=yes");
     puts("command_queue_delivery_supported=no");
@@ -963,7 +974,7 @@ int applet_runtime_config_main(int argc, char **argv)
     puts("command_queue_operator_supplied_command_execution=no");
     printf("command_queue_arbitrary_policy_requested=%s\n", (command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes")) ? "yes" : "no");
     puts("command_queue_arbitrary_execution_allowed=no");
-    printf("command_queue_safe_disabled_default=%s\n", (command_queue_policy_valid && strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "no")) ? "yes" : "no");
+    printf("command_queue_safe_disabled_default=%s\n", (command_queue_policy_valid && strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "no")) ? "yes" : "no");
     for (i = 0; i < command_queue_policy.count; i++)
         printf("command_queue_policy_error=%s\n", command_queue_policy.errors[i]);
     for (j = 0; j < sizeof(cfg) / sizeof(cfg[0]); j++) {

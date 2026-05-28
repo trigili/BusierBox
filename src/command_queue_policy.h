@@ -2,7 +2,7 @@
 #define BUSIERBOX_COMMAND_QUEUE_POLICY_H
 
 struct command_queue_policy_report {
-    const char *errors[8];
+    const char *errors[12];
     int count;
 };
 

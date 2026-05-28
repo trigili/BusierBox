@@ -39,6 +39,7 @@ require 'invalid shell provider' 'BB_RSHELL_SHELL_PROVIDER'
 require 'invalid retry backoff' 'BB_RSHELL_RETRY_BACKOFF'
 require 'invalid rshell transport' 'BB_RSHELL_TRANSPORT'
 require 'invalid command queue policy' 'BB_COMMAND_QUEUE_ALLOWED_COMMANDS'
+require 'invalid command queue execution mode' 'BB_COMMAND_QUEUE_EXECUTION'
 require 'command queue arbitrary guard' 'BB_COMMAND_QUEUE_ALLOW_ARBITRARY'
 
 grep -q 'validate_build_config' "$pkg" || {
@@ -155,6 +156,10 @@ expect_package_invalid invalid-transport 'invalid rshell transport' \
     'BB_RSHELL_TRANSPORT="wireguard"'
 expect_package_invalid invalid-command-queue-policy 'invalid command queue allowed commands policy' \
     'BB_COMMAND_QUEUE_ALLOWED_COMMANDS="everything"'
+expect_package_invalid invalid-command-queue-execution 'invalid command queue execution mode' \
+    'BB_COMMAND_QUEUE_EXECUTION="automatic"'
+expect_package_invalid disabled-command-queue-execute 'command queue is disabled but execution mode is execute' \
+    'BB_COMMAND_QUEUE_EXECUTION="execute"'
 expect_package_invalid disabled-command-queue-arbitrary 'command queue is disabled but arbitrary execution is allowed' \
     'BB_COMMAND_QUEUE_ALLOW_ARBITRARY="yes"'
 

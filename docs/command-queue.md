@@ -7,6 +7,9 @@ evidence push, and reverse shells.
 Current behavior is intentionally non-executing:
 
 - `BB_COMMAND_QUEUE_ENABLE` defaults to `no`.
+- `BB_COMMAND_QUEUE_EXECUTION` defaults to `metadata-only`. Queued command
+  metadata may be delivered only during explicit live polling, and the target
+  still rejects the execution decision instead of running the command.
 - `busierbox command-queue status --json` reports the compiled/effective policy
   and a compact `policy_summary` for frontend/operator tooling.
 - Invalid effective policy is reported as `policy_valid=false` with explicit
@@ -53,6 +56,7 @@ BB_COMMAND_QUEUE_REQUIRE_TOKEN="yes"
 BB_COMMAND_QUEUE_TOKEN_SOURCE="manual"
 BB_COMMAND_QUEUE_TOKEN=""
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS="none"
+BB_COMMAND_QUEUE_EXECUTION="metadata-only"
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY="no"
 BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="5"
 BB_COMMAND_QUEUE_POLL_JITTER_PCT="0"
@@ -118,11 +122,14 @@ surface this lifecycle without probing target status first.
 Policy values for `BB_COMMAND_QUEUE_ALLOWED_COMMANDS` are `none`,
 `busierbox-only`, `allowlist`, and `custom`. `BB_COMMAND_QUEUE_ALLOW_ARBITRARY`
 is only valid with `custom`; disabled queues must keep `allowed_commands=none`
-and `allow_arbitrary=no`.
+`execution=metadata-only`, and `allow_arbitrary=no`. `BB_COMMAND_QUEUE_EXECUTION`
+may be `metadata-only` or `execute`; `execute` is an explicit future-mode
+request and still reports `execution_supported=false` in this build.
 
 Safety boundary:
 
 - The command queue is disabled by default.
+- Metadata-only execution mode is the default.
 - It is not required for normal file transfer or reverse shell workflows.
 - It is visible in `config-info`, `runtime-config --json`, `manifest --json`,
   and `plan command-queue`.
