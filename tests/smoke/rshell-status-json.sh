@@ -53,6 +53,7 @@ for key in [
     "authkeys_mode",
     "shell_provider",
     "retry",
+    "retry_timing",
     "runtime_config",
     "runtime_counters",
     "zero_arg_autorun",
@@ -158,6 +159,19 @@ if not data["remote_forward_port"]:
 for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec", "pre_connect_count", "post_disconnect_count"]:
     if key not in data["retry"]:
         raise SystemExit(f"retry field missing: {key}")
+timing = data.get("retry_timing") or {}
+if timing.get("backoff") != data["retry"].get("backoff"):
+    raise SystemExit("retry timing backoff mismatch")
+if timing.get("interval_sec") != data["retry"].get("interval_sec"):
+    raise SystemExit("retry timing interval mismatch")
+if timing.get("max_interval_sec") != data["retry"].get("max_interval_sec"):
+    raise SystemExit("retry timing max interval mismatch")
+if timing.get("jitter_pct") != data["retry"].get("jitter_pct"):
+    raise SystemExit("retry timing jitter mismatch")
+if timing.get("sample_delays_exclude_jitter") is not True:
+    raise SystemExit("retry timing should mark sample delays as excluding jitter")
+if timing.get("sample_delays_sec") != [5, 5, 5]:
+    raise SystemExit(f"unexpected default retry sample delays: {timing.get('sample_delays_sec')!r}")
 if data["runtime_config"].get("effective_config_source") != "cli":
     raise SystemExit("runtime config cli source missing")
 if "trailer_override" not in data["runtime_config"]:
@@ -181,6 +195,13 @@ grep -q '^session_resume_supported=no$' "$tmp/status-human.out"
 grep -q '^pre_connect_retry_count=' "$tmp/status-human.out"
 grep -q '^pre_connect_retry_count=2$' "$tmp/status-human.out"
 grep -q '^post_disconnect_retry_count=2$' "$tmp/status-human.out"
+grep -q '^retry_backoff=' "$tmp/status-human.out"
+grep -q '^retry_interval_sec=' "$tmp/status-human.out"
+grep -q '^retry_max_interval_sec=' "$tmp/status-human.out"
+grep -q '^retry_jitter_pct=' "$tmp/status-human.out"
+grep -q '^retry_delay_attempt_0_sec=' "$tmp/status-human.out"
+grep -q '^retry_delay_attempt_1_sec=' "$tmp/status-human.out"
+grep -q '^retry_delay_attempt_2_sec=' "$tmp/status-human.out"
 grep -q '^would_reconnect_after_success_attempt_0=' "$tmp/status-human.out"
 grep -q '^would_reconnect_after_success_attempt_1=' "$tmp/status-human.out"
 grep -q '^would_reconnect_after_success_attempt_2=' "$tmp/status-human.out"

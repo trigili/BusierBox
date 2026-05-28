@@ -151,6 +151,7 @@ static int policy_stops_after_first_success(const char *policy);
 static int policy_persistent_lifecycle(const char *policy);
 static const char *policy_post_success_retry_count_for(const char *policy, const char *retry_count_text);
 static const char *policy_post_success_retry_count(const char *policy);
+static int retry_delay_without_jitter_for_attempt(int attempt);
 static int should_reconnect_after_success(int reconnects);
 static int should_reconnect_policy_after_success(const char *policy, int reconnects, const char *retry_count_text);
 
@@ -180,6 +181,13 @@ static void print_rshell_config_status_for_policy(FILE *out, const char *transpo
     fprintf(out, "session_resume_supported=no\n");
     fprintf(out, "pre_connect_retry_count=%s\n", retry_count);
     fprintf(out, "post_disconnect_retry_count=%s\n", policy_post_success_retry_count_for(policy, retry_count));
+    fprintf(out, "retry_backoff=%s\n", BB_RSHELL_RETRY_BACKOFF);
+    fprintf(out, "retry_interval_sec=%s\n", BB_RSHELL_RETRY_INTERVAL_SEC);
+    fprintf(out, "retry_max_interval_sec=%s\n", BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+    fprintf(out, "retry_jitter_pct=%s\n", BB_RSHELL_RETRY_JITTER_PCT);
+    fprintf(out, "retry_delay_attempt_0_sec=%d\n", retry_delay_without_jitter_for_attempt(0));
+    fprintf(out, "retry_delay_attempt_1_sec=%d\n", retry_delay_without_jitter_for_attempt(1));
+    fprintf(out, "retry_delay_attempt_2_sec=%d\n", retry_delay_without_jitter_for_attempt(2));
     fprintf(out, "would_reconnect_after_success_attempt_0=%s\n", should_reconnect_policy_after_success(policy, 0, retry_count) ? "yes" : "no");
     fprintf(out, "would_reconnect_after_success_attempt_1=%s\n", should_reconnect_policy_after_success(policy, 1, retry_count) ? "yes" : "no");
     fprintf(out, "would_reconnect_after_success_attempt_2=%s\n", should_reconnect_policy_after_success(policy, 2, retry_count) ? "yes" : "no");
@@ -251,6 +259,34 @@ static int retry_delay_for_attempt(int attempt)
         if (span > 0)
             delay = delay - span + (int)(time(NULL) % (unsigned int)(span * 2 + 1));
     }
+    return delay;
+}
+
+static int retry_delay_without_jitter_for_attempt(int attempt)
+{
+    int base = parse_int_default(BB_RSHELL_RETRY_INTERVAL_SEC, 5);
+    int max = parse_int_default(BB_RSHELL_RETRY_MAX_INTERVAL_SEC, 300);
+    int delay = base;
+
+    if (base < 0)
+        base = 0;
+    if (max < base)
+        max = base;
+    if (!strcmp(BB_RSHELL_RETRY_BACKOFF, "linear"))
+        delay = base * (attempt + 1);
+    else if (!strcmp(BB_RSHELL_RETRY_BACKOFF, "exponential")) {
+        int i;
+        delay = base;
+        for (i = 0; i < attempt && delay < max; i++) {
+            if (delay > max / 2) {
+                delay = max;
+                break;
+            }
+            delay *= 2;
+        }
+    }
+    if (delay > max)
+        delay = max;
     return delay;
 }
 
@@ -806,6 +842,18 @@ int applet_rshell_main(int argc, char **argv)
             printf(",\"post_disconnect_count\":");
             json_string_main(stdout, policy_post_success_retry_count_for(effective_session_policy, effective_retry_count));
             printf("}");
+            printf(",\"retry_timing\":{\"backoff\":");
+            json_string_main(stdout, BB_RSHELL_RETRY_BACKOFF);
+            printf(",\"interval_sec\":");
+            json_string_main(stdout, BB_RSHELL_RETRY_INTERVAL_SEC);
+            printf(",\"max_interval_sec\":");
+            json_string_main(stdout, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+            printf(",\"jitter_pct\":");
+            json_string_main(stdout, BB_RSHELL_RETRY_JITTER_PCT);
+            printf(",\"sample_delays_sec\":[%d,%d,%d],\"sample_delays_exclude_jitter\":true}",
+                   retry_delay_without_jitter_for_attempt(0),
+                   retry_delay_without_jitter_for_attempt(1),
+                   retry_delay_without_jitter_for_attempt(2));
             printf(",\"runtime_counters\":{\"initial_attempts\":");
             if (initial_attempts[0])
                 json_string_main(stdout, initial_attempts);

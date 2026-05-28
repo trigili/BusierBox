@@ -96,6 +96,12 @@ assert summary["fresh_session_on_reconnect"] is True
 assert summary["session_resume_supported"] is False
 assert rshell["retry"]["pre_connect_count"] == "1"
 assert rshell["retry"]["post_disconnect_count"] == "1"
+assert rshell["retry_timing"]["backoff"] == rshell["retry"]["backoff"]
+assert rshell["retry_timing"]["interval_sec"] == rshell["retry"]["interval_sec"]
+assert rshell["retry_timing"]["max_interval_sec"] == rshell["retry"]["max_interval_sec"]
+assert rshell["retry_timing"]["jitter_pct"] == rshell["retry"]["jitter_pct"]
+assert rshell["retry_timing"]["sample_delays_exclude_jitter"] is True
+assert rshell["retry_timing"]["sample_delays_sec"] == [5, 5, 5]
 assert rshell["operator_host"] == "192.0.2.77"
 assert rshell["requires_external_writes"] is False
 assert "192.0.2.77" in rshell["would_connect"][0]
@@ -246,6 +252,14 @@ grep -q '^noresidue_policy_active=yes$' "$work/clean.txt"
 grep -q '^noresidue_policy_aggressive_minimizes_runtime_residue=yes$' "$work/clean.txt"
 grep -q '^noresidue_policy_forensic_no_trace=no$' "$work/clean.txt"
 grep -q '^noresidue_policy_external_writes_require_explicit_apply=yes$' "$work/clean.txt"
+"$work/busierbox" plan rshell >"$work/rshell.txt"
+grep -q '^retry_backoff=' "$work/rshell.txt"
+grep -q '^retry_interval_sec=' "$work/rshell.txt"
+grep -q '^retry_max_interval_sec=' "$work/rshell.txt"
+grep -q '^retry_jitter_pct=' "$work/rshell.txt"
+grep -q '^retry_delay_attempt_0_sec=' "$work/rshell.txt"
+grep -q '^retry_delay_attempt_1_sec=' "$work/rshell.txt"
+grep -q '^retry_delay_attempt_2_sec=' "$work/rshell.txt"
 "$work/busierbox" plan recovery install --method rc-local --action script --file "$work/recover.sh" --root "$work/root" --name bbx_recovery >"$work/recovery-script.txt"
 grep -q "^script_source_path=$work/recover.sh$" "$work/recovery-script.txt"
 grep -q "^script_dest_path=$work/root/usr/bin/bbx_recovery.recovery.sh$" "$work/recovery-script.txt"
