@@ -141,6 +141,8 @@ PY
     ../busierbox-no-residue-aggressive sh -c 'echo aggressive-ok' >out
     grep -q '^aggressive-ok$' out
     [ ! -e .bbx-aggressive ]
+    ../busierbox-no-residue-aggressive reality-test --json | python3 -m json.tool >reality.json
+    [ ! -e .bbx-aggressive ]
 )
 
 build_mode_artifact extract "$tmp/busierbox-extract-fallback-clean" ".bbx-runtime-blocked" yes ".bbx-fallback"

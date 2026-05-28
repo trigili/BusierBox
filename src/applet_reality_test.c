@@ -64,6 +64,21 @@ static void runtime_probe_dir(char *out, size_t outsz)
     snprintf(out, outsz, "%s/reality-test", BB_RUNTIME_ROOT);
 }
 
+static void cleanup_reality_probe_dir(void)
+{
+    char dir[PATH_MAX];
+
+    if (strcmp(BB_RUNTIME_MODE, "no-residue") != 0 ||
+        strcmp(BB_NORESIDUE_LEVEL, "aggressive") != 0)
+        return;
+    runtime_probe_dir(dir, sizeof(dir));
+    bb_rm_rf(dir);
+    if (strcmp(BB_RUNTIME_ROOT, ".") &&
+        strcmp(BB_RUNTIME_ROOT, "/") &&
+        strcmp(BB_RUNTIME_ROOT, dir))
+        rmdir(BB_RUNTIME_ROOT);
+}
+
 static void check_runtime_root(struct check_result *r)
 {
     char dir[PATH_MAX];
@@ -830,6 +845,7 @@ int applet_reality_test_main(int argc, char **argv)
             }
             rc = bb_operator_upload_file(path, "busierbox-reality-test.json", "reality-test", argc - 2, argv + 2);
             unlink(path);
+            cleanup_reality_probe_dir();
             return rc;
         }
         fputs("reality-test: unable to create temporary reality-test JSON\n", stderr);
@@ -878,5 +894,6 @@ int applet_reality_test_main(int argc, char **argv)
         print_json(checks, sizeof(checks) / sizeof(checks[0]));
     else
         print_text(checks, sizeof(checks) / sizeof(checks[0]));
+    cleanup_reality_probe_dir();
     return 0;
 }
