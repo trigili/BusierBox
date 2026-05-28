@@ -554,6 +554,114 @@ static void recovery_print_status_api_collections(void)
     fputs("]}}", stdout);
 }
 
+static void recovery_print_survey_index_array(const char *collection, const char *field, const char *value)
+{
+    size_t i;
+    int first = 1;
+
+    fputc('[', stdout);
+    if (!strcmp(collection, "storage")) {
+        for (i = 0; i < sizeof(recovery_storage_paths) / sizeof(recovery_storage_paths[0]); i++) {
+            const char *candidate = "";
+            if (!strcmp(field, "class"))
+                candidate = recovery_storage_paths[i].class_name;
+            else if (!strcmp(field, "survives_reboot"))
+                candidate = recovery_storage_paths[i].survives_reboot;
+            if (strcmp(candidate, value))
+                continue;
+            printf("%s%zu", first ? "" : ",", i);
+            first = 0;
+        }
+    } else if (!strcmp(collection, "methods")) {
+        for (i = 0; i < sizeof(recovery_methods) / sizeof(recovery_methods[0]); i++) {
+            const char *candidate = "";
+            if (!strcmp(field, "name"))
+                candidate = recovery_methods[i].name;
+            else if (!strcmp(field, "survives_reboot"))
+                candidate = recovery_methods[i].survives_reboot;
+            else if (!strcmp(field, "intrusiveness"))
+                candidate = recovery_methods[i].intrusiveness;
+            else if (!strcmp(field, "requires_external_write"))
+                candidate = recovery_methods[i].requires_external_write;
+            if (strcmp(candidate, value))
+                continue;
+            printf("%s%zu", first ? "" : ",", i);
+            first = 0;
+        }
+    }
+    fputc(']', stdout);
+}
+
+static void recovery_print_survey_indexes(void)
+{
+    static const char *storage_classes[] = {"persistent", "volatile", "usually-volatile", NULL};
+    static const char *storage_survives[] = {"yes", "no", "maybe", NULL};
+    static const char *method_survives[] = {"yes", "event", "login-only", "maybe", NULL};
+    static const char *method_intrusiveness[] = {"low", "medium", "high", NULL};
+    static const char *method_external_write[] = {"yes", "no", NULL};
+    size_t i;
+
+    fputs(",\"storage_by_class\":{", stdout);
+    for (i = 0; storage_classes[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, storage_classes[i]);
+        fputc(':', stdout);
+        recovery_print_survey_index_array("storage", "class", storage_classes[i]);
+    }
+    fputs("},\"storage_by_survives_reboot\":{", stdout);
+    for (i = 0; storage_survives[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, storage_survives[i]);
+        fputc(':', stdout);
+        recovery_print_survey_index_array("storage", "survives_reboot", storage_survives[i]);
+    }
+    fputs("},\"methods_by_name\":{", stdout);
+    for (i = 0; i < sizeof(recovery_methods) / sizeof(recovery_methods[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, recovery_methods[i].name);
+        fputc(':', stdout);
+        recovery_print_survey_index_array("methods", "name", recovery_methods[i].name);
+    }
+    fputs("},\"methods_by_survives_reboot\":{", stdout);
+    for (i = 0; method_survives[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, method_survives[i]);
+        fputc(':', stdout);
+        recovery_print_survey_index_array("methods", "survives_reboot", method_survives[i]);
+    }
+    fputs("},\"methods_by_intrusiveness\":{", stdout);
+    for (i = 0; method_intrusiveness[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, method_intrusiveness[i]);
+        fputc(':', stdout);
+        recovery_print_survey_index_array("methods", "intrusiveness", method_intrusiveness[i]);
+    }
+    fputs("},\"methods_by_requires_external_write\":{", stdout);
+    for (i = 0; method_external_write[i]; i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, method_external_write[i]);
+        fputc(':', stdout);
+        recovery_print_survey_index_array("methods", "requires_external_write", method_external_write[i]);
+    }
+    fputs("}", stdout);
+}
+
+static void recovery_print_survey_api_collections(void)
+{
+    fputs(",\"api_collections\":{", stdout);
+    fputs("\"storage\":{\"name\":\"storage\",\"count_summary_key\":\"summary.storage_count\",\"indexes\":[", stdout);
+    fputs("\"storage_by_class\",\"storage_by_survives_reboot\"", stdout);
+    fputs("]},\"methods\":{\"name\":\"methods\",\"count_summary_key\":\"summary.method_count\",\"indexes\":[", stdout);
+    fputs("\"methods_by_name\",\"methods_by_survives_reboot\",\"methods_by_intrusiveness\",\"methods_by_requires_external_write\"", stdout);
+    fputs("]}}", stdout);
+}
+
 static void recovery_print_survey(int json, const char *root)
 {
     size_t i;
@@ -587,7 +695,12 @@ static void recovery_print_survey(int json, const char *root)
             fputs(",\"requires_external_write\":", stdout); bb_json_string(stdout, recovery_methods[i].requires_external_write);
             fputc('}', stdout);
         }
-        puts("]}");
+        fputs("]", stdout);
+        recovery_print_survey_indexes();
+        recovery_print_survey_api_collections();
+        printf(",\"summary\":{\"storage_count\":%zu,\"method_count\":%zu}}\n",
+               sizeof(recovery_storage_paths) / sizeof(recovery_storage_paths[0]),
+               sizeof(recovery_methods) / sizeof(recovery_methods[0]));
         return;
     }
     puts("Persistence survey");

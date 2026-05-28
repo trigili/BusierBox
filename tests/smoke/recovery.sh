@@ -25,7 +25,44 @@ grep -q 'deprecated compatibility alias for persistence' "$tmp/recovery-help"
 grep -q 'evidence-push' "$tmp/recovery-help"
 grep -q 'evidence-then-rshell' "$tmp/recovery-help"
 grep -q 'dmesg-push' "$tmp/recovery-help"
-"$bb" persistence --survey --json --root "$tmp/root" | python3 -m json.tool >/dev/null
+"$bb" persistence --survey --json --root "$tmp/root" >"$tmp/survey.json"
+python3 -m json.tool "$tmp/survey.json" >/dev/null
+python3 - <<'PY' "$tmp/survey.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+summary = data["summary"]
+assert summary["storage_count"] == len(data["storage"])
+assert summary["method_count"] == len(data["methods"])
+api = data["api_collections"]
+assert api["storage"]["count_summary_key"] == "summary.storage_count"
+assert api["methods"]["count_summary_key"] == "summary.method_count"
+assert set(api["storage"]["indexes"]) >= {
+    "storage_by_class",
+    "storage_by_survives_reboot",
+}
+assert set(api["methods"]["indexes"]) >= {
+    "methods_by_name",
+    "methods_by_survives_reboot",
+    "methods_by_intrusiveness",
+    "methods_by_requires_external_write",
+}
+assert data["storage_by_class"]["persistent"] == [0, 1, 2, 3]
+assert data["storage_by_class"]["volatile"] == [4, 6]
+assert data["storage_by_class"]["usually-volatile"] == [5]
+assert data["storage_by_survives_reboot"]["yes"] == [0, 1, 2, 3]
+assert data["storage_by_survives_reboot"]["no"] == [4, 6]
+assert data["storage_by_survives_reboot"]["maybe"] == [5]
+assert data["methods_by_name"]["rc-local"] == [5]
+assert data["methods_by_survives_reboot"]["yes"] == [0, 1, 2, 3, 5]
+assert data["methods_by_survives_reboot"]["maybe"] == [4]
+assert data["methods_by_survives_reboot"]["event"] == [6]
+assert data["methods_by_survives_reboot"]["login-only"] == [7]
+assert data["methods_by_intrusiveness"]["low"] == [5, 7]
+assert data["methods_by_intrusiveness"]["medium"] == [0, 1, 2, 3, 6]
+assert data["methods_by_intrusiveness"]["high"] == [4]
+assert data["methods_by_requires_external_write"]["yes"] == list(range(len(data["methods"])))
+assert data["methods_by_requires_external_write"]["no"] == []
+PY
 "$bb" recovery --survey --json --root "$tmp/root" | python3 -m json.tool >/dev/null
 "$bb" persistence --plan --root "$tmp/root" >"$tmp/plan"
 grep -q 'openwrt-procd' "$tmp/plan"

@@ -13,6 +13,11 @@ busierbox persistence --survey --json
 The survey reports likely persistent storage (`/overlay`, `/root`, `/etc`,
 `/usr/bin`) separately from volatile locations (`/tmp`, `/dev/shm`) and shows
 whether each candidate path exists and appears writable.
+`persistence --survey --json` also includes `summary` counts,
+`api_collections` metadata, and index maps such as `storage_by_class`,
+`storage_by_survives_reboot`, `methods_by_name`,
+`methods_by_intrusiveness`, and `methods_by_requires_external_write` so
+operator UIs can filter survey results without scraping the human table.
 
 The method table covers reboot hook families such as OpenWrt/procd init
 scripts, SysV/rcS, systemd units, cron `@reboot`, at jobs, `rc.local`,
