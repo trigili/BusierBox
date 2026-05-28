@@ -281,6 +281,8 @@ def print_table(path, data):
                 f"tuples={release_self_test.get('release_tuple_count', 0)} "
                 f"devices={release_self_test.get('release_device_count', 0)} "
                 f"command_queue_enabled={release_self_test.get('command_queue_enabled_count', 0)} "
+                f"command_queue_token_required={release_self_test.get('command_queue_token_required_count', 0)} "
+                f"command_queue_token_configured={release_self_test.get('command_queue_token_configured_count', 0)} "
                 f"command_queue_exec={release_self_test.get('command_queue_execution_supported_count', 0)}"
             )
     if failures:
