@@ -791,7 +791,10 @@ lookups such as `file-service:upload_complete`, `<session-id>:connection_close`,
 `upload`, `200`, `clean shutdown`, `cq-...`, `upload_complete:ok`,
 `file-service:ok`, `service_stop:clean shutdown`, `command_result_received:cq-...`,
 `command_queue_poll_delivered:<command-sha256>`,
-`command_queue_poll_no_command:info`, `command_result_received:<command-sha256>`,
+`command_queue_poll_no_command:info`,
+`command_queue_result_upload_received:<command-sha256>`,
+`command_queue_result_upload_rejected:rejected`,
+`command_result_received:<command-sha256>`,
 `workbench_job_completed:job-...`, or
 `workbench:job-...`, `workbench_job_completed:bringup-recommend`, or
 `workbench:package-artifact`, `workbench_config_updated:BB_NORESIDUE_LEVEL`, or

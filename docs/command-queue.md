@@ -243,7 +243,11 @@ When the command-queue listener is running with `command_queue_tls=no`, it also
 accepts structured result JSON with `POST /command-queue/result`. The JSON must
 include `command_id`; the listener updates the matching command record, computes
 stdout/stderr byte totals against the queued `max_output_bytes`, and logs both
-`command_result_received` and `command_queue_result_upload`.
+`command_result_received` and the stable `command_queue_result_upload` event.
+The operator log also emits outcome-specific
+`command_queue_result_upload_received`, `command_queue_result_upload_rejected`,
+or `command_queue_result_upload_error` records for direct result-upload timeline
+filtering.
 
 `--record-command-result` attaches a structured JSON result object to an
 existing queued command, records `result_command_id`, `result_received_at`,

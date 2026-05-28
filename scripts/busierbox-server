@@ -6323,6 +6323,23 @@ def append_command_queue_poll_events(cfg, service, log_dir, remote, metadata):
         append_event(cfg, service, poll_event, level, session=str(log_dir), remote=remote, details=metadata)
 
 
+def command_queue_result_outcome_event(status):
+    return {
+        "result-received": "command_queue_result_upload_received",
+        "rejected": "command_queue_result_upload_rejected",
+        "error": "command_queue_result_upload_error",
+    }.get(str(status or ""))
+
+
+def append_command_queue_result_events(cfg, service, log_dir, remote, metadata):
+    append_session_list_item(log_dir, "command_queue_results", metadata)
+    append_event(cfg, service, "command_queue_result_upload", session=str(log_dir), remote=remote, details=metadata)
+    result_event = command_queue_result_outcome_event(metadata.get("status"))
+    if result_event:
+        level = "error" if result_event == "command_queue_result_upload_error" else "info"
+        append_event(cfg, service, result_event, level, session=str(log_dir), remote=remote, details=metadata)
+
+
 def command_queue_token_valid(cfg, headers):
     if str(cfg.get("command_queue_require_token", "yes")) != "yes":
         return True
@@ -6507,8 +6524,7 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
                     method, target, _version, headers, body = read_http_headers(conn)
                     metadata = handle_command_queue_http(cfg, conn, method, target, headers, body, addr)
                     if metadata.get("operation") == "command_queue_result":
-                        append_session_list_item(log_dir, "command_queue_results", metadata)
-                        append_event(cfg, service, "command_queue_result_upload", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
+                        append_command_queue_result_events(cfg, service, log_dir, f"{addr[0]}:{addr[1]}", metadata)
                         print(f"command-queue result {metadata.get('status')}: id={metadata.get('command_id', '')}")
                     else:
                         append_command_queue_poll_events(cfg, service, log_dir, f"{addr[0]}:{addr[1]}", metadata)

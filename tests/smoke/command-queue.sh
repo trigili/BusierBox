@@ -322,6 +322,75 @@ assert any(event.get("service") == "command-queue" and event.get("event") == "co
 assert any(event.get("service") == "command-queue" and event.get("event") == "request_error" for event in events)
 PY
 rm -f "$bad_cfg" "$bad_out" "$bad_err"
+result_bad_port=$(python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+result_bad_cfg="${TMPDIR:-/tmp}/busierbox-command-result-bad.$$.json"
+result_bad_out="${TMPDIR:-/tmp}/busierbox-command-result-bad.$$.out"
+result_bad_err="${TMPDIR:-/tmp}/busierbox-command-result-bad.$$.err"
+python3 - "$result_bad_cfg" "$result_bad_port" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+cfg = {
+    "listen_host": "127.0.0.1",
+    "operator_session_dir": str(Path(sys.argv[1]).with_suffix(".session")),
+    "server_state": str(Path(sys.argv[1]).with_suffix(".state.json")),
+    "command_queue_file": str(Path(sys.argv[1]).with_suffix(".queue.json")),
+    "command_queue_enable": "yes",
+    "command_queue_port": sys.argv[2],
+    "command_queue_tls": "no",
+    "command_queue_require_token": "no",
+    "command_queue_allowed_commands": "busierbox-only",
+    "command_queue_allow_arbitrary": "no",
+}
+Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
+PY
+scripts/busierbox-server --config "$result_bad_cfg" --transport command-queue --timeout 10 --one-shot >"$result_bad_out" 2>"$result_bad_err" &
+result_bad_pid=$!
+sleep 0.5
+python3 - "$result_bad_port" <<'PY'
+import socket
+import sys
+
+body = b"{"
+request = (
+    b"POST /command-queue/result HTTP/1.1\r\n"
+    b"Host: 127.0.0.1\r\n"
+    b"Content-Type: application/json\r\n"
+    + f"Content-Length: {len(body)}\r\n".encode("ascii")
+    + b"\r\n"
+    + body
+)
+with socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=5) as sock:
+    sock.sendall(request)
+    response = sock.recv(4096)
+if b"400 Bad Request" not in response:
+    raise SystemExit("invalid result JSON did not return HTTP 400")
+PY
+wait "$result_bad_pid"
+grep -q 'command-queue result rejected' "$result_bad_out"
+python3 - "$result_bad_cfg" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+cfg = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+events = [
+    json.loads(line)
+    for line in (Path(cfg["operator_session_dir"]) / "events.jsonl").read_text(encoding="utf-8").splitlines()
+]
+assert any(event.get("service") == "command-queue" and event.get("event") == "command_queue_result_upload" and event.get("details", {}).get("status") == "rejected" for event in events)
+assert any(event.get("service") == "command-queue" and event.get("event") == "command_queue_result_upload_rejected" and event.get("details", {}).get("http_status") == 400 for event in events)
+assert not any(event.get("event") == "command_queue_poll" and event.get("details", {}).get("operation") == "command_queue_result" for event in events)
+PY
+rm -f "$result_bad_cfg" "$result_bad_out" "$result_bad_err"
 split_port=$(python3 - <<'PY'
 import socket
 s = socket.socket()
@@ -520,6 +589,7 @@ assert any(event["service"] == "command-queue" and event["event"] == "command_qu
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll_delivered" and event["details"].get("command_sha256") == expected_sha for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_result_received" for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_result_upload" for event in operator)
+assert any(event["service"] == "command-queue" and event["event"] == "command_queue_result_upload_received" and event["details"].get("command_sha256") == expected_sha for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" and event["details"].get("status") == "delivered" for event in operator)
 PY
 scripts/busierbox-server --config "$queued_cfg" --json-command-queue | python3 -c 'import json,sys; q=json.load(sys.stdin)["command_queue"]; commands=q["commands"]; assert len(commands) == 1; command_id=commands[0]["id"]; assert q["execution_decision_counts"]["rejected"] == 1; assert q["commands_by_execution_decision"]["rejected"][0]["id"] == command_id'
