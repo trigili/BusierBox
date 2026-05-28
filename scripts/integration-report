@@ -56,8 +56,15 @@ def load_event_summary(summary_path, data, limit=8):
         return {}
     counts = {}
     services = {}
+    levels = {}
+    service_events = {}
+    remotes = {}
+    sessions = {}
     recent = []
     total = 0
+    invalid_count = 0
+    first_ts = ""
+    latest_ts = ""
     with path.open("r", encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -66,21 +73,38 @@ def load_event_summary(summary_path, data, limit=8):
             try:
                 event = json.loads(line)
             except json.JSONDecodeError:
+                invalid_count += 1
                 continue
             if not isinstance(event, dict):
+                invalid_count += 1
                 continue
             total += 1
             event_name = str(event.get("event", "unknown") or "unknown")
             service = str(event.get("service", "unknown") or "unknown")
+            level = str(event.get("level", "unknown") or "unknown")
+            remote = str(event.get("remote", "") or "")
+            session = str(event.get("session", "") or "")
+            ts = str(event.get("ts", "") or "")
             counts[event_name] = counts.get(event_name, 0) + 1
             services[service] = services.get(service, 0) + 1
+            levels[level] = levels.get(level, 0) + 1
+            service_event = f"{service}:{event_name}"
+            service_events[service_event] = service_events.get(service_event, 0) + 1
+            if remote:
+                remotes[remote] = remotes.get(remote, 0) + 1
+            if session:
+                sessions[session] = sessions.get(session, 0) + 1
+            if ts and (not first_ts or ts < first_ts):
+                first_ts = ts
+            if ts and ts > latest_ts:
+                latest_ts = ts
             recent.append({
-                "ts": event.get("ts", ""),
-                "level": event.get("level", ""),
+                "ts": ts,
+                "level": level,
                 "service": service,
                 "event": event_name,
-                "session": event.get("session", ""),
-                "remote": event.get("remote", ""),
+                "session": session,
+                "remote": remote,
                 "details": event.get("details", {}),
             })
             if len(recent) > limit:
@@ -88,8 +112,15 @@ def load_event_summary(summary_path, data, limit=8):
     return {
         "path": str(path),
         "total_count": total,
+        "invalid_count": invalid_count,
+        "first_event_at": first_ts,
+        "latest_event_at": latest_ts,
         "event_counts": counts,
         "service_counts": services,
+        "level_counts": levels,
+        "service_event_counts": service_events,
+        "remote_counts": remotes,
+        "session_counts": sessions,
         "recent": recent,
     }
 
@@ -174,8 +205,21 @@ def print_table(path, data):
         counts_text = " ".join(
             f"{name}:{count}" for name, count in sorted(events.get("event_counts", {}).items())
         )
+        level_text = " ".join(
+            f"{name}:{count}" for name, count in sorted(events.get("level_counts", {}).items())
+        )
+        service_text = " ".join(
+            f"{name}:{count}" for name, count in sorted(events.get("service_counts", {}).items())
+        )
+        service_event_text = " ".join(
+            f"{name}:{count}" for name, count in sorted(events.get("service_event_counts", {}).items())
+        )
         print(f"event_log={events.get('path', '')}")
+        print(f"event_total={events.get('total_count', 0)} invalid={events.get('invalid_count', 0)} first={events.get('first_event_at', '')} latest={events.get('latest_event_at', '')}")
         print(f"event_counts={counts_text}")
+        print(f"event_levels={level_text}")
+        print(f"event_services={service_text}")
+        print(f"event_service_events={service_event_text}")
         if events.get("recent"):
             print("recent_events:")
             for event in events["recent"]:

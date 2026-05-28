@@ -10,7 +10,11 @@ scripts/integration-report "$new" >local/tmp.integration-report.out
 grep -q '^status=partial$' local/tmp.integration-report.out
 grep -q '^counts=pass:2 fail:1 skip:0$' local/tmp.integration-report.out
 grep -q '^event_log=.*tests/fixtures/integration/new-events.jsonl$' local/tmp.integration-report.out
+grep -q '^event_total=3 invalid=0 first=2026-05-26T12:00:00Z latest=2026-05-26T12:00:05Z$' local/tmp.integration-report.out
 grep -q '^event_counts=.*service_start:1.*shutdown:1.*upload_complete:1' local/tmp.integration-report.out
+grep -q '^event_levels=info:3$' local/tmp.integration-report.out
+grep -q '^event_services=file-service:3$' local/tmp.integration-report.out
+grep -q '^event_service_events=.*file-service:service_start:1.*file-service:shutdown:1.*file-service:upload_complete:1' local/tmp.integration-report.out
 grep -q '^recent_events:$' local/tmp.integration-report.out
 grep -q 'file-service:upload_complete' local/tmp.integration-report.out
 grep -q '^failure_reasons:$' local/tmp.integration-report.out
@@ -21,7 +25,7 @@ grep -q 'builtin-core-shell.*pass.*pass.*fail.*pending.*pass.*fail.*7.500s' loca
 grep -q 'listener timeout' local/tmp.integration-report.out
 
 scripts/integration-report "$new" --json | python3 -m json.tool >/dev/null
-scripts/integration-report "$new" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); e=d["operator_events"]; assert e["total_count"] == 3; assert e["event_counts"]["upload_complete"] == 1; assert e["recent"][-1]["event"] == "shutdown"'
+scripts/integration-report "$new" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); e=d["operator_events"]; assert e["total_count"] == 3; assert e["invalid_count"] == 0; assert e["first_event_at"] == "2026-05-26T12:00:00Z"; assert e["latest_event_at"] == "2026-05-26T12:00:05Z"; assert e["event_counts"]["upload_complete"] == 1; assert e["level_counts"]["info"] == 3; assert e["service_counts"]["file-service"] == 3; assert e["service_event_counts"]["file-service:upload_complete"] == 1; assert e["remote_counts"]["192.0.2.10:40100"] == 1; assert e["session_counts"]["20260526-file-service"] == 1; assert e["recent"][-1]["event"] == "shutdown"'
 
 scripts/integration-compare "$old" "$new" >local/tmp.integration-compare.out
 grep -q '^old_status=pass$' local/tmp.integration-compare.out
