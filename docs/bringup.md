@@ -132,8 +132,12 @@ host, target preset, payload preset, generated target preset path, release
 selection, maximum compatibility threshold, compatibility label/reasons,
 selected artifact provider status, generated trailer command, staged fetch
 command, selected artifact Doom WAD metadata, selected artifact release
-summary metadata, next operator commands, and next target commands. The JSON also
-includes normalized `selected_tool_provider_status_records` and
+summary metadata, next operator commands, and next target commands. The local
+survey-derived recommendation also carries `recommendation_compatibility` and
+the same object under `recommendation.compatibility`; this is separate from the
+top-level `compatibility`, which describes the selected release artifact when
+release selection is used. The JSON also includes normalized
+`selected_tool_provider_status_records` and
 `selected_doom_wad_records` with lookup maps by provider tool, provider status,
 WAD filename, and WAD sha256. It also includes
 `next_operator_command_records` and `next_target_command_records` with

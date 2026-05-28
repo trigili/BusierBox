@@ -431,6 +431,7 @@ selected_doom_wads_by_filename = records_by_key(selected_doom_wad_records, "file
 selected_doom_wads_by_sha256 = records_by_key(selected_doom_wad_records, "sha256")
 
 recommendation_summary = {}
+recommendation_compatibility = {"label": "", "reasons": []}
 recommendation_path = env("RECOMMENDATION_JSON")
 if recommendation_path and os.path.exists(recommendation_path):
     try:
@@ -438,8 +439,20 @@ if recommendation_path and os.path.exists(recommendation_path):
             recommendation_doc = json.load(fh)
         recs = recommendation_doc.get("recommendations") or {}
         facts = recommendation_doc.get("facts") or {}
+        compat = recommendation_doc.get("compatibility") if isinstance(recommendation_doc, dict) else {}
+        if not isinstance(compat, dict):
+            compat = {}
+        compat_reasons = compat.get("reasons")
+        if not isinstance(compat_reasons, list):
+            compat_reasons = []
+        recommendation_compatibility = {
+            "schema": int(compat.get("schema") or 1),
+            "label": str(compat.get("label") or ""),
+            "reasons": [str(item) for item in compat_reasons if item not in (None, "")],
+        }
         recommendation_summary = {
             "warnings": recommendation_doc.get("warnings") or [],
+            "compatibility": recommendation_compatibility,
             "facts": {
                 "arch": facts.get("arch", ""),
                 "libc": facts.get("libc", ""),
@@ -508,6 +521,7 @@ doc = {
     "recommendation_json": env("RECOMMENDATION_JSON"),
     "recommended_config": env("RECOMMENDED_CONFIG"),
     "recommendation": recommendation_summary,
+    "recommendation_compatibility": recommendation_compatibility,
     "reality_summary": reality_summary,
     "recommended_target_preset": env("TARGET_PRESET_PATH"),
     "release_dir": env("RELEASE_DIR"),
