@@ -5168,10 +5168,33 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
             return
 
         def run():
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind((str(self.forward_host), int(self.forward_port)))
-            sock.listen(20)
+            sock = None
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind((str(self.forward_host), int(self.forward_port)))
+                sock.listen(20)
+            except OSError as exc:
+                print(f"reverse-forward listener bind failed on {self.forward_host}:{self.forward_port}: {exc}", file=sys.stderr)
+                append_event(
+                    self.cfg,
+                    "ssh",
+                    "bind_error",
+                    "error",
+                    session=str(self.session_dir),
+                    details={
+                        "component": "reverse_forward_listener",
+                        "listen_host": str(self.forward_host),
+                        "port": int(self.forward_port),
+                        "error": str(exc),
+                    },
+                )
+                if sock is not None:
+                    try:
+                        sock.close()
+                    except OSError:
+                        pass
+                return
             register_socket(sock)
             self._listener_sock = sock
             self.listener = sock
@@ -5212,6 +5235,8 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
                     sock.close()
                 except OSError:
                     pass
+                self._listener_sock = None
+                self.listener = None
 
         self._listener_thread = register_thread(threading.Thread(target=run, name="busierbox-reverse-forward"))
         self._listener_thread.start()
