@@ -481,7 +481,9 @@ session browser records are exposed as `sessions`, `sessions_by_id`,
 `sessions_by_exit_reason`, `sessions_by_remote`, `sessions_by_service_state`,
 `sessions_by_service_exit_reason`, `sessions_by_service_remote`,
 `sessions_by_has_uploads`, `sessions_by_has_fetches`,
-`sessions_by_has_events`, and `sessions_by_has_artifacts`.
+`sessions_by_has_events`, `sessions_by_has_artifacts`, and
+`sessions_by_duration_known` for separating timed sessions from records that
+do not have enough timestamps yet.
 `session_root_state`
 summarizes the session directory, recent session ids, service/state counts,
 session activity totals, and counts of sessions with uploads, fetches, events,
@@ -501,8 +503,9 @@ maximum, and known-duration counts for dashboards. Aggregate counts remain in
 `fetch_request_status_counts`, `fetch_status_remote_counts`,
 `fetch_http_status_remote_counts`, `session_service_state_counts`,
 `session_service_exit_reason_counts`, `session_service_remote_counts`,
-`session_duration_known_count`, `session_total_duration_sec`,
-`session_average_duration_sec`, and `session_max_duration_sec` for
+`session_duration_known_counts`, `session_duration_known_count`,
+`session_total_duration_sec`, `session_average_duration_sec`, and
+`session_max_duration_sec` for
 compact dashboards.
 `latest_upload_at`, `latest_fetch_at`, and `latest_session_updated_at` expose
 recent activity timestamps without requiring clients to scan the full browser

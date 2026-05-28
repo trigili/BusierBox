@@ -2168,6 +2168,7 @@ def session_record_indexes(records):
     by_has_fetches = {"yes": [], "no": []}
     by_has_events = {"yes": [], "no": []}
     by_has_artifacts = {"yes": [], "no": []}
+    by_duration_known = {"yes": [], "no": []}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -2196,6 +2197,7 @@ def session_record_indexes(records):
         by_has_fetches["yes" if rec.get("has_fetches") is True or int_value(rec.get("fetch_count")) > 0 else "no"].append(rec)
         by_has_events["yes" if rec.get("has_events") is True or int_value(rec.get("event_count")) > 0 else "no"].append(rec)
         by_has_artifacts["yes" if rec.get("has_artifacts") is True or int_value(rec.get("artifact_count")) > 0 else "no"].append(rec)
+        by_duration_known["yes" if rec.get("duration_sec") not in (None, "") else "no"].append(rec)
     return (
         by_id,
         by_service,
@@ -2209,6 +2211,7 @@ def session_record_indexes(records):
         by_has_fetches,
         by_has_events,
         by_has_artifacts,
+        by_duration_known,
     )
 
 
@@ -6184,7 +6187,8 @@ def status_document(cfg):
      sessions_by_has_uploads,
      sessions_by_has_fetches,
      sessions_by_has_events,
-     sessions_by_has_artifacts) = session_record_indexes(sessions)
+     sessions_by_has_artifacts,
+     sessions_by_duration_known) = session_record_indexes(sessions)
     event_stats = event_log_stats(cfg, event_limit)
     event_log_state = event_log_state_record(cfg, event_stats)
     events = event_stats["tail"]
@@ -6481,6 +6485,7 @@ def status_document(cfg):
         "session_has_fetches_counts": {key: len(value) for key, value in sessions_by_has_fetches.items()},
         "session_has_events_counts": {key: len(value) for key, value in sessions_by_has_events.items()},
         "session_has_artifacts_counts": {key: len(value) for key, value in sessions_by_has_artifacts.items()},
+        "session_duration_known_counts": {key: len(value) for key, value in sessions_by_duration_known.items()},
         "session_total_upload_count": session_root_state.get("total_upload_count", 0),
         "session_total_fetch_count": session_root_state.get("total_fetch_count", 0),
         "session_total_event_count": session_root_state.get("total_event_count", 0),
@@ -6703,7 +6708,7 @@ def status_document(cfg):
                 "sessions_by_service_state", "sessions_by_service_exit_reason",
                 "sessions_by_service_remote", "sessions_by_has_uploads",
                 "sessions_by_has_fetches", "sessions_by_has_events",
-                "sessions_by_has_artifacts",
+                "sessions_by_has_artifacts", "sessions_by_duration_known",
             ), "session_count",
         ),
         "events": api_collection_record(
@@ -6923,6 +6928,7 @@ def status_document(cfg):
         "sessions_by_has_fetches": sessions_by_has_fetches,
         "sessions_by_has_events": sessions_by_has_events,
         "sessions_by_has_artifacts": sessions_by_has_artifacts,
+        "sessions_by_duration_known": sessions_by_duration_known,
         "events": events,
         "events_by_id": events_by_id,
         "events_by_session": events_by_session,
