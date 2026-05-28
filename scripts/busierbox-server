@@ -1197,6 +1197,19 @@ def workbench_job_has_cancel_ownership(evidence):
     return "environ:job-id" in evidence and "environ:action-id" in evidence
 
 
+def read_workbench_job_exit_status(path_text):
+    path = Path(str(path_text or ""))
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not text or not text.lstrip("-").isdigit():
+        return None
+    return int(text)
+
+
 def workbench_job_records(cfg, actions=None):
     data = load_workbench_jobs(cfg)
     actions_by_id = {rec.get("id", ""): rec for rec in (actions or workbench_action_records(cfg)) if rec.get("id")}
@@ -1213,6 +1226,21 @@ def workbench_job_records(cfg, actions=None):
         if state in ("starting", "running") and pid and not pid_is_alive:
             effective_state = "exited"
         log_path = str(rec.get("log_path") or "")
+        exit_status_path = str(rec.get("exit_status_path") or "")
+        finished_at_path = str(rec.get("finished_at_path") or "")
+        exit_status = rec.get("exit_status")
+        if exit_status in (None, ""):
+            exit_status = read_workbench_job_exit_status(exit_status_path)
+        exit_status_known = isinstance(exit_status, int)
+        finished_at = str(rec.get("finished_at") or "")
+        if not finished_at and finished_at_path and Path(finished_at_path).is_file():
+            try:
+                finished_at = Path(finished_at_path).read_text(encoding="utf-8").strip()
+            except OSError:
+                finished_at = ""
+        outcome = "unknown"
+        if exit_status_known:
+            outcome = "succeeded" if exit_status == 0 else "failed"
         output_tail = tail_text_file(log_path, rec.get("tail_limit", 20))
         ownership_evidence = workbench_job_ownership_evidence(pid, rec)
         cancel_ownership = workbench_job_has_cancel_ownership(ownership_evidence)
@@ -1230,6 +1258,12 @@ def workbench_job_records(cfg, actions=None):
             "ownership_evidence": ownership_evidence,
             "cancel_supported": cancel_supported,
             "log_path": log_path,
+            "exit_status_path": exit_status_path,
+            "finished_at_path": finished_at_path,
+            "exit_status": exit_status if exit_status_known else "",
+            "exit_status_known": exit_status_known,
+            "finished_at": finished_at,
+            "outcome": outcome,
             "log_exists": Path(log_path).is_file() if log_path else False,
             "last_output_tail": output_tail,
             "last_output_tail_count": len(output_tail),
@@ -1250,6 +1284,8 @@ def workbench_job_indexes(records):
         "workbench_jobs_by_script": records_by_key(records, "script"),
         "workbench_jobs_by_pid": records_by_key(records, "pid"),
         "workbench_jobs_by_cancel_supported": records_by_key(records, "cancel_supported"),
+        "workbench_jobs_by_outcome": records_by_key(records, "outcome"),
+        "workbench_jobs_by_exit_status": records_by_key(records, "exit_status"),
     }
 
 
@@ -1259,8 +1295,11 @@ def workbench_job_summary(records):
         "running_count": len([rec for rec in records or [] if rec.get("effective_state") in ("starting", "running")]),
         "cancel_supported_count": len([rec for rec in records or [] if rec.get("cancel_supported") is True]),
         "log_exists_count": len([rec for rec in records or [] if rec.get("log_exists") is True]),
+        "exit_status_known_count": len([rec for rec in records or [] if rec.get("exit_status_known") is True]),
         "state_counts": record_count_by_key(records, "state"),
         "effective_state_counts": record_count_by_key(records, "effective_state"),
+        "outcome_counts": record_count_by_key(records, "outcome"),
+        "exit_status_counts": record_count_by_key(records, "exit_status"),
         "action_counts": record_count_by_key(records, "action_id"),
         "category_counts": record_count_by_key(records, "category"),
     }
@@ -1284,13 +1323,24 @@ def start_workbench_job(cfg, action_id, command_override=None):
     log_dir = operator_dir / "jobs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"{job_id}.log"
+    exit_status_path = log_dir / f"{job_id}.exit-status"
+    finished_at_path = log_dir / f"{job_id}.finished-at"
     env = os.environ.copy()
     env["BUSIERBOX_WORKBENCH_JOB_ID"] = job_id
     env["BUSIERBOX_WORKBENCH_ACTION_ID"] = str(action_id)
     env["BUSIERBOX_WORKBENCH_JOBS_FILE"] = str(workbench_jobs_path(cfg))
+    wrapped_command = (
+        "(\n"
+        f"{command}\n"
+        ")\n"
+        "_bbx_status=$?\n"
+        f"printf '%s\\n' \"$_bbx_status\" > {shquote(str(exit_status_path))}\n"
+        f"date -u '+%Y-%m-%dT%H:%M:%SZ' > {shquote(str(finished_at_path))}\n"
+        "exit \"$_bbx_status\"\n"
+    )
     with log_path.open("ab") as log:
         proc = subprocess.Popen(
-            ["/bin/sh", "-c", command],
+            ["/bin/sh", "-c", wrapped_command],
             stdout=log,
             stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL,
@@ -1310,6 +1360,8 @@ def start_workbench_job(cfg, action_id, command_override=None):
         "managed_by_pid": os.getpid(),
         "started_at": utc_now(),
         "log_path": str(log_path),
+        "exit_status_path": str(exit_status_path),
+        "finished_at_path": str(finished_at_path),
     }
     data["jobs"].append(rec)
     write_workbench_jobs(cfg, data)
@@ -6266,8 +6318,11 @@ def status_document(cfg):
         "workbench_job_running_count": workbench_job_stats.get("running_count", 0),
         "workbench_job_cancel_supported_count": workbench_job_stats.get("cancel_supported_count", 0),
         "workbench_job_log_exists_count": workbench_job_stats.get("log_exists_count", 0),
+        "workbench_job_exit_status_known_count": workbench_job_stats.get("exit_status_known_count", 0),
         "workbench_job_state_counts": workbench_job_stats.get("state_counts") or {},
         "workbench_job_effective_state_counts": workbench_job_stats.get("effective_state_counts") or {},
+        "workbench_job_outcome_counts": workbench_job_stats.get("outcome_counts") or {},
+        "workbench_job_exit_status_counts": workbench_job_stats.get("exit_status_counts") or {},
         "workbench_job_action_counts": workbench_job_stats.get("action_counts") or {},
         "workbench_job_category_counts": workbench_job_stats.get("category_counts") or {},
     })
@@ -6417,6 +6472,7 @@ def status_document(cfg):
                 "workbench_jobs_by_state", "workbench_jobs_by_effective_state",
                 "workbench_jobs_by_category", "workbench_jobs_by_script",
                 "workbench_jobs_by_pid", "workbench_jobs_by_cancel_supported",
+                "workbench_jobs_by_outcome", "workbench_jobs_by_exit_status",
             ), "workbench_job_count",
         ),
     }
@@ -6693,9 +6749,11 @@ def print_workbench_job_summary(doc):
         f"total={summary.get('workbench_job_count', 0)} "
         f"running={summary.get('workbench_job_running_count', 0)} "
         f"cancel_supported={summary.get('workbench_job_cancel_supported_count', 0)} "
-        f"logs={summary.get('workbench_job_log_exists_count', 0)}"
+        f"logs={summary.get('workbench_job_log_exists_count', 0)} "
+        f"exit_status_known={summary.get('workbench_job_exit_status_known_count', 0)}"
     )
     print(f"  states: {format_counts(summary.get('workbench_job_effective_state_counts') or {})}")
+    print(f"  outcomes: {format_counts(summary.get('workbench_job_outcome_counts') or {})}")
 
 
 def print_release_summary(doc):
@@ -7004,9 +7062,13 @@ def print_status(cfg, json_output=False):
     print_workbench_job_summary(doc)
     for rec in doc.get("workbench_jobs") or []:
         cancel = "yes" if rec.get("cancel_supported") else "no"
-        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} cancel_supported={cancel}")
+        exit_status = rec.get("exit_status", "")
+        exit_suffix = f" exit_status={exit_status} outcome={rec.get('outcome', '')}" if rec.get("exit_status_known") else ""
+        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} cancel_supported={cancel}{exit_suffix}")
         print(f"    command: {rec.get('command', '')}")
         print(f"    log: {rec.get('log_path', '')}")
+        if rec.get("finished_at"):
+            print(f"    finished_at: {rec.get('finished_at', '')}")
         for line in rec.get("last_output_tail") or []:
             print(f"    | {line}")
     print("")
@@ -7282,9 +7344,13 @@ def print_workbench(cfg):
     print_workbench_job_summary(snap)
     for rec in snap.get("workbench_jobs") or []:
         cancel = "yes" if rec.get("cancel_supported") else "no"
-        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} cancel_supported={cancel}")
+        exit_status = rec.get("exit_status", "")
+        exit_suffix = f" exit_status={exit_status} outcome={rec.get('outcome', '')}" if rec.get("exit_status_known") else ""
+        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} cancel_supported={cancel}{exit_suffix}")
         print(f"    command: {rec.get('command', '')}")
         print(f"    log: {rec.get('log_path', '')}")
+        if rec.get("finished_at"):
+            print(f"    finished_at: {rec.get('finished_at', '')}")
         for line in rec.get("last_output_tail") or []:
             print(f"    | {line}")
     print("")

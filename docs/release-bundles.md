@@ -734,14 +734,16 @@ choice values are validated before writing. The line-oriented workbench shows
 the exact underlying command before writing the same config file that
 `scripts/menuconfig` and noninteractive builds consume. Background-capable
 workflow tasks are represented in `workbench_jobs` with start time, command, PID
-ownership metadata, log path, effective state, exit status when recorded, and a
-bounded last-output tail. Job indexes such as `workbench_jobs_by_id`,
+ownership metadata, log path, effective state, managed exit-status sidecars,
+finish time, outcome, and a bounded last-output tail. Job indexes such as
+`workbench_jobs_by_id`,
 `workbench_jobs_by_action`, `workbench_jobs_by_effective_state`, and
 `workbench_jobs_by_cancel_supported` let operator UIs show or cancel only jobs
-that are clearly owned by the workbench/runtime manager. `--start-workbench-job
-ACTION` starts a background-capable operator workflow action, records the exact
-command and log path, and marks the spawned process with workbench environment
-ownership tokens. `--cancel-workbench-job JOB` only requests cancellation when
+that are clearly owned by the workbench/runtime manager. Completed managed jobs
+are also indexed by outcome and exit status. `--start-workbench-job ACTION`
+starts a background-capable operator workflow action, records the exact command
+and log path, and marks the spawned process with workbench environment ownership
+tokens. `--cancel-workbench-job JOB` only requests cancellation when
 those process environment tokens still match the ledger entry; a forged or stale
 ledger record is visible in status but is not cancellable. The line-oriented
 fallback exposes the same operator path health, compact service and activity

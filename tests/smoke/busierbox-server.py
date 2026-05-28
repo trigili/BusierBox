@@ -405,6 +405,64 @@ def main():
             print("workbench background job events missing", file=sys.stderr)
             return 1
 
+        quick_job = run(
+            "scripts/busierbox-server",
+            "--config", str(workbench_job_cfg),
+            "--start-workbench-job", "bringup-recommend",
+            "--job-command", "printf 'quick job done\\n'; exit 7",
+        )
+        if quick_job.returncode != 0 or "started workbench job" not in quick_job.stdout:
+            print("quick workbench background job did not start", file=sys.stderr)
+            print(quick_job.stdout, file=sys.stderr)
+            print(quick_job.stderr, file=sys.stderr)
+            return 1
+        quick_job_id = ""
+        for token in quick_job.stdout.replace(":", " ").split():
+            if token.startswith("job-"):
+                quick_job_id = token
+                break
+        if not quick_job_id:
+            print("quick workbench background job id missing", file=sys.stderr)
+            print(quick_job.stdout, file=sys.stderr)
+            return 1
+        quick_status = None
+        for _ in range(30):
+            quick_status_doc = run(
+                "scripts/busierbox-server",
+                "--config", str(workbench_job_cfg),
+                "--json-status",
+            )
+            quick_status = json.loads(quick_status_doc.stdout)
+            quick = (quick_status.get("workbench_jobs_by_id") or {}).get(quick_job_id) or {}
+            if quick.get("exit_status_known") is True:
+                break
+            time.sleep(0.1)
+        quick = (quick_status.get("workbench_jobs_by_id") or {}).get(quick_job_id) or {}
+        if (quick.get("effective_state") != "exited" or
+                quick.get("exit_status") != 7 or
+                quick.get("outcome") != "failed" or
+                quick.get("finished_at", "") == "" or
+                quick.get("last_output_tail", [])[-1:] != ["quick job done"] or
+                quick_status.get("summary", {}).get("workbench_job_exit_status_known_count", 0) < 1 or
+                quick_status.get("summary", {}).get("workbench_job_outcome_counts", {}).get("failed", 0) < 1 or
+                quick_status.get("summary", {}).get("workbench_job_exit_status_counts", {}).get("7", 0) < 1 or
+                (quick_status.get("workbench_jobs_by_outcome") or {}).get("failed", [{}])[-1].get("id") != quick_job_id or
+                (quick_status.get("workbench_jobs_by_exit_status") or {}).get("7", [{}])[-1].get("id") != quick_job_id):
+            print("completed workbench background job missing exit metadata", file=sys.stderr)
+            print(json.dumps(quick_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        quick_text = run(
+            "scripts/busierbox-server",
+            "--config", str(workbench_job_cfg),
+            "--status",
+        )
+        if ("exit_status=7 outcome=failed" not in quick_text.stdout or
+                "exit_status_known=" not in quick_text.stdout or
+                "outcomes:" not in quick_text.stdout):
+            print("text status missing completed workbench job exit metadata", file=sys.stderr)
+            print(quick_text.stdout, file=sys.stderr)
+            return 1
+
         forged_dir = Path(tmp) / "operator-session-forged-job"
         forged_cfg = Path(tmp) / "server-config-forged-job.json"
         forged_cfg.write_text(json.dumps({
