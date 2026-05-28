@@ -482,8 +482,9 @@ static int connect_operator_once(const char *host, const char *port, char *err, 
                      "Host: %s:%s\r\n"
                      "User-Agent: busierbox-command-queue\r\n"
                      "X-BusierBox-Command-Queue-Mode: poll\r\n"
+                     "X-BusierBox-Command-Queue-Token: %s\r\n"
                      "Connection: close\r\n\r\n",
-                     host, port);
+                     host, port, BB_COMMAND_QUEUE_TOKEN);
             if (send(fd, request, strlen(request), 0) < 0) {
                 snprintf(err, errsz, "poll request failed: %s", strerror(errno));
                 close(fd);
@@ -564,10 +565,11 @@ static int post_rejected_result_once(const char *host, const char *port,
                      "POST /command-queue/result HTTP/1.1\r\n"
                      "Host: %s:%s\r\n"
                      "User-Agent: busierbox-command-queue\r\n"
+                     "X-BusierBox-Command-Queue-Token: %s\r\n"
                      "Content-Type: application/json\r\n"
                      "Content-Length: %lu\r\n"
                      "Connection: close\r\n\r\n%s",
-                     host, port, (unsigned long)strlen(body), body);
+                     host, port, BB_COMMAND_QUEUE_TOKEN, (unsigned long)strlen(body), body);
             if (send(fd, request, strlen(request), 0) < 0) {
                 snprintf(err, errsz, "result upload failed: %s", strerror(errno));
                 close(fd);
@@ -1059,6 +1061,8 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     bb_json_string(stdout, BB_COMMAND_QUEUE_REQUIRE_TOKEN);
     fputs(",\"token_source\":", stdout);
     bb_json_string(stdout, BB_COMMAND_QUEUE_TOKEN_SOURCE);
+    printf(",\"token_required\":%s", !strcmp(BB_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false");
+    printf(",\"token_configured\":%s", BB_COMMAND_QUEUE_TOKEN[0] ? "true" : "false");
     fputs(",\"allowed_commands\":", stdout);
     bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     fputs(",\"allow_arbitrary\":", stdout);
@@ -1155,6 +1159,7 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_tls=%s\n", BB_COMMAND_QUEUE_TLS);
     printf("command_queue_require_token=%s\n", BB_COMMAND_QUEUE_REQUIRE_TOKEN);
     printf("command_queue_token_source=%s\n", BB_COMMAND_QUEUE_TOKEN_SOURCE);
+    printf("command_queue_token_configured=%s\n", BB_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
     printf("command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
     printf("command_queue_arbitrary_policy_requested=%s\n", arbitrary_requested ? "yes" : "no");

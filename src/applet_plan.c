@@ -510,6 +510,11 @@ static void plan_print_command_queue(int json)
             bb_json_string(stdout, policy.errors[i]);
         }
         fputc(']', stdout);
+        fputs(",\"require_token\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_REQUIRE_TOKEN);
+        fputs(",\"token_source\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_TOKEN_SOURCE);
+        printf(",\"token_required\":%s,\"token_configured\":%s",
+               !strcmp(BB_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false",
+               BB_COMMAND_QUEUE_TOKEN[0] ? "true" : "false");
         fputs(",\"allowed_commands\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
         fputs(",\"allow_arbitrary\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
         fputs(",\"poll_interval_sec\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
@@ -544,6 +549,8 @@ static void plan_print_command_queue(int json)
     printf("port=%s\n", BB_COMMAND_QUEUE_PORT);
     printf("tls=%s\n", BB_COMMAND_QUEUE_TLS);
     printf("require_token=%s\n", BB_COMMAND_QUEUE_REQUIRE_TOKEN);
+    printf("token_source=%s\n", BB_COMMAND_QUEUE_TOKEN_SOURCE);
+    printf("token_configured=%s\n", BB_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
     printf("allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
     printf("poll_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);

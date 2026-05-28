@@ -523,6 +523,9 @@ static void write_manifest_json(FILE *out, int include_missing)
     json_string_payload(out, BB_COMMAND_QUEUE_REQUIRE_TOKEN);
     fprintf(out, ",\"token_source\":");
     json_string_payload(out, BB_COMMAND_QUEUE_TOKEN_SOURCE);
+    fprintf(out, ",\"token_required\":%s,\"token_configured\":%s",
+            !strcmp(BB_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false",
+            BB_COMMAND_QUEUE_TOKEN[0] ? "true" : "false");
     fprintf(out, ",\"allowed_commands\":");
     json_string_payload(out, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     fprintf(out, ",\"allow_arbitrary\":");
@@ -902,6 +905,7 @@ int applet_manifest_main(int argc, char **argv)
     printf("command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
     printf("command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf("command_queue_token_configured=%s\n", BB_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
     printf("command_queue_poll_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
     printf("command_queue_poll_jitter_pct=%s\n", BB_COMMAND_QUEUE_POLL_JITTER_PCT);
     printf("command_queue_poll_backoff=%s\n", BB_COMMAND_QUEUE_POLL_BACKOFF);

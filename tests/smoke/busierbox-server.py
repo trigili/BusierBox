@@ -689,6 +689,7 @@ def main():
             "command_queue_enable": "yes",
             "command_queue_tls": "no",
             "command_queue_port": str(result_port),
+            "command_queue_require_token": "no",
             "command_queue_allowed_commands": "busierbox-only",
             "command_queue_allow_arbitrary": "no",
         }), encoding="utf-8")
@@ -885,6 +886,7 @@ def main():
             "operator_session_dir": str(queue_operator_dir),
             "command_queue_file": str(queue_file),
             "command_queue_enable": "yes",
+            "command_queue_require_token": "no",
             "command_queue_allowed_commands": "custom",
             "command_queue_allow_arbitrary": "yes",
         }), encoding="utf-8")

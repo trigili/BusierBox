@@ -479,6 +479,7 @@ DEFAULTS = {
     "command_queue_tls": "yes",
     "command_queue_require_token": "yes",
     "command_queue_token_source": "manual",
+    "command_queue_token": "",
     "command_queue_allowed_commands": "none",
     "command_queue_allow_arbitrary": "no",
     "command_queue_poll_interval_sec": "5",
@@ -1904,6 +1905,11 @@ def valid_uint_string(value):
     return bool(text) and text.isdigit()
 
 
+def valid_header_token(value):
+    text = str(value)
+    return "\r" not in text and "\n" not in text
+
+
 def command_queue_policy_errors(cfg):
     errors = []
     enabled = str(cfg.get("command_queue_enable", "no"))
@@ -1929,6 +1935,10 @@ def command_queue_policy_errors(cfg):
         errors.append("invalid command queue token requirement")
     if str(cfg.get("command_queue_token_source", "manual")) not in ("manual", "generated"):
         errors.append("invalid command queue token source")
+    if not valid_header_token(cfg.get("command_queue_token", "")):
+        errors.append("invalid command queue token value")
+    if enabled == "yes" and str(cfg.get("command_queue_require_token", "yes")) == "yes" and not str(cfg.get("command_queue_token", "")):
+        errors.append("enabled command queue requires command_queue_token when token requirement is yes")
     if allowed not in ("none", "busierbox-only", "allowlist", "custom"):
         errors.append("invalid command queue allowed commands policy")
     if not valid_yes_no(allow_arbitrary):
@@ -2126,6 +2136,7 @@ def command_queue_summary(cfg):
         "tls": str(cfg.get("command_queue_tls", "yes")),
         "require_token": str(cfg.get("command_queue_require_token", "yes")),
         "token_source": str(cfg.get("command_queue_token_source", "manual")),
+        "token_configured": bool(str(cfg.get("command_queue_token", ""))),
         "allowed_commands": allowed_commands,
         "allow_arbitrary": allow_arbitrary,
         "poll_interval_sec": poll_interval_sec,
@@ -4280,6 +4291,10 @@ def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
         payload = {"schema": 1, "status": "rejected", "reason": "unknown command queue result endpoint"}
         send_json_response(conn, 404, payload)
         return {"operation": "command_queue_result", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint"}
+    if not command_queue_token_valid(cfg, headers):
+        payload = {"schema": 1, "status": "rejected", "reason": "missing or invalid command queue token"}
+        send_json_response(conn, 403, payload)
+        return {"operation": "command_queue_result", "status": "rejected", "http_status": 403, "method": method, "remote_addr": remote, "reason": "invalid token"}
     try:
         payload_body = read_http_body(conn, headers, body)
         result = json.loads(payload_body.decode("utf-8"))
@@ -4334,10 +4349,18 @@ def handle_command_queue_http(cfg, conn, method, target, headers, body, addr):
     parsed = urllib.parse.urlparse(target)
     if parsed.path in {"/command-queue/result", "/command-queue/result/"}:
         return handle_command_queue_result(cfg, conn, method, target, headers, body, addr)
-    return handle_command_queue_poll(cfg, conn, method, target, addr)
+    return handle_command_queue_poll(cfg, conn, method, target, headers, addr)
 
 
-def handle_command_queue_poll(cfg, conn, method, target, addr):
+def command_queue_token_valid(cfg, headers):
+    if str(cfg.get("command_queue_require_token", "yes")) != "yes":
+        return True
+    expected = str(cfg.get("command_queue_token", ""))
+    supplied = str((headers or {}).get("x-busierbox-command-queue-token", ""))
+    return bool(expected) and supplied == expected
+
+
+def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
     remote = f"{addr[0]}:{addr[1]}"
     if method not in {"GET", "HEAD"}:
         payload = {"schema": 1, "status": "rejected", "reason": "command queue poll accepts only GET or HEAD"}
@@ -4348,6 +4371,10 @@ def handle_command_queue_poll(cfg, conn, method, target, addr):
         payload = {"schema": 1, "status": "rejected", "reason": "unknown command queue endpoint"}
         send_json_response(conn, 404, payload)
         return {"operation": "command_queue_poll", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint"}
+    if not command_queue_token_valid(cfg, headers):
+        payload = {"schema": 1, "status": "rejected", "reason": "missing or invalid command queue token"}
+        send_json_response(conn, 403, payload)
+        return {"operation": "command_queue_poll", "status": "rejected", "http_status": 403, "method": method, "remote_addr": remote, "reason": "invalid token"}
     queue = command_queue_summary(cfg)
     queued_count = int(queue.get("queued_count", 0) or 0)
     queued = [
@@ -4438,6 +4465,7 @@ def send_json_response(conn, status_code, payload):
     reason = {
         200: "OK",
         400: "Bad Request",
+        403: "Forbidden",
         405: "Method Not Allowed",
         411: "Length Required",
         500: "Internal Server Error",

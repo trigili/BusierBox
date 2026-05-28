@@ -39,6 +39,18 @@ static int valid_backoff_value(const char *s)
     return s && (!strcmp(s, "none") || !strcmp(s, "linear") || !strcmp(s, "exponential"));
 }
 
+static int valid_token_value(const char *s)
+{
+    const char *p;
+
+    if (!s)
+        return 1;
+    for (p = s; *p; p++)
+        if (*p == '\r' || *p == '\n')
+            return 0;
+    return 1;
+}
+
 static void policy_add_error(struct command_queue_policy_report *report, const char *error)
 {
     if (report->count < (int)(sizeof(report->errors) / sizeof(report->errors[0])))
@@ -69,6 +81,12 @@ struct command_queue_policy_report bb_command_queue_validate_policy(void)
         policy_add_error(&report, "invalid command queue token requirement");
     if (!exact_value(BB_COMMAND_QUEUE_TOKEN_SOURCE, "manual", "generated"))
         policy_add_error(&report, "invalid command queue token source");
+    if (!valid_token_value(BB_COMMAND_QUEUE_TOKEN))
+        policy_add_error(&report, "invalid command queue token value");
+    if (!strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") &&
+        !strcmp(BB_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") &&
+        !BB_COMMAND_QUEUE_TOKEN[0])
+        policy_add_error(&report, "enabled command queue requires BB_COMMAND_QUEUE_TOKEN when token requirement is yes");
     if (!valid_policy_value(BB_COMMAND_QUEUE_ALLOWED_COMMANDS))
         policy_add_error(&report, "invalid command queue allowed commands policy");
     if (!exact_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes", "no"))

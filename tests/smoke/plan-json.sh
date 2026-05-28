@@ -26,7 +26,7 @@ scripts/artifact-config set "$work/busierbox" \
 "$work/busierbox" plan extract --json >"$work/extract.json"
 "$work/busierbox" plan rshell --json >"$work/rshell.json"
 "$work/busierbox" plan clean --json >"$work/clean.json"
-BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only "$work/busierbox" plan command-queue --json >"$work/command-queue.json"
+BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_REQUIRE_TOKEN=no BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only "$work/busierbox" plan command-queue --json >"$work/command-queue.json"
 "$work/busierbox" plan recovery install --method openwrt-procd --action rshell --json >"$work/recovery.json"
 "$work/busierbox" plan recovery install --method rc-local --action evidence-push --root "$work/root" --name bbx_recovery --json >"$work/recovery-evidence.json"
 "$work/busierbox" plan recovery install --method rc-local --action evidence-then-rshell --root "$work/root" --name bbx_recovery --json >"$work/recovery-evidence-rshell.json"

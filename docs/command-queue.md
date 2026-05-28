@@ -17,8 +17,13 @@ Current behavior is intentionally non-executing:
   events. Live polling currently requires `BB_COMMAND_QUEUE_TLS=no`; TLS
   command-queue polling is reported as unsupported instead of silently falling
   back to plaintext. Live polls can receive queued command metadata, but the
-  target records an explicit rejected execution decision and does not execute
-  commands or upload results in this build.
+  target records an explicit rejected execution decision and never executes
+  queued commands in this build. It can upload the rejected-result metadata so
+  the operator ledger has a complete decision record.
+- When `BB_COMMAND_QUEUE_REQUIRE_TOKEN=yes`, enabled queues require
+  `BB_COMMAND_QUEUE_TOKEN` on the target and `command_queue_token` on the
+  operator server config. Poll and result requests send/check
+  `X-BusierBox-Command-Queue-Token`.
 - `scripts/busierbox-server --queue-command ...` records explicit operator
   queue entries in `local/operator-session/command-queue.json` for inspection
   and tooling. The command-queue listener can mark a queued entry delivered to
@@ -44,6 +49,7 @@ BB_COMMAND_QUEUE_PORT="22205"
 BB_COMMAND_QUEUE_TLS="yes"
 BB_COMMAND_QUEUE_REQUIRE_TOKEN="yes"
 BB_COMMAND_QUEUE_TOKEN_SOURCE="manual"
+BB_COMMAND_QUEUE_TOKEN=""
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS="none"
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY="no"
 BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="5"
