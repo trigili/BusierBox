@@ -263,7 +263,14 @@ The repository index also includes a `recommendations` object for offline
 clients that want one best current artifact without shelling out to
 `scripts/find-artifact`. It records the same selection policy and precomputes
 recommendations by device alias, tuple path, tool, payload preset, feature, and
-common tuple/tool/feature plus preset combinations.
+common tuple/tool/feature plus preset combinations. The same selections are
+also flattened into `recommendation_records` with stable ids such as
+`by_device:glinet-mt1300` or `by_tool_payload_preset:tcpdump:survey-core`, plus
+lookup maps by id, category, key, category/key, tuple path, payload preset,
+compatibility label, and release. `api_collections.recommendations` lists both
+the nested recommendation maps and the normalized record indexes so future
+offline browsers can render recommendation tables without special-case
+traversal logic.
 
 ## Operator Examples
 

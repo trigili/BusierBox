@@ -180,6 +180,7 @@ assert len(index["tuple_records"]) == 3
 assert len(index["tuple_records_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]) == 3
 assert index["tuple_records_by_release"]["three"][0]["tuple"]["arch"] == "mipsel"
 recs = index["recommendations"]
+rec_records = index["recommendation_records"]
 assert recs["schema"] == 1
 assert "lowest compatibility risk label" in recs["selection_policy"]
 assert recs["by_device"]["lab-router"]["release_name"] == "two"
@@ -192,6 +193,7 @@ assert recs["by_feature"]["reverse-ssh"]["release_name"] in {"one", "two"}
 assert recs["by_tool_payload_preset"]["tcpdump:survey-core"]["release_name"] == "one"
 assert recs["by_feature_payload_preset"]["reverse-ssh:ssh-operator"]["release_name"] == "two"
 assert recs["by_tuple_payload_preset"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug"]["release_name"] == "three"
+assert index["recommendation_count"] == len(rec_records)
 assert index["recommendation_count"] == sum(
     len(recs[name]) for name in (
         "by_device",
@@ -204,6 +206,13 @@ assert index["recommendation_count"] == sum(
         "by_tuple_payload_preset",
     )
 )
+assert index["recommendation_records_by_category_key"]["by_device:lab-router"]["release_name"] == "two"
+assert index["recommendation_records_by_id"]["by_tool:gdbserver"]["compatibility_label"] == "unsafe"
+assert index["recommendation_records_by_key"]["reverse-ssh"][0]["category"] == "by_feature"
+assert index["recommendation_records_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]
+assert index["recommendation_records_by_payload_preset"]["ssh-operator"][0]["release_name"] == "two"
+assert index["recommendation_records_by_compatibility"]["unsafe"][0]["key"] == "gdbserver"
+assert index["recommendation_records_by_release"]["three"][0]["payload_preset"] == "full-debug"
 api = index["api_collections"]
 assert api["artifacts"]["name"] == "artifacts"
 assert api["artifacts"]["count"] == index["artifact_count"]
@@ -240,9 +249,11 @@ assert "tuple_records_by_release" in api["tuples"]["indexes"]
 assert api["recommendations"]["count"] == index["recommendation_count"]
 assert api["recommendations"]["summary_key"] == "recommendation_count"
 assert api["recommendations"]["count_summary_key"] == "recommendation_count"
-assert api["recommendations"]["primary_key"] == "key"
+assert api["recommendations"]["primary_key"] == "id"
 assert "by_device" in api["recommendations"]["indexes"]
 assert "by_tool_payload_preset" in api["recommendations"]["indexes"]
+assert "recommendation_records_by_category_key" in api["recommendations"]["indexes"]
+assert "recommendation_records_by_compatibility" in api["recommendations"]["indexes"]
 PY
 
 scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null

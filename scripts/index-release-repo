@@ -216,6 +216,86 @@ def recommendations_from_indexes(devices, indexes):
     }
 
 
+def recommendation_records_from_recommendations(recommendations):
+    records = []
+    for category in (
+        "by_device",
+        "by_tuple_path",
+        "by_tool",
+        "by_payload_preset",
+        "by_feature",
+        "by_tool_payload_preset",
+        "by_feature_payload_preset",
+        "by_tuple_payload_preset",
+    ):
+        for key, artifact in sorted((recommendations.get(category) or {}).items()):
+            if not isinstance(artifact, dict):
+                continue
+            compatibility = artifact.get("compatibility") if isinstance(artifact.get("compatibility"), dict) else {}
+            records.append({
+                "id": f"{category}:{key}",
+                "category": category,
+                "key": key,
+                "release_name": artifact.get("release_name", ""),
+                "release_dir": artifact.get("release_dir", ""),
+                "artifact": artifact.get("artifact", ""),
+                "artifact_path": artifact.get("artifact_path", ""),
+                "sha256": artifact.get("sha256", ""),
+                "tuple_path": artifact.get("tuple_path", ""),
+                "payload_preset": artifact.get("payload_preset", ""),
+                "compatibility": compatibility,
+                "compatibility_label": compatibility.get("label") or "exact",
+                "release_self_test_status": artifact.get("release_self_test_status", ""),
+                "selected": artifact,
+            })
+    return records
+
+
+def recommendation_record_indexes(records):
+    by_id = {}
+    by_category = {}
+    by_key = {}
+    by_category_key = {}
+    by_tuple_path = {}
+    by_payload_preset = {}
+    by_compatibility = {}
+    by_release = {}
+    for rec in records or []:
+        rec_id = rec.get("id", "")
+        category = rec.get("category", "")
+        key = rec.get("key", "")
+        tuple_path = rec.get("tuple_path", "")
+        payload_preset = rec.get("payload_preset", "")
+        compatibility = rec.get("compatibility_label", "")
+        release_name = rec.get("release_name", "")
+        if rec_id:
+            by_id[rec_id] = rec
+        if category:
+            by_category.setdefault(category, []).append(rec)
+        if key:
+            by_key.setdefault(key, []).append(rec)
+        if category and key:
+            by_category_key[f"{category}:{key}"] = rec
+        if tuple_path:
+            by_tuple_path.setdefault(tuple_path, []).append(rec)
+        if payload_preset:
+            by_payload_preset.setdefault(payload_preset, []).append(rec)
+        if compatibility:
+            by_compatibility.setdefault(compatibility, []).append(rec)
+        if release_name:
+            by_release.setdefault(release_name, []).append(rec)
+    return {
+        "recommendation_records_by_id": by_id,
+        "recommendation_records_by_category": by_category,
+        "recommendation_records_by_key": by_key,
+        "recommendation_records_by_category_key": by_category_key,
+        "recommendation_records_by_tuple_path": by_tuple_path,
+        "recommendation_records_by_payload_preset": by_payload_preset,
+        "recommendation_records_by_compatibility": by_compatibility,
+        "recommendation_records_by_release": by_release,
+    }
+
+
 def api_collection_record(name, count, indexes, summary_key, primary_key=""):
     return {
         "name": name,
@@ -440,7 +520,9 @@ def build_repo_index(paths):
         "by_tuple_payload_preset",
     ]
     recommendations = recommendations_from_indexes(devices, indexes)
-    recommendation_count = sum(len(recommendations.get(name) or {}) for name in recommendation_index_names)
+    recommendation_records = recommendation_records_from_recommendations(recommendations)
+    recommendation_record_index_maps = recommendation_record_indexes(recommendation_records)
+    recommendation_count = len(recommendation_records)
     device_record_index_names = [
         "device_records_by_alias",
         "device_records_by_tuple_path",
@@ -502,6 +584,8 @@ def build_repo_index(paths):
         "features": {key: unique(features[key]) for key in sorted(features)},
         "compatibility_counts": {key: len(artifacts_by_compatibility[key]) for key in sorted(artifacts_by_compatibility)},
         "recommendations": recommendations,
+        "recommendation_records": recommendation_records,
+        **recommendation_record_index_maps,
         "api_collections": {
             "artifacts": api_collection_record(
                 "artifacts",
@@ -544,9 +628,19 @@ def build_repo_index(paths):
             "recommendations": api_collection_record(
                 "recommendations",
                 recommendation_count,
-                recommendation_index_names,
+                [
+                    *recommendation_index_names,
+                    "recommendation_records_by_id",
+                    "recommendation_records_by_category",
+                    "recommendation_records_by_key",
+                    "recommendation_records_by_category_key",
+                    "recommendation_records_by_tuple_path",
+                    "recommendation_records_by_payload_preset",
+                    "recommendation_records_by_compatibility",
+                    "recommendation_records_by_release",
+                ],
                 "recommendation_count",
-                "key",
+                "id",
             ),
         },
     }
