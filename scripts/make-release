@@ -1606,6 +1606,7 @@ def artifact_summary(release_dir, rec, include_missing=False):
             "mode_records_by_target_polling_supported": command_queue.get("mode_records_by_target_polling_supported", {}),
             "mode_records_by_execution_supported": command_queue.get("mode_records_by_execution_supported", {}),
             "mode_records_by_active_control_channel": command_queue.get("mode_records_by_active_control_channel", {}),
+            "mode_records_by_operator_supplied_command_execution": command_queue.get("mode_records_by_operator_supplied_command_execution", {}),
             "mode_summary": command_queue.get("mode_summary", {}),
             "api_collections": command_queue.get("api_collections", {}),
         },

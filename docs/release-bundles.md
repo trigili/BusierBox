@@ -52,9 +52,11 @@ explicitly.
 
 Each per-tuple `MANIFEST.txt` summarizes the payload variants in that tuple:
 native applets, BusyBox applets and core extraction behavior, staged heavy
-tools, runtime mode, reverse-access defaults, trailer-overridable fields, size,
-checksum, config path, and the statically extracted embedded payload manifest
-path. The JSON manifest contains the same data in machine-readable form.
+tools, runtime mode, reverse-access defaults, command-queue policy and mode
+indexes including `mode_records_by_operator_supplied_command_execution`,
+trailer-overridable fields, size, checksum, config path, and the statically
+extracted embedded payload manifest path. The JSON manifest contains the same
+data in machine-readable form.
 Missing or requested-but-unavailable tools are builder-facing negative
 inventory and are omitted by default; pass `--include-missing-reports` to emit
 `build-report.json` plus per-artifact `*.build-missing.json` files and include

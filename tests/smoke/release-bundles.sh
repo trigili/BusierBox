@@ -300,10 +300,13 @@ if (len(mode_records) != 5 or
         queue.get("mode_records_by_target_polling_supported", {}).get("true") != [1, 2, 3] or
         queue.get("mode_records_by_execution_supported", {}).get("false") != [0, 1, 2, 3, 4] or
         queue.get("mode_records_by_active_control_channel", {}).get("false") != [0, 1, 2, 3, 4] or
+        queue.get("mode_records_by_operator_supplied_command_execution", {}).get("false") != [0, 1, 2, 3, 4] or
         mode_summary.get("mode_count") != 5 or
         mode_summary.get("target_polling_supported_mode_count") != 3 or
+        mode_summary.get("operator_supplied_command_execution_mode_count") != 0 or
         mode_summary.get("execution_supported_mode_count") != 0 or
-        mode_api.get("primary_key") != "mode"):
+        mode_api.get("primary_key") != "mode" or
+        "mode_records_by_operator_supplied_command_execution" not in (mode_api.get("indexes") or [])):
     raise SystemExit(f"tuple summary command queue mode metadata missing: {queue!r}")
 noresidue = summary.get("noresidue_policy") or {}
 if noresidue.get("best_effort_cleanup") is not True or noresidue.get("forensic_no_trace") is not False:
@@ -403,10 +406,13 @@ if (len(mode_records) != 5 or
         queue.get("mode_records_by_target_polling_supported", {}).get("true") != [1, 2, 3] or
         queue.get("mode_records_by_execution_supported", {}).get("false") != [0, 1, 2, 3, 4] or
         queue.get("mode_records_by_active_control_channel", {}).get("false") != [0, 1, 2, 3, 4] or
+        queue.get("mode_records_by_operator_supplied_command_execution", {}).get("false") != [0, 1, 2, 3, 4] or
         mode_summary.get("mode_count") != 5 or
         mode_summary.get("target_polling_supported_mode_count") != 3 or
+        mode_summary.get("operator_supplied_command_execution_mode_count") != 0 or
         mode_summary.get("execution_supported_mode_count") != 0 or
-        mode_api.get("primary_key") != "mode"):
+        mode_api.get("primary_key") != "mode" or
+        "mode_records_by_operator_supplied_command_execution" not in (mode_api.get("indexes") or [])):
     raise SystemExit(f"tuple manifest command queue mode metadata missing: {queue!r}")
 noresidue = summary.get("noresidue_policy") or {}
 if noresidue.get("best_effort_cleanup") is not True or noresidue.get("forensic_no_trace") is not False:
