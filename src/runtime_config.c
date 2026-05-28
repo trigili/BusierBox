@@ -477,6 +477,141 @@ void bb_config_print_effective_json(FILE *out, void (*json_string)(FILE *, const
     print_config_object(out, json_string, 1);
 }
 
+static const char *config_category(const char *key)
+{
+    if (!strncmp(key, "BB_RUNTIME_", strlen("BB_RUNTIME_")) || !strcmp(key, "BB_NORESIDUE_LEVEL"))
+        return "runtime";
+    if (!strncmp(key, "BB_ZERO_ARG_", strlen("BB_ZERO_ARG_")))
+        return "zero_arg";
+    if (!strncmp(key, "BB_RSHELL_", strlen("BB_RSHELL_")))
+        return "rshell";
+    if (!strncmp(key, "BB_AUTORUN_", strlen("BB_AUTORUN_")))
+        return "autorun";
+    if (!strncmp(key, "BB_OPERATOR_", strlen("BB_OPERATOR_")))
+        return "operator";
+    if (!strncmp(key, "BB_COMMAND_QUEUE_", strlen("BB_COMMAND_QUEUE_")))
+        return "command_queue";
+    return "other";
+}
+
+static const char *config_source_for_entry(const struct cfg_entry *ent)
+{
+    const char *env;
+    if (ent->has_cli_override)
+        return "cli";
+    env = getenv(ent->key);
+    if (env && *env)
+        return "env";
+    if (ent->has_override)
+        return "trailer";
+    return "compiled";
+}
+
+static void print_config_records(FILE *out)
+{
+    size_t i;
+    fputc('[', out);
+    for (i = 0; i < sizeof(cfg) / sizeof(cfg[0]); i++) {
+        const char *effective = bb_config_get(cfg[i].key);
+        if (i)
+            fputc(',', out);
+        fputs("{\"key\":", out);
+        bb_json_string(out, cfg[i].key);
+        fputs(",\"category\":", out);
+        bb_json_string(out, config_category(cfg[i].key));
+        fputs(",\"source\":", out);
+        bb_json_string(out, config_source_for_entry(&cfg[i]));
+        fputs(",\"compiled\":", out);
+        bb_json_string(out, cfg[i].compiled);
+        fputs(",\"effective\":", out);
+        bb_json_string(out, effective);
+        fputs(",\"changed\":", out);
+        fputs(strcmp(cfg[i].compiled, effective) ? "true" : "false", out);
+        fputs("}", out);
+    }
+    fputc(']', out);
+}
+
+static int config_record_matches(const char *kind, const char *value, const struct cfg_entry *ent)
+{
+    const char *effective = bb_config_get(ent->key);
+    if (!strcmp(kind, "category"))
+        return !strcmp(config_category(ent->key), value);
+    if (!strcmp(kind, "source"))
+        return !strcmp(config_source_for_entry(ent), value);
+    if (!strcmp(kind, "changed"))
+        return !strcmp(value, strcmp(ent->compiled, effective) ? "yes" : "no");
+    return 0;
+}
+
+static void print_config_index_array(FILE *out, const char *kind, const char *value)
+{
+    size_t i;
+    int first = 1;
+    fputc('[', out);
+    for (i = 0; i < sizeof(cfg) / sizeof(cfg[0]); i++) {
+        if (!config_record_matches(kind, value, &cfg[i]))
+            continue;
+        if (!first)
+            fputc(',', out);
+        fprintf(out, "%zu", i);
+        first = 0;
+    }
+    fputc(']', out);
+}
+
+static void print_config_record_indexes(FILE *out)
+{
+    static const char *categories[] = {
+        "runtime", "zero_arg", "rshell", "autorun", "operator", "command_queue", "other", NULL
+    };
+    static const char *sources[] = {"compiled", "trailer", "env", "cli", NULL};
+    size_t i;
+
+    fputs(",\"config_records_by_key\":{", out);
+    for (i = 0; i < sizeof(cfg) / sizeof(cfg[0]); i++) {
+        if (i)
+            fputc(',', out);
+        bb_json_string(out, cfg[i].key);
+        fprintf(out, ":[%zu]", i);
+    }
+    fputs("},\"config_records_by_category\":{", out);
+    for (i = 0; categories[i]; i++) {
+        if (i)
+            fputc(',', out);
+        bb_json_string(out, categories[i]);
+        fputc(':', out);
+        print_config_index_array(out, "category", categories[i]);
+    }
+    fputs("},\"config_records_by_source\":{", out);
+    for (i = 0; sources[i]; i++) {
+        if (i)
+            fputc(',', out);
+        bb_json_string(out, sources[i]);
+        fputc(':', out);
+        print_config_index_array(out, "source", sources[i]);
+    }
+    fputs("},\"config_records_by_changed\":{", out);
+    bb_json_string(out, "yes");
+    fputc(':', out);
+    print_config_index_array(out, "changed", "yes");
+    fputc(',', out);
+    bb_json_string(out, "no");
+    fputc(':', out);
+    print_config_index_array(out, "changed", "no");
+    fputc('}', out);
+}
+
+static size_t config_changed_count(void)
+{
+    size_t i;
+    size_t count = 0;
+    for (i = 0; i < sizeof(cfg) / sizeof(cfg[0]); i++)
+        if (strcmp(cfg[i].compiled, bb_config_get(cfg[i].key)))
+            count++;
+    return count;
+}
+
 void bb_config_print_trailer_json(FILE *out, void (*json_string)(FILE *, const char *))
 {
     fprintf(out, "{\"present\":%s,\"valid\":%s,\"encoding\":",
@@ -725,6 +860,18 @@ int applet_runtime_config_main(int argc, char **argv)
         bb_config_print_compiled_json(stdout, bb_json_string);
         fputs(",\"effective_config\":", stdout);
         bb_config_print_effective_json(stdout, bb_json_string);
+        fputs(",\"config_records\":", stdout);
+        print_config_records(stdout);
+        print_config_record_indexes(stdout);
+        fprintf(stdout, ",\"config_record_summary\":{\"total_count\":%zu,\"changed_count\":%zu,\"environment_override_count\":%d,\"cli_override_count\":%d,\"trailer_override_count\":%d}",
+                sizeof(cfg) / sizeof(cfg[0]),
+                config_changed_count(),
+                env_override_count(),
+                cli_override_count(),
+                bb_config_trailer_override_count());
+        fputs(",\"api_collections\":{\"config_records\":{\"name\":\"config_records\",\"count\":", stdout);
+        fprintf(stdout, "%zu", sizeof(cfg) / sizeof(cfg[0]));
+        fputs(",\"summary_key\":\"config_record_summary.total_count\",\"indexes\":[\"config_records_by_key\",\"config_records_by_category\",\"config_records_by_source\",\"config_records_by_changed\"]}}", stdout);
         fputs(",\"noresidue_policy\":", stdout);
         print_noresidue_policy_json(stdout);
         fputs(",\"rshell_readiness\":", stdout);

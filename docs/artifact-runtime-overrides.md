@@ -24,6 +24,11 @@ effective config, trailer metadata, environment override count, and
 runtime-config --json` also includes `noresidue_policy`, `rshell_readiness`,
 and `command_queue_policy`, matching the doctor/manifest safety,
 reverse-access, and explicit command-queue capability fields. `busierbox
+runtime-config --json` additionally includes flat `config_records` plus
+`config_records_by_key`, `config_records_by_category`,
+`config_records_by_source`, and `config_records_by_changed` lookup maps so
+operator UIs can filter effective values without diffing the compiled and
+effective config objects themselves. `busierbox
 manifest --json` includes `compiled_config`,
 `effective_config`, and `trailer_override`.
 

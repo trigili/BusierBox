@@ -66,6 +66,28 @@ assert cq["operator_supplied_command_execution"] is False
 assert cq["arbitrary_policy_requested"] is False
 assert cq["arbitrary_execution_allowed"] is False
 assert cq["safe_disabled_default"] is True
+records = r["config_records"]
+summary = r["config_record_summary"]
+api = r["api_collections"]["config_records"]
+by_key = r["config_records_by_key"]
+by_source = r["config_records_by_source"]
+by_changed = r["config_records_by_changed"]
+by_category = r["config_records_by_category"]
+assert summary["total_count"] == len(records)
+assert summary["changed_count"] == 0
+assert api["count"] == len(records)
+assert api["summary_key"] == "config_record_summary.total_count"
+assert "config_records_by_source" in api["indexes"]
+assert by_source["compiled"] == list(range(len(records)))
+assert by_source["trailer"] == []
+assert by_source["env"] == []
+assert by_changed["yes"] == []
+assert len(by_changed["no"]) == len(records)
+runtime_mode_record = records[by_key["BB_RUNTIME_MODE"][0]]
+assert runtime_mode_record["category"] == "runtime"
+assert runtime_mode_record["source"] == "compiled"
+assert runtime_mode_record["compiled"] == runtime_mode_record["effective"]
+assert by_category["command_queue"]
 PY
 
 scripts/artifact-config set "$work/busierbox" \
@@ -132,6 +154,22 @@ assert cq["valid"] is True
 assert cq["result_upload_supported"] is True
 assert cq["execution_supported"] is False
 assert cq["executes_commands"] is False
+records = r["config_records"]
+summary = r["config_record_summary"]
+by_key = r["config_records_by_key"]
+by_source = r["config_records_by_source"]
+by_changed = r["config_records_by_changed"]
+host_record = records[by_key["BB_OPERATOR_SERVER_HOST"][0]]
+level_record = records[by_key["BB_NORESIDUE_LEVEL"][0]]
+assert summary["trailer_override_count"] >= 1
+assert summary["changed_count"] >= 1
+assert host_record["source"] == "trailer"
+assert host_record["compiled"] != host_record["effective"]
+assert host_record["effective"] == "198.51.100.7"
+assert level_record["source"] == "trailer"
+assert level_record["effective"] == "aggressive"
+assert by_key["BB_OPERATOR_SERVER_HOST"][0] in by_source["trailer"]
+assert by_key["BB_OPERATOR_SERVER_HOST"][0] in by_changed["yes"]
 PY
 "$work/busierbox" rshell status --json >"$work/rshell.status.trailer.json"
 python3 - "$work/rshell.status.trailer.json" <<'PY'
@@ -155,6 +193,14 @@ assert r["effective_config"]["BB_OPERATOR_SERVER_HOST"] == "203.0.113.9"
 assert r["noresidue_policy"]["level"] == r["effective_config"]["BB_NORESIDUE_LEVEL"]
 assert r["rshell_readiness"]["operator_host"] == "203.0.113.9"
 assert r["rshell_readiness"]["operator_host_set"] is True
+records = r["config_records"]
+by_key = r["config_records_by_key"]
+by_source = r["config_records_by_source"]
+host_index = by_key["BB_OPERATOR_SERVER_HOST"][0]
+host_record = records[host_index]
+assert host_record["source"] == "env"
+assert host_record["effective"] == "203.0.113.9"
+assert host_index in by_source["env"]
 PY
 "$work/busierbox" manifest --json >"$work/manifest.set.json"
 python3 - "$work/manifest.set.json" <<'PY'
