@@ -2,6 +2,7 @@
 import json
 import os
 import pty
+import select
 import signal
 import socket
 import ssl
@@ -2698,6 +2699,56 @@ def main():
         if dumb_tui_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
             print("TERM=dumb line-oriented TUI fallback did not mark workbench stopped", file=sys.stderr)
             print(json.dumps(dumb_tui_doc, indent=2), file=sys.stderr)
+            return 1
+        dumb_invalid_state = Path(tmp) / "operator-session" / "tui-dumb-invalid-state.json"
+        dumb_invalid_staged = Path(tmp) / "operator-session" / "tui-dumb-invalid-staged.json"
+        dumb_invalid_master, dumb_invalid_slave = pty.openpty()
+        try:
+            dumb_invalid_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(upload_cfg),
+                    "--state-file", str(dumb_invalid_state),
+                    "--staged-file", str(dumb_invalid_staged),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=dumb_invalid_slave,
+                stdout=dumb_invalid_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(dumb_invalid_slave)
+            dumb_invalid_slave = -1
+            time.sleep(0.3)
+            os.write(dumb_invalid_master, b"6\n/no/such/file\n/tmp/missing\n8\n../bad\nq\n")
+            deadline = time.time() + 5
+            while dumb_invalid_proc.poll() is None and time.time() < deadline:
+                ready, _, _ = select.select([dumb_invalid_master], [], [], 0.1)
+                if ready:
+                    try:
+                        os.read(dumb_invalid_master, 65536)
+                    except OSError:
+                        break
+            if dumb_invalid_proc.poll() is None:
+                dumb_invalid_proc.kill()
+            _dumb_invalid_stdout, dumb_invalid_stderr = dumb_invalid_proc.communicate(timeout=5)
+        finally:
+            if dumb_invalid_slave != -1:
+                os.close(dumb_invalid_slave)
+            try:
+                os.close(dumb_invalid_master)
+            except OSError:
+                pass
+        if dumb_invalid_proc.returncode != 0 or "Traceback" in (dumb_invalid_stderr or ""):
+            print("TERM=dumb line-oriented TUI fallback did not handle invalid stage/unstage input cleanly", file=sys.stderr)
+            print(dumb_invalid_stderr or "", file=sys.stderr)
+            return 1
+        dumb_invalid_doc = json.loads(dumb_invalid_state.read_text(encoding="utf-8"))
+        if dumb_invalid_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
+            print("TERM=dumb invalid-input fallback did not mark workbench stopped", file=sys.stderr)
+            print(json.dumps(dumb_invalid_doc, indent=2), file=sys.stderr)
             return 1
 
         staged_source = Path(tmp) / "operator-file.bin"

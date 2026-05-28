@@ -6550,15 +6550,21 @@ def run_line_tui(cfg):
         elif choice == "6":
             path = input("local file> ").strip()
             name = input("target request name> ").strip()
-            rec = stage_file(cfg, path, name)
-            print(f"staged {rec['request_name']}")
-            print(render_fetch_command(rec["request_name"], cfg))
+            try:
+                rec = stage_file(cfg, path, name)
+                print(f"staged {rec['request_name']}")
+                print(render_fetch_command(rec["request_name"], cfg))
+            except ValueError as exc:
+                print(exc)
         elif choice == "7":
             print_staged(cfg)
         elif choice == "8" or choice == "d":
             name = input("target request name> ").strip()
             if name:
-                print("unstaged" if unstage_file(cfg, name) else "not staged")
+                try:
+                    print("unstaged" if unstage_file(cfg, name) else "not staged")
+                except ValueError as exc:
+                    print(exc)
         elif choice == "9" or choice == "v":
             path = input("local path> ").strip()
             if path:
