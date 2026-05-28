@@ -83,6 +83,7 @@ release_selection_command=
 selected_artifact=
 compatibility_label=
 compatibility_reasons_json='[]'
+compatibility_json='{}'
 selected_tool_provider_status_json='{}'
 selected_doom_wads_json='[]'
 selected_artifact_summary_json='{}'
@@ -188,6 +189,7 @@ write_summary() {
     SELECTED_ARTIFACT="$selected_artifact" \
     COMPATIBILITY_LABEL="$compatibility_label" \
     COMPATIBILITY_REASONS_JSON="$compatibility_reasons_json" \
+    COMPATIBILITY_JSON="$compatibility_json" \
     SELECTED_TOOL_PROVIDER_STATUS_JSON="$selected_tool_provider_status_json" \
     SELECTED_DOOM_WADS_JSON="$selected_doom_wads_json" \
     SELECTED_ARTIFACT_SUMMARY_JSON="$selected_artifact_summary_json" \
@@ -246,6 +248,20 @@ try:
         reasons = [reasons]
 except Exception:
     reasons = split_lines(env("COMPATIBILITY_REASONS_JSON"))
+
+try:
+    selected_compatibility = json.loads(env("COMPATIBILITY_JSON") or "{}")
+    if not isinstance(selected_compatibility, dict):
+        selected_compatibility = {}
+except Exception:
+    selected_compatibility = {}
+if not selected_compatibility:
+    selected_compatibility = {
+        "label": env("COMPATIBILITY_LABEL"),
+        "reasons": reasons,
+    }
+if not reasons and isinstance(selected_compatibility.get("reasons"), list):
+    reasons = selected_compatibility.get("reasons") or []
 
 try:
     selected_tool_provider_status = json.loads(env("SELECTED_TOOL_PROVIDER_STATUS_JSON") or "{}")
@@ -350,10 +366,7 @@ if env("STAGED_FETCH_COMMAND"):
         "source_path": staged_source_path,
         "stage_kind": staged_stage_kind,
         "selected_artifact": env("SELECTED_ARTIFACT"),
-        "compatibility": {
-            "label": env("COMPATIBILITY_LABEL"),
-            "reasons": reasons,
-        },
+        "compatibility": selected_compatibility,
     })
 
 next_command_records = next_operator_records + next_target_records
@@ -715,10 +728,7 @@ doc = {
     "selected_doom_wad_records": selected_doom_wad_records,
     "selected_doom_wads_by_filename": selected_doom_wads_by_filename,
     "selected_doom_wads_by_sha256": selected_doom_wads_by_sha256,
-    "compatibility": {
-        "label": env("COMPATIBILITY_LABEL"),
-        "reasons": reasons,
-    },
+    "compatibility": selected_compatibility,
     "generated_trailer_override_command": env("TRAILER_COMMAND"),
     "staged_request_name": env("STAGED_REQUEST_NAME"),
     "staged_fetch_command": env("STAGED_FETCH_COMMAND"),
@@ -955,7 +965,7 @@ if isinstance(selected, dict):
         selected.get("artifact"),
     )
 
-compat = data.get("compatibility")
+compat = data.get("effective_compatibility") if isinstance(data.get("effective_compatibility"), dict) else data.get("compatibility")
 label = ""
 reasons = []
 tool_provider_status = {}
@@ -983,7 +993,12 @@ if isinstance(selected, dict):
             for key in ("reverse_access", "command_queue", "runtime_mode", "noresidue_level", "payload_preset")
             if selected.get(key) not in (None, "", [], {})
         }
-    if not compat and isinstance(selected.get("compatibility"), dict):
+    if isinstance(selected.get("effective_compatibility"), dict):
+        compat = selected.get("effective_compatibility")
+        label = first_string(compat.get("label"), compat.get("score"), compat.get("status"))
+        raw = compat.get("reasons", [])
+        reasons = raw if isinstance(raw, list) else [raw]
+    elif not compat and isinstance(selected.get("compatibility"), dict):
         compat = selected.get("compatibility")
         label = first_string(compat.get("label"), compat.get("score"), compat.get("status"))
         raw = compat.get("reasons", [])
@@ -1004,6 +1019,7 @@ values = {
     "selected_artifact": artifact,
     "compatibility_label": label,
     "compatibility_reasons_json": json.dumps([str(x) for x in reasons if x not in (None, "")]),
+    "compatibility_json": json.dumps(compat if isinstance(compat, dict) else {"label": label, "reasons": [str(x) for x in reasons if x not in (None, "")]}),
     "selected_tool_provider_status_json": json.dumps(tool_provider_status),
     "selected_doom_wads_json": json.dumps(doom_wads),
     "selected_artifact_summary_json": json.dumps(artifact_summary),

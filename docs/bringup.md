@@ -201,7 +201,10 @@ operator-supplied-command execution counters from the selected release bundle.
 `release_selection_source` records whether artifact selection used a bundle
 `scripts/release-find` helper or the local release repository fallback, and
 `release_selection_command` records the exact selector command for audit and UI
-debugging.
+debugging. When the repository fallback returns `effective_compatibility` from
+`scripts/find-artifact`, bringup uses that reality-adjusted label for the
+selected artifact, staged fetch record, and compatibility summary while leaving
+the selector's release-index baseline available in `release_find_json`.
 The summary
 publishes `api_collections` metadata with `count`, `summary_key`,
 `count_summary_key`, `primary_key`, and index names for `next_command_records`,
