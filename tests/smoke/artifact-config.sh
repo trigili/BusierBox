@@ -77,6 +77,8 @@ assert summary["total_count"] == len(records)
 assert summary["changed_count"] == 0
 assert api["count"] == len(records)
 assert api["summary_key"] == "config_record_summary.total_count"
+assert api["count_summary_key"] == "config_record_summary.total_count"
+assert api["primary_key"] == "key"
 assert "config_records_by_source" in api["indexes"]
 assert by_source["compiled"] == list(range(len(records)))
 assert by_source["trailer"] == []

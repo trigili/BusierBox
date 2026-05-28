@@ -95,6 +95,10 @@ if api_config_records.get("count") != len(config_records):
     raise SystemExit("manifest-metadata: api_collections config_records count mismatch")
 if api_config_records.get("summary_key") != "config_record_summary.total_count":
     raise SystemExit("manifest-metadata: config_records api summary key missing")
+if api_config_records.get("count_summary_key") != "config_record_summary.total_count":
+    raise SystemExit("manifest-metadata: config_records api count summary key missing")
+if api_config_records.get("primary_key") != "key":
+    raise SystemExit("manifest-metadata: config_records api primary key missing")
 for index_name in (
     "config_records_by_key",
     "config_records_by_category",

@@ -27,6 +27,9 @@ The JSON manifest includes:
 - native feature flags
 - BusyBox applets and staged heavy tools compiled into the dispatch table
 - compiled config, effective config, and post-build override trailer status
+- flat config records with lookup maps and `api_collections.config_records`
+  metadata (`count`, `summary_key`, `count_summary_key`, `primary_key`, and
+  index names)
 
 Artifact-facing manifest and doctor output are positive inventory by default:
 they describe what is present and usable. They do not list every requested or

@@ -28,7 +28,10 @@ runtime-config --json` additionally includes flat `config_records` plus
 `config_records_by_key`, `config_records_by_category`,
 `config_records_by_source`, and `config_records_by_changed` lookup maps so
 operator UIs can filter effective values without diffing the compiled and
-effective config objects themselves. `busierbox
+effective config objects themselves. The accompanying
+`api_collections.config_records` descriptor includes `count`, `summary_key`,
+`count_summary_key`, `primary_key`, and the index names for frontend discovery.
+`busierbox
 manifest --json` includes `compiled_config`,
 `effective_config`, and `trailer_override`.
 

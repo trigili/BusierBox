@@ -636,6 +636,8 @@ void bb_config_print_record_api_collection_json(FILE *out)
 {
     fputs("{\"name\":\"config_records\",\"count\":", out);
     fprintf(out, "%zu", sizeof(cfg) / sizeof(cfg[0]));
+    fputs(",\"count_summary_key\":\"config_record_summary.total_count\"", out);
+    fputs(",\"primary_key\":\"key\"", out);
     fputs(",\"summary_key\":\"config_record_summary.total_count\",\"indexes\":[\"config_records_by_key\",\"config_records_by_category\",\"config_records_by_source\",\"config_records_by_changed\"]}", out);
 }
 
