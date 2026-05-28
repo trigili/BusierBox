@@ -453,24 +453,37 @@ static void usage(void)
 static int write_generated_json_file(const char *label, int (*writer)(FILE *out), char *path, size_t pathsz)
 {
     const char *roots[] = { BB_RUNTIME_ROOT, ".", "/tmp", NULL };
+    int aggressive_noresidue = !strcmp(BB_RUNTIME_MODE, "no-residue") &&
+                               !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
     int i;
 
     for (i = 0; roots[i]; i++) {
         int fd;
-        if (roots[i][0] && strcmp(roots[i], "."))
-            bb_mkdir_p(roots[i], 0700);
+        if (aggressive_noresidue && i > 0)
+            break;
+        if (roots[i][0] && strcmp(roots[i], ".")) {
+            if (bb_mkdir_p(roots[i], 0700) == 0)
+                bb_ledger_record("mkdir", roots[i], "runtime", "generated upload scratch root");
+        }
         snprintf(path, pathsz, "%s/.busierbox-%s.%ld.XXXXXX", roots[i], label, (long)getpid());
         fd = mkstemp(path);
         if (fd < 0)
             continue;
+        bb_ledger_record("write", path, "runtime", "generated upload scratch file");
         {
             FILE *fp = fdopen(fd, "w");
+            int ok;
             if (!fp) {
                 close(fd);
+                bb_ledger_record("remove", path, "runtime", "generated upload scratch cleanup");
                 unlink(path);
                 continue;
             }
-            if (writer(fp) != 0 || fclose(fp) != 0) {
+            ok = writer(fp) == 0;
+            if (fclose(fp) != 0)
+                ok = 0;
+            if (!ok) {
+                bb_ledger_record("remove", path, "runtime", "generated upload scratch cleanup");
                 unlink(path);
                 continue;
             }
@@ -478,6 +491,14 @@ static int write_generated_json_file(const char *label, int (*writer)(FILE *out)
         return 0;
     }
     return -1;
+}
+
+static void remove_generated_json_file(const char *path)
+{
+    if (!path || !path[0])
+        return;
+    bb_ledger_record("remove", path, "runtime", "generated upload scratch cleanup");
+    unlink(path);
 }
 
 static int write_config_json(FILE *out)
@@ -531,7 +552,7 @@ int applet_upload_main(int argc, char **argv)
             return 1;
         }
         rc = bb_operator_upload_file(tmp, "busierbox-config.json", "config", argc - 1, argv + 1);
-        unlink(tmp);
+        remove_generated_json_file(tmp);
         return rc;
     }
     if (!strcmp(cmd, "evidence")) {
@@ -554,7 +575,7 @@ int applet_upload_main(int argc, char **argv)
             return 1;
         }
         rc = bb_operator_upload_file(tmp, "busierbox-evidence.json", "evidence", argc - 2, argv + 2);
-        unlink(tmp);
+        remove_generated_json_file(tmp);
         return rc;
     }
     if (argc < 2) {

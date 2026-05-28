@@ -161,6 +161,15 @@ assert runtime["fallback_enabled"] is False
 assert runtime["fallback_disabled_by_aggressive_noresidue"] is True
 assert runtime["selected_root"] is None
 PY
+    if BB_RUNTIME_ROOT=.bbx-aggressive-blocked ../busierbox-no-residue-aggressive config-push --host 127.0.0.1 --port 1 --tls no --quiet >config-push-blocked.out 2>config-push-blocked.err; then
+        printf '%s\n' "runtime-modes: aggressive config-push unexpectedly created scratch outside runtime root" >&2
+        exit 1
+    fi
+    grep -q 'unable to create temporary config JSON' config-push-blocked.err
+    if ls .busierbox-config.* >/dev/null 2>&1; then
+        printf '%s\n' "runtime-modes: aggressive config-push left cwd scratch" >&2
+        exit 1
+    fi
     ../busierbox-no-residue-aggressive reality-test --json | python3 -m json.tool >reality.json
     [ ! -e .bbx-aggressive ]
 )

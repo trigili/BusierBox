@@ -74,6 +74,7 @@ def main():
                     "BB_OPERATOR_SERVER_HOST": "127.0.0.1",
                     "BB_OPERATOR_FILE_SERVICE_PORT": str(port),
                     "BB_OPERATOR_FILE_SERVICE_TLS": "no",
+                    "BB_RUNTIME_ROOT": str(tmp / "target-runtime"),
                 }
             )
             help_checks = [
@@ -176,6 +177,17 @@ def main():
             elif expected == "busierbox-reality-test.json":
                 if doc.get("schema") != 1 or "checks" not in doc or "summary" not in doc:
                     raise SystemExit("operator-upload: reality-test push uploaded invalid report")
+        ledger = tmp / "target-runtime" / "run" / "cleanup-ledger.jsonl"
+        entries = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
+        details = [entry.get("detail", "") for entry in entries]
+        paths = [entry.get("path", "") for entry in entries]
+        if details.count("generated upload scratch file") < 2:
+            raise SystemExit("operator-upload: generated upload scratch writes were not ledgered")
+        if details.count("generated upload scratch cleanup") < 2:
+            raise SystemExit("operator-upload: generated upload scratch cleanup was not ledgered")
+        scratch_paths = [path for path, detail in zip(paths, details) if detail == "generated upload scratch file"]
+        if not scratch_paths or any(pathlib.Path(path).exists() for path in scratch_paths):
+            raise SystemExit("operator-upload: generated upload scratch files were not removed")
     print("operator-upload ok")
 
 

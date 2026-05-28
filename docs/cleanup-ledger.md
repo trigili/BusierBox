@@ -8,7 +8,9 @@ BusierBox records BusierBox-controlled runtime changes in:
 
 Each line is JSON. The initial ledger tracks top-level runtime roots, payload
 extraction roots, clean operations, explicit persistence hook writes, and explicit
-rshell root authorized-key writes. Extraction tracking is intentionally
+rshell root authorized-key writes. Generated `config-push` and `evidence push`
+scratch files are ledgered as runtime writes and removals before upload cleanup.
+Extraction tracking is intentionally
 coarse-grained: it gives operators a safe cleanup view without pretending every
 extracted payload file has a separate audit entry yet.
 
@@ -74,7 +76,8 @@ how strongly BusierBox tries to minimize its own runtime residue:
   payload commands, while still staying visible, reversible where applicable,
   and auditable. Aggressive mode fails closed instead of using a configured
   fallback runtime root; use `best-effort` when fallback extraction is an
-  acceptable operator tradeoff.
+  acceptable operator tradeoff. Generated upload scratch files use the
+  configured runtime root only, and are removed after the upload attempt.
 
 Both levels remove only BusierBox-owned runtime roots after foreground payload
 commands, forward common interrupt signals to the child process, and still
