@@ -23,6 +23,14 @@ def useful(value):
     return "" if value in ("", "unknown", "auto", "none") else value
 
 
+def boolish(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in {"yes", "true", "1", "ok", "basic-ok", "present"}
+    return bool(value)
+
+
 def kernel_floor(release):
     release = useful(release)
     if not release:
@@ -61,6 +69,88 @@ def apply_survey_filters(args):
         "path": args.survey_json,
         "hints": hints,
         "applied_filters": applied,
+    }
+
+
+def reality_checks(data):
+    if not isinstance(data, dict):
+        return {}
+    checks = data.get("checks")
+    if not isinstance(checks, list):
+        return {}
+    scanned = {item.get("name"): item for item in checks if isinstance(item, dict) and item.get("name")}
+    checks_by_name = data.get("checks_by_name")
+    if isinstance(checks_by_name, dict):
+        indexed = {}
+        for name, indexes in checks_by_name.items():
+            if not isinstance(name, str):
+                continue
+            if isinstance(indexes, int):
+                indexes = [indexes]
+            if not isinstance(indexes, list):
+                continue
+            for index in indexes:
+                if not isinstance(index, int) or index < 0 or index >= len(checks):
+                    continue
+                item = checks[index]
+                if isinstance(item, dict) and item.get("name") == name:
+                    indexed[name] = item
+                    break
+        if indexed:
+            for name, item in scanned.items():
+                indexed.setdefault(name, item)
+            return indexed
+    return scanned
+
+
+def reality_context(path):
+    if not path:
+        return {}
+    data = load_json(pathlib.Path(path))
+    checks_by_name = reality_checks(data)
+    summary = data.get("summary") if isinstance(data, dict) and isinstance(data.get("summary"), dict) else {}
+    constraints = summary.get("constraints") if isinstance(summary.get("constraints"), dict) else {}
+
+    def check(name):
+        return checks_by_name.get(name) or {}
+
+    def failed(name):
+        item = check(name)
+        if not item or item.get("skipped"):
+            return False
+        return item.get("status") == "fail" or item.get("ok") is False or item.get("available") is False
+
+    def detected(name):
+        item = check(name)
+        if item:
+            return boolish(item.get("detected"))
+        if name in constraints:
+            return boolish(constraints.get(name))
+        return False
+
+    failed_checks = [
+        name for name in sorted(checks_by_name)
+        if failed(name)
+    ]
+    return {
+        "path": path,
+        "schema": data.get("schema") if isinstance(data, dict) else None,
+        "check_count": len(checks_by_name),
+        "checks_seen": sorted(checks_by_name),
+        "failed_checks": failed_checks,
+        "constraints": {
+            "tmp_noexec": detected("tmp_noexec"),
+            "rootfs_read_only": detected("rootfs_read_only"),
+            "procfs_partial": detected("procfs_partial"),
+        },
+        "status_by_check": {
+            name: (item.get("status") or "")
+            for name, item in sorted(checks_by_name.items())
+            if isinstance(item, dict)
+        },
+        "summary": summary,
+        "api_collections": data.get("api_collections") if isinstance(data.get("api_collections"), dict) else {},
+        "selection_note": "reported for audit and UI context; artifact compatibility labels come from the release index",
     }
 
 
@@ -197,6 +287,7 @@ def active_filters(args):
         "doom_wad_sha256",
         "max_compatibility",
         "survey_json",
+        "reality_json",
     )
     return {key: getattr(args, key) for key in keys if getattr(args, key)}
 
@@ -209,6 +300,9 @@ def filter_records(args, survey_context=None):
         if name == "survey_json":
             source = "explicit"
             reason = "survey evidence path supplied by operator"
+        elif name == "reality_json":
+            source = "explicit"
+            reason = "reality-test evidence path supplied by operator"
         elif name in applied:
             source = "survey"
             reason = "derived from survey evidence because no explicit filter was supplied"
@@ -313,7 +407,7 @@ def api_collection_record(name, count, indexes, summary_key, primary_key=""):
     }
 
 
-def recommendation_document(index, rows, args, survey_context=None):
+def recommendation_document(index, rows, args, survey_context=None, reality=None):
     selected = rows[0] if rows else None
     selected_sha = (selected or {}).get("sha256") or ""
     dedupe = (index.get("dedupe", {}).get(selected_sha, {}) or {}).get("artifacts") or []
@@ -339,6 +433,7 @@ def recommendation_document(index, rows, args, survey_context=None):
             "payload preset name",
             "artifact path",
         ],
+        "reality": reality or {},
         "selected": selected,
         "dedupe_alternatives": dedupe,
         "dedupe_count": len(dedupe),
@@ -423,6 +518,7 @@ def main(argv=None):
     parser.add_argument("--index", help="prebuilt index from scripts/index-release-repo")
     parser.add_argument("--release-root", action="append", default=[], help="release dir or directory containing releases; repeatable")
     parser.add_argument("--survey-json", help="derive unset arch/libc/kernel/cpu/abi filters from busierbox survey --json output")
+    parser.add_argument("--reality-json", help="include busierbox reality-test --json evidence in recommendation output")
     parser.add_argument("--release")
     parser.add_argument("--tuple-path", help="canonical release tuple path, such as by-tuple/mipsel/musl/4.x/mips32r2-24kc")
     parser.add_argument("--device")
@@ -445,6 +541,7 @@ def main(argv=None):
                         help="print selected artifact plus filters, match count, and selection policy")
     args = parser.parse_args(argv)
     survey_context = apply_survey_filters(args)
+    reality = reality_context(args.reality_json)
 
     if args.index:
         index = load_json(pathlib.Path(args.index))
@@ -460,7 +557,7 @@ def main(argv=None):
     if not rows:
         raise SystemExit("find-artifact: no matching artifact")
     if args.recommendation_json:
-        print(json.dumps(recommendation_document(index, rows, args, survey_context), indent=2, sort_keys=True))
+        print(json.dumps(recommendation_document(index, rows, args, survey_context, reality), indent=2, sort_keys=True))
         return 0
     if args.json:
         payload = rows if args.all else rows[0]

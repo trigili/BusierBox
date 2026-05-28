@@ -910,6 +910,9 @@ choose_release_artifact() {
     else
         release_selection_source=release-repository
         set -- scripts/find-artifact --release-root "$release_dir" --survey-json "$survey" --payload-preset "$payload_preset" --recommendation-json
+        if [ -f "$reality" ]; then
+            set -- "$@" --reality-json "$reality"
+        fi
         if [ "$max_args" = yes ]; then
             set -- "$@" --max-compatibility "$max_compatibility"
         fi

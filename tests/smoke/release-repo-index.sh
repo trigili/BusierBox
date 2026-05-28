@@ -392,6 +392,54 @@ assert [item["name"] for item in doc["filters_by_source"]["survey"]] == ["arch",
 assert doc["filters_by_name_source"]["arch:survey"]["value"] == "mipsel"
 assert doc["selected"]["release_name"] == "one"
 PY
+cat >"$tmp/reality-bad-runtime.json" <<'EOF'
+{
+  "schema": 1,
+  "checks": [
+    {"name": "runtime_root_executable", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "permission denied"},
+    {"name": "extract_core_payload", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "extract failed"},
+    {"name": "tmp_noexec", "type": "constraint", "status": "pass", "ok": true, "detected": true, "skipped": false, "detail": "detected"},
+    {"name": "rootfs_read_only", "type": "constraint", "status": "pass", "ok": true, "detected": true, "skipped": false, "detail": "detected"},
+    {"name": "procfs_partial", "type": "constraint", "status": "pass", "ok": true, "detected": true, "skipped": false, "detail": "detected"},
+    {"name": "ptrace", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "not permitted"}
+  ],
+  "summary": {
+    "operator_pass": 0,
+    "operator_fail": 0,
+    "operator_skipped": 3,
+    "constraints": {
+      "tmp_noexec": true,
+      "rootfs_read_only": true,
+      "procfs_partial": true
+    }
+  }
+}
+EOF
+scripts/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --reality-json "$tmp/reality-bad-runtime.json" --payload-preset survey-core --recommendation-json >"$tmp/recommend-reality-json.out"
+python3 - "$tmp/recommend-reality-json.out" "$tmp/reality-bad-runtime.json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+reality_path = sys.argv[2]
+assert doc["filters"]["reality_json"] == reality_path
+assert doc["filters_by_name"]["reality_json"]["source"] == "explicit"
+assert doc["filters_by_name"]["reality_json"]["reason"].startswith("reality-test evidence")
+assert doc["filters_by_name_source"]["reality_json:explicit"]["value"] == reality_path
+assert doc["reality"]["path"] == reality_path
+assert doc["reality"]["schema"] == 1
+assert doc["reality"]["check_count"] == 6
+assert doc["reality"]["constraints"] == {
+    "tmp_noexec": True,
+    "rootfs_read_only": True,
+    "procfs_partial": True,
+}
+assert "runtime_root_executable" in doc["reality"]["failed_checks"]
+assert "extract_core_payload" in doc["reality"]["failed_checks"]
+assert "ptrace" in doc["reality"]["failed_checks"]
+assert doc["reality"]["status_by_check"]["ptrace"] == "fail"
+assert "release index" in doc["reality"]["selection_note"]
+PY
 scripts/find-artifact --index "$tmp/repo-index.json" --device lab-router --max-compatibility likely --recommendation-json >"$tmp/recommend-safe-json.out"
 python3 - "$tmp/recommend-safe-json.out" <<'PY'
 import json

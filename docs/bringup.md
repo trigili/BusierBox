@@ -90,8 +90,10 @@ scripts/busierbox-bringup \
 
 When `--release-dir` points at a release repository instead of one bundle,
 bringup uses `scripts/find-artifact --survey-json` to derive unset tuple
-filters from the captured survey, then keeps the same explicit fetch/staging
-safety boundary.
+filters from the captured survey. When reality-test output is available, it is
+also passed through as `--reality-json` so `release-find.json` keeps the active
+runtime constraints alongside the selection record. The explicit fetch/staging
+safety boundary stays unchanged.
 
 Stage the selected release artifact, or `recommended.conf` when no artifact is
 available yet, for explicit target-side fetch:

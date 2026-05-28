@@ -235,8 +235,19 @@ cat >"$release_repo_bundle/release-self-test.json" <<'JSON'
   "command_queue_operator_supplied_command_execution_count": 0
 }
 JSON
-repo_release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --release-dir "$release_repo_tmp/releases" --stage-recommended-artifact --json)
-printf '%s\n' "$repo_release_json" | python3 -c 'import json,sys,pathlib; d=json.load(sys.stdin); files=d["run_files"]; summary=d["selected_artifact_summary"]; assert d["release_selection_source"] == "release-repository"; assert "scripts/find-artifact" in d["release_selection_command"]; assert "--survey-json" in d["release_selection_command"]; assert "--payload-preset" in d["release_selection_command"]; assert d["selected_artifact"].endswith("busierbox-mipsel-survey-full"); assert d["compatibility"]["label"] == "exact"; assert d["compatibility"]["reasons"] == ["survey repo match"]; assert summary["command_queue"]["enabled"] == "no"; assert summary["reverse_access"]["transport"] == "ssh"; assert d["release_self_test_summary"]["release_name"] == "repo-one"; assert files["release_self_test_json"]["exists"] is True; assert files["release_find_json"]["exists"] is True; assert pathlib.Path(d["run_dir"], "staged-artifact.out").read_text(encoding="utf-8").find("busierbox fetch busierbox-mipsel-survey-full") >= 0'
+cat >"$release_repo_tmp/reality.json" <<'JSON'
+{
+  "schema": 1,
+  "checks": [
+    {"name": "runtime_root_executable", "type": "capability", "status": "pass", "ok": true, "available": true, "skipped": false, "detail": "ok"},
+    {"name": "tmp_noexec", "type": "constraint", "status": "pass", "ok": true, "detected": true, "skipped": false, "detail": "detected"}
+  ],
+  "checks_by_name": {"runtime_root_executable": [0], "tmp_noexec": [1]},
+  "summary": {"check_count": 2, "constraints": {"tmp_noexec": true, "rootfs_read_only": false, "procfs_partial": false}}
+}
+JSON
+repo_release_json=$(scripts/busierbox-bringup --recommend-only --survey-json tests/fixtures/survey/glinet-mt7621.json --reality-json "$release_repo_tmp/reality.json" --release-dir "$release_repo_tmp/releases" --stage-recommended-artifact --json)
+printf '%s\n' "$repo_release_json" | python3 -c 'import json,sys,pathlib; d=json.load(sys.stdin); files=d["run_files"]; summary=d["selected_artifact_summary"]; release_find=json.load(open(d["release_find_json"], encoding="utf-8")); assert d["release_selection_source"] == "release-repository"; assert "scripts/find-artifact" in d["release_selection_command"]; assert "--survey-json" in d["release_selection_command"]; assert "--payload-preset" in d["release_selection_command"]; assert "--reality-json" in d["release_selection_command"]; assert d["selected_artifact"].endswith("busierbox-mipsel-survey-full"); assert d["compatibility"]["label"] == "exact"; assert d["compatibility"]["reasons"] == ["survey repo match"]; assert summary["command_queue"]["enabled"] == "no"; assert summary["reverse_access"]["transport"] == "ssh"; assert d["release_self_test_summary"]["release_name"] == "repo-one"; assert files["release_self_test_json"]["exists"] is True; assert files["release_find_json"]["exists"] is True; assert release_find["filters"]["reality_json"].endswith("reality-test.json"); assert release_find["reality"]["constraints"]["tmp_noexec"] is True; assert release_find["filters_by_name"]["reality_json"]["source"] == "explicit"; assert pathlib.Path(d["run_dir"], "staged-artifact.out").read_text(encoding="utf-8").find("busierbox fetch busierbox-mipsel-survey-full") >= 0'
 printf '%s\n' "$repo_release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); rec=d["next_command_records_by_request"][d["staged_request_name"]]; assert rec["stage_kind"] == "release-artifact"; assert rec["source_path"] == d["selected_artifact"]; assert rec["compatibility"]["label"] == "exact"; assert d["command_record_summary"]["target_staged_fetch_count"] == 1'
 rm -rf "$release_repo_tmp"
 grep -q 'BUSIERBOX_CONFIG="$recommended" make package' scripts/busierbox-bringup
