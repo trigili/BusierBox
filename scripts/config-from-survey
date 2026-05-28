@@ -363,6 +363,46 @@ if reality_by_name:
     if reality_failed("dmesg_readable"):
         warnings.append("reality-test could not read dmesg; crash evidence may be limited")
 
+compatibility_reasons = []
+compatibility_label = "exact"
+if arch and arch != "unknown":
+    compatibility_reasons.append(f"arch inferred {arch}")
+else:
+    compatibility_label = "heuristic"
+    compatibility_reasons.append("arch unknown")
+if libc and libc != "unknown":
+    compatibility_reasons.append(f"libc inferred {libc}")
+else:
+    compatibility_label = "heuristic"
+    compatibility_reasons.append("libc unknown")
+if kfloor and kfloor != "unknown":
+    compatibility_reasons.append(f"kernel floor {kfloor}")
+else:
+    compatibility_label = "heuristic"
+    compatibility_reasons.append("kernel floor unknown")
+if preset:
+    compatibility_reasons.append(f"target preset {preset}")
+else:
+    compatibility_label = "heuristic"
+    compatibility_reasons.append("no target preset selected")
+if low_disk:
+    compatibility_label = "heuristic" if compatibility_label == "exact" else compatibility_label
+    compatibility_reasons.append("low storage: prefer core-only")
+if noexec_tmp:
+    compatibility_label = "likely" if compatibility_label == "exact" else compatibility_label
+    compatibility_reasons.append("/tmp noexec constraint")
+if reality_by_name:
+    compatibility_reasons.append("reality-test data applied")
+if reality_failed("runtime_root_executable"):
+    compatibility_label = "unsafe"
+    compatibility_reasons.append("runtime root execution failed in reality-test")
+if reality_failed("extract_core_payload"):
+    compatibility_label = "unsafe"
+    compatibility_reasons.append("core payload extraction failed in reality-test")
+if reality_failed("exec_payload_busybox"):
+    compatibility_label = "unsafe"
+    compatibility_reasons.append("payload BusyBox execution failed in reality-test")
+
 if prefer_runtime != "auto":
     runtime_mode = prefer_runtime
 elif not payload_possible or low_disk:
@@ -427,6 +467,11 @@ cfg = {
 result = {
     "schema": 1,
     "source": str(survey_path),
+    "compatibility": {
+        "schema": 1,
+        "label": compatibility_label,
+        "reasons": compatibility_reasons,
+    },
     "recommendations": cfg,
     "warnings": warnings,
     "facts": {
@@ -463,7 +508,10 @@ def render_shell():
     lines = [
         "# BusierBox recommended config generated from survey JSON.",
         "# Defaults are conservative: no external writes and no network autorun.",
+        f"# compatibility={compatibility_label}",
     ]
+    for reason in compatibility_reasons:
+        lines.append(f"# compatibility_reason: {reason}")
     for warning in warnings:
         lines.append(f"# WARNING: {warning}")
     for key in [

@@ -84,6 +84,10 @@ scripts/release-find --release-dir dist/releases/lab --survey-json survey.json -
 ```
 
 `scripts/config-from-survey` is conservative. It emits comments for uncertainty, avoids external writes unless `--allow-external-writes` is set, and keeps `BB_ZERO_ARG_MODE="help"` unless `--allow-network-autorun` is explicitly requested.
+Shell output includes `# compatibility=...` and `# compatibility_reason: ...`
+comments. JSON output includes a `compatibility` object with `schema`, `label`,
+and `reasons` so bringup tooling can show the same risk language used by
+release selection before a release artifact is chosen.
 When `--reality-json` is supplied, failed active runtime checks can downgrade
 payload recommendations to `core-only` and add explicit warnings for noexec
 temporary storage, read-only root filesystems, broken procfs, or missing ptrace.

@@ -5,6 +5,8 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 scripts/config-from-survey --format shell tests/fixtures/survey/glinet-mt7621.json >"$tmp/glinet.conf"
+grep -q '^# compatibility=exact$' "$tmp/glinet.conf"
+grep -q '^# compatibility_reason: arch inferred mipsel$' "$tmp/glinet.conf"
 grep -q '^BB_TARGET_PRESET=glinet-mt7621-openwrt-musl$' "$tmp/glinet.conf"
 grep -q '^BB_TARGET_ARCH=mipsel$' "$tmp/glinet.conf"
 grep -q '^BB_TARGET_LIBC=musl$' "$tmp/glinet.conf"
@@ -16,6 +18,17 @@ scripts/config-from-survey --format json tests/fixtures/survey/generic-openwrt-m
 python3 -m json.tool "$tmp/openwrt.json" >/dev/null
 grep -q '"BB_TARGET_ARCH": "mipsel"' "$tmp/openwrt.json"
 grep -q '"BB_TARGET_LIBC": "musl"' "$tmp/openwrt.json"
+python3 - "$tmp/openwrt.json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+compat = doc["compatibility"]
+assert compat["schema"] == 1
+assert compat["label"] in {"exact", "likely", "heuristic"}
+assert any(reason.startswith("arch inferred ") for reason in compat["reasons"])
+assert any(reason.startswith("libc inferred ") for reason in compat["reasons"])
+PY
 
 cat >"$tmp/reality-bad-runtime.json" <<'EOF'
 {
@@ -54,6 +67,9 @@ import json
 import sys
 
 doc = json.load(open(sys.argv[1], encoding="utf-8"))
+assert doc["compatibility"]["label"] == "unsafe"
+assert "runtime root execution failed in reality-test" in doc["compatibility"]["reasons"]
+assert "core payload extraction failed in reality-test" in doc["compatibility"]["reasons"]
 assert doc["recommendations"]["BB_RUNTIME_MODE"] == "core-only"
 facts = doc["facts"]
 assert facts["payload_possible"] is False
