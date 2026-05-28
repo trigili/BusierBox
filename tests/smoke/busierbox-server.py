@@ -3120,6 +3120,7 @@ def main():
                 "Generated target commands" not in uploads_view.stdout or
                 "Operator paths:" not in uploads_view.stdout or
                 "Service summary:" not in uploads_view.stdout or
+                "Workbench mode: noninteractive" not in uploads_view.stdout or
                 "Activity summary:" not in uploads_view.stdout or
                 "Path health:" not in uploads_view.stdout or
                 "state_file: exists=" not in uploads_view.stdout or
@@ -3139,6 +3140,11 @@ def main():
                 "./busierbox evidence push" not in uploads_view.stdout):
             print("workbench did not show received upload metadata", file=sys.stderr)
             print(uploads_view.stdout, file=sys.stderr)
+            return 1
+        uploads_view_state = json.loads(state_file.read_text(encoding="utf-8"))
+        if uploads_view_state.get("services", {}).get("workbench", {}).get("workbench_mode") != "noninteractive":
+            print("noninteractive workbench did not persist workbench mode", file=sys.stderr)
+            print(json.dumps(uploads_view_state, indent=2), file=sys.stderr)
             return 1
 
         tui_sigint_state = Path(tmp) / "operator-session" / "tui-sigint-state.json"
@@ -3178,6 +3184,10 @@ def main():
         tui_sigint_doc = json.loads(tui_sigint_state.read_text(encoding="utf-8"))
         if tui_sigint_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
             print("interactive TUI SIGINT did not mark workbench stopped", file=sys.stderr)
+            print(json.dumps(tui_sigint_doc, indent=2), file=sys.stderr)
+            return 1
+        if tui_sigint_doc.get("services", {}).get("workbench", {}).get("workbench_mode") != "curses":
+            print("interactive TUI SIGINT did not preserve curses workbench mode", file=sys.stderr)
             print(json.dumps(tui_sigint_doc, indent=2), file=sys.stderr)
             return 1
 
@@ -3222,6 +3232,10 @@ def main():
         dumb_tui_doc = json.loads(dumb_tui_state.read_text(encoding="utf-8"))
         if dumb_tui_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
             print("TERM=dumb line-oriented TUI fallback did not mark workbench stopped", file=sys.stderr)
+            print(json.dumps(dumb_tui_doc, indent=2), file=sys.stderr)
+            return 1
+        if dumb_tui_doc.get("services", {}).get("workbench", {}).get("workbench_mode") != "line":
+            print("TERM=dumb line-oriented TUI fallback did not preserve line workbench mode", file=sys.stderr)
             print(json.dumps(dumb_tui_doc, indent=2), file=sys.stderr)
             return 1
         dumb_invalid_state = Path(tmp) / "operator-session" / "tui-dumb-invalid-state.json"
@@ -3274,6 +3288,10 @@ def main():
             print("TERM=dumb invalid-input fallback did not mark workbench stopped", file=sys.stderr)
             print(json.dumps(dumb_invalid_doc, indent=2), file=sys.stderr)
             return 1
+        if dumb_invalid_doc.get("services", {}).get("workbench", {}).get("workbench_mode") != "line":
+            print("TERM=dumb invalid-input fallback did not preserve line workbench mode", file=sys.stderr)
+            print(json.dumps(dumb_invalid_doc, indent=2), file=sys.stderr)
+            return 1
 
         staged_source = Path(tmp) / "operator-file.bin"
         staged_source.write_bytes(b"operator staged bytes\n")
@@ -3303,6 +3321,7 @@ def main():
         if ("Operator paths:" not in tui.stdout or
                 str(state_file) not in tui.stdout or
                 str(staged_file) not in tui.stdout or
+                "Workbench mode: noninteractive" not in tui.stdout or
                 "Workbench refresh: count=" not in tui.stdout or
                 "session_root:" not in tui.stdout or
                 "Operator workflow actions:" not in tui.stdout or

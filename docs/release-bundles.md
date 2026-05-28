@@ -720,8 +720,10 @@ records are show-command descriptors by default, include confirmation,
 background-job, and target-execution flags, and are indexed through
 `workbench_actions_by_id`, `workbench_actions_by_category`, and
 `workbench_actions_by_script` so future TUI/web clients can render workflow
-screens without inventing a second configuration format. The same status output
-also exposes `workbench_config_fields` for guided edits of the existing
+screens without inventing a second configuration format. Workbench state records
+also keep `workbench_mode` (`curses`, `line`, or `noninteractive`) so status
+consumers can distinguish the active operator surface after shutdown. The same
+status output also exposes `workbench_config_fields` for guided edits of the existing
 `configs/busierbox.conf` shell assignment file, grouped by target, payload,
 build/static policy, runtime/trailer defaults, recovery, reverse shell policy,
 command queue policy, and no-residue behavior. Operators can inspect those

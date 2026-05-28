@@ -2984,7 +2984,7 @@ def update_server_state(cfg, action, status="configured", extra=None):
         "state_file": str(state_file_path(cfg)),
         "updated_at": utc_now(),
     }
-    for key in ("managed_by", "process_log", "session_log", "staged_file"):
+    for key in ("managed_by", "process_log", "session_log", "staged_file", "workbench_mode"):
         if previous.get(key):
             service[key] = previous[key]
     if cfg.get("_managed_by"):
@@ -5665,6 +5665,7 @@ def workbench_snapshot(cfg):
         "services": services,
         "workbench": {
             "status": workbench_state.get("status", ""),
+            "mode": workbench_state.get("workbench_mode", ""),
             "last_refresh_at": workbench_state.get("last_refresh_at", ""),
             "refresh_count": int(workbench_state.get("refresh_count", 0) or 0),
         },
@@ -7106,6 +7107,8 @@ def print_workbench(cfg):
     print(f"Current time: {utc_now()}")
     print(f"Selected local IP: {snap['selected_local_ip']}")
     workbench = snap.get("workbench") or {}
+    if workbench.get("mode"):
+        print(f"Workbench mode: {workbench.get('mode', '')}")
     print(f"Workbench refresh: count={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}")
     print(
         "Service summary: "
@@ -7934,14 +7937,29 @@ def run_curses_tui(cfg):
 
 
 def run_tui(cfg):
-    update_server_state(cfg, "workbench", "open", {"state_file": str(state_file_path(cfg))})
+    update_server_state(cfg, "workbench", "open", {"state_file": str(state_file_path(cfg)), "workbench_mode": "starting"})
     if not sys.stdin.isatty() or not sys.stdout.isatty():
+        update_server_state(cfg, "workbench", "open", {
+            "state_file": str(state_file_path(cfg)),
+            "workbench_mode": "noninteractive",
+        })
+        append_event(cfg, "workbench", "workbench_opened", details={"mode": "noninteractive"})
         print_workbench(cfg)
         return 0
     try:
         if os.environ.get("TERM", "").strip().lower() in ("", "dumb"):
             print("terminal does not support curses, using line menu", file=sys.stderr)
+            update_server_state(cfg, "workbench", "open", {
+                "state_file": str(state_file_path(cfg)),
+                "workbench_mode": "line",
+            })
+            append_event(cfg, "workbench", "workbench_opened", details={"mode": "line"})
             return run_line_tui(cfg)
+        update_server_state(cfg, "workbench", "open", {
+            "state_file": str(state_file_path(cfg)),
+            "workbench_mode": "curses",
+        })
+        append_event(cfg, "workbench", "workbench_opened", details={"mode": "curses"})
         return run_curses_tui(cfg)
     except KeyboardInterrupt:
         request_shutdown("keyboard_interrupt")
@@ -7949,6 +7967,11 @@ def run_tui(cfg):
         return 130
     except Exception as exc:
         print(f"curses workbench unavailable, using line menu: {exc}", file=sys.stderr)
+        update_server_state(cfg, "workbench", "open", {
+            "state_file": str(state_file_path(cfg)),
+            "workbench_mode": "line",
+        })
+        append_event(cfg, "workbench", "workbench_opened", details={"mode": "line", "fallback_reason": str(exc)})
         return run_line_tui(cfg)
     finally:
         stop_workbench_started_services(cfg)
