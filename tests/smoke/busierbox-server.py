@@ -1534,6 +1534,8 @@ def main():
         actions_by_confirmation = queue_status_json.get("workbench_actions_by_requires_confirmation") or {}
         actions_by_execution_default = queue_status_json.get("workbench_actions_by_execution_default") or {}
         actions_by_target_execution = queue_status_json.get("workbench_actions_by_target_execution") or {}
+        actions_by_event = queue_status_json.get("workbench_actions_by_event") or {}
+        actions_by_config_path = queue_status_json.get("workbench_actions_by_config_path") or {}
         workbench_summary = queue_status_json.get("summary") or {}
         if (len(workbench_config_fields) < 12 or
                 workbench_summary.get("workbench_config_field_count") != len(workbench_config_fields) or
@@ -1563,6 +1565,8 @@ def main():
                 workbench_summary.get("workbench_action_background_supported_count", 0) < 2 or
                 workbench_summary.get("workbench_action_requires_confirmation_count", 0) < 4 or
                 workbench_summary.get("workbench_action_execution_default_counts", {}).get("show-command") != len(workbench_actions) or
+                workbench_summary.get("workbench_action_event_counts", {}).get("workbench_job_requested", 0) < 3 or
+                workbench_summary.get("workbench_action_config_path_counts", {}).get(str(cfg), 0) < 5 or
                 actions_by_id.get("package-artifact", {}).get("command") != "make package" or
                 actions_by_id.get("configure-trailer", {}).get("script") != "scripts/artifact-config" or
                 not actions_by_category.get("configuration") or
@@ -1572,9 +1576,13 @@ def main():
                 actions_by_execution_default.get("show-command", [{}])[0].get("execution_default") != "show-command" or
                 actions_by_target_execution.get("True", []) != [] or
                 len(actions_by_target_execution.get("False", [])) != len(workbench_actions) or
+                not actions_by_event.get("workbench_job_requested") or
+                not any(item.get("id") == "package-artifact" for item in actions_by_config_path.get(str(cfg), [])) or
                 "workbench_actions_by_requires_confirmation" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", []) or
                 "workbench_actions_by_execution_default" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", []) or
-                "workbench_actions_by_target_execution" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", [])):
+                "workbench_actions_by_target_execution" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", []) or
+                "workbench_actions_by_event" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", []) or
+                "workbench_actions_by_config_path" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", [])):
             print("server json status missing operator workflow action descriptors", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1

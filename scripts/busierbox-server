@@ -1368,6 +1368,8 @@ def workbench_action_indexes(records):
         "workbench_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
         "workbench_actions_by_execution_default": records_by_key(records, "execution_default"),
         "workbench_actions_by_target_execution": records_by_key(records, "target_execution"),
+        "workbench_actions_by_event": records_by_key(records, "event"),
+        "workbench_actions_by_config_path": records_by_key(records, "config_path"),
     }
 
 
@@ -1383,6 +1385,8 @@ def workbench_action_summary(records):
         "category_counts": record_count_by_key(records, "category"),
         "script_counts": record_count_by_key(records, "script"),
         "execution_default_counts": record_count_by_key(records, "execution_default"),
+        "event_counts": record_count_by_key(records, "event"),
+        "config_path_counts": record_count_by_key(records, "config_path"),
     }
 
 
@@ -7187,6 +7191,8 @@ def status_document(cfg):
         "workbench_action_category_counts": workbench_action_stats.get("category_counts") or {},
         "workbench_action_script_counts": workbench_action_stats.get("script_counts") or {},
         "workbench_action_execution_default_counts": workbench_action_stats.get("execution_default_counts") or {},
+        "workbench_action_event_counts": workbench_action_stats.get("event_counts") or {},
+        "workbench_action_config_path_counts": workbench_action_stats.get("config_path_counts") or {},
         "workbench_job_count": workbench_job_stats.get("total_count", 0),
         "workbench_job_running_count": workbench_job_stats.get("running_count", 0),
         "workbench_job_pid_managed_count": workbench_job_stats.get("pid_managed_count", 0),
@@ -7392,6 +7398,7 @@ def status_document(cfg):
                 "workbench_actions_by_runs_build", "workbench_actions_by_requires_confirmation",
                 "workbench_actions_by_execution_default",
                 "workbench_actions_by_target_execution",
+                "workbench_actions_by_event", "workbench_actions_by_config_path",
             ), "workbench_action_count",
         ),
         "workbench_config_fields": api_collection_record(
@@ -7760,6 +7767,7 @@ def print_workbench_action_summary(doc):
     )
     print(f"  categories: {format_counts(summary.get('workbench_action_category_counts') or {})}")
     print(f"  execution defaults: {format_counts(summary.get('workbench_action_execution_default_counts') or {})}")
+    print(f"  events: {format_counts(summary.get('workbench_action_event_counts') or {})}")
 
 
 def print_workbench_job_summary(doc):
