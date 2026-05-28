@@ -610,6 +610,8 @@ assert doc["selected"]["effective_compatibility"]["facts"]["payload_possible_fal
 assert "runtime root execution failed in reality-test" in doc["selected"]["effective_compatibility"]["reasons"]
 assert "payload extraction was not proven possible" in doc["selected"]["effective_compatibility"]["reasons"]
 assert doc["matches_by_compatibility"]["exact"][0]["effective_compatibility"]["label"] == "unsafe"
+assert doc["matches_by_effective_compatibility"]["unsafe"][0]["compatibility"]["label"] == "exact"
+assert "matches_by_effective_compatibility" in doc["api_collections"]["matches"]["indexes"]
 assert "effective compatibility" in " ".join(doc["selection_policy"])
 PY
 if scripts/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --reality-json "$tmp/reality-bad-runtime.json" --payload-preset survey-core --max-compatibility likely --recommendation-json >"$tmp/recommend-reality-threshold.out" 2>"$tmp/recommend-reality-threshold.err"; then

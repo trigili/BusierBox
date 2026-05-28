@@ -272,7 +272,7 @@ count/primary-key fields, index counts, and the selection policy.
 operator filters from filters derived from survey evidence. Lookup maps include
 `matches_by_release`, `matches_by_tuple_path`, `matches_by_payload_preset`,
 `matches_by_compatibility`, `matches_by_tool`, `matches_by_feature`,
-`matches_by_provider_tool`, `matches_by_provider_status`,
+`matches_by_effective_compatibility`, `matches_by_provider_tool`, `matches_by_provider_status`,
 `matches_by_doom_wad_filename`, `matches_by_doom_wad_sha256`,
 `matches_by_command_queue_enabled`,
 `matches_by_command_queue_execution_supported`, and
