@@ -184,10 +184,13 @@ counters, including operator-supplied command execution counts. When the
 self-test JSON includes normalized `diagnostic_records`, the text report also
 prints record totals plus status/category counts and highlights the
 `command_queue_safety` record; the JSON report exposes the same aggregate fields
-plus remote and session count maps for automation. The compare tool classifies
-regressions, new failures, fixed cases, new or removed cases, artifact hash
-changes, artifact size deltas, and duration deltas when both summaries include
-timing data.
+plus remote and session count maps for automation. When a case log directory
+contains a captured `recovery-status-json.log`, the report summarizes installed
+recovery hook semantics across cases, including evidence upload, `dmesg`,
+reverse-shell chaining, operator-supplied command, command-queue, and hidden
+channel counts. The compare tool classifies regressions, new failures, fixed
+cases, new or removed cases, artifact hash changes, artifact size deltas, and
+duration deltas when both summaries include timing data.
 
 When a release bundle is produced as part of an integration run, run the
 generated `scripts/release-self-test` inside that bundle before copying

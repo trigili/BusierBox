@@ -47,6 +47,20 @@
       },
       "artifact_size": 130,
       "duration_sec": 9.0
+    },
+    {
+      "case": "recovery-fakeroot",
+      "status": "pass",
+      "logs": "recovery-fakeroot",
+      "phases": {
+        "build": "pass",
+        "transfer": "pass",
+        "run": "pass",
+        "validation": "pass",
+        "cleanup": "pass"
+      },
+      "artifact_size": 128,
+      "duration_sec": 5.0
     }
   ]
 }
