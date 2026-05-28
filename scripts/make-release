@@ -829,6 +829,10 @@ def write_release_helpers(script_dir):
                     facts["ptrace_unavailable"] = True
                 elif name == "dmesg_readable" and not available:
                     facts["dmesg_unreadable"] = True
+                elif name == "spawn_sh" and not available:
+                    facts["spawn_sh_unavailable"] = True
+                elif name == "pty" and not available:
+                    facts["pty_unavailable"] = True
                 if "low storage" in detail:
                     facts["low_storage"] = True
             return facts
@@ -915,6 +919,12 @@ def write_release_helpers(script_dir):
             if facts.get("dmesg_unreadable"):
                 label = degrade(label, "likely")
                 reasons.append("dmesg unreadable: crash evidence may be limited")
+            if facts.get("spawn_sh_unavailable"):
+                label = degrade(label, "likely")
+                reasons.append("shell spawn unavailable: shell-oriented payloads may be limited")
+            if facts.get("pty_unavailable"):
+                label = degrade(label, "likely")
+                reasons.append("PTY unavailable: interactive tools may be degraded")
             if not reasons:
                 reasons.append(f"artifact tuple baseline: {row.get('tuple_path') or 'unknown'}")
             return {"schema": 1, "label": label, "reasons": reasons, "facts": facts}

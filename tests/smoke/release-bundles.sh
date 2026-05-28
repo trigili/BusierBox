@@ -571,7 +571,9 @@ cat >"$work/reality-advisory.json" <<'JSON'
   "schema": 1,
   "checks": [
     {"name": "ptrace", "status": "fail", "ok": false, "available": false, "detail": "operation not permitted"},
-    {"name": "dmesg_readable", "status": "fail", "ok": false, "available": false, "detail": "kernel message buffer not readable"}
+    {"name": "dmesg_readable", "status": "fail", "ok": false, "available": false, "detail": "kernel message buffer not readable"},
+    {"name": "spawn_sh", "status": "fail", "ok": false, "available": false, "detail": "missing shell"},
+    {"name": "pty", "status": "fail", "ok": false, "available": false, "detail": "no devpts"}
   ]
 }
 JSON
@@ -589,8 +591,15 @@ if "ptrace unavailable: debugger payloads may be limited" not in reasons:
     raise SystemExit(f"ptrace advisory reason missing: {reasons}")
 if "dmesg unreadable: crash evidence may be limited" not in reasons:
     raise SystemExit(f"dmesg advisory reason missing: {reasons}")
+if "shell spawn unavailable: shell-oriented payloads may be limited" not in reasons:
+    raise SystemExit(f"spawn_sh advisory reason missing: {reasons}")
+if "PTY unavailable: interactive tools may be degraded" not in reasons:
+    raise SystemExit(f"pty advisory reason missing: {reasons}")
 facts = compat.get("facts") or {}
-if facts.get("ptrace_unavailable") is not True or facts.get("dmesg_unreadable") is not True:
+if (facts.get("ptrace_unavailable") is not True or
+        facts.get("dmesg_unreadable") is not True or
+        facts.get("spawn_sh_unavailable") is not True or
+        facts.get("pty_unavailable") is not True):
     raise SystemExit(f"advisory reality facts missing: {facts!r}")
 PY
 cat >"$work/reality-procfs-read.json" <<'JSON'
