@@ -8,6 +8,45 @@
   "command_queue_execution_supported_count": 0,
   "command_queue_operator_supplied_command_execution_count": 0,
   "command_queue_mode_count": 5,
+  "diagnostic_record_count": 3,
+  "diagnostic_records": [
+    {
+      "category": "checksums",
+      "count": 1,
+      "details": {
+        "verified": true
+      },
+      "name": "checksum_original",
+      "schema": 1,
+      "status": "pass"
+    },
+    {
+      "category": "compatibility",
+      "count": 1,
+      "details": {
+        "counts": {
+          "exact": 1
+        }
+      },
+      "name": "compatibility_labels",
+      "schema": 1,
+      "status": "pass"
+    },
+    {
+      "category": "command_queue",
+      "count": 5,
+      "details": {
+        "enabled_count": 0,
+        "execution_supported_count": 0,
+        "operator_supplied_command_execution_count": 0,
+        "token_configured_count": 0,
+        "token_required_count": 1
+      },
+      "name": "command_queue_safety",
+      "schema": 1,
+      "status": "pass"
+    }
+  ],
   "compatibility_counts": {
     "exact": 1
   },

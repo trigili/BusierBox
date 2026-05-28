@@ -162,7 +162,32 @@ def load_release_self_test_summary(summary_path, data):
     summary = dict(raw)
     summary["path"] = str(path)
     summary["valid"] = True
+    records = summary.get("diagnostic_records")
+    if isinstance(records, list):
+        status_counts = {}
+        category_counts = {}
+        records_by_name = {}
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            name = str(record.get("name", "") or "")
+            status = str(record.get("status", "unknown") or "unknown")
+            category = str(record.get("category", "unknown") or "unknown")
+            status_counts[status] = status_counts.get(status, 0) + 1
+            category_counts[category] = category_counts.get(category, 0) + 1
+            if name:
+                records_by_name[name] = record
+        summary["diagnostic_record_count"] = len(records)
+        summary["diagnostic_status_counts"] = status_counts
+        summary["diagnostic_category_counts"] = category_counts
+        summary["diagnostic_records_by_name"] = records_by_name
     return summary
+
+
+def count_text(counts):
+    if not isinstance(counts, dict) or not counts:
+        return ""
+    return ",".join(f"{name}:{counts[name]}" for name in sorted(counts))
 
 
 def report_document(path, data):
@@ -286,6 +311,24 @@ def print_table(path, data):
                 f"command_queue_exec={release_self_test.get('command_queue_execution_supported_count', 0)} "
                 f"command_queue_operator_exec={release_self_test.get('command_queue_operator_supplied_command_execution_count', 0)}"
             )
+            if release_self_test.get("diagnostic_record_count", 0):
+                print(
+                    "release_self_test_diagnostics="
+                    f"records={release_self_test.get('diagnostic_record_count', 0)} "
+                    f"statuses={count_text(release_self_test.get('diagnostic_status_counts', {}))} "
+                    f"categories={count_text(release_self_test.get('diagnostic_category_counts', {}))}"
+                )
+                command_queue_safety = (release_self_test.get("diagnostic_records_by_name") or {}).get(
+                    "command_queue_safety"
+                )
+                if isinstance(command_queue_safety, dict):
+                    print(
+                        "release_self_test_diagnostic "
+                        f"name=command_queue_safety "
+                        f"status={command_queue_safety.get('status', '')} "
+                        f"category={command_queue_safety.get('category', '')} "
+                        f"count={command_queue_safety.get('count', 0)}"
+                    )
     if failures:
         print("failure_reasons:")
         for item in failures:
