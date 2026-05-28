@@ -102,8 +102,11 @@ operator events: `schema`, `id`, `ts`, `service`, `session`, `event`, `level`,
 `remote`, and `details`. In target-side event `details`,
 `delivery_supported` and `result_upload_supported` describe whether the live
 HTTP polling/result path is available for that event; `status=no-command` means
-the queue was empty, not that delivery is unsupported. JSON output also mirrors
-the current invocation's structured target events under `poll_run` with
+the queue was empty, not that delivery is unsupported. Delivered-command,
+execution-decision, and result-upload events also include `command_id`,
+`command`, `timeout_sec`, and `max_output_bytes` when the operator supplied
+that metadata. JSON output also mirrors the current invocation's structured
+target events under `poll_run` with
 `event_count`, level counts, and `event_counts_by_event`, so API clients can
 show poll attempts, empty polls, delivery decisions, result uploads, errors,
 and shutdown outcomes without separately parsing the target-side event log.

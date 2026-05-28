@@ -410,7 +410,9 @@ static void utc_timestamp(char *out, size_t outsz)
 
 static void append_poll_event(const char *path, const char *event, const char *mode,
                               const char *endpoint, int attempt, const char *status,
-                              const char *error)
+                              const char *error, const char *command_id,
+                              const char *command, int timeout_sec,
+                              int max_output_bytes)
 {
     FILE *fh;
     char ts[32];
@@ -450,6 +452,18 @@ static void append_poll_event(const char *path, const char *event, const char *m
             live_poll_supported ? "true" : "false", live_poll_supported ? "true" : "false");
     fputs(",\"status\":", fh);
     bb_json_string(fh, status ? status : "");
+    if (command_id && command_id[0]) {
+        fputs(",\"command_id\":", fh);
+        bb_json_string(fh, command_id);
+    }
+    if (command && command[0]) {
+        fputs(",\"command\":", fh);
+        bb_json_string(fh, command);
+    }
+    if (timeout_sec > 0)
+        fprintf(fh, ",\"timeout_sec\":%d", timeout_sec);
+    if (max_output_bytes > 0)
+        fprintf(fh, ",\"max_output_bytes\":%d", max_output_bytes);
     if (error && error[0]) {
         fputs(",\"error\":", fh);
         bb_json_string(fh, error);
@@ -493,7 +507,21 @@ static void append_run_poll_event(const char *path, struct poll_run_result *run,
                                   const char *status, const char *error)
 {
     count_poll_run_event(run, event, error);
-    append_poll_event(path, event, mode, endpoint, attempt, status, error);
+    append_poll_event(path, event, mode, endpoint, attempt, status, error,
+                      NULL, NULL, 0, 0);
+}
+
+static void append_run_poll_command_event(const char *path, struct poll_run_result *run,
+                                          const char *event, const char *mode,
+                                          const char *endpoint, int attempt,
+                                          const char *status, const char *error)
+{
+    count_poll_run_event(run, event, error);
+    append_poll_event(path, event, mode, endpoint, attempt, status, error,
+                      run ? run->last_command_id : NULL,
+                      run ? run->last_command : NULL,
+                      run ? run->last_timeout_sec : 0,
+                      run ? run->last_max_output_bytes : 0);
 }
 
 static void parse_header_value(const char *response, const char *name, char *out, size_t outsz)
@@ -805,16 +833,16 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
             snprintf(result.last_status, sizeof(result.last_status), "delivered-rejected");
             snprintf(result.last_command_id, sizeof(result.last_command_id), "%s", error);
             result.last_error[0] = '\0';
-            append_run_poll_event(event_log, &result, "command_queue_poll_complete", mode, endpoint, result.attempts, "delivered", "");
-            append_run_poll_event(event_log, &result, "command_queue_execution_decision", mode, endpoint, result.attempts, "rejected", execution_rejection_reason());
+            append_run_poll_command_event(event_log, &result, "command_queue_poll_complete", mode, endpoint, result.attempts, "delivered", "");
+            append_run_poll_command_event(event_log, &result, "command_queue_execution_decision", mode, endpoint, result.attempts, "rejected", execution_rejection_reason());
             if (post_rejected_result_once(operator_host, BB_COMMAND_QUEUE_PORT,
                                           result.last_command_id, upload_error, sizeof(upload_error)) == 0) {
                 result.result_uploads++;
-                append_run_poll_event(event_log, &result, "command_queue_result_upload", mode, endpoint, result.attempts, "result-uploaded", "");
+                append_run_poll_command_event(event_log, &result, "command_queue_result_upload", mode, endpoint, result.attempts, "result-uploaded", "");
             } else {
                 result.result_upload_failures++;
                 snprintf(result.last_error, sizeof(result.last_error), "%s", upload_error);
-                append_run_poll_event(event_log, &result, "command_queue_result_upload_error", mode, endpoint, result.attempts, "error", upload_error);
+                append_run_poll_command_event(event_log, &result, "command_queue_result_upload_error", mode, endpoint, result.attempts, "error", upload_error);
             }
         } else if (poll_rc == 1) {
             result.successes++;
@@ -855,21 +883,24 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
     read_daemon_state(state_file, state);
     if (!state->present) {
         stop->missing = 1;
-        append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "missing", "");
+        append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "missing", "",
+                          NULL, NULL, 0, 0);
         return;
     }
     if (!state->valid) {
         stop->skipped = 1;
         snprintf(stop->status, sizeof(stop->status), "invalid_state");
         snprintf(stop->error, sizeof(stop->error), "%s", state->error);
-        append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "invalid_state", state->error);
+        append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "invalid_state", state->error,
+                          NULL, NULL, 0, 0);
         return;
     }
     if (!state->running) {
         stop->stale = 1;
         snprintf(stop->status, sizeof(stop->status), "stale");
         unlink(state_file);
-        append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "stale", "");
+        append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "stale", "",
+                          NULL, NULL, 0, 0);
         return;
     }
     if (!state->ownership_verified) {
@@ -877,7 +908,7 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
         snprintf(stop->status, sizeof(stop->status), "ownership_unverified");
         snprintf(stop->error, sizeof(stop->error), "refusing to signal unverified pid");
         append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0,
-                          "ownership_unverified", stop->error);
+                          "ownership_unverified", stop->error, NULL, NULL, 0, 0);
         return;
     }
     stop->attempted = 1;
@@ -885,7 +916,7 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
         snprintf(stop->status, sizeof(stop->status), "signal_failed");
         snprintf(stop->error, sizeof(stop->error), "%s", strerror(errno));
         append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0,
-                          "signal_failed", stop->error);
+                          "signal_failed", stop->error, NULL, NULL, 0, 0);
         return;
     }
     stop->signaled = 1;
@@ -903,7 +934,8 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
         ts.tv_nsec = 100000000L;
         nanosleep(&ts, NULL);
     }
-    append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, stop->status, stop->error);
+    append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, stop->status, stop->error,
+                      NULL, NULL, 0, 0);
 }
 
 static void print_mode_record_json(const char *name, int selected, int dry_run, int live_would_poll)

@@ -292,17 +292,23 @@ import sys
 from pathlib import Path
 
 events = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
+cfg = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+queue = json.loads(Path(cfg["command_queue_file"]).read_text(encoding="utf-8"))
+command = queue["commands"][0]
 assert all(event.get("id", "").startswith("cqevt-") for event in events)
 assert all(event.get("session", None) == "" for event in events)
 assert all("remote" in event for event in events)
 assert any(event["event"] == "command_queue_poll_complete" and event["details"]["status"] == "delivered" for event in events)
 assert any(event["event"] == "command_queue_execution_decision" and event["details"]["status"] == "rejected" for event in events)
 assert any(event["event"] == "command_queue_result_upload" and event["details"]["status"] == "result-uploaded" for event in events)
+for event in events:
+    if event["event"] in {"command_queue_poll_complete", "command_queue_execution_decision", "command_queue_result_upload"}:
+        assert event["details"]["command_id"] == command["id"]
+        assert event["details"]["command"] == command["command"]
+        assert event["details"]["timeout_sec"] == 30
+        assert event["details"]["max_output_bytes"] == 65536
 assert any(event["details"]["delivery_supported"] is True for event in events)
 assert all(event["details"]["executes_commands"] is False for event in events)
-cfg = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-queue = json.loads(Path(cfg["command_queue_file"]).read_text(encoding="utf-8"))
-command = queue["commands"][0]
 assert command["status"] == "result-received"
 assert command["execution_supported"] is False
 assert command["execution_decision"] == "rejected"
