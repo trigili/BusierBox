@@ -205,15 +205,18 @@ scripts/busierbox-server --record-command-result cq-id --result-json result.json
 scripts/busierbox-server --clear-command-queue
 ```
 
-Queue entries include an id, timestamp, literal command text, timeout metadata,
-maximum output metadata, status, and explicit `execution_supported=false` /
-`delivery_supported=false` fields at queue time. Each entry also stores a
-`queue_policy_snapshot` so old queue records remain auditable if the operator
-configuration changes later. Live target polling can mark a queued entry
-`delivered`, attach a `delivery_policy_snapshot`, return its command metadata
-to the target, and record `execution_decision=rejected`; the target does not
-execute it. The `command_delivered` operator event includes the same delivery
-policy snapshot.
+Queue entries include an id, timestamp, literal command text, command SHA-256,
+timeout metadata, maximum output metadata, status, and explicit
+`execution_supported=false` / `delivery_supported=false` fields at queue time.
+Each entry also stores a `queue_policy_snapshot` so old queue records remain
+auditable if the operator configuration changes later. The
+`command_queue_queued` operator event records the command id, command SHA-256,
+timeout, maximum output limit, delivery/execution support flags, and the queue
+policy snapshot. Live target polling can mark a queued entry `delivered`, attach
+a `delivery_policy_snapshot`, return its command metadata to the target, and
+record `execution_decision=rejected`; the target does not execute it. The
+`command_delivered` operator event includes the command SHA-256, queue limits,
+and the same delivery policy snapshot.
 
 The operator JSON status API indexes queue records by snapshot posture with
 `commands_by_command_sha256`, `commands_by_created_at`, `commands_by_delivered_at`,
@@ -244,8 +247,10 @@ existing queued command, records `result_command_id`, `result_received_at`,
 `max_output_bytes` limit, and whether the result exceeded that limit. It also
 logs `command_result_received` with the command id and output-limit metadata.
 Status JSON exposes those event records through `events_by_detail_command_id`,
-`events_by_event_detail_command_id`, and
-`events_by_service_detail_command_id` so an operator UI can jump from a command
-record to its audit events without scanning the full event tail.
+`events_by_detail_command_sha256`, `events_by_event_detail_command_id`,
+`events_by_event_detail_command_sha256`, `events_by_service_detail_command_id`,
+and `events_by_service_detail_command_sha256` so an operator UI can jump from a
+command record or digest to its audit events without scanning the full event
+tail.
 This is still operator-side bookkeeping; it does not poll, deliver, or execute
 commands.

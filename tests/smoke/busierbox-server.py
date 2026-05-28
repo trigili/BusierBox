@@ -1253,6 +1253,7 @@ def main():
             "--json-status",
         )
         queue_status_json = json.loads(queue_status_doc.stdout)
+        expected_command_sha = hashlib.sha256("busierbox reality-test --json".encode("utf-8")).hexdigest()
         if (queue_status_json["command_queue"]["result_count"] != 1 or
                 queue_status_json["command_queue"].get("result_output_exceeded_count") != 0 or
                 queue_status_json["command_queue"].get("result_status_counts", {}).get("completed") != 1 or
@@ -1280,8 +1281,8 @@ def main():
             return 1
         if (status_queue.get("commands_by_id", {}).get(command_id, {}).get("status") != "result-received" or
                 len(status_queue.get("commands_by_status", {}).get("result-received", [])) != 1 or
-                status_queue.get("commands_by_id", {}).get(command_id, {}).get("command_sha256") != hashlib.sha256("busierbox reality-test --json".encode("utf-8")).hexdigest() or
-                status_queue.get("commands_by_command_sha256", {}).get(hashlib.sha256("busierbox reality-test --json".encode("utf-8")).hexdigest(), [{}])[0].get("id") != command_id or
+                status_queue.get("commands_by_id", {}).get(command_id, {}).get("command_sha256") != expected_command_sha or
+                status_queue.get("commands_by_command_sha256", {}).get(expected_command_sha, [{}])[0].get("id") != command_id or
                 status_queue.get("commands_by_created_at", {}).get(command_after_result.get("created_at"), [{}])[0].get("id") != command_id or
                 status_queue.get("commands_by_result_received_at", {}).get(command_after_result.get("result_received_at"), [{}])[0].get("id") != command_id or
                 status_queue.get("commands_by_result_source_path", {}).get(str(result_json), [{}])[0].get("id") != command_id or
@@ -1954,9 +1955,12 @@ def main():
                 event_stats.get("by_level", {}).get("info", 0) < 2 or
                 event_stats.get("by_service_event", {}).get("command-queue:command_queue_queued", 0) < 1 or
                 event_stats.get("by_service_event", {}).get("command-queue:command_result_received", 0) < 1 or
-                event_stats.get("by_detail_command_id", {}).get(command_id, 0) < 1 or
+                event_stats.get("by_detail_command_id", {}).get(command_id, 0) < 2 or
+                event_stats.get("by_detail_command_sha256", {}).get(expected_command_sha, 0) < 2 or
                 event_stats.get("by_event_detail_command_id", {}).get(f"command_result_received:{command_id}", 0) < 1 or
-                event_stats.get("by_service_detail_command_id", {}).get(f"command-queue:{command_id}", 0) < 1):
+                event_stats.get("by_event_detail_command_sha256", {}).get(f"command_result_received:{expected_command_sha}", 0) < 1 or
+                event_stats.get("by_service_detail_command_id", {}).get(f"command-queue:{command_id}", 0) < 2 or
+                event_stats.get("by_service_detail_command_sha256", {}).get(f"command-queue:{expected_command_sha}", 0) < 2):
             print("server json status missing event log aggregate counters", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -1969,9 +1973,12 @@ def main():
                 event_summary.get("event_service_event_counts", {}).get("command-queue:command_result_received", 0) < 1 or
                 event_summary.get("event_service_level_counts", {}).get("command-queue:info", 0) < 2 or
                 event_summary.get("event_type_level_counts", {}).get("command_queue_queued:info", 0) < 1 or
-                event_summary.get("event_detail_command_id_counts", {}).get(command_id, 0) < 1 or
+                event_summary.get("event_detail_command_id_counts", {}).get(command_id, 0) < 2 or
+                event_summary.get("event_detail_command_sha256_counts", {}).get(expected_command_sha, 0) < 2 or
                 event_summary.get("event_type_detail_command_id_counts", {}).get(f"command_result_received:{command_id}", 0) < 1 or
-                event_summary.get("event_service_detail_command_id_counts", {}).get(f"command-queue:{command_id}", 0) < 1):
+                event_summary.get("event_type_detail_command_sha256_counts", {}).get(f"command_result_received:{expected_command_sha}", 0) < 1 or
+                event_summary.get("event_service_detail_command_id_counts", {}).get(f"command-queue:{command_id}", 0) < 2 or
+                event_summary.get("event_service_detail_command_sha256_counts", {}).get(f"command-queue:{expected_command_sha}", 0) < 2):
             print("server json status missing mirrored event aggregate summary counters", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -1985,8 +1992,11 @@ def main():
         events_by_remote_event = queue_status_json.get("events_by_remote_event") or {}
         events_by_remote_level = queue_status_json.get("events_by_remote_level") or {}
         events_by_detail_command_id = queue_status_json.get("events_by_detail_command_id") or {}
+        events_by_detail_command_sha256 = queue_status_json.get("events_by_detail_command_sha256") or {}
         events_by_event_detail_command_id = queue_status_json.get("events_by_event_detail_command_id") or {}
         events_by_service_detail_command_id = queue_status_json.get("events_by_service_detail_command_id") or {}
+        events_by_event_detail_command_sha256 = queue_status_json.get("events_by_event_detail_command_sha256") or {}
+        events_by_service_detail_command_sha256 = queue_status_json.get("events_by_service_detail_command_sha256") or {}
         events_api = (queue_status_json.get("api_collections") or {}).get("events") or {}
         first_tail_event = (queue_status_json.get("events") or [{}])[0]
         first_tail_event_id = first_tail_event.get("id", "")
@@ -2000,16 +2010,22 @@ def main():
                 not events_by_service_event.get("command-queue:command_result_received") or
                 not events_by_service_level.get("command-queue:info") or
                 not events_by_event_level.get("command_queue_queued:info") or
-                events_by_detail_command_id.get(command_id, [{}])[0].get("event") != "command_result_received" or
+                events_by_detail_command_id.get(command_id, [{}])[-1].get("event") != "command_result_received" or
+                events_by_detail_command_sha256.get(expected_command_sha, [{}])[-1].get("event") != "command_result_received" or
                 not events_by_event_detail_command_id.get(f"command_result_received:{command_id}") or
+                not events_by_event_detail_command_sha256.get(f"command_result_received:{expected_command_sha}") or
                 not events_by_service_detail_command_id.get(f"command-queue:{command_id}") or
+                not events_by_service_detail_command_sha256.get(f"command-queue:{expected_command_sha}") or
                 "events_by_service_level" not in (events_api.get("indexes") or []) or
                 "events_by_event_level" not in (events_api.get("indexes") or []) or
                 "events_by_remote_event" not in (events_api.get("indexes") or []) or
                 "events_by_remote_level" not in (events_api.get("indexes") or []) or
                 "events_by_detail_command_id" not in (events_api.get("indexes") or []) or
+                "events_by_detail_command_sha256" not in (events_api.get("indexes") or []) or
                 "events_by_event_detail_command_id" not in (events_api.get("indexes") or []) or
-                "events_by_service_detail_command_id" not in (events_api.get("indexes") or [])):
+                "events_by_event_detail_command_sha256" not in (events_api.get("indexes") or []) or
+                "events_by_service_detail_command_id" not in (events_api.get("indexes") or []) or
+                "events_by_service_detail_command_sha256" not in (events_api.get("indexes") or [])):
             print("server json status missing event tail lookup indexes", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -2193,8 +2209,11 @@ def main():
                 "events: command_queue_queued=" not in queue_status_text.stdout or
                 "levels: info=" not in queue_status_text.stdout or
                 "detail_command_ids:" not in queue_status_text.stdout or
-                f"{command_id}=1" not in queue_status_text.stdout or
+                f"{command_id}=2" not in queue_status_text.stdout or
+                "detail_command_sha256:" not in queue_status_text.stdout or
+                f"{expected_command_sha}=2" not in queue_status_text.stdout or
                 f"command_id={command_id}" not in queue_status_text.stdout or
+                f"command_sha256={expected_command_sha}" not in queue_status_text.stdout or
                 "first=" not in queue_status_text.stdout or
                 "latest=" not in queue_status_text.stdout or
                 "tls=yes" not in queue_status_text.stdout or

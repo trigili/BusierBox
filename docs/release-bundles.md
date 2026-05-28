@@ -774,12 +774,13 @@ Composite maps `events_by_service_event`, `events_by_session_event`,
 `events_by_remote_event`, `events_by_remote_level`, `events_by_detail_status`,
 `events_by_detail_operation`, `events_by_detail_http_status`,
 `events_by_detail_reason`, `events_by_detail_command_id`,
-`events_by_detail_job_id`, `events_by_detail_action_id`,
+`events_by_detail_command_sha256`, `events_by_detail_job_id`, `events_by_detail_action_id`,
 `events_by_detail_key`, `events_by_detail_config_path`,
 `events_by_event_detail_status`, `events_by_service_detail_status`,
 `events_by_event_detail_reason`, `events_by_service_detail_reason`,
-`events_by_event_detail_command_id`, and
-`events_by_service_detail_command_id`, plus
+`events_by_event_detail_command_id`, `events_by_service_detail_command_id`,
+`events_by_event_detail_command_sha256`, and
+`events_by_service_detail_command_sha256`, plus
 `events_by_event_detail_job_id`, `events_by_service_detail_job_id`,
 `events_by_event_detail_action_id`, and `events_by_service_detail_action_id`
 plus `events_by_event_detail_key`, `events_by_service_detail_key`,
@@ -788,8 +789,8 @@ support direct timeline and outcome
 lookups such as `file-service:upload_complete`, `<session-id>:connection_close`,
 `file-service:error`, `bind_error:error`, `<remote>:upload_complete`,
 `upload`, `200`, `clean shutdown`, `cq-...`, `upload_complete:ok`,
-`file-service:ok`, `service_stop:clean shutdown`, or
-`command_result_received:cq-...`, `workbench_job_completed:job-...`, or
+`file-service:ok`, `service_stop:clean shutdown`, `command_result_received:cq-...`,
+`command_result_received:<command-sha256>`, `workbench_job_completed:job-...`, or
 `workbench:job-...`, `workbench_job_completed:bringup-recommend`, or
 `workbench:package-artifact`, `workbench_config_updated:BB_NORESIDUE_LEVEL`, or
 `workbench:/path/to/busierbox.conf` without filtering broader event groups or
