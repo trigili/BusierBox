@@ -1966,6 +1966,11 @@ def main():
         if rows_after["file-service"]["actual"] == "listening":
             print("file-service port still listening after --stop", file=sys.stderr)
             return 1
+        stopped_state = (status_after_doc.get("server_state", {}).get("services", {}).get("file-service") or {})
+        if stopped_state.get("pid") or stopped_state.get("managed_by") or not stopped_state.get("stopped_at"):
+            print("--stop did not clear stopped service ownership fields", file=sys.stderr)
+            print(status_after.stdout, file=sys.stderr)
+            return 1
         if (not rows_after["file-service"].get("process_log", "").endswith("file-service-workbench.log") or
                 not rows_after["file-service"].get("session_log")):
             print("stopped status lost service log context", file=sys.stderr)
@@ -2390,6 +2395,20 @@ def main():
             print("--stop did not clean stale PID records", file=sys.stderr)
             print(stale_stop.stdout, file=sys.stderr)
             print(stale_stop.stderr, file=sys.stderr)
+            return 1
+        stale_clean_doc = json.loads(run(
+            "scripts/busierbox-server", "--config", str(lifecycle_cfg),
+            "--state-file", str(lifecycle_state),
+            "--staged-file", str(lifecycle_staged),
+            "--json-status",
+        ).stdout)
+        stale_clean_state = stale_clean_doc.get("server_state", {}).get("services", {}).get("file-service") or {}
+        if (stale_clean_state.get("status") != "stopped" or
+                stale_clean_state.get("pid") or
+                stale_clean_state.get("managed_by") or
+                not stale_clean_state.get("stopped_at")):
+            print("--stop stale PID cleanup left misleading ownership fields", file=sys.stderr)
+            print(json.dumps(stale_clean_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         events_after_stale_stop = [
             json.loads(line) for line in lifecycle_events_path.read_text(encoding="utf-8").splitlines()

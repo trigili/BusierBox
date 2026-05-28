@@ -2999,7 +2999,7 @@ def update_server_state(cfg, action, status="configured", extra=None):
 
 
 def mark_service_stopped(cfg, action):
-    return update_server_state(cfg, action, "stopped", {})
+    return update_server_state(cfg, action, "stopped", {"pid": "", "managed_by": "", "stopped_at": utc_now()})
 
 
 def mark_service_error(cfg, action, reason, extra=None, event_name="service_error"):
