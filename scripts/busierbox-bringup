@@ -377,6 +377,11 @@ next_command_records_by_service_purpose = {}
 next_command_records_by_request = {}
 next_command_records_by_stage_kind = {}
 next_command_records_by_source_path = {}
+next_command_records_by_network = {}
+next_command_records_by_requires_explicit_target_action = {}
+next_command_records_by_requires_explicit_operator_action = {}
+next_command_records_by_executes_operator_supplied_commands = {}
+next_command_records_by_executes_on_target = {}
 for item in next_command_records:
     service = item.get("service") or ""
     purpose = item.get("purpose") or ""
@@ -398,6 +403,20 @@ for item in next_command_records:
         next_command_records_by_side_service.setdefault(f"{side}:{service}", []).append(item)
     if service and purpose:
         next_command_records_by_service_purpose.setdefault(f"{service}:{purpose}", []).append(item)
+    if "network" in item:
+        next_command_records_by_network.setdefault("true" if item.get("network") is True else "false", []).append(item)
+    if "requires_explicit_target_action" in item:
+        key = "true" if item.get("requires_explicit_target_action") is True else "false"
+        next_command_records_by_requires_explicit_target_action.setdefault(key, []).append(item)
+    if "requires_explicit_operator_action" in item:
+        key = "true" if item.get("requires_explicit_operator_action") is True else "false"
+        next_command_records_by_requires_explicit_operator_action.setdefault(key, []).append(item)
+    if "executes_operator_supplied_commands" in item:
+        key = "true" if item.get("executes_operator_supplied_commands") is True else "false"
+        next_command_records_by_executes_operator_supplied_commands.setdefault(key, []).append(item)
+    if "executes_on_target" in item:
+        key = "true" if item.get("executes_on_target") is True else "false"
+        next_command_records_by_executes_on_target.setdefault(key, []).append(item)
 
 def api_collection_record(name, records, indexes, summary_key, primary_key=""):
     return {
@@ -668,6 +687,11 @@ doc = {
     "next_command_records_by_request": next_command_records_by_request,
     "next_command_records_by_stage_kind": next_command_records_by_stage_kind,
     "next_command_records_by_source_path": next_command_records_by_source_path,
+    "next_command_records_by_network": next_command_records_by_network,
+    "next_command_records_by_requires_explicit_target_action": next_command_records_by_requires_explicit_target_action,
+    "next_command_records_by_requires_explicit_operator_action": next_command_records_by_requires_explicit_operator_action,
+    "next_command_records_by_executes_operator_supplied_commands": next_command_records_by_executes_operator_supplied_commands,
+    "next_command_records_by_executes_on_target": next_command_records_by_executes_on_target,
     "command_record_summary": command_record_summary,
     "safety_boundary": {
         "network_autorun": False,
@@ -735,6 +759,11 @@ doc["api_collections"] = {
             "next_command_records_by_request",
             "next_command_records_by_stage_kind",
             "next_command_records_by_source_path",
+            "next_command_records_by_network",
+            "next_command_records_by_requires_explicit_target_action",
+            "next_command_records_by_requires_explicit_operator_action",
+            "next_command_records_by_executes_operator_supplied_commands",
+            "next_command_records_by_executes_on_target",
         ),
         "command_record_summary.total_count",
         "command",
