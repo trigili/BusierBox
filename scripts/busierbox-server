@@ -3766,6 +3766,7 @@ def read_http_headers(conn):
 
 def send_http_response(conn, status_code, body=b"", content_type="application/octet-stream", headers=None):
     reason = {
+        204: "No Content",
         200: "OK",
         400: "Bad Request",
         404: "Not Found",
@@ -3894,6 +3895,53 @@ def handle_file_service_http(cfg, conn, files_dir, addr):
     return metadata, status_code
 
 
+def handle_command_queue_poll(cfg, conn, method, target, addr):
+    remote = f"{addr[0]}:{addr[1]}"
+    if method not in {"GET", "HEAD"}:
+        payload = {"schema": 1, "status": "rejected", "reason": "command queue poll accepts only GET or HEAD"}
+        send_json_response(conn, 405, payload)
+        return {"operation": "command_queue_poll", "status": "rejected", "http_status": 405, "method": method, "remote_addr": remote}
+    parsed = urllib.parse.urlparse(target)
+    if parsed.path not in {"/command-queue/poll", "/command-queue/poll/"}:
+        payload = {"schema": 1, "status": "rejected", "reason": "unknown command queue endpoint"}
+        send_json_response(conn, 404, payload)
+        return {"operation": "command_queue_poll", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint"}
+    queue = command_queue_summary(cfg)
+    queued_count = int(queue.get("queued_count", 0) or 0)
+    payload = {
+        "schema": 1,
+        "status": "no-command",
+        "queued_count": queued_count,
+        "delivery_supported": False,
+        "execution_supported": False,
+        "executes_commands": False,
+        "result_upload_supported": False,
+        "message": "command delivery is not implemented; target poll recorded only",
+    }
+    body = b""
+    headers = {
+        "X-BusierBox-Command-Queue-Status": "no-command",
+        "X-BusierBox-Queued-Count": str(queued_count),
+        "X-BusierBox-Delivery-Supported": "no",
+        "X-BusierBox-Execution-Supported": "no",
+    }
+    if method == "HEAD":
+        body = b""
+    send_http_response(conn, 204, body, "application/json", headers=headers)
+    return {
+        "operation": "command_queue_poll",
+        "status": "no-command",
+        "http_status": 204,
+        "method": method,
+        "remote_addr": remote,
+        "queued_count": queued_count,
+        "delivery_supported": False,
+        "execution_supported": False,
+        "executes_commands": False,
+        "result_upload_supported": False,
+    }
+
+
 def send_json_response(conn, status_code, payload):
     reason = {
         200: "OK",
@@ -3911,6 +3959,76 @@ def send_json_response(conn, status_code, payload):
         "\r\n"
     ).encode("ascii")
     conn.sendall(headers + body)
+
+
+def serve_command_queue(cfg, timeout, max_sessions=0):
+    service = "command-queue"
+    port = int(cfg.get("command_queue_port", "22205"))
+    if yes(cfg.get("command_queue_tls", "yes")):
+        print("command-queue listener currently supports plain HTTP polling only; set command_queue_tls=no", file=sys.stderr)
+        update_server_state(cfg, service, "error", {"port": port, "error": "plain HTTP polling requires command_queue_tls=no"})
+        append_event(cfg, service, "bind_error", "error", details={"port": port, "error": "plain HTTP polling requires command_queue_tls=no"})
+        return 2
+    log_dir = session_log_dir(cfg, service)
+    start_session_record(cfg, service, log_dir, details={"port": port, "tls": False})
+    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    print("Command queue poll listener. Records explicit target polls; command delivery/execution is not implemented.")
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "command_queue_file": str(command_queue_path(cfg))})
+    sessions = 0
+    sock = None
+    try:
+        sock = bind_listen_socket(cfg, service, port, 20)
+        sock.settimeout(timeout)
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "command_queue_file": str(command_queue_path(cfg))})
+        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "tls": False})
+        print_candidates(cfg, port)
+        while not SHUTDOWN.is_set():
+            print("Waiting for command queue poll...")
+            try:
+                conn, addr = sock.accept()
+            except socket.timeout:
+                print("timeout waiting for command queue poll", file=sys.stderr)
+                return 1 if sessions == 0 else 0
+            except OSError:
+                if SHUTDOWN.is_set():
+                    return 0
+                raise
+            metadata = {}
+            try:
+                with conn:
+                    append_event(cfg, service, "connection_open", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
+                    update_session_record(log_dir, state="active", remote=f"{addr[0]}:{addr[1]}")
+                    upsert_state_session(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}")
+                    method, target, _version, _headers, _body = read_http_headers(conn)
+                    metadata = handle_command_queue_poll(cfg, conn, method, target, addr)
+                    append_session_list_item(log_dir, "command_queue_polls", metadata)
+                    append_event(cfg, service, "command_queue_poll", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
+                    print(f"command-queue poll {metadata.get('status')}: queued={metadata.get('queued_count', 0)}")
+            except Exception as exc:
+                metadata = {"operation": "command_queue_poll", "status": "error", "reason": str(exc)}
+                try:
+                    send_json_response(conn, 500, {"schema": 1, "status": "error", "reason": str(exc)})
+                except Exception:
+                    pass
+                print(f"command-queue poll failed: {exc}", file=sys.stderr)
+                append_event(cfg, service, "request_error", "error", session=str(log_dir), details={"error": str(exc)})
+            finally:
+                append_event(cfg, service, "connection_close", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
+                sessions += 1
+            if max_sessions > 0 and sessions >= max_sessions:
+                break
+    finally:
+        if sock:
+            unregister_socket(sock)
+            try:
+                sock.close()
+            except OSError:
+                pass
+        update_server_state(cfg, service, "stopped", {"session_log": str(log_dir), "command_queue_file": str(command_queue_path(cfg))})
+        update_session_record(log_dir, state="ended", exit_reason="shutdown" if SHUTDOWN.is_set() else "complete")
+        upsert_state_session(cfg, log_dir, service, "ended", exit_reason="shutdown" if SHUTDOWN.is_set() else "complete")
+        append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port})
+    return 0
 
 
 def serve_file_service(cfg, timeout, max_sessions=0):
@@ -4180,6 +4298,8 @@ def service_port(cfg, service):
         return int(cfg.get("shell_listen_port", 22203))
     if service == "file-service":
         return int(cfg.get("file_service_port", 22204))
+    if service == "command-queue":
+        return int(cfg.get("command_queue_port", 22205))
     return 0
 
 
@@ -4188,6 +4308,8 @@ def service_tls_enabled(cfg, service):
         return True
     if service == "file-service":
         return yes(str(cfg.get("file_service_tls", "yes")))
+    if service == "command-queue":
+        return yes(str(cfg.get("command_queue_tls", "yes")))
     return False
 
 
@@ -4251,7 +4373,7 @@ def port_listening(host, port):
 def raw_service_snapshot(cfg):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     services = {}
-    for name in ("ssh", "tls-shell", "plain-shell", "file-service"):
+    for name in ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue"):
         port = service_port(cfg, name)
         bind_address = str(cfg.get("listen_host", ""))
         endpoints = listener_endpoints(port)
@@ -6226,6 +6348,7 @@ Transport modes:
   tls-shell   — TLS shell listener accepting builtin+tls AND socat+tls transports
   plain-shell — Plaintext shell listener (debug/insecure; socat+none or builtin+none)
   file-service — Receive-only TLS upload service for target-initiated files/evidence
+  command-queue — Explicit command queue poll listener; records polls only
 
 File staging:
   --transport file-service --serve-file ./tool --as /tmp/tool
@@ -6246,7 +6369,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="JSON config written by menuconfig")
     parser.add_argument("--transport",
                         choices=("ssh", "ssh-reverse", "tls-shell", "socat-tls",
-                                 "builtin-tls", "plain-shell", "file-service"),
+                                 "builtin-tls", "plain-shell", "file-service", "command-queue"),
                         help="transport to listen for (overrides config)")
     parser.add_argument("--file-service", action="store_true",
                         help="receive target-initiated file uploads and store them under local/sessions")
@@ -6455,6 +6578,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                                      session_timeout=session_timeout)
         if action == "file-service":
             return serve_file_service(cfg, timeout, max_sessions=1 if args.one_shot else 0)
+        if action == "command-queue":
+            return serve_command_queue(cfg, timeout, max_sessions=1 if args.one_shot else 0)
     except KeyboardInterrupt:
         print("busierbox-server: interrupted, shutting down", file=sys.stderr)
         request_shutdown("keyboard_interrupt")

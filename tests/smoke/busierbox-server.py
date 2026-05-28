@@ -912,14 +912,14 @@ def main():
             print("server json status missing reusable server-state record", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
-        if (queue_status_json["summary"].get("service_count") != 4 or
-                queue_status_json["summary"].get("service_actual_counts", {}).get("stopped") != 4 or
+        if (queue_status_json["summary"].get("service_count") != 5 or
+                queue_status_json["summary"].get("service_actual_counts", {}).get("stopped") != 5 or
                 queue_status_json["summary"].get("service_configured_counts", {}).get("unknown", 0) < 3):
             print("server json status service summary is wrong", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         services_by_name = queue_status_json.get("services_by_name") or {}
-        if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service"}:
+        if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service", "command-queue"}:
             print("server json status missing stable services_by_name map", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -931,18 +931,18 @@ def main():
         ports_by_service = queue_status_json.get("ports_by_service") or {}
         ports_by_actual = queue_status_json.get("ports_by_actual") or {}
         file_service_port = str(services_by_name.get("file-service", {}).get("port", ""))
-        if (len(services_by_actual.get("stopped", [])) != 4 or
+        if (len(services_by_actual.get("stopped", [])) != 5 or
                 len(services_by_configured.get("unknown", [])) < 3 or
                 not any(row.get("name") == "file-service" for row in services_by_port.get(file_service_port, []))):
             print("server json status missing grouped service lookup maps", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
-        if (queue_status_json["summary"].get("port_count") != 4 or
-                queue_status_json["summary"].get("port_actual_counts", {}).get("stopped") != 4 or
-                len(ports) != 4 or
+        if (queue_status_json["summary"].get("port_count") != 5 or
+                queue_status_json["summary"].get("port_actual_counts", {}).get("stopped") != 5 or
+                len(ports) != 5 or
                 not any(row.get("service") == "file-service" for row in ports_by_number.get(file_service_port, [])) or
                 ports_by_service.get("file-service", [{}])[0].get("port") != int(file_service_port) or
-                len(ports_by_actual.get("stopped", [])) != 4):
+                len(ports_by_actual.get("stopped", [])) != 5):
             print("server json status missing explicit port API records", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1

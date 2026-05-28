@@ -162,9 +162,16 @@ static int connect_operator_once(const char *host, const char *port, char *err, 
 {
     struct addrinfo hints, *res = NULL, *rp;
     int rc, fd = -1;
+    char request[512];
+    char response[512];
+    ssize_t n;
 
     if (errsz)
         err[0] = '\0';
+    if (strcmp(BB_COMMAND_QUEUE_TLS, "no")) {
+        snprintf(err, errsz, "live command queue polling requires BB_COMMAND_QUEUE_TLS=no in this build");
+        return -1;
+    }
     memset(&hints, 0, sizeof(hints));
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_UNSPEC;
@@ -178,9 +185,37 @@ static int connect_operator_once(const char *host, const char *port, char *err, 
         if (fd < 0)
             continue;
         if (connect(fd, rp->ai_addr, rp->ai_addrlen) == 0) {
+            snprintf(request, sizeof(request),
+                     "GET /command-queue/poll HTTP/1.1\r\n"
+                     "Host: %s:%s\r\n"
+                     "User-Agent: busierbox-command-queue\r\n"
+                     "X-BusierBox-Command-Queue-Mode: poll\r\n"
+                     "Connection: close\r\n\r\n",
+                     host, port);
+            if (send(fd, request, strlen(request), 0) < 0) {
+                snprintf(err, errsz, "poll request failed: %s", strerror(errno));
+                close(fd);
+                freeaddrinfo(res);
+                return -1;
+            }
+            n = recv(fd, response, sizeof(response) - 1, 0);
+            if (n < 0) {
+                snprintf(err, errsz, "poll response failed: %s", strerror(errno));
+                close(fd);
+                freeaddrinfo(res);
+                return -1;
+            }
+            response[n] = '\0';
             close(fd);
             freeaddrinfo(res);
-            return 0;
+            if (!strncmp(response, "HTTP/1.1 204", 12) || !strncmp(response, "HTTP/1.0 204", 12)) {
+                snprintf(err, errsz, "no queued command");
+                return 1;
+            }
+            if (!strncmp(response, "HTTP/1.1 200", 12) || !strncmp(response, "HTTP/1.0 200", 12))
+                return 0;
+            snprintf(err, errsz, "unexpected poll response");
+            return -1;
         }
         snprintf(err, errsz, "connect failed: %s", strerror(errno));
         close(fd);
@@ -216,11 +251,17 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
         result.attempted = 1;
         result.attempts++;
         append_poll_event(event_log, "command_queue_poll_attempt", mode, endpoint, result.attempts, "attempt", "");
-        if (connect_operator_once(operator_host, BB_COMMAND_QUEUE_PORT, error, sizeof(error)) == 0) {
+        int poll_rc = connect_operator_once(operator_host, BB_COMMAND_QUEUE_PORT, error, sizeof(error));
+        if (poll_rc == 0) {
             result.successes++;
             snprintf(result.last_status, sizeof(result.last_status), "connected");
             result.last_error[0] = '\0';
             append_poll_event(event_log, "command_queue_poll_complete", mode, endpoint, result.attempts, "connected", "");
+        } else if (poll_rc == 1) {
+            result.successes++;
+            snprintf(result.last_status, sizeof(result.last_status), "no-command");
+            result.last_error[0] = '\0';
+            append_poll_event(event_log, "command_queue_poll_no_command", mode, endpoint, result.attempts, "no-command", "");
         } else {
             result.failures++;
             snprintf(result.last_status, sizeof(result.last_status), "error");

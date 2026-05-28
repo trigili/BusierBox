@@ -14,8 +14,10 @@ Current behavior is intentionally non-executing:
 - `busierbox command-queue poll --json`, `once`, and `daemon` report a dry-run
   target polling plan by default. With explicit `--live`, they contact the
   configured operator command-queue endpoint and can append structured poll
-  events, but still do not fetch queue entries, upload results, or execute
-  queued commands in this build.
+  events. Live polling currently requires `BB_COMMAND_QUEUE_TLS=no`; TLS
+  command-queue polling is reported as unsupported instead of silently falling
+  back to plaintext. Live polls still do not fetch queue entries, upload
+  results, or execute queued commands in this build.
 - `scripts/busierbox-server --queue-command ...` records explicit operator
   queue entries in `local/operator-session/command-queue.json` for inspection
   and future tooling. The current server does not deliver or execute them.
@@ -59,9 +61,10 @@ busierbox command-queue daemon --live \
 ```
 
 `--max-polls 0` means no fixed limit for `daemon`; `poll` and `once` always run
-a single live poll attempt. Each live attempt records
-`command_queue_poll_attempt`, then either `command_queue_poll_complete` or
-`command_queue_poll_error`, and the daemon records
+a single live poll attempt. Each live attempt sends a plain HTTP
+`GET /command-queue/poll` request when `BB_COMMAND_QUEUE_TLS=no`, records
+`command_queue_poll_attempt`, then `command_queue_poll_no_command`,
+`command_queue_poll_complete`, or `command_queue_poll_error`, and the daemon records
 `command_queue_poll_shutdown` when the loop exits.
 
 Policy values for `BB_COMMAND_QUEUE_ALLOWED_COMMANDS` are `none`,
@@ -100,6 +103,7 @@ Operator queue inspection:
 
 ```sh
 scripts/busierbox-server --queue-command 'busierbox reality-test --json'
+scripts/busierbox-server --transport command-queue --config local/server-config.json
 scripts/busierbox-server --list-command-queue
 scripts/busierbox-server --json-command-queue
 scripts/busierbox-server --record-command-result cq-id --result-json result.json
@@ -109,8 +113,8 @@ scripts/busierbox-server --clear-command-queue
 Queue entries include an id, timestamp, literal command text, timeout metadata,
 maximum output metadata, status, and explicit `execution_supported=false` /
 `delivery_supported=false` fields. They are operator-visible records only; live
-target polling currently verifies endpoint reachability and logs attempts, but
-does not deliver these queued entries to the target.
+target polling currently records `command_queue_poll` events and responds
+`no-command`, but does not deliver these queued entries to the target.
 
 `--record-command-result` attaches a structured JSON result object to an
 existing queued command, records `result_command_id`, `result_received_at`,
