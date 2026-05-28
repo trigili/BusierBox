@@ -2824,7 +2824,8 @@ def main():
         if (session_doc.get("service") != "file-service" or
                 session_doc.get("state") != "stopped" or
                 not session_doc.get("session_id") or
-                not session_doc.get("uploads")):
+                not session_doc.get("uploads") or
+                not isinstance(session_doc.get("duration_sec"), int)):
             print("file service session.json missing structured fields", file=sys.stderr)
             print(session_doc, file=sys.stderr)
             return 1
@@ -3067,6 +3068,7 @@ def main():
                 upload_session.get("has_uploads") is not True or
                 upload_session.get("has_fetches") is not False or
                 upload_session.get("has_events") is not True or
+                not isinstance(upload_session.get("duration_sec"), int) or
                 upload_session.get("metadata_path") != str(session_json_paths[0]) or
                 upload_session.get("event_log") != str(session_json_paths[0].parent / "events.jsonl")):
             print("server json status missing session browser counts and paths", file=sys.stderr)
@@ -3080,6 +3082,9 @@ def main():
                 session_root_state.get("total_upload_count") != 1 or
                 session_root_state.get("total_fetch_count") != 0 or
                 session_root_state.get("total_event_count", 0) < 1 or
+                session_root_state.get("duration_known_count") != 1 or
+                session_root_state.get("total_duration_sec", -1) < 0 or
+                session_root_state.get("max_duration_sec", -1) < 0 or
                 session_root_state.get("sessions_with_uploads_count") != 1 or
                 session_root_state.get("sessions_with_fetches_count") != 0 or
                 session_root_state.get("sessions_with_events_count") != 1 or
@@ -3088,6 +3093,10 @@ def main():
                 upload_summary.get("session_total_upload_count") != 1 or
                 upload_summary.get("session_total_fetch_count") != 0 or
                 upload_summary.get("session_total_event_count", 0) < 1 or
+                upload_summary.get("session_duration_known_count") != 1 or
+                upload_summary.get("session_total_duration_sec", -1) < 0 or
+                upload_summary.get("session_average_duration_sec", -1) < 0 or
+                upload_summary.get("session_max_duration_sec", -1) < 0 or
                 upload_summary.get("sessions_with_uploads_count") != 1 or
                 upload_summary.get("sessions_with_fetches_count") != 0 or
                 upload_summary.get("sessions_with_events_count") != 1):
@@ -3173,11 +3182,13 @@ def main():
                 "all_require_explicit_target_action=yes" not in upload_status_text.stdout or
                 "./busierbox reality-test push" not in upload_status_text.stdout or
                 "Activity summary:" not in upload_status_text.stdout or
+                "session durations:" not in upload_status_text.stdout or
                 "uploads=1" not in upload_status_text.stdout or
                 "stored_exists=True" not in upload_status_text.stdout or
                 f"upload={upload_item.get('timestamp')}" not in upload_status_text.stdout or
                 f"remote: {upload_remote} at {upload_item.get('timestamp')}" not in upload_status_text.stdout or
                 "session:" not in upload_status_text.stdout or
+                "duration_sec=" not in upload_status_text.stdout or
                 "metadata:" not in upload_status_text.stdout or
                 "event_log:" not in upload_status_text.stdout):
             print("text --status missing event log or command queue section", file=sys.stderr)

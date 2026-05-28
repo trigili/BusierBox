@@ -13,6 +13,7 @@ Transport model:
 import argparse
 import atexit
 import base64
+import calendar
 import itertools
 import hashlib
 import json
@@ -339,6 +340,10 @@ class SessionManager:
                 meta.setdefault("path", str(path))
                 meta.setdefault("exit_reason", "")
                 meta.setdefault("updated_at", utc_now_from_mtime(path.stat().st_mtime))
+                if "duration_sec" not in meta:
+                    duration = elapsed_seconds(meta.get("started_at", ""), meta.get("ended_at", ""))
+                    if duration is not None:
+                        meta["duration_sec"] = duration
                 meta["metadata_path"] = str(metadata_path)
                 meta["event_log"] = str(events_path) if events_path.is_file() else ""
                 meta["event_count"] = count_file_lines(events_path)
@@ -374,6 +379,7 @@ class SessionManager:
                 "has_artifacts": False,
                 "exit_reason": exit_reason,
                 "updated_at": utc_now_from_mtime(path.stat().st_mtime),
+                "duration_sec": "",
             })
         return out
 
@@ -463,7 +469,12 @@ class SessionManager:
     def finish_record(self, cfg, service, log_dir, state="stopped", exit_reason=""):
         current = self.write_record(log_dir, {})
         self.upsert_state(cfg, log_dir, service, state, remote=current.get("remote", ""), exit_reason=exit_reason)
-        return self.update_record(log_dir, state=state, ended_at=utc_now(), exit_reason=exit_reason)
+        ended_at = utc_now()
+        duration = elapsed_seconds(current.get("started_at", ""), ended_at)
+        fields = {"state": state, "ended_at": ended_at, "exit_reason": exit_reason}
+        if duration is not None:
+            fields["duration_sec"] = duration
+        return self.update_record(log_dir, **fields)
 
 
 SERVICE_MANAGER = ServiceManager()
@@ -520,6 +531,21 @@ DEFAULTS = {
 
 def utc_now():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def parse_utc_timestamp(text):
+    try:
+        return calendar.timegm(time.strptime(str(text or ""), "%Y-%m-%dT%H:%M:%SZ"))
+    except (TypeError, ValueError):
+        return None
+
+
+def elapsed_seconds(started_at, ended_at):
+    start = parse_utc_timestamp(started_at)
+    end = parse_utc_timestamp(ended_at)
+    if start is None or end is None or end < start:
+        return None
+    return int(end - start)
 
 
 def atomic_write_json(path, data):
@@ -2042,6 +2068,9 @@ def session_root_record(cfg, records):
     total_fetch_count = 0
     total_event_count = 0
     total_artifact_count = 0
+    total_duration_sec = 0
+    max_duration_sec = 0
+    duration_known_count = 0
     sessions_with_uploads = 0
     sessions_with_fetches = 0
     sessions_with_events = 0
@@ -2062,10 +2091,15 @@ def session_root_record(cfg, records):
         fetch_count = int_value(rec.get("fetch_count"))
         event_count = int_value(rec.get("event_count"))
         artifact_count = int_value(rec.get("artifact_count"))
+        duration_sec = int_value(rec.get("duration_sec"))
         total_upload_count += upload_count
         total_fetch_count += fetch_count
         total_event_count += event_count
         total_artifact_count += artifact_count
+        if rec.get("duration_sec") not in (None, ""):
+            duration_known_count += 1
+            total_duration_sec += duration_sec
+            max_duration_sec = max(max_duration_sec, duration_sec)
         if upload_count > 0:
             sessions_with_uploads += 1
         if fetch_count > 0:
@@ -2085,6 +2119,10 @@ def session_root_record(cfg, records):
         "total_fetch_count": total_fetch_count,
         "total_event_count": total_event_count,
         "total_artifact_count": total_artifact_count,
+        "total_duration_sec": total_duration_sec,
+        "max_duration_sec": max_duration_sec,
+        "duration_known_count": duration_known_count,
+        "average_duration_sec": int(total_duration_sec / duration_known_count) if duration_known_count else 0,
         "sessions_with_uploads_count": sessions_with_uploads,
         "sessions_with_fetches_count": sessions_with_fetches,
         "sessions_with_events_count": sessions_with_events,
@@ -6199,6 +6237,10 @@ def status_document(cfg):
         "session_total_fetch_count": session_root_state.get("total_fetch_count", 0),
         "session_total_event_count": session_root_state.get("total_event_count", 0),
         "session_total_artifact_count": session_root_state.get("total_artifact_count", 0),
+        "session_duration_known_count": session_root_state.get("duration_known_count", 0),
+        "session_total_duration_sec": session_root_state.get("total_duration_sec", 0),
+        "session_average_duration_sec": session_root_state.get("average_duration_sec", 0),
+        "session_max_duration_sec": session_root_state.get("max_duration_sec", 0),
         "sessions_with_uploads_count": session_root_state.get("sessions_with_uploads_count", 0),
         "sessions_with_fetches_count": session_root_state.get("sessions_with_fetches_count", 0),
         "sessions_with_events_count": session_root_state.get("sessions_with_events_count", 0),
@@ -6683,6 +6725,13 @@ def print_activity_summary(summary):
         f"events={summary.get('event_count', 0)}"
     )
     print(
+        "  session durations: "
+        f"known={summary.get('session_duration_known_count', 0)} "
+        f"total_sec={summary.get('session_total_duration_sec', 0)} "
+        f"avg_sec={summary.get('session_average_duration_sec', 0)} "
+        f"max_sec={summary.get('session_max_duration_sec', 0)}"
+    )
+    print(
         "  latest: "
         f"staged={summary.get('latest_staged_at') or '-'} "
         f"upload={summary.get('latest_upload_at') or '-'} "
@@ -7016,7 +7065,9 @@ def print_status(cfg, json_output=False):
     if doc["sessions"]:
         for session in doc["sessions"]:
             print(f"  {session.get('service', '')} {session.get('path', '')} state={session.get('state', '')} exit={session.get('exit_reason', '')}")
-            print(f"    uploads={session.get('upload_count', 0)} fetches={session.get('fetch_count', 0)} events={session.get('event_count', 0)} artifacts={session.get('artifact_count', 0)} updated={session.get('updated_at', '')}")
+            duration = session.get("duration_sec", "")
+            duration_text = f" duration_sec={duration}" if duration not in (None, "") else ""
+            print(f"    uploads={session.get('upload_count', 0)} fetches={session.get('fetch_count', 0)} events={session.get('event_count', 0)} artifacts={session.get('artifact_count', 0)} updated={session.get('updated_at', '')}{duration_text}")
             print(f"    metadata: {session.get('metadata_path', '')}")
             if session.get("event_log"):
                 print(f"    event_log: {session.get('event_log', '')}")
@@ -7322,7 +7373,9 @@ def print_workbench(cfg):
     if sessions:
         for item in sessions:
             print(f"  {item.get('service', '')} {item.get('path', '')} state={item.get('state', '')} exit={item.get('exit_reason', '')} updated={item.get('updated_at', '')}")
-            print(f"    uploads={item.get('upload_count', 0)} fetches={item.get('fetch_count', 0)} events={item.get('event_count', 0)} artifacts={item.get('artifact_count', 0)}")
+            duration = item.get("duration_sec", "")
+            duration_text = f" duration_sec={duration}" if duration not in (None, "") else ""
+            print(f"    uploads={item.get('upload_count', 0)} fetches={item.get('fetch_count', 0)} events={item.get('event_count', 0)} artifacts={item.get('artifact_count', 0)}{duration_text}")
             print(f"    metadata: {item.get('metadata_path', '')}")
             if item.get("event_log"):
                 print(f"    event_log: {item.get('event_log', '')}")
