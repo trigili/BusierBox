@@ -191,7 +191,11 @@ same lookup through `--doom-wad` and `--doom-wad-sha256`. You can search by cano
 `--tuple-path` when a survey or release manifest has already resolved the
 target compatibility tuple. It does not download or rebuild anything.
 `--recommendation-json` returns the selected artifact plus active filters,
-match count, index counts, and the selection policy. The policy used to prefer lower-risk compatibility labels also prefers newer release metadata. Use
+match count, visible match count, match lookup maps, `api_collections`
+metadata, index counts, and the selection policy. Lookup maps include
+`matches_by_release`, `matches_by_tuple_path`, `matches_by_payload_preset`,
+`matches_by_compatibility`, `matches_by_tool`, and `matches_by_feature` for
+artifact browser views. The policy used to prefer lower-risk compatibility labels also prefers newer release metadata. Use
 `--max-compatibility exact|likely|heuristic|unsafe|incompatible`
 to reject artifacts above an operator-selected risk threshold instead of only
 sorting them lower. Plain text output also prints `compatibility_reason=` lines so an

@@ -132,15 +132,44 @@ def active_filters(args):
     return {key: getattr(args, key) for key in keys if getattr(args, key)}
 
 
+def add_index(indexes, name, key, row):
+    if key:
+        indexes.setdefault(name, {}).setdefault(str(key), []).append(row)
+
+
+def match_indexes(rows):
+    indexes = {
+        "matches_by_release": {},
+        "matches_by_tuple_path": {},
+        "matches_by_payload_preset": {},
+        "matches_by_compatibility": {},
+        "matches_by_tool": {},
+        "matches_by_feature": {},
+    }
+    for row in rows:
+        add_index(indexes, "matches_by_release", row.get("release_name"), row)
+        add_index(indexes, "matches_by_tuple_path", row.get("tuple_path"), row)
+        add_index(indexes, "matches_by_payload_preset", row.get("payload_preset"), row)
+        add_index(indexes, "matches_by_compatibility", (row.get("compatibility") or {}).get("label") or "exact", row)
+        for tool in row.get("tools") or []:
+            add_index(indexes, "matches_by_tool", tool, row)
+        for feature in row.get("features") or []:
+            add_index(indexes, "matches_by_feature", feature, row)
+    return indexes
+
+
 def recommendation_document(index, rows, args):
     selected = rows[0] if rows else None
     selected_sha = (selected or {}).get("sha256") or ""
     dedupe = (index.get("dedupe", {}).get(selected_sha, {}) or {}).get("artifacts") or []
+    visible_matches = rows if args.all else rows[:1]
+    indexes = match_indexes(visible_matches)
     return {
         "schema": 1,
         "command": "find-artifact",
         "filters": active_filters(args),
         "match_count": len(rows),
+        "visible_match_count": len(visible_matches),
         "selection_policy": [
             "lowest compatibility risk label",
             "newest release_mtime",
@@ -150,7 +179,29 @@ def recommendation_document(index, rows, args):
         "selected": selected,
         "dedupe_alternatives": dedupe,
         "dedupe_count": len(dedupe),
-        "matches": rows if args.all else rows[:1],
+        "matches": visible_matches,
+        **indexes,
+        "api_collections": {
+            "matches": {
+                "name": "matches",
+                "count": len(visible_matches),
+                "summary_key": "visible_match_count",
+                "indexes": [
+                    "matches_by_release",
+                    "matches_by_tuple_path",
+                    "matches_by_payload_preset",
+                    "matches_by_compatibility",
+                    "matches_by_tool",
+                    "matches_by_feature",
+                ],
+            },
+            "dedupe_alternatives": {
+                "name": "dedupe_alternatives",
+                "count": len(dedupe),
+                "summary_key": "dedupe_count",
+                "indexes": [],
+            },
+        },
         "index": {
             "release_count": index.get("release_count", 0),
             "artifact_count": index.get("artifact_count", 0),

@@ -182,7 +182,13 @@ assert doc["schema"] == 1
 assert doc["command"] == "find-artifact"
 assert doc["filters"]["device"] == "lab-router"
 assert doc["match_count"] == 2
+assert doc["visible_match_count"] == 1
 assert doc["selected"]["release_name"] == "two"
+assert doc["api_collections"]["matches"]["summary_key"] == "visible_match_count"
+assert "matches_by_payload_preset" in doc["api_collections"]["matches"]["indexes"]
+assert doc["matches_by_release"]["two"][0]["release_name"] == "two"
+assert doc["matches_by_payload_preset"]["ssh-operator"][0]["release_name"] == "two"
+assert doc["matches_by_compatibility"]["exact"][0]["release_name"] == "two"
 assert doc["index"]["deduplicated_artifact_count"] == 2
 assert doc["index"]["artifacts_by_sha_count"] == 2
 assert doc["index"]["artifacts_by_release_count"] == 3
@@ -212,7 +218,7 @@ assert doc["match_count"] == 1
 assert doc["selected"]["release_name"] == "two"
 assert doc["selected"]["compatibility"]["label"] == "exact"
 PY
-scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --recommendation-json >"$tmp/recommend-tuple-json.out"
+scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --all --recommendation-json >"$tmp/recommend-tuple-json.out"
 python3 - "$tmp/recommend-tuple-json.out" <<'PY'
 import json
 import sys
@@ -220,7 +226,11 @@ import sys
 doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert doc["filters"]["tuple_path"] == "by-tuple/mipsel/musl/4.x/mips32r2-24kc"
 assert doc["match_count"] == 3
+assert doc["visible_match_count"] == 3
 assert doc["selected"]["tuple_path"] == "by-tuple/mipsel/musl/4.x/mips32r2-24kc"
+assert len(doc["matches_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]) == 3
+assert doc["matches_by_tool"]["gdbserver"][0]["release_name"] == "three"
+assert doc["matches_by_feature"]["reverse-ssh"]
 PY
 grep -q -- '--recommendation-json' docs/release-bundles.md
 grep -q -- '--tuple-path by-tuple/' docs/release-bundles.md
