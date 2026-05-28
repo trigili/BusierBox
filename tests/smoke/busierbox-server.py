@@ -143,6 +143,13 @@ def main():
     if 'name="busierbox-reverse-forward"' not in src or "join(timeout=2.0)" not in src:
         print("busierbox-server: reverse-forward listener thread is not explicitly owned/joined", file=sys.stderr)
         return 1
+    if ("busierbox-reverse-forward-pipe-" not in src or
+            "register_socket(local)" not in src or
+            "register_transport(chan)" not in src or
+            "register_thread(threading.Thread(" not in src or
+            "daemon=True" in src):
+        print("busierbox-server: reverse-forward relay resources are not explicitly owned", file=sys.stderr)
+        return 1
     for word in ("class ServiceManager", "SERVICE_MANAGER = ServiceManager()", "register_transport",
                  "SERVICE_MANAGER.register_socket", "SERVICE_MANAGER.shutdown()", "register_thread",
                  "start_child_process", "register_child_process", "class EventLog", "class Service",

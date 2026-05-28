@@ -3640,12 +3640,18 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
                         print(f"forward channel failed: {exc}", file=sys.stderr)
                         local.close()
                         continue
-                    threading.Thread(
-                        target=pipe, args=(local, chan), daemon=True
-                    ).start()
-                    threading.Thread(
-                        target=pipe, args=(chan, local), daemon=True
-                    ).start()
+                    register_socket(local)
+                    register_transport(chan)
+                    for src, dst, suffix in (
+                        (local, chan, "local-to-channel"),
+                        (chan, local, "channel-to-local"),
+                    ):
+                        thread = register_thread(threading.Thread(
+                            target=pipe,
+                            args=(src, dst),
+                            name=f"busierbox-reverse-forward-pipe-{suffix}",
+                        ))
+                        thread.start()
             finally:
                 unregister_socket(sock)
                 try:
@@ -3673,6 +3679,8 @@ def pipe(src, dst):
                 break
     finally:
         for obj in (src, dst):
+            unregister_socket(obj)
+            unregister_transport(obj)
             try:
                 obj.shutdown(socket.SHUT_WR)
             except Exception:
