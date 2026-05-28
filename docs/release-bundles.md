@@ -388,7 +388,11 @@ mismatches also emit an `operator_path_kind_mismatch` warning in `warnings` and
 the human `--status` output. `path_status` and `browser_paths` records carry
 `warning_count` and `warning_types` fields after status warnings are indexed, so
 path and file-browser panes can show warning badges without joining separate
-maps first.
+maps first. The same warning annotations are aggregated in
+`browser_path_summary.warning_count`, `browser_path_summary.warning_by_kind`,
+`browser_path_summary.warning_by_type`, and mirrored into `summary` as
+`browser_path_warning_count`, `browser_path_warning_kind_counts`, and
+`browser_path_warning_type_counts`.
 `staged_files_state` exposes the staged-files ledger
 path, validity, request names, and raw staged-entry count. `command_queue_state`
 exposes the command queue ledger path, validity, command ids, status counts,

@@ -298,6 +298,11 @@ def main():
                 path_mismatch_doc.get("summary", {}).get("path_kind_mismatch_count") != 1 or
                 path_mismatch_doc.get("summary", {}).get("browser_path_kind_mismatch_count") != 1 or
                 path_mismatch_doc.get("summary", {}).get("browser_path_kind_mismatch_counts", {}).get("command-copy") != 1 or
+                path_mismatch_doc.get("summary", {}).get("browser_path_warning_count") != 1 or
+                path_mismatch_doc.get("summary", {}).get("browser_path_warning_kind_counts", {}).get("command-copy") != 1 or
+                path_mismatch_doc.get("summary", {}).get("browser_path_warning_type_counts", {}).get("operator_path_kind_mismatch") != 1 or
+                path_mismatch_doc.get("browser_path_summary", {}).get("warning_count") != 1 or
+                path_mismatch_doc.get("browser_path_summary", {}).get("warning_by_kind", {}).get("command-copy") != 1 or
                 not path_mismatch_warnings or
                 path_mismatch_warnings[-1].get("path_name") != "command_copy_file" or
                 path_mismatch_warnings[-1].get("path") != str(mismatched_copy_path) or
@@ -372,6 +377,12 @@ def main():
                 invalid_state_browser_by_path.get(str(invalid_state_file), [{}])[0].get("warning_count") != 1 or
                 invalid_state_browser_by_path.get(str(invalid_staged_file), [{}])[0].get("warning_count") != 1 or
                 invalid_state_browser_by_path.get(str(invalid_queue_file), [{}])[0].get("warning_count") != 1 or
+                invalid_state_doc.get("summary", {}).get("browser_path_warning_count") != 3 or
+                invalid_state_doc.get("summary", {}).get("browser_path_warning_kind_counts", {}).get("server-state") != 1 or
+                invalid_state_doc.get("summary", {}).get("browser_path_warning_kind_counts", {}).get("staged-ledger") != 1 or
+                invalid_state_doc.get("summary", {}).get("browser_path_warning_kind_counts", {}).get("command-queue-ledger") != 1 or
+                invalid_state_doc.get("summary", {}).get("browser_path_warning_type_counts", {}).get("invalid_server_state") != 1 or
+                invalid_state_doc.get("browser_path_summary", {}).get("warning_count") != 3 or
                 invalid_warnings_by_type.get("invalid_server_state", [{}])[0].get("path") != str(invalid_state_file) or
                 invalid_warnings_by_type.get("invalid_staged_files_state", [{}])[0].get("path") != str(invalid_staged_file) or
                 invalid_warnings_by_type.get("invalid_command_queue_state", [{}])[0].get("path") != str(invalid_queue_file) or

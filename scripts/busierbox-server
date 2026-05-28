@@ -1106,6 +1106,8 @@ def browser_path_summary(records):
     readable_by_kind = {}
     writable_by_kind = {}
     kind_mismatch_by_kind = {}
+    warning_by_kind = {}
+    warning_by_type = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1122,6 +1124,13 @@ def browser_path_summary(records):
             writable_by_kind[kind] = writable_by_kind.get(kind, 0) + 1
         if rec.get("expected_kind_mismatch") is True:
             kind_mismatch_by_kind[kind] = kind_mismatch_by_kind.get(kind, 0) + 1
+        warning_count = int(rec.get("warning_count") or 0)
+        if warning_count:
+            warning_by_kind[kind] = warning_by_kind.get(kind, 0) + warning_count
+            for warning_type in rec.get("warning_types") or []:
+                warning_type = str(warning_type or "")
+                if warning_type:
+                    warning_by_type[warning_type] = warning_by_type.get(warning_type, 0) + 1
     return {
         "total_count": len(records or []),
         "exists_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("exists") is True),
@@ -1129,6 +1138,7 @@ def browser_path_summary(records):
         "readable_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("readable") is True),
         "writable_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("writable") is True),
         "kind_mismatch_count": sum(1 for rec in records or [] if isinstance(rec, dict) and rec.get("expected_kind_mismatch") is True),
+        "warning_count": sum(int(rec.get("warning_count") or 0) for rec in records or [] if isinstance(rec, dict)),
         "by_kind": record_count_by_key(records, "kind"),
         "by_stage_kind": record_count_by_key(records, "stage_kind"),
         "by_release_path": record_count_by_key(records, "release_path"),
@@ -1137,6 +1147,8 @@ def browser_path_summary(records):
         "readable_by_kind": readable_by_kind,
         "writable_by_kind": writable_by_kind,
         "kind_mismatch_by_kind": kind_mismatch_by_kind,
+        "warning_by_kind": warning_by_kind,
+        "warning_by_type": warning_by_type,
     }
 
 
@@ -5262,6 +5274,7 @@ def status_document(cfg):
      warnings_by_service_port,
      warnings_by_type_service_port) = warning_record_indexes(warnings)
     annotate_path_records_with_warnings(path_status, browser_paths, warnings_by_path)
+    browser_summary = browser_path_summary(browser_paths)
     annotate_service_port_records_with_warnings(
         services,
         ports,
@@ -5292,6 +5305,7 @@ def status_document(cfg):
         "browser_path_readable_count": browser_summary.get("readable_count", 0),
         "browser_path_writable_count": browser_summary.get("writable_count", 0),
         "browser_path_kind_mismatch_count": browser_summary.get("kind_mismatch_count", 0),
+        "browser_path_warning_count": browser_summary.get("warning_count", 0),
         "browser_path_kind_counts": browser_summary.get("by_kind") or {},
         "browser_path_stage_kind_counts": browser_summary.get("by_stage_kind") or {},
         "browser_path_release_path_counts": browser_summary.get("by_release_path") or {},
@@ -5300,6 +5314,8 @@ def status_document(cfg):
         "browser_path_readable_kind_counts": browser_summary.get("readable_by_kind") or {},
         "browser_path_writable_kind_counts": browser_summary.get("writable_by_kind") or {},
         "browser_path_kind_mismatch_counts": browser_summary.get("kind_mismatch_by_kind") or {},
+        "browser_path_warning_kind_counts": browser_summary.get("warning_by_kind") or {},
+        "browser_path_warning_type_counts": browser_summary.get("warning_by_type") or {},
         "server_state_exists": bool(server_state.get("exists", False)),
         "server_state_valid": bool(server_state.get("valid", False)),
         "server_state_service_count": server_state.get("service_count", 0),
