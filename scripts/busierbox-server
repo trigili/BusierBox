@@ -6209,6 +6209,7 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
         })
         update_session_record(log_dir, state="ended", exit_reason=stop_reason)
         upsert_state_session(cfg, log_dir, service, "ended", exit_reason=stop_reason)
+        record_shutdown_event(cfg, service, session=log_dir)
         append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
     return 0
 

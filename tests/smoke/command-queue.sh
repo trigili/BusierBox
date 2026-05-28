@@ -498,6 +498,90 @@ grep -q '^  delivery_policy_counts: .*delivery_supported=true=1.*result_upload_s
 grep -q '^  delivery_policy: enabled=yes valid=yes execution_mode=metadata-only delivery_supported=yes result_upload_supported=yes active_control_channel=yes$' "$queued_text_file"
 rm -f "$queued_text_file"
 rm -f "$queued_cfg" "$queued_out" "$queued_err" "$queued_events"
+term_port=$(python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+term_cfg="${TMPDIR:-/tmp}/busierbox-command-queue-term.$$.json"
+term_out="${TMPDIR:-/tmp}/busierbox-command-queue-term.$$.out"
+term_err="${TMPDIR:-/tmp}/busierbox-command-queue-term.$$.err"
+python3 - "$term_cfg" "$term_port" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+cfg = {
+    "listen_host": "127.0.0.1",
+    "operator_session_dir": str(Path(sys.argv[1]).with_suffix(".session")),
+    "server_state": str(Path(sys.argv[1]).with_suffix(".state.json")),
+    "command_queue_file": str(Path(sys.argv[1]).with_suffix(".queue.json")),
+    "command_queue_enable": "yes",
+    "command_queue_port": sys.argv[2],
+    "command_queue_tls": "no",
+    "command_queue_require_token": "no",
+    "command_queue_allowed_commands": "busierbox-only",
+    "command_queue_allow_arbitrary": "no",
+}
+Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
+PY
+scripts/busierbox-server --config "$term_cfg" --transport command-queue --timeout 20 >"$term_out" 2>"$term_err" &
+term_pid=$!
+python3 - "$term_cfg" <<'PY'
+import json
+import sys
+import time
+from pathlib import Path
+
+cfg = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+state_path = Path(cfg["server_state"])
+for _ in range(50):
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        state = {}
+    service = (state.get("services") or {}).get("command-queue") or {}
+    if service.get("status") == "listening":
+        break
+    time.sleep(0.1)
+else:
+    raise SystemExit("command-queue SIGTERM fixture did not reach listening state")
+PY
+kill -TERM "$term_pid"
+term_rc=0
+wait "$term_pid" || term_rc=$?
+case "$term_rc" in
+    0|143) ;;
+    *) printf '%s\n' "command-queue SIGTERM listener exited with $term_rc" >&2; exit 1 ;;
+esac
+if grep -q 'Traceback' "$term_err"; then
+    printf '%s\n' "command-queue SIGTERM listener tracebacked" >&2
+    cat "$term_err" >&2
+    exit 1
+fi
+python3 - "$term_cfg" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+cfg = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+events = [
+    json.loads(line)
+    for line in (Path(cfg["operator_session_dir"]) / "events.jsonl").read_text(encoding="utf-8").splitlines()
+]
+if not any(event.get("service") == "command-queue" and event.get("event") == "shutdown" and event.get("details", {}).get("reason") == "SIGTERM" for event in events):
+    raise SystemExit("command-queue SIGTERM did not record structured shutdown event")
+if not any(event.get("service") == "command-queue" and event.get("event") == "service_stop" and event.get("details", {}).get("reason") == "SIGTERM" for event in events):
+    raise SystemExit("command-queue SIGTERM did not record service_stop reason")
+state = json.loads(Path(cfg["server_state"]).read_text(encoding="utf-8"))
+service = (state.get("services") or {}).get("command-queue") or {}
+if service.get("status") != "stopped" or service.get("stopped_reason") != "SIGTERM":
+    raise SystemExit("command-queue SIGTERM did not persist stopped state")
+PY
+rm -f "$term_cfg" "$term_out" "$term_err"
 "$bb" plan command-queue --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"] == "command-queue"; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["execution_supported"] is False; assert d["requires_external_writes"] is False; assert d["poll_interval_sec"] == "5"; assert d["poll_jitter_pct"] == "0"; assert d["poll_backoff"] == "none"; assert d["poll_max_interval_sec"] == "300"; assert d["daemon_state_file"].endswith("/run/command-queue-daemon.state"); assert d["daemon_state_file_supported"] is True; assert d["daemon_status_supported"] is True; assert d["daemon_stop_supported"] is True; assert d["result_upload_supported"] is True'
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" plan command-queue --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"] == "command-queue"; assert d["policy_valid"] is False; assert "disabled command queue must keep allowed commands policy none" in d["policy_errors"]; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["would_start"] == []; assert d["would_connect"] == []'
 "$bb" runtime-config --json | python3 -c 'import json,sys; d=json.load(sys.stdin); c=d["effective_config"]; p=d["command_queue_policy"]; assert c["BB_COMMAND_QUEUE_ENABLE"] == "no"; assert c["BB_COMMAND_QUEUE_ALLOWED_COMMANDS"] == "none"; assert c["BB_COMMAND_QUEUE_EXECUTION"] == "metadata-only"; assert c["BB_COMMAND_QUEUE_ALLOW_ARBITRARY"] == "no"; assert c["BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"] == "5"; assert c["BB_COMMAND_QUEUE_POLL_JITTER_PCT"] == "0"; assert c["BB_COMMAND_QUEUE_POLL_BACKOFF"] == "none"; assert c["BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC"] == "300"; assert c["BB_COMMAND_QUEUE_MAX_POLLS"] == "0"; assert p["valid"] is True; assert p["errors"] == []; assert p["execution_mode"] == "metadata-only"; assert p["metadata_only_default"] is True; assert p["enabled"] is False; assert p["configured_for_polling"] is False; assert p["missing_operator_host"] is False; assert p["poll_transport_supported"] is True; assert p["live_polling_supported"] is True; assert p["delivery_supported"] is False; assert p["result_upload_supported"] is True; assert p["execution_supported"] is False; assert p["executes_commands"] is False; assert p["active_control_channel"] is False; assert p["operator_supplied_command_execution"] is False; assert p["arbitrary_policy_requested"] is False; assert p["arbitrary_execution_allowed"] is False; assert p["safe_disabled_default"] is True'
