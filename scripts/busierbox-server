@@ -7029,6 +7029,7 @@ def stop_managed_services(cfg):
         services = {}
     stopped = 0
     skipped = 0
+    failed = 0
     for name, rec in sorted(services.items()):
         pid = rec.get("pid") if isinstance(rec, dict) else None
         if isinstance(rec, dict) and rec.get("status") == "stopped":
@@ -7066,15 +7067,16 @@ def stop_managed_services(cfg):
         except OSError as exc:
             mark_service_error(cfg, name, exc)
             print(f"{name}: failed to stop pid {pid}: {exc}", file=sys.stderr)
-            skipped += 1
+            failed += 1
         except TimeoutError as exc:
             mark_service_error(cfg, name, exc)
             append_event(cfg, name, "service_stop_failed", "error", details={"pid": pid, "reason": "port-still-bound", "via": "server-stop", "error": str(exc)})
             print(f"{name}: failed to stop pid {pid}: {exc}", file=sys.stderr)
-            skipped += 1
-    if stopped == 0 and skipped == 0:
+            failed += 1
+    if stopped == 0 and skipped == 0 and failed == 0:
         print("No managed services recorded.")
-    return 0
+    print(f"Stop summary: stopped={stopped} skipped={skipped} failed={failed}")
+    return 1 if failed else 0
 
 
 def print_workbench(cfg):

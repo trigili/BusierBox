@@ -1927,7 +1927,10 @@ def main():
             "--staged-file", str(lifecycle_staged),
             "--stop",
         )
-        if stop.returncode != 0 or "stopped pid" not in stop.stdout or "port released" not in stop.stdout:
+        if (stop.returncode != 0 or
+                "stopped pid" not in stop.stdout or
+                "port released" not in stop.stdout or
+                "Stop summary: stopped=1 skipped=0 failed=0" not in stop.stdout):
             print("--stop did not stop managed listener", file=sys.stderr)
             print(stop.stdout, file=sys.stderr)
             print(stop.stderr, file=sys.stderr)
@@ -2391,7 +2394,9 @@ def main():
             "--staged-file", str(lifecycle_staged),
             "--stop",
         )
-        if stale_stop.returncode != 0 or "stale pid 999999; marked stopped" not in stale_stop.stdout:
+        if (stale_stop.returncode != 0 or
+                "stale pid 999999; marked stopped" not in stale_stop.stdout or
+                "Stop summary: stopped=0 skipped=1 failed=0" not in stale_stop.stdout):
             print("--stop did not clean stale PID records", file=sys.stderr)
             print(stale_stop.stdout, file=sys.stderr)
             print(stale_stop.stderr, file=sys.stderr)
@@ -2537,7 +2542,9 @@ def main():
             "--staged-file", str(lifecycle_staged),
             "--stop",
         )
-        if unmanaged_stop.returncode != 0 or "skipped pid" not in unmanaged_stop.stdout:
+        if (unmanaged_stop.returncode != 0 or
+                "skipped pid" not in unmanaged_stop.stdout or
+                "Stop summary: stopped=0 skipped=1 failed=0" not in unmanaged_stop.stdout):
             print("--stop did not skip unmanaged live PID", file=sys.stderr)
             print(unmanaged_stop.stdout, file=sys.stderr)
             print(unmanaged_stop.stderr, file=sys.stderr)
