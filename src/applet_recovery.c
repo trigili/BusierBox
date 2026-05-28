@@ -429,6 +429,22 @@ static int recovery_status_index_match(const char *kind, const struct recovery_m
         snprintf(key, sizeof(key), "%s:%s", recovery_action_category(action), action);
         return !strcmp(key, value);
     }
+    if (!strcmp(kind, "uploads_evidence"))
+        return !strcmp(recovery_action_uploads_evidence(action) ? "yes" : "no", value);
+    if (!strcmp(kind, "collects_dmesg"))
+        return !strcmp(recovery_action_collects_dmesg(action) ? "yes" : "no", value);
+    if (!strcmp(kind, "starts_rshell"))
+        return !strcmp(recovery_action_starts_rshell(action) ? "yes" : "no", value);
+    if (!strcmp(kind, "starts_rshell_after_evidence"))
+        return !strcmp(recovery_action_starts_rshell_after_evidence(action) ? "yes" : "no", value);
+    if (!strcmp(kind, "executes_operator_supplied_command"))
+        return !strcmp(recovery_action_executes_operator_supplied_command(action) ? "yes" : "no", value);
+    if (!strcmp(kind, "command_queue_enabled"))
+        return !strcmp("no", value);
+    if (!strcmp(kind, "hidden_control_channel"))
+        return !strcmp("no", value);
+    if (!strcmp(kind, "requires_external_write"))
+        return !strcmp(m->requires_external_write, value);
     return 0;
 }
 
@@ -468,6 +484,28 @@ static int recovery_status_index_has_match(const char *root, const char *name,
             return 1;
     }
     return 0;
+}
+
+static void recovery_print_status_yes_no_index(const char *root, const char *name,
+                                               const char *json_key, const char *kind)
+{
+    static const char *yes_no[] = {"yes", "no", NULL};
+    size_t i;
+    int first = 1;
+
+    fputs(",", stdout);
+    bb_json_string(stdout, json_key);
+    fputs(":{", stdout);
+    for (i = 0; yes_no[i]; i++) {
+        if (!recovery_status_index_has_match(root, name, kind, yes_no[i]))
+            continue;
+        fputs(first ? "" : ",", stdout);
+        bb_json_string(stdout, yes_no[i]);
+        fputc(':', stdout);
+        recovery_print_status_index_array(root, name, kind, yes_no[i]);
+        first = 0;
+    }
+    fputs("}", stdout);
 }
 
 static void recovery_print_status_indexes(const char *root, const char *name)
@@ -548,6 +586,14 @@ static void recovery_print_status_indexes(const char *root, const char *name)
         }
     }
     fputs("}", stdout);
+    recovery_print_status_yes_no_index(root, name, "installations_by_uploads_evidence", "uploads_evidence");
+    recovery_print_status_yes_no_index(root, name, "installations_by_collects_dmesg", "collects_dmesg");
+    recovery_print_status_yes_no_index(root, name, "installations_by_starts_rshell", "starts_rshell");
+    recovery_print_status_yes_no_index(root, name, "installations_by_starts_rshell_after_evidence", "starts_rshell_after_evidence");
+    recovery_print_status_yes_no_index(root, name, "installations_by_executes_operator_supplied_command", "executes_operator_supplied_command");
+    recovery_print_status_yes_no_index(root, name, "installations_by_command_queue_enabled", "command_queue_enabled");
+    recovery_print_status_yes_no_index(root, name, "installations_by_hidden_control_channel", "hidden_control_channel");
+    recovery_print_status_yes_no_index(root, name, "installations_by_requires_external_write", "requires_external_write");
 }
 
 static void recovery_print_status_api_collections(int installed_count)
@@ -557,7 +603,15 @@ static void recovery_print_status_api_collections(int installed_count)
     fputs("\"installations_by_action\",", stdout);
     fputs("\"installations_by_category\",", stdout);
     fputs("\"installations_by_method_action\",", stdout);
-    fputs("\"installations_by_category_action\"", stdout);
+    fputs("\"installations_by_category_action\",", stdout);
+    fputs("\"installations_by_uploads_evidence\",", stdout);
+    fputs("\"installations_by_collects_dmesg\",", stdout);
+    fputs("\"installations_by_starts_rshell\",", stdout);
+    fputs("\"installations_by_starts_rshell_after_evidence\",", stdout);
+    fputs("\"installations_by_executes_operator_supplied_command\",", stdout);
+    fputs("\"installations_by_command_queue_enabled\",", stdout);
+    fputs("\"installations_by_hidden_control_channel\",", stdout);
+    fputs("\"installations_by_requires_external_write\"", stdout);
     fputs("]}}", stdout);
 }
 

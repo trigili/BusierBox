@@ -88,11 +88,13 @@ operator-supplied command actions for audits. The JSON also includes
 `installations_by_category` maps whose values are indexes into the
 `installations` array, plus composite `installations_by_method_action` and
 `installations_by_category_action` maps for direct lookups such as
-`rc-local:evidence-push` or `evidence:dmesg-push`. This lets operator UIs jump
-directly to evidence, reverse-shell, command, or status hooks without
-rescanning the full list. Summary booleans also state whether every installed
-hook requires an external write and whether any hook executes an
-operator-supplied command.
+`rc-local:evidence-push` or `evidence:dmesg-push`. Installed-action boolean
+indexes cover evidence upload, `dmesg` capture, reverse-shell chaining,
+operator-supplied command execution, command queue enablement, hidden control
+channels, and external-write requirements. This lets operator UIs jump directly
+to evidence, reverse-shell, command, or status hooks without rescanning the full
+list. Summary booleans also state whether every installed hook requires an
+external write and whether any hook executes an operator-supplied command.
 
 `busierbox recovery` remains as a deprecated compatibility alias. Internal hook
 markers still use `BUSIERBOX RECOVERY` so older cleanup/status checks keep

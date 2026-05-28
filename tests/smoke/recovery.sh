@@ -291,6 +291,18 @@ assert data["installations_by_action"]["evidence-push"] == [0]
 assert data["installations_by_category"]["evidence"] == [0]
 assert data["installations_by_method_action"]["rc-local:evidence-push"] == [0]
 assert data["installations_by_category_action"]["evidence:evidence-push"] == [0]
+assert data["installations_by_uploads_evidence"]["yes"] == [0]
+assert data["installations_by_collects_dmesg"]["no"] == [0]
+assert data["installations_by_starts_rshell"]["no"] == [0]
+assert data["installations_by_starts_rshell_after_evidence"]["no"] == [0]
+assert data["installations_by_executes_operator_supplied_command"]["no"] == [0]
+assert data["installations_by_command_queue_enabled"]["no"] == [0]
+assert data["installations_by_hidden_control_channel"]["no"] == [0]
+assert data["installations_by_requires_external_write"]["yes"] == [0]
+api_indexes = data["api_collections"]["installations"]["indexes"]
+assert "installations_by_uploads_evidence" in api_indexes
+assert "installations_by_collects_dmesg" in api_indexes
+assert "installations_by_hidden_control_channel" in api_indexes
 assert item["action"] == "evidence-push"
 assert item["action_category"] == "evidence"
 assert item["uploads_evidence"] is True
@@ -322,6 +334,13 @@ assert data["installations_by_action"]["evidence-then-rshell"] == [0]
 assert data["installations_by_category"]["evidence"] == [0]
 assert data["installations_by_method_action"]["rc-local:evidence-then-rshell"] == [0]
 assert data["installations_by_category_action"]["evidence:evidence-then-rshell"] == [0]
+assert data["installations_by_uploads_evidence"]["yes"] == [0]
+assert data["installations_by_collects_dmesg"]["no"] == [0]
+assert data["installations_by_starts_rshell"]["yes"] == [0]
+assert data["installations_by_starts_rshell_after_evidence"]["yes"] == [0]
+assert data["installations_by_executes_operator_supplied_command"]["no"] == [0]
+assert data["installations_by_command_queue_enabled"]["no"] == [0]
+assert data["installations_by_hidden_control_channel"]["no"] == [0]
 assert item["action"] == "evidence-then-rshell"
 assert item["action_category"] == "evidence"
 assert item["uploads_evidence"] is True
@@ -353,6 +372,12 @@ assert data["installations_by_action"]["dmesg-push"] == [0]
 assert data["installations_by_category"]["evidence"] == [0]
 assert data["installations_by_method_action"]["rc-local:dmesg-push"] == [0]
 assert data["installations_by_category_action"]["evidence:dmesg-push"] == [0]
+assert data["installations_by_uploads_evidence"]["yes"] == [0]
+assert data["installations_by_collects_dmesg"]["yes"] == [0]
+assert data["installations_by_starts_rshell"]["no"] == [0]
+assert data["installations_by_executes_operator_supplied_command"]["no"] == [0]
+assert data["installations_by_command_queue_enabled"]["no"] == [0]
+assert data["installations_by_hidden_control_channel"]["no"] == [0]
 assert item["action"] == "dmesg-push"
 assert item["action_category"] == "evidence"
 assert item["uploads_evidence"] is True
