@@ -104,6 +104,16 @@ def print_text(row, index):
         print(f"release_self_test_status={row.get('release_self_test_status')}")
     if row.get("release_self_test_path"):
         print(f"release_self_test_path={row.get('release_self_test_path')}")
+    release_self_test = row.get("release_self_test") or {}
+    if release_self_test:
+        print(
+            "release_self_test_command_queue_token_required_count="
+            f"{release_self_test.get('command_queue_token_required_count', 0)}"
+        )
+        print(
+            "release_self_test_command_queue_token_configured_count="
+            f"{release_self_test.get('command_queue_token_configured_count', 0)}"
+        )
     for tool, status in sorted((row.get("tool_provider_status") or {}).items()):
         if isinstance(status, dict):
             print(f"provider_status_{tool}={status.get('overall') or status.get('status') or 'unknown'}")

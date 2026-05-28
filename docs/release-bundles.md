@@ -205,7 +205,8 @@ target compatibility tuple. If a release directory contains
 records it in `release_self_tests`, groups it by release name and status, and
 copies the compact status/path onto each artifact from that release so
 `scripts/find-artifact` can report whether the selected bundle passed its own
-self-test. The index also publishes normalized
+self-test, including the command-queue token-required and token-configured
+counts. The index also publishes normalized
 `device_records` and `tuple_records` with release, alias, and tuple-path lookup
 maps, plus `api_collections` metadata for artifacts, release self-test records,
 dedupe records, devices, tuples, and precomputed recommendations. Each collection descriptor includes
