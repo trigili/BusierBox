@@ -229,6 +229,12 @@ def file_record(name, path, expected_kind="file"):
             rec["size"] = os.path.getsize(path)
         except OSError:
             rec["size"] = 0
+    rec["expected_kind_matches"] = (
+        bool(rec["is_dir"]) if expected_kind == "dir" else
+        bool(rec["is_file"]) if expected_kind == "file" else
+        bool(rec["exists"])
+    ) if rec["exists"] else False
+    rec["expected_kind_mismatch"] = bool(rec["exists"] and not rec["expected_kind_matches"])
     return rec
 
 def split_lines(text):
@@ -719,18 +725,26 @@ run_file_records = list(run_files.values())
 run_files_by_name = {}
 run_files_by_path = {}
 run_files_by_expected_kind = {}
-run_files_by_exists = {}
-run_files_by_readable = {}
+run_files_by_exists = {"yes": [], "no": []}
+run_files_by_readable = {"yes": [], "no": []}
+run_files_by_writable = {"yes": [], "no": []}
+run_files_by_expected_kind_exists = {}
+run_files_by_expected_kind_mismatch = {"yes": [], "no": []}
 for item in run_file_records:
     name = str(item.get("name") or "")
     path = str(item.get("path") or "")
+    expected_kind = str(item.get("expected_kind") or "")
+    exists = "yes" if item.get("exists") else "no"
     if name:
         run_files_by_name[name] = item
     if path:
         run_files_by_path[path] = item
-    run_files_by_expected_kind.setdefault(str(item.get("expected_kind") or ""), []).append(item)
-    run_files_by_exists.setdefault("yes" if item.get("exists") else "no", []).append(item)
+    run_files_by_expected_kind.setdefault(expected_kind, []).append(item)
+    run_files_by_exists.setdefault(exists, []).append(item)
     run_files_by_readable.setdefault("yes" if item.get("readable") else "no", []).append(item)
+    run_files_by_writable.setdefault("yes" if item.get("writable") else "no", []).append(item)
+    run_files_by_expected_kind_exists.setdefault(f"{expected_kind}:{exists}", []).append(item)
+    run_files_by_expected_kind_mismatch.setdefault("yes" if item.get("expected_kind_mismatch") else "no", []).append(item)
 doc["run_files"] = run_files
 doc["run_file_records"] = run_file_records
 doc["run_files_by_name"] = run_files_by_name
@@ -738,12 +752,22 @@ doc["run_files_by_path"] = run_files_by_path
 doc["run_files_by_expected_kind"] = run_files_by_expected_kind
 doc["run_files_by_exists"] = run_files_by_exists
 doc["run_files_by_readable"] = run_files_by_readable
+doc["run_files_by_writable"] = run_files_by_writable
+doc["run_files_by_expected_kind_exists"] = run_files_by_expected_kind_exists
+doc["run_files_by_expected_kind_mismatch"] = run_files_by_expected_kind_mismatch
 doc["run_file_summary"] = {
     "total_count": len(run_files),
     "exists_count": sum(1 for item in run_files.values() if item.get("exists")),
     "missing_count": sum(1 for item in run_files.values() if not item.get("exists")),
     "readable_count": sum(1 for item in run_files.values() if item.get("readable")),
     "writable_count": sum(1 for item in run_files.values() if item.get("writable")),
+    "expected_kind_mismatch_count": sum(1 for item in run_files.values() if item.get("expected_kind_mismatch")),
+    "expected_kind_counts": {key: len(value) for key, value in run_files_by_expected_kind.items()},
+    "exists_counts": {key: len(value) for key, value in run_files_by_exists.items()},
+    "readable_counts": {key: len(value) for key, value in run_files_by_readable.items()},
+    "writable_counts": {key: len(value) for key, value in run_files_by_writable.items()},
+    "expected_kind_exists_counts": {key: len(value) for key, value in run_files_by_expected_kind_exists.items()},
+    "expected_kind_mismatch_counts": {key: len(value) for key, value in run_files_by_expected_kind_mismatch.items()},
     "total_size": sum(int(item.get("size") or 0) for item in run_files.values()),
 }
 doc["api_collections"] = {
@@ -778,6 +802,9 @@ doc["api_collections"] = {
             "run_files_by_expected_kind",
             "run_files_by_exists",
             "run_files_by_readable",
+            "run_files_by_writable",
+            "run_files_by_expected_kind_exists",
+            "run_files_by_expected_kind_mismatch",
         ),
         "run_file_summary.total_count",
         "name",

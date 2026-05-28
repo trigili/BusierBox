@@ -185,9 +185,13 @@ selected/recommended artifacts. Those file records include path, expected kind,
 existence, readability, writability, and size so dashboards and audits can
 render a bringup run without separately probing the filesystem. Lookup maps
 `run_files_by_name`, `run_files_by_path`, `run_files_by_expected_kind`,
-`run_files_by_exists`, and `run_files_by_readable` let frontends jump directly
-to a generated artifact or group missing/readable files without rescanning the
-flat record list. The summary
+`run_files_by_exists`, `run_files_by_readable`, `run_files_by_writable`,
+`run_files_by_expected_kind_exists`, and
+`run_files_by_expected_kind_mismatch` let frontends jump directly to a
+generated artifact or group missing, unreadable, unwritable, or wrong-kind
+files without rescanning the flat record list. The summary mirrors compact
+health counters for expected kind, existence, readability, writability,
+expected-kind/existence pairs, and kind mismatches. The summary
 also preserves `release_self_test_summary` when a release selection is used,
 including command-queue token, execution-supported, and
 operator-supplied-command execution counters from the selected release bundle.
