@@ -211,6 +211,13 @@ if command_queue.get("poll_max_interval_sec") != manifest["effective_config"]["B
     raise SystemExit("manifest-metadata: command queue poll max interval does not match effective config")
 if command_queue.get("max_polls") != manifest["effective_config"]["BB_COMMAND_QUEUE_MAX_POLLS"]:
     raise SystemExit("manifest-metadata: command queue max polls does not match effective config")
+expected_state = manifest["effective_config"]["BB_RUNTIME_ROOT"] + "/run/command-queue-daemon.state"
+if command_queue.get("daemon_state_file") != expected_state:
+    raise SystemExit("manifest-metadata: command queue daemon state file missing")
+if (command_queue.get("daemon_state_file_supported") is not True or
+        command_queue.get("daemon_status_supported") is not True or
+        command_queue.get("daemon_stop_supported") is not True):
+    raise SystemExit("manifest-metadata: command queue daemon lifecycle metadata missing")
 if command_queue.get("policy_valid") is not True or command_queue.get("policy_errors") != []:
     raise SystemExit("manifest-metadata: command queue policy validity metadata missing")
 if command_queue.get("arbitrary_policy_requested") is not False or command_queue.get("arbitrary_execution_allowed") is not False:

@@ -93,7 +93,10 @@ whether the state is stale, and whether `/proc/<pid>/cmdline` verifies it as a
 command-queue process. `command-queue stop` reads the same state file and sends
 SIGTERM only when the state is valid and the recorded PID is verified as a
 BusierBox command-queue process. Use `--state-file PATH` to put this state in a
-specific runtime-owned location.
+specific runtime-owned location. `manifest --json` and
+`plan command-queue --json` expose the default state path and booleans for
+daemon state-file, status, and stop support so release and frontend tooling can
+surface this lifecycle without probing target status first.
 
 Policy values for `BB_COMMAND_QUEUE_ALLOWED_COMMANDS` are `none`,
 `busierbox-only`, `allowlist`, and `custom`. `BB_COMMAND_QUEUE_ALLOW_ARBITRARY`

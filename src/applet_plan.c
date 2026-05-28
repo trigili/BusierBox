@@ -297,6 +297,13 @@ static void plan_print_command_queue(int json)
         fputs(",\"poll_backoff\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_POLL_BACKOFF);
         fputs(",\"poll_max_interval_sec\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
         fputs(",\"max_polls\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_MAX_POLLS);
+        fputs(",\"daemon_state_file\":", stdout);
+        {
+            char state_file[512];
+            snprintf(state_file, sizeof(state_file), "%s/run/command-queue-daemon.state", BB_RUNTIME_ROOT);
+            bb_json_string(stdout, state_file);
+        }
+        fputs(",\"daemon_state_file_supported\":true,\"daemon_status_supported\":true,\"daemon_stop_supported\":true", stdout);
         fputs(",\"safety_boundary\":", stdout); bb_json_string(stdout, "explicit opt-in target polling; queued command execution is not implemented");
         plan_print_config_source_json();
         puts("}");
@@ -320,6 +327,10 @@ static void plan_print_command_queue(int json)
     printf("poll_backoff=%s\n", BB_COMMAND_QUEUE_POLL_BACKOFF);
     printf("poll_max_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
     printf("max_polls=%s\n", BB_COMMAND_QUEUE_MAX_POLLS);
+    printf("daemon_state_file=%s/run/command-queue-daemon.state\n", BB_RUNTIME_ROOT);
+    puts("daemon_state_file_supported=yes");
+    puts("daemon_status_supported=yes");
+    puts("daemon_stop_supported=yes");
     puts("execution_supported=no");
     puts("safety_boundary=explicit opt-in target polling; queued command execution is not implemented");
     puts("requires_external_writes=no");

@@ -377,6 +377,13 @@ static void write_manifest_json(FILE *out, int include_missing)
     json_string_payload(out, BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
     fprintf(out, ",\"max_polls\":");
     json_string_payload(out, BB_COMMAND_QUEUE_MAX_POLLS);
+    fprintf(out, ",\"daemon_state_file\":");
+    {
+        char state_file[512];
+        snprintf(state_file, sizeof(state_file), "%s/run/command-queue-daemon.state", BB_RUNTIME_ROOT);
+        json_string_payload(out, state_file);
+    }
+    fprintf(out, ",\"daemon_state_file_supported\":true,\"daemon_status_supported\":true,\"daemon_stop_supported\":true");
     fprintf(out, ",\"policy_valid\":%s", command_queue_policy_valid ? "true" : "false");
     fprintf(out, ",\"policy_errors\":[");
     for (i = 0; i < command_queue_policy.count; i++) {
