@@ -256,6 +256,10 @@ if (queue.get("enabled") != "no" or
         queue.get("poll_backoff") != "none" or
         queue.get("poll_max_interval_sec") != "300" or
         queue.get("max_polls") != "0" or
+        not str(queue.get("daemon_state_file", "")).endswith("/run/command-queue-daemon.state") or
+        queue.get("daemon_state_file_supported") is not True or
+        queue.get("daemon_status_supported") is not True or
+        queue.get("daemon_stop_supported") is not True or
         queue.get("poll_transport_supported") is not True or
         queue.get("live_polling_supported") is not True or
         queue.get("delivery_supported") is not False or
@@ -321,6 +325,10 @@ if (queue.get("enabled") != "no" or
         queue.get("poll_backoff") != "none" or
         queue.get("poll_max_interval_sec") != "300" or
         queue.get("max_polls") != "0" or
+        not str(queue.get("daemon_state_file", "")).endswith("/run/command-queue-daemon.state") or
+        queue.get("daemon_state_file_supported") is not True or
+        queue.get("daemon_status_supported") is not True or
+        queue.get("daemon_stop_supported") is not True or
         queue.get("poll_transport_supported") is not True or
         queue.get("live_polling_supported") is not True or
         queue.get("delivery_supported") is not False or
