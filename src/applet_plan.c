@@ -260,6 +260,167 @@ static void plan_print_rshell(int json)
     puts("requires_external_writes=no");
 }
 
+static const char *command_queue_mode_lifecycle(const char *mode)
+{
+    if (!strcmp(mode, "status"))
+        return "inspect";
+    if (!strcmp(mode, "poll"))
+        return "single-poll";
+    if (!strcmp(mode, "once"))
+        return "single-cycle";
+    if (!strcmp(mode, "daemon"))
+        return "long-running";
+    if (!strcmp(mode, "stop"))
+        return "stop";
+    return "unknown";
+}
+
+static int command_queue_mode_polls(const char *mode)
+{
+    return strcmp(mode, "status") && strcmp(mode, "stop");
+}
+
+static void plan_print_command_queue_mode_record(const char *mode, int configured)
+{
+    int polls = command_queue_mode_polls(mode);
+    int planned = configured && !strcmp(mode, "poll");
+
+    fputs("{\"mode\":", stdout);
+    bb_json_string(stdout, mode);
+    printf(",\"planned\":%s", planned ? "true" : "false");
+    printf(",\"would_start\":%s", planned ? "true" : "false");
+    printf(",\"configured_for_polling\":%s", configured ? "true" : "false");
+    printf(",\"requires_operator_host\":%s", polls ? "true" : "false");
+    printf(",\"would_poll_if_configured\":%s", polls ? "true" : "false");
+    fputs(",\"requires_explicit_target_action\":true", stdout);
+    fputs(",\"execution_supported\":false", stdout);
+    fputs(",\"executes_commands\":false", stdout);
+    fputs(",\"operator_supplied_command_execution\":false", stdout);
+    fputs(",\"active_control_channel\":false", stdout);
+    fputs(",\"lifecycle\":", stdout);
+    bb_json_string(stdout, command_queue_mode_lifecycle(mode));
+    fputc('}', stdout);
+}
+
+static void plan_print_command_queue_mode_records(int configured)
+{
+    fputs(",\"mode_records\":[", stdout);
+    plan_print_command_queue_mode_record("status", configured);
+    fputc(',', stdout);
+    plan_print_command_queue_mode_record("poll", configured);
+    fputc(',', stdout);
+    plan_print_command_queue_mode_record("once", configured);
+    fputc(',', stdout);
+    plan_print_command_queue_mode_record("daemon", configured);
+    fputc(',', stdout);
+    plan_print_command_queue_mode_record("stop", configured);
+    fputc(']', stdout);
+}
+
+static void plan_print_command_queue_mode_index_array(const char *field, const char *value, int configured)
+{
+    static const char *modes[] = {"status", "poll", "once", "daemon", "stop"};
+    size_t i;
+    int first = 1;
+
+    fputc('[', stdout);
+    for (i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+        const char *mode = modes[i];
+        int polls = command_queue_mode_polls(mode);
+        int planned = configured && !strcmp(mode, "poll");
+        const char *candidate = "";
+        if (!strcmp(field, "mode"))
+            candidate = mode;
+        else if (!strcmp(field, "lifecycle"))
+            candidate = command_queue_mode_lifecycle(mode);
+        else if (!strcmp(field, "would_poll_if_configured"))
+            candidate = polls ? "true" : "false";
+        else if (!strcmp(field, "planned"))
+            candidate = planned ? "true" : "false";
+        else if (!strcmp(field, "execution_supported"))
+            candidate = "false";
+        else if (!strcmp(field, "active_control_channel"))
+            candidate = "false";
+        if (strcmp(candidate, value))
+            continue;
+        printf("%s%zu", first ? "" : ",", i);
+        first = 0;
+    }
+    fputc(']', stdout);
+}
+
+static void plan_print_command_queue_mode_indexes(int configured)
+{
+    static const char *modes[] = {"status", "poll", "once", "daemon", "stop"};
+    static const char *lifecycles[] = {"inspect", "single-poll", "single-cycle", "long-running", "stop"};
+    static const char *bools[] = {"true", "false"};
+    size_t i;
+
+    fputs(",\"mode_records_by_mode\":{", stdout);
+    for (i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, modes[i]);
+        fputc(':', stdout);
+        plan_print_command_queue_mode_index_array("mode", modes[i], configured);
+    }
+    fputs("},\"mode_records_by_lifecycle\":{", stdout);
+    for (i = 0; i < sizeof(lifecycles) / sizeof(lifecycles[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, lifecycles[i]);
+        fputc(':', stdout);
+        plan_print_command_queue_mode_index_array("lifecycle", lifecycles[i], configured);
+    }
+    fputs("},\"mode_records_by_would_poll_if_configured\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        plan_print_command_queue_mode_index_array("would_poll_if_configured", bools[i], configured);
+    }
+    fputs("},\"mode_records_by_planned\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        plan_print_command_queue_mode_index_array("planned", bools[i], configured);
+    }
+    fputs("},\"mode_records_by_execution_supported\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        plan_print_command_queue_mode_index_array("execution_supported", bools[i], configured);
+    }
+    fputs("},\"mode_records_by_active_control_channel\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        plan_print_command_queue_mode_index_array("active_control_channel", bools[i], configured);
+    }
+    fputc('}', stdout);
+}
+
+static void plan_print_command_queue_mode_summary(int configured)
+{
+    fputs(",\"mode_summary\":{\"mode_count\":5,\"polling_mode_count\":3,\"operator_host_required_mode_count\":3", stdout);
+    printf(",\"planned_mode_count\":%d", configured ? 1 : 0);
+    fputs(",\"execution_supported_mode_count\":0,\"active_control_channel_mode_count\":0,\"operator_supplied_command_execution_mode_count\":0}", stdout);
+}
+
+static void plan_print_command_queue_api_collections(void)
+{
+    fputs(",\"api_collections\":{\"mode_records\":{\"name\":\"mode_records\",\"count\":5", stdout);
+    fputs(",\"count_summary_key\":\"mode_summary.mode_count\",\"primary_key\":\"mode\",\"summary_key\":\"mode_summary.mode_count\"", stdout);
+    fputs(",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_planned\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\"]}}", stdout);
+}
+
 static void plan_print_command_queue(int json)
 {
     int enabled = !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes");
@@ -304,6 +465,10 @@ static void plan_print_command_queue(int json)
             bb_json_string(stdout, state_file);
         }
         fputs(",\"daemon_state_file_supported\":true,\"daemon_status_supported\":true,\"daemon_stop_supported\":true", stdout);
+        plan_print_command_queue_mode_records(configured);
+        plan_print_command_queue_mode_indexes(configured);
+        plan_print_command_queue_mode_summary(configured);
+        plan_print_command_queue_api_collections();
         fputs(",\"safety_boundary\":", stdout); bb_json_string(stdout, "explicit opt-in target polling; queued command execution is not implemented");
         plan_print_config_source_json();
         puts("}");

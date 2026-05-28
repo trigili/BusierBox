@@ -137,6 +137,10 @@ Safety boundary:
   and active-control-channel state. `api_collections.mode_records` publishes
   count, summary-key, count-summary-key, primary-key, and index metadata for
   frontend discovery.
+- `plan command-queue --json` exposes the planned polling mode with the same
+  flat record/index/API pattern, plus `mode_records_by_planned`, so dashboards
+  can show that a valid enabled policy would start explicit `command-queue
+  poll` without implying command execution.
 - `mode_summary` mirrors those mode records into compact counts for polling
   modes, operator-host-required modes, delivery-capable live modes, active
   control-channel modes, result-upload modes, and execution-capable modes.

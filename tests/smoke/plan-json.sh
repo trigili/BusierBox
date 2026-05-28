@@ -24,6 +24,7 @@ scripts/artifact-config set "$work/busierbox" \
 "$work/busierbox" plan extract --json >"$work/extract.json"
 "$work/busierbox" plan rshell --json >"$work/rshell.json"
 "$work/busierbox" plan clean --json >"$work/clean.json"
+BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only "$work/busierbox" plan command-queue --json >"$work/command-queue.json"
 "$work/busierbox" plan recovery install --method openwrt-procd --action rshell --json >"$work/recovery.json"
 "$work/busierbox" plan recovery install --method rc-local --action evidence-push --root "$work/root" --name bbx_recovery --json >"$work/recovery-evidence.json"
 "$work/busierbox" plan recovery install --method rc-local --action evidence-then-rshell --root "$work/root" --name bbx_recovery --json >"$work/recovery-evidence-rshell.json"
@@ -46,6 +47,7 @@ root = pathlib.Path(sys.argv[1])
 extract = json.loads((root / "extract.json").read_text())
 rshell = json.loads((root / "rshell.json").read_text())
 clean = json.loads((root / "clean.json").read_text())
+command_queue = json.loads((root / "command-queue.json").read_text())
 recovery = json.loads((root / "recovery.json").read_text())
 evidence = json.loads((root / "recovery-evidence.json").read_text())
 evidence_rshell = json.loads((root / "recovery-evidence-rshell.json").read_text())
@@ -87,6 +89,37 @@ assert "192.0.2.77" in rshell["would_connect"][0]
 
 assert clean["command"] == "clean"
 assert any(path.endswith("/runtime") for path in clean["would_remove"])
+
+assert command_queue["command"] == "command-queue"
+assert command_queue["enabled"] is True
+assert command_queue["policy_valid"] is True
+assert command_queue["configured_for_polling"] is True
+assert command_queue["would_start"] == ["command-queue poll"]
+assert command_queue["would_connect"] == ["192.0.2.77:22205"]
+assert command_queue["execution_supported"] is False
+assert command_queue["daemon_state_file"].endswith("/runtime/run/command-queue-daemon.state")
+mode_records = command_queue["mode_records"]
+mode_summary = command_queue["mode_summary"]
+api_modes = command_queue["api_collections"]["mode_records"]
+assert len(mode_records) == 5
+assert mode_records[1]["mode"] == "poll"
+assert mode_records[1]["planned"] is True
+assert mode_records[1]["would_start"] is True
+assert mode_records[1]["operator_supplied_command_execution"] is False
+assert command_queue["mode_records_by_mode"]["poll"] == [1]
+assert command_queue["mode_records_by_lifecycle"]["single-poll"] == [1]
+assert command_queue["mode_records_by_would_poll_if_configured"]["true"] == [1, 2, 3]
+assert command_queue["mode_records_by_planned"]["true"] == [1]
+assert command_queue["mode_records_by_execution_supported"]["false"] == [0, 1, 2, 3, 4]
+assert command_queue["mode_records_by_active_control_channel"]["false"] == [0, 1, 2, 3, 4]
+assert mode_summary["mode_count"] == 5
+assert mode_summary["planned_mode_count"] == 1
+assert mode_summary["execution_supported_mode_count"] == 0
+assert api_modes["count"] == 5
+assert api_modes["summary_key"] == "mode_summary.mode_count"
+assert api_modes["count_summary_key"] == "mode_summary.mode_count"
+assert api_modes["primary_key"] == "mode"
+assert "mode_records_by_planned" in api_modes["indexes"]
 
 assert recovery["command"] == "recovery install"
 assert recovery["method"] == "openwrt-procd"

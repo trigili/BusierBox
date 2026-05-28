@@ -11,6 +11,7 @@ busierbox plan
 busierbox plan --json
 busierbox plan extract
 busierbox plan rshell
+busierbox plan command-queue
 busierbox plan clean
 busierbox plan recovery install --method openwrt-procd --action rshell
 busierbox plan recovery install --method cron-reboot --action command -- 'busierbox rshell start'
@@ -25,6 +26,7 @@ The command is read-only. It reports:
 - whether real-root external writes would be required
 - runtime root and cleanup ledger paths
 - no-residue cleanup implications where relevant
+- command-queue polling interval and mode-record implications where relevant
 - recovery method/action implications
 - trailer override state and effective config source
 
@@ -38,6 +40,9 @@ The `rshell` JSON plan includes both `session_semantics` and
 `session_policy_summary`, matching `rshell status --json` so operator tooling
 can render single/reconnect/persistent behavior without duplicating policy
 logic.
+The `command-queue` JSON plan includes flat `mode_records`, lookup maps, a
+`mode_summary`, and `api_collections.mode_records` metadata so operator UIs can
+show which polling mode would be started without inferring behavior from prose.
 
 Plan mode uses the effective runtime config, so post-build trailer overrides are
 reflected in the output. Config precedence remains compiled defaults, trailer
