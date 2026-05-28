@@ -259,6 +259,10 @@ Status JSON exposes those event records through `events_by_detail_command_id`,
 `events_by_event_detail_command_sha256`, `events_by_service_detail_command_id`,
 and `events_by_service_detail_command_sha256` so an operator UI can jump from a
 command record or digest to its audit events without scanning the full event
-tail.
+tail. Result uploads also participate in operation and HTTP-status composites
+such as `events_by_event_detail_operation`,
+`events_by_service_detail_operation`, `events_by_event_detail_http_status`, and
+`events_by_service_detail_http_status`, allowing direct lookup of accepted or
+rejected result submissions by endpoint operation and response code.
 This is still operator-side bookkeeping; it does not poll, deliver, or execute
 commands.

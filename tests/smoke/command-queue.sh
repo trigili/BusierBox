@@ -640,6 +640,10 @@ assert d["commands_by_delivery_policy_active_control_channel"]["true"][0]["id"] 
 assert any(event["event"] == "command_queue_result_upload" for event in d["events_by_detail_command_sha256"][command_sha])
 assert d["events_by_event_detail_command_sha256"][f"command_queue_poll:{command_sha}"][0]["details"]["status"] == "delivered"
 assert d["events_by_service_detail_command_sha256"][f"command-queue:{command_sha}"]
+assert d["events_by_event_detail_operation"]["command_queue_result_upload:command_queue_result"][0]["details"]["command_id"] == command_id
+assert d["events_by_service_detail_operation"]["command-queue:command_queue_result"][0]["event"] == "command_queue_result_upload"
+assert d["events_by_event_detail_http_status"]["command_queue_result_upload:200"][0]["details"]["command_id"] == command_id
+assert any(event["event"] == "command_queue_result_upload" and event["details"].get("command_id") == command_id for event in d["events_by_service_detail_http_status"]["command-queue:200"])
 assert "commands_by_execution_decision" in api["indexes"]
 assert "commands_by_queue_policy_execution_mode" in api["indexes"]
 assert "commands_by_delivery_policy_valid" in api["indexes"]
@@ -647,6 +651,10 @@ assert "commands_by_delivery_policy_delivery_supported" in api["indexes"]
 assert "commands_by_delivery_policy_result_upload_supported" in api["indexes"]
 assert "commands_by_delivery_policy_active_control_channel" in api["indexes"]
 assert "events_by_detail_command_sha256" in events_api["indexes"]
+assert "events_by_event_detail_operation" in events_api["indexes"]
+assert "events_by_service_detail_operation" in events_api["indexes"]
+assert "events_by_event_detail_http_status" in events_api["indexes"]
+assert "events_by_service_detail_http_status" in events_api["indexes"]
 assert "events_by_event_detail_command_sha256" in events_api["indexes"]
 assert "events_by_service_detail_command_sha256" in events_api["indexes"]
 PY

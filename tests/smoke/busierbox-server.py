@@ -3531,7 +3531,11 @@ def main():
         session_close_key = f"{session_doc.get('session_id')}:connection_close"
         if (upload_event_stats.get("by_session_event", {}).get(session_close_key) != 1 or
                 upload_summary.get("event_session_event_counts", {}).get(session_close_key) != 1 or
-                upload_summary.get("event_service_event_counts", {}).get("file-service:upload_complete", 0) < 1):
+                upload_summary.get("event_service_event_counts", {}).get("file-service:upload_complete", 0) < 1 or
+                upload_event_stats.get("by_event_detail_operation", {}).get("upload_complete:upload", 0) < 1 or
+                upload_summary.get("event_type_detail_operation_counts", {}).get("upload_complete:upload", 0) < 1 or
+                upload_event_stats.get("by_service_detail_http_status", {}).get("file-service:200", 0) < 1 or
+                upload_summary.get("event_service_detail_http_status_counts", {}).get("file-service:200", 0) < 1):
             print("server json status missing full-log session/event aggregate counters", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
@@ -3852,6 +3856,10 @@ def main():
         upload_events_by_detail_http_status = upload_doc.get("events_by_detail_http_status") or {}
         upload_events_by_event_detail_status = upload_doc.get("events_by_event_detail_status") or {}
         upload_events_by_service_detail_status = upload_doc.get("events_by_service_detail_status") or {}
+        upload_events_by_event_detail_operation = upload_doc.get("events_by_event_detail_operation") or {}
+        upload_events_by_service_detail_operation = upload_doc.get("events_by_service_detail_operation") or {}
+        upload_events_by_event_detail_http_status = upload_doc.get("events_by_event_detail_http_status") or {}
+        upload_events_by_service_detail_http_status = upload_doc.get("events_by_service_detail_http_status") or {}
         upload_events_api = (upload_doc.get("api_collections") or {}).get("events") or {}
         uploaded_session_id = session_json_paths[0].parent.name
         session_service_state_key = "file-service:stopped"
@@ -3873,11 +3881,19 @@ def main():
                 upload_events_by_detail_http_status.get("200", [{}])[0].get("service") != "file-service" or
                 not upload_events_by_event_detail_status.get("upload_complete:ok") or
                 not upload_events_by_service_detail_status.get("file-service:ok") or
+                not upload_events_by_event_detail_operation.get("upload_complete:upload") or
+                not upload_events_by_service_detail_operation.get("file-service:upload") or
+                not upload_events_by_event_detail_http_status.get("connection_close:200") or
+                not upload_events_by_service_detail_http_status.get("file-service:200") or
                 "events_by_detail_status" not in (upload_events_api.get("indexes") or []) or
                 "events_by_detail_operation" not in (upload_events_api.get("indexes") or []) or
                 "events_by_detail_http_status" not in (upload_events_api.get("indexes") or []) or
                 "events_by_event_detail_status" not in (upload_events_api.get("indexes") or []) or
                 "events_by_service_detail_status" not in (upload_events_api.get("indexes") or []) or
+                "events_by_event_detail_operation" not in (upload_events_api.get("indexes") or []) or
+                "events_by_service_detail_operation" not in (upload_events_api.get("indexes") or []) or
+                "events_by_event_detail_http_status" not in (upload_events_api.get("indexes") or []) or
+                "events_by_service_detail_http_status" not in (upload_events_api.get("indexes") or []) or
                 not upload_remote or
                 sessions_by_remote.get(upload_remote, [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_service_state.get(session_service_state_key, [{}])[0].get("session_id") != uploaded_session_id or

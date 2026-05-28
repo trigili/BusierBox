@@ -135,6 +135,10 @@ class EventLog:
         by_detail_config_path = {}
         by_event_detail_status = {}
         by_service_detail_status = {}
+        by_event_detail_operation = {}
+        by_service_detail_operation = {}
+        by_event_detail_http_status = {}
+        by_service_detail_http_status = {}
         by_event_detail_reason = {}
         by_service_detail_reason = {}
         by_event_detail_command_id = {}
@@ -228,6 +232,18 @@ class EventLog:
             if service and detail_status:
                 key = f"{service}:{detail_status}"
                 by_service_detail_status[key] = by_service_detail_status.get(key, 0) + 1
+            if event and detail_operation:
+                key = f"{event}:{detail_operation}"
+                by_event_detail_operation[key] = by_event_detail_operation.get(key, 0) + 1
+            if service and detail_operation:
+                key = f"{service}:{detail_operation}"
+                by_service_detail_operation[key] = by_service_detail_operation.get(key, 0) + 1
+            if event and detail_http_status:
+                key = f"{event}:{detail_http_status}"
+                by_event_detail_http_status[key] = by_event_detail_http_status.get(key, 0) + 1
+            if service and detail_http_status:
+                key = f"{service}:{detail_http_status}"
+                by_service_detail_http_status[key] = by_service_detail_http_status.get(key, 0) + 1
             if event and detail_reason:
                 key = f"{event}:{detail_reason}"
                 by_event_detail_reason[key] = by_event_detail_reason.get(key, 0) + 1
@@ -303,6 +319,10 @@ class EventLog:
             "by_detail_config_path": by_detail_config_path,
             "by_event_detail_status": by_event_detail_status,
             "by_service_detail_status": by_service_detail_status,
+            "by_event_detail_operation": by_event_detail_operation,
+            "by_service_detail_operation": by_service_detail_operation,
+            "by_event_detail_http_status": by_event_detail_http_status,
+            "by_service_detail_http_status": by_service_detail_http_status,
             "by_event_detail_reason": by_event_detail_reason,
             "by_service_detail_reason": by_service_detail_reason,
             "by_event_detail_command_id": by_event_detail_command_id,
@@ -2685,6 +2705,10 @@ def event_record_indexes(records):
     by_detail_config_path = {}
     by_event_detail_status = {}
     by_service_detail_status = {}
+    by_event_detail_operation = {}
+    by_service_detail_operation = {}
+    by_event_detail_http_status = {}
+    by_service_detail_http_status = {}
     by_event_detail_reason = {}
     by_service_detail_reason = {}
     by_event_detail_command_id = {}
@@ -2769,6 +2793,14 @@ def event_record_indexes(records):
             by_event_detail_status.setdefault(f"{event}:{detail_status}", []).append(rec)
         if service and detail_status:
             by_service_detail_status.setdefault(f"{service}:{detail_status}", []).append(rec)
+        if event and detail_operation:
+            by_event_detail_operation.setdefault(f"{event}:{detail_operation}", []).append(rec)
+        if service and detail_operation:
+            by_service_detail_operation.setdefault(f"{service}:{detail_operation}", []).append(rec)
+        if event and detail_http_status:
+            by_event_detail_http_status.setdefault(f"{event}:{detail_http_status}", []).append(rec)
+        if service and detail_http_status:
+            by_service_detail_http_status.setdefault(f"{service}:{detail_http_status}", []).append(rec)
         if event and detail_reason:
             by_event_detail_reason.setdefault(f"{event}:{detail_reason}", []).append(rec)
         if service and detail_reason:
@@ -2805,6 +2837,8 @@ def event_record_indexes(records):
         by_detail_command_id, by_detail_command_sha256, by_detail_job_id, by_detail_action_id,
         by_detail_key, by_detail_config_path,
         by_event_detail_status, by_service_detail_status,
+        by_event_detail_operation, by_service_detail_operation,
+        by_event_detail_http_status, by_service_detail_http_status,
         by_event_detail_reason, by_service_detail_reason,
         by_event_detail_command_id, by_service_detail_command_id,
         by_event_detail_command_sha256, by_service_detail_command_sha256,
@@ -7162,6 +7196,10 @@ def status_document(cfg):
      events_by_detail_config_path,
      events_by_event_detail_status,
      events_by_service_detail_status,
+     events_by_event_detail_operation,
+     events_by_service_detail_operation,
+     events_by_event_detail_http_status,
+     events_by_service_detail_http_status,
      events_by_event_detail_reason,
      events_by_service_detail_reason,
      events_by_event_detail_command_id,
@@ -7605,6 +7643,10 @@ def status_document(cfg):
         "event_detail_config_path_counts": event_stats.get("by_detail_config_path") or {},
         "event_type_detail_status_counts": event_stats.get("by_event_detail_status") or {},
         "event_service_detail_status_counts": event_stats.get("by_service_detail_status") or {},
+        "event_type_detail_operation_counts": event_stats.get("by_event_detail_operation") or {},
+        "event_service_detail_operation_counts": event_stats.get("by_service_detail_operation") or {},
+        "event_type_detail_http_status_counts": event_stats.get("by_event_detail_http_status") or {},
+        "event_service_detail_http_status_counts": event_stats.get("by_service_detail_http_status") or {},
         "event_type_detail_reason_counts": event_stats.get("by_event_detail_reason") or {},
         "event_service_detail_reason_counts": event_stats.get("by_service_detail_reason") or {},
         "event_type_detail_command_id_counts": event_stats.get("by_event_detail_command_id") or {},
@@ -7876,7 +7918,9 @@ def status_document(cfg):
                 "events_by_detail_status", "events_by_detail_operation",
                 "events_by_detail_http_status", "events_by_detail_reason",
                 "events_by_detail_command_id", "events_by_event_detail_status",
-                "events_by_service_detail_status", "events_by_event_detail_reason",
+                "events_by_service_detail_status", "events_by_event_detail_operation",
+                "events_by_service_detail_operation", "events_by_event_detail_http_status",
+                "events_by_service_detail_http_status", "events_by_event_detail_reason",
                 "events_by_service_detail_reason", "events_by_event_detail_command_id",
                 "events_by_service_detail_command_id", "events_by_detail_command_sha256",
                 "events_by_event_detail_command_sha256", "events_by_service_detail_command_sha256",
@@ -8198,6 +8242,10 @@ def status_document(cfg):
         "events_by_detail_config_path": events_by_detail_config_path,
         "events_by_event_detail_status": events_by_event_detail_status,
         "events_by_service_detail_status": events_by_service_detail_status,
+        "events_by_event_detail_operation": events_by_event_detail_operation,
+        "events_by_service_detail_operation": events_by_service_detail_operation,
+        "events_by_event_detail_http_status": events_by_event_detail_http_status,
+        "events_by_service_detail_http_status": events_by_service_detail_http_status,
         "events_by_event_detail_reason": events_by_event_detail_reason,
         "events_by_service_detail_reason": events_by_service_detail_reason,
         "events_by_event_detail_command_id": events_by_event_detail_command_id,
