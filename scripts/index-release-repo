@@ -329,6 +329,7 @@ def build_repo_index(paths):
     artifacts_by_tool = {}
     artifacts_by_payload_preset = {}
     artifacts_by_feature = {}
+    artifacts_by_compatibility = {}
     artifacts_by_tool_payload_preset = {}
     artifacts_by_feature_payload_preset = {}
     artifacts_by_tuple_payload_preset = {}
@@ -349,6 +350,8 @@ def build_repo_index(paths):
             artifacts_by_tuple_path.setdefault(tuple_path, []).append(record)
         if payload_preset:
             artifacts_by_payload_preset.setdefault(payload_preset, []).append(record)
+        compatibility = ((record.get("compatibility") or {}).get("label") or "exact")
+        artifacts_by_compatibility.setdefault(compatibility, []).append(record)
         if tuple_path and payload_preset:
             artifacts_by_tuple_payload_preset.setdefault(f"{tuple_path}:{payload_preset}", []).append(record)
         for tool in record.get("tools") or []:
@@ -391,6 +394,7 @@ def build_repo_index(paths):
         "artifacts_by_tool",
         "artifacts_by_payload_preset",
         "artifacts_by_feature",
+        "artifacts_by_compatibility",
         "artifacts_by_tool_payload_preset",
         "artifacts_by_feature_payload_preset",
         "artifacts_by_tuple_payload_preset",
@@ -442,6 +446,7 @@ def build_repo_index(paths):
         "artifacts_by_tool": {key: artifacts_by_tool[key] for key in sorted(artifacts_by_tool)},
         "artifacts_by_payload_preset": {key: artifacts_by_payload_preset[key] for key in sorted(artifacts_by_payload_preset)},
         "artifacts_by_feature": {key: artifacts_by_feature[key] for key in sorted(artifacts_by_feature)},
+        "artifacts_by_compatibility": {key: artifacts_by_compatibility[key] for key in sorted(artifacts_by_compatibility)},
         "artifacts_by_tool_payload_preset": {key: artifacts_by_tool_payload_preset[key] for key in sorted(artifacts_by_tool_payload_preset)},
         "artifacts_by_feature_payload_preset": {key: artifacts_by_feature_payload_preset[key] for key in sorted(artifacts_by_feature_payload_preset)},
         "artifacts_by_tuple_payload_preset": {key: artifacts_by_tuple_payload_preset[key] for key in sorted(artifacts_by_tuple_payload_preset)},
@@ -462,6 +467,7 @@ def build_repo_index(paths):
         "payload_presets": {key: unique(presets[key]) for key in sorted(presets)},
         "tools_present": {key: unique(tools[key]) for key in sorted(tools)},
         "features": {key: unique(features[key]) for key in sorted(features)},
+        "compatibility_counts": {key: len(artifacts_by_compatibility[key]) for key in sorted(artifacts_by_compatibility)},
         "recommendations": recommendations,
         "api_collections": {
             "artifacts": api_collection_record(

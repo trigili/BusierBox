@@ -184,8 +184,10 @@ and indexes tuple, device, tool, payload preset, feature, artifact sha256,
 release name, and tuple-path keys. The index preserves compatibility path maps
 such as `tools_present`, `payload_presets`, and `features`, and also provides
 full artifact-record maps named `artifacts_by_tool`,
-`artifacts_by_payload_preset`, and `artifacts_by_feature` for TUI/web clients
-that need to render details without rescanning every artifact. Composite maps
+`artifacts_by_payload_preset`, `artifacts_by_feature`, and
+`artifacts_by_compatibility` for TUI/web clients that need to render details
+without rescanning every artifact. `compatibility_counts` gives compact badge
+counts for exact/likely/heuristic/unsafe/incompatible buckets. Composite maps
 `artifacts_by_tool_payload_preset`, `artifacts_by_feature_payload_preset`, and
 `artifacts_by_tuple_payload_preset` let clients jump directly to combinations
 such as `tcpdump:survey-core`, `reverse-ssh:ssh-operator`, or

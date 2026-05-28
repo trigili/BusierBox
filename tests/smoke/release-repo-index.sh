@@ -144,6 +144,9 @@ assert index["artifacts_by_tool"]["tcpdump"][0]["release_name"] == "one"
 assert index["artifacts_by_tool"]["tcpdump"][0]["doom_wads"][0]["filename"] == "doom.wad"
 assert index["artifacts_by_payload_preset"]["ssh-operator"][0]["release_name"] == "two"
 assert index["artifacts_by_feature"]["reverse-ssh"][0]["release_name"] in {"one", "two", "three"}
+assert len(index["artifacts_by_compatibility"]["exact"]) == 2
+assert index["artifacts_by_compatibility"]["unsafe"][0]["release_name"] == "three"
+assert index["compatibility_counts"] == {"exact": 2, "unsafe": 1}
 assert index["artifacts_by_tool_payload_preset"]["tcpdump:survey-core"][0]["release_name"] == "one"
 assert index["artifacts_by_feature_payload_preset"]["reverse-ssh:ssh-operator"][0]["release_name"] == "two"
 assert len(index["artifacts_by_tuple_payload_preset"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug"]) == 1
@@ -190,6 +193,7 @@ assert api["artifacts"]["summary_key"] == "artifact_count"
 assert api["artifacts"]["count_summary_key"] == "artifact_count"
 assert api["artifacts"]["primary_key"] == "artifact_path"
 assert "artifacts_by_tool" in api["artifacts"]["indexes"]
+assert "artifacts_by_compatibility" in api["artifacts"]["indexes"]
 assert "artifacts_by_provider_status" in api["artifacts"]["indexes"]
 assert "artifacts_by_doom_wad_filename" in api["artifacts"]["indexes"]
 assert api["release_self_tests"]["count"] == index["release_self_test_count"]
@@ -285,6 +289,8 @@ assert doc["index"]["artifacts_by_tuple_path_count"] == 1
 assert doc["index"]["artifacts_by_tool_count"] == 4
 assert doc["index"]["artifacts_by_payload_preset_count"] == 3
 assert doc["index"]["artifacts_by_feature_count"] >= 4
+assert doc["index"]["artifacts_by_compatibility_count"] == 2
+assert doc["index"]["compatibility_counts"] == {"exact": 2, "unsafe": 1}
 assert doc["index"]["artifacts_by_tool_payload_preset_count"] >= 4
 assert doc["index"]["artifacts_by_feature_payload_preset_count"] >= 6
 assert doc["index"]["artifacts_by_tuple_payload_preset_count"] == 3
