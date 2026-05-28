@@ -388,9 +388,12 @@ primary key field, `summary_key`, `count_summary_key`, and available lookup maps
 such as `services_by_name` or `browser_paths_by_kind_source_id`; lookup maps
 such as `api_resources_by_name`, `api_resources_by_records_key`, and
 `api_resources_by_summary_key` let a client discover those records without
-hard-coding every top-level key. Use `--event-limit N` to tune the structured
-event tail included in the status document; `0` keeps aggregate event counts and
-indexes but omits event records.
+hard-coding every top-level key. Warning-aware collections also publish
+`has_warning_indexes` and `warning_indexes`, and
+`api_resources_by_has_warning_indexes` groups resources that can be health
+badged directly. Use `--event-limit N` to tune the structured event tail
+included in the status document; `0` keeps aggregate event counts and indexes
+but omits event records.
 Service rows remain available in `services`,
 and the same records are indexed by service name, actual state, configured
 state, and port in `services_by_name`, `services_by_actual`,

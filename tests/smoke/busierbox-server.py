@@ -1427,6 +1427,7 @@ def main():
         api_resources_by_records_key = queue_status_json.get("api_resources_by_records_key") or {}
         api_resources_by_summary_key = queue_status_json.get("api_resources_by_summary_key") or {}
         api_resources_by_primary_key = queue_status_json.get("api_resources_by_primary_key") or {}
+        api_resources_by_warning_indexes = queue_status_json.get("api_resources_by_has_warning_indexes") or {}
         if (api.get("schema") != 1 or
                 api.get("status_command") != "scripts/busierbox-server --api-status" or
                 api.get("json_status_command") != "scripts/busierbox-server --json-status" or
@@ -1456,7 +1457,9 @@ def main():
                     collection.get("name") != collection_name or
                     expected_index not in (collection.get("indexes") or []) or
                     not collection.get("summary_key") or
-                    collection.get("count_summary_key") != collection.get("summary_key")):
+                    collection.get("count_summary_key") != collection.get("summary_key") or
+                    (collection_name in ("services", "ports", "path_status_records", "browser_paths") and
+                     collection.get("has_warning_indexes") is not True)):
                 print(f"server json status missing api collection metadata for {collection_name}", file=sys.stderr)
                 print(queue_status_doc.stdout, file=sys.stderr)
                 return 1
@@ -1465,6 +1468,11 @@ def main():
                 api_resources_by_name.get("services", {}).get("collection_key") != "api_collections.services" or
                 api_resources_by_name.get("services", {}).get("count") != len(queue_status_json.get("services") or []) or
                 api_resources_by_name.get("services", {}).get("summary_key") != "service_count" or
+                api_resources_by_name.get("services", {}).get("has_warning_indexes") is not True or
+                "services_by_warning_type" not in (api_resources_by_name.get("services", {}).get("warning_indexes") or []) or
+                api_resources_by_name.get("command_queue_commands", {}).get("has_warning_indexes") is not False or
+                len(api_resources_by_warning_indexes.get("True", [])) < 4 or
+                not any(rec.get("name") == "browser_paths" for rec in api_resources_by_warning_indexes.get("True", [])) or
                 "services_by_name" not in (api_resources_by_name.get("services", {}).get("indexes") or []) or
                 api_resources_by_name.get("command_queue_commands", {}).get("records_key") != "command_queue.commands" or
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or

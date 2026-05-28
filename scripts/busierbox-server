@@ -2746,13 +2746,20 @@ def annotate_service_port_records_with_warnings(services, ports, warnings_by_ser
 
 
 def api_collection_record(name, records, primary_key="", indexes=None, summary_key=""):
+    index_names = sorted(indexes or [])
+    warning_indexes = [
+        item for item in index_names
+        if item.endswith("_by_has_warnings") or item.endswith("_by_warning_type")
+    ]
     return {
         "name": name,
         "count": len(records or []),
         "primary_key": primary_key,
         "count_summary_key": summary_key,
         "summary_key": summary_key,
-        "indexes": sorted(indexes or []),
+        "indexes": index_names,
+        "has_warning_indexes": bool(warning_indexes),
+        "warning_indexes": warning_indexes,
     }
 
 
@@ -2773,6 +2780,8 @@ def api_resource_records(api_collections):
             "summary_key": collection.get("summary_key", ""),
             "count_summary_key": collection.get("count_summary_key", ""),
             "indexes": collection.get("indexes") or [],
+            "has_warning_indexes": bool(collection.get("has_warning_indexes", False)),
+            "warning_indexes": collection.get("warning_indexes") or [],
         })
     return records
 
@@ -2783,6 +2792,7 @@ def api_resource_record_indexes(records):
         "api_resources_by_records_key": records_by_key(records, "records_key"),
         "api_resources_by_summary_key": records_by_key(records, "summary_key"),
         "api_resources_by_primary_key": records_by_key(records, "primary_key"),
+        "api_resources_by_has_warning_indexes": records_by_key(records, "has_warning_indexes"),
     }
 
 
