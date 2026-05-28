@@ -347,10 +347,26 @@ def main():
                 not guided_explicit_choice.get("True") or
                 not guided_by_category.get("target") or
                 not guided_by_category.get("command-queue") or
+                guided_status.get("summary", {}).get("event_detail_key_counts", {}).get("BB_NORESIDUE_LEVEL", 0) != 1 or
+                guided_status.get("summary", {}).get("event_detail_config_path_counts", {}).get(str(guided_build_config), 0) < 4 or
+                guided_status.get("summary", {}).get("event_type_detail_key_counts", {}).get("workbench_config_updated:BB_NORESIDUE_LEVEL", 0) != 1 or
+                guided_status.get("summary", {}).get("event_type_detail_config_path_counts", {}).get(f"workbench_config_updated:{guided_build_config}", 0) != 4 or
+                guided_status.get("summary", {}).get("event_service_detail_config_path_counts", {}).get(f"workbench:{guided_build_config}", 0) < 4 or
+                (guided_status.get("event_log_stats") or {}).get("by_detail_key", {}).get("BB_RSHELL_SESSION_POLICY", 0) != 1 or
+                (guided_status.get("event_log_stats") or {}).get("by_detail_config_path", {}).get(str(guided_build_config), 0) < 4 or
+                (guided_status.get("events_by_detail_key") or {}).get("BB_COMMAND_QUEUE_POLL_BACKOFF", [{}])[-1].get("details", {}).get("new_value") != "linear" or
+                (guided_status.get("events_by_detail_config_path") or {}).get(str(guided_build_config), [{}])[-1].get("details", {}).get("key") != "BB_COMMAND_QUEUE_POLL_BACKOFF" or
+                (guided_status.get("events_by_event_detail_key") or {}).get("workbench_config_updated:BB_NORESIDUE_LEVEL", [{}])[-1].get("event") != "workbench_config_updated" or
+                (guided_status.get("events_by_service_detail_key") or {}).get("workbench:BB_RSHELL_SESSION_POLICY", [{}])[-1].get("details", {}).get("new_value") != "reconnect" or
+                (guided_status.get("events_by_event_detail_config_path") or {}).get(f"workbench_config_updated:{guided_build_config}", [{}])[-1].get("details", {}).get("key") != "BB_COMMAND_QUEUE_POLL_BACKOFF" or
+                (guided_status.get("events_by_service_detail_config_path") or {}).get(f"workbench:{guided_build_config}", [{}])[-1].get("details", {}).get("key") != "BB_COMMAND_QUEUE_POLL_BACKOFF" or
                 guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("primary_key") != "key" or
                 "workbench_config_fields_by_fixed_options" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", []) or
                 "workbench_config_fields_by_target_execution" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", []) or
-                "workbench_config_fields_by_safety_boundary" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", [])):
+                "workbench_config_fields_by_safety_boundary" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", []) or
+                "events_by_detail_key" not in (((guided_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
+                "events_by_event_detail_key" not in (((guided_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
+                "events_by_service_detail_config_path" not in (((guided_status.get("api_collections") or {}).get("events") or {}).get("indexes") or [])):
             print("server json status missing guided build config field records", file=sys.stderr)
             print(json.dumps(guided_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
