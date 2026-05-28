@@ -316,8 +316,11 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
     return result;
 }
 
-static void print_mode_semantics_json(const char *name, int selected, int dry_run)
+static void print_mode_semantics_json(const char *name, int selected, int dry_run, int live_would_poll)
 {
+    int live_selected = !dry_run && selected && strcmp(name, "status") && live_would_poll;
+    int live_available = !dry_run && strcmp(name, "status") && live_would_poll;
+
     fputc('"', stdout);
     fputs(name, stdout);
     fputs("\":{", stdout);
@@ -326,28 +329,28 @@ static void print_mode_semantics_json(const char *name, int selected, int dry_ru
     printf(",\"would_poll_if_configured\":%s", strcmp(name, "status") ? "true" : "false");
     printf(",\"dry_run_only\":%s", dry_run ? "true" : "false");
     fputs(",\"requires_explicit_target_action\":true", stdout);
-    printf(",\"would_contact_operator\":%s", (!dry_run && strcmp(name, "status")) ? "true" : "false");
-    printf(",\"delivery_supported\":%s", (!dry_run && strcmp(name, "status")) ? "true" : "false");
+    printf(",\"would_contact_operator\":%s", live_available ? "true" : "false");
+    printf(",\"delivery_supported\":%s", live_available ? "true" : "false");
     fputs(",\"result_upload_supported\":false", stdout);
     fputs(",\"execution_supported\":false", stdout);
     fputs(",\"executes_commands\":false", stdout);
-    printf(",\"active_control_channel\":%s", (!dry_run && selected && strcmp(name, "status")) ? "true" : "false");
+    printf(",\"active_control_channel\":%s", live_selected ? "true" : "false");
     fputs(",\"operator_supplied_command_execution\":false", stdout);
     fputs(",\"lifecycle\":", stdout);
     bb_json_string(stdout, mode_lifecycle(name));
     fputc('}', stdout);
 }
 
-static void print_all_mode_semantics_json(const char *mode, int dry_run)
+static void print_all_mode_semantics_json(const char *mode, int dry_run, int live_would_poll)
 {
     fputs(",\"mode_semantics\":{", stdout);
-    print_mode_semantics_json("status", !strcmp(mode, "status"), dry_run);
+    print_mode_semantics_json("status", !strcmp(mode, "status"), dry_run, live_would_poll);
     fputc(',', stdout);
-    print_mode_semantics_json("poll", !strcmp(mode, "poll"), dry_run);
+    print_mode_semantics_json("poll", !strcmp(mode, "poll"), dry_run, live_would_poll);
     fputc(',', stdout);
-    print_mode_semantics_json("once", !strcmp(mode, "once"), dry_run);
+    print_mode_semantics_json("once", !strcmp(mode, "once"), dry_run, live_would_poll);
     fputc(',', stdout);
-    print_mode_semantics_json("daemon", !strcmp(mode, "daemon"), dry_run);
+    print_mode_semantics_json("daemon", !strcmp(mode, "daemon"), dry_run, live_would_poll);
     fputc('}', stdout);
 }
 
@@ -488,7 +491,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     printf(",\"queued_command_available\":%s", run && run->delivered_commands > 0 ? "true" : "false");
     fputs(",\"operator_supplied_command_execution\":false", stdout);
     fputc('}', stdout);
-    print_all_mode_semantics_json(mode, dry_run);
+    print_all_mode_semantics_json(mode, dry_run, would_poll);
     print_poll_run_json(run);
     fputs(",\"safety_boundary\":\"target polling is explicit; live mode can receive queued command metadata but command execution is not implemented\"", stdout);
     fputs(",\"queued_command\":null}\n", stdout);
@@ -552,7 +555,8 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     puts("command_queue_mode_daemon_lifecycle=long-running");
     puts("command_queue_mode_daemon_would_poll_if_configured=yes");
     puts("command_queue_modes_execute_commands=no");
-    printf("command_queue_modes_active_control_channel=%s\n", dry_run ? "no" : "yes");
+    printf("command_queue_modes_active_control_channel=%s\n",
+           (!dry_run && mode_would_poll(mode, enabled, operator_host, &policy)) ? "yes" : "no");
     printf("command_queue_poll_run_attempted=%s\n", run && run->attempted ? "yes" : "no");
     printf("command_queue_poll_run_attempts=%d\n", run ? run->attempts : 0);
     printf("command_queue_poll_run_successes=%d\n", run ? run->successes : 0);
