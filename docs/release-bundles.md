@@ -229,11 +229,21 @@ execution-supported, and operator-supplied-command execution counts. The index
 also publishes normalized
 `device_records` and `tuple_records` with release, alias, and tuple-path lookup
 maps, plus `api_collections` metadata for artifacts, release self-test records,
-dedupe records, devices, tuples, and precomputed recommendations. Each collection descriptor includes
-`count`, `summary_key`, `count_summary_key`, `primary_key`, and index names.
-Future TUI/web clients can use those fields to discover record counts and
-lookup maps without hard-coding the JSON shape. It does not download or rebuild
-anything.
+release license records, dedupe records, devices, tuples, and precomputed
+recommendations. Each collection descriptor includes `count`, `summary_key`,
+`count_summary_key`, `primary_key`, and index names. Future TUI/web clients can
+use those fields to discover record counts and lookup maps without hard-coding
+the JSON shape. It does not download or rebuild anything.
+Release license records are normalized from `manifests/license-policy.json` in
+each bundle and attached to artifact rows as `release_license`,
+`project_license`, and `combined_gplv2_compatible`. The repository index exposes
+`release_license_records_by_release`,
+`release_license_records_by_project_license`,
+`release_license_records_by_combined_gplv2_compatible`,
+`release_license_records_by_component`,
+`release_license_records_by_component_license`, and
+`release_license_records_by_notice_file` so offline browsers can audit GPL
+compatibility and notice coverage without opening every release directory.
 `--recommendation-json` returns the selected artifact plus active filters,
 filter provenance records, match count, visible match count, match lookup maps,
 `api_collections` metadata with the same count/primary-key fields, index

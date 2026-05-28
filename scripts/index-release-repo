@@ -9,6 +9,15 @@ import sys
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+REQUIRED_LICENSE_FILES = (
+    "LICENSE.busierbox",
+    "LICENSE",
+    "NOTICE",
+    "LICENSES/miniz.txt",
+    "manifests/license-policy.json",
+    "sources.lock.json",
+    "manifests/sources.lock.json",
+)
 
 
 def die(msg, code=1):
@@ -114,6 +123,68 @@ def load_release_self_test(release_dir):
         record["valid"] = True
         return record
     return {}
+
+
+def load_release_license(release_dir, release_self_test=None):
+    policy_rel = "manifests/license-policy.json"
+    policy_path = release_dir / policy_rel
+    notice_files = []
+    if isinstance(release_self_test, dict):
+        notice_files = [
+            str(item)
+            for item in (release_self_test.get("license_notice_files") or [])
+            if item
+        ]
+    if not notice_files:
+        notice_files = [rel for rel in REQUIRED_LICENSE_FILES if (release_dir / rel).is_file()]
+    missing_notice_files = [rel for rel in REQUIRED_LICENSE_FILES if rel not in notice_files]
+    record = {
+        "schema": 1,
+        "path": str(policy_path),
+        "license_policy_path": policy_rel,
+        "exists": policy_path.is_file(),
+        "valid": False,
+        "project_license": "",
+        "combined_gplv2_compatible": False,
+        "preferred_combined_terms_with_busybox": "",
+        "source_availability_required_for_distribution": False,
+        "component_count": 0,
+        "components": [],
+        "component_names": [],
+        "component_licenses": {},
+        "notice_count": len(notice_files),
+        "notice_files": notice_files,
+        "required_notice_files": list(REQUIRED_LICENSE_FILES),
+        "missing_notice_files": missing_notice_files,
+        "missing_notice_count": len(missing_notice_files),
+    }
+    if not policy_path.is_file():
+        return record
+    policy = load_json(policy_path, {})
+    if not isinstance(policy, dict):
+        return record
+    project = policy.get("project") if isinstance(policy.get("project"), dict) else {}
+    compatibility = policy.get("compatibility") if isinstance(policy.get("compatibility"), dict) else {}
+    components = [
+        item for item in (policy.get("components") or [])
+        if isinstance(item, dict) and item.get("name")
+    ]
+    component_licenses = {
+        str(item.get("name")): str(item.get("license") or "")
+        for item in components
+    }
+    record.update({
+        "valid": True,
+        "project_license": project.get("license", ""),
+        "combined_gplv2_compatible": compatibility.get("combined_gplv2_compatible") is True,
+        "preferred_combined_terms_with_busybox": compatibility.get("preferred_combined_terms_with_busybox", ""),
+        "source_availability_required_for_distribution": compatibility.get("source_availability_required_for_distribution") is True,
+        "component_count": len(components),
+        "components": components,
+        "component_names": [str(item.get("name")) for item in components],
+        "component_licenses": component_licenses,
+    })
+    return record
 
 
 def artifact_sha(release_dir, row):
@@ -323,6 +394,13 @@ def build_repo_index(paths):
     release_self_test_command_queue_token_configured_count = 0
     release_self_test_command_queue_execution_supported_count = 0
     release_self_test_command_queue_operator_supplied_command_execution_count = 0
+    release_license_records = []
+    release_license_records_by_release = {}
+    release_license_records_by_project_license = {}
+    release_license_records_by_combined_gplv2_compatible = {}
+    release_license_records_by_component = {}
+    release_license_records_by_component_license = {}
+    release_license_records_by_notice_file = {}
 
     for release_dir in release_dirs:
         index = load_release_index(release_dir)
@@ -341,6 +419,24 @@ def build_repo_index(paths):
             release_self_test_command_queue_operator_supplied_command_execution_count += int(
                 release_self_test.get("command_queue_operator_supplied_command_execution_count") or 0
             )
+        release_license = load_release_license(release_dir, release_self_test)
+        release_license["release_name"] = release_name
+        release_license["release_dir"] = str(release_dir)
+        release_license_records.append(release_license)
+        release_license_records_by_release.setdefault(release_name, []).append(release_license)
+        if release_license.get("project_license"):
+            release_license_records_by_project_license.setdefault(release_license["project_license"], []).append(release_license)
+        release_license_records_by_combined_gplv2_compatible.setdefault(
+            "true" if release_license.get("combined_gplv2_compatible") else "false",
+            [],
+        ).append(release_license)
+        for component in release_license.get("component_names") or []:
+            release_license_records_by_component.setdefault(component, []).append(release_license)
+        for component, license_id in (release_license.get("component_licenses") or {}).items():
+            if component and license_id:
+                release_license_records_by_component_license.setdefault(f"{component}:{license_id}", []).append(release_license)
+        for notice_file in release_license.get("notice_files") or []:
+            release_license_records_by_notice_file.setdefault(notice_file, []).append(release_license)
         for alias, meta in (index.get("devices") or {}).items():
             devices.setdefault(alias, []).append({
                 "release_name": release_name,
@@ -370,6 +466,9 @@ def build_repo_index(paths):
                 "release_self_test": release_self_test,
                 "release_self_test_status": release_self_test.get("status", "") if release_self_test else "",
                 "release_self_test_path": release_self_test.get("release_self_test_path", "") if release_self_test else "",
+                "release_license": release_license,
+                "project_license": release_license.get("project_license", ""),
+                "combined_gplv2_compatible": release_license.get("combined_gplv2_compatible", False),
             })
             artifacts.append(record)
             if sha:
@@ -532,11 +631,22 @@ def build_repo_index(paths):
         "tuple_records_by_tuple_path",
         "tuple_records_by_release",
     ]
+    release_license_record_index_names = [
+        "release_license_records_by_release",
+        "release_license_records_by_project_license",
+        "release_license_records_by_combined_gplv2_compatible",
+        "release_license_records_by_component",
+        "release_license_records_by_component_license",
+        "release_license_records_by_notice_file",
+    ]
     return {
         "schema": 1,
         "release_count": len(release_dirs),
         "artifact_count": len(artifacts),
         "release_self_test_count": len(release_self_tests),
+        "release_license_count": len(release_license_records),
+        "release_license_valid_count": sum(1 for rec in release_license_records if rec.get("valid")),
+        "release_gplv2_compatible_count": sum(1 for rec in release_license_records if rec.get("combined_gplv2_compatible")),
         "release_self_test_command_queue_token_required_count": release_self_test_command_queue_token_required_count,
         "release_self_test_command_queue_token_configured_count": release_self_test_command_queue_token_configured_count,
         "release_self_test_command_queue_execution_supported_count": release_self_test_command_queue_execution_supported_count,
@@ -551,6 +661,13 @@ def build_repo_index(paths):
         "release_self_tests": release_self_tests,
         "release_self_tests_by_release": {key: release_self_tests_by_release[key] for key in sorted(release_self_tests_by_release)},
         "release_self_tests_by_status": {key: release_self_tests_by_status[key] for key in sorted(release_self_tests_by_status)},
+        "release_license_records": release_license_records,
+        "release_license_records_by_release": {key: release_license_records_by_release[key] for key in sorted(release_license_records_by_release)},
+        "release_license_records_by_project_license": {key: release_license_records_by_project_license[key] for key in sorted(release_license_records_by_project_license)},
+        "release_license_records_by_combined_gplv2_compatible": {key: release_license_records_by_combined_gplv2_compatible[key] for key in sorted(release_license_records_by_combined_gplv2_compatible)},
+        "release_license_records_by_component": {key: release_license_records_by_component[key] for key in sorted(release_license_records_by_component)},
+        "release_license_records_by_component_license": {key: release_license_records_by_component_license[key] for key in sorted(release_license_records_by_component_license)},
+        "release_license_records_by_notice_file": {key: release_license_records_by_notice_file[key] for key in sorted(release_license_records_by_notice_file)},
         "artifacts": artifacts,
         "artifacts_by_sha": {key: artifacts_by_sha[key] for key in sorted(artifacts_by_sha)},
         "artifacts_by_release": {key: artifacts_by_release[key] for key in sorted(artifacts_by_release)},
@@ -602,6 +719,13 @@ def build_repo_index(paths):
                     "release_self_tests_by_status",
                 ],
                 "release_self_test_count",
+                "release_name",
+            ),
+            "release_licenses": api_collection_record(
+                "release_licenses",
+                len(release_license_records),
+                release_license_record_index_names,
+                "release_license_count",
                 "release_name",
             ),
             "dedupe": api_collection_record(

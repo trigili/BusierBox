@@ -13,7 +13,7 @@ make_release() {
     device=$6
     compatibility_label=${7:-exact}
     doom_wads_json=${8:-[]}
-    mkdir -p "$dir/bin"
+    mkdir -p "$dir/bin" "$dir/manifests" "$dir/LICENSES"
     printf '%s\n' "$name artifact" >"$dir/bin/busierbox-$name-full"
     cat >"$dir/release.json" <<JSON
 {
@@ -41,6 +41,36 @@ make_release() {
     }
   },
   "artifacts": []
+}
+JSON
+    printf '%s\n' "BusierBox license grant" >"$dir/LICENSE.busierbox"
+    printf '%s\n' "GNU GENERAL PUBLIC LICENSE Version 2, June 1991" >"$dir/LICENSE"
+    printf '%s\n' "BusierBox project license notice" >"$dir/NOTICE"
+    printf '%s\n' "miniz notice" >"$dir/LICENSES/miniz.txt"
+    cat >"$dir/manifests/license-policy.json" <<'JSON'
+{
+  "schema": 1,
+  "project": {
+    "name": "BusierBox",
+    "license": "GPL-2.0-or-later",
+    "license_grant_file": "LICENSE.busierbox",
+    "license_file": "LICENSE",
+    "notice_file": "NOTICE",
+    "spdx_expression": "GPL-2.0-or-later"
+  },
+  "compatibility": {
+    "combined_gplv2_compatible": true,
+    "preferred_combined_terms_with_busybox": "GPL-2.0",
+    "source_availability_required_for_distribution": true,
+    "not_legal_advice": true
+  },
+  "components": [
+    {"name": "BusierBox", "kind": "project", "license": "GPL-2.0-or-later", "source": "this repository"},
+    {"name": "BusyBox", "kind": "payload", "license": "GPL-2.0", "source": "third_party/busybox"},
+    {"name": "Buildroot", "kind": "build-system", "license": "GPL-2.0-or-later with package exceptions", "source": "manifests/sources.lock.json:name=buildroot"},
+    {"name": "doom-ascii", "kind": "optional-payload", "license": "GPL-2.0-or-later", "source": "manifests/sources.lock.json:name=doom-ascii"},
+    {"name": "miniz", "kind": "vendored-helper", "license": "MIT OR Unlicense", "source": "third_party/miniz"}
+  ]
 }
 JSON
     cat >"$dir/release-index.json" <<JSON
@@ -108,6 +138,18 @@ JSON
   "checked_artifact_count": 1,
   "release_tuple_count": 1,
   "release_device_count": 1,
+  "project_license": "GPL-2.0-or-later",
+  "combined_gplv2_compatible": true,
+  "license_notice_count": 7,
+  "license_notice_files": [
+    "LICENSE.busierbox",
+    "LICENSE",
+    "NOTICE",
+    "LICENSES/miniz.txt",
+    "manifests/license-policy.json",
+    "sources.lock.json",
+    "manifests/sources.lock.json"
+  ],
   "command_queue_enabled_count": 0,
   "command_queue_token_required_count": 1,
   "command_queue_token_configured_count": 0,
@@ -132,6 +174,9 @@ index = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert index["release_count"] == 3
 assert index["artifact_count"] == 3
 assert index["release_self_test_count"] == 3
+assert index["release_license_count"] == 3
+assert index["release_license_valid_count"] == 3
+assert index["release_gplv2_compatible_count"] == 3
 assert index["release_self_test_command_queue_token_required_count"] == 3
 assert index["release_self_test_command_queue_token_configured_count"] == 0
 assert index["release_self_test_command_queue_execution_supported_count"] == 0
@@ -150,8 +195,18 @@ assert len(index["artifacts_by_sha"][sha]) == 2
 assert {item["release_name"] for item in index["artifacts_by_sha"][sha]} == {"one", "two"}
 assert index["release_self_tests_by_release"]["one"][0]["status"] == "pass"
 assert len(index["release_self_tests_by_status"]["pass"]) == 3
+assert index["release_license_records_by_release"]["one"][0]["project_license"] == "GPL-2.0-or-later"
+assert len(index["release_license_records_by_project_license"]["GPL-2.0-or-later"]) == 3
+assert len(index["release_license_records_by_combined_gplv2_compatible"]["true"]) == 3
+assert len(index["release_license_records_by_component"]["BusyBox"]) == 3
+assert index["release_license_records_by_component_license"]["BusyBox:GPL-2.0"][0]["combined_gplv2_compatible"] is True
+assert index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["notice_count"] == 7
+assert index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["missing_notice_count"] == 0
+assert "manifests/sources.lock.json" in index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["required_notice_files"]
 assert index["artifacts_by_release"]["one"][0]["release_self_test_status"] == "pass"
 assert index["artifacts_by_release"]["one"][0]["release_self_test"]["checked_artifact_count"] == 1
+assert index["artifacts_by_release"]["one"][0]["release_license"]["project_license"] == "GPL-2.0-or-later"
+assert index["artifacts_by_release"]["one"][0]["combined_gplv2_compatible"] is True
 assert len(index["artifacts_by_release"]["one"]) == 1
 tuple_rows = index["artifacts_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]
 assert len(tuple_rows) == 3
@@ -230,6 +285,16 @@ assert api["release_self_tests"]["count_summary_key"] == "release_self_test_coun
 assert api["release_self_tests"]["primary_key"] == "release_name"
 assert "release_self_tests_by_release" in api["release_self_tests"]["indexes"]
 assert "release_self_tests_by_status" in api["release_self_tests"]["indexes"]
+assert api["release_licenses"]["count"] == index["release_license_count"]
+assert api["release_licenses"]["summary_key"] == "release_license_count"
+assert api["release_licenses"]["count_summary_key"] == "release_license_count"
+assert api["release_licenses"]["primary_key"] == "release_name"
+assert "release_license_records_by_release" in api["release_licenses"]["indexes"]
+assert "release_license_records_by_project_license" in api["release_licenses"]["indexes"]
+assert "release_license_records_by_combined_gplv2_compatible" in api["release_licenses"]["indexes"]
+assert "release_license_records_by_component" in api["release_licenses"]["indexes"]
+assert "release_license_records_by_component_license" in api["release_licenses"]["indexes"]
+assert "release_license_records_by_notice_file" in api["release_licenses"]["indexes"]
 assert api["dedupe"]["count"] == index["deduplicated_artifact_count"]
 assert api["dedupe"]["summary_key"] == "deduplicated_artifact_count"
 assert api["dedupe"]["count_summary_key"] == "deduplicated_artifact_count"
@@ -265,6 +330,10 @@ grep -q '^compatibility=exact$' "$tmp/find-device.out"
 grep -q '^compatibility_reason=fixture$' "$tmp/find-device.out"
 grep -q '^release_self_test_status=pass$' "$tmp/find-device.out"
 grep -q '^release_self_test_path=release-self-test.json$' "$tmp/find-device.out"
+grep -q '^project_license=GPL-2.0-or-later$' "$tmp/find-device.out"
+grep -q '^combined_gplv2_compatible=yes$' "$tmp/find-device.out"
+grep -q '^license_notice_count=7$' "$tmp/find-device.out"
+grep -q '^license_component=BusyBox GPL-2.0$' "$tmp/find-device.out"
 grep -q '^release_self_test_command_queue_token_required_count=1$' "$tmp/find-device.out"
 grep -q '^release_self_test_command_queue_token_configured_count=0$' "$tmp/find-device.out"
 grep -q '^release_self_test_command_queue_execution_supported_count=0$' "$tmp/find-device.out"
@@ -350,6 +419,9 @@ assert doc["matches_by_command_queue_execution_supported"]["false"][0]["release_
 assert doc["matches_by_command_queue_operator_supplied_command_execution"]["false"][0]["release_name"] == "two"
 assert doc["index"]["deduplicated_artifact_count"] == 2
 assert doc["index"]["release_self_test_count"] == 3
+assert doc["index"]["release_license_count"] == 3
+assert doc["index"]["release_license_valid_count"] == 3
+assert doc["index"]["release_gplv2_compatible_count"] == 3
 assert doc["index"]["release_self_test_command_queue_token_required_count"] == 3
 assert doc["index"]["release_self_test_command_queue_token_configured_count"] == 0
 assert doc["index"]["release_self_test_command_queue_execution_supported_count"] == 0
@@ -374,7 +446,17 @@ assert doc["index"]["artifacts_by_command_queue_execution_supported_count"] == 1
 assert doc["index"]["artifacts_by_command_queue_operator_supplied_command_execution_count"] == 1
 assert doc["index"]["release_self_tests_by_release_count"] == 3
 assert doc["index"]["release_self_tests_by_status_count"] == 1
+assert doc["index"]["release_license_records_by_release_count"] == 3
+assert doc["index"]["release_license_records_by_project_license_count"] == 1
+assert doc["index"]["release_license_records_by_combined_gplv2_compatible_count"] == 1
+assert doc["index"]["release_license_records_by_component_count"] == 5
+assert doc["index"]["release_license_records_by_component_license_count"] == 5
+assert doc["index"]["release_license_records_by_notice_file_count"] == 7
 assert doc["selected"]["release_self_test"]["status"] == "pass"
+assert doc["selected"]["release_license"]["project_license"] == "GPL-2.0-or-later"
+assert doc["selected"]["release_license"]["combined_gplv2_compatible"] is True
+assert doc["selected"]["project_license"] == "GPL-2.0-or-later"
+assert doc["selected"]["combined_gplv2_compatible"] is True
 assert doc["dedupe_count"] == 2
 assert {item["release_name"] for item in doc["dedupe_alternatives"]} == {"one", "two"}
 assert "newest release_mtime" in doc["selection_policy"]
@@ -485,5 +567,7 @@ grep -q -- '--tuple-path by-tuple/' docs/release-bundles.md
 grep -q 'policy used to prefer lower-risk compatibility labels' docs/release-bundles.md
 grep -q 'recommendations' docs/release-bundles.md
 grep -q 'artifacts_by_command_queue_operator_supplied_command_execution' docs/release-bundles.md
+grep -q 'release_license_records_by_component_license' docs/release-bundles.md
+grep -q 'combined_gplv2_compatible' docs/release-bundles.md
 
 printf '%s\n' "release-repo-index ok"

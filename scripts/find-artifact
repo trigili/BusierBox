@@ -240,6 +240,13 @@ def print_text(row, index):
         print(f"release_self_test_status={row.get('release_self_test_status')}")
     if row.get("release_self_test_path"):
         print(f"release_self_test_path={row.get('release_self_test_path')}")
+    release_license = row.get("release_license") or {}
+    if release_license:
+        print(f"project_license={release_license.get('project_license', '')}")
+        print(f"combined_gplv2_compatible={'yes' if release_license.get('combined_gplv2_compatible') else 'no'}")
+        print(f"license_notice_count={release_license.get('notice_count', 0)}")
+        for component, license_id in sorted((release_license.get("component_licenses") or {}).items()):
+            print(f"license_component={component} {license_id}")
     release_self_test = row.get("release_self_test") or {}
     if release_self_test:
         print(
@@ -485,6 +492,9 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
             "artifact_count": index.get("artifact_count", 0),
             "deduplicated_artifact_count": index.get("deduplicated_artifact_count", 0),
             "release_self_test_count": index.get("release_self_test_count", 0),
+            "release_license_count": index.get("release_license_count", 0),
+            "release_license_valid_count": index.get("release_license_valid_count", 0),
+            "release_gplv2_compatible_count": index.get("release_gplv2_compatible_count", 0),
             "release_self_test_command_queue_token_required_count": index.get("release_self_test_command_queue_token_required_count", 0),
             "release_self_test_command_queue_token_configured_count": index.get("release_self_test_command_queue_token_configured_count", 0),
             "release_self_test_command_queue_execution_supported_count": index.get("release_self_test_command_queue_execution_supported_count", 0),
@@ -509,6 +519,12 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
             "artifacts_by_command_queue_operator_supplied_command_execution_count": len(index.get("artifacts_by_command_queue_operator_supplied_command_execution") or {}),
             "release_self_tests_by_release_count": len(index.get("release_self_tests_by_release") or {}),
             "release_self_tests_by_status_count": len(index.get("release_self_tests_by_status") or {}),
+            "release_license_records_by_release_count": len(index.get("release_license_records_by_release") or {}),
+            "release_license_records_by_project_license_count": len(index.get("release_license_records_by_project_license") or {}),
+            "release_license_records_by_combined_gplv2_compatible_count": len(index.get("release_license_records_by_combined_gplv2_compatible") or {}),
+            "release_license_records_by_component_count": len(index.get("release_license_records_by_component") or {}),
+            "release_license_records_by_component_license_count": len(index.get("release_license_records_by_component_license") or {}),
+            "release_license_records_by_notice_file_count": len(index.get("release_license_records_by_notice_file") or {}),
         },
     }
 
