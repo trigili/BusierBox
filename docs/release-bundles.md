@@ -694,10 +694,13 @@ commands.
 Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
 `command_queue_status_counts`. Queue records are also indexed by
-`commands_by_timeout_sec` and `commands_by_max_output_bytes`, with mirrored
+`commands_by_created_at`, `commands_by_delivered_at`,
+`commands_by_result_received_at`, `commands_by_result_source_path`,
+`commands_by_timeout_sec`, and `commands_by_max_output_bytes`, with mirrored
 `command_queue_timeout_sec_counts` and
 `command_queue_max_output_bytes_counts`, so operator UIs can audit queued
-command limits without scanning all records. Recorded results are grouped as full records in
+command limits and jump from result source files or timestamps without scanning
+all records. Recorded results are grouped as full records in
 `commands_by_result_status`, `commands_by_result_exit_code`, and
 `commands_by_result_output_exceeded`, plus
 `commands_by_result_output_size_bucket` (`zero`, `small`, `medium`, `large`)

@@ -1279,6 +1279,10 @@ def main():
             return 1
         if (status_queue.get("commands_by_id", {}).get(command_id, {}).get("status") != "result-received" or
                 len(status_queue.get("commands_by_status", {}).get("result-received", [])) != 1 or
+                status_queue.get("commands_by_created_at", {}).get(command_after_result.get("created_at"), [{}])[0].get("id") != command_id or
+                status_queue.get("commands_by_result_received_at", {}).get(command_after_result.get("result_received_at"), [{}])[0].get("id") != command_id or
+                status_queue.get("commands_by_result_source_path", {}).get(str(result_json), [{}])[0].get("id") != command_id or
+                status_queue.get("commands_by_delivered_at", {}) != {} or
                 status_queue.get("commands_by_result_status", {}).get("completed", [{}])[0].get("id") != command_id or
                 status_queue.get("commands_by_result_exit_code", {}).get("0", [{}])[0].get("id") != command_id or
                 status_queue.get("commands_by_result_output_exceeded", {}).get("no", [{}])[0].get("id") != command_id or
@@ -1288,6 +1292,10 @@ def main():
                 status_queue.get("commands_by_id", {}).get(command_id, {}).get("result_output_size_bucket") != "small" or
                 queue_status_json.get("summary", {}).get("command_queue_timeout_sec_counts", {}).get("9") != 1 or
                 queue_status_json.get("summary", {}).get("command_queue_max_output_bytes_counts", {}).get("1234") != 1 or
+                "commands_by_created_at" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or
+                "commands_by_delivered_at" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or
+                "commands_by_result_received_at" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or
+                "commands_by_result_source_path" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or
                 "commands_by_timeout_sec" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or
                 "commands_by_max_output_bytes" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or
                 "commands_by_result_output_size_bucket" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or

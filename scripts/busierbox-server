@@ -3633,6 +3633,10 @@ def command_queue_summary(cfg):
     delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
     commands_by_id = {}
     commands_by_status = {}
+    commands_by_created_at = {}
+    commands_by_delivered_at = {}
+    commands_by_result_received_at = {}
+    commands_by_result_source_path = {}
     commands_by_timeout_sec = {}
     commands_by_max_output_bytes = {}
     commands_by_execution_decision = {}
@@ -3664,12 +3668,22 @@ def command_queue_summary(cfg):
         status = str(rec.get("status") or "")
         execution_decision = str(rec.get("execution_decision") or "")
         created_at = str(rec.get("created_at") or "")
+        delivered_at = str(rec.get("delivered_at") or "")
         result_received_at = str(rec.get("result_received_at") or "")
+        result_source_path = str(rec.get("result_source_path") or "")
         if command_id:
             commands_by_id[command_id] = rec
         if status:
             commands_by_status.setdefault(status, []).append(rec)
             status_counts[status] = status_counts.get(status, 0) + 1
+        if created_at:
+            commands_by_created_at.setdefault(created_at, []).append(rec)
+        if delivered_at:
+            commands_by_delivered_at.setdefault(delivered_at, []).append(rec)
+        if result_received_at:
+            commands_by_result_received_at.setdefault(result_received_at, []).append(rec)
+        if result_source_path:
+            commands_by_result_source_path.setdefault(result_source_path, []).append(rec)
         timeout_sec = rec.get("timeout_sec")
         if timeout_sec not in (None, ""):
             key = str(timeout_sec)
@@ -3791,6 +3805,10 @@ def command_queue_summary(cfg):
         "commands": commands,
         "commands_by_id": commands_by_id,
         "commands_by_status": commands_by_status,
+        "commands_by_created_at": commands_by_created_at,
+        "commands_by_delivered_at": commands_by_delivered_at,
+        "commands_by_result_received_at": commands_by_result_received_at,
+        "commands_by_result_source_path": commands_by_result_source_path,
         "commands_by_timeout_sec": commands_by_timeout_sec,
         "commands_by_max_output_bytes": commands_by_max_output_bytes,
         "commands_by_execution_decision": commands_by_execution_decision,
@@ -7809,7 +7827,9 @@ def status_document(cfg):
         ),
         "command_queue_commands": api_collection_record(
             "command_queue_commands", command_queue.get("commands") or [], "id", (
-                "commands_by_id", "commands_by_status", "commands_by_timeout_sec",
+                "commands_by_id", "commands_by_status", "commands_by_created_at",
+                "commands_by_delivered_at", "commands_by_result_received_at",
+                "commands_by_result_source_path", "commands_by_timeout_sec",
                 "commands_by_max_output_bytes", "commands_by_execution_decision",
                 "commands_by_result_status",
                 "commands_by_result_exit_code", "commands_by_result_output_exceeded",
