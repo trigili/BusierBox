@@ -4032,6 +4032,8 @@ def main():
                 str(staged_file) not in tui.stdout or
                 "Workbench mode: noninteractive" not in tui.stdout or
                 "Workbench refresh: count=" not in tui.stdout or
+                "API resources: schema=1 resources=" not in tui.stdout or
+                "collections_key=api_collections resources_key=api_resources" not in tui.stdout or
                 "session_root:" not in tui.stdout or
                 "Operator workflow actions:" not in tui.stdout or
                 "make package" not in tui.stdout or

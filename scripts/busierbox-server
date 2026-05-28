@@ -8489,7 +8489,7 @@ def stop_managed_services(cfg):
     return 1 if failed else 0
 
 
-def print_workbench(cfg):
+def print_workbench(cfg, include_api_summary=True):
     snap = workbench_snapshot(cfg)
     summary = snap.get("summary") or {}
     print("BusierBox Operator Workbench")
@@ -8509,6 +8509,8 @@ def print_workbench(cfg):
     )
     print_activity_summary(summary)
     print_warning_summary(summary)
+    if include_api_summary:
+        print_api_resource_summary(snap)
     print("")
     print("Operator paths:")
     paths = snap.get("paths") or {}
@@ -8843,7 +8845,7 @@ def run_line_tui(cfg):
 
     while not SHUTDOWN.is_set():
         print("")
-        print_workbench(cfg)
+        print_workbench(cfg, include_api_summary=False)
         print("")
         print("Actions:")
         print("  1 start ssh")
