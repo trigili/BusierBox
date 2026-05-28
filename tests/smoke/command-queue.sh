@@ -242,12 +242,86 @@ sleep 0.5
 BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_COMMAND_QUEUE_TLS=no BB_COMMAND_QUEUE_TOKEN=wrong-token BB_COMMAND_QUEUE_PORT="$token_port" BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d["poll_run"]; assert d["policy_valid"] is True; assert r["attempted"] is True; assert r["failures"] == 1; assert r["last_status"] == "error"; assert "unexpected poll response" in r["last_error"]'
 wait "$token_pid"
 grep -q 'command-queue poll rejected' "$token_out"
+python3 - "$token_cfg" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+cfg = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+events = [
+    json.loads(line)
+    for line in (Path(cfg["operator_session_dir"]) / "events.jsonl").read_text(encoding="utf-8").splitlines()
+]
+assert any(event.get("service") == "command-queue" and event.get("event") == "command_queue_poll" and event.get("details", {}).get("status") == "rejected" for event in events)
+assert any(event.get("service") == "command-queue" and event.get("event") == "command_queue_poll_rejected" and event.get("details", {}).get("reason") == "invalid token" for event in events)
+PY
 scripts/busierbox-server --config "$token_cfg" --transport command-queue --timeout 10 --one-shot >"$token_out" 2>"$token_err" &
 token_pid=$!
 sleep 0.5
 BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_ALLOWED_COMMANDS=busierbox-only BB_COMMAND_QUEUE_TLS=no BB_COMMAND_QUEUE_TOKEN=server-token BB_COMMAND_QUEUE_PORT="$token_port" BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d["poll_run"]; assert d["policy_valid"] is True; assert d["token_configured"] is True; assert r["attempted"] is True; assert r["successes"] == 1; assert r["last_status"] == "no-command"'
 wait "$token_pid"
 rm -f "$token_cfg" "$token_out" "$token_err"
+bad_port=$(python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+bad_cfg="${TMPDIR:-/tmp}/busierbox-command-queue-bad.$$.json"
+bad_out="${TMPDIR:-/tmp}/busierbox-command-queue-bad.$$.out"
+bad_err="${TMPDIR:-/tmp}/busierbox-command-queue-bad.$$.err"
+python3 - "$bad_cfg" "$bad_port" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+cfg = {
+    "listen_host": "127.0.0.1",
+    "operator_session_dir": str(Path(sys.argv[1]).with_suffix(".session")),
+    "server_state": str(Path(sys.argv[1]).with_suffix(".state.json")),
+    "command_queue_file": str(Path(sys.argv[1]).with_suffix(".queue.json")),
+    "command_queue_enable": "yes",
+    "command_queue_port": sys.argv[2],
+    "command_queue_tls": "no",
+    "command_queue_require_token": "no",
+    "command_queue_allowed_commands": "busierbox-only",
+    "command_queue_allow_arbitrary": "no",
+}
+Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
+PY
+scripts/busierbox-server --config "$bad_cfg" --transport command-queue --timeout 10 --one-shot >"$bad_out" 2>"$bad_err" &
+bad_pid=$!
+sleep 0.5
+python3 - "$bad_port" <<'PY'
+import socket
+import sys
+
+with socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=5) as sock:
+    sock.sendall(b"bad-request\r\n\r\n")
+    try:
+        sock.recv(1024)
+    except OSError:
+        pass
+PY
+wait "$bad_pid"
+grep -q 'command-queue poll failed: malformed HTTP request' "$bad_err"
+python3 - "$bad_cfg" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+cfg = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+events = [
+    json.loads(line)
+    for line in (Path(cfg["operator_session_dir"]) / "events.jsonl").read_text(encoding="utf-8").splitlines()
+]
+assert any(event.get("service") == "command-queue" and event.get("event") == "command_queue_poll" and event.get("details", {}).get("status") == "error" for event in events)
+assert any(event.get("service") == "command-queue" and event.get("event") == "command_queue_poll_error" and event.get("level") == "error" and event.get("details", {}).get("reason") == "malformed HTTP request" for event in events)
+assert any(event.get("service") == "command-queue" and event.get("event") == "request_error" for event in events)
+PY
+rm -f "$bad_cfg" "$bad_out" "$bad_err"
 split_port=$(python3 - <<'PY'
 import socket
 s = socket.socket()

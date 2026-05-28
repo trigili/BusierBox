@@ -6305,6 +6305,24 @@ def handle_command_queue_http(cfg, conn, method, target, headers, body, addr):
     return handle_command_queue_poll(cfg, conn, method, target, headers, addr)
 
 
+def command_queue_poll_outcome_event(status):
+    return {
+        "delivered": "command_queue_poll_delivered",
+        "no-command": "command_queue_poll_no_command",
+        "rejected": "command_queue_poll_rejected",
+        "error": "command_queue_poll_error",
+    }.get(str(status or ""))
+
+
+def append_command_queue_poll_events(cfg, service, log_dir, remote, metadata):
+    append_session_list_item(log_dir, "command_queue_polls", metadata)
+    append_event(cfg, service, "command_queue_poll", session=str(log_dir), remote=remote, details=metadata)
+    poll_event = command_queue_poll_outcome_event(metadata.get("status"))
+    if poll_event:
+        level = "error" if poll_event == "command_queue_poll_error" else "info"
+        append_event(cfg, service, poll_event, level, session=str(log_dir), remote=remote, details=metadata)
+
+
 def command_queue_token_valid(cfg, headers):
     if str(cfg.get("command_queue_require_token", "yes")) != "yes":
         return True
@@ -6493,17 +6511,7 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
                         append_event(cfg, service, "command_queue_result_upload", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
                         print(f"command-queue result {metadata.get('status')}: id={metadata.get('command_id', '')}")
                     else:
-                        append_session_list_item(log_dir, "command_queue_polls", metadata)
-                        append_event(cfg, service, "command_queue_poll", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
-                        poll_event = {
-                            "delivered": "command_queue_poll_delivered",
-                            "no-command": "command_queue_poll_no_command",
-                            "rejected": "command_queue_poll_rejected",
-                            "error": "command_queue_poll_error",
-                        }.get(str(metadata.get("status") or ""))
-                        if poll_event:
-                            level = "error" if poll_event == "command_queue_poll_error" else "info"
-                            append_event(cfg, service, poll_event, level, session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
+                        append_command_queue_poll_events(cfg, service, log_dir, f"{addr[0]}:{addr[1]}", metadata)
                         queued_display = metadata.get("queued_count", metadata.get("queued_count_before", 0))
                         print(f"command-queue poll {metadata.get('status')}: queued={queued_display}")
             except Exception as exc:
@@ -6513,6 +6521,7 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
                 except Exception:
                     pass
                 print(f"command-queue poll failed: {exc}", file=sys.stderr)
+                append_command_queue_poll_events(cfg, service, log_dir, f"{addr[0]}:{addr[1]}", metadata)
                 append_event(cfg, service, "request_error", "error", session=str(log_dir), details={"error": str(exc)})
             finally:
                 append_event(cfg, service, "connection_close", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
