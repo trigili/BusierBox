@@ -1132,6 +1132,17 @@ def write_release_helpers(script_dir):
             }
 
         release = load_json(root / "release.json")
+        required_license_files = ("LICENSE.busierbox", "LICENSE", "NOTICE", "LICENSES/miniz.txt", "manifests/license-policy.json")
+        for rel in required_license_files:
+            if not (root / rel).is_file():
+                fail(f"missing license inventory file: {rel}")
+        license_policy = load_json(root / "manifests" / "license-policy.json")
+        project_policy = license_policy.get("project") or {}
+        compatibility_policy = license_policy.get("compatibility") or {}
+        if project_policy.get("license") != "GPL-2.0-or-later":
+            fail("license policy does not declare BusierBox as GPL-2.0-or-later")
+        if compatibility_policy.get("combined_gplv2_compatible") is not True:
+            fail("license policy does not declare combined GPLv2 compatibility")
         run([str(root / "scripts" / "verify-checksums"), "--original"])
         helpers = ("artifact-config", "busierbox-server", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find")
         for helper in helpers:
@@ -1153,6 +1164,10 @@ def write_release_helpers(script_dir):
             "release_failure_count": len(release.get("failures", []) or []),
             "release_tuple_count": len((release.get("layout", {}).get("tuples") or {})),
             "release_device_count": len((release.get("layout", {}).get("devices") or {})),
+            "project_license": project_policy.get("license", ""),
+            "combined_gplv2_compatible": compatibility_policy.get("combined_gplv2_compatible") is True,
+            "license_notice_count": len(required_license_files),
+            "license_notice_files": list(required_license_files),
             "index_artifact_count": len(index.get("artifacts", []) or []),
             "index_tuple_count": len(index.get("tuples") or {}),
             "index_recommendation_count": len(index.get("recommendations") or []),
@@ -1257,6 +1272,17 @@ def write_release_helpers(script_dir):
             diagnostic_record("tuple_manifests", "layout", "pass", diagnostics["tuple_manifest_count"]),
             diagnostic_record("device_aliases", "layout", "pass", diagnostics["device_alias_count"]),
             diagnostic_record("manifest_sidecars", "manifests", "pass", diagnostics["manifest_sidecar_count"]),
+            diagnostic_record(
+                "license_inventory",
+                "licensing",
+                "pass",
+                diagnostics["license_notice_count"],
+                {
+                    "project_license": diagnostics["project_license"],
+                    "combined_gplv2_compatible": diagnostics["combined_gplv2_compatible"],
+                    "files": diagnostics["license_notice_files"],
+                },
+            ),
             diagnostic_record("native_manifests", "manifests", "pass", diagnostics["native_manifest_checked_count"]),
             diagnostic_record("artifact_config_roundtrip", "configuration", "pass", diagnostics["artifact_config_roundtrip_count"]),
             diagnostic_record("broken_symlinks", "filesystem", "pass", diagnostics["broken_symlink_count"]),

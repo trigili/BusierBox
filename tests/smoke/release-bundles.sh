@@ -623,6 +623,14 @@ if doc.get("status") != "pass" or doc.get("release_name") != "smoke":
     raise SystemExit(f"unexpected release self-test status/name: {doc!r}")
 if doc.get("checksum_original_verified") is not True:
     raise SystemExit("release self-test did not report checksum verification")
+if doc.get("project_license") != "GPL-2.0-or-later":
+    raise SystemExit(f"release self-test project license missing: {doc!r}")
+if doc.get("combined_gplv2_compatible") is not True:
+    raise SystemExit(f"release self-test GPL compatibility missing: {doc!r}")
+if doc.get("license_notice_count") != 5:
+    raise SystemExit(f"release self-test license notice count missing: {doc!r}")
+if "LICENSES/miniz.txt" not in (doc.get("license_notice_files") or []):
+    raise SystemExit(f"release self-test license notice files missing miniz: {doc!r}")
 if doc.get("checked_artifact_count") != 1 or doc.get("native_manifest_checked_count") != 1:
     raise SystemExit(f"release self-test artifact checks missing: {doc!r}")
 if doc.get("tuple_manifest_count") != 1 or doc.get("device_alias_count") != 1:
@@ -650,11 +658,14 @@ if doc.get("diagnostic_record_count") != len(records) or len(records) < 10:
     raise SystemExit(f"release self-test diagnostic records missing: {doc!r}")
 if by_name.get("command_queue_safety", {}).get("status") != "pass":
     raise SystemExit(f"release self-test command queue diagnostic missing: {by_name!r}")
+license_diag = by_name.get("license_inventory") or {}
+if license_diag.get("status") != "pass" or license_diag.get("details", {}).get("project_license") != "GPL-2.0-or-later":
+    raise SystemExit(f"release self-test license diagnostic missing: {by_name!r}")
 if by_name["command_queue_safety"]["details"].get("execution_supported_count") != 0:
     raise SystemExit(f"release self-test command queue execution diagnostic unsafe: {by_name!r}")
 if by_name.get("compatibility_labels", {}).get("details", {}).get("counts", {}).get("exact") != 1:
     raise SystemExit(f"release self-test compatibility diagnostic missing: {by_name!r}")
-if not by_category.get("command_queue") or not by_status.get("pass"):
+if not by_category.get("command_queue") or not by_category.get("licensing") or not by_status.get("pass"):
     raise SystemExit(f"release self-test diagnostic indexes missing: {doc!r}")
 if (api.get("count") != len(records) or
         api.get("summary_key") != "diagnostic_record_count" or

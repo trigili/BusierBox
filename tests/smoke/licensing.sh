@@ -83,5 +83,11 @@ for name, license_id in expected.items():
     if not src.get("homepage"):
         raise SystemExit(f"{name}: missing homepage")
 
+policy = json.load(open("manifests/license-policy.json", encoding="utf-8"))
+guidance = "\n".join(policy.get("distribution_guidance") or [])
+for expected_text in ("LICENSE.busierbox", "LICENSES/", "manifests/sources.lock.json"):
+    if expected_text not in guidance:
+        raise SystemExit(f"license policy guidance missing {expected_text}")
+
 print("licensing ok")
 PY

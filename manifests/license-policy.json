@@ -58,7 +58,7 @@
     }
   ],
   "distribution_guidance": [
-    "Keep LICENSE and NOTICE with release bundles.",
+    "Keep LICENSE.busierbox, LICENSE, NOTICE, and LICENSES/ with release bundles.",
     "Keep manifests/sources.lock.json pinned for downloaded source archives.",
     "Preserve third-party notices in third_party/ and LICENSES/.",
     "Treat Buildroot-selected packages as separately licensed payload components.",
