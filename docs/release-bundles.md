@@ -823,7 +823,9 @@ build workflows such as `scripts/menuconfig`, `make package`,
 records are show-command descriptors by default, include confirmation,
 background-job, and target-execution flags, and are indexed through
 `workbench_actions_by_id`, `workbench_actions_by_category`,
-`workbench_actions_by_script`, and `workbench_actions_by_target_execution` so
+`workbench_actions_by_script`, `workbench_actions_by_requires_confirmation`,
+`workbench_actions_by_execution_default`, and
+`workbench_actions_by_target_execution` so
 future TUI/web clients can render workflow screens and verify that default
 workbench actions do not execute on the target without inventing a second
 configuration format. Workbench state records

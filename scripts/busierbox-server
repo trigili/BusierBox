@@ -1309,6 +1309,7 @@ def workbench_action_indexes(records):
         "workbench_actions_by_long_running": records_by_key(records, "long_running"),
         "workbench_actions_by_writes_config": records_by_key(records, "writes_config"),
         "workbench_actions_by_runs_build": records_by_key(records, "runs_build"),
+        "workbench_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
         "workbench_actions_by_execution_default": records_by_key(records, "execution_default"),
         "workbench_actions_by_target_execution": records_by_key(records, "target_execution"),
     }
@@ -1321,9 +1322,11 @@ def workbench_action_summary(records):
         "long_running_count": len([rec for rec in records or [] if rec.get("long_running") is True]),
         "writes_config_count": len([rec for rec in records or [] if rec.get("writes_config") is True]),
         "runs_build_count": len([rec for rec in records or [] if rec.get("runs_build") is True]),
+        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
         "target_execution_count": len([rec for rec in records or [] if rec.get("target_execution") is True]),
         "category_counts": record_count_by_key(records, "category"),
         "script_counts": record_count_by_key(records, "script"),
+        "execution_default_counts": record_count_by_key(records, "execution_default"),
     }
 
 
@@ -7106,9 +7109,11 @@ def status_document(cfg):
         "workbench_action_long_running_count": workbench_action_stats.get("long_running_count", 0),
         "workbench_action_writes_config_count": workbench_action_stats.get("writes_config_count", 0),
         "workbench_action_runs_build_count": workbench_action_stats.get("runs_build_count", 0),
+        "workbench_action_requires_confirmation_count": workbench_action_stats.get("requires_confirmation_count", 0),
         "workbench_action_target_execution_count": workbench_action_stats.get("target_execution_count", 0),
         "workbench_action_category_counts": workbench_action_stats.get("category_counts") or {},
         "workbench_action_script_counts": workbench_action_stats.get("script_counts") or {},
+        "workbench_action_execution_default_counts": workbench_action_stats.get("execution_default_counts") or {},
         "workbench_job_count": workbench_job_stats.get("total_count", 0),
         "workbench_job_running_count": workbench_job_stats.get("running_count", 0),
         "workbench_job_pid_managed_count": workbench_job_stats.get("pid_managed_count", 0),
@@ -7303,7 +7308,8 @@ def status_document(cfg):
                 "workbench_actions_by_id", "workbench_actions_by_category",
                 "workbench_actions_by_script", "workbench_actions_by_background_supported",
                 "workbench_actions_by_long_running", "workbench_actions_by_writes_config",
-                "workbench_actions_by_runs_build", "workbench_actions_by_execution_default",
+                "workbench_actions_by_runs_build", "workbench_actions_by_requires_confirmation",
+                "workbench_actions_by_execution_default",
                 "workbench_actions_by_target_execution",
             ), "workbench_action_count",
         ),
@@ -7663,9 +7669,11 @@ def print_workbench_action_summary(doc):
         f"long_running={summary.get('workbench_action_long_running_count', 0)} "
         f"writes_config={summary.get('workbench_action_writes_config_count', 0)} "
         f"runs_build={summary.get('workbench_action_runs_build_count', 0)} "
+        f"requires_confirmation={summary.get('workbench_action_requires_confirmation_count', 0)} "
         f"target_execution={summary.get('workbench_action_target_execution_count', 0)}"
     )
     print(f"  categories: {format_counts(summary.get('workbench_action_category_counts') or {})}")
+    print(f"  execution defaults: {format_counts(summary.get('workbench_action_execution_default_counts') or {})}")
 
 
 def print_workbench_job_summary(doc):

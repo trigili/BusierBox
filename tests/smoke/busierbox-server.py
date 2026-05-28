@@ -1515,6 +1515,8 @@ def main():
         actions_by_category = queue_status_json.get("workbench_actions_by_category") or {}
         actions_by_script = queue_status_json.get("workbench_actions_by_script") or {}
         actions_by_background = queue_status_json.get("workbench_actions_by_background_supported") or {}
+        actions_by_confirmation = queue_status_json.get("workbench_actions_by_requires_confirmation") or {}
+        actions_by_execution_default = queue_status_json.get("workbench_actions_by_execution_default") or {}
         actions_by_target_execution = queue_status_json.get("workbench_actions_by_target_execution") or {}
         workbench_summary = queue_status_json.get("summary") or {}
         if (len(workbench_config_fields) < 12 or
@@ -1543,13 +1545,19 @@ def main():
                 workbench_summary.get("workbench_action_count") != len(workbench_actions) or
                 workbench_summary.get("workbench_action_target_execution_count") != 0 or
                 workbench_summary.get("workbench_action_background_supported_count", 0) < 2 or
+                workbench_summary.get("workbench_action_requires_confirmation_count", 0) < 4 or
+                workbench_summary.get("workbench_action_execution_default_counts", {}).get("show-command") != len(workbench_actions) or
                 actions_by_id.get("package-artifact", {}).get("command") != "make package" or
                 actions_by_id.get("configure-trailer", {}).get("script") != "scripts/artifact-config" or
                 not actions_by_category.get("configuration") or
                 not actions_by_script.get("scripts/busierbox-bringup") or
                 not actions_by_background.get("True") or
+                not actions_by_confirmation.get("True") or
+                actions_by_execution_default.get("show-command", [{}])[0].get("execution_default") != "show-command" or
                 actions_by_target_execution.get("True", []) != [] or
                 len(actions_by_target_execution.get("False", [])) != len(workbench_actions) or
+                "workbench_actions_by_requires_confirmation" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", []) or
+                "workbench_actions_by_execution_default" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", []) or
                 "workbench_actions_by_target_execution" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", [])):
             print("server json status missing operator workflow action descriptors", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
