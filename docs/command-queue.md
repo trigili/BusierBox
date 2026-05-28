@@ -130,6 +130,9 @@ Safety boundary:
   whether it needs an operator host, its lifecycle label (`inspect`,
   `single-poll`, `single-cycle`, `long-running`, or `stop`), and the same
   non-execution safety booleans so UIs do not infer mode behavior from strings.
+- `mode_summary` mirrors those mode records into compact counts for polling
+  modes, operator-host-required modes, delivery-capable live modes, active
+  control-channel modes, result-upload modes, and execution-capable modes.
 - `command-queue --json` includes `daemon_state` and `stop_result` objects so
   operator tooling can show whether a live polling loop is visible, stale,
   stopped, or skipped because ownership could not be verified.

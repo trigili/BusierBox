@@ -690,6 +690,24 @@ static void print_all_mode_semantics_json(const char *mode, int dry_run, int liv
     fputc('}', stdout);
 }
 
+static void print_mode_summary_json(const char *mode, int dry_run, int live_would_poll)
+{
+    int selected_polling_mode = strcmp(mode, "status") != 0 && strcmp(mode, "stop") != 0;
+    int live_delivery_modes = (!dry_run && live_would_poll) ? 3 : 0;
+    int active_control_modes = (!dry_run && live_would_poll && selected_polling_mode) ? 1 : 0;
+
+    fputs(",\"mode_summary\":{", stdout);
+    fputs("\"mode_count\":5", stdout);
+    fputs(",\"polling_mode_count\":3", stdout);
+    fputs(",\"operator_host_required_mode_count\":3", stdout);
+    printf(",\"delivery_supported_mode_count\":%d", live_delivery_modes);
+    fputs(",\"result_upload_supported_mode_count\":0", stdout);
+    fputs(",\"execution_supported_mode_count\":0", stdout);
+    printf(",\"active_control_channel_mode_count\":%d", active_control_modes);
+    fputs(",\"operator_supplied_command_execution_mode_count\":0", stdout);
+    fputc('}', stdout);
+}
+
 static void print_poll_run_json(const struct poll_run_result *run)
 {
     fputs(",\"poll_run\":{", stdout);
@@ -875,6 +893,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     fputs(",\"operator_supplied_command_execution\":false", stdout);
     fputc('}', stdout);
     print_all_mode_semantics_json(mode, dry_run, would_poll);
+    print_mode_summary_json(mode, dry_run, would_poll);
     print_poll_run_json(run);
     print_daemon_state_json(state_file, daemon_state);
     print_stop_result_json(stop);
