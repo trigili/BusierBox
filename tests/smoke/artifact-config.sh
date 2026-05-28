@@ -40,6 +40,11 @@ assert p["aggressive_minimizes_runtime_residue"] is False
 assert p["forensic_no_trace"] is False
 assert p["external_writes_require_explicit_apply"] is True
 assert "BusierBox-owned runtime roots" in p["cleanup_scope"]
+rshell = r["rshell_readiness"]
+assert rshell["session_policy"] == r["effective_config"]["BB_RSHELL_SESSION_POLICY"]
+assert rshell["session_policy_valid"] is True
+assert rshell["session_policy_errors"] == []
+assert rshell["operator_host"] == r["effective_config"]["BB_OPERATOR_SERVER_HOST"]
 PY
 
 scripts/artifact-config set "$work/busierbox" \
@@ -93,6 +98,14 @@ assert p["runtime_mode"] == r["effective_config"]["BB_RUNTIME_MODE"]
 assert p["level"] == "aggressive"
 assert p["aggressive_minimizes_runtime_residue"] is True
 assert p["forensic_no_trace"] is False
+rshell = r["rshell_readiness"]
+assert rshell["transport"] == "ssh"
+assert rshell["operator_host"] == "198.51.100.7"
+assert rshell["remote_forward_port"] == "2299"
+assert rshell["operator_ssh_port"] == "22022"
+assert "--ssh-port 22022" in rshell["server_listener"]
+assert "2299" in rshell["connect_hint"]
+assert rshell["session_policy_valid"] is True
 PY
 "$work/busierbox" rshell status --json >"$work/rshell.status.trailer.json"
 python3 - "$work/rshell.status.trailer.json" <<'PY'
@@ -114,6 +127,8 @@ assert r["effective_config_source"] == "env"
 assert r["environment_override_count"] >= 1
 assert r["effective_config"]["BB_OPERATOR_SERVER_HOST"] == "203.0.113.9"
 assert r["noresidue_policy"]["level"] == r["effective_config"]["BB_NORESIDUE_LEVEL"]
+assert r["rshell_readiness"]["operator_host"] == "203.0.113.9"
+assert r["rshell_readiness"]["operator_host_set"] is True
 PY
 "$work/busierbox" manifest --json >"$work/manifest.set.json"
 python3 - "$work/manifest.set.json" <<'PY'

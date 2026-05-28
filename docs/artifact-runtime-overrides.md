@@ -21,9 +21,10 @@ selected compiled/effective values. `busierbox runtime-config` and
 `busierbox runtime-config --json` report the full allowlisted compiled config,
 effective config, trailer metadata, environment override count, and
 `effective_config_source` (`compiled`, `trailer`, `env`, or `cli`). `busierbox
-runtime-config --json` also includes `noresidue_policy`, matching the
-doctor/manifest safety fields. `busierbox manifest --json` includes
-`compiled_config`, `effective_config`, and `trailer_override`.
+runtime-config --json` also includes `noresidue_policy` and
+`rshell_readiness`, matching the doctor/manifest safety and reverse-access
+fields. `busierbox manifest --json` includes `compiled_config`,
+`effective_config`, and `trailer_override`.
 
 Allowed trailer keys are limited to runtime/operator behavior: runtime
 mode/root, no-residue level (`best-effort` or `aggressive`), zero-arg

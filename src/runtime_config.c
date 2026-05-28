@@ -727,6 +727,8 @@ int applet_runtime_config_main(int argc, char **argv)
         bb_config_print_effective_json(stdout, bb_json_string);
         fputs(",\"noresidue_policy\":", stdout);
         print_noresidue_policy_json(stdout);
+        fputs(",\"rshell_readiness\":", stdout);
+        bb_config_print_rshell_readiness_json(stdout, bb_json_string);
         fputs(",\"command_queue_policy\":{\"valid\":", stdout);
         fputs(command_queue_policy_valid ? "true" : "false", stdout);
         fputs(",\"errors\":[", stdout);
