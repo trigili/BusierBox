@@ -1140,8 +1140,10 @@ def main():
                 queue_status_json["command_queue"].get("result_output_exceeded_count") != 0 or
                 queue_status_json["command_queue"].get("result_status_counts", {}).get("completed") != 1 or
                 queue_status_json["command_queue"].get("result_exit_code_counts", {}).get("0") != 1 or
+                queue_status_json["command_queue"].get("result_output_size_bucket_counts", {}).get("small") != 1 or
                 queue_status_json.get("summary", {}).get("command_queue_result_status_counts", {}).get("completed") != 1 or
                 queue_status_json.get("summary", {}).get("command_queue_result_exit_code_counts", {}).get("0") != 1 or
+                queue_status_json.get("summary", {}).get("command_queue_result_output_size_bucket_counts", {}).get("small") != 1 or
                 queue_status_json["command_queue"].get("latest_created_at") != command_after_result.get("created_at") or
                 queue_status_json["command_queue"].get("latest_result_received_at") != command_after_result.get("result_received_at")):
             print("server json status missing command queue summary", file=sys.stderr)
@@ -1164,6 +1166,9 @@ def main():
                 status_queue.get("commands_by_result_status", {}).get("completed", [{}])[0].get("id") != command_id or
                 status_queue.get("commands_by_result_exit_code", {}).get("0", [{}])[0].get("id") != command_id or
                 status_queue.get("commands_by_result_output_exceeded", {}).get("no", [{}])[0].get("id") != command_id or
+                status_queue.get("commands_by_result_output_size_bucket", {}).get("small", [{}])[0].get("id") != command_id or
+                status_queue.get("commands_by_id", {}).get(command_id, {}).get("result_output_size_bucket") != "small" or
+                "commands_by_result_output_size_bucket" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or
                 status_queue.get("status_counts", {}).get("result-received") != 1):
             print("server json status missing command queue lookup indexes", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
@@ -1248,7 +1253,10 @@ def main():
         if (exceeded_status.get("result_output_exceeded_count") != 1 or
                 exceeded_status.get("result_status_counts", {}).get("completed") != 1 or
                 exceeded_status.get("result_exit_code_counts", {}).get("0") != 1 or
+                exceeded_status.get("result_output_size_bucket_counts", {}).get("small") != 1 or
+                exceeded_status.get("commands_by_result_output_size_bucket", {}).get("small", [{}])[0].get("id") != exceeded_rec.get("id") or
                 exceeded_rec.get("result_output_bytes") != 15 or
+                exceeded_rec.get("result_output_size_bucket") != "small" or
                 exceeded_rec.get("result_output_limit_bytes") != 10 or
                 exceeded_rec.get("result_output_exceeded_limit") is not True):
             print("operator command queue did not flag result output over limit", file=sys.stderr)
@@ -1610,6 +1618,7 @@ def main():
         if (queue_status_json["summary"].get("command_queue_total_count") != 1 or
                 queue_status_json["summary"].get("command_queue_result_count") != 1 or
                 queue_status_json["summary"].get("command_queue_result_output_exceeded_count") != 0 or
+                queue_status_json["summary"].get("command_queue_result_output_size_bucket_counts", {}).get("small") != 1 or
                 queue_status_json["summary"].get("command_queue_status_counts", {}).get("result-received") != 1 or
                 queue_status_json["summary"].get("command_queue_latest_created_at") != command_after_result.get("created_at") or
                 queue_status_json["summary"].get("command_queue_latest_result_received_at") != command_after_result.get("result_received_at") or
@@ -1911,6 +1920,7 @@ def main():
                 "busierbox reality-test --json" not in queue_status_text.stdout or
                 "result-received" not in queue_status_text.stdout or
                 "result_output=12 limit=1234 exceeded_limit=no" not in queue_status_text.stdout or
+                "result_size_buckets: small=1" not in queue_status_text.stdout or
                 "latest_created=" not in queue_status_text.stdout or
                 "latest_result=" not in queue_status_text.stdout or
                 "modes: total=5 would_poll_if_configured=3 operator_host_required=3 result_upload_supported=5 execution_supported=0 active_control_channel=0" not in queue_status_text.stdout or

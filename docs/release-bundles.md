@@ -618,12 +618,16 @@ Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
 `command_queue_status_counts`. Recorded results are grouped as full records in
 `commands_by_result_status`, `commands_by_result_exit_code`, and
-`commands_by_result_output_exceeded` so operator UIs can inspect received
-results without scanning all queued commands. Result status and exit-code
+`commands_by_result_output_exceeded`, plus
+`commands_by_result_output_size_bucket` (`zero`, `small`, `medium`, `large`)
+so operator UIs can inspect received results without scanning all queued
+commands. Result status, exit-code, and output-size
 aggregates are exposed as `command_queue.result_status_counts`,
-`command_queue.result_exit_code_counts`, and mirrored into `summary` as
+`command_queue.result_exit_code_counts`,
+`command_queue.result_output_size_bucket_counts`, and mirrored into `summary` as
 `command_queue_result_status_counts` and
-`command_queue_result_exit_code_counts`. It also exposes latest
+`command_queue_result_exit_code_counts` plus
+`command_queue_result_output_size_bucket_counts`. It also exposes latest
 command-created and result-received timestamps, mirrored into `summary`, so
 dashboards can show queue recency without recomputing it. Delivered command
 counts are mirrored as `command_queue_delivered_count` alongside queued and

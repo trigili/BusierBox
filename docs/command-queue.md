@@ -212,7 +212,10 @@ The operator JSON status API indexes queue records by snapshot posture with
 `commands_by_delivery_policy_enabled`, `commands_by_delivery_policy_valid`,
 and `commands_by_delivery_policy_execution_mode`. Matching compact counts are
 mirrored under `summary.command_queue_*_counts`, and the indexes are listed in
-`api_collections.command_queue_commands` for frontend discovery.
+`api_collections.command_queue_commands` for frontend discovery. Result uploads
+are also grouped by `commands_by_result_output_size_bucket` (`zero`, `small`,
+`medium`, `large`) with matching `command_queue_result_output_size_bucket_counts`
+for dashboards that need to highlight unexpectedly large output.
 
 When the command-queue listener is running with `command_queue_tls=no`, it also
 accepts structured result JSON with `POST /command-queue/result`. The JSON must

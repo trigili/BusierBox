@@ -3100,6 +3100,17 @@ def command_queue_mode_record_indexes(records):
     }
 
 
+def command_result_output_size_bucket(size):
+    size = int_value(size)
+    if size <= 0:
+        return "zero"
+    if size <= 1024:
+        return "small"
+    if size <= 65536:
+        return "medium"
+    return "large"
+
+
 def command_queue_summary(cfg):
     data = load_command_queue(cfg)
     commands = data.get("commands", [])
@@ -3111,6 +3122,7 @@ def command_queue_summary(cfg):
     commands_by_result_status = {}
     commands_by_result_exit_code = {}
     commands_by_result_output_exceeded = {}
+    commands_by_result_output_size_bucket = {}
     commands_by_queue_policy_enabled = {}
     commands_by_queue_policy_valid = {}
     commands_by_queue_policy_execution_mode = {}
@@ -3122,6 +3134,7 @@ def command_queue_summary(cfg):
     execution_decision_counts = {}
     result_status_counts = {}
     result_exit_code_counts = {}
+    result_output_size_bucket_counts = {}
     latest_created_at = ""
     latest_result_received_at = ""
     for rec in commands:
@@ -3157,6 +3170,10 @@ def command_queue_summary(cfg):
         if status == "result-received":
             output_key = "yes" if rec.get("result_output_exceeded_limit") is True else "no"
             commands_by_result_output_exceeded.setdefault(output_key, []).append(rec)
+            size_bucket = command_result_output_size_bucket(rec.get("result_output_bytes"))
+            rec["result_output_size_bucket"] = size_bucket
+            commands_by_result_output_size_bucket.setdefault(size_bucket, []).append(rec)
+            result_output_size_bucket_counts[size_bucket] = result_output_size_bucket_counts.get(size_bucket, 0) + 1
     commands_by_queue_policy_enabled = records_by_nested_key(commands, "queue_policy_snapshot", "enabled")
     commands_by_queue_policy_valid = records_by_nested_key(commands, "queue_policy_snapshot", "valid")
     commands_by_queue_policy_execution_mode = records_by_nested_key(commands, "queue_policy_snapshot", "execution_mode")
@@ -3247,6 +3264,7 @@ def command_queue_summary(cfg):
         "commands_by_result_status": commands_by_result_status,
         "commands_by_result_exit_code": commands_by_result_exit_code,
         "commands_by_result_output_exceeded": commands_by_result_output_exceeded,
+        "commands_by_result_output_size_bucket": commands_by_result_output_size_bucket,
         "commands_by_queue_policy_enabled": commands_by_queue_policy_enabled,
         "commands_by_queue_policy_valid": commands_by_queue_policy_valid,
         "commands_by_queue_policy_execution_mode": commands_by_queue_policy_execution_mode,
@@ -3258,6 +3276,7 @@ def command_queue_summary(cfg):
         "execution_decision_counts": execution_decision_counts,
         "result_status_counts": result_status_counts,
         "result_exit_code_counts": result_exit_code_counts,
+        "result_output_size_bucket_counts": result_output_size_bucket_counts,
         "queue_policy_enabled_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "enabled"),
         "queue_policy_valid_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "valid"),
         "queue_policy_execution_mode_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "execution_mode"),
@@ -6631,6 +6650,7 @@ def status_document(cfg):
         "command_queue_execution_decision_counts": command_queue.get("execution_decision_counts") or {},
         "command_queue_result_status_counts": command_queue.get("result_status_counts") or {},
         "command_queue_result_exit_code_counts": command_queue.get("result_exit_code_counts") or {},
+        "command_queue_result_output_size_bucket_counts": command_queue.get("result_output_size_bucket_counts") or {},
         "command_queue_queue_policy_enabled_counts": command_queue.get("queue_policy_enabled_counts") or {},
         "command_queue_queue_policy_valid_counts": command_queue.get("queue_policy_valid_counts") or {},
         "command_queue_queue_policy_execution_mode_counts": command_queue.get("queue_policy_execution_mode_counts") or {},
@@ -6854,6 +6874,7 @@ def status_document(cfg):
                 "commands_by_id", "commands_by_status", "commands_by_execution_decision",
                 "commands_by_result_status",
                 "commands_by_result_exit_code", "commands_by_result_output_exceeded",
+                "commands_by_result_output_size_bucket",
                 "commands_by_queue_policy_enabled", "commands_by_queue_policy_valid",
                 "commands_by_queue_policy_execution_mode", "commands_by_queue_policy_allowed_commands",
                 "commands_by_delivery_policy_enabled", "commands_by_delivery_policy_valid",
@@ -7554,6 +7575,7 @@ def print_status(cfg, json_output=False):
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no result_upload_supported=yes")
+    print(f"  result_size_buckets: {format_counts(queue.get('result_output_size_bucket_counts') or {})}")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
     print_command_queue_mode_lines(queue)
     for rec in (queue.get("commands") or [])[:8]:
@@ -7840,6 +7862,7 @@ def print_workbench(cfg):
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no result_upload_supported=yes")
+    print(f"  result_size_buckets: {format_counts(queue.get('result_output_size_bucket_counts') or {})}")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
     print_command_queue_mode_lines(queue)
     for rec in (queue.get("commands") or [])[:8]:
