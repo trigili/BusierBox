@@ -59,7 +59,7 @@
   ],
   "distribution_guidance": [
     "Keep LICENSE.busierbox, LICENSE, NOTICE, and LICENSES/ with release bundles.",
-    "Keep manifests/sources.lock.json pinned for downloaded source archives.",
+    "Keep manifests/sources.lock.json pinned for downloaded source archives; release bundles include it as both sources.lock.json and manifests/sources.lock.json.",
     "Preserve third-party notices in third_party/ and LICENSES/.",
     "Treat Buildroot-selected packages as separately licensed payload components.",
     "Do not add a network-fetched component without pinned version, URL, SHA-256, filename, license, and homepage metadata."

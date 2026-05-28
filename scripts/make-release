@@ -1132,7 +1132,15 @@ def write_release_helpers(script_dir):
             }
 
         release = load_json(root / "release.json")
-        required_license_files = ("LICENSE.busierbox", "LICENSE", "NOTICE", "LICENSES/miniz.txt", "manifests/license-policy.json")
+        required_license_files = (
+            "LICENSE.busierbox",
+            "LICENSE",
+            "NOTICE",
+            "LICENSES/miniz.txt",
+            "manifests/license-policy.json",
+            "sources.lock.json",
+            "manifests/sources.lock.json",
+        )
         for rel in required_license_files:
             if not (root / rel).is_file():
                 fail(f"missing license inventory file: {rel}")
@@ -1329,7 +1337,7 @@ def write_release_helpers(script_dir):
     )
 
 
-def copy_bundle_support(release_dir, include_sources_manifest=False):
+def copy_bundle_support(release_dir, include_sources_manifest=True):
     script_dir = release_dir / "scripts"
     doc_dir = release_dir / "docs"
     config_dir = release_dir / "config-examples"
@@ -1376,8 +1384,10 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
     license_policy = ROOT / "manifests" / "license-policy.json"
     if license_policy.exists():
         shutil.copy2(license_policy, manifest_dir / "license-policy.json")
-    if include_sources_manifest and (ROOT / "manifests" / "sources.lock.json").exists():
+    if include_sources_manifest:
         sources_lock = ROOT / "manifests" / "sources.lock.json"
+        if not sources_lock.exists():
+            raise FileNotFoundError(f"missing source lock manifest: {sources_lock}")
         shutil.copy2(sources_lock, release_dir / "sources.lock.json")
         shutil.copy2(sources_lock, manifest_dir / "sources.lock.json")
 
@@ -2153,7 +2163,7 @@ def main(argv=None):
     release_name = data.get("name") or args.name
     release_version = data.get("version")
     include_options = matrix_include_options(data)
-    include_sources_manifest = bool(args.include_sources_manifest or include_options.get("sources_manifest") or include_options.get("source_lock"))
+    include_sources_manifest = True
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
     release_dir = pathlib.Path(args.out_dir) if args.out_dir else ROOT / "dist" / "releases" / f"{safe_stem(args.name)}-{stamp}"
     jobs = selected_jobs(args, data)

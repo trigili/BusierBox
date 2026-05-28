@@ -56,7 +56,9 @@ posture:
 BusierBox release artifacts should preserve source availability and license
 notices for included components:
 
-- Keep `manifests/sources.lock.json` current for downloaded source archives.
+- Keep `manifests/sources.lock.json` current for downloaded source archives;
+  release bundles include it as both `sources.lock.json` and
+  `manifests/sources.lock.json`.
 - Keep `LICENSE.busierbox`, `LICENSE`, and `NOTICE` in release bundles.
 - Keep third-party license files with vendored source snippets.
 - Do not add a network-fetched component without pinned version, URL, SHA-256,

@@ -189,6 +189,9 @@ test -f "$work/release/LICENSES/miniz.txt"
 test -f "$work/release/release.json"
 test -f "$work/release/release-index.json"
 test -f "$work/release/manifests/license-policy.json"
+test -f "$work/release/sources.lock.json"
+test -f "$work/release/manifests/sources.lock.json"
+cmp "$work/release/sources.lock.json" "$work/release/manifests/sources.lock.json"
 test -f "$work/release/docs/README-release.md"
 test -f "$work/release/docs/trailer-overrides.md"
 test -f "$work/release/docs/cleanup-ledger.md"
@@ -627,10 +630,14 @@ if doc.get("project_license") != "GPL-2.0-or-later":
     raise SystemExit(f"release self-test project license missing: {doc!r}")
 if doc.get("combined_gplv2_compatible") is not True:
     raise SystemExit(f"release self-test GPL compatibility missing: {doc!r}")
-if doc.get("license_notice_count") != 5:
+if doc.get("license_notice_count") != 7:
     raise SystemExit(f"release self-test license notice count missing: {doc!r}")
-if "LICENSES/miniz.txt" not in (doc.get("license_notice_files") or []):
+notice_files = doc.get("license_notice_files") or []
+if "LICENSES/miniz.txt" not in notice_files:
     raise SystemExit(f"release self-test license notice files missing miniz: {doc!r}")
+for rel in ("sources.lock.json", "manifests/sources.lock.json"):
+    if rel not in notice_files:
+        raise SystemExit(f"release self-test license notice files missing {rel}: {doc!r}")
 if doc.get("checked_artifact_count") != 1 or doc.get("native_manifest_checked_count") != 1:
     raise SystemExit(f"release self-test artifact checks missing: {doc!r}")
 if doc.get("tuple_manifest_count") != 1 or doc.get("device_alias_count") != 1:
@@ -883,6 +890,24 @@ if data.get("include_sources_manifest") is not True:
     raise SystemExit("source lock include flag missing")
 if data.get("matrix", {}).get("include", {}).get("source_lock") is not True:
     raise SystemExit("matrix source_lock include missing")
+PY
+
+scripts/make-release \
+    --name source-lock-default \
+    --targets native \
+    --payload-presets default \
+    --skip-build \
+    --out-dir "$work/source-lock-default-release" >"$work/source-lock-default-release.out"
+test -f "$work/source-lock-default-release/sources.lock.json"
+test -f "$work/source-lock-default-release/manifests/sources.lock.json"
+cmp "$work/source-lock-default-release/sources.lock.json" "$work/source-lock-default-release/manifests/sources.lock.json"
+python3 - "$work/source-lock-default-release/release.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if data.get("include_sources_manifest") is not True:
+    raise SystemExit("default release did not include source lock")
 PY
 
 scripts/make-release \

@@ -61,6 +61,8 @@ grep -q 'Buildroot' docs/licensing.md
 grep -q 'doom-ascii' docs/licensing.md
 grep -q 'miniz' docs/licensing.md
 grep -q 'BB_DOOM_WAD_PATH' docs/licensing.md
+grep -q 'release bundles include it as both `sources.lock.json` and' docs/licensing.md
+grep -q 'Release bundles always copy' docs/release-bundles.md
 
 python3 - <<'PY'
 import json
@@ -85,7 +87,7 @@ for name, license_id in expected.items():
 
 policy = json.load(open("manifests/license-policy.json", encoding="utf-8"))
 guidance = "\n".join(policy.get("distribution_guidance") or [])
-for expected_text in ("LICENSE.busierbox", "LICENSES/", "manifests/sources.lock.json"):
+for expected_text in ("LICENSE.busierbox", "LICENSES/", "manifests/sources.lock.json", "sources.lock.json"):
     if expected_text not in guidance:
         raise SystemExit(f"license policy guidance missing {expected_text}")
 
