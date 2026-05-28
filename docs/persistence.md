@@ -23,9 +23,12 @@ operator UIs can filter survey results without scraping the human table.
 It also publishes an `actions` collection with `actions_by_name`,
 `actions_by_category`, `actions_by_uploads_evidence`,
 `actions_by_collects_dmesg`, `actions_by_starts_rshell`,
+`actions_by_starts_rshell_after_evidence`,
 `actions_by_executes_operator_supplied_command`,
 `actions_by_command_queue_enabled`, and
-`actions_by_hidden_control_channel` indexes. These records describe available
+`actions_by_hidden_control_channel` indexes, plus safety-gate maps such as
+`actions_by_requires_explicit_apply` and
+`actions_by_requires_external_write`. These records describe available
 recovery actions and their safety semantics before any hook is installed.
 
 The method table covers reboot hook families such as OpenWrt/procd init

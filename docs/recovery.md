@@ -32,4 +32,5 @@ operator-supplied command.
 `busierbox persistence --survey --json` exposes the same available actions as
 normalized `actions` records with lookup maps for evidence upload, `dmesg`,
 reverse-shell chaining, operator-supplied command execution, command queue
-enablement, and hidden control channel status.
+enablement, hidden control channel status, explicit apply requirements, and
+external write requirements.
