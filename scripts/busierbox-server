@@ -2369,6 +2369,9 @@ def target_command_record_indexes(records):
     by_purpose = {}
     by_service_purpose = {}
     by_side_purpose = {}
+    by_network = records_by_key(records, "network")
+    by_requires_explicit_target_action = records_by_key(records, "requires_explicit_target_action")
+    by_executes_operator_supplied_commands = records_by_key(records, "executes_operator_supplied_commands")
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -2394,7 +2397,11 @@ def target_command_record_indexes(records):
             by_service_purpose.setdefault(f"{service}:{purpose}", []).append(rec)
         if side and purpose:
             by_side_purpose.setdefault(f"{side}:{purpose}", []).append(rec)
-    return by_service, by_request_name, by_stage_kind, by_release_path, by_side, by_purpose, by_service_purpose, by_side_purpose
+    return (
+        by_service, by_request_name, by_stage_kind, by_release_path, by_side,
+        by_purpose, by_service_purpose, by_side_purpose, by_network,
+        by_requires_explicit_target_action, by_executes_operator_supplied_commands,
+    )
 
 
 def target_command_record_summary(records):
@@ -6213,7 +6220,10 @@ def status_document(cfg):
      target_commands_by_side,
      target_commands_by_purpose,
      target_commands_by_service_purpose,
-     target_commands_by_side_purpose) = target_command_record_indexes(target_command_records)
+     target_commands_by_side_purpose,
+     target_commands_by_network,
+     target_commands_by_requires_explicit_target_action,
+     target_commands_by_executes_operator_supplied_commands) = target_command_record_indexes(target_command_records)
     target_command_summary = target_command_record_summary(target_command_records)
     (uploads_by_filename,
      uploads_by_kind,
@@ -6660,6 +6670,8 @@ def status_document(cfg):
                 "target_commands_by_stage_kind", "target_commands_by_release_path",
                 "target_commands_by_side", "target_commands_by_purpose",
                 "target_commands_by_service_purpose", "target_commands_by_side_purpose",
+                "target_commands_by_network", "target_commands_by_requires_explicit_target_action",
+                "target_commands_by_executes_operator_supplied_commands",
             ), "target_command_count",
         ),
         "staged_records": api_collection_record(
@@ -6863,6 +6875,9 @@ def status_document(cfg):
         "target_commands_by_purpose": target_commands_by_purpose,
         "target_commands_by_service_purpose": target_commands_by_service_purpose,
         "target_commands_by_side_purpose": target_commands_by_side_purpose,
+        "target_commands_by_network": target_commands_by_network,
+        "target_commands_by_requires_explicit_target_action": target_commands_by_requires_explicit_target_action,
+        "target_commands_by_executes_operator_supplied_commands": target_commands_by_executes_operator_supplied_commands,
         "staged": staged,
         "staged_records": staged_records,
         "staged_by_request": staged_by_request,

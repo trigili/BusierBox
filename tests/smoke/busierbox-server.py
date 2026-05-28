@@ -3032,6 +3032,9 @@ def main():
         target_commands_by_purpose = upload_doc.get("target_commands_by_purpose") or {}
         target_commands_by_service_purpose = upload_doc.get("target_commands_by_service_purpose") or {}
         target_commands_by_side_purpose = upload_doc.get("target_commands_by_side_purpose") or {}
+        target_commands_by_network = upload_doc.get("target_commands_by_network") or {}
+        target_commands_by_explicit_action = upload_doc.get("target_commands_by_requires_explicit_target_action") or {}
+        target_commands_by_operator_supplied = upload_doc.get("target_commands_by_executes_operator_supplied_commands") or {}
         rshell_record = next((rec for rec in target_records if rec.get("service") == "rshell"), {})
         rshell_metadata = rshell_record.get("metadata") or {}
         rshell_semantics = rshell_metadata.get("session_semantics") or {}
@@ -3042,6 +3045,11 @@ def main():
                 len(target_commands_by_purpose.get(rshell_purpose) or []) != 1 or
                 len(target_commands_by_service_purpose.get(f"rshell:{rshell_purpose}") or []) != 1 or
                 len(target_commands_by_side_purpose.get(f"target:{rshell_purpose}") or []) != 1 or
+                len(target_commands_by_network.get("True") or []) != len(target_records) or
+                len(target_commands_by_explicit_action.get("True") or []) != len(target_records) or
+                target_commands_by_operator_supplied.get("True", []) != [] or
+                len(target_commands_by_operator_supplied.get("False") or []) != len(target_records) or
+                "target_commands_by_executes_operator_supplied_commands" not in ((upload_doc.get("api_collections") or {}).get("target_command_records") or {}).get("indexes", []) or
                 not rshell_record or
                 rshell_metadata.get("session_policy") != "reconnect" or
                 rshell_metadata.get("session_policy_valid") is not True or
@@ -4025,12 +4033,16 @@ def main():
         staged_commands_by_stage_kind = staged_doc.get("target_commands_by_stage_kind") or {}
         staged_commands_by_release_path = staged_doc.get("target_commands_by_release_path") or {}
         staged_commands_by_service_purpose = staged_doc.get("target_commands_by_service_purpose") or {}
+        staged_commands_by_explicit_action = staged_doc.get("target_commands_by_requires_explicit_target_action") or {}
+        staged_commands_by_operator_supplied = staged_doc.get("target_commands_by_executes_operator_supplied_commands") or {}
         if (staged_commands_by_request.get("busierbox-test", {}).get("source_path") != str(release_dir / "bin" / "busierbox-test") or
                 staged_commands_by_request.get("busierbox-test", {}).get("release_path") != "bin/busierbox-test" or
                 staged_commands_by_stage_kind.get("release-artifact", [{}])[0].get("request_name") != "busierbox-test" or
                 staged_commands_by_release_path.get("bin/busierbox-test", [{}])[0].get("request_name") != "busierbox-test" or
                 staged_doc.get("summary", {}).get("target_command_stage_kind_counts", {}).get("release-artifact") != 1 or
                 staged_doc.get("summary", {}).get("target_command_release_path_counts", {}).get("bin/busierbox-test") != 1 or
+                not any(item.get("request_name") == "busierbox-test" for item in staged_commands_by_explicit_action.get("True", [])) or
+                staged_commands_by_operator_supplied.get("True", []) != [] or
                 staged_commands_by_service_purpose.get("file-service:explicitly fetch an operator-staged file", [{}])[0].get("request_name") != "busierbox-test"):
             print("json status missing staged fetch command request lookup", file=sys.stderr)
             print(staged_status.stdout, file=sys.stderr)
