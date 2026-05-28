@@ -381,6 +381,44 @@ def api_collection_record(name, count, indexes, summary_key, primary_key=""):
     }
 
 
+def records_by_key(records, key):
+    grouped = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        value = rec.get(key)
+        if value in (None, ""):
+            continue
+        grouped.setdefault(str(value), []).append(rec)
+    return grouped
+
+
+def api_resource_records(api_collections):
+    records = []
+    for name in sorted(api_collections or {}):
+        collection = api_collections.get(name) or {}
+        records.append({
+            "name": name,
+            "records_key": name,
+            "collection_key": f"api_collections.{name}",
+            "count": collection.get("count", 0),
+            "primary_key": collection.get("primary_key", ""),
+            "summary_key": collection.get("summary_key", ""),
+            "count_summary_key": collection.get("count_summary_key", ""),
+            "indexes": collection.get("indexes") or [],
+        })
+    return records
+
+
+def api_resource_record_indexes(records):
+    return {
+        "api_resources_by_name": {rec.get("name", ""): rec for rec in records or [] if rec.get("name")},
+        "api_resources_by_records_key": records_by_key(records, "records_key"),
+        "api_resources_by_summary_key": records_by_key(records, "summary_key"),
+        "api_resources_by_primary_key": records_by_key(records, "primary_key"),
+    }
+
+
 def build_repo_index(paths):
     release_dirs = [pathlib.Path(path) for path in candidate_release_dirs(paths)]
     artifacts = []
@@ -642,8 +680,82 @@ def build_repo_index(paths):
         "release_license_records_by_component_license",
         "release_license_records_by_notice_file",
     ]
+    api_collections = {
+        "artifacts": api_collection_record(
+            "artifacts",
+            len(artifacts),
+            artifact_index_names,
+            "artifact_count",
+            "artifact_path",
+        ),
+        "release_self_tests": api_collection_record(
+            "release_self_tests",
+            len(release_self_tests),
+            [
+                "release_self_tests_by_release",
+                "release_self_tests_by_status",
+            ],
+            "release_self_test_count",
+            "release_name",
+        ),
+        "release_licenses": api_collection_record(
+            "release_licenses",
+            len(release_license_records),
+            release_license_record_index_names,
+            "release_license_count",
+            "release_name",
+        ),
+        "dedupe": api_collection_record(
+            "dedupe",
+            len(by_sha),
+            [],
+            "deduplicated_artifact_count",
+            "sha256",
+        ),
+        "devices": api_collection_record(
+            "devices",
+            len(device_records),
+            device_record_index_names,
+            "device_record_count",
+            "alias",
+        ),
+        "tuples": api_collection_record(
+            "tuples",
+            len(tuple_records),
+            tuple_record_index_names,
+            "tuple_record_count",
+            "tuple_path",
+        ),
+        "recommendations": api_collection_record(
+            "recommendations",
+            recommendation_count,
+            [
+                *recommendation_index_names,
+                "recommendation_records_by_id",
+                "recommendation_records_by_category",
+                "recommendation_records_by_key",
+                "recommendation_records_by_category_key",
+                "recommendation_records_by_tuple_path",
+                "recommendation_records_by_payload_preset",
+                "recommendation_records_by_compatibility",
+                "recommendation_records_by_release",
+            ],
+            "recommendation_count",
+            "id",
+        ),
+    }
+    api_resources = api_resource_records(api_collections)
+    api_resource_indexes = api_resource_record_indexes(api_resources)
     return {
         "schema": 1,
+        "api": {
+            "schema": 1,
+            "resource_count": len(api_resources),
+            "resources_key": "api_resources",
+            "collections_key": "api_collections",
+        },
+        "api_resources": api_resources,
+        **api_resource_indexes,
         "release_count": len(release_dirs),
         "artifact_count": len(artifacts),
         "release_self_test_count": len(release_self_tests),
@@ -706,70 +818,7 @@ def build_repo_index(paths):
         "recommendations": recommendations,
         "recommendation_records": recommendation_records,
         **recommendation_record_index_maps,
-        "api_collections": {
-            "artifacts": api_collection_record(
-                "artifacts",
-                len(artifacts),
-                artifact_index_names,
-                "artifact_count",
-                "artifact_path",
-            ),
-            "release_self_tests": api_collection_record(
-                "release_self_tests",
-                len(release_self_tests),
-                [
-                    "release_self_tests_by_release",
-                    "release_self_tests_by_status",
-                ],
-                "release_self_test_count",
-                "release_name",
-            ),
-            "release_licenses": api_collection_record(
-                "release_licenses",
-                len(release_license_records),
-                release_license_record_index_names,
-                "release_license_count",
-                "release_name",
-            ),
-            "dedupe": api_collection_record(
-                "dedupe",
-                len(by_sha),
-                [],
-                "deduplicated_artifact_count",
-                "sha256",
-            ),
-            "devices": api_collection_record(
-                "devices",
-                len(device_records),
-                device_record_index_names,
-                "device_record_count",
-                "alias",
-            ),
-            "tuples": api_collection_record(
-                "tuples",
-                len(tuple_records),
-                tuple_record_index_names,
-                "tuple_record_count",
-                "tuple_path",
-            ),
-            "recommendations": api_collection_record(
-                "recommendations",
-                recommendation_count,
-                [
-                    *recommendation_index_names,
-                    "recommendation_records_by_id",
-                    "recommendation_records_by_category",
-                    "recommendation_records_by_key",
-                    "recommendation_records_by_category_key",
-                    "recommendation_records_by_tuple_path",
-                    "recommendation_records_by_payload_preset",
-                    "recommendation_records_by_compatibility",
-                    "recommendation_records_by_release",
-                ],
-                "recommendation_count",
-                "id",
-            ),
-        },
+        "api_collections": api_collections,
     }
 
 

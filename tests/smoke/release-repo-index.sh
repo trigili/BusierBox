@@ -275,6 +275,16 @@ assert index["recommendation_records_by_payload_preset"]["ssh-operator"][0]["rel
 assert index["recommendation_records_by_compatibility"]["unsafe"][0]["key"] == "gdbserver"
 assert index["recommendation_records_by_release"]["three"][0]["payload_preset"] == "full-debug"
 api = index["api_collections"]
+api_meta = index["api"]
+resources = index["api_resources"]
+resources_by_name = index["api_resources_by_name"]
+resources_by_records_key = index["api_resources_by_records_key"]
+resources_by_summary_key = index["api_resources_by_summary_key"]
+resources_by_primary_key = index["api_resources_by_primary_key"]
+assert api_meta["schema"] == 1
+assert api_meta["resource_count"] == len(resources) == len(api)
+assert api_meta["resources_key"] == "api_resources"
+assert api_meta["collections_key"] == "api_collections"
 assert api["artifacts"]["name"] == "artifacts"
 assert api["artifacts"]["count"] == index["artifact_count"]
 assert api["artifacts"]["summary_key"] == "artifact_count"
@@ -325,6 +335,15 @@ assert "by_device" in api["recommendations"]["indexes"]
 assert "by_tool_payload_preset" in api["recommendations"]["indexes"]
 assert "recommendation_records_by_category_key" in api["recommendations"]["indexes"]
 assert "recommendation_records_by_compatibility" in api["recommendations"]["indexes"]
+assert resources_by_name["artifacts"]["records_key"] == "artifacts"
+assert resources_by_name["artifacts"]["collection_key"] == "api_collections.artifacts"
+assert resources_by_name["artifacts"]["count"] == index["artifact_count"]
+assert resources_by_name["artifacts"]["summary_key"] == "artifact_count"
+assert resources_by_name["artifacts"]["primary_key"] == "artifact_path"
+assert "artifacts_by_tool" in resources_by_name["artifacts"]["indexes"]
+assert resources_by_records_key["recommendations"][0]["collection_key"] == "api_collections.recommendations"
+assert resources_by_summary_key["recommendation_count"][0]["name"] == "recommendations"
+assert resources_by_primary_key["sha256"][0]["name"] == "dedupe"
 PY
 
 scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null
