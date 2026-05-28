@@ -3694,6 +3694,71 @@ def release_recommendation_records(recommendations):
     return records
 
 
+RELEASE_LICENSE_NOTICE_FILES = (
+    "LICENSE.busierbox",
+    "LICENSE",
+    "NOTICE",
+    "LICENSES/miniz.txt",
+    "manifests/license-policy.json",
+    "sources.lock.json",
+    "manifests/sources.lock.json",
+)
+
+
+def release_license_record(release_dir):
+    release_dir = Path(release_dir)
+    policy_rel = "manifests/license-policy.json"
+    policy_path = release_dir / policy_rel
+    notice_files = [rel for rel in RELEASE_LICENSE_NOTICE_FILES if (release_dir / rel).is_file()]
+    missing_notice_files = [rel for rel in RELEASE_LICENSE_NOTICE_FILES if rel not in notice_files]
+    rec = {
+        "schema": 1,
+        "path": str(policy_path),
+        "license_policy_path": policy_rel,
+        "exists": policy_path.is_file(),
+        "valid": False,
+        "project_license": "",
+        "combined_gplv2_compatible": False,
+        "preferred_combined_terms_with_busybox": "",
+        "source_availability_required_for_distribution": False,
+        "component_count": 0,
+        "components": [],
+        "component_names": [],
+        "component_licenses": {},
+        "notice_count": len(notice_files),
+        "notice_files": notice_files,
+        "required_notice_files": list(RELEASE_LICENSE_NOTICE_FILES),
+        "missing_notice_files": missing_notice_files,
+        "missing_notice_count": len(missing_notice_files),
+    }
+    if not policy_path.is_file():
+        return rec
+    policy = read_json_file(policy_path, {})
+    if not isinstance(policy, dict):
+        return rec
+    project = policy.get("project") if isinstance(policy.get("project"), dict) else {}
+    compatibility = policy.get("compatibility") if isinstance(policy.get("compatibility"), dict) else {}
+    components = [
+        item for item in (policy.get("components") or [])
+        if isinstance(item, dict) and item.get("name")
+    ]
+    rec.update({
+        "valid": True,
+        "project_license": project.get("license", ""),
+        "combined_gplv2_compatible": compatibility.get("combined_gplv2_compatible") is True,
+        "preferred_combined_terms_with_busybox": compatibility.get("preferred_combined_terms_with_busybox", ""),
+        "source_availability_required_for_distribution": compatibility.get("source_availability_required_for_distribution") is True,
+        "component_count": len(components),
+        "components": components,
+        "component_names": [str(item.get("name")) for item in components],
+        "component_licenses": {
+            str(item.get("name")): str(item.get("license") or "")
+            for item in components
+        },
+    })
+    return rec
+
+
 def release_context(cfg=None):
     here = Path(str((cfg or {}).get("release_dir") or Path.cwd()))
     release_json = here / "release.json"
@@ -3704,6 +3769,7 @@ def release_context(cfg=None):
             return {}
         if not isinstance(release, dict):
             return {}
+        license_record = release_license_record(here)
         artifacts = []
         for root_name in ("bin", "dist"):
             root = here / root_name
@@ -3739,6 +3805,9 @@ def release_context(cfg=None):
                     "compatibility": row.get("compatibility") or {},
                     "tool_provider_status": row.get("tool_provider_status") or {},
                     "doom_wads": row.get("doom_wads") or [],
+                    "release_license": license_record,
+                    "project_license": license_record.get("project_license", ""),
+                    "combined_gplv2_compatible": bool(license_record.get("combined_gplv2_compatible")),
                 }
                 existing_paths = [item.get("path") for item in artifacts]
                 if rec["path"] in existing_paths:
@@ -3887,11 +3956,29 @@ def release_context(cfg=None):
         }
         recommendations = release_recommendations(devices, artifact_indexes)
         recommendation_records = release_recommendation_records(recommendations)
+        license_records = [license_record] if license_record.get("exists") or license_record.get("valid") else []
+        license_records_by_component = {}
+        license_records_by_component_license = {}
+        license_records_by_notice_file = {}
+        for component in license_record.get("component_names") or []:
+            license_records_by_component.setdefault(component, []).append(license_record)
+        for component, license_id in (license_record.get("component_licenses") or {}).items():
+            if component and license_id:
+                license_records_by_component_license.setdefault(f"{component}:{license_id}", []).append(license_record)
+        for notice_file in license_record.get("notice_files") or []:
+            license_records_by_notice_file.setdefault(str(notice_file), []).append(license_record)
         return {
             "release_dir": str(here),
             "release_json": str(release_json),
             "release_index": str(here / "release-index.json") if (here / "release-index.json").is_file() else "",
             "release_name": release.get("release_name", "") if isinstance(release, dict) else "",
+            "release_license": license_record,
+            "release_license_records": license_records,
+            "release_license_records_by_project_license": records_by_key(license_records, "project_license"),
+            "release_license_records_by_combined_gplv2_compatible": records_by_key(license_records, "combined_gplv2_compatible"),
+            "release_license_records_by_component": license_records_by_component,
+            "release_license_records_by_component_license": license_records_by_component_license,
+            "release_license_records_by_notice_file": license_records_by_notice_file,
             "artifacts": artifacts,
             "artifacts_by_release_path": artifacts_by_release_path,
             "artifacts_by_name": artifacts_by_name,
@@ -4007,6 +4094,13 @@ def release_state_record(release=None):
         if release.get("release_index"):
             rec["release_index"] = str(release.get("release_index"))
             rec["release_index_exists"] = True
+        release_license = release.get("release_license") or {}
+        rec["release_license_exists"] = bool(release_license.get("exists", False))
+        rec["release_license_valid"] = bool(release_license.get("valid", False))
+        rec["project_license"] = release_license.get("project_license", "")
+        rec["combined_gplv2_compatible"] = bool(release_license.get("combined_gplv2_compatible", False))
+        rec["license_notice_count"] = release_license.get("notice_count", 0)
+        rec["license_missing_notice_count"] = release_license.get("missing_notice_count", 0)
     elif rec["release_index_valid"]:
         rec["artifact_count"] = len(index_doc.get("artifacts") or [])
         rec["device_count"] = len(index_doc.get("devices") or [])
@@ -6869,6 +6963,12 @@ def status_document(cfg):
         "release_artifact_doom_wad_filename_counts": (release.get("artifact_stats") or {}).get("by_doom_wad_filename") or {},
         "release_artifact_doom_wad_sha256_counts": (release.get("artifact_stats") or {}).get("by_doom_wad_sha256") or {},
         "release_artifact_doom_wad_count": (release.get("artifact_stats") or {}).get("doom_wad_count", 0),
+        "release_license_count": len(release.get("release_license_records") or []),
+        "release_license_valid_count": sum(1 for rec in (release.get("release_license_records") or []) if rec.get("valid")),
+        "release_license_notice_count": (release.get("release_license") or {}).get("notice_count", 0),
+        "release_license_missing_notice_count": (release.get("release_license") or {}).get("missing_notice_count", 0),
+        "release_project_license_counts": record_count_by_key(release.get("release_license_records") or [], "project_license"),
+        "release_combined_gplv2_compatible_counts": record_count_by_key(release.get("release_license_records") or [], "combined_gplv2_compatible"),
         "release_recommendation_count": len(release.get("recommendation_records") or []),
         "release_recommendation_scope_counts": record_count_by_key(release.get("recommendation_records") or [], "scope"),
         "release_recommendation_payload_preset_counts": record_count_by_key(release.get("recommendation_records") or [], "payload_preset"),
@@ -7021,6 +7121,15 @@ def status_document(cfg):
                 "recommendations_by_id", "recommendations_by_scope", "recommendations_by_artifact",
                 "recommendations_by_payload_preset", "recommendations_by_compatibility",
             ), "release_recommendation_count",
+        ),
+        "release_licenses": api_collection_record(
+            "release_licenses", release.get("release_license_records") or [], "project_license", (
+                "release_license_records_by_project_license",
+                "release_license_records_by_combined_gplv2_compatible",
+                "release_license_records_by_component",
+                "release_license_records_by_component_license",
+                "release_license_records_by_notice_file",
+            ), "release_license_count",
         ),
         "release_devices": api_collection_record(
             "release_devices", release.get("devices") or [], "name", (
@@ -7446,6 +7555,15 @@ def print_release_summary(doc):
         print(f"  release_dir: {release_state.get('release_dir') or release.get('release_dir', '')}")
     if release_state.get("release_name") or release.get("release_name"):
         print(f"  release_name: {release_state.get('release_name') or release.get('release_name', '')}")
+    release_license = release.get("release_license") or {}
+    if release_license:
+        print(
+            f"  license: project={release_license.get('project_license', '') or '-'} "
+            f"gplv2_compatible={'yes' if release_license.get('combined_gplv2_compatible') else 'no'} "
+            f"valid={'yes' if release_license.get('valid') else 'no'} "
+            f"notices={release_license.get('notice_count', 0)} "
+            f"missing_notices={release_license.get('missing_notice_count', 0)}"
+        )
     for error in release_state.get("errors") or []:
         print(f"  error: {error}")
 

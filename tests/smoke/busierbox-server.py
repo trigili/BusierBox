@@ -3692,7 +3692,30 @@ def main():
         release_dir = Path(tmp) / "release"
         (release_dir / "bin").mkdir(parents=True)
         (release_dir / "scripts").mkdir()
+        (release_dir / "manifests").mkdir()
+        (release_dir / "LICENSES").mkdir()
         (release_dir / "bin" / "busierbox-test").write_text("artifact\n", encoding="utf-8")
+        (release_dir / "LICENSE.busierbox").write_text("BusierBox license grant\n", encoding="utf-8")
+        (release_dir / "LICENSE").write_text("GNU GENERAL PUBLIC LICENSE Version 2, June 1991\n", encoding="utf-8")
+        (release_dir / "NOTICE").write_text("BusierBox project license notice\n", encoding="utf-8")
+        (release_dir / "LICENSES" / "miniz.txt").write_text("miniz notice\n", encoding="utf-8")
+        (release_dir / "sources.lock.json").write_text('{"schema":2,"sources":[]}\n', encoding="utf-8")
+        (release_dir / "manifests" / "sources.lock.json").write_text('{"schema":2,"sources":[]}\n', encoding="utf-8")
+        (release_dir / "manifests" / "license-policy.json").write_text(json.dumps({
+            "schema": 1,
+            "project": {"name": "BusierBox", "license": "GPL-2.0-or-later"},
+            "compatibility": {
+                "combined_gplv2_compatible": True,
+                "preferred_combined_terms_with_busybox": "GPL-2.0",
+                "source_availability_required_for_distribution": True,
+            },
+            "components": [
+                {"name": "BusierBox", "license": "GPL-2.0-or-later"},
+                {"name": "BusyBox", "license": "GPL-2.0"},
+                {"name": "Buildroot", "license": "GPL-2.0-or-later with package exceptions"},
+                {"name": "miniz", "license": "MIT OR Unlicense"},
+            ],
+        }) + "\n", encoding="utf-8")
         (release_dir / "release.json").write_text(json.dumps({
             "schema": 1,
             "release_name": "operator-smoke",
@@ -3765,6 +3788,7 @@ def main():
                 "artifacts=1 devices=1 tuples=1 total_size=9" not in release_view.stdout or
                 f"release_dir: {release_dir}" not in release_view.stdout or
                 "release_name: operator-smoke" not in release_view.stdout or
+                "license: project=GPL-2.0-or-later gplv2_compatible=yes valid=yes notices=7 missing_notices=0" not in release_view.stdout or
                 "busierbox-test" not in release_view.stdout or
                 "compatibility=exact" not in release_view.stdout or
                 "compatibility_reason: fixture" not in release_view.stdout or
@@ -3856,6 +3880,13 @@ def main():
         release_recommendations_by_artifact = rel.get("recommendations_by_artifact") or {}
         release_recommendations_by_payload = rel.get("recommendations_by_payload_preset") or {}
         release_recommendations_by_compat = rel.get("recommendations_by_compatibility") or {}
+        release_license = rel.get("release_license") or {}
+        release_license_records = rel.get("release_license_records") or []
+        release_licenses_by_project = rel.get("release_license_records_by_project_license") or {}
+        release_licenses_by_gplv2 = rel.get("release_license_records_by_combined_gplv2_compatible") or {}
+        release_licenses_by_component = rel.get("release_license_records_by_component") or {}
+        release_licenses_by_component_license = rel.get("release_license_records_by_component_license") or {}
+        release_licenses_by_notice = rel.get("release_license_records_by_notice_file") or {}
         release_artifact_size = len("artifact\n")
         release_layout_artifact = "by-tuple/native/host/host/host/bin/busierbox-test"
         doom_wad_sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -3901,7 +3932,16 @@ def main():
                 release_recommendations_by_scope.get("by_device", [{}])[0].get("key") != "lab-router" or
                 release_recommendations_by_artifact.get("bin/busierbox-test", [{}])[0].get("artifact_name") != "busierbox-test" or
                 release_recommendations_by_payload.get("default", [{}])[0].get("artifact_name") != "busierbox-test" or
-                release_recommendations_by_compat.get("exact", [{}])[0].get("payload_preset") != "default"):
+                release_recommendations_by_compat.get("exact", [{}])[0].get("payload_preset") != "default" or
+                release_license.get("project_license") != "GPL-2.0-or-later" or
+                release_license.get("combined_gplv2_compatible") is not True or
+                release_license.get("missing_notice_count") != 0 or
+                len(release_license_records) != 1 or
+                release_licenses_by_project.get("GPL-2.0-or-later", [{}])[0].get("valid") is not True or
+                release_licenses_by_gplv2.get("True", [{}])[0].get("project_license") != "GPL-2.0-or-later" or
+                release_licenses_by_component.get("BusyBox", [{}])[0].get("combined_gplv2_compatible") is not True or
+                release_licenses_by_component_license.get("BusyBox:GPL-2.0", [{}])[0].get("project_license") != "GPL-2.0-or-later" or
+                release_licenses_by_notice.get("LICENSE.busierbox", [{}])[0].get("notice_count") != 7):
             print("json status missing release browser lookup maps", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
@@ -3918,7 +3958,12 @@ def main():
                 release_state.get("artifact_count") != 1 or
                 release_state.get("device_count") != 1 or
                 release_state.get("tuple_count") != 1 or
-                release_state.get("release_name") != "operator-smoke"):
+                release_state.get("release_name") != "operator-smoke" or
+                release_state.get("release_license_valid") is not True or
+                release_state.get("project_license") != "GPL-2.0-or-later" or
+                release_state.get("combined_gplv2_compatible") is not True or
+                release_state.get("license_notice_count") != 7 or
+                release_state.get("license_missing_notice_count") != 0):
             print("json status missing explicit release state metadata", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
@@ -3976,6 +4021,12 @@ def main():
                 release_summary.get("release_artifact_doom_wad_filename_counts", {}).get("doom.wad") != 1 or
                 release_summary.get("release_artifact_doom_wad_sha256_counts", {}).get(doom_wad_sha) != 1 or
                 release_summary.get("release_artifact_doom_wad_count") != 1 or
+                release_summary.get("release_license_count") != 1 or
+                release_summary.get("release_license_valid_count") != 1 or
+                release_summary.get("release_license_notice_count") != 7 or
+                release_summary.get("release_license_missing_notice_count") != 0 or
+                release_summary.get("release_project_license_counts", {}).get("GPL-2.0-or-later") != 1 or
+                release_summary.get("release_combined_gplv2_compatible_counts", {}).get("True") != 1 or
                 release_summary.get("release_recommendation_count", 0) < 1 or
                 release_summary.get("release_recommendation_scope_counts", {}).get("by_device") != 1 or
                 release_summary.get("release_recommendation_payload_preset_counts", {}).get("default", 0) < 1 or
@@ -3987,6 +4038,8 @@ def main():
         if ("devices_by_tuple_path" not in (release_api.get("release_devices", {}).get("indexes") or []) or
                 "devices_by_artifact" not in (release_api.get("release_devices", {}).get("indexes") or []) or
                 "tuples_by_artifact" not in (release_api.get("release_tuples", {}).get("indexes") or []) or
+                "release_license_records_by_component_license" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
+                "release_license_records_by_notice_file" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
                 "recommendations_by_payload_preset" not in (release_api.get("release_recommendations", {}).get("indexes") or []) or
                 "recommendations_by_compatibility" not in (release_api.get("release_recommendations", {}).get("indexes") or [])):
             print("json status missing release device/tuple api collection indexes", file=sys.stderr)

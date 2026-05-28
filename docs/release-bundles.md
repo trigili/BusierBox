@@ -249,6 +249,11 @@ compatibility and notice coverage without opening every release directory.
 `--component-license COMPONENT:LICENSE`, and recommendation JSON exposes
 matching `matches_by_project_license`, `matches_by_combined_gplv2_compatible`,
 `matches_by_license_component`, and `matches_by_component_license` maps.
+When `scripts/busierbox-server` is launched from a release bundle, `--status`,
+`--json-status`, and the workbench release browser expose the same compact
+release license record as `release.release_license`, `release_licenses`, and
+`api_collections.release_licenses`, plus summary counters for project license,
+GPLv2 compatibility, notice count, and missing notices.
 `--recommendation-json` returns the selected artifact plus active filters,
 filter provenance records, match count, visible match count, match lookup maps,
 `api_collections` metadata with the same count/primary-key fields, index
