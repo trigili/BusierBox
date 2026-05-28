@@ -2,6 +2,7 @@
 set -eu
 
 policy=${1:-manifests/license-policy.json}
+sources_lock=${2:-manifests/sources.lock.json}
 
 [ -f LICENSE ] || {
     printf '%s\n' "check-licensing: missing LICENSE" >&2
@@ -15,6 +16,10 @@ policy=${1:-manifests/license-policy.json}
     printf '%s\n' "check-licensing: missing $policy" >&2
     exit 1
 }
+[ -f "$sources_lock" ] || {
+    printf '%s\n' "check-licensing: missing $sources_lock" >&2
+    exit 1
+}
 
 grep -q 'GNU GENERAL PUBLIC LICENSE' LICENSE
 grep -q 'Version 2, June 1991' LICENSE
@@ -22,7 +27,7 @@ grep -q 'GPL-2.0-or-later' NOTICE
 grep -q 'GPL-2.0-or-later' README.md
 grep -q 'GPL compatibility summary' docs/licensing.md
 
-python3 - "$policy" manifests/sources.lock.json <<'PY'
+python3 - "$policy" "$sources_lock" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -44,6 +49,18 @@ locked = {
     for item in sources.get("sources") or []
     if isinstance(item, dict)
 }
+
+for item in sources.get("sources") or []:
+    if not isinstance(item, dict):
+        raise SystemExit("check-licensing: source lock entries must be objects")
+    name = item.get("name")
+    if not name:
+        raise SystemExit("check-licensing: source lock entry missing name")
+    for key in ("version", "sha256", "filename", "license", "homepage"):
+        if not item.get(key):
+            raise SystemExit(f"check-licensing: source lock {name} missing {key}")
+    if not item.get("urls"):
+        raise SystemExit(f"check-licensing: source lock {name} missing urls")
 
 if project.get("license") != "GPL-2.0-or-later":
     raise SystemExit("check-licensing: project license must be GPL-2.0-or-later")
@@ -95,11 +112,6 @@ for name, license_id in lock_expected.items():
         raise SystemExit(f"check-licensing: missing source lock entry for {name}")
     if item.get("license") != license_id:
         raise SystemExit(f"check-licensing: source lock license mismatch for {name}: {item.get('license')!r}")
-    for key in ("version", "sha256", "filename", "homepage"):
-        if not item.get(key):
-            raise SystemExit(f"check-licensing: source lock {name} missing {key}")
-    if not item.get("urls"):
-        raise SystemExit(f"check-licensing: source lock {name} missing urls")
 
 if not Path("third_party/miniz/LICENSE").is_file():
     raise SystemExit("check-licensing: missing miniz vendored license")

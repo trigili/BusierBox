@@ -9,6 +9,35 @@ grep -q 'GPL-2.0-or-later' NOTICE
 test -f manifests/license-policy.json
 scripts/check-licensing
 
+tmp=${TMPDIR:-/tmp}/busierbox-licensing.$$
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+mkdir -p "$tmp"
+python3 - "$tmp/sources.lock.json" <<'PY'
+import json
+import sys
+
+data = {
+    "schema": 2,
+    "sources": [
+        {
+            "name": "new-tool",
+            "version": "1.0",
+            "filename": "new-tool-1.0.tar.gz",
+            "sha256": "0" * 64,
+            "urls": ["https://example.invalid/new-tool-1.0.tar.gz"],
+            "homepage": "https://example.invalid/new-tool",
+        }
+    ],
+}
+with open(sys.argv[1], "w", encoding="utf-8") as fh:
+    json.dump(data, fh)
+PY
+if scripts/check-licensing manifests/license-policy.json "$tmp/sources.lock.json" >"$tmp/missing-license.out" 2>&1; then
+    printf '%s\n' "licensing smoke: source without license metadata was accepted" >&2
+    exit 1
+fi
+grep -q 'source lock new-tool missing license' "$tmp/missing-license.out"
+
 grep -q 'GPL-2.0-or-later' README.md
 grep -q 'NOTICE' README.md
 grep -q 'docs/licensing.md' README.md
