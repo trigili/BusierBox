@@ -528,6 +528,39 @@ if release_self_test_path and os.path.exists(release_self_test_path):
     except Exception as exc:
         release_self_test_summary = {"source": release_self_test_path, "valid": False, "warning": f"could not parse release self-test JSON: {exc}"}
 
+target_preset_summary = {}
+target_preset_path = env("TARGET_PRESET_PATH")
+if target_preset_path and os.path.exists(target_preset_path):
+    try:
+        with open(target_preset_path, "r", encoding="utf-8") as fh:
+            target_preset_doc = json.load(fh)
+        if isinstance(target_preset_doc, dict):
+            target_preset_summary = {
+                "source": target_preset_path,
+                "valid": True,
+                "schema": target_preset_doc.get("schema", 1),
+                "name": str(target_preset_doc.get("name") or ""),
+                "arch": str(target_preset_doc.get("arch") or ""),
+                "endian": str(target_preset_doc.get("endian") or ""),
+                "libc": str(target_preset_doc.get("libc") or ""),
+                "kernel_floor": str(target_preset_doc.get("kernel_floor") or ""),
+                "cpu": str(target_preset_doc.get("cpu") or ""),
+                "abi": str(target_preset_doc.get("abi") or ""),
+                "static_policy": str(target_preset_doc.get("static_policy") or ""),
+                "confidence": target_preset_doc.get("confidence") if isinstance(target_preset_doc.get("confidence"), dict) else {},
+                "compatibility": target_preset_doc.get("compatibility") if isinstance(target_preset_doc.get("compatibility"), dict) else {},
+                "evidence": target_preset_doc.get("evidence") if isinstance(target_preset_doc.get("evidence"), dict) else {},
+                "notes": target_preset_doc.get("notes") if isinstance(target_preset_doc.get("notes"), list) else [],
+            }
+        else:
+            target_preset_summary = {
+                "source": target_preset_path,
+                "valid": False,
+                "warning": "target preset JSON is not an object",
+            }
+    except Exception as exc:
+        target_preset_summary = {"source": target_preset_path, "valid": False, "warning": f"could not parse target preset JSON: {exc}"}
+
 doc = {
     "schema": 1,
     "status": env("STATUS"),
@@ -545,6 +578,7 @@ doc = {
     "recommendation_compatibility": recommendation_compatibility,
     "reality_summary": reality_summary,
     "recommended_target_preset": env("TARGET_PRESET_PATH"),
+    "recommended_target_preset_summary": target_preset_summary,
     "release_dir": env("RELEASE_DIR"),
     "max_compatibility": env("MAX_COMPATIBILITY"),
     "release_find_json": maybe_file(env("RELEASE_FIND_JSON")),

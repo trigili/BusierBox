@@ -142,7 +142,10 @@ next operator commands, and next target commands. The local
 survey-derived recommendation also carries `recommendation_compatibility` and
 the same object under `recommendation.compatibility`; this is separate from the
 top-level `compatibility`, which describes the selected release artifact when
-release selection is used. The JSON also includes normalized
+release selection is used. When `--write-target-preset` is used, the summary
+also includes `recommended_target_preset_summary` with the generated preset's
+target tuple, confidence, target-tuple compatibility notes, and survey evidence
+used for inference. The JSON also includes normalized
 `selected_tool_provider_status_records` and
 `selected_doom_wad_records` with lookup maps by provider tool, provider status,
 WAD filename, and WAD sha256. It also includes
