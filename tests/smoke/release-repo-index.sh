@@ -442,6 +442,18 @@ import sys
 doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert doc["schema"] == 1
 assert doc["command"] == "find-artifact"
+assert doc["api"]["schema"] == 1
+assert doc["api"]["resource_count"] == len(doc["api_resources"]) == len(doc["api_collections"])
+assert doc["api"]["resources_key"] == "api_resources"
+assert doc["api"]["collections_key"] == "api_collections"
+assert doc["api_resources_by_name"]["matches"]["records_key"] == "matches"
+assert doc["api_resources_by_name"]["matches"]["collection_key"] == "api_collections.matches"
+assert doc["api_resources_by_name"]["matches"]["summary_key"] == "visible_match_count"
+assert doc["api_resources_by_name"]["matches"]["primary_key"] == "artifact_path"
+assert "matches_by_provider_status" in doc["api_resources_by_name"]["matches"]["indexes"]
+assert doc["api_resources_by_records_key"]["filter_records"][0]["summary_key"] == "filter_count"
+assert doc["api_resources_by_summary_key"]["dedupe_count"][0]["name"] == "dedupe_alternatives"
+assert doc["api_resources_by_primary_key"]["artifact_path"][0]["name"] in {"matches", "dedupe_alternatives"}
 assert doc["filters"]["device"] == "lab-router"
 assert doc["match_count"] == 2
 assert doc["visible_match_count"] == 1

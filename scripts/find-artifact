@@ -460,6 +460,44 @@ def api_collection_record(name, count, indexes, summary_key, primary_key=""):
     }
 
 
+def records_by_key(records, key):
+    grouped = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        value = rec.get(key)
+        if value in (None, ""):
+            continue
+        grouped.setdefault(str(value), []).append(rec)
+    return grouped
+
+
+def api_resource_records(api_collections):
+    records = []
+    for name in sorted(api_collections or {}):
+        collection = api_collections.get(name) or {}
+        records.append({
+            "name": name,
+            "records_key": name,
+            "collection_key": f"api_collections.{name}",
+            "count": collection.get("count", 0),
+            "primary_key": collection.get("primary_key", ""),
+            "summary_key": collection.get("summary_key", ""),
+            "count_summary_key": collection.get("count_summary_key", ""),
+            "indexes": collection.get("indexes") or [],
+        })
+    return records
+
+
+def api_resource_record_indexes(records):
+    return {
+        "api_resources_by_name": {rec.get("name", ""): rec for rec in records or [] if rec.get("name")},
+        "api_resources_by_records_key": records_by_key(records, "records_key"),
+        "api_resources_by_summary_key": records_by_key(records, "summary_key"),
+        "api_resources_by_primary_key": records_by_key(records, "primary_key"),
+    }
+
+
 def recommendation_document(index, rows, args, survey_context=None, reality=None):
     selected = rows[0] if rows else None
     selected_sha = (selected or {}).get("sha256") or ""
@@ -468,9 +506,64 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
     indexes = match_indexes(visible_matches)
     filters = filter_records(args, survey_context)
     filters_by_name, filters_by_source, filters_by_name_source = filter_record_indexes(filters)
+    api_collections = {
+        "matches": api_collection_record(
+            "matches",
+            len(visible_matches),
+            [
+                "matches_by_release",
+                "matches_by_tuple_path",
+                "matches_by_payload_preset",
+                "matches_by_compatibility",
+                "matches_by_tool",
+                "matches_by_feature",
+                "matches_by_provider_tool",
+                "matches_by_provider_status",
+                "matches_by_doom_wad_filename",
+                "matches_by_doom_wad_sha256",
+                "matches_by_project_license",
+                "matches_by_combined_gplv2_compatible",
+                "matches_by_license_component",
+                "matches_by_component_license",
+                "matches_by_command_queue_enabled",
+                "matches_by_command_queue_execution_supported",
+                "matches_by_command_queue_operator_supplied_command_execution",
+            ],
+            "visible_match_count",
+            "artifact_path",
+        ),
+        "dedupe_alternatives": api_collection_record(
+            "dedupe_alternatives",
+            len(dedupe),
+            [],
+            "dedupe_count",
+            "artifact_path",
+        ),
+        "filter_records": api_collection_record(
+            "filter_records",
+            len(filters),
+            [
+                "filters_by_name",
+                "filters_by_source",
+                "filters_by_name_source",
+            ],
+            "filter_count",
+            "name",
+        ),
+    }
+    api_resources = api_resource_records(api_collections)
+    api_resource_indexes = api_resource_record_indexes(api_resources)
     return {
         "schema": 1,
         "command": "find-artifact",
+        "api": {
+            "schema": 1,
+            "resource_count": len(api_resources),
+            "resources_key": "api_resources",
+            "collections_key": "api_collections",
+        },
+        "api_resources": api_resources,
+        **api_resource_indexes,
         "filters": active_filters(args),
         "filter_records": filters,
         "filters_by_name": filters_by_name,
@@ -492,51 +585,7 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
         "dedupe_count": len(dedupe),
         "matches": visible_matches,
         **indexes,
-        "api_collections": {
-            "matches": api_collection_record(
-                "matches",
-                len(visible_matches),
-                [
-                    "matches_by_release",
-                    "matches_by_tuple_path",
-                    "matches_by_payload_preset",
-                    "matches_by_compatibility",
-                    "matches_by_tool",
-                    "matches_by_feature",
-                    "matches_by_provider_tool",
-                    "matches_by_provider_status",
-                    "matches_by_doom_wad_filename",
-                    "matches_by_doom_wad_sha256",
-                    "matches_by_project_license",
-                    "matches_by_combined_gplv2_compatible",
-                    "matches_by_license_component",
-                    "matches_by_component_license",
-                    "matches_by_command_queue_enabled",
-                    "matches_by_command_queue_execution_supported",
-                    "matches_by_command_queue_operator_supplied_command_execution",
-                ],
-                "visible_match_count",
-                "artifact_path",
-            ),
-            "dedupe_alternatives": api_collection_record(
-                "dedupe_alternatives",
-                len(dedupe),
-                [],
-                "dedupe_count",
-                "artifact_path",
-            ),
-            "filter_records": api_collection_record(
-                "filter_records",
-                len(filters),
-                [
-                    "filters_by_name",
-                    "filters_by_source",
-                    "filters_by_name_source",
-                ],
-                "filter_count",
-                "name",
-            ),
-        },
+        "api_collections": api_collections,
         "index": {
             "release_count": index.get("release_count", 0),
             "artifact_count": index.get("artifact_count", 0),
