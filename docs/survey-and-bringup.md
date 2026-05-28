@@ -94,6 +94,10 @@ release selection before a release artifact is chosen.
 When `--reality-json` is supplied, failed active runtime checks can downgrade
 payload recommendations to `core-only` and add explicit warnings for noexec
 temporary storage, read-only root filesystems, broken procfs, or missing ptrace.
+Advisory failures such as unreadable `dmesg`, missing `/bin/sh` spawning, or
+unavailable PTYs are also copied into compatibility reasons so bringup reports
+can explain degraded crash-evidence and interactive-shell workflows without
+parsing warning text.
 When present, `checks_by_name` is used as the primary check lookup and the raw
 `checks` list remains the fallback for older reports.
 

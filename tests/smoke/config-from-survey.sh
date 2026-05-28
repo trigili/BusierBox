@@ -71,7 +71,10 @@ cat >"$tmp/reality-bad-runtime.json" <<'EOF'
     {"name": "tmp_noexec", "type": "constraint", "status": "pass", "ok": true, "detected": true, "skipped": false, "detail": "detected"},
     {"name": "rootfs_read_only", "type": "constraint", "status": "pass", "ok": true, "detected": true, "skipped": false, "detail": "detected"},
     {"name": "procfs_partial", "type": "constraint", "status": "pass", "ok": true, "detected": true, "skipped": false, "detail": "detected"},
-    {"name": "ptrace", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "not permitted"}
+    {"name": "ptrace", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "not permitted"},
+    {"name": "dmesg_readable", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "not readable"},
+    {"name": "spawn_sh", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "missing shell"},
+    {"name": "pty", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "no devpts"}
   ],
   "summary": {
     "operator_pass": 0,
@@ -102,6 +105,9 @@ assert "core payload extraction failed in reality-test" in doc["compatibility"][
 assert "read-only rootfs constraint" in doc["compatibility"]["reasons"]
 assert "procfs partial/broken: survey evidence may be incomplete" in doc["compatibility"]["reasons"]
 assert "ptrace unavailable: avoid debugger payloads" in doc["compatibility"]["reasons"]
+assert "dmesg unreadable: crash evidence may be limited" in doc["compatibility"]["reasons"]
+assert "shell spawn unavailable: shell-oriented payloads may be limited" in doc["compatibility"]["reasons"]
+assert "PTY unavailable: interactive tools may be degraded" in doc["compatibility"]["reasons"]
 assert doc["recommendations"]["BB_RUNTIME_MODE"] == "core-only"
 facts = doc["facts"]
 assert facts["payload_possible"] is False
@@ -110,7 +116,41 @@ assert facts["reality"]["tmp_noexec_detected"] is True
 assert facts["reality"]["rootfs_read_only_detected"] is True
 assert facts["reality"]["procfs_partial_detected"] is True
 assert facts["reality"]["ptrace"] == "fail"
+assert facts["reality"]["dmesg_readable"] == "fail"
+assert facts["reality"]["spawn_sh"] == "fail"
+assert facts["reality"]["pty"] == "fail"
 assert facts["reality"]["operator_skipped"] == 3
+PY
+
+cat >"$tmp/reality-advisory.json" <<'EOF'
+{
+  "schema": 1,
+  "checks": [
+    {"name": "dmesg_readable", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "not readable"},
+    {"name": "spawn_sh", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "missing shell"},
+    {"name": "pty", "type": "capability", "status": "fail", "ok": false, "available": false, "skipped": false, "detail": "no devpts"}
+  ],
+  "summary": {
+    "operator_pass": 0,
+    "operator_fail": 0,
+    "operator_skipped": 0,
+    "constraints": {}
+  }
+}
+EOF
+scripts/config-from-survey --format json --reality-json "$tmp/reality-advisory.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality-advisory.out"
+python3 - "$tmp/reality-advisory.out" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+assert doc["compatibility"]["label"] == "likely"
+assert "dmesg unreadable: crash evidence may be limited" in doc["compatibility"]["reasons"]
+assert "shell spawn unavailable: shell-oriented payloads may be limited" in doc["compatibility"]["reasons"]
+assert "PTY unavailable: interactive tools may be degraded" in doc["compatibility"]["reasons"]
+assert doc["facts"]["reality"]["dmesg_readable"] == "fail"
+assert doc["facts"]["reality"]["spawn_sh"] == "fail"
+assert doc["facts"]["reality"]["pty"] == "fail"
 PY
 
 cat >"$tmp/reality-indexed.json" <<'EOF'

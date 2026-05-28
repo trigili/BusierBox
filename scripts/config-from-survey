@@ -403,6 +403,15 @@ if reality_detected("procfs_partial"):
 if reality_failed("ptrace"):
     compatibility_label = "likely" if compatibility_label == "exact" else compatibility_label
     compatibility_reasons.append("ptrace unavailable: avoid debugger payloads")
+if reality_failed("dmesg_readable"):
+    compatibility_label = "likely" if compatibility_label == "exact" else compatibility_label
+    compatibility_reasons.append("dmesg unreadable: crash evidence may be limited")
+if reality_failed("spawn_sh"):
+    compatibility_label = "likely" if compatibility_label == "exact" else compatibility_label
+    compatibility_reasons.append("shell spawn unavailable: shell-oriented payloads may be limited")
+if reality_failed("pty"):
+    compatibility_label = "likely" if compatibility_label == "exact" else compatibility_label
+    compatibility_reasons.append("PTY unavailable: interactive tools may be degraded")
 if reality_failed("runtime_root_executable"):
     compatibility_label = "unsafe"
     compatibility_reasons.append("runtime root execution failed in reality-test")
@@ -501,6 +510,8 @@ result = {
             "temporary_file": reality_check("temporary_file").get("status", ""),
             "extract_core_payload": reality_check("extract_core_payload").get("status", ""),
             "exec_payload_busybox": reality_check("exec_payload_busybox").get("status", ""),
+            "spawn_sh": reality_check("spawn_sh").get("status", ""),
+            "pty": reality_check("pty").get("status", ""),
             "tmp_noexec_detected": reality_detected("tmp_noexec"),
             "rootfs_read_only_detected": reality_detected("rootfs_read_only"),
             "procfs_partial_detected": reality_detected("procfs_partial"),
