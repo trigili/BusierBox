@@ -345,6 +345,14 @@ scripts/find-artifact --index "$tmp/repo-index.json" --doom-wad doom.wad >"$tmp/
 grep -q '^release_name=one$' "$tmp/find-doom-wad.out"
 scripts/find-artifact --index "$tmp/repo-index.json" --doom-wad-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef >"$tmp/find-doom-sha.out"
 grep -q '^payload_preset=survey-core$' "$tmp/find-doom-sha.out"
+scripts/find-artifact --index "$tmp/repo-index.json" --project-license GPL-2.0-or-later --gplv2-compatible yes --license-component BusyBox --component-license BusyBox:GPL-2.0 --payload-preset survey-core >"$tmp/find-license.out"
+grep -q '^release_name=one$' "$tmp/find-license.out"
+grep -q '^project_license=GPL-2.0-or-later$' "$tmp/find-license.out"
+scripts/find-artifact --index "$tmp/repo-index.json" --gplv2-compatible no >/dev/null 2>"$tmp/find-license-incompatible.err" && {
+    printf '%s\n' "release-repo-index smoke: incompatible GPL filter unexpectedly matched" >&2
+    exit 1
+}
+grep -q 'find-artifact: no matching artifact' "$tmp/find-license-incompatible.err"
 scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --release one >"$tmp/find-tuple.out"
 grep -q '^release_name=one$' "$tmp/find-tuple.out"
 grep -q '^tuple_path=by-tuple/mipsel/musl/4.x/mips32r2-24kc$' "$tmp/find-tuple.out"
@@ -383,6 +391,24 @@ assert row["release_self_test"]["command_queue_operator_supplied_command_executi
 assert row["release_self_test"]["command_queue_token_required_count"] == 1
 assert row["release_self_test"]["command_queue_token_configured_count"] == 0
 PY
+scripts/find-artifact --index "$tmp/repo-index.json" --project-license GPL-2.0-or-later --gplv2-compatible true --license-component BusyBox --component-license BusyBox:GPL-2.0 --payload-preset ssh-operator --recommendation-json >"$tmp/recommend-license-json.out"
+python3 - "$tmp/recommend-license-json.out" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert doc["filters"]["project_license"] == "GPL-2.0-or-later"
+assert doc["filters"]["gplv2_compatible"] == "true"
+assert doc["filters"]["license_component"] == "BusyBox"
+assert doc["filters"]["component_license"] == "BusyBox:GPL-2.0"
+assert doc["filters_by_name"]["project_license"]["source"] == "explicit"
+assert doc["selected"]["release_name"] == "two"
+assert doc["selected"]["release_license"]["component_licenses"]["BusyBox"] == "GPL-2.0"
+assert doc["matches_by_project_license"]["GPL-2.0-or-later"][0]["release_name"] == "two"
+assert doc["matches_by_combined_gplv2_compatible"]["true"][0]["release_name"] == "two"
+assert doc["matches_by_license_component"]["BusyBox"][0]["release_name"] == "two"
+assert doc["matches_by_component_license"]["BusyBox:GPL-2.0"][0]["release_name"] == "two"
+PY
 scripts/find-artifact --index "$tmp/repo-index.json" --device lab-router --recommendation-json >"$tmp/recommend-json.out"
 python3 - "$tmp/recommend-json.out" <<'PY'
 import json
@@ -409,11 +435,19 @@ assert doc["filters_by_name"]["device"]["source"] == "explicit"
 assert doc["filters_by_source"]["explicit"][0]["name"] == "device"
 assert "matches_by_payload_preset" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_provider_status" in doc["api_collections"]["matches"]["indexes"]
+assert "matches_by_project_license" in doc["api_collections"]["matches"]["indexes"]
+assert "matches_by_combined_gplv2_compatible" in doc["api_collections"]["matches"]["indexes"]
+assert "matches_by_license_component" in doc["api_collections"]["matches"]["indexes"]
+assert "matches_by_component_license" in doc["api_collections"]["matches"]["indexes"]
 assert doc["matches_by_release"]["two"][0]["release_name"] == "two"
 assert doc["matches_by_payload_preset"]["ssh-operator"][0]["release_name"] == "two"
 assert doc["matches_by_compatibility"]["exact"][0]["release_name"] == "two"
 assert doc["matches_by_provider_tool"]["strace"][0]["release_name"] == "two"
 assert doc["matches_by_provider_status"]["strace:found"][0]["release_name"] == "two"
+assert doc["matches_by_project_license"]["GPL-2.0-or-later"][0]["release_name"] == "two"
+assert doc["matches_by_combined_gplv2_compatible"]["true"][0]["release_name"] == "two"
+assert doc["matches_by_license_component"]["BusyBox"][0]["release_name"] == "two"
+assert doc["matches_by_component_license"]["BusyBox:GPL-2.0"][0]["release_name"] == "two"
 assert doc["matches_by_command_queue_enabled"]["false"][0]["release_name"] == "two"
 assert doc["matches_by_command_queue_execution_supported"]["false"][0]["release_name"] == "two"
 assert doc["matches_by_command_queue_operator_supplied_command_execution"]["false"][0]["release_name"] == "two"
@@ -569,5 +603,7 @@ grep -q 'recommendations' docs/release-bundles.md
 grep -q 'artifacts_by_command_queue_operator_supplied_command_execution' docs/release-bundles.md
 grep -q 'release_license_records_by_component_license' docs/release-bundles.md
 grep -q 'combined_gplv2_compatible' docs/release-bundles.md
+grep -q -- '--gplv2-compatible yes|no' docs/release-bundles.md
+grep -q 'matches_by_component_license' docs/release-bundles.md
 
 printf '%s\n' "release-repo-index ok"

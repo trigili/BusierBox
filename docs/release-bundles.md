@@ -244,6 +244,11 @@ each bundle and attached to artifact rows as `release_license`,
 `release_license_records_by_component_license`, and
 `release_license_records_by_notice_file` so offline browsers can audit GPL
 compatibility and notice coverage without opening every release directory.
+`scripts/find-artifact` can also filter by that metadata with
+`--project-license`, `--gplv2-compatible yes|no`, `--license-component`, and
+`--component-license COMPONENT:LICENSE`, and recommendation JSON exposes
+matching `matches_by_project_license`, `matches_by_combined_gplv2_compatible`,
+`matches_by_license_component`, and `matches_by_component_license` maps.
 `--recommendation-json` returns the selected artifact plus active filters,
 filter provenance records, match count, visible match count, match lookup maps,
 `api_collections` metadata with the same count/primary-key fields, index

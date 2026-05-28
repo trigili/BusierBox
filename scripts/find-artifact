@@ -31,6 +31,17 @@ def boolish(value):
     return bool(value)
 
 
+def bool_filter_value(value):
+    if value in (None, ""):
+        return ""
+    text = str(value).strip().lower()
+    if text in {"yes", "true", "1"}:
+        return "true"
+    if text in {"no", "false", "0"}:
+        return "false"
+    return text
+
+
 def kernel_floor(release):
     release = useful(release)
     if not release:
@@ -170,6 +181,7 @@ def tuple_info(row, index):
 def matches(row, index, args):
     info = tuple_info(row, index)
     doom_wads = [wad for wad in (row.get("doom_wads") or []) if isinstance(wad, dict)]
+    release_license = row.get("release_license") if isinstance(row.get("release_license"), dict) else {}
     if args.sha256 and row.get("sha256") != args.sha256:
         return False
     if args.doom_wad and not any(wad.get("filename") == args.doom_wad for wad in doom_wads):
@@ -180,6 +192,20 @@ def matches(row, index, args):
         return False
     if args.tuple_path and row.get("tuple_path") != args.tuple_path:
         return False
+    if args.project_license and release_license.get("project_license") != args.project_license:
+        return False
+    if args.gplv2_compatible:
+        wanted = bool_filter_value(args.gplv2_compatible)
+        actual = "true" if release_license.get("combined_gplv2_compatible") else "false"
+        if actual != wanted:
+            return False
+    if args.license_component and args.license_component not in (release_license.get("component_names") or []):
+        return False
+    if args.component_license:
+        component, sep, license_id = args.component_license.partition(":")
+        licenses = release_license.get("component_licenses") or {}
+        if not sep or not component or not license_id or licenses.get(component) != license_id:
+            return False
     if args.arch and info.get("arch") != args.arch:
         return False
     if args.libc and info.get("libc") != args.libc:
@@ -292,6 +318,10 @@ def active_filters(args):
         "sha256",
         "doom_wad",
         "doom_wad_sha256",
+        "project_license",
+        "gplv2_compatible",
+        "license_component",
+        "component_license",
         "max_compatibility",
         "survey_json",
         "reality_json",
@@ -358,6 +388,10 @@ def match_indexes(rows):
         "matches_by_provider_status": {},
         "matches_by_doom_wad_filename": {},
         "matches_by_doom_wad_sha256": {},
+        "matches_by_project_license": {},
+        "matches_by_combined_gplv2_compatible": {},
+        "matches_by_license_component": {},
+        "matches_by_component_license": {},
         "matches_by_command_queue_enabled": {},
         "matches_by_command_queue_execution_supported": {},
         "matches_by_command_queue_operator_supplied_command_execution": {},
@@ -367,6 +401,18 @@ def match_indexes(rows):
         add_index(indexes, "matches_by_tuple_path", row.get("tuple_path"), row)
         add_index(indexes, "matches_by_payload_preset", row.get("payload_preset"), row)
         add_index(indexes, "matches_by_compatibility", (row.get("compatibility") or {}).get("label") or "exact", row)
+        release_license = row.get("release_license") if isinstance(row.get("release_license"), dict) else {}
+        add_index(indexes, "matches_by_project_license", release_license.get("project_license"), row)
+        add_index(
+            indexes,
+            "matches_by_combined_gplv2_compatible",
+            "true" if release_license.get("combined_gplv2_compatible") else "false",
+            row,
+        )
+        for component in release_license.get("component_names") or []:
+            add_index(indexes, "matches_by_license_component", component, row)
+        for component, license_id in (release_license.get("component_licenses") or {}).items():
+            add_index(indexes, "matches_by_component_license", f"{component}:{license_id}", row)
         command_queue = row.get("command_queue") or {}
         mode_summary = command_queue.get("mode_summary") or {}
         add_index(
@@ -461,6 +507,10 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
                     "matches_by_provider_status",
                     "matches_by_doom_wad_filename",
                     "matches_by_doom_wad_sha256",
+                    "matches_by_project_license",
+                    "matches_by_combined_gplv2_compatible",
+                    "matches_by_license_component",
+                    "matches_by_component_license",
                     "matches_by_command_queue_enabled",
                     "matches_by_command_queue_execution_supported",
                     "matches_by_command_queue_operator_supplied_command_execution",
@@ -549,6 +599,11 @@ def main(argv=None):
     parser.add_argument("--sha256")
     parser.add_argument("--doom-wad", help="match artifacts that stage a Doom WAD with this basename")
     parser.add_argument("--doom-wad-sha256", help="match artifacts that stage a Doom WAD with this SHA-256")
+    parser.add_argument("--project-license", help="match artifacts from releases with this BusierBox project license")
+    parser.add_argument("--gplv2-compatible", choices=("yes", "no", "true", "false", "1", "0"),
+                        help="match artifacts from releases with this combined GPLv2 compatibility state")
+    parser.add_argument("--license-component", help="match artifacts from releases whose license policy includes this component name")
+    parser.add_argument("--component-license", help="match artifacts from releases whose license policy has COMPONENT:LICENSE")
     parser.add_argument("--max-compatibility", choices=("exact", "likely", "heuristic", "unsafe", "incompatible"),
                         help="exclude artifacts riskier than this compatibility label")
     parser.add_argument("--all", action="store_true", help="print all matches")
