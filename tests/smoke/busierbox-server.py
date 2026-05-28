@@ -767,6 +767,25 @@ def main():
             print("command queue HTTP result events missing", file=sys.stderr)
             return 1
 
+        workbench_jobs_file = queue_operator_dir / "workbench-jobs.json"
+        workbench_job_log = queue_operator_dir / "package-job.log"
+        workbench_job_log.write_text("configure\nbuild\npackage complete\n", encoding="utf-8")
+        workbench_jobs_file.write_text(json.dumps({
+            "schema": 1,
+            "jobs": [
+                {
+                    "id": "job-smoke",
+                    "action_id": "package-artifact",
+                    "command": "make package",
+                    "state": "running",
+                    "pid": 999999,
+                    "managed_by": "workbench-smoke",
+                    "started_at": "2026-05-28T00:00:00Z",
+                    "log_path": str(workbench_job_log),
+                }
+            ],
+        }) + "\n", encoding="utf-8")
+
         queue_status_doc = run(
             "scripts/busierbox-server",
             "--config", str(cfg),
@@ -928,6 +947,7 @@ def main():
                 paths.get("state_file") != queue_status_json.get("state_file") or
                 paths.get("staged_files") != queue_status_json.get("staged_files") or
                 paths.get("command_queue_file") != str(queue_file) or
+                paths.get("workbench_jobs_file") != str(workbench_jobs_file) or
                 not paths.get("event_log") or
                 not paths.get("operator_session_dir") or
                 paths.get("tls_cert") != queue_status_json.get("tls_cert") or
@@ -989,6 +1009,7 @@ def main():
                 queue_status_json["summary"].get("browser_path_count") != len(browser_paths) or
                 queue_status_json["summary"].get("browser_path_kind_counts", {}).get("server-state") != 1 or
                 queue_status_json["summary"].get("browser_path_exists_kind_counts", {}).get("command-queue-ledger") != 1 or
+                queue_status_json["summary"].get("browser_path_exists_kind_counts", {}).get("workbench-jobs-ledger") != 1 or
                 queue_status_json["summary"].get("browser_path_missing_kind_counts", {}).get("staged-ledger") != 1 or
                 queue_status_json["summary"].get("browser_path_kind_mismatch_count") != 0 or
                 queue_status_json["summary"].get("browser_path_kind_mismatch_counts") != {} or
@@ -1029,6 +1050,7 @@ def main():
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_id"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_mode"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
+                ("workbench_jobs", len(queue_status_json.get("workbench_jobs") or []), "workbench_jobs_by_id"),
                 ("sessions", len(queue_status_json.get("sessions") or []), "sessions_by_has_uploads"),
                 ("events", len(queue_status_json.get("events") or []), "events_by_id"),
         ):
@@ -1051,6 +1073,8 @@ def main():
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
                 api_resources_by_name.get("workbench_actions", {}).get("records_key") != "workbench_actions" or
                 api_resources_by_summary_key.get("workbench_action_count", [{}])[0].get("name") != "workbench_actions" or
+                api_resources_by_name.get("workbench_jobs", {}).get("records_key") != "workbench_jobs" or
+                api_resources_by_summary_key.get("workbench_job_count", [{}])[0].get("name") != "workbench_jobs" or
                 api_resources_by_summary_key.get("event_tail_count", [{}])[0].get("name") != "events" or
                 not any(rec.get("name") == "services" for rec in api_resources_by_primary_key.get("name", []))):
             print("server json status missing API resource catalog lookup maps", file=sys.stderr)
@@ -1072,6 +1096,24 @@ def main():
                 not actions_by_script.get("scripts/busierbox-bringup") or
                 not actions_by_background.get("True")):
             print("server json status missing operator workflow action descriptors", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        workbench_jobs = queue_status_json.get("workbench_jobs") or []
+        jobs_by_id = queue_status_json.get("workbench_jobs_by_id") or {}
+        jobs_by_action = queue_status_json.get("workbench_jobs_by_action") or {}
+        jobs_by_state = queue_status_json.get("workbench_jobs_by_effective_state") or {}
+        job = jobs_by_id.get("job-smoke") or {}
+        if (len(workbench_jobs) != 1 or
+                queue_status_json.get("summary", {}).get("workbench_job_count") != 1 or
+                queue_status_json.get("summary", {}).get("workbench_job_running_count") != 0 or
+                queue_status_json.get("summary", {}).get("workbench_job_log_exists_count") != 1 or
+                job.get("effective_state") != "exited" or
+                job.get("pid_alive") is not False or
+                job.get("cancel_supported") is not False or
+                job.get("last_output_tail", [])[-1:] != ["package complete"] or
+                not jobs_by_action.get("package-artifact") or
+                not jobs_by_state.get("exited")):
+            print("server json status missing workbench background job records", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         if (staged_files_state.get("path") != queue_status_json.get("staged_files") or

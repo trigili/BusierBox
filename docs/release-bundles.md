@@ -714,7 +714,13 @@ records are show-command descriptors by default, include confirmation,
 background-job, and target-execution flags, and are indexed through
 `workbench_actions_by_id`, `workbench_actions_by_category`, and
 `workbench_actions_by_script` so future TUI/web clients can render workflow
-screens without inventing a second configuration format. The line-oriented fallback exposes
+screens without inventing a second configuration format. Background-capable
+workflow tasks are represented in `workbench_jobs` with start time, command, PID
+ownership metadata, log path, effective state, exit status when recorded, and a
+bounded last-output tail. Job indexes such as `workbench_jobs_by_id`,
+`workbench_jobs_by_action`, `workbench_jobs_by_effective_state`, and
+`workbench_jobs_by_cancel_supported` let operator UIs show or cancel only jobs
+that are clearly owned by the workbench/runtime manager. The line-oriented fallback exposes
 the same operator path health, compact service and activity summaries, recent
 upload/fetch activity, event aggregate counts, refresh state, and compact event
 outcome details so non-curses or non-TTY runs still show whether listener state,

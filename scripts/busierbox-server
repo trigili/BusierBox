@@ -476,6 +476,7 @@ DEFAULT_STATE_FILE = DEFAULT_OPERATOR_SESSION_DIR / "server-state.json"
 DEFAULT_STAGED_FILE = DEFAULT_OPERATOR_SESSION_DIR / "staged-files.json"
 DEFAULT_COMMAND_QUEUE_FILE = DEFAULT_OPERATOR_SESSION_DIR / "command-queue.json"
 DEFAULT_COMMAND_COPY_FILE = DEFAULT_OPERATOR_SESSION_DIR / "last-command.txt"
+DEFAULT_WORKBENCH_JOBS_FILE = DEFAULT_OPERATOR_SESSION_DIR / "workbench-jobs.json"
 DEFAULTS = {
     "transport": "ssh",
     "encryption": "tls",
@@ -498,6 +499,7 @@ DEFAULTS = {
     "staged_files": str(DEFAULT_STAGED_FILE),
     "command_queue_file": str(DEFAULT_COMMAND_QUEUE_FILE),
     "command_copy_file": str(DEFAULT_COMMAND_COPY_FILE),
+    "workbench_jobs_file": str(DEFAULT_WORKBENCH_JOBS_FILE),
     "command_queue_enable": "no",
     "command_queue_port": "22205",
     "command_queue_tls": "yes",
@@ -587,6 +589,10 @@ def command_copy_path(cfg):
     return Path(str(cfg.get("command_copy_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "last-command.txt"))
 
 
+def workbench_jobs_path(cfg):
+    return Path(str(cfg.get("workbench_jobs_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "workbench-jobs.json"))
+
+
 def state_file_path(cfg):
     return Path(str(cfg.get("server_state") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "server-state.json"))
 
@@ -600,6 +606,7 @@ def apply_operator_session_path_defaults(cfg, explicit_keys):
         "staged_files": operator_dir / "staged-files.json",
         "command_queue_file": operator_dir / "command-queue.json",
         "command_copy_file": operator_dir / "last-command.txt",
+        "workbench_jobs_file": operator_dir / "workbench-jobs.json",
         "authorized_dbclient_pubkey": operator_dir / "id_dbclient.pub",
         "operator_host_key": operator_dir / "operator_ssh_host_key",
         "tls_cert": operator_dir / "shell-server.crt",
@@ -953,6 +960,97 @@ def workbench_action_summary(records):
     }
 
 
+def tail_text_file(path_text, line_limit=20, byte_limit=8192):
+    path = Path(str(path_text or ""))
+    if not path.is_file():
+        return []
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return []
+    if len(data) > byte_limit:
+        data = data[-byte_limit:]
+    text = data.decode("utf-8", errors="replace")
+    return text.splitlines()[-int(line_limit or 20):]
+
+
+def load_workbench_jobs(cfg):
+    data = read_json_file(workbench_jobs_path(cfg), {"schema": 1, "jobs": []})
+    if not isinstance(data, dict):
+        data = {"schema": 1, "jobs": []}
+    if not isinstance(data.get("jobs"), list):
+        data["jobs"] = []
+    data.setdefault("schema", 1)
+    return data
+
+
+def workbench_job_records(cfg, actions=None):
+    data = load_workbench_jobs(cfg)
+    actions_by_id = {rec.get("id", ""): rec for rec in (actions or workbench_action_records(cfg)) if rec.get("id")}
+    records = []
+    for raw in data.get("jobs") or []:
+        if not isinstance(raw, dict):
+            continue
+        rec = dict(raw)
+        action = actions_by_id.get(str(rec.get("action_id") or "")) or {}
+        pid = rec.get("pid")
+        pid_is_alive = pid_alive(pid) if pid else False
+        state = str(rec.get("state") or "unknown")
+        effective_state = state
+        if state in ("starting", "running") and pid and not pid_is_alive:
+            effective_state = "exited"
+        log_path = str(rec.get("log_path") or "")
+        output_tail = tail_text_file(log_path, rec.get("tail_limit", 20))
+        managed_by = str(rec.get("managed_by") or "")
+        cancel_supported = bool(pid and pid_is_alive and managed_by and action.get("background_supported") is True)
+        rec.update({
+            "action_id": str(rec.get("action_id") or ""),
+            "action_label": action.get("label", ""),
+            "category": rec.get("category") or action.get("category", ""),
+            "script": rec.get("script") or action.get("script", ""),
+            "command": str(rec.get("command") or action.get("command", "")),
+            "state": state,
+            "effective_state": effective_state,
+            "pid_alive": pid_is_alive,
+            "pid_managed": bool(pid and managed_by),
+            "cancel_supported": cancel_supported,
+            "log_path": log_path,
+            "log_exists": Path(log_path).is_file() if log_path else False,
+            "last_output_tail": output_tail,
+            "last_output_tail_count": len(output_tail),
+            "background_supported": bool(action.get("background_supported", False)),
+            "long_running": bool(action.get("long_running", False)),
+        })
+        records.append(rec)
+    return records
+
+
+def workbench_job_indexes(records):
+    return {
+        "workbench_jobs_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "workbench_jobs_by_action": records_by_key(records, "action_id"),
+        "workbench_jobs_by_state": records_by_key(records, "state"),
+        "workbench_jobs_by_effective_state": records_by_key(records, "effective_state"),
+        "workbench_jobs_by_category": records_by_key(records, "category"),
+        "workbench_jobs_by_script": records_by_key(records, "script"),
+        "workbench_jobs_by_pid": records_by_key(records, "pid"),
+        "workbench_jobs_by_cancel_supported": records_by_key(records, "cancel_supported"),
+    }
+
+
+def workbench_job_summary(records):
+    return {
+        "total_count": len(records or []),
+        "running_count": len([rec for rec in records or [] if rec.get("effective_state") in ("starting", "running")]),
+        "cancel_supported_count": len([rec for rec in records or [] if rec.get("cancel_supported") is True]),
+        "log_exists_count": len([rec for rec in records or [] if rec.get("log_exists") is True]),
+        "state_counts": record_count_by_key(records, "state"),
+        "effective_state_counts": record_count_by_key(records, "effective_state"),
+        "action_counts": record_count_by_key(records, "action_id"),
+        "category_counts": record_count_by_key(records, "category"),
+    }
+
+
 def latest_record_value(records, keys):
     latest = ""
     for rec in records or []:
@@ -1182,6 +1280,7 @@ def operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, 
         "staged_files": "staged-ledger",
         "command_queue_file": "command-queue-ledger",
         "command_copy_file": "command-copy",
+        "workbench_jobs_file": "workbench-jobs-ledger",
         "event_log": "operator-event-log",
         "session_root": "session-root",
         "tls_cert": "tls-cert",
@@ -5430,6 +5529,9 @@ def status_document(cfg):
     workbench_actions = workbench_action_records(cfg)
     workbench_action_index_maps = workbench_action_indexes(workbench_actions)
     workbench_action_stats = workbench_action_summary(workbench_actions)
+    workbench_jobs = workbench_job_records(cfg, workbench_actions)
+    workbench_job_index_maps = workbench_job_indexes(workbench_jobs)
+    workbench_job_stats = workbench_job_summary(workbench_jobs)
     target_command_records = generated_target_command_records(cfg, staged_raw)
     (target_commands_by_service,
      target_commands_by_request,
@@ -5469,6 +5571,7 @@ def status_document(cfg):
         "staged_files": str(staged_file_path(cfg)),
         "command_queue_file": str(command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
+        "workbench_jobs_file": str(workbench_jobs_path(cfg)),
         "event_log": str(event_log_path),
         "session_root": session_root,
         "tls_cert": str(cfg.get("tls_cert", "")),
@@ -5799,6 +5902,14 @@ def status_document(cfg):
         "workbench_action_target_execution_count": workbench_action_stats.get("target_execution_count", 0),
         "workbench_action_category_counts": workbench_action_stats.get("category_counts") or {},
         "workbench_action_script_counts": workbench_action_stats.get("script_counts") or {},
+        "workbench_job_count": workbench_job_stats.get("total_count", 0),
+        "workbench_job_running_count": workbench_job_stats.get("running_count", 0),
+        "workbench_job_cancel_supported_count": workbench_job_stats.get("cancel_supported_count", 0),
+        "workbench_job_log_exists_count": workbench_job_stats.get("log_exists_count", 0),
+        "workbench_job_state_counts": workbench_job_stats.get("state_counts") or {},
+        "workbench_job_effective_state_counts": workbench_job_stats.get("effective_state_counts") or {},
+        "workbench_job_action_counts": workbench_job_stats.get("action_counts") or {},
+        "workbench_job_category_counts": workbench_job_stats.get("category_counts") or {},
     })
     api_collections = {
         "services": api_collection_record(
@@ -5934,6 +6045,14 @@ def status_document(cfg):
                 "workbench_actions_by_runs_build", "workbench_actions_by_execution_default",
             ), "workbench_action_count",
         ),
+        "workbench_jobs": api_collection_record(
+            "workbench_jobs", workbench_jobs, "id", (
+                "workbench_jobs_by_id", "workbench_jobs_by_action",
+                "workbench_jobs_by_state", "workbench_jobs_by_effective_state",
+                "workbench_jobs_by_category", "workbench_jobs_by_script",
+                "workbench_jobs_by_pid", "workbench_jobs_by_cancel_supported",
+            ), "workbench_job_count",
+        ),
     }
     api_resources = api_resource_records(api_collections)
     api_resource_indexes = api_resource_record_indexes(api_resources)
@@ -5957,6 +6076,7 @@ def status_document(cfg):
         "staged_files": str(staged_file_path(cfg)),
         "command_queue_file": str(command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
+        "workbench_jobs_file": str(workbench_jobs_path(cfg)),
         "event_log": str(event_log_path),
         "session_root": session_root,
         "tls_cert": str(cfg.get("tls_cert", "")),
@@ -6085,6 +6205,8 @@ def status_document(cfg):
         "command_queue_modes_by_operator_supplied_command_execution": command_queue.get("command_queue_modes_by_operator_supplied_command_execution") or {},
         "workbench_actions": workbench_actions,
         **workbench_action_index_maps,
+        "workbench_jobs": workbench_jobs,
+        **workbench_job_index_maps,
     }
 
 
@@ -6185,6 +6307,19 @@ def print_workbench_action_summary(doc):
         f"target_execution={summary.get('workbench_action_target_execution_count', 0)}"
     )
     print(f"  categories: {format_counts(summary.get('workbench_action_category_counts') or {})}")
+
+
+def print_workbench_job_summary(doc):
+    doc = doc or {}
+    summary = doc.get("summary") or {}
+    print(
+        "Workbench job summary: "
+        f"total={summary.get('workbench_job_count', 0)} "
+        f"running={summary.get('workbench_job_running_count', 0)} "
+        f"cancel_supported={summary.get('workbench_job_cancel_supported_count', 0)} "
+        f"logs={summary.get('workbench_job_log_exists_count', 0)}"
+    )
+    print(f"  states: {format_counts(summary.get('workbench_job_effective_state_counts') or {})}")
 
 
 def print_release_summary(doc):
@@ -6346,6 +6481,7 @@ def print_status(cfg, json_output=False):
     print(f"  staged_files: {doc['staged_files']}")
     print(f"  command_queue_file: {doc['command_queue_file']}")
     print(f"  command_copy_file: {doc['command_copy_file']}")
+    print(f"  workbench_jobs_file: {doc['workbench_jobs_file']}")
     print(f"  session_root: {doc['session_root']}")
     print("")
     print_activity_summary(doc.get("summary") or {})
@@ -6487,6 +6623,14 @@ def print_status(cfg, json_output=False):
         confirm = "yes" if rec.get("requires_confirmation") else "no"
         print(f"  {rec.get('id', '')} category={rec.get('category', '')} script={rec.get('script', '')} background={bg} confirm={confirm}")
         print(f"    {rec.get('command', '')}")
+    print_workbench_job_summary(doc)
+    for rec in doc.get("workbench_jobs") or []:
+        cancel = "yes" if rec.get("cancel_supported") else "no"
+        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} cancel_supported={cancel}")
+        print(f"    command: {rec.get('command', '')}")
+        print(f"    log: {rec.get('log_path', '')}")
+        for line in rec.get("last_output_tail") or []:
+            print(f"    | {line}")
     print("")
     print("Command queue:")
     queue = doc["command_queue"]
@@ -6630,6 +6774,7 @@ def print_workbench(cfg):
         ("staged_files", "staged_files"),
         ("command_queue_file", "command_queue_file"),
         ("command_copy_file", "command_copy_file"),
+        ("workbench_jobs_file", "workbench_jobs_file"),
         ("event_log", "event_log"),
         ("session_root", "session_root"),
     ):
@@ -6752,6 +6897,14 @@ def print_workbench(cfg):
         confirm = "yes" if rec.get("requires_confirmation") else "no"
         print(f"  {rec.get('id', '')} category={rec.get('category', '')} script={rec.get('script', '')} background={bg} confirm={confirm}")
         print(f"    {rec.get('command', '')}")
+    print_workbench_job_summary(snap)
+    for rec in snap.get("workbench_jobs") or []:
+        cancel = "yes" if rec.get("cancel_supported") else "no"
+        print(f"  job {rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')} pid={rec.get('pid', '') or '-'} cancel_supported={cancel}")
+        print(f"    command: {rec.get('command', '')}")
+        print(f"    log: {rec.get('log_path', '')}")
+        for line in rec.get("last_output_tail") or []:
+            print(f"    | {line}")
     print("")
     print("Command queue:")
     queue = snap["command_queue"]
