@@ -393,12 +393,19 @@ static void append_poll_event(const char *path, const char *event, const char *m
     FILE *fh;
     char ts[32];
     char id[192];
+    int live_poll_event = 0;
+    int live_poll_supported = 0;
 
     if (!path || !path[0])
         return;
     fh = fopen(path, "a");
     if (!fh)
         return;
+    if (event && (!strncmp(event, "command_queue_poll_", strlen("command_queue_poll_")) ||
+                  !strcmp(event, "command_queue_execution_decision") ||
+                  !strncmp(event, "command_queue_result_upload", strlen("command_queue_result_upload"))))
+        live_poll_event = 1;
+    live_poll_supported = live_poll_event && !strcmp(BB_COMMAND_QUEUE_TLS, "no");
     utc_timestamp(ts, sizeof(ts));
     snprintf(id, sizeof(id), "cqevt-%ld-%d-%s", (long)getpid(), attempt, event ? event : "event");
     fputs("{\"schema\":1,\"ts\":", fh);
@@ -415,8 +422,8 @@ static void append_poll_event(const char *path, const char *event, const char *m
     bb_json_string(fh, mode);
     fputs(",\"endpoint\":", fh);
     bb_json_string(fh, endpoint ? endpoint : "");
-    fprintf(fh, ",\"attempt\":%d,\"executes_commands\":false,\"delivery_supported\":%s,\"result_upload_supported\":true",
-            attempt, status && !strcmp(status, "delivered") ? "true" : "false");
+    fprintf(fh, ",\"attempt\":%d,\"executes_commands\":false,\"delivery_supported\":%s,\"result_upload_supported\":%s",
+            attempt, live_poll_supported ? "true" : "false", live_poll_supported ? "true" : "false");
     fputs(",\"status\":", fh);
     bb_json_string(fh, status ? status : "");
     if (error && error[0]) {

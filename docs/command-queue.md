@@ -92,7 +92,10 @@ metadata also records `command_queue_execution_decision` with status
 `rejected`, and the daemon records `command_queue_poll_shutdown` when the loop
 exits. Target-side JSONL events use the same structured event-bus envelope as
 operator events: `schema`, `id`, `ts`, `service`, `session`, `event`, `level`,
-`remote`, and `details`.
+`remote`, and `details`. In target-side event `details`,
+`delivery_supported` and `result_upload_supported` describe whether the live
+HTTP polling/result path is available for that event; `status=no-command` means
+the queue was empty, not that delivery is unsupported.
 
 The live daemon writes a target-side state file, defaulting to
 `$BB_RUNTIME_ROOT/run/command-queue-daemon.state`. `command-queue status`

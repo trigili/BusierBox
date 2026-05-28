@@ -191,6 +191,9 @@ assert all(event.get("id", "").startswith("cqevt-") for event in events)
 assert all(event.get("session", None) == "" for event in events)
 assert all("remote" in event for event in events)
 assert any(event["event"] == "command_queue_poll_no_command" for event in events)
+assert all(event["details"]["delivery_supported"] is True for event in events)
+assert all(event["details"]["result_upload_supported"] is True for event in events)
+assert all(event["details"]["executes_commands"] is False for event in events)
 cfg = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 operator_events = Path(cfg["operator_session_dir"]) / "events.jsonl"
 operator = [json.loads(line) for line in operator_events.open(encoding="utf-8")]
