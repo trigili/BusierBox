@@ -122,6 +122,79 @@ def artifact_features(row):
     return unique(features)
 
 
+def compatibility_rank(row):
+    label = ((row.get("compatibility") or {}).get("label") or "exact")
+    return {"exact": 0, "likely": 1, "heuristic": 2, "unsafe": 3, "incompatible": 4}.get(label, 5)
+
+
+def recommendation_key(row):
+    return (
+        compatibility_rank(row),
+        -(row.get("release_mtime") or 0),
+        row.get("payload_preset") or "",
+        row.get("artifact") or "",
+    )
+
+
+def best_record(rows):
+    rows = list(rows or [])
+    if not rows:
+        return None
+    return sorted(rows, key=recommendation_key)[0]
+
+
+def recommendations_from_indexes(devices, indexes):
+    by_device = {}
+    for alias, metas in devices.items():
+        allowed = {(meta.get("release_dir"), meta.get("tuple_path")) for meta in metas}
+        selected = best_record(
+            record
+            for record in indexes["artifacts"]
+            if (record.get("release_dir"), record.get("tuple_path")) in allowed
+        )
+        if selected:
+            by_device[alias] = selected
+
+    return {
+        "schema": 1,
+        "selection_policy": [
+            "lowest compatibility risk label",
+            "newest release_mtime",
+            "payload preset name",
+            "artifact path",
+        ],
+        "by_device": by_device,
+        "by_tuple_path": {
+            key: best_record(indexes["artifacts_by_tuple_path"][key])
+            for key in sorted(indexes["artifacts_by_tuple_path"])
+        },
+        "by_tool": {
+            key: best_record(indexes["artifacts_by_tool"][key])
+            for key in sorted(indexes["artifacts_by_tool"])
+        },
+        "by_payload_preset": {
+            key: best_record(indexes["artifacts_by_payload_preset"][key])
+            for key in sorted(indexes["artifacts_by_payload_preset"])
+        },
+        "by_feature": {
+            key: best_record(indexes["artifacts_by_feature"][key])
+            for key in sorted(indexes["artifacts_by_feature"])
+        },
+        "by_tool_payload_preset": {
+            key: best_record(indexes["artifacts_by_tool_payload_preset"][key])
+            for key in sorted(indexes["artifacts_by_tool_payload_preset"])
+        },
+        "by_feature_payload_preset": {
+            key: best_record(indexes["artifacts_by_feature_payload_preset"][key])
+            for key in sorted(indexes["artifacts_by_feature_payload_preset"])
+        },
+        "by_tuple_payload_preset": {
+            key: best_record(indexes["artifacts_by_tuple_payload_preset"][key])
+            for key in sorted(indexes["artifacts_by_tuple_payload_preset"])
+        },
+    }
+
+
 def build_repo_index(paths):
     release_dirs = [pathlib.Path(path) for path in candidate_release_dirs(paths)]
     artifacts = []
@@ -231,6 +304,16 @@ def build_repo_index(paths):
                 artifacts_by_doom_wad_filename.setdefault(str(filename), []).append(record)
             if sha256:
                 artifacts_by_doom_wad_sha256.setdefault(str(sha256), []).append(record)
+    indexes = {
+        "artifacts": artifacts,
+        "artifacts_by_tuple_path": artifacts_by_tuple_path,
+        "artifacts_by_tool": artifacts_by_tool,
+        "artifacts_by_payload_preset": artifacts_by_payload_preset,
+        "artifacts_by_feature": artifacts_by_feature,
+        "artifacts_by_tool_payload_preset": artifacts_by_tool_payload_preset,
+        "artifacts_by_feature_payload_preset": artifacts_by_feature_payload_preset,
+        "artifacts_by_tuple_payload_preset": artifacts_by_tuple_payload_preset,
+    }
     return {
         "schema": 1,
         "release_count": len(release_dirs),
@@ -257,6 +340,7 @@ def build_repo_index(paths):
         "payload_presets": {key: unique(presets[key]) for key in sorted(presets)},
         "tools_present": {key: unique(tools[key]) for key in sorted(tools)},
         "features": {key: unique(features[key]) for key in sorted(features)},
+        "recommendations": recommendations_from_indexes(devices, indexes),
     }
 
 

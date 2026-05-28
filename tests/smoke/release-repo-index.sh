@@ -130,6 +130,19 @@ assert index["artifacts_by_provider_tool"]["gdbserver"][0]["release_name"] == "t
 assert index["artifacts_by_provider_status"]["gdbserver:found"][0]["payload_preset"] == "full-debug"
 assert index["artifacts_by_doom_wad_filename"]["doom.wad"][0]["release_name"] == "one"
 assert index["artifacts_by_doom_wad_sha256"]["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"][0]["payload_preset"] == "survey-core"
+recs = index["recommendations"]
+assert recs["schema"] == 1
+assert "lowest compatibility risk label" in recs["selection_policy"]
+assert recs["by_device"]["lab-router"]["release_name"] == "two"
+assert recs["by_device"]["glinet-mt1300"]["release_name"] == "one"
+assert recs["by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]["release_name"] in {"one", "two"}
+assert recs["by_tool"]["gdbserver"]["release_name"] == "three"
+assert recs["by_tool"]["strace"]["release_name"] == "two"
+assert recs["by_payload_preset"]["ssh-operator"]["release_name"] == "two"
+assert recs["by_feature"]["reverse-ssh"]["release_name"] in {"one", "two"}
+assert recs["by_tool_payload_preset"]["tcpdump:survey-core"]["release_name"] == "one"
+assert recs["by_feature_payload_preset"]["reverse-ssh:ssh-operator"]["release_name"] == "two"
+assert recs["by_tuple_payload_preset"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug"]["release_name"] == "three"
 PY
 
 scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null
@@ -212,5 +225,6 @@ PY
 grep -q -- '--recommendation-json' docs/release-bundles.md
 grep -q -- '--tuple-path by-tuple/' docs/release-bundles.md
 grep -q 'policy used to prefer lower-risk compatibility labels' docs/release-bundles.md
+grep -q 'recommendations' docs/release-bundles.md
 
 printf '%s\n' "release-repo-index ok"

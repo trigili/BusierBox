@@ -194,6 +194,12 @@ sorting them lower. Plain text output also prints `compatibility_reason=` lines 
 operator can see why the selected artifact was considered exact, likely,
 heuristic, unsafe, or incompatible without parsing JSON.
 
+The repository index also includes a `recommendations` object for offline
+clients that want one best current artifact without shelling out to
+`scripts/find-artifact`. It records the same selection policy and precomputes
+recommendations by device alias, tuple path, tool, payload preset, feature, and
+common tuple/tool/feature plus preset combinations.
+
 ## Operator Examples
 
 First contact:
