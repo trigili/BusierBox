@@ -116,6 +116,8 @@ class EventLog:
         by_remote = {}
         by_service_event = {}
         by_session_event = {}
+        by_service_level = {}
+        by_event_level = {}
         first_ts = ""
         latest_ts = ""
         for rec in records:
@@ -143,6 +145,12 @@ class EventLog:
             if session and event:
                 key = f"{session}:{event}"
                 by_session_event[key] = by_session_event.get(key, 0) + 1
+            if service and level:
+                key = f"{service}:{level}"
+                by_service_level[key] = by_service_level.get(key, 0) + 1
+            if event and level:
+                key = f"{event}:{level}"
+                by_event_level[key] = by_event_level.get(key, 0) + 1
         return {
             "path": str(self.path),
             "total_count": len(records),
@@ -159,6 +167,8 @@ class EventLog:
             "by_remote": by_remote,
             "by_service_event": by_service_event,
             "by_session_event": by_session_event,
+            "by_service_level": by_service_level,
+            "by_event_level": by_event_level,
             "tail": tail,
         }
 
@@ -1441,6 +1451,8 @@ def event_record_indexes(records):
     by_remote = {}
     by_service_event = {}
     by_session_event = {}
+    by_service_level = {}
+    by_event_level = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1466,7 +1478,11 @@ def event_record_indexes(records):
             by_service_event.setdefault(f"{service}:{event}", []).append(rec)
         if session_id and event:
             by_session_event.setdefault(f"{session_id}:{event}", []).append(rec)
-    return by_id, by_session, by_service, by_event, by_level, by_remote, by_service_event, by_session_event
+        if service and level:
+            by_service_level.setdefault(f"{service}:{level}", []).append(rec)
+        if event and level:
+            by_event_level.setdefault(f"{event}:{level}", []).append(rec)
+    return by_id, by_session, by_service, by_event, by_level, by_remote, by_service_event, by_session_event, by_service_level, by_event_level
 
 
 def format_counts(counts, limit=6):
@@ -5155,7 +5171,9 @@ def status_document(cfg):
      events_by_level,
      events_by_remote,
      events_by_service_event,
-     events_by_session_event) = event_record_indexes(events)
+     events_by_session_event,
+     events_by_service_level,
+     events_by_event_level) = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
     release = release_context(cfg)
     release_state = release_state_record(release)
@@ -5438,6 +5456,8 @@ def status_document(cfg):
         "event_remote_counts": event_stats.get("by_remote") or {},
         "event_service_event_counts": event_stats.get("by_service_event") or {},
         "event_session_event_counts": event_stats.get("by_session_event") or {},
+        "event_service_level_counts": event_stats.get("by_service_level") or {},
+        "event_type_level_counts": event_stats.get("by_event_level") or {},
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_delivered_count": command_queue.get("delivered_count", 0),
@@ -5583,6 +5603,7 @@ def status_document(cfg):
                 "events_by_id", "events_by_session", "events_by_service",
                 "events_by_event", "events_by_level", "events_by_remote",
                 "events_by_service_event", "events_by_session_event",
+                "events_by_service_level", "events_by_event_level",
             ), "event_tail_count",
         ),
         "release_artifacts": api_collection_record(
@@ -5742,6 +5763,8 @@ def status_document(cfg):
         "events_by_remote": events_by_remote,
         "events_by_service_event": events_by_service_event,
         "events_by_session_event": events_by_session_event,
+        "events_by_service_level": events_by_service_level,
+        "events_by_event_level": events_by_event_level,
         "event_log_state": event_log_state,
         "event_log_stats": {
             key: value for key, value in event_stats.items() if key != "tail"
