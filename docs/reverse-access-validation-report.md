@@ -109,7 +109,10 @@ Tracked BusierBox target presets derived from those images:
 - PTY support is not claimed for builtin TLS; the relay is pipe-backed.
 - `BB_RSHELL_SESSION_POLICY` distinguishes single-shot, reconnect, and
   persistent lifecycle behavior. Reconnect and persistent modes create fresh
-  shell sessions after disconnect; session resume is not claimed.
+  shell sessions after disconnect; session resume is not claimed. SSH
+  reverse-forward mode supervises `dbclient` under the rshell guard path so
+  post-disconnect behavior follows the selected policy instead of relying on an
+  unmanaged one-shot worker.
 - No-residue cleanup remains best-effort.
 - Root-writing authkeys modes are reserved behind explicit integration flags and
   are not part of the default safe GL.iNet run.

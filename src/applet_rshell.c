@@ -84,6 +84,27 @@ static void shquote_append(char *dst, size_t dstsz, const char *src)
     }
 }
 
+static void fd_write_shell_quoted(int fd, const char *src)
+{
+    const char *p;
+
+    dprintf(fd, "'");
+    for (p = src ? src : ""; *p; p++) {
+        if (*p == '\'')
+            dprintf(fd, "'\\''");
+        else
+            dprintf(fd, "%c", *p);
+    }
+    dprintf(fd, "'");
+}
+
+static void fd_write_shell_assignment(int fd, const char *name, const char *value)
+{
+    dprintf(fd, "%s=", name);
+    fd_write_shell_quoted(fd, value);
+    dprintf(fd, "\n");
+}
+
 static int path_exec(const char *path)
 {
     return path && *path && access(path, X_OK) == 0;
@@ -332,6 +353,113 @@ static int policy_stops_after_first_success(const char *policy)
 static int policy_persistent_lifecycle(const char *policy)
 {
     return !strcmp(policy, "persistent");
+}
+
+static int write_ssh_dbclient_supervisor(const char *script_path, const char *guard,
+        const char *dbclient, const char *identity, const char *remote_forward,
+        const char *server_login, const char *dbclient_log, long dropbear_pid)
+{
+    int fd = open(script_path, O_CREAT | O_TRUNC | O_WRONLY, 0700);
+
+    if (fd < 0)
+        return -1;
+    dprintf(fd, "#!/bin/sh\nset -u\n");
+    fd_write_shell_assignment(fd, "bbx_guard", guard);
+    fd_write_shell_assignment(fd, "bbx_dbclient", dbclient);
+    fd_write_shell_assignment(fd, "bbx_identity", identity);
+    fd_write_shell_assignment(fd, "bbx_remote_forward", remote_forward);
+    fd_write_shell_assignment(fd, "bbx_server_login", server_login);
+    fd_write_shell_assignment(fd, "bbx_ssh_port", BB_OPERATOR_SERVER_SSH_PORT);
+    fd_write_shell_assignment(fd, "bbx_known_hosts_policy", BB_OPERATOR_KNOWN_HOSTS_POLICY);
+    fd_write_shell_assignment(fd, "bbx_dbclient_log", dbclient_log);
+    fd_write_shell_assignment(fd, "bbx_policy", BB_RSHELL_SESSION_POLICY);
+    fd_write_shell_assignment(fd, "bbx_retry_count", BB_RSHELL_RETRY_COUNT);
+    fd_write_shell_assignment(fd, "bbx_retry_interval", BB_RSHELL_RETRY_INTERVAL_SEC);
+    fd_write_shell_assignment(fd, "bbx_retry_jitter", BB_RSHELL_RETRY_JITTER_PCT);
+    fd_write_shell_assignment(fd, "bbx_retry_backoff", BB_RSHELL_RETRY_BACKOFF);
+    fd_write_shell_assignment(fd, "bbx_retry_max_interval", BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+    fd_write_shell_assignment(fd, "bbx_transport", "ssh");
+    fd_write_shell_assignment(fd, "bbx_encryption", BB_RSHELL_ENCRYPTION);
+    fd_write_shell_assignment(fd, "bbx_run_mode", BB_RSHELL_RUN_MODE);
+    fd_write_shell_assignment(fd, "bbx_remote_forward_port", BB_OPERATOR_REMOTE_FORWARD_PORT);
+    dprintf(fd, "bbx_dropbear_pid=${1:-%ld}\n", dropbear_pid);
+    dprintf(fd,
+        "bbx_child=\n"
+        "bbx_started_at=$(date +%%s 2>/dev/null || printf 0)\n"
+        "bbx_initial_attempt=0\n"
+        "bbx_reconnect_attempt=0\n"
+        "bbx_initial_attempts=0\n"
+        "bbx_connected_once=no\n"
+        "bbx_int(){ case \"$1\" in ''|-|*[!0-9-]*) printf 0 ;; *) printf '%%s' \"$1\" ;; esac; }\n"
+        "bbx_nonneg(){ v=$(bbx_int \"$1\"); [ \"$v\" -lt 0 ] 2>/dev/null && v=0; printf '%%s' \"$v\"; }\n"
+        "bbx_post_count(){ case \"$bbx_policy\" in single) printf 0 ;; persistent) printf -1 ;; *) printf '%%s' \"$bbx_retry_count\" ;; esac; }\n"
+        "bbx_reconnects(){ [ \"$bbx_policy\" = reconnect ] || [ \"$bbx_policy\" = persistent ]; }\n"
+        "bbx_persistent(){ [ \"$bbx_policy\" = persistent ]; }\n"
+        "bbx_status(){\n"
+        "  bbx_state=$1 bbx_reason=$2 bbx_rc=$3 bbx_now=$(date +%%s 2>/dev/null || printf 0)\n"
+        "  {\n"
+        "    printf 'state=%%s\\n' \"$bbx_state\"\n"
+        "    printf 'transport=%%s\\n' \"$bbx_transport\"\n"
+        "    printf 'encryption=%%s\\n' \"$bbx_encryption\"\n"
+        "    printf 'run_mode=%%s\\n' \"$bbx_run_mode\"\n"
+        "    printf 'session_policy=%%s\\n' \"$bbx_policy\"\n"
+        "    case \"$bbx_policy\" in single|reconnect|persistent) printf 'session_policy_valid=yes\\n' ;; *) printf 'session_policy_valid=no\\n' ;; esac\n"
+        "    if bbx_reconnects; then printf 'retry_scope=pre-connect+post-disconnect\\n'; else printf 'retry_scope=pre-connect\\n'; fi\n"
+        "    printf 'pre_connect_retry_count=%%s\\n' \"$bbx_retry_count\"\n"
+        "    printf 'post_disconnect_retry_count=%%s\\n' \"$(bbx_post_count)\"\n"
+        "    if [ \"$bbx_policy\" = single ]; then printf 'stop_after_first_success=yes\\n'; else printf 'stop_after_first_success=no\\n'; fi\n"
+        "    if bbx_reconnects; then printf 'reconnect_after_disconnect=yes\\n'; else printf 'reconnect_after_disconnect=no\\n'; fi\n"
+        "    if bbx_persistent; then printf 'persistent_lifecycle=yes\\n'; else printf 'persistent_lifecycle=no\\n'; fi\n"
+        "    if bbx_reconnects; then printf 'fresh_session_on_reconnect=yes\\n'; else printf 'fresh_session_on_reconnect=no\\n'; fi\n"
+        "    printf 'session_resume_supported=no\\n'\n"
+        "    printf 'rshell_pid=%%s\\n' \"$$\"\n"
+        "    printf 'dropbear_pid=%%s\\n' \"$bbx_dropbear_pid\"\n"
+        "    [ -n \"${bbx_child:-}\" ] && printf 'dbclient_pid=%%s\\n' \"$bbx_child\"\n"
+        "    printf 'started_at=%%s\\nupdated_at=%%s\\n' \"$bbx_started_at\" \"$bbx_now\"\n"
+        "    printf 'initial_attempts=%%s\\nreconnect_attempts=%%s\\nconnected_once=%%s\\n' \"$bbx_initial_attempts\" \"$bbx_reconnect_attempt\" \"$bbx_connected_once\"\n"
+        "    printf 'last_exit_code=%%s\\nlast_exit_reason=%%s\\n' \"$bbx_rc\" \"$bbx_reason\"\n"
+        "    printf 'connect_hint=ssh -p %%s root@127.0.0.1\\n' \"$bbx_remote_forward_port\"\n"
+        "  } >\"$bbx_guard/rshell.status\" 2>/dev/null || true\n"
+        "}\n"
+        "bbx_delay(){\n"
+        "  bbx_attempt=$(bbx_nonneg \"$1\"); bbx_base=$(bbx_nonneg \"$bbx_retry_interval\"); bbx_max=$(bbx_nonneg \"$bbx_retry_max_interval\"); bbx_jitter=$(bbx_nonneg \"$bbx_retry_jitter\")\n"
+        "  [ \"$bbx_max\" -lt \"$bbx_base\" ] 2>/dev/null && bbx_max=$bbx_base\n"
+        "  case \"$bbx_retry_backoff\" in linear) bbx_delay=$((bbx_base * (bbx_attempt + 1))) ;; exponential) bbx_delay=$bbx_base; i=0; while [ \"$i\" -lt \"$bbx_attempt\" ] && [ \"$bbx_delay\" -lt \"$bbx_max\" ]; do bbx_delay=$((bbx_delay * 2)); i=$((i + 1)); done ;; *) bbx_delay=$bbx_base ;; esac\n"
+        "  [ \"$bbx_delay\" -gt \"$bbx_max\" ] 2>/dev/null && bbx_delay=$bbx_max\n"
+        "  if [ \"$bbx_jitter\" -gt 0 ] 2>/dev/null && [ \"$bbx_delay\" -gt 0 ] 2>/dev/null; then span=$((bbx_delay * bbx_jitter / 100)); if [ \"$span\" -gt 0 ]; then now=$(date +%%s 2>/dev/null || printf 0); bbx_delay=$((bbx_delay - span + now %% (span * 2 + 1))); fi; fi\n"
+        "  printf '%%s' \"$bbx_delay\"\n"
+        "}\n"
+        "bbx_stop(){ [ -n \"${bbx_child:-}\" ] && kill \"$bbx_child\" 2>/dev/null || true; bbx_status exited stopped 143; exit 143; }\n"
+        "trap bbx_stop INT TERM\n"
+        "while :; do\n"
+        "  if [ \"$bbx_connected_once\" = yes ]; then bbx_state=reconnecting; bbx_reason=post-disconnect-retry; else bbx_state=connecting; bbx_reason=pre-connect-retry; bbx_initial_attempts=$((bbx_initial_attempt + 1)); fi\n"
+        "  bbx_status \"$bbx_state\" \"$bbx_reason\" -1\n"
+        "  bbx_start=$(date +%%s 2>/dev/null || printf 0)\n"
+        "  bbx_args=''\n"
+        "  [ \"$bbx_known_hosts_policy\" = off ] && bbx_args='-y'\n"
+        "  \"$bbx_dbclient\" -i \"$bbx_identity\" $bbx_args -K 30 -N -R \"$bbx_remote_forward\" -p \"$bbx_ssh_port\" \"$bbx_server_login\" >>\"$bbx_dbclient_log\" 2>&1 &\n"
+        "  bbx_child=$!\n"
+        "  printf 'pid=%%s\\n' \"$bbx_child\" >\"$bbx_guard/dbclient.pid\" 2>/dev/null || true\n"
+        "  wait \"$bbx_child\"; bbx_rc=$?\n"
+        "  bbx_end=$(date +%%s 2>/dev/null || printf 0)\n"
+        "  if [ \"$bbx_connected_once\" = no ] && { [ \"$bbx_rc\" -eq 0 ] 2>/dev/null || [ $((bbx_end - bbx_start)) -ge 2 ] 2>/dev/null; }; then bbx_connected_once=yes; fi\n"
+        "  if [ \"$bbx_connected_once\" = no ]; then\n"
+        "    bbx_status connect-failed connect-failed \"$bbx_rc\"\n"
+        "    bbx_limit=$(bbx_int \"$bbx_retry_count\")\n"
+        "    if [ \"$bbx_limit\" -ge 0 ] 2>/dev/null && [ \"$bbx_initial_attempt\" -ge \"$bbx_limit\" ] 2>/dev/null; then bbx_status exited initial-retry-limit \"$bbx_rc\"; exit \"$bbx_rc\"; fi\n"
+        "    sleep \"$(bbx_delay \"$bbx_initial_attempt\")\"\n"
+        "    bbx_initial_attempt=$((bbx_initial_attempt + 1))\n"
+        "    continue\n"
+        "  fi\n"
+        "  bbx_status disconnected session-disconnected \"$bbx_rc\"\n"
+        "  if [ \"$bbx_policy\" = single ]; then bbx_status exited policy-single-complete \"$bbx_rc\"; exit \"$bbx_rc\"; fi\n"
+        "  if [ \"$bbx_policy\" = reconnect ]; then bbx_limit=$(bbx_int \"$bbx_retry_count\"); if [ \"$bbx_limit\" -ge 0 ] 2>/dev/null && [ \"$bbx_reconnect_attempt\" -ge \"$bbx_limit\" ] 2>/dev/null; then bbx_status exited post-disconnect-retry-limit \"$bbx_rc\"; exit \"$bbx_rc\"; fi; fi\n"
+        "  sleep \"$(bbx_delay \"$bbx_reconnect_attempt\")\"\n"
+        "  bbx_reconnect_attempt=$((bbx_reconnect_attempt + 1))\n"
+        "done\n");
+    close(fd);
+    chmod(script_path, 0700);
+    return 0;
 }
 
 static int should_background_rshell(const char *transport)
@@ -833,6 +961,8 @@ int applet_rshell_main(int argc, char **argv)
                 if (!strcmp(pid_files[k], "rshell.pid")) {
                     if (kill((pid_t)(-pid), 0) == 0 || errno != ESRCH)
                         kill((pid_t)(-pid), SIGTERM);
+                    if (kill((pid_t)pid, 0) == 0 || errno != ESRCH)
+                        kill((pid_t)pid, SIGTERM);
                 } else if (kill((pid_t)pid, 0) == 0 || errno != ESRCH) {
                     kill((pid_t)pid, SIGTERM);
                 }
@@ -1129,17 +1259,24 @@ int applet_rshell_main(int argc, char **argv)
     shquote_append(cmd, sizeof(cmd), hostkey);
     strcat(cmd, " ]; then echo 'rshell: missing Dropbear host key; enable pre-generated host key or allow runtime host-key generation' >&2; exit 2; fi; ");
     {
-        char _db_log[PATH_MAX], _dc_log[PATH_MAX];
+        char _db_log[PATH_MAX], _dc_log[PATH_MAX], _supervisor[PATH_MAX];
         char _dropbear_bind[256], _remote_forward[512], _server_login[512], _connect_hint[256];
         const char *_guard = autorun_guard_path();
         snprintf(_db_log, sizeof(_db_log), "%s/dropbear.log", _guard);
         snprintf(_dc_log, sizeof(_dc_log), "%s/dbclient.log", _guard);
+        snprintf(_supervisor, sizeof(_supervisor), "%s/dbclient-supervisor.sh", _guard);
         snprintf(_dropbear_bind, sizeof(_dropbear_bind), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
         snprintf(_remote_forward, sizeof(_remote_forward), "127.0.0.1:%s:%s:%s",
                  BB_OPERATOR_REMOTE_FORWARD_PORT, BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
         snprintf(_server_login, sizeof(_server_login), "%s@%s", BB_OPERATOR_SERVER_USER, BB_OPERATOR_SERVER_HOST);
         snprintf(_connect_hint, sizeof(_connect_hint), "echo connect_hint='ssh -p %s root@127.0.0.1'; ",
                  BB_OPERATOR_REMOTE_FORWARD_PORT);
+        bb_mkdir_p(_guard, 0700);
+        if (write_ssh_dbclient_supervisor(_supervisor, _guard, dbclient, identity, _remote_forward, _server_login, _dc_log, 0) != 0) {
+            fprintf(stderr, "rshell: failed to write dbclient supervisor at %s: %s\n", _supervisor, strerror(errno));
+            return 1;
+        }
+        bb_ledger_record("write", _supervisor, "runtime", "rshell dbclient supervisor");
 
         shquote_append(cmd, sizeof(cmd), dropbear);
         strcat(cmd, " -r ");
@@ -1149,21 +1286,18 @@ int applet_rshell_main(int argc, char **argv)
         strcat(cmd, " -F -E >");
         shquote_append(cmd, sizeof(cmd), _db_log);
         strcat(cmd, " 2>&1 & dbpid=$!; ");
-        shquote_append(cmd, sizeof(cmd), dbclient);
-        strcat(cmd, " -i ");
-        shquote_append(cmd, sizeof(cmd), identity);
-        if (!strcmp(BB_OPERATOR_KNOWN_HOSTS_POLICY, "off"))
-            strcat(cmd, " -y");
-        strcat(cmd, " -K 30 -N -R ");
-        shquote_append(cmd, sizeof(cmd), _remote_forward);
-        strcat(cmd, " -p ");
-        shquote_append(cmd, sizeof(cmd), BB_OPERATOR_SERVER_SSH_PORT);
+        strcat(cmd, "if command -v chmod >/dev/null 2>&1; then chmod 700 ");
+        shquote_append(cmd, sizeof(cmd), _supervisor);
+        strcat(cmd, " 2>/dev/null || true; fi; ");
+        shquote_append(cmd, sizeof(cmd), "/bin/sh");
         strcat(cmd, " ");
-        shquote_append(cmd, sizeof(cmd), _server_login);
+        shquote_append(cmd, sizeof(cmd), _supervisor);
+        strcat(cmd, " \"$dbpid\"");
         strcat(cmd, " >");
         shquote_append(cmd, sizeof(cmd), _dc_log);
         strcat(cmd, " 2>&1 & dcpid=$!; ");
         strcat(cmd, "echo rshell_started=yes; echo dropbear_pid=$dbpid; echo dbclient_pid=$dcpid; ");
+        strcat(cmd, "echo rshell_supervisor_pid=$dcpid; ");
         strcat(cmd, _connect_hint);
         strcat(cmd, "echo dropbear_log=");
         shquote_append(cmd, sizeof(cmd), _db_log);
@@ -1216,6 +1350,12 @@ int applet_rshell_main(int argc, char **argv)
                     dprintf(lfd, "pid=%ld\n", dbclient_pid);
                     close(lfd);
                 }
+                snprintf(path, sizeof(path), "%s/rshell.pid", gp);
+                lfd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+                if (lfd >= 0) {
+                    dprintf(lfd, "pid=%ld\n", dbclient_pid);
+                    close(lfd);
+                }
             }
 
             /* autorun.lock: use dbclient PID so guard detects live tunnel */
@@ -1240,7 +1380,7 @@ int applet_rshell_main(int argc, char **argv)
                     "stop_after_first_success=%s\nreconnect_after_disconnect=%s\n"
                     "persistent_lifecycle=%s\nfresh_session_on_reconnect=%s\n"
                     "session_resume_supported=no\n"
-                    "dropbear_pid=%ld\ndbclient_pid=%ld\n"
+                    "rshell_pid=%ld\ndropbear_pid=%ld\ndbclient_pid=%ld\n"
                     "initial_attempts=1\nreconnect_attempts=0\nconnected_once=yes\n"
                     "last_exit_reason=ssh-reverse-forward-active\n"
                     "connect_hint=ssh -p %s root@127.0.0.1\n"
@@ -1254,7 +1394,7 @@ int applet_rshell_main(int argc, char **argv)
                     policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
                     policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
                     policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
-                    dropbear_pid, dbclient_pid,
+                    dbclient_pid, dropbear_pid, dbclient_pid,
                     BB_OPERATOR_REMOTE_FORWARD_PORT,
                     (long)now);
                 close(lfd);

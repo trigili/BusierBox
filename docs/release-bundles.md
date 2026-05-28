@@ -250,7 +250,10 @@ also prints the same key booleans, including `stop_after_first_success`,
 `fresh_session_on_reconnect`, and `session_resume_supported`. Runtime
 `rshell.status` files also persist those evaluated fields, retry scope, and
 pre/post-disconnect retry counts so postmortem evidence can be read without
-reconstructing policy semantics from compiled defaults.
+reconstructing policy semantics from compiled defaults. SSH reverse-forward
+mode runs `dbclient` through a guard-path supervisor so disconnect handling uses
+the same `single`, `reconnect`, and `persistent` policy semantics as the direct
+shell transports.
 
 For the builtin TLS shell preset, prepare the operator listener and then run the
 artifact explicitly:
