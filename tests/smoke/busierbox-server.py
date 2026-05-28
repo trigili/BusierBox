@@ -4142,6 +4142,12 @@ def main():
                             "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
                         }
                     ],
+                    "command_queue": {
+                        "enabled": "no",
+                        "execution_supported": False,
+                        "executes_commands": False,
+                        "mode_summary": {"operator_supplied_command_execution_mode_count": 0},
+                    },
                     "compatibility": {"label": "exact", "reasons": ["fixture"]},
                 }
             ],
@@ -4245,6 +4251,9 @@ def main():
         release_artifacts_by_provider_status = rel.get("artifacts_by_provider_status") or {}
         release_artifacts_by_doom_wad_filename = rel.get("artifacts_by_doom_wad_filename") or {}
         release_artifacts_by_doom_wad_sha256 = rel.get("artifacts_by_doom_wad_sha256") or {}
+        release_artifacts_by_command_queue_enabled = rel.get("artifacts_by_command_queue_enabled") or {}
+        release_artifacts_by_command_queue_execution_supported = rel.get("artifacts_by_command_queue_execution_supported") or {}
+        release_artifacts_by_command_queue_operator_supplied = rel.get("artifacts_by_command_queue_operator_supplied_command_execution") or {}
         release_device_map = rel.get("devices_by_name") or {}
         release_devices_by_tuple_path = rel.get("devices_by_tuple_path") or {}
         release_devices_by_artifact = rel.get("devices_by_artifact") or {}
@@ -4283,6 +4292,9 @@ def main():
                 release_artifact_map.get("bin/busierbox-test", {}).get("doom_wads", [{}])[0].get("filename") != "doom.wad" or
                 release_artifacts_by_doom_wad_filename.get("doom.wad", [{}])[0].get("release_path") != "bin/busierbox-test" or
                 release_artifacts_by_doom_wad_sha256.get(doom_wad_sha, [{}])[0].get("name") != "busierbox-test" or
+                release_artifacts_by_command_queue_enabled.get("false", [{}])[0].get("name") != "busierbox-test" or
+                release_artifacts_by_command_queue_execution_supported.get("false", [{}])[0].get("name") != "busierbox-test" or
+                release_artifacts_by_command_queue_operator_supplied.get("false", [{}])[0].get("name") != "busierbox-test" or
                 rel.get("artifact_stats", {}).get("total_size") != release_artifact_size or
                 rel.get("artifact_stats", {}).get("by_compatibility", {}).get("exact") != 1 or
                 rel.get("artifact_stats", {}).get("by_payload_preset", {}).get("default") != 1 or
@@ -4293,6 +4305,9 @@ def main():
                 rel.get("artifact_stats", {}).get("by_provider_status", {}).get("gdbserver:found") != 1 or
                 rel.get("artifact_stats", {}).get("by_doom_wad_filename", {}).get("doom.wad") != 1 or
                 rel.get("artifact_stats", {}).get("by_doom_wad_sha256", {}).get(doom_wad_sha) != 1 or
+                rel.get("artifact_stats", {}).get("by_command_queue_enabled", {}).get("false") != 1 or
+                rel.get("artifact_stats", {}).get("by_command_queue_execution_supported", {}).get("false") != 1 or
+                rel.get("artifact_stats", {}).get("by_command_queue_operator_supplied_command_execution", {}).get("false") != 1 or
                 rel.get("artifact_stats", {}).get("doom_wad_count") != 1 or
                 release_device_map.get("lab-router", {}).get("tuple_path") != "by-tuple/native/host/host/host" or
                 release_devices_by_tuple_path.get("by-tuple/native/host/host/host", [{}])[0].get("name") != "lab-router" or
@@ -4396,6 +4411,9 @@ def main():
                 release_summary.get("release_artifact_provider_status_counts", {}).get("gdbserver:found") != 1 or
                 release_summary.get("release_artifact_doom_wad_filename_counts", {}).get("doom.wad") != 1 or
                 release_summary.get("release_artifact_doom_wad_sha256_counts", {}).get(doom_wad_sha) != 1 or
+                release_summary.get("release_artifact_command_queue_enabled_counts", {}).get("false") != 1 or
+                release_summary.get("release_artifact_command_queue_execution_supported_counts", {}).get("false") != 1 or
+                release_summary.get("release_artifact_command_queue_operator_supplied_command_execution_counts", {}).get("false") != 1 or
                 release_summary.get("release_artifact_doom_wad_count") != 1 or
                 release_summary.get("release_license_count") != 1 or
                 release_summary.get("release_license_valid_count") != 1 or
@@ -4416,6 +4434,9 @@ def main():
                 "tuples_by_artifact" not in (release_api.get("release_tuples", {}).get("indexes") or []) or
                 "release_license_records_by_component_license" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
                 "release_license_records_by_notice_file" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
+                "artifacts_by_command_queue_enabled" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
+                "artifacts_by_command_queue_execution_supported" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
+                "artifacts_by_command_queue_operator_supplied_command_execution" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
                 "recommendations_by_payload_preset" not in (release_api.get("release_recommendations", {}).get("indexes") or []) or
                 "recommendations_by_compatibility" not in (release_api.get("release_recommendations", {}).get("indexes") or [])):
             print("json status missing release device/tuple api collection indexes", file=sys.stderr)

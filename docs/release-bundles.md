@@ -582,6 +582,9 @@ tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `artifacts_by_tool_payload_preset`, `artifacts_by_feature_payload_preset`,
 `artifacts_by_tuple_payload_preset`,
 `artifacts_by_doom_wad_filename`, `artifacts_by_doom_wad_sha256`,
+`artifacts_by_command_queue_enabled`,
+`artifacts_by_command_queue_execution_supported`,
+`artifacts_by_command_queue_operator_supplied_command_execution`,
 `devices_by_name`, and `tuples_by_path` lookup maps. It also includes
 `recommendations`, flattened `recommendation_records`, and recommendation
 lookup maps by id, scope, artifact, payload preset, and compatibility label so
@@ -615,7 +618,11 @@ as `release_artifact_total_size`, `release_artifact_compatibility_counts`,
 `release_artifact_payload_preset_counts`, `release_artifact_source_counts`,
 `release_artifact_tool_counts`, `release_artifact_feature_counts`,
 `release_artifact_provider_tool_counts`, and
-`release_artifact_provider_status_counts`. Composite lookup counts are
+`release_artifact_provider_status_counts`,
+`release_artifact_command_queue_enabled_counts`,
+`release_artifact_command_queue_execution_supported_counts`, and
+`release_artifact_command_queue_operator_supplied_command_execution_counts`.
+Composite lookup counts are
 mirrored as `release_artifact_tool_payload_preset_combo_count`,
 `release_artifact_feature_payload_preset_combo_count`, and
 `release_artifact_tuple_payload_preset_combo_count`. Doom WAD references are grouped by

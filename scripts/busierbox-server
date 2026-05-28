@@ -4102,6 +4102,9 @@ def release_context(cfg=None):
         artifacts_by_provider_status = {}
         artifacts_by_doom_wad_filename = {}
         artifacts_by_doom_wad_sha256 = {}
+        artifacts_by_command_queue_enabled = {}
+        artifacts_by_command_queue_execution_supported = {}
+        artifacts_by_command_queue_operator_supplied_command_execution = {}
         artifact_compatibility_counts = {}
         artifact_payload_preset_counts = {}
         artifact_source_counts = {}
@@ -4111,6 +4114,9 @@ def release_context(cfg=None):
         artifact_provider_status_counts = {}
         artifact_doom_wad_filename_counts = {}
         artifact_doom_wad_sha256_counts = {}
+        artifact_command_queue_enabled_counts = {}
+        artifact_command_queue_execution_supported_counts = {}
+        artifact_command_queue_operator_supplied_command_execution_counts = {}
         artifact_doom_wad_count = 0
         artifact_total_size = 0
         for rec in artifacts:
@@ -4127,6 +4133,13 @@ def release_context(cfg=None):
             source = str(rec.get("source") or "")
             tuple_path = str(rec.get("tuple_path") or "")
             compatibility_label = str((rec.get("compatibility") or {}).get("label") or "")
+            command_queue = rec.get("command_queue") if isinstance(rec.get("command_queue"), dict) else {}
+            mode_summary = command_queue.get("mode_summary") if isinstance(command_queue.get("mode_summary"), dict) else {}
+            command_queue_enabled = "true" if command_queue.get("enabled") == "yes" or command_queue.get("enabled") is True else "false"
+            command_queue_execution_supported = "true" if command_queue.get("execution_supported") is True or command_queue.get("executes_commands") is True else "false"
+            command_queue_operator_supplied = (
+                "true" if int_value(mode_summary.get("operator_supplied_command_execution_mode_count")) > 0 else "false"
+            )
             if name:
                 artifacts_by_name.setdefault(name, []).append(rec)
             if sha256:
@@ -4144,6 +4157,12 @@ def release_context(cfg=None):
             if compatibility_label:
                 artifacts_by_compatibility.setdefault(compatibility_label, []).append(rec)
                 artifact_compatibility_counts[compatibility_label] = artifact_compatibility_counts.get(compatibility_label, 0) + 1
+            artifacts_by_command_queue_enabled.setdefault(command_queue_enabled, []).append(rec)
+            artifact_command_queue_enabled_counts[command_queue_enabled] = artifact_command_queue_enabled_counts.get(command_queue_enabled, 0) + 1
+            artifacts_by_command_queue_execution_supported.setdefault(command_queue_execution_supported, []).append(rec)
+            artifact_command_queue_execution_supported_counts[command_queue_execution_supported] = artifact_command_queue_execution_supported_counts.get(command_queue_execution_supported, 0) + 1
+            artifacts_by_command_queue_operator_supplied_command_execution.setdefault(command_queue_operator_supplied, []).append(rec)
+            artifact_command_queue_operator_supplied_command_execution_counts[command_queue_operator_supplied] = artifact_command_queue_operator_supplied_command_execution_counts.get(command_queue_operator_supplied, 0) + 1
             for tool in rec.get("tools") or []:
                 tool_name = str(tool)
                 if tool_name:
@@ -4235,6 +4254,9 @@ def release_context(cfg=None):
             "artifacts_by_provider_status": artifacts_by_provider_status,
             "artifacts_by_doom_wad_filename": artifacts_by_doom_wad_filename,
             "artifacts_by_doom_wad_sha256": artifacts_by_doom_wad_sha256,
+            "artifacts_by_command_queue_enabled": artifacts_by_command_queue_enabled,
+            "artifacts_by_command_queue_execution_supported": artifacts_by_command_queue_execution_supported,
+            "artifacts_by_command_queue_operator_supplied_command_execution": artifacts_by_command_queue_operator_supplied_command_execution,
             "artifact_stats": {
                 "total_size": artifact_total_size,
                 "by_compatibility": artifact_compatibility_counts,
@@ -4246,6 +4268,9 @@ def release_context(cfg=None):
                 "by_provider_status": artifact_provider_status_counts,
                 "by_doom_wad_filename": artifact_doom_wad_filename_counts,
                 "by_doom_wad_sha256": artifact_doom_wad_sha256_counts,
+                "by_command_queue_enabled": artifact_command_queue_enabled_counts,
+                "by_command_queue_execution_supported": artifact_command_queue_execution_supported_counts,
+                "by_command_queue_operator_supplied_command_execution": artifact_command_queue_operator_supplied_command_execution_counts,
                 "doom_wad_count": artifact_doom_wad_count,
             },
             "devices": devices,
@@ -7297,6 +7322,9 @@ def status_document(cfg):
         "release_artifact_provider_status_counts": (release.get("artifact_stats") or {}).get("by_provider_status") or {},
         "release_artifact_doom_wad_filename_counts": (release.get("artifact_stats") or {}).get("by_doom_wad_filename") or {},
         "release_artifact_doom_wad_sha256_counts": (release.get("artifact_stats") or {}).get("by_doom_wad_sha256") or {},
+        "release_artifact_command_queue_enabled_counts": (release.get("artifact_stats") or {}).get("by_command_queue_enabled") or {},
+        "release_artifact_command_queue_execution_supported_counts": (release.get("artifact_stats") or {}).get("by_command_queue_execution_supported") or {},
+        "release_artifact_command_queue_operator_supplied_command_execution_counts": (release.get("artifact_stats") or {}).get("by_command_queue_operator_supplied_command_execution") or {},
         "release_artifact_doom_wad_count": (release.get("artifact_stats") or {}).get("doom_wad_count", 0),
         "release_license_count": len(release.get("release_license_records") or []),
         "release_license_valid_count": sum(1 for rec in (release.get("release_license_records") or []) if rec.get("valid")),
@@ -7476,6 +7504,8 @@ def status_document(cfg):
                 "artifacts_by_tool_payload_preset", "artifacts_by_feature_payload_preset",
                 "artifacts_by_provider_tool", "artifacts_by_provider_status",
                 "artifacts_by_doom_wad_filename", "artifacts_by_doom_wad_sha256",
+                "artifacts_by_command_queue_enabled", "artifacts_by_command_queue_execution_supported",
+                "artifacts_by_command_queue_operator_supplied_command_execution",
             ), "release_artifact_count",
         ),
         "release_recommendations": api_collection_record(
