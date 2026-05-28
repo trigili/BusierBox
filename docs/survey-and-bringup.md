@@ -84,6 +84,8 @@ scripts/release-find --release-dir dist/releases/lab --survey-json survey.json -
 When `--reality-json` is supplied, failed active runtime checks can downgrade
 payload recommendations to `core-only` and add explicit warnings for noexec
 temporary storage, read-only root filesystems, broken procfs, or missing ptrace.
+When present, `checks_by_name` is used as the primary check lookup and the raw
+`checks` list remains the fallback for older reports.
 
 Release bundle `release-find` can combine passive survey facts with
 `reality-test` results and report `exact`, `likely`, `heuristic`, `unsafe`, or

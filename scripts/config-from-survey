@@ -167,7 +167,29 @@ def reality_checks():
     checks = reality.get("checks")
     if not isinstance(checks, list):
         return {}
-    return {item.get("name"): item for item in checks if isinstance(item, dict)}
+    scanned = {item.get("name"): item for item in checks if isinstance(item, dict)}
+    checks_by_name = reality.get("checks_by_name")
+    if isinstance(checks_by_name, dict):
+        indexed = {}
+        for name, indexes in checks_by_name.items():
+            if not isinstance(name, str):
+                continue
+            if isinstance(indexes, int):
+                indexes = [indexes]
+            if not isinstance(indexes, list):
+                continue
+            for index in indexes:
+                if not isinstance(index, int) or index < 0 or index >= len(checks):
+                    continue
+                item = checks[index]
+                if isinstance(item, dict) and item.get("name") == name:
+                    indexed[name] = item
+                    break
+        if indexed:
+            for name, item in scanned.items():
+                indexed.setdefault(name, item)
+            return indexed
+    return scanned
 
 reality_by_name = reality_checks()
 reality_summary = reality.get("summary") if isinstance(reality, dict) and isinstance(reality.get("summary"), dict) else {}
