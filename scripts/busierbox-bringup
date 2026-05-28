@@ -564,15 +564,25 @@ run_files = {
     "recommended_artifact": file_record("recommended_artifact", env("RECOMMENDED_ARTIFACT")),
 }
 run_file_records = list(run_files.values())
+run_files_by_name = {}
+run_files_by_path = {}
 run_files_by_expected_kind = {}
 run_files_by_exists = {}
 run_files_by_readable = {}
 for item in run_file_records:
+    name = str(item.get("name") or "")
+    path = str(item.get("path") or "")
+    if name:
+        run_files_by_name[name] = item
+    if path:
+        run_files_by_path[path] = item
     run_files_by_expected_kind.setdefault(str(item.get("expected_kind") or ""), []).append(item)
     run_files_by_exists.setdefault("yes" if item.get("exists") else "no", []).append(item)
     run_files_by_readable.setdefault("yes" if item.get("readable") else "no", []).append(item)
 doc["run_files"] = run_files
 doc["run_file_records"] = run_file_records
+doc["run_files_by_name"] = run_files_by_name
+doc["run_files_by_path"] = run_files_by_path
 doc["run_files_by_expected_kind"] = run_files_by_expected_kind
 doc["run_files_by_exists"] = run_files_by_exists
 doc["run_files_by_readable"] = run_files_by_readable
@@ -605,6 +615,8 @@ doc["api_collections"] = {
         run_file_records,
         (
             "run_files",
+            "run_files_by_name",
+            "run_files_by_path",
             "run_files_by_expected_kind",
             "run_files_by_exists",
             "run_files_by_readable",

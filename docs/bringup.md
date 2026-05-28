@@ -156,7 +156,11 @@ without separately opening `reality-test.json`. The summary also includes
 recommended config, generated target preset, release-find result, and
 selected/recommended artifacts. Those file records include path, expected kind,
 existence, readability, writability, and size so dashboards and audits can
-render a bringup run without separately probing the filesystem. The summary
+render a bringup run without separately probing the filesystem. Lookup maps
+`run_files_by_name`, `run_files_by_path`, `run_files_by_expected_kind`,
+`run_files_by_exists`, and `run_files_by_readable` let frontends jump directly
+to a generated artifact or group missing/readable files without rescanning the
+flat record list. The summary
 publishes `api_collections` metadata for `next_command_records`,
 `run_file_records`, selected tool provider records, and selected Doom WAD
 records, mirroring the collection/index discovery pattern used by
