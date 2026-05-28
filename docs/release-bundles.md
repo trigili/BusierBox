@@ -219,7 +219,14 @@ target compatibility tuple. Command-queue safety maps
 `artifacts_by_command_queue_execution_supported`, and
 `artifacts_by_command_queue_operator_supplied_command_execution` let offline
 browsers render explicit safety buckets without opening every artifact
-manifest. If a release directory contains
+manifest. The repository index publishes the same discovery shape used by
+server status and bringup JSON: an `api` catalog, `api_resources`,
+`api_resources_by_name`, `api_resources_by_records_key`,
+`api_resources_by_summary_key`, and `api_resources_by_primary_key`, plus
+`api_collections` descriptors for artifacts, release self-tests, release
+licenses, dedupe records, devices, tuples, and recommendations. This lets an
+offline artifact browser discover record keys, primary keys, summary counters,
+and lookup maps without hard-coding the index schema. If a release directory contains
 `release-self-test.json` or a supported self-test diagnostics path, the index
 records it in `release_self_tests`, groups it by release name and status, and
 copies the compact status/path onto each artifact from that release so
