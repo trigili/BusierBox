@@ -30,6 +30,9 @@ Each release contains:
 - `docs/`: release, licensing, and runtime override notes.
 - `LICENSE` and `NOTICE`: BusierBox GPL license text and short project license
   notice.
+- `manifests/license-policy.json`: machine-readable BusierBox license and
+  third-party GPL compatibility policy for repository scanners and release
+  consumers.
 - `release.json`: build status, commit, safe build-host metadata, source-lock summary, selected matrix, artifact paths, canonical tuple paths, device aliases, checksums, and failures.
 - `release-index.json`: searchable index for artifacts, tuples, devices,
   payload presets, present tools, reverse-access capabilities, and trailer
@@ -60,7 +63,8 @@ those fields in tuple manifests.
 When a matrix includes `version` or `include`, those values are preserved in
 `release.json` for reproducibility. Set `include.source_lock` or
 `include.sources_manifest` to copy `manifests/sources.lock.json` into the
-bundle without relying on the CLI flag.
+bundle as both `sources.lock.json` and `manifests/sources.lock.json` without
+relying on the CLI flag.
 
 Matrix files can include a `configs` list. Each listed config is used as a
 base config for every selected target/payload/format combination, and

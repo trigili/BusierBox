@@ -70,6 +70,20 @@ for name, license_id in expected.items():
     if name != "BusierBox" and not item.get("compatibility"):
         raise SystemExit(f"check-licensing: {name} compatibility note missing")
 
+for name, item in components.items():
+    source = item.get("source", "")
+    if not source:
+        raise SystemExit(f"check-licensing: {name} source reference missing")
+    if source == "this repository":
+        continue
+    if source.startswith("manifests/sources.lock.json:name="):
+        lock_name = source.split("=", 1)[1]
+        if lock_name not in locked:
+            raise SystemExit(f"check-licensing: {name} source lock reference missing: {lock_name}")
+        continue
+    if not Path(source).exists():
+        raise SystemExit(f"check-licensing: {name} source path missing: {source}")
+
 lock_expected = {
     "buildroot": "GPL-2.0-or-later",
     "doom-ascii": "GPL-2.0-or-later",

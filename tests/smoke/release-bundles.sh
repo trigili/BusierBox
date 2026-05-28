@@ -184,6 +184,7 @@ test -f "$work/release/LICENSE"
 test -f "$work/release/NOTICE"
 test -f "$work/release/release.json"
 test -f "$work/release/release-index.json"
+test -f "$work/release/manifests/license-policy.json"
 test -f "$work/release/docs/README-release.md"
 test -f "$work/release/docs/trailer-overrides.md"
 test -f "$work/release/docs/cleanup-ledger.md"
@@ -197,6 +198,8 @@ test -f "$work/release.tar.gz"
 grep -q 'scripts/busierbox-server --transport tls-shell' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'GPL-2.0-or-later' "$work/release/NOTICE"
 grep -q 'GPL compatibility summary' "$work/release/docs/licensing.md"
+python3 -m json.tool "$work/release/manifests/license-policy.json" >/dev/null
+grep -q '"combined_gplv2_compatible": true' "$work/release/manifests/license-policy.json"
 grep -q 'scripts/busierbox-server --file-service --file-port 22204' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q './busierbox survey push' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q './busierbox reality-test push' "$work/release/RELEASE-QUICKSTART.txt"
@@ -717,6 +720,8 @@ scripts/make-release \
     --skip-build \
     --out-dir "$work/source-lock-release" >"$work/source-lock-release.out"
 test -f "$work/source-lock-release/sources.lock.json"
+test -f "$work/source-lock-release/manifests/sources.lock.json"
+cmp "$work/source-lock-release/sources.lock.json" "$work/source-lock-release/manifests/sources.lock.json"
 python3 - "$work/source-lock-release/release.json" <<'PY'
 import json
 import sys

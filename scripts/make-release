@@ -1140,9 +1140,11 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
     script_dir = release_dir / "scripts"
     doc_dir = release_dir / "docs"
     config_dir = release_dir / "config-examples"
+    manifest_dir = release_dir / "manifests"
     script_dir.mkdir(parents=True, exist_ok=True)
     doc_dir.mkdir(parents=True, exist_ok=True)
     config_dir.mkdir(parents=True, exist_ok=True)
+    manifest_dir.mkdir(parents=True, exist_ok=True)
     for name in ("LICENSE", "NOTICE"):
         src = ROOT / name
         if src.exists():
@@ -1175,8 +1177,13 @@ def copy_bundle_support(release_dir, include_sources_manifest=False):
     src_doc = ROOT / "docs" / "release-bundles.md"
     if src_doc.exists():
         shutil.copy2(src_doc, doc_dir / "README-release.md")
+    license_policy = ROOT / "manifests" / "license-policy.json"
+    if license_policy.exists():
+        shutil.copy2(license_policy, manifest_dir / "license-policy.json")
     if include_sources_manifest and (ROOT / "manifests" / "sources.lock.json").exists():
-        shutil.copy2(ROOT / "manifests" / "sources.lock.json", release_dir / "sources.lock.json")
+        sources_lock = ROOT / "manifests" / "sources.lock.json"
+        shutil.copy2(sources_lock, release_dir / "sources.lock.json")
+        shutil.copy2(sources_lock, manifest_dir / "sources.lock.json")
 
 
 def write_release_quickstart(path, name):
