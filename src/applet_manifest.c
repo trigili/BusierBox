@@ -26,6 +26,20 @@ static int rshell_session_policy_valid(const char *policy)
            !strcmp(policy, "persistent");
 }
 
+static int rshell_session_policy_reconnects(const char *policy)
+{
+    return !strcmp(policy, "reconnect") || !strcmp(policy, "persistent");
+}
+
+static const char *rshell_post_disconnect_retry_count(const char *policy)
+{
+    if (!strcmp(policy, "single"))
+        return "0";
+    if (!strcmp(policy, "persistent"))
+        return "-1";
+    return BB_RSHELL_RETRY_COUNT;
+}
+
 static const char *command_queue_mode_lifecycle(const char *mode)
 {
     if (!strcmp(mode, "status"))
@@ -477,6 +491,25 @@ static void write_manifest_json(FILE *out, int include_missing)
     if (!rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY))
         json_string_payload(out, "unsupported rshell session policy");
     fprintf(out, "]");
+    fprintf(out, ",\"session_semantics\":{\"retry_until_first_connection\":true");
+    fprintf(out, ",\"stop_after_first_success\":%s", !strcmp(BB_RSHELL_SESSION_POLICY, "single") ? "true" : "false");
+    fprintf(out, ",\"reconnect_after_disconnect\":%s", rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+    fprintf(out, ",\"persistent_lifecycle\":%s", !strcmp(BB_RSHELL_SESSION_POLICY, "persistent") ? "true" : "false");
+    fprintf(out, ",\"fresh_session_on_reconnect\":%s", rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+    fprintf(out, ",\"session_resume_supported\":false}");
+    fprintf(out, ",\"session_policy_summary\":{\"valid\":%s", rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+    fprintf(out, ",\"retry_scope\":\"pre-connect");
+    if (rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY))
+        fprintf(out, "+post-disconnect");
+    fprintf(out, "\",\"pre_connect_retry_count\":");
+    json_string_payload(out, BB_RSHELL_RETRY_COUNT);
+    fprintf(out, ",\"post_disconnect_retry_count\":");
+    json_string_payload(out, rshell_post_disconnect_retry_count(BB_RSHELL_SESSION_POLICY));
+    fprintf(out, ",\"stops_after_success\":%s", !strcmp(BB_RSHELL_SESSION_POLICY, "single") ? "true" : "false");
+    fprintf(out, ",\"reconnects_after_disconnect\":%s", rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+    fprintf(out, ",\"persistent_lifecycle\":%s", !strcmp(BB_RSHELL_SESSION_POLICY, "persistent") ? "true" : "false");
+    fprintf(out, ",\"fresh_session_on_reconnect\":%s", rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+    fprintf(out, ",\"session_resume_supported\":false}");
     fprintf(out, ",\"shell_provider\":");
     json_string_payload(out, BB_RSHELL_SHELL_PROVIDER);
     fprintf(out, ",\"operator_host\":");
@@ -505,6 +538,10 @@ static void write_manifest_json(FILE *out, int include_missing)
     json_string_payload(out, BB_RSHELL_RETRY_BACKOFF);
     fprintf(out, ",\"max_interval_sec\":");
     json_string_payload(out, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+    fprintf(out, ",\"pre_connect_count\":");
+    json_string_payload(out, BB_RSHELL_RETRY_COUNT);
+    fprintf(out, ",\"post_disconnect_count\":");
+    json_string_payload(out, rshell_post_disconnect_retry_count(BB_RSHELL_SESSION_POLICY));
     fprintf(out, "}");
     fprintf(out, "},\"operator_services\":{\"file_service\":{\"enabled\":");
     json_string_payload(out, BB_OPERATOR_FILE_SERVICE_ENABLE);

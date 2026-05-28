@@ -53,6 +53,8 @@ required = [
     ("rshell", "session_policy"),
     ("rshell", "session_policy_valid"),
     ("rshell", "session_policy_errors"),
+    ("rshell", "session_semantics"),
+    ("rshell", "session_policy_summary"),
     ("rshell", "operator_host"),
     ("rshell", "operator_shell_port"),
     ("rshell", "operator_ssh_port"),
@@ -306,9 +308,42 @@ if (mode_api.get("count") != 5 or
     raise SystemExit("manifest-metadata: command queue mode api collection missing")
 
 retry = manifest["rshell"]["retry"]
-for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec"]:
+for key in ["count", "interval_sec", "jitter_pct", "backoff", "max_interval_sec", "pre_connect_count", "post_disconnect_count"]:
     if key not in retry:
         raise SystemExit(f"manifest-metadata: missing rshell.retry.{key}")
+semantics = manifest["rshell"]["session_semantics"]
+policy_summary = manifest["rshell"]["session_policy_summary"]
+if semantics.get("retry_until_first_connection") is not True:
+    raise SystemExit("manifest-metadata: rshell retry-until-first-connect semantics missing")
+if semantics.get("session_resume_supported") is not False:
+    raise SystemExit("manifest-metadata: rshell manifest must not claim session resume")
+if policy_summary.get("valid") is not True:
+    raise SystemExit("manifest-metadata: rshell policy summary validity missing")
+if policy_summary.get("pre_connect_retry_count") != retry.get("pre_connect_count"):
+    raise SystemExit("manifest-metadata: rshell policy summary pre-connect count mismatch")
+if policy_summary.get("post_disconnect_retry_count") != retry.get("post_disconnect_count"):
+    raise SystemExit("manifest-metadata: rshell policy summary post-disconnect count mismatch")
+if policy_summary.get("session_resume_supported") is not False:
+    raise SystemExit("manifest-metadata: rshell policy summary must not claim session resume")
+policy = manifest["rshell"]["session_policy"]
+if policy == "single":
+    if (semantics.get("stop_after_first_success") is not True or
+            semantics.get("reconnect_after_disconnect") is not False or
+            policy_summary.get("retry_scope") != "pre-connect" or
+            policy_summary.get("post_disconnect_retry_count") != "0"):
+        raise SystemExit("manifest-metadata: single rshell manifest semantics mismatch")
+elif policy == "reconnect":
+    if (semantics.get("stop_after_first_success") is not False or
+            semantics.get("reconnect_after_disconnect") is not True or
+            semantics.get("fresh_session_on_reconnect") is not True or
+            policy_summary.get("retry_scope") != "pre-connect+post-disconnect"):
+        raise SystemExit("manifest-metadata: reconnect rshell manifest semantics mismatch")
+elif policy == "persistent":
+    if (semantics.get("persistent_lifecycle") is not True or
+            policy_summary.get("post_disconnect_retry_count") != "-1"):
+        raise SystemExit("manifest-metadata: persistent rshell manifest semantics mismatch")
+else:
+    raise SystemExit(f"manifest-metadata: unexpected rshell session policy {policy!r}")
 
 print("manifest-metadata ok")
 PY
@@ -335,6 +370,10 @@ if rshell.get("session_policy_valid") is not False:
     raise SystemExit("manifest invalid policy should report session_policy_valid=false")
 if "unsupported rshell session policy" not in rshell.get("session_policy_errors", []):
     raise SystemExit("manifest invalid policy error missing")
+if (rshell.get("session_policy_summary") or {}).get("valid") is not False:
+    raise SystemExit("manifest invalid policy summary should report valid=false")
+if (rshell.get("session_semantics") or {}).get("session_resume_supported") is not False:
+    raise SystemExit("manifest invalid policy should still reject session resume")
 PY
 
 rm -rf "$tmp"
