@@ -2313,6 +2313,8 @@ def upload_record_indexes(records):
     by_source_path = {}
     by_stored_path = {}
     by_stored_exists = records_by_bool(records, "stored_exists")
+    by_metadata_exists = records_by_bool(records, "metadata_exists")
+    by_event_log_exists = records_by_bool(records, "event_log_exists")
     by_remote_addr = {}
     by_status = {}
     by_kind_status = {}
@@ -2359,6 +2361,8 @@ def upload_record_indexes(records):
         by_source_path,
         by_stored_path,
         by_stored_exists,
+        by_metadata_exists,
+        by_event_log_exists,
         by_remote_addr,
         by_status,
         by_kind_status,
@@ -2373,6 +2377,8 @@ def fetch_record_indexes(records):
     by_sha256 = {}
     by_source_path = {}
     by_source_exists = records_by_bool(records, "source_exists")
+    by_metadata_exists = records_by_bool(records, "metadata_exists")
+    by_event_log_exists = records_by_bool(records, "event_log_exists")
     by_status = {}
     by_http_status = {}
     by_remote_addr = {}
@@ -2415,6 +2421,8 @@ def fetch_record_indexes(records):
         by_sha256,
         by_source_path,
         by_source_exists,
+        by_metadata_exists,
+        by_event_log_exists,
         by_status,
         by_http_status,
         by_remote_addr,
@@ -4662,8 +4670,12 @@ def recent_upload_metadata(cfg, limit=8):
             stored_path = data.get("stored_path", "")
             data["metadata_path"] = str(path)
             data["_metadata_path"] = str(path)
+            data["metadata_exists"] = path.is_file()
             data["session_path"] = str(path.parent.parent)
             data["session_id"] = path.parent.parent.name
+            event_log = path.parent.parent / "events.jsonl"
+            data["event_log"] = str(event_log) if event_log.is_file() else ""
+            data["event_log_exists"] = event_log.is_file()
             data["stored_exists"] = Path(str(stored_path)).is_file() if stored_path else False
             data["sha256_prefix"] = str(data.get("sha256", ""))[:12]
             data["status"] = data.get("transfer_status", data.get("status", ""))
@@ -4690,7 +4702,9 @@ def recent_fetch_metadata(cfg, limit=8):
             rec["session_id"] = session_id_value
             rec["session_path"] = str(session_path)
             rec["metadata_path"] = str(session_json)
+            rec["metadata_exists"] = session_json.is_file()
             rec["event_log"] = str(session_path / "events.jsonl")
+            rec["event_log_exists"] = (session_path / "events.jsonl").is_file()
             rec["sha256_prefix"] = str(rec.get("sha256", ""))[:12]
             rec["source_exists"] = Path(str(rec.get("source_path", ""))).is_file() if rec.get("source_path") else False
             rows.append(rec)
@@ -6893,6 +6907,8 @@ def status_document(cfg):
      uploads_by_source_path,
      uploads_by_stored_path,
      uploads_by_stored_exists,
+     uploads_by_metadata_exists,
+     uploads_by_event_log_exists,
      uploads_by_remote_addr,
      uploads_by_status,
      uploads_by_kind_status,
@@ -6903,6 +6919,8 @@ def status_document(cfg):
      fetches_by_sha256,
      fetches_by_source_path,
      fetches_by_source_exists,
+     fetches_by_metadata_exists,
+     fetches_by_event_log_exists,
      fetches_by_status,
      fetches_by_http_status,
      fetches_by_remote_addr,
@@ -7168,6 +7186,8 @@ def status_document(cfg):
         "upload_total_size": record_sum_by_key(uploads, "size"),
         "upload_stored_exists_count": upload_stored_exists_count,
         "upload_stored_missing_count": upload_stored_missing_count,
+        "upload_metadata_exists_counts": {key: len(value) for key, value in uploads_by_metadata_exists.items()},
+        "upload_event_log_exists_counts": {key: len(value) for key, value in uploads_by_event_log_exists.items()},
         "upload_kind_counts": record_count_by_key(uploads, "upload_kind"),
         "upload_status_counts": record_count_by_key(uploads, "status"),
         "upload_remote_counts": record_count_by_key(uploads, "remote_addr"),
@@ -7180,6 +7200,8 @@ def status_document(cfg):
         "fetch_total_size": record_sum_by_key(fetches, "size"),
         "fetch_source_exists_count": fetch_source_exists_count,
         "fetch_source_missing_count": fetch_source_missing_count,
+        "fetch_metadata_exists_counts": {key: len(value) for key, value in fetches_by_metadata_exists.items()},
+        "fetch_event_log_exists_counts": {key: len(value) for key, value in fetches_by_event_log_exists.items()},
         "fetch_status_counts": record_count_by_key(fetches, "status"),
         "fetch_http_status_counts": record_count_by_key(fetches, "http_status"),
         "fetch_remote_counts": record_count_by_key(fetches, "remote_addr"),
@@ -7482,7 +7504,8 @@ def status_document(cfg):
                 "uploads_by_source_path", "uploads_by_stored_path", "uploads_by_remote_addr",
                 "uploads_by_status", "uploads_by_kind_status", "uploads_by_filename_status",
                 "uploads_by_stored_exists", "uploads_by_status_stored_exists",
-                "uploads_by_status_remote_addr",
+                "uploads_by_status_remote_addr", "uploads_by_metadata_exists",
+                "uploads_by_event_log_exists",
             ), "upload_count",
         ),
         "fetches": api_collection_record(
@@ -7490,7 +7513,8 @@ def status_document(cfg):
                 "fetches_by_session", "fetches_by_request", "fetches_by_sha256",
                 "fetches_by_source_path", "fetches_by_status", "fetches_by_http_status",
                 "fetches_by_source_exists", "fetches_by_remote_addr", "fetches_by_request_status",
-                "fetches_by_status_source_exists",
+                "fetches_by_status_source_exists", "fetches_by_metadata_exists",
+                "fetches_by_event_log_exists",
                 "fetches_by_status_remote_addr", "fetches_by_http_status_remote_addr",
             ), "fetch_count",
         ),
@@ -7754,6 +7778,8 @@ def status_document(cfg):
         "uploads_by_source_path": uploads_by_source_path,
         "uploads_by_stored_path": uploads_by_stored_path,
         "uploads_by_stored_exists": uploads_by_stored_exists,
+        "uploads_by_metadata_exists": uploads_by_metadata_exists,
+        "uploads_by_event_log_exists": uploads_by_event_log_exists,
         "uploads_by_remote_addr": uploads_by_remote_addr,
         "uploads_by_status": uploads_by_status,
         "uploads_by_kind_status": uploads_by_kind_status,
@@ -7766,6 +7792,8 @@ def status_document(cfg):
         "fetches_by_sha256": fetches_by_sha256,
         "fetches_by_source_path": fetches_by_source_path,
         "fetches_by_source_exists": fetches_by_source_exists,
+        "fetches_by_metadata_exists": fetches_by_metadata_exists,
+        "fetches_by_event_log_exists": fetches_by_event_log_exists,
         "fetches_by_status": fetches_by_status,
         "fetches_by_http_status": fetches_by_http_status,
         "fetches_by_remote_addr": fetches_by_remote_addr,

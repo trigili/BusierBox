@@ -3580,6 +3580,9 @@ def main():
                 upload_item.get("stored_exists") is not True or
                 upload_item.get("session_id") != session_json_paths[0].parent.name or
                 upload_item.get("session_path") != str(session_json_paths[0].parent) or
+                upload_item.get("metadata_exists") is not True or
+                upload_item.get("event_log_exists") is not True or
+                upload_item.get("event_log") != str(session_json_paths[0].parent / "events.jsonl") or
                 upload_item.get("sha256_prefix") != metadata.get("sha256", "")[:12] or
                 upload_item.get("upload_kind") != "evidence" or
                 upload_item.get("status") != "ok"):
@@ -3600,6 +3603,8 @@ def main():
         uploads_by_source = upload_doc.get("uploads_by_source_path") or {}
         uploads_by_stored = upload_doc.get("uploads_by_stored_path") or {}
         uploads_by_stored_exists = upload_doc.get("uploads_by_stored_exists") or {}
+        uploads_by_metadata_exists = upload_doc.get("uploads_by_metadata_exists") or {}
+        uploads_by_event_log_exists = upload_doc.get("uploads_by_event_log_exists") or {}
         uploads_by_remote = upload_doc.get("uploads_by_remote_addr") or {}
         uploads_by_status = upload_doc.get("uploads_by_status") or {}
         uploads_by_kind_status = upload_doc.get("uploads_by_kind_status") or {}
@@ -3617,6 +3622,8 @@ def main():
                 uploads_by_source.get("/tmp/evidence.txt", [{}])[0].get("stored_path") != str(uploaded[0]) or
                 uploads_by_stored.get(str(uploaded[0]), {}).get("source_path") != "/tmp/evidence.txt" or
                 uploads_by_stored_exists.get("yes", [{}])[0].get("filename") != "evidence.txt" or
+                uploads_by_metadata_exists.get("yes", [{}])[0].get("filename") != "evidence.txt" or
+                uploads_by_event_log_exists.get("yes", [{}])[0].get("filename") != "evidence.txt" or
                 uploads_by_status.get("ok", [{}])[0].get("filename") != "evidence.txt" or
                 not upload_remote or
                 uploads_by_remote.get(upload_remote, [{}])[0].get("filename") != "evidence.txt" or
@@ -3628,12 +3635,20 @@ def main():
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         if (upload_summary.get("upload_remote_counts", {}).get(upload_remote) != 1 or
+                upload_summary.get("upload_metadata_exists_counts", {}).get("yes") != 1 or
+                upload_summary.get("upload_event_log_exists_counts", {}).get("yes") != 1 or
                 upload_summary.get("upload_kind_status_counts", {}).get(upload_kind_status_key) != 1 or
                 upload_summary.get("upload_filename_status_counts", {}).get(upload_filename_status_key) != 1 or
                 upload_summary.get("upload_status_stored_exists_counts", {}).get(upload_status_stored_exists_key) != 1 or
                 upload_summary.get("upload_status_remote_counts", {}).get(upload_status_remote_key) != 1 or
                 upload_summary.get("session_remote_counts", {}).get(upload_remote) != 1):
             print("server json status missing upload/session remote summary counts", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
+        upload_api = (upload_doc.get("api_collections") or {}).get("uploads") or {}
+        if ("uploads_by_metadata_exists" not in (upload_api.get("indexes") or []) or
+                "uploads_by_event_log_exists" not in (upload_api.get("indexes") or [])):
+            print("server json status missing upload metadata/log availability API indexes", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         if (upload_summary.get("latest_upload_at") != upload_item.get("timestamp") or
@@ -4801,6 +4816,8 @@ def main():
                 fetch_items[0].get("status") != "served" or
                 fetch_items[0].get("http_status") != 200 or
                 fetch_items[0].get("source_exists") is not True or
+                fetch_items[0].get("metadata_exists") is not True or
+                fetch_items[0].get("event_log_exists") is not True or
                 fetch_items[0].get("session_id") != fetch_sessions[0].parent.name or
                 fetch_items[0].get("event_log") != str(fetch_sessions[0].parent / "events.jsonl")):
             print("server json status missing recent fetch metadata", file=sys.stderr)
@@ -4818,6 +4835,8 @@ def main():
         fetches_by_sha = fetch_status_doc.get("fetches_by_sha256") or {}
         fetches_by_source = fetch_status_doc.get("fetches_by_source_path") or {}
         fetches_by_source_exists = fetch_status_doc.get("fetches_by_source_exists") or {}
+        fetches_by_metadata_exists = fetch_status_doc.get("fetches_by_metadata_exists") or {}
+        fetches_by_event_log_exists = fetch_status_doc.get("fetches_by_event_log_exists") or {}
         fetches_by_status = fetch_status_doc.get("fetches_by_status") or {}
         fetches_by_http_status = fetch_status_doc.get("fetches_by_http_status") or {}
         fetches_by_remote = fetch_status_doc.get("fetches_by_remote_addr") or {}
@@ -4836,6 +4855,8 @@ def main():
                 fetches_by_sha.get(fetch_sha, [{}])[0].get("request_name") != "/tmp/myfile" or
                 fetches_by_source.get(str(staged_source), [{}])[0].get("http_status") != 200 or
                 fetches_by_source_exists.get("yes", [{}])[0].get("request_name") != "/tmp/myfile" or
+                fetches_by_metadata_exists.get("yes", [{}])[0].get("request_name") != "/tmp/myfile" or
+                fetches_by_event_log_exists.get("yes", [{}])[0].get("request_name") != "/tmp/myfile" or
                 fetches_by_status.get("served", [{}])[0].get("source_path") != str(staged_source) or
                 fetches_by_http_status.get("200", [{}])[0].get("request_name") != "/tmp/myfile" or
                 not fetch_remote or
@@ -4848,11 +4869,19 @@ def main():
             print(fetch_status.stdout, file=sys.stderr)
             return 1
         if (fetch_summary.get("fetch_remote_counts", {}).get(fetch_remote) != 1 or
+                fetch_summary.get("fetch_metadata_exists_counts", {}).get("yes") != 1 or
+                fetch_summary.get("fetch_event_log_exists_counts", {}).get("yes") != 1 or
                 fetch_summary.get("fetch_request_status_counts", {}).get(fetch_request_status_key) != 1 or
                 fetch_summary.get("fetch_status_source_exists_counts", {}).get(fetch_status_source_exists_key) != 1 or
                 fetch_summary.get("fetch_status_remote_counts", {}).get(fetch_status_remote_key) != 1 or
                 fetch_summary.get("fetch_http_status_remote_counts", {}).get(fetch_http_status_remote_key) != 1):
             print("server json status missing fetch remote summary counts", file=sys.stderr)
+            print(fetch_status.stdout, file=sys.stderr)
+            return 1
+        fetch_api = (fetch_status_doc.get("api_collections") or {}).get("fetches") or {}
+        if ("fetches_by_metadata_exists" not in (fetch_api.get("indexes") or []) or
+                "fetches_by_event_log_exists" not in (fetch_api.get("indexes") or [])):
+            print("server json status missing fetch metadata/log availability API indexes", file=sys.stderr)
             print(fetch_status.stdout, file=sys.stderr)
             return 1
         if fetch_summary.get("latest_fetch_at") != fetch_items[0].get("timestamp"):
