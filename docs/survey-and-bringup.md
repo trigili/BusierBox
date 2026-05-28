@@ -13,6 +13,10 @@ The shell survey exists because a working native BusierBox binary only proves th
 `reality-test` complements that passive survey with active checks. It reports
 operator upload/fetch checks as skipped unless those side-effecting services are
 explicitly configured for the run.
+Its JSON also includes `checks_by_name`, `checks_by_status`,
+`checks_by_type`, and `api_collections.checks` metadata so bringup tools and
+future UIs can jump directly to failed capabilities, skipped operator checks,
+or detected constraints without scraping the text view.
 
 Operator file-service checks are opt-in because they create target-initiated
 network traffic and upload a small probe file:

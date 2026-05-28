@@ -80,8 +80,27 @@ if by_name["spawn_sh"].get("type") != "capability" or "available" not in by_name
 if by_name["upload_operator"].get("type") != "operator" or "available" not in by_name["upload_operator"]:
     raise SystemExit("reality-test: upload_operator should expose structured operator availability")
 summary = doc.get("summary", {})
+if summary.get("check_count") != len(checks):
+    raise SystemExit("reality-test: summary check_count does not match checks")
 if summary.get("pass", 0) + summary.get("fail", 0) + summary.get("skipped", 0) != len(checks):
     raise SystemExit("reality-test: summary counts do not match checks")
+api = (doc.get("api_collections") or {}).get("checks") or {}
+if api.get("count_summary_key") != "summary.check_count":
+    raise SystemExit("reality-test: checks api collection missing summary key")
+if set(api.get("indexes") or []) < {"checks_by_name", "checks_by_status", "checks_by_type"}:
+    raise SystemExit("reality-test: checks api collection missing indexes")
+if doc.get("checks_by_name", {}).get("spawn_sh") != [required.index("spawn_sh")]:
+    raise SystemExit("reality-test: checks_by_name lookup is wrong")
+status_indexes = doc.get("checks_by_status") or {}
+type_indexes = doc.get("checks_by_type") or {}
+for status in ("pass", "fail", "skipped"):
+    expected = [idx for idx, item in enumerate(checks) if item["status"] == status]
+    if status_indexes.get(status) != expected:
+        raise SystemExit(f"reality-test: checks_by_status drift for {status}")
+for check_type in ("capability", "operator", "constraint"):
+    expected = [idx for idx, item in enumerate(checks) if item["type"] == check_type]
+    if type_indexes.get(check_type) != expected:
+        raise SystemExit(f"reality-test: checks_by_type drift for {check_type}")
 if summary.get("operator_pass", 0) + summary.get("operator_fail", 0) + summary.get("operator_skipped", 0) != 3:
     raise SystemExit("reality-test: summary should count all operator checks")
 if by_name["upload_operator"]["status"] != "skipped":

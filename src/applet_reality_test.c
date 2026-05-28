@@ -561,6 +561,75 @@ static int constraint_detected(const struct check_result *r)
     return !r->skipped && r->ok;
 }
 
+static const char *check_status(const struct check_result *r)
+{
+    return r->skipped ? "skipped" : (r->ok ? "pass" : "fail");
+}
+
+static const char *check_type(const struct check_result *r)
+{
+    if (is_constraint_check(r->name))
+        return "constraint";
+    if (is_operator_check(r->name))
+        return "operator";
+    return "capability";
+}
+
+static void print_check_index_array(struct check_result checks[], size_t n, const char *field, const char *value)
+{
+    size_t i;
+    int first = 1;
+
+    putchar('[');
+    for (i = 0; i < n; i++) {
+        const char *candidate = "";
+        if (!strcmp(field, "name"))
+            candidate = checks[i].name;
+        else if (!strcmp(field, "status"))
+            candidate = check_status(&checks[i]);
+        else if (!strcmp(field, "type"))
+            candidate = check_type(&checks[i]);
+        if (strcmp(candidate, value))
+            continue;
+        printf("%s%zu", first ? "" : ",", i);
+        first = 0;
+    }
+    putchar(']');
+}
+
+static void print_check_indexes(struct check_result checks[], size_t n)
+{
+    static const char *statuses[] = {"pass", "fail", "skipped", NULL};
+    static const char *types[] = {"capability", "operator", "constraint", NULL};
+    size_t i;
+
+    printf(",\"checks_by_name\":{");
+    for (i = 0; i < n; i++) {
+        if (i)
+            putchar(',');
+        bb_json_string(stdout, checks[i].name);
+        putchar(':');
+        print_check_index_array(checks, n, "name", checks[i].name);
+    }
+    printf("},\"checks_by_status\":{");
+    for (i = 0; statuses[i]; i++) {
+        if (i)
+            putchar(',');
+        bb_json_string(stdout, statuses[i]);
+        putchar(':');
+        print_check_index_array(checks, n, "status", statuses[i]);
+    }
+    printf("},\"checks_by_type\":{");
+    for (i = 0; types[i]; i++) {
+        if (i)
+            putchar(',');
+        bb_json_string(stdout, types[i]);
+        putchar(':');
+        print_check_index_array(checks, n, "type", types[i]);
+    }
+    putchar('}');
+}
+
 static void print_json(struct check_result checks[], size_t n)
 {
     size_t i;
@@ -578,9 +647,9 @@ static void print_json(struct check_result checks[], size_t n)
         printf("{\"name\":");
         bb_json_string(stdout, checks[i].name);
         printf(",\"status\":");
-        bb_json_string(stdout, checks[i].skipped ? "skipped" : (checks[i].ok ? "pass" : "fail"));
+        bb_json_string(stdout, check_status(&checks[i]));
         printf(",\"type\":");
-        bb_json_string(stdout, is_constraint_check(checks[i].name) ? "constraint" : (is_operator_check(checks[i].name) ? "operator" : "capability"));
+        bb_json_string(stdout, check_type(&checks[i]));
         printf(",\"ok\":%s,\"skipped\":%s", (!checks[i].skipped && checks[i].ok) ? "true" : "false", checks[i].skipped ? "true" : "false");
         if (is_constraint_check(checks[i].name))
             printf(",\"detected\":%s", constraint_detected(&checks[i]) ? "true" : "false");
@@ -615,7 +684,10 @@ static void print_json(struct check_result checks[], size_t n)
         else if (!strcmp(checks[i].name, "procfs_partial"))
             procfs_partial = constraint_detected(&checks[i]);
     }
-    printf("],\"summary\":{\"pass\":%d,\"fail\":%d,\"skipped\":%d", pass, fail, skip);
+    printf("]");
+    print_check_indexes(checks, n);
+    printf(",\"api_collections\":{\"checks\":{\"name\":\"checks\",\"count_summary_key\":\"summary.check_count\",\"indexes\":[\"checks_by_name\",\"checks_by_status\",\"checks_by_type\"]}}");
+    printf(",\"summary\":{\"check_count\":%zu,\"pass\":%d,\"fail\":%d,\"skipped\":%d", n, pass, fail, skip);
     printf(",\"capability_pass\":%d,\"capability_fail\":%d", capability_pass, capability_fail);
     printf(",\"operator_pass\":%d,\"operator_fail\":%d,\"operator_skipped\":%d", operator_pass, operator_fail, operator_skip);
     printf(",\"constraints\":{\"tmp_noexec\":%s,\"rootfs_read_only\":%s,\"procfs_partial\":%s}}}\n",
