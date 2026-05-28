@@ -101,6 +101,8 @@ JSON
   "release_tuple_count": 1,
   "release_device_count": 1,
   "command_queue_enabled_count": 0,
+  "command_queue_token_required_count": 1,
+  "command_queue_token_configured_count": 0,
   "command_queue_execution_supported_count": 0
 }
 JSON
@@ -121,6 +123,8 @@ index = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert index["release_count"] == 3
 assert index["artifact_count"] == 3
 assert index["release_self_test_count"] == 3
+assert index["release_self_test_command_queue_token_required_count"] == 3
+assert index["release_self_test_command_queue_token_configured_count"] == 0
 assert index["deduplicated_artifact_count"] == 2
 assert index["device_count"] == 2
 assert index["device_record_count"] == 3
@@ -256,6 +260,8 @@ assert row["payload_preset"] == "ssh-operator"
 assert "reverse-ssh" in row["features"]
 assert row["release_self_test_status"] == "pass"
 assert row["release_self_test"]["command_queue_execution_supported_count"] == 0
+assert row["release_self_test"]["command_queue_token_required_count"] == 1
+assert row["release_self_test"]["command_queue_token_configured_count"] == 0
 PY
 scripts/find-artifact --index "$tmp/repo-index.json" --device lab-router --recommendation-json >"$tmp/recommend-json.out"
 python3 - "$tmp/recommend-json.out" <<'PY'
@@ -283,6 +289,8 @@ assert doc["matches_by_provider_tool"]["strace"][0]["release_name"] == "two"
 assert doc["matches_by_provider_status"]["strace:found"][0]["release_name"] == "two"
 assert doc["index"]["deduplicated_artifact_count"] == 2
 assert doc["index"]["release_self_test_count"] == 3
+assert doc["index"]["release_self_test_command_queue_token_required_count"] == 3
+assert doc["index"]["release_self_test_command_queue_token_configured_count"] == 0
 assert doc["index"]["artifacts_by_sha_count"] == 2
 assert doc["index"]["artifacts_by_release_count"] == 3
 assert doc["index"]["artifacts_by_tuple_path_count"] == 1
