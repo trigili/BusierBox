@@ -8319,6 +8319,24 @@ def stop_recorded_service(cfg, service):
 
 
 def run_line_tui(cfg):
+    def line_input(prompt):
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
+        while not SHUTDOWN.is_set():
+            try:
+                ready, _w, _x = select.select([sys.stdin], [], [], 0.5)
+            except (OSError, ValueError):
+                request_shutdown("input_error")
+                return None
+            if not ready:
+                continue
+            line = sys.stdin.readline()
+            if line == "":
+                request_shutdown("input_eof")
+                return None
+            return line.rstrip("\n")
+        return None
+
     while not SHUTDOWN.is_set():
         print("")
         print_workbench(cfg)
@@ -8342,7 +8360,10 @@ def run_line_tui(cfg):
         print("  r refresh")
         print("  ? help")
         print("  q quit")
-        choice = input("> ").strip()
+        line = line_input("> ")
+        if line is None:
+            break
+        choice = line.strip()
         if choice == "q":
             mark_service_stopped(cfg, "workbench", "quit")
             return 0
@@ -8350,10 +8371,14 @@ def run_line_tui(cfg):
             service = {"1": "ssh", "2": "tls-shell", "3": "plain-shell", "4": "file-service"}[choice]
             start_service_process(cfg, service)
         elif choice == "5":
-            stop_recorded_service(cfg, input("service> ").strip())
+            service = line_input("service> ")
+            if service is not None:
+                stop_recorded_service(cfg, service.strip())
         elif choice == "6":
-            path = input("local file> ").strip()
-            name = input("target request name> ").strip()
+            path_line = line_input("local file> ")
+            name_line = line_input("target request name> ")
+            path = path_line.strip() if path_line is not None else ""
+            name = name_line.strip() if name_line is not None else ""
             try:
                 rec = stage_file(cfg, path, name)
                 print(f"staged {rec['request_name']}")
@@ -8363,14 +8388,16 @@ def run_line_tui(cfg):
         elif choice == "7":
             print_staged(cfg)
         elif choice == "8" or choice == "d":
-            name = input("target request name> ").strip()
+            name_line = line_input("target request name> ")
+            name = name_line.strip() if name_line is not None else ""
             if name:
                 try:
                     print("unstaged" if unstage_file(cfg, name) else "not staged")
                 except ValueError as exc:
                     print(exc)
         elif choice == "9" or choice == "v":
-            path = input("local path> ").strip()
+            path_line = line_input("local path> ")
+            path = path_line.strip() if path_line is not None else ""
             if path:
                 print(open_path_in_pager(path))
         elif choice == "10":
@@ -8381,7 +8408,8 @@ def run_line_tui(cfg):
             nav = release_nav_records(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=12)
             for idx, rec in enumerate(nav, 1):
                 print(f"{idx}: {rec.get('label', '')}")
-            selector = input("release selection number, recommendation id, artifact path, by_device:NAME, or by_tuple_path:PATH> ").strip()
+            selector_line = line_input("release selection number, recommendation id, artifact path, by_device:NAME, or by_tuple_path:PATH> ")
+            selector = selector_line.strip() if selector_line is not None else ""
             if selector:
                 try:
                     rec = stage_release_selection(cfg, selector)
@@ -8402,7 +8430,8 @@ def run_line_tui(cfg):
             runnable = [rec for rec in snap.get("workbench_actions") or [] if rec.get("background_supported")]
             for idx, rec in enumerate(runnable, 1):
                 print(f"{idx}: {rec.get('id', '')} {rec.get('command', '')}")
-            selected = input("background action id or number> ").strip()
+            selected_line = line_input("background action id or number> ")
+            selected = selected_line.strip() if selected_line is not None else ""
             if selected:
                 try:
                     action = runnable[int(selected) - 1]["id"] if selected.isdigit() else selected
@@ -8415,7 +8444,8 @@ def run_line_tui(cfg):
             snap = workbench_snapshot(cfg)
             for rec in snap.get("workbench_jobs") or []:
                 print(f"{rec.get('id', '')}: action={rec.get('action_id', '')} state={rec.get('effective_state', '')} cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}")
-            job_id = input("job id> ").strip()
+            job_line = line_input("job id> ")
+            job_id = job_line.strip() if job_line is not None else ""
             if job_id:
                 try:
                     rec = cancel_workbench_job(cfg, job_id)
@@ -8428,7 +8458,8 @@ def run_line_tui(cfg):
                 print(f"{idx}: {rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} category={rec.get('category', '')}")
                 print(f"   {rec.get('label', '')}")
                 print(f"   command: {rec.get('set_command', '')}")
-            selected = input("build config key or number> ").strip()
+            selected_line = line_input("build config key or number> ")
+            selected = selected_line.strip() if selected_line is not None else ""
             if selected:
                 try:
                     rec = fields[int(selected) - 1] if selected.isdigit() else {item.get("key"): item for item in fields}.get(selected, {})
@@ -8437,7 +8468,8 @@ def run_line_tui(cfg):
                         raise ValueError(f"unknown build config field: {selected}")
                     print(f"current {key}={shell_double_quote(rec.get('value', ''))}")
                     print(f"underlying command: scripts/busierbox-server --build-config {shquote(str(build_config_path(cfg)))} --set-build-config {shquote(key + '=VALUE')}")
-                    value = input("new value> ")
+                    value_line = line_input("new value> ")
+                    value = value_line if value_line is not None else ""
                     updated = set_workbench_build_config(cfg, f"{key}={value}")
                     print(f"set {updated.get('key', key)}={shell_double_quote(updated.get('value', value))}")
                 except (ValueError, IndexError) as exc:
@@ -8449,7 +8481,8 @@ def run_line_tui(cfg):
             commands = generated_target_commands(cfg)
             for idx, cmd in enumerate(commands, 1):
                 print(f"{idx}: {cmd}")
-            chosen = input("copy command number, or blank to skip> ").strip()
+            chosen_line = line_input("copy command number, or blank to skip> ")
+            chosen = chosen_line.strip() if chosen_line is not None else ""
             if chosen:
                 try:
                     rec = copy_generated_command(cfg, chosen)

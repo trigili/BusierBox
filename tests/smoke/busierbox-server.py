@@ -2385,6 +2385,88 @@ def main():
             print("line TUI quit did not log workbench-owned service stop", file=sys.stderr)
             return 1
 
+        tui_sigterm_operator_dir = Path(tmp) / "operator-session-tui-sigterm"
+        tui_sigterm_cfg = Path(tmp) / "server-config-tui-sigterm.json"
+        tui_sigterm_state = tui_sigterm_operator_dir / "server-state.json"
+        tui_sigterm_staged = tui_sigterm_operator_dir / "staged-files.json"
+        tui_sigterm_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "file_service_port": free_port(),
+            "session_root": str(Path(tmp) / "sessions-tui-sigterm"),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+            "file_service_tls": "no",
+            "operator_session_dir": str(tui_sigterm_operator_dir),
+        }), encoding="utf-8")
+        sigterm_master, sigterm_slave = pty.openpty()
+        try:
+            tui_sigterm_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(tui_sigterm_cfg),
+                    "--state-file", str(tui_sigterm_state),
+                    "--staged-file", str(tui_sigterm_staged),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=sigterm_slave,
+                stdout=sigterm_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(sigterm_slave)
+            sigterm_slave = -1
+            deadline = time.time() + 5
+            while time.time() < deadline:
+                sigterm_status = run(
+                    "scripts/busierbox-server", "--config", str(tui_sigterm_cfg),
+                    "--state-file", str(tui_sigterm_state),
+                    "--staged-file", str(tui_sigterm_staged),
+                    "--json-status",
+                )
+                if sigterm_status.returncode == 0:
+                    sigterm_doc = json.loads(sigterm_status.stdout)
+                    if (sigterm_doc.get("server_state", {}).get("services", {}).get("workbench") or {}).get("status") == "open":
+                        break
+                time.sleep(0.05)
+            else:
+                print("line TUI SIGTERM fixture did not reach open state", file=sys.stderr)
+                tui_sigterm_proc.terminate()
+                tui_sigterm_proc.communicate(timeout=2)
+                return 1
+            tui_sigterm_proc.terminate()
+            _tui_sigterm_stdout, tui_sigterm_stderr = tui_sigterm_proc.communicate(timeout=5)
+        finally:
+            if sigterm_slave != -1:
+                os.close(sigterm_slave)
+            try:
+                os.close(sigterm_master)
+            except OSError:
+                pass
+        if tui_sigterm_proc.returncode not in (0, 130, 143, -signal.SIGTERM) or "Traceback" in (tui_sigterm_stderr or ""):
+            print("line TUI did not exit cleanly on SIGTERM while waiting for input", file=sys.stderr)
+            print(tui_sigterm_stderr or "", file=sys.stderr)
+            return 1
+        tui_sigterm_after = run(
+            "scripts/busierbox-server", "--config", str(tui_sigterm_cfg),
+            "--state-file", str(tui_sigterm_state),
+            "--staged-file", str(tui_sigterm_staged),
+            "--json-status",
+        )
+        tui_sigterm_doc = json.loads(tui_sigterm_after.stdout)
+        tui_sigterm_workbench = tui_sigterm_doc.get("server_state", {}).get("services", {}).get("workbench") or {}
+        if tui_sigterm_workbench.get("status") != "stopped" or tui_sigterm_workbench.get("stopped_reason") != "SIGTERM":
+            print("line TUI SIGTERM did not mark workbench stopped with SIGTERM reason", file=sys.stderr)
+            print(tui_sigterm_after.stdout, file=sys.stderr)
+            return 1
+        tui_sigterm_events = [
+            json.loads(line) for line in (tui_sigterm_operator_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        if not any(event.get("service") == "workbench" and event.get("event") == "shutdown" and event.get("details", {}).get("reason") == "SIGTERM" for event in tui_sigterm_events):
+            print("line TUI SIGTERM did not write structured workbench shutdown event", file=sys.stderr)
+            return 1
+
         bind_fail_port = free_port()
         bind_fail_cfg = Path(tmp) / "server-config-bind-fail.json"
         bind_fail_state = Path(tmp) / "operator-session" / "bind-fail-state.json"
