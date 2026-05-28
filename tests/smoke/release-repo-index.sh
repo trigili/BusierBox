@@ -320,6 +320,13 @@ assert doc["api_collections"]["matches"]["count_summary_key"] == "visible_match_
 assert doc["api_collections"]["matches"]["primary_key"] == "artifact_path"
 assert doc["api_collections"]["dedupe_alternatives"]["count_summary_key"] == "dedupe_count"
 assert doc["api_collections"]["dedupe_alternatives"]["primary_key"] == "artifact_path"
+assert doc["api_collections"]["filter_records"]["count"] == doc["filter_count"]
+assert doc["api_collections"]["filter_records"]["summary_key"] == "filter_count"
+assert doc["api_collections"]["filter_records"]["count_summary_key"] == "filter_count"
+assert doc["api_collections"]["filter_records"]["primary_key"] == "name"
+assert "filters_by_source" in doc["api_collections"]["filter_records"]["indexes"]
+assert doc["filters_by_name"]["device"]["source"] == "explicit"
+assert doc["filters_by_source"]["explicit"][0]["name"] == "device"
 assert "matches_by_payload_preset" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_provider_status" in doc["api_collections"]["matches"]["indexes"]
 assert doc["matches_by_release"]["two"][0]["release_name"] == "two"
@@ -376,6 +383,13 @@ assert doc["survey"]["path"] == survey_path
 assert doc["survey"]["hints"]["arch"] == "mipsel"
 assert doc["survey"]["hints"]["kernel"] == "4.x"
 assert doc["survey"]["applied_filters"] == {"arch": "mipsel", "kernel": "4.x", "libc": "musl"}
+assert doc["filter_count"] == 5
+assert doc["filters_by_name"]["survey_json"]["source"] == "explicit"
+assert doc["filters_by_name"]["payload_preset"]["source"] == "explicit"
+assert doc["filters_by_name"]["arch"]["source"] == "survey"
+assert doc["filters_by_name"]["libc"]["reason"].startswith("derived from survey")
+assert [item["name"] for item in doc["filters_by_source"]["survey"]] == ["arch", "kernel", "libc"]
+assert doc["filters_by_name_source"]["arch:survey"]["value"] == "mipsel"
 assert doc["selected"]["release_name"] == "one"
 PY
 scripts/find-artifact --index "$tmp/repo-index.json" --device lab-router --max-compatibility likely --recommendation-json >"$tmp/recommend-safe-json.out"

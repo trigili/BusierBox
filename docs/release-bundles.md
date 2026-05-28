@@ -227,9 +227,11 @@ Future TUI/web clients can use those fields to discover record counts and
 lookup maps without hard-coding the JSON shape. It does not download or rebuild
 anything.
 `--recommendation-json` returns the selected artifact plus active filters,
-match count, visible match count, match lookup maps, `api_collections`
-metadata with the same count/primary-key fields, index counts, and the
-selection policy. Lookup maps include
+filter provenance records, match count, visible match count, match lookup maps,
+`api_collections` metadata with the same count/primary-key fields, index
+counts, and the selection policy. `filter_records`, `filters_by_name`,
+`filters_by_source`, and `filters_by_name_source` distinguish explicit
+operator filters from filters derived from survey evidence. Lookup maps include
 `matches_by_release`, `matches_by_tuple_path`, `matches_by_payload_preset`,
 `matches_by_compatibility`, `matches_by_tool`, `matches_by_feature`,
 `matches_by_provider_tool`, `matches_by_provider_status`,

@@ -201,6 +201,45 @@ def active_filters(args):
     return {key: getattr(args, key) for key in keys if getattr(args, key)}
 
 
+def filter_records(args, survey_context=None):
+    filters = active_filters(args)
+    applied = (survey_context or {}).get("applied_filters") or {}
+    records = []
+    for name in sorted(filters):
+        if name == "survey_json":
+            source = "explicit"
+            reason = "survey evidence path supplied by operator"
+        elif name in applied:
+            source = "survey"
+            reason = "derived from survey evidence because no explicit filter was supplied"
+        else:
+            source = "explicit"
+            reason = "operator-supplied CLI filter"
+        records.append({
+            "name": name,
+            "value": filters[name],
+            "source": source,
+            "reason": reason,
+        })
+    return records
+
+
+def filter_record_indexes(records):
+    by_name = {}
+    by_source = {}
+    by_name_source = {}
+    for rec in records or []:
+        name = rec.get("name", "")
+        source = rec.get("source", "")
+        if name:
+            by_name[name] = rec
+        if source:
+            by_source.setdefault(source, []).append(rec)
+        if name and source:
+            by_name_source[f"{name}:{source}"] = rec
+    return by_name, by_source, by_name_source
+
+
 def add_index(indexes, name, key, row):
     if key:
         indexes.setdefault(name, {}).setdefault(str(key), []).append(row)
@@ -280,10 +319,17 @@ def recommendation_document(index, rows, args, survey_context=None):
     dedupe = (index.get("dedupe", {}).get(selected_sha, {}) or {}).get("artifacts") or []
     visible_matches = rows if args.all else rows[:1]
     indexes = match_indexes(visible_matches)
+    filters = filter_records(args, survey_context)
+    filters_by_name, filters_by_source, filters_by_name_source = filter_record_indexes(filters)
     return {
         "schema": 1,
         "command": "find-artifact",
         "filters": active_filters(args),
+        "filter_records": filters,
+        "filters_by_name": filters_by_name,
+        "filters_by_source": filters_by_source,
+        "filters_by_name_source": filters_by_name_source,
+        "filter_count": len(filters),
         "survey": survey_context or {},
         "match_count": len(rows),
         "visible_match_count": len(visible_matches),
@@ -326,6 +372,17 @@ def recommendation_document(index, rows, args, survey_context=None):
                 [],
                 "dedupe_count",
                 "artifact_path",
+            ),
+            "filter_records": api_collection_record(
+                "filter_records",
+                len(filters),
+                [
+                    "filters_by_name",
+                    "filters_by_source",
+                    "filters_by_name_source",
+                ],
+                "filter_count",
+                "name",
             ),
         },
         "index": {
