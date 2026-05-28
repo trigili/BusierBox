@@ -2592,15 +2592,20 @@ def main():
         release_browser_by_path = release_doc.get("browser_paths_by_path") or {}
         release_browser_by_kind_source = release_doc.get("browser_paths_by_kind_source_id") or {}
         if (release_doc.get("browser_path_summary", {}).get("by_kind", {}).get("release-artifact") != 1 or
+                release_doc.get("browser_path_summary", {}).get("by_kind", {}).get("release-recommendation-artifact", 0) < 1 or
                 release_doc.get("browser_path_summary", {}).get("exists_by_kind", {}).get("release-artifact") != 1 or
+                release_doc.get("browser_path_summary", {}).get("exists_by_kind", {}).get("release-recommendation-artifact", 0) < 1 or
                 release_doc.get("browser_path_summary", {}).get("kind_mismatch_count") != 0 or
                 release_doc.get("summary", {}).get("browser_path_exists_kind_counts", {}).get("release-artifact") != 1 or
+                release_doc.get("summary", {}).get("browser_path_exists_kind_counts", {}).get("release-recommendation-artifact", 0) < 1 or
                 release_doc.get("summary", {}).get("browser_path_kind_mismatch_count") != 0 or
                 release_browser_by_kind.get("release-json", [{}])[0].get("path") != str(release_dir / "release.json") or
                 release_browser_by_kind.get("release-artifact", [{}])[0].get("source_id") != "bin/busierbox-test" or
+                release_browser_by_kind.get("release-recommendation-artifact", [{}])[0].get("source_id") != "by_device:lab-router" or
                 release_browser_by_kind.get("release-artifact", [{}])[0].get("expected_kind_matches") is not True or
                 release_browser_by_path.get(str(release_dir / "bin" / "busierbox-test"), [{}])[0].get("kind") != "release-artifact" or
-                release_browser_by_kind_source.get("release-artifact:bin/busierbox-test", [{}])[0].get("path") != str(release_dir / "bin" / "busierbox-test")):
+                release_browser_by_kind_source.get("release-artifact:bin/busierbox-test", [{}])[0].get("path") != str(release_dir / "bin" / "busierbox-test") or
+                release_browser_by_kind_source.get("release-recommendation-artifact:by_device:lab-router", [{}])[0].get("path") != str(release_dir / "bin" / "busierbox-test")):
             print("json status missing release browser path records", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1

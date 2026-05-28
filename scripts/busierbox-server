@@ -828,6 +828,18 @@ def operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, 
         add_browser_path(records, "release-index", release.get("release_name", "release"), release.get("release_index", ""))
         for rec in release.get("artifacts") or []:
             add_browser_path(records, "release-artifact", rec.get("name", "artifact"), rec.get("path", ""), source_id=rec.get("release_path", ""))
+        artifacts_by_path = release.get("artifacts_by_release_path") or {}
+        for rec in release.get("recommendation_records") or []:
+            artifact_key = rec.get("artifact") or ""
+            artifact = artifacts_by_path.get(artifact_key) or {}
+            add_browser_path(
+                records,
+                "release-recommendation-artifact",
+                rec.get("id", "recommendation"),
+                artifact.get("path") or artifact_key,
+                source_id=rec.get("id", ""),
+                description=f"{rec.get('scope', '')}:{rec.get('key', '')}",
+            )
         for rec in release.get("devices") or []:
             add_browser_path(records, "release-device-dir", rec.get("name", "device"), rec.get("path", ""), expected_kind="dir", source_id=rec.get("name", ""))
         for rec in release.get("tuples") or []:

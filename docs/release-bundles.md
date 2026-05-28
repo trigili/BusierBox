@@ -326,12 +326,13 @@ into `summary` as `path_status_count`, `path_missing_count`,
 `path_parent_missing_count`, `path_not_writable_count`, and
 `path_kind_mismatch_count`. `browser_paths` provides a normalized operator file
 browser list for future TUI/web clients, covering operator ledgers, session
-directories, upload/fetch metadata, staged sources, event logs, TLS files, and
-release bundle files. The same records are grouped in `browser_paths_by_kind`,
+directories, upload/fetch metadata, staged sources, event logs, TLS files,
+release bundle files, and release recommendation artifact targets. The same records are grouped in `browser_paths_by_kind`,
 `browser_paths_by_path`, `browser_paths_by_source_id`, and
 `browser_paths_by_kind_source_id`. The composite kind/source map lets TUI and
 future web clients jump directly to records such as
-`upload-metadata:<session-id>` or `release-artifact:<release-path>` without
+`upload-metadata:<session-id>`, `release-artifact:<release-path>`, or
+`release-recommendation-artifact:<scope:key>` without
 filtering the broader source-id group. Compact counts are exposed in
 `browser_path_summary` and mirrored into `summary` as `browser_path_count`,
 existence/readability/writability counts, `browser_path_kind_counts`, and
