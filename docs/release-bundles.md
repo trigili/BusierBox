@@ -648,10 +648,11 @@ metadata separately. The `events` array is a bounded recent tail;
 `events_by_session`, `events_by_service`, `events_by_event`, `events_by_level`, and
 `events_by_remote` group those tail records for direct frontend lookups.
 Composite maps `events_by_service_event`, `events_by_session_event`,
-`events_by_service_level`, and `events_by_event_level` support direct timeline
+`events_by_service_level`, `events_by_event_level`, `events_by_remote_event`,
+and `events_by_remote_level` support direct timeline
 lookups such as `file-service:upload_complete`, `<session-id>:connection_close`,
-`file-service:error`, or `bind_error:error` without filtering broader event
-groups.
+`file-service:error`, `bind_error:error`, or `<remote>:upload_complete`
+without filtering broader event groups.
 `event_log_state` reports the event log path, existence, validity, size, total
 valid event count, invalid JSONL line count, tail count, tail limit, and
 first/latest event timestamps. It also reports whether the recent tail is
@@ -660,7 +661,7 @@ response. `event_log_stats` reports the event log path, total valid event count,
 tail count, invalid JSONL line count, tail limit, truncation state, omitted
 count, first/latest event timestamps, and
 aggregate counters by service, event, level, remote endpoint, service/event,
-and session/event so API
+session/event, remote/event, and remote/level so API
 consumers can tell whether there is more history to page or inspect from disk
 while still rendering compact diagnostics.
 Those aggregate maps are also mirrored into `summary` as

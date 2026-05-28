@@ -1657,6 +1657,8 @@ def main():
         events_by_service_event = queue_status_json.get("events_by_service_event") or {}
         events_by_service_level = queue_status_json.get("events_by_service_level") or {}
         events_by_event_level = queue_status_json.get("events_by_event_level") or {}
+        events_by_remote_event = queue_status_json.get("events_by_remote_event") or {}
+        events_by_remote_level = queue_status_json.get("events_by_remote_level") or {}
         events_api = (queue_status_json.get("api_collections") or {}).get("events") or {}
         first_tail_event = (queue_status_json.get("events") or [{}])[0]
         first_tail_event_id = first_tail_event.get("id", "")
@@ -1671,8 +1673,14 @@ def main():
                 not events_by_service_level.get("command-queue:info") or
                 not events_by_event_level.get("command_queue_queued:info") or
                 "events_by_service_level" not in (events_api.get("indexes") or []) or
-                "events_by_event_level" not in (events_api.get("indexes") or [])):
+                "events_by_event_level" not in (events_api.get("indexes") or []) or
+                "events_by_remote_event" not in (events_api.get("indexes") or []) or
+                "events_by_remote_level" not in (events_api.get("indexes") or [])):
             print("server json status missing event tail lookup indexes", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        if events_by_remote_event or events_by_remote_level:
+            print("command queue status unexpectedly had remote event indexes before remote traffic", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         truncated_event_dir = Path(tmp) / "truncated-events"
@@ -1689,7 +1697,7 @@ def main():
                     "session_path": "",
                     "event": "truncated_tail_probe",
                     "level": "info",
-                    "remote": "",
+                    "remote": "198.51.100.7:1234",
                     "details": {"idx": idx},
                 }, sort_keys=True) + "\n")
         truncated_event_cfg = Path(tmp) / "server-config-truncated-events.json"
@@ -1710,10 +1718,16 @@ def main():
                 truncated_stats.get("tail_count") != 12 or
                 truncated_stats.get("tail_truncated") is not True or
                 truncated_stats.get("tail_omitted_count") != 3 or
+                truncated_stats.get("by_remote_event", {}).get("198.51.100.7:1234:truncated_tail_probe") != 15 or
+                truncated_stats.get("by_remote_level", {}).get("198.51.100.7:1234:info") != 15 or
                 truncated_state.get("tail_truncated") is not True or
                 truncated_state.get("tail_omitted_count") != 3 or
                 truncated_event_doc.get("summary", {}).get("event_tail_truncated") is not True or
                 truncated_event_doc.get("summary", {}).get("event_tail_omitted_count") != 3 or
+                truncated_event_doc.get("summary", {}).get("event_remote_event_counts", {}).get("198.51.100.7:1234:truncated_tail_probe") != 15 or
+                truncated_event_doc.get("summary", {}).get("event_remote_level_counts", {}).get("198.51.100.7:1234:info") != 15 or
+                truncated_event_doc.get("events_by_remote_event", {}).get("198.51.100.7:1234:truncated_tail_probe", [{}])[0].get("id") != "evt-trunc-3" or
+                truncated_event_doc.get("events_by_remote_level", {}).get("198.51.100.7:1234:info", [{}])[0].get("id") != "evt-trunc-3" or
                 (truncated_event_doc.get("events") or [{}])[0].get("id") != "evt-trunc-3"):
             print("server json status missing explicit truncated event tail metadata", file=sys.stderr)
             print(truncated_event_status.stdout, file=sys.stderr)
