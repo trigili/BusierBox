@@ -119,6 +119,8 @@ static void print_command_queue_mode_index_array(FILE *out, const char *field, c
             candidate = "false";
         else if (!strcmp(field, "active_control_channel"))
             candidate = "false";
+        else if (!strcmp(field, "operator_supplied_command_execution"))
+            candidate = "false";
         if (strcmp(candidate, value))
             continue;
         fprintf(out, "%s%zu", first ? "" : ",", i);
@@ -182,6 +184,14 @@ static void print_command_queue_mode_indexes(FILE *out)
         fprintf(out, ":");
         print_command_queue_mode_index_array(out, "active_control_channel", bools[i]);
     }
+    fprintf(out, "},\"mode_records_by_operator_supplied_command_execution\":{");
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fprintf(out, ",");
+        json_string_payload(out, bools[i]);
+        fprintf(out, ":");
+        print_command_queue_mode_index_array(out, "operator_supplied_command_execution", bools[i]);
+    }
     fprintf(out, "}");
 }
 
@@ -196,7 +206,7 @@ static void print_command_queue_mode_api_collections(FILE *out)
 {
     fprintf(out, ",\"api_collections\":{\"mode_records\":{\"name\":\"mode_records\",\"count\":5");
     fprintf(out, ",\"count_summary_key\":\"mode_summary.mode_count\",\"primary_key\":\"mode\",\"summary_key\":\"mode_summary.mode_count\"");
-    fprintf(out, ",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_target_polling_supported\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\"]}}");
+    fprintf(out, ",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_target_polling_supported\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\",\"mode_records_by_operator_supplied_command_execution\"]}}");
 }
 
 #ifndef BUSIERBOX_PAYLOAD_VERSION

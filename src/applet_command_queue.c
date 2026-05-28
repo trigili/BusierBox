@@ -836,6 +836,8 @@ static void print_mode_index_array(const char *field, const char *value, const c
             candidate = "false";
         else if (!strcmp(field, "active_control_channel"))
             candidate = live_selected ? "true" : "false";
+        else if (!strcmp(field, "operator_supplied_command_execution"))
+            candidate = "false";
         if (strcmp(candidate, value))
             continue;
         printf("%s%zu", first ? "" : ",", i);
@@ -899,6 +901,14 @@ static void print_mode_indexes_json(const char *mode, int dry_run, int live_woul
         fputc(':', stdout);
         print_mode_index_array("active_control_channel", bools[i], mode, dry_run, live_would_poll);
     }
+    fputs("},\"mode_records_by_operator_supplied_command_execution\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        print_mode_index_array("operator_supplied_command_execution", bools[i], mode, dry_run, live_would_poll);
+    }
     fputc('}', stdout);
 }
 
@@ -924,7 +934,7 @@ static void print_api_collections_json(void)
 {
     fputs(",\"api_collections\":{\"mode_records\":{\"name\":\"mode_records\",\"count\":5", stdout);
     fputs(",\"count_summary_key\":\"mode_summary.mode_count\",\"primary_key\":\"mode\",\"summary_key\":\"mode_summary.mode_count\"", stdout);
-    fputs(",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_live_supported\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\"]}}", stdout);
+    fputs(",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_live_supported\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\",\"mode_records_by_operator_supplied_command_execution\"]}}", stdout);
 }
 
 static void print_poll_run_json(const struct poll_run_result *run)

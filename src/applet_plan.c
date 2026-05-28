@@ -400,6 +400,8 @@ static void plan_print_command_queue_mode_index_array(const char *field, const c
             candidate = "false";
         else if (!strcmp(field, "active_control_channel"))
             candidate = "false";
+        else if (!strcmp(field, "operator_supplied_command_execution"))
+            candidate = "false";
         if (strcmp(candidate, value))
             continue;
         printf("%s%zu", first ? "" : ",", i);
@@ -463,6 +465,14 @@ static void plan_print_command_queue_mode_indexes(int configured)
         fputc(':', stdout);
         plan_print_command_queue_mode_index_array("active_control_channel", bools[i], configured);
     }
+    fputs("},\"mode_records_by_operator_supplied_command_execution\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        plan_print_command_queue_mode_index_array("operator_supplied_command_execution", bools[i], configured);
+    }
     fputc('}', stdout);
 }
 
@@ -477,7 +487,7 @@ static void plan_print_command_queue_api_collections(void)
 {
     fputs(",\"api_collections\":{\"mode_records\":{\"name\":\"mode_records\",\"count\":5", stdout);
     fputs(",\"count_summary_key\":\"mode_summary.mode_count\",\"primary_key\":\"mode\",\"summary_key\":\"mode_summary.mode_count\"", stdout);
-    fputs(",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_planned\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\"]}}", stdout);
+    fputs(",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_planned\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\",\"mode_records_by_operator_supplied_command_execution\"]}}", stdout);
 }
 
 static void plan_print_command_queue(int json)

@@ -143,7 +143,8 @@ Safety boundary:
   non-execution safety booleans so UIs do not infer mode behavior from strings.
 - The same mode data is exposed as flat `mode_records`, with lookup maps by
   mode, lifecycle, polling behavior, live-support status, execution support,
-  and active-control-channel state. `api_collections.mode_records` publishes
+  active-control-channel state, and operator-supplied command execution state.
+  `api_collections.mode_records` publishes
   count, summary-key, count-summary-key, primary-key, and index metadata for
   frontend discovery.
 - `plan command-queue --json` exposes the planned polling mode with the same
