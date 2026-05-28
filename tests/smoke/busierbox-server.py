@@ -1461,6 +1461,7 @@ def main():
                 ("path_status_records", len(path_status_records), "path_status_by_name"),
                 ("browser_paths", len(browser_paths), "browser_paths_by_expected_kind_mismatch"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
+                ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_mode"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
@@ -4701,6 +4702,8 @@ def main():
         staged_by_kind = status_doc.get("staged_by_kind") or {}
         staged_by_sha256 = status_doc.get("staged_by_sha256") or {}
         staged_by_source_path = status_doc.get("staged_by_source_path") or {}
+        staged_by_fetch_command = status_doc.get("staged_by_fetch_command") or {}
+        staged_by_fetch_command_force = status_doc.get("staged_by_fetch_command_force") or {}
         staged_by_source_exists = status_doc.get("staged_by_source_exists") or {}
         staged_by_kind_source_exists = status_doc.get("staged_by_kind_source_exists") or {}
         staged_files_state = status_doc.get("staged_files_state") or {}
@@ -4716,6 +4719,8 @@ def main():
                 staged_summary.get("staged_kind_counts", {}).get("file", 0) < 1 or
                 staged_summary.get("staged_source_exists_count", 0) < 1 or
                 staged_summary.get("staged_source_missing_count") != 0 or
+                staged_summary.get("staged_fetch_command_count", 0) < 1 or
+                staged_summary.get("staged_fetch_command_force_count", 0) < 1 or
                 staged_summary.get("staged_source_exists_kind_counts", {}).get("file", 0) < 1 or
                 staged_summary.get("staged_source_missing_kind_counts") != {} or
                 staged_summary.get("staged_total_size", 0) < staged_source.stat().st_size or
@@ -4729,6 +4734,8 @@ def main():
                 staged_by_request.get("/tmp/myfile", {}).get("source_path") != str(staged_source) or
                 staged_by_kind.get("file", [{}])[0].get("request_name") != "/tmp/myfile" or
                 staged_by_source_path.get(str(staged_source), {}).get("request_name") != "/tmp/myfile" or
+                staged_by_fetch_command.get(staged_record.get("fetch_command", ""), {}).get("request_name") != "/tmp/myfile" or
+                staged_by_fetch_command_force.get(staged_record.get("fetch_command_force", ""), {}).get("request_name") != "/tmp/myfile" or
                 staged_by_source_exists.get("yes", [{}])[0].get("request_name") != "/tmp/myfile" or
                 staged_by_source_exists.get("no") != [] or
                 staged_by_kind_source_exists.get("file:yes", [{}])[0].get("source_path") != str(staged_source) or

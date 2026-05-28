@@ -836,6 +836,8 @@ def staged_record_indexes(records):
     by_kind = {}
     by_sha256 = {}
     by_source_path = {}
+    by_fetch_command = {}
+    by_fetch_command_force = {}
     by_source_exists = {"yes": [], "no": []}
     by_kind_source_exists = {}
     for rec in records or []:
@@ -845,6 +847,8 @@ def staged_record_indexes(records):
         kind = str(rec.get("stage_kind") or "file")
         sha256 = str(rec.get("sha256") or "")
         source_path = str(rec.get("source_path") or "")
+        fetch_command = str(rec.get("fetch_command") or "")
+        fetch_command_force = str(rec.get("fetch_command_force") or "")
         source_exists = "yes" if rec.get("source_exists") is True else "no"
         if request_name:
             by_request[request_name] = rec
@@ -855,8 +859,16 @@ def staged_record_indexes(records):
             by_sha256.setdefault(sha256, []).append(rec)
         if source_path:
             by_source_path[source_path] = rec
+        if fetch_command:
+            by_fetch_command[fetch_command] = rec
+        if fetch_command_force:
+            by_fetch_command_force[fetch_command_force] = rec
         by_source_exists[source_exists].append(rec)
-    return by_request, by_kind, by_sha256, by_source_path, by_source_exists, by_kind_source_exists
+    return (
+        by_request, by_kind, by_sha256, by_source_path,
+        by_fetch_command, by_fetch_command_force,
+        by_source_exists, by_kind_source_exists,
+    )
 
 
 def records_by_session(records):
@@ -1753,6 +1765,8 @@ def staged_record_summary(records):
     total_size = 0
     source_exists_count = 0
     source_missing_count = 0
+    fetch_command_count = 0
+    fetch_command_force_count = 0
     source_exists_by_kind = {}
     source_missing_by_kind = {}
     for rec in records or []:
@@ -1763,6 +1777,10 @@ def staged_record_summary(records):
             total_size += int(rec.get("size", 0) or 0)
         except (TypeError, ValueError):
             pass
+        if rec.get("fetch_command"):
+            fetch_command_count += 1
+        if rec.get("fetch_command_force"):
+            fetch_command_force_count += 1
         if rec.get("source_exists") is True:
             source_exists_count += 1
             source_exists_by_kind[kind] = source_exists_by_kind.get(kind, 0) + 1
@@ -1773,6 +1791,8 @@ def staged_record_summary(records):
         "total_size": total_size,
         "source_exists_count": source_exists_count,
         "source_missing_count": source_missing_count,
+        "fetch_command_count": fetch_command_count,
+        "fetch_command_force_count": fetch_command_force_count,
         "source_exists_by_kind": source_exists_by_kind,
         "source_missing_by_kind": source_missing_by_kind,
     }
@@ -6576,6 +6596,8 @@ def status_document(cfg):
      staged_by_kind,
      staged_by_sha256,
      staged_by_source_path,
+     staged_by_fetch_command,
+     staged_by_fetch_command_force,
      staged_by_source_exists,
      staged_by_kind_source_exists) = staged_record_indexes(staged_records)
     ips = local_ips()
@@ -6881,6 +6903,8 @@ def status_document(cfg):
         "staged_kind_counts": record_count_by_key(staged_records, "stage_kind"),
         "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
         "staged_source_missing_count": staged_summary.get("source_missing_count", 0),
+        "staged_fetch_command_count": staged_summary.get("fetch_command_count", 0),
+        "staged_fetch_command_force_count": staged_summary.get("fetch_command_force_count", 0),
         "staged_source_exists_kind_counts": staged_summary.get("source_exists_by_kind") or {},
         "staged_source_missing_kind_counts": staged_summary.get("source_missing_by_kind") or {},
         "latest_staged_at": latest_record_value(staged_records, ("staged_at",)),
@@ -7197,6 +7221,7 @@ def status_document(cfg):
         "staged_records": api_collection_record(
             "staged_records", staged_records, "request_name", (
                 "staged_by_request", "staged_by_kind", "staged_by_sha256", "staged_by_source_path",
+                "staged_by_fetch_command", "staged_by_fetch_command_force",
                 "staged_by_source_exists", "staged_by_kind_source_exists",
             ), "staged_count",
         ),
@@ -7453,6 +7478,8 @@ def status_document(cfg):
         "staged_by_kind": staged_by_kind,
         "staged_by_sha256": staged_by_sha256,
         "staged_by_source_path": staged_by_source_path,
+        "staged_by_fetch_command": staged_by_fetch_command,
+        "staged_by_fetch_command_force": staged_by_fetch_command_force,
         "staged_by_source_exists": staged_by_source_exists,
         "staged_by_kind_source_exists": staged_by_kind_source_exists,
         "uploads": uploads,
