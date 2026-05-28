@@ -774,7 +774,8 @@ Structured `warnings` use stable `type` values such as `service_error`,
 `operator_path_kind_mismatch`, `invalid_server_state`,
 `invalid_staged_files_state`, `invalid_command_queue_state`,
 `invalid_release_state`, `invalid_event_log`, and
-`invalid_command_queue_policy`. `warning_stats`
+`invalid_command_queue_policy`, and `invalid_rshell_session_policy`.
+`warning_stats`
 summarizes warnings by type, service, port, recorded PID, listener PID, and
 possible owner PID. `warnings_by_type`, `warnings_by_service`,
 `warnings_by_port`, `warnings_by_pid`, `warnings_by_listener_pid`, and

@@ -1277,6 +1277,45 @@ def main():
             print("server text status missing invalid command queue policy warning", file=sys.stderr)
             print(invalid_queue_status_text.stdout, file=sys.stderr)
             return 1
+        invalid_rshell_cfg = Path(tmp) / "server-config-invalid-rshell-policy.json"
+        invalid_rshell_cfg.write_text(json.dumps({
+            "operator_session_dir": str(queue_operator_dir),
+            "rshell_session_policy": "bogus",
+        }), encoding="utf-8")
+        invalid_rshell_status_doc = run(
+            "scripts/busierbox-server",
+            "--config", str(invalid_rshell_cfg),
+            "--json-status",
+        )
+        invalid_rshell_status = json.loads(invalid_rshell_status_doc.stdout)
+        invalid_rshell_warnings = [
+            item for item in invalid_rshell_status.get("warnings", [])
+            if item.get("type") == "invalid_rshell_session_policy"
+        ]
+        invalid_rshell_record = (invalid_rshell_status.get("target_commands_by_service") or {}).get("rshell", [{}])[0]
+        invalid_rshell_metadata = invalid_rshell_record.get("metadata") or {}
+        if (invalid_rshell_metadata.get("session_policy") != "bogus" or
+                invalid_rshell_metadata.get("session_policy_valid") is not False or
+                "unsupported rshell session policy" not in invalid_rshell_metadata.get("session_policy_errors", []) or
+                "unsupported rshell session policy" not in (invalid_rshell_metadata.get("session_policy_summary") or {}).get("errors", []) or
+                not invalid_rshell_warnings or
+                invalid_rshell_warnings[-1].get("session_policy") != "bogus" or
+                "unsupported rshell session policy" not in invalid_rshell_warnings[-1].get("session_policy_errors", []) or
+                invalid_rshell_status.get("summary", {}).get("warning_type_counts", {}).get("invalid_rshell_session_policy") != 1 or
+                invalid_rshell_status.get("warnings_by_type", {}).get("invalid_rshell_session_policy", [{}])[-1].get("session_policy") != "bogus"):
+            print("server json status missing invalid rshell session policy warning", file=sys.stderr)
+            print(invalid_rshell_status_doc.stdout, file=sys.stderr)
+            return 1
+        invalid_rshell_status_text = run(
+            "scripts/busierbox-server",
+            "--config", str(invalid_rshell_cfg),
+            "--status",
+        )
+        if ("rshell session policy is invalid: bogus" not in invalid_rshell_status_text.stdout or
+                "unsupported rshell session policy" not in invalid_rshell_status_text.stdout):
+            print("server text status missing invalid rshell session policy warning", file=sys.stderr)
+            print(invalid_rshell_status_text.stdout, file=sys.stderr)
+            return 1
         exceeded_queue_file = Path(tmp) / "operator-session" / "exceeded-command-queue.json"
         exceeded_queued = run(
             "scripts/busierbox-server",

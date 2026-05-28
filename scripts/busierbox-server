@@ -6879,6 +6879,19 @@ def status_document(cfg):
             "message": "command queue policy is invalid; target polling is not configured",
             "suggested_action": "fix command queue config or leave it fully disabled",
         })
+    rshell_policy_metadata = next((
+        rec.get("metadata") for rec in target_command_records
+        if rec.get("service") == "rshell" and isinstance(rec.get("metadata"), dict)
+    ), {})
+    if rshell_policy_metadata and not rshell_policy_metadata.get("session_policy_valid", True):
+        warnings.append({
+            "type": "invalid_rshell_session_policy",
+            "path": str(cfg.get("_config_path", DEFAULT_CONFIG)),
+            "session_policy": rshell_policy_metadata.get("session_policy", ""),
+            "session_policy_errors": rshell_policy_metadata.get("session_policy_errors") or [],
+            "message": "rshell session policy is invalid; generated target command metadata is not usable for reconnect decisions",
+            "suggested_action": "set rshell_session_policy to single, reconnect, or persistent",
+        })
     (warnings_by_type,
      warnings_by_service,
      warnings_by_port,
@@ -8124,6 +8137,16 @@ def print_status(cfg, json_output=False):
         print("  command queue policy is invalid; target polling is not configured")
         for error in doc["command_queue"].get("policy_errors") or []:
             print(f"    {error}")
+    invalid_rshell_warnings = [
+        item for item in doc.get("warnings") or []
+        if item.get("type") == "invalid_rshell_session_policy"
+    ]
+    if invalid_rshell_warnings:
+        print_warnings_header_once()
+        for warning in invalid_rshell_warnings:
+            print(f"  rshell session policy is invalid: {warning.get('session_policy', '')}")
+            for error in warning.get("session_policy_errors") or []:
+                print(f"    {error}")
     print("")
     print("Recent sessions:")
     if doc["sessions"]:
