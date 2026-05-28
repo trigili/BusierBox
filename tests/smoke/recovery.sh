@@ -34,8 +34,12 @@ summary = data["summary"]
 assert summary["storage_count"] == len(data["storage"])
 assert summary["method_count"] == len(data["methods"])
 api = data["api_collections"]
+assert api["storage"]["count"] == summary["storage_count"]
 assert api["storage"]["count_summary_key"] == "summary.storage_count"
+assert api["storage"]["summary_key"] == "summary.storage_count"
+assert api["methods"]["count"] == summary["method_count"]
 assert api["methods"]["count_summary_key"] == "summary.method_count"
+assert api["methods"]["summary_key"] == "summary.method_count"
 assert set(api["storage"]["indexes"]) >= {
     "storage_by_class",
     "storage_by_survives_reboot",
@@ -146,7 +150,9 @@ assert safety["self_reinstall"] is False
 assert safety["survives_factory_reset_claim"] is False
 item = next(item for item in data["installations"] if item["method"] == "rc-local")
 api = data["api_collections"]["installations"]
+assert api["count"] == summary["installation_count"]
 assert api["count_summary_key"] == "summary.installation_count"
+assert api["summary_key"] == "summary.installation_count"
 assert set(api["indexes"]) >= {
     "installations_by_method",
     "installations_by_action",

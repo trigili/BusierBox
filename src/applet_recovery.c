@@ -543,9 +543,9 @@ static void recovery_print_status_indexes(const char *root, const char *name)
     fputs("}", stdout);
 }
 
-static void recovery_print_status_api_collections(void)
+static void recovery_print_status_api_collections(int installed_count)
 {
-    fputs(",\"api_collections\":{\"installations\":{\"name\":\"installations\",\"count_summary_key\":\"summary.installation_count\",\"indexes\":[", stdout);
+    printf(",\"api_collections\":{\"installations\":{\"name\":\"installations\",\"count\":%d,\"count_summary_key\":\"summary.installation_count\",\"summary_key\":\"summary.installation_count\",\"indexes\":[", installed_count);
     fputs("\"installations_by_method\",", stdout);
     fputs("\"installations_by_action\",", stdout);
     fputs("\"installations_by_category\",", stdout);
@@ -655,9 +655,11 @@ static void recovery_print_survey_indexes(void)
 static void recovery_print_survey_api_collections(void)
 {
     fputs(",\"api_collections\":{", stdout);
-    fputs("\"storage\":{\"name\":\"storage\",\"count_summary_key\":\"summary.storage_count\",\"indexes\":[", stdout);
+    printf("\"storage\":{\"name\":\"storage\",\"count\":%zu,\"count_summary_key\":\"summary.storage_count\",\"summary_key\":\"summary.storage_count\",\"indexes\":[",
+           sizeof(recovery_storage_paths) / sizeof(recovery_storage_paths[0]));
     fputs("\"storage_by_class\",\"storage_by_survives_reboot\"", stdout);
-    fputs("]},\"methods\":{\"name\":\"methods\",\"count_summary_key\":\"summary.method_count\",\"indexes\":[", stdout);
+    printf("]},\"methods\":{\"name\":\"methods\",\"count\":%zu,\"count_summary_key\":\"summary.method_count\",\"summary_key\":\"summary.method_count\",\"indexes\":[",
+           sizeof(recovery_methods) / sizeof(recovery_methods[0]));
     fputs("\"methods_by_name\",\"methods_by_survives_reboot\",\"methods_by_intrusiveness\",\"methods_by_requires_external_write\"", stdout);
     fputs("]}}", stdout);
 }
@@ -1062,7 +1064,7 @@ int applet_recovery_main(int argc, char **argv)
         if (json) {
             fputc(']', stdout);
             recovery_print_status_indexes(root, name);
-            recovery_print_status_api_collections();
+            recovery_print_status_api_collections(installed_count);
             printf(",\"summary\":{\"installation_count\":%d,\"evidence_action_count\":%d,\"evidence_upload_count\":%d,\"dmesg_action_count\":%d,\"rshell_action_count\":%d,\"rshell_after_evidence_count\":%d,\"command_action_count\":%d,\"script_action_count\":%d,\"operator_supplied_command_count\":%d,\"external_write_required_count\":%d,\"command_queue_enabled_count\":%d,\"hidden_control_channel_count\":%d,\"all_require_external_write\":%s,\"any_operator_supplied_command\":%s},\"installed\":%s}\n",
                    installed_count,
                    evidence_action_count,
