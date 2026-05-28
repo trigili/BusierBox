@@ -295,10 +295,89 @@ static void print_cleanup_record_index_json(const struct cleanup_record *records
     fputc('}', stdout);
 }
 
-static void print_residue_plan_api_json(int cleanup_count)
+static int residue_plan_uses_fallback_root(int ledger)
 {
-    fputs(",\"api\":{\"schema\":1,\"collections_key\":\"api_collections\",\"resources_key\":\"api_resources\",\"resource_count\":1}", stdout);
-    fputs(",\"api_collections\":{\"ledgered_cleanup_paths\":{\"name\":\"ledgered_cleanup_paths\",\"count\":", stdout);
+    return ledger &&
+        !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+        BB_RUNTIME_FALLBACK_ROOT[0] &&
+        strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT);
+}
+
+static int intended_write_path_count(int ledger)
+{
+    return residue_plan_uses_fallback_root(ledger) ? 3 : 2;
+}
+
+static void print_intended_write_path_record_json(const char *name, const char *path,
+                                                  const char *reason, const char *cleanup_action)
+{
+    fputs("{\"name\":", stdout);
+    bb_json_string(stdout, name);
+    fputs(",\"path\":", stdout);
+    bb_json_string(stdout, path);
+    fputs(",\"reason\":", stdout);
+    bb_json_string(stdout, reason);
+    fputs(",\"cleanup_action\":", stdout);
+    bb_json_string(stdout, cleanup_action);
+    fputc('}', stdout);
+}
+
+static void print_intended_write_path_records_json(int ledger, const char *ledger_path)
+{
+    int first = 1;
+
+    fputc('[', stdout);
+    print_intended_write_path_record_json("runtime_root", BB_RUNTIME_ROOT,
+                                          "runtime extraction and transient state",
+                                          "busierbox clean removes runtime root");
+    first = 0;
+    if (residue_plan_uses_fallback_root(ledger)) {
+        if (!first)
+            fputc(',', stdout);
+        print_intended_write_path_record_json("fallback_runtime_root", BB_RUNTIME_FALLBACK_ROOT,
+                                              "fallback extraction root when primary root is unavailable",
+                                              "busierbox clean --ledger removes fallback root if used");
+        first = 0;
+    }
+    if (!first)
+        fputc(',', stdout);
+    print_intended_write_path_record_json("cleanup_ledger", ledger_path,
+                                          "ledger of BusierBox-controlled runtime writes",
+                                          "busierbox clean --ledger consumes ledgered cleanup paths");
+    fputc(']', stdout);
+}
+
+static void print_intended_write_path_index_json(int ledger, const char *ledger_path, const char *field)
+{
+    int index = 0, first = 1;
+
+    fputc('{', stdout);
+#define PRINT_INTENDED_INDEX_ITEM(name_value, path_value) do { \
+        if (!first) \
+            fputc(',', stdout); \
+        bb_json_string(stdout, !strcmp(field, "path") ? (path_value) : (name_value)); \
+        printf(":[%d]", index); \
+        first = 0; \
+        index++; \
+    } while (0)
+    PRINT_INTENDED_INDEX_ITEM("runtime_root", BB_RUNTIME_ROOT);
+    if (residue_plan_uses_fallback_root(ledger))
+        PRINT_INTENDED_INDEX_ITEM("fallback_runtime_root", BB_RUNTIME_FALLBACK_ROOT);
+    PRINT_INTENDED_INDEX_ITEM("cleanup_ledger", ledger_path);
+#undef PRINT_INTENDED_INDEX_ITEM
+    fputc('}', stdout);
+}
+
+static void print_residue_plan_api_json(int cleanup_count, int intended_count)
+{
+    fputs(",\"api\":{\"schema\":1,\"collections_key\":\"api_collections\",\"resources_key\":\"api_resources\",\"resource_count\":2}", stdout);
+    fputs(",\"api_collections\":{\"intended_write_path_records\":{\"name\":\"intended_write_path_records\",\"count\":", stdout);
+    printf("%d", intended_count);
+    fputs(",\"count_summary_key\":\"intended_write_path_count\",\"summary_key\":\"intended_write_path_count\",\"primary_key\":\"name\",\"indexes\":[", stdout);
+    bb_json_string(stdout, "intended_write_path_records_by_name");
+    fputc(',', stdout);
+    bb_json_string(stdout, "intended_write_path_records_by_path");
+    fputs("]},\"ledgered_cleanup_paths\":{\"name\":\"ledgered_cleanup_paths\",\"count\":", stdout);
     printf("%d", cleanup_count);
     fputs(",\"count_summary_key\":\"ledgered_cleanup_path_count\",\"summary_key\":\"ledgered_cleanup_path_count\",\"primary_key\":\"path\",\"indexes\":[", stdout);
     bb_json_string(stdout, "ledgered_cleanup_paths_by_path");
@@ -309,16 +388,24 @@ static void print_residue_plan_api_json(int cleanup_count)
     fputc(',', stdout);
     bb_json_string(stdout, "ledgered_cleanup_paths_by_cleanup_action");
     fputs("]}}", stdout);
-    fputs(",\"api_resources\":[{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
+    fputs(",\"api_resources\":[{\"name\":\"intended_write_path_records\",\"records_key\":\"intended_write_path_records\",\"collection_key\":\"api_collections.intended_write_path_records\",\"count\":", stdout);
+    printf("%d", intended_count);
+    fputs(",\"summary_key\":\"intended_write_path_count\",\"primary_key\":\"name\"},{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
     printf("%d", cleanup_count);
     fputs(",\"summary_key\":\"ledgered_cleanup_path_count\",\"primary_key\":\"path\"}]", stdout);
-    fputs(",\"api_resources_by_name\":{\"ledgered_cleanup_paths\":{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
+    fputs(",\"api_resources_by_name\":{\"intended_write_path_records\":{\"name\":\"intended_write_path_records\",\"records_key\":\"intended_write_path_records\",\"collection_key\":\"api_collections.intended_write_path_records\",\"count\":", stdout);
+    printf("%d", intended_count);
+    fputs(",\"summary_key\":\"intended_write_path_count\",\"primary_key\":\"name\"},\"ledgered_cleanup_paths\":{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
     printf("%d", cleanup_count);
     fputs(",\"summary_key\":\"ledgered_cleanup_path_count\",\"primary_key\":\"path\"}}", stdout);
-    fputs(",\"api_resources_by_records_key\":{\"ledgered_cleanup_paths\":[{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
+    fputs(",\"api_resources_by_records_key\":{\"intended_write_path_records\":[{\"name\":\"intended_write_path_records\",\"records_key\":\"intended_write_path_records\",\"collection_key\":\"api_collections.intended_write_path_records\",\"count\":", stdout);
+    printf("%d", intended_count);
+    fputs(",\"summary_key\":\"intended_write_path_count\",\"primary_key\":\"name\"}],\"ledgered_cleanup_paths\":[{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
     printf("%d", cleanup_count);
     fputs(",\"summary_key\":\"ledgered_cleanup_path_count\",\"primary_key\":\"path\"}]}", stdout);
-    fputs(",\"api_resources_by_summary_key\":{\"ledgered_cleanup_path_count\":[{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
+    fputs(",\"api_resources_by_summary_key\":{\"intended_write_path_count\":[{\"name\":\"intended_write_path_records\",\"records_key\":\"intended_write_path_records\",\"collection_key\":\"api_collections.intended_write_path_records\",\"count\":", stdout);
+    printf("%d", intended_count);
+    fputs(",\"summary_key\":\"intended_write_path_count\",\"primary_key\":\"name\"}],\"ledgered_cleanup_path_count\":[{\"name\":\"ledgered_cleanup_paths\",\"records_key\":\"ledgered_cleanup_paths\",\"collection_key\":\"api_collections.ledgered_cleanup_paths\",\"count\":", stdout);
     printf("%d", cleanup_count);
     fputs(",\"summary_key\":\"ledgered_cleanup_path_count\",\"primary_key\":\"path\"}]}", stdout);
 }
@@ -337,6 +424,8 @@ static void print_residue_plan_json(int include_external, int ledger)
     struct cleanup_record *cleanup_records = calloc(MAX_CLEANUP_RECORDS, sizeof(*cleanup_records));
     int cleanup_count = cleanup_records ?
         load_ledgered_cleanup_records(cleanup_records, MAX_CLEANUP_RECORDS, ledger) : 0;
+    const char *ledger_path = bb_ledger_path(ledger_path_buf, sizeof(ledger_path_buf));
+    int intended_count = intended_write_path_count(ledger);
     int first = 1;
     int aggressive = !strcmp(BB_RUNTIME_MODE, "no-residue") && !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
 
@@ -348,13 +437,18 @@ static void print_residue_plan_json(int include_external, int ledger)
     print_clean_json_string_array_item(BB_RUNTIME_ROOT, &first);
     if (ledger) {
         first = 0;
-        if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
-            BB_RUNTIME_FALLBACK_ROOT[0] &&
-            strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT))
+        if (residue_plan_uses_fallback_root(ledger))
             print_clean_json_string_array_item(BB_RUNTIME_FALLBACK_ROOT, &first);
     }
-    print_clean_json_string_array_item(bb_ledger_path(ledger_path_buf, sizeof(ledger_path_buf)), &first);
-    fputs("],\"cleanup_commands\":[", stdout);
+    print_clean_json_string_array_item(ledger_path, &first);
+    printf("],\"intended_write_path_count\":%d", intended_count);
+    fputs(",\"intended_write_path_records\":", stdout);
+    print_intended_write_path_records_json(ledger, ledger_path);
+    fputs(",\"intended_write_path_records_by_name\":", stdout);
+    print_intended_write_path_index_json(ledger, ledger_path, "name");
+    fputs(",\"intended_write_path_records_by_path\":", stdout);
+    print_intended_write_path_index_json(ledger, ledger_path, "path");
+    fputs(",\"cleanup_commands\":[", stdout);
     first = 1;
     print_clean_json_string_array_item("busierbox clean --dry-run --json", &first);
     print_clean_json_string_array_item("busierbox clean --ledger --json", &first);
@@ -372,7 +466,7 @@ static void print_residue_plan_json(int include_external, int ledger)
     print_cleanup_record_index_json(cleanup_records, cleanup_count, "op");
     fputs(",\"ledgered_cleanup_paths_by_cleanup_action\":", stdout);
     print_cleanup_record_index_json(cleanup_records, cleanup_count, "cleanup_action");
-    print_residue_plan_api_json(cleanup_count);
+    print_residue_plan_api_json(cleanup_count, intended_count);
     fputs(",\"uncleanable_paths\":[", stdout);
     if (!include_external) {
         char path[PATH_MAX], line[2048];

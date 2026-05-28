@@ -40,10 +40,12 @@ flash wear-leveling, crash dumps, remote service logs, and operator-side
 records. `ledgered_cleanup_paths` records the original ledger operation, path,
 scope, detail when available, and the cleanup action that covers the path.
 The plan also publishes frontend-oriented lookup maps:
+`intended_write_path_records_by_name`, `intended_write_path_records_by_path`,
 `ledgered_cleanup_paths_by_path`, `ledgered_cleanup_paths_by_scope`,
 `ledgered_cleanup_paths_by_op`, and
 `ledgered_cleanup_paths_by_cleanup_action`, plus `api_collections` and
-`api_resources` metadata for the `ledgered_cleanup_paths` collection.
+`api_resources` metadata for the `intended_write_path_records` and
+`ledgered_cleanup_paths` collections.
 Both dry-run and applied JSON include `writes_attempted`,
 `writes_blocked`, `paths_cleaned`, `paths_failed`, `cleanup_complete`, and
 `cleanup_warning` so operators and release tooling can distinguish a preview

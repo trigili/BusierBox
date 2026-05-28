@@ -47,6 +47,20 @@ if api.get("primary_key") != "path":
     raise SystemExit("residue plan cleanup path API primary key missing")
 if "ledgered_cleanup_paths_by_scope" not in api.get("indexes", []):
     raise SystemExit("residue plan cleanup path API indexes missing scope lookup")
+intended = plan.get("intended_write_path_records")
+if not isinstance(intended, list) or plan.get("intended_write_path_count") != len(intended):
+    raise SystemExit("residue plan intended write path records missing")
+intended_api = (plan.get("api_collections") or {}).get("intended_write_path_records") or {}
+if intended_api.get("count") != len(intended) or intended_api.get("primary_key") != "name":
+    raise SystemExit("residue plan intended write path API metadata missing")
+if "intended_write_path_records_by_path" not in intended_api.get("indexes", []):
+    raise SystemExit("residue plan intended write path API index missing")
+by_name = plan.get("intended_write_path_records_by_name") or {}
+if by_name.get("runtime_root") != [0]:
+    raise SystemExit("residue plan intended write path name index wrong")
+by_path = plan.get("intended_write_path_records_by_path") or {}
+if not any(item.get("name") == "cleanup_ledger" and item.get("path") in by_path for item in intended):
+    raise SystemExit("residue plan intended write path path index missing ledger")
 if doc.get("writes_attempted") != 0 or doc.get("paths_cleaned") != 0 or doc.get("cleanup_complete") is not False:
     raise SystemExit("clean dry-run json cleanup result counters are wrong")
 if doc.get("cleanup_warning") != "dry-run only":
