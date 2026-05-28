@@ -933,9 +933,18 @@ WORKBENCH_BUILD_CONFIG_FIELDS = [
     ("rshell", "BB_RSHELL_RUN_MODE", "reverse shell run mode", "auto foreground background"),
     ("rshell", "BB_RSHELL_SESSION_POLICY", "reverse shell session policy", "single reconnect persistent"),
     ("command-queue", "BB_COMMAND_QUEUE_ENABLE", "command queue enable", "no yes"),
+    ("command-queue", "BB_COMMAND_QUEUE_PORT", "command queue port", "22205"),
+    ("command-queue", "BB_COMMAND_QUEUE_TLS", "command queue TLS", "yes no"),
+    ("command-queue", "BB_COMMAND_QUEUE_REQUIRE_TOKEN", "command queue token requirement", "yes no"),
+    ("command-queue", "BB_COMMAND_QUEUE_TOKEN_SOURCE", "command queue token source", "manual generated"),
     ("command-queue", "BB_COMMAND_QUEUE_ALLOWED_COMMANDS", "command queue policy", "none busierbox-only allowlist custom"),
     ("command-queue", "BB_COMMAND_QUEUE_EXECUTION", "command queue execution mode", "metadata-only execute"),
     ("command-queue", "BB_COMMAND_QUEUE_ALLOW_ARBITRARY", "allow arbitrary command queue commands", "no yes"),
+    ("command-queue", "BB_COMMAND_QUEUE_POLL_INTERVAL_SEC", "command queue poll interval seconds", "5 10 30"),
+    ("command-queue", "BB_COMMAND_QUEUE_POLL_JITTER_PCT", "command queue poll jitter percent", "0 10 20"),
+    ("command-queue", "BB_COMMAND_QUEUE_POLL_BACKOFF", "command queue poll backoff", "none linear exponential"),
+    ("command-queue", "BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC", "command queue poll max interval seconds", "60 300 900"),
+    ("command-queue", "BB_COMMAND_QUEUE_MAX_POLLS", "command queue daemon max polls", "0 1 3"),
 ]
 
 WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS = {
@@ -949,9 +958,13 @@ WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS = {
     "BB_RSHELL_RUN_MODE": ("auto", "foreground", "background"),
     "BB_RSHELL_SESSION_POLICY": ("single", "reconnect", "persistent"),
     "BB_COMMAND_QUEUE_ENABLE": ("no", "yes"),
+    "BB_COMMAND_QUEUE_TLS": ("yes", "no"),
+    "BB_COMMAND_QUEUE_REQUIRE_TOKEN": ("yes", "no"),
+    "BB_COMMAND_QUEUE_TOKEN_SOURCE": ("manual", "generated"),
     "BB_COMMAND_QUEUE_ALLOWED_COMMANDS": ("none", "busierbox-only", "allowlist", "custom"),
     "BB_COMMAND_QUEUE_EXECUTION": ("metadata-only", "execute"),
     "BB_COMMAND_QUEUE_ALLOW_ARBITRARY": ("no", "yes"),
+    "BB_COMMAND_QUEUE_POLL_BACKOFF": ("none", "linear", "exponential"),
 }
 
 

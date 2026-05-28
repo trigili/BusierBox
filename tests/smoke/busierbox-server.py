@@ -237,7 +237,8 @@ def main():
             'BB_STATIC_POLICY="static-preferred"\n'
             'BB_NORESIDUE_LEVEL="best-effort"\n'
             'BB_RSHELL_SESSION_POLICY="single"\n'
-            'BB_COMMAND_QUEUE_ENABLE="no"\n',
+            'BB_COMMAND_QUEUE_ENABLE="no"\n'
+            'BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="5"\n',
             encoding="utf-8",
         )
         listed_build_config = run(
@@ -249,6 +250,7 @@ def main():
         if (listed_build_config.returncode != 0 or
                 "BB_TARGET_PRESET" not in listed_build_config.stdout or
                 "BB_NORESIDUE_LEVEL" not in listed_build_config.stdout or
+                "BB_COMMAND_QUEUE_POLL_INTERVAL_SEC" not in listed_build_config.stdout or
                 "safety: boundary=command-queue control_like=yes explicit_choice=yes" not in listed_build_config.stdout or
                 "--set-build-config" not in listed_build_config.stdout):
             print("guided build config listing missing expected fields", file=sys.stderr)
@@ -261,17 +263,23 @@ def main():
             "--build-config", str(guided_build_config),
             "--set-build-config", "BB_NORESIDUE_LEVEL=aggressive",
             "--set-build-config", "BB_RSHELL_SESSION_POLICY=reconnect",
+            "--set-build-config", "BB_COMMAND_QUEUE_POLL_INTERVAL_SEC=10",
+            "--set-build-config", "BB_COMMAND_QUEUE_POLL_BACKOFF=linear",
         )
         if (set_build_config.returncode != 0 or
                 'BB_NORESIDUE_LEVEL="aggressive"' not in set_build_config.stdout or
-                'BB_RSHELL_SESSION_POLICY="reconnect"' not in set_build_config.stdout):
+                'BB_RSHELL_SESSION_POLICY="reconnect"' not in set_build_config.stdout or
+                'BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="10"' not in set_build_config.stdout or
+                'BB_COMMAND_QUEUE_POLL_BACKOFF="linear"' not in set_build_config.stdout):
             print("guided build config update failed", file=sys.stderr)
             print(set_build_config.stdout, file=sys.stderr)
             print(set_build_config.stderr, file=sys.stderr)
             return 1
         guided_text = guided_build_config.read_text(encoding="utf-8")
         if ('BB_NORESIDUE_LEVEL="aggressive"' not in guided_text or
-                'BB_RSHELL_SESSION_POLICY="reconnect"' not in guided_text):
+                'BB_RSHELL_SESSION_POLICY="reconnect"' not in guided_text or
+                'BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="10"' not in guided_text or
+                'BB_COMMAND_QUEUE_POLL_BACKOFF="linear"' not in guided_text):
             print("guided build config file was not updated", file=sys.stderr)
             print(guided_text, file=sys.stderr)
             return 1
@@ -300,12 +308,15 @@ def main():
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("safety_boundary") != "reverse-access" or
                 guided_by_key.get("BB_COMMAND_QUEUE_ENABLE", {}).get("control_like") is not True or
                 guided_by_key.get("BB_COMMAND_QUEUE_ENABLE", {}).get("requires_explicit_operator_choice") is not True or
+                guided_by_key.get("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC", {}).get("value") != "10" or
+                guided_by_key.get("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC", {}).get("fixed_options") is not False or
+                guided_by_key.get("BB_COMMAND_QUEUE_POLL_BACKOFF", {}).get("options") != ["none", "linear", "exponential"] or
                 guided_by_key.get("BB_RSHELL_TRANSPORT", {}).get("options") != ["ssh", "socat", "builtin", "none"] or
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("fixed_options") is not True or
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("option_count") != 3 or
-                guided_status.get("summary", {}).get("workbench_config_field_fixed_option_count", 0) < 10 or
-                guided_status.get("summary", {}).get("workbench_config_field_control_like_count", 0) < 6 or
-                guided_status.get("summary", {}).get("workbench_config_field_safety_boundary_counts", {}).get("command-queue", 0) < 4 or
+                guided_status.get("summary", {}).get("workbench_config_field_fixed_option_count", 0) < 17 or
+                guided_status.get("summary", {}).get("workbench_config_field_control_like_count", 0) < 16 or
+                guided_status.get("summary", {}).get("workbench_config_field_safety_boundary_counts", {}).get("command-queue", 0) < 13 or
                 not guided_fixed.get("True") or
                 len(guided_writes_config.get("True", [])) != len(guided_fields) or
                 guided_target_execution.get("True", []) != [] or
@@ -1480,6 +1491,8 @@ def main():
                 not config_fields_by_key.get("BB_COMMAND_QUEUE_ENABLE") or
                 config_fields_by_key.get("BB_COMMAND_QUEUE_ENABLE", {}).get("fixed_options") is not True or
                 config_fields_by_key.get("BB_COMMAND_QUEUE_ENABLE", {}).get("safety_boundary") != "command-queue" or
+                not config_fields_by_key.get("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC") or
+                config_fields_by_key.get("BB_COMMAND_QUEUE_POLL_BACKOFF", {}).get("options") != ["none", "linear", "exponential"] or
                 config_fields_by_key.get("BB_RSHELL_TRANSPORT", {}).get("safety_boundary") != "reverse-access" or
                 not config_fields_by_category.get("runtime") or
                 not config_fields_by_category.get("rshell") or
@@ -1487,7 +1500,7 @@ def main():
                 len(config_fields_by_target_execution.get("False", [])) != len(workbench_config_fields) or
                 not config_fields_by_safety.get("command-queue") or
                 not config_fields_by_control_like.get("True") or
-                workbench_summary.get("workbench_config_field_command_queue_related_count", 0) < 4):
+                workbench_summary.get("workbench_config_field_command_queue_related_count", 0) < 13):
             print("server json status missing guided build config descriptors", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1

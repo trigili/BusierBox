@@ -782,8 +782,9 @@ consumers can distinguish the active operator surface after shutdown. The same
 status output also exposes `workbench_config_fields` for guided edits of the existing
 `configs/busierbox.conf` shell assignment file, grouped by target, payload,
 build/static policy, runtime/trailer defaults, recovery, reverse shell policy,
-command queue policy, and no-residue behavior. Operators can inspect those
-fields with `--list-build-config`; field records include examples and
+command queue policy, command queue transport/token settings, command queue
+interval polling settings, and no-residue behavior. Operators can inspect
+those fields with `--list-build-config`; field records include examples and
 structured fixed `options` where the underlying config accepts a bounded choice.
 They are indexed by category, configured state, fixed-option state, write
 behavior, target-execution behavior, source format, safety boundary, reverse
