@@ -823,6 +823,10 @@ def write_release_helpers(script_dir):
                     facts["procfs_partial"] = detected if "detected" in check else not ok
                 elif name == "temporary_file" and not available:
                     facts["runtime_write_blocked"] = True
+                elif name == "ptrace" and not available:
+                    facts["ptrace_unavailable"] = True
+                elif name == "dmesg_readable" and not available:
+                    facts["dmesg_unreadable"] = True
                 if "low storage" in detail:
                     facts["low_storage"] = True
             return facts
@@ -903,6 +907,12 @@ def write_release_helpers(script_dir):
             if facts.get("procfs_partial"):
                 label = degrade(label, "heuristic")
                 reasons.append("procfs partial/broken: static survey evidence may be incomplete")
+            if facts.get("ptrace_unavailable"):
+                label = degrade(label, "likely")
+                reasons.append("ptrace unavailable: debugger payloads may be limited")
+            if facts.get("dmesg_unreadable"):
+                label = degrade(label, "likely")
+                reasons.append("dmesg unreadable: crash evidence may be limited")
             if not reasons:
                 reasons.append(f"artifact tuple baseline: {row.get('tuple_path') or 'unknown'}")
             return {"schema": 1, "label": label, "reasons": reasons, "facts": facts}

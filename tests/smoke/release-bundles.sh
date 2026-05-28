@@ -559,6 +559,33 @@ if "storage low" not in reasons:
 if compat.get("facts", {}).get("low_storage_free_bytes") != 1048576:
     raise SystemExit(f"survey low-storage fact missing: {compat.get('facts')!r}")
 PY
+cat >"$work/reality-advisory.json" <<'JSON'
+{
+  "schema": 1,
+  "checks": [
+    {"name": "ptrace", "status": "fail", "ok": false, "available": false, "detail": "operation not permitted"},
+    {"name": "dmesg_readable", "status": "fail", "ok": false, "available": false, "detail": "kernel message buffer not readable"}
+  ]
+}
+JSON
+"$work/release/scripts/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-advisory.json" --json >"$work/release-find-reality-advisory.json"
+python3 - "$work/release-find-reality-advisory.json" <<'PY'
+import json
+import sys
+
+row = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+compat = row.get("compatibility") or {}
+if compat.get("label") != "likely":
+    raise SystemExit(f"expected advisory reality failures to score likely, got {compat!r}")
+reasons = "\n".join(compat.get("reasons") or [])
+if "ptrace unavailable: debugger payloads may be limited" not in reasons:
+    raise SystemExit(f"ptrace advisory reason missing: {reasons}")
+if "dmesg unreadable: crash evidence may be limited" not in reasons:
+    raise SystemExit(f"dmesg advisory reason missing: {reasons}")
+facts = compat.get("facts") or {}
+if facts.get("ptrace_unavailable") is not True or facts.get("dmesg_unreadable") is not True:
+    raise SystemExit(f"advisory reality facts missing: {facts!r}")
+PY
 cat >"$work/reality-unsafe.json" <<'JSON'
 {
   "schema": 1,

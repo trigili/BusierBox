@@ -146,7 +146,8 @@ artifact. Labels are `exact`, `likely`, `heuristic`, `unsafe`, and
 `incompatible`. Tuple/device arguments produce exact tuple matching; survey and
 reality-test JSON add target-specific scoring for arch, endian, libc, kernel
 floor, CPU/ABI hints, `/tmp` noexec, read-only rootfs, low storage, failed
-runtime execution, failed payload extraction, and partial procfs evidence.
+runtime execution, failed payload extraction, partial procfs evidence, failed
+ptrace checks, and unreadable `dmesg` evidence.
 JSON output includes a `selection` block with selected artifact, candidate and
 eligible counts, threshold-filter count, active filters, max compatibility, and
 the selection policy. Plain text output mirrors the counts and policy so an
