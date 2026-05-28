@@ -110,7 +110,9 @@ assert index["release_count"] == 3
 assert index["artifact_count"] == 3
 assert index["deduplicated_artifact_count"] == 2
 assert index["device_count"] == 2
+assert index["device_record_count"] == 3
 assert index["tuple_count"] == 1
+assert index["tuple_record_count"] == 3
 assert "tcpdump" in index["tools_present"]
 assert "ssh-operator" in index["payload_presets"]
 assert "trailer" in index["features"]
@@ -132,6 +134,13 @@ assert index["artifacts_by_provider_tool"]["gdbserver"][0]["release_name"] == "t
 assert index["artifacts_by_provider_status"]["gdbserver:found"][0]["payload_preset"] == "full-debug"
 assert index["artifacts_by_doom_wad_filename"]["doom.wad"][0]["release_name"] == "one"
 assert index["artifacts_by_doom_wad_sha256"]["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"][0]["payload_preset"] == "survey-core"
+assert len(index["device_records"]) == 3
+assert index["device_records_by_alias"]["lab-router"][0]["alias"] == "lab-router"
+assert len(index["device_records_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]) == 3
+assert index["device_records_by_release"]["one"][0]["alias"] == "glinet-mt1300"
+assert len(index["tuple_records"]) == 3
+assert len(index["tuple_records_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]) == 3
+assert index["tuple_records_by_release"]["three"][0]["tuple"]["arch"] == "mipsel"
 recs = index["recommendations"]
 assert recs["schema"] == 1
 assert "lowest compatibility risk label" in recs["selection_policy"]
@@ -166,10 +175,14 @@ assert "artifacts_by_provider_status" in api["artifacts"]["indexes"]
 assert "artifacts_by_doom_wad_filename" in api["artifacts"]["indexes"]
 assert api["dedupe"]["count"] == index["deduplicated_artifact_count"]
 assert api["dedupe"]["summary_key"] == "deduplicated_artifact_count"
-assert api["devices"]["count"] == index["device_count"]
-assert api["devices"]["summary_key"] == "device_count"
-assert api["tuples"]["count"] == index["tuple_count"]
-assert api["tuples"]["summary_key"] == "tuple_count"
+assert api["devices"]["count"] == index["device_record_count"]
+assert api["devices"]["summary_key"] == "device_record_count"
+assert "device_records_by_alias" in api["devices"]["indexes"]
+assert "device_records_by_tuple_path" in api["devices"]["indexes"]
+assert api["tuples"]["count"] == index["tuple_record_count"]
+assert api["tuples"]["summary_key"] == "tuple_record_count"
+assert "tuple_records_by_tuple_path" in api["tuples"]["indexes"]
+assert "tuple_records_by_release" in api["tuples"]["indexes"]
 assert api["recommendations"]["count"] == index["recommendation_count"]
 assert api["recommendations"]["summary_key"] == "recommendation_count"
 assert "by_device" in api["recommendations"]["indexes"]

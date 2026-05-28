@@ -262,6 +262,31 @@ def build_repo_index(paths):
                 features.setdefault(feature, []).append(record["artifact_path"])
 
     artifacts.sort(key=lambda r: (r.get("release_mtime") or 0, r.get("release_name") or "", r.get("artifact") or ""), reverse=True)
+    device_records = []
+    device_records_by_alias = {}
+    device_records_by_tuple_path = {}
+    device_records_by_release = {}
+    for alias in sorted(devices):
+        for item in devices[alias]:
+            record = dict(item)
+            record["alias"] = alias
+            device_records.append(record)
+            device_records_by_alias.setdefault(alias, []).append(record)
+            if record.get("tuple_path"):
+                device_records_by_tuple_path.setdefault(record["tuple_path"], []).append(record)
+            if record.get("release_name"):
+                device_records_by_release.setdefault(record["release_name"], []).append(record)
+    tuple_records = []
+    tuple_records_by_tuple_path = {}
+    tuple_records_by_release = {}
+    for tuple_path in sorted(tuples):
+        for item in tuples[tuple_path]:
+            record = dict(item)
+            record["tuple_path"] = tuple_path
+            tuple_records.append(record)
+            tuple_records_by_tuple_path.setdefault(tuple_path, []).append(record)
+            if record.get("release_name"):
+                tuple_records_by_release.setdefault(record["release_name"], []).append(record)
     artifacts_by_sha = {}
     artifacts_by_release = {}
     artifacts_by_tuple_path = {}
@@ -350,13 +375,24 @@ def build_repo_index(paths):
     ]
     recommendations = recommendations_from_indexes(devices, indexes)
     recommendation_count = sum(len(recommendations.get(name) or {}) for name in recommendation_index_names)
+    device_record_index_names = [
+        "device_records_by_alias",
+        "device_records_by_tuple_path",
+        "device_records_by_release",
+    ]
+    tuple_record_index_names = [
+        "tuple_records_by_tuple_path",
+        "tuple_records_by_release",
+    ]
     return {
         "schema": 1,
         "release_count": len(release_dirs),
         "artifact_count": len(artifacts),
         "deduplicated_artifact_count": len(by_sha),
         "device_count": len(devices),
+        "device_record_count": len(device_records),
         "tuple_count": len(tuples),
+        "tuple_record_count": len(tuple_records),
         "recommendation_count": recommendation_count,
         "release_dirs": [str(path) for path in release_dirs],
         "artifacts": artifacts,
@@ -375,7 +411,14 @@ def build_repo_index(paths):
         "artifacts_by_doom_wad_sha256": {key: artifacts_by_doom_wad_sha256[key] for key in sorted(artifacts_by_doom_wad_sha256)},
         "dedupe": {key: by_sha[key] for key in sorted(by_sha)},
         "devices": {key: devices[key] for key in sorted(devices)},
+        "device_records": device_records,
+        "device_records_by_alias": {key: device_records_by_alias[key] for key in sorted(device_records_by_alias)},
+        "device_records_by_tuple_path": {key: device_records_by_tuple_path[key] for key in sorted(device_records_by_tuple_path)},
+        "device_records_by_release": {key: device_records_by_release[key] for key in sorted(device_records_by_release)},
         "tuples": {key: tuples[key] for key in sorted(tuples)},
+        "tuple_records": tuple_records,
+        "tuple_records_by_tuple_path": {key: tuple_records_by_tuple_path[key] for key in sorted(tuple_records_by_tuple_path)},
+        "tuple_records_by_release": {key: tuple_records_by_release[key] for key in sorted(tuple_records_by_release)},
         "payload_presets": {key: unique(presets[key]) for key in sorted(presets)},
         "tools_present": {key: unique(tools[key]) for key in sorted(tools)},
         "features": {key: unique(features[key]) for key in sorted(features)},
@@ -395,15 +438,15 @@ def build_repo_index(paths):
             ),
             "devices": api_collection_record(
                 "devices",
-                len(devices),
-                [],
-                "device_count",
+                len(device_records),
+                device_record_index_names,
+                "device_record_count",
             ),
             "tuples": api_collection_record(
                 "tuples",
-                len(tuples),
-                [],
-                "tuple_count",
+                len(tuple_records),
+                tuple_record_index_names,
+                "tuple_record_count",
             ),
             "recommendations": api_collection_record(
                 "recommendations",
