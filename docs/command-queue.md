@@ -154,16 +154,23 @@ Safety boundary:
   and `active_control_channel=false` even when a user passes `--live`. They
   also expose a compact `poll_plan` object with mode, status, endpoint,
   explicit-target-action, dry-run-only, would-contact-operator, queued-command
-  availability, delivery/result upload, execution, and hidden-control-channel
-  fields.
+  availability, delivery support, result-upload support, execution support, and
+  active-control-channel posture.
+
+Operator `scripts/busierbox-server --json-status` mirrors the mode records for
+future TUI/web clients. The `command_queue_modes` API collection includes
+indexes by lifecycle, polling posture, live support, delivery support,
+result-upload support, execution support, active-control-channel posture, and
+operator-supplied-command execution posture.
 - `command-queue --json` also includes `mode_semantics` for `status`, `poll`,
   `once`, `daemon`, and `stop`. Each entry declares whether the mode is selected,
   whether it needs an operator host, its lifecycle label (`inspect`,
   `single-poll`, `single-cycle`, `long-running`, or `stop`), and the same
   non-execution safety booleans so UIs do not infer mode behavior from strings.
 - The same mode data is exposed as flat `mode_records`, with lookup maps by
-  mode, lifecycle, polling behavior, live-support status, execution support,
-  active-control-channel state, and operator-supplied command execution state.
+  mode, lifecycle, polling behavior, live-support status, delivery support,
+  result-upload support, execution support, active-control-channel state, and
+  operator-supplied command execution state.
   `api_collections.mode_records` publishes
   count, summary-key, count-summary-key, primary-key, and index metadata for
   frontend discovery.

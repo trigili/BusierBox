@@ -3376,6 +3376,7 @@ def command_queue_mode_summary(mode_semantics):
         "polling_mode_count": len([rec for rec in records if rec.get("would_poll_if_configured")]),
         "operator_host_required_mode_count": len([rec for rec in records if rec.get("requires_operator_host")]),
         "live_supported_mode_count": len([rec for rec in records if rec.get("live_supported")]),
+        "delivery_supported_mode_count": len([rec for rec in records if rec.get("delivery_supported")]),
         "result_upload_supported_mode_count": len([rec for rec in records if rec.get("result_upload_supported")]),
         "execution_supported_mode_count": len([rec for rec in records if rec.get("execution_supported")]),
         "active_control_channel_mode_count": len([rec for rec in records if rec.get("active_control_channel")]),
@@ -3401,6 +3402,8 @@ def command_queue_mode_record_indexes(records):
         "command_queue_modes_by_requires_operator_host": records_by_key(records, "requires_operator_host"),
         "command_queue_modes_by_would_poll_if_configured": records_by_key(records, "would_poll_if_configured"),
         "command_queue_modes_by_live_supported": records_by_key(records, "live_supported"),
+        "command_queue_modes_by_delivery_supported": records_by_key(records, "delivery_supported"),
+        "command_queue_modes_by_result_upload_supported": records_by_key(records, "result_upload_supported"),
         "command_queue_modes_by_execution_supported": records_by_key(records, "execution_supported"),
         "command_queue_modes_by_active_control_channel": records_by_key(records, "active_control_channel"),
         "command_queue_modes_by_operator_supplied_command_execution": records_by_key(
@@ -7263,6 +7266,7 @@ def status_document(cfg):
         "command_queue_polling_mode_count": command_queue_mode_summary.get("polling_mode_count", 0),
         "command_queue_operator_host_required_mode_count": command_queue_mode_summary.get("operator_host_required_mode_count", 0),
         "command_queue_live_supported_mode_count": command_queue_mode_summary.get("live_supported_mode_count", 0),
+        "command_queue_delivery_supported_mode_count": command_queue_mode_summary.get("delivery_supported_mode_count", 0),
         "command_queue_result_upload_supported_mode_count": command_queue_mode_summary.get("result_upload_supported_mode_count", 0),
         "command_queue_execution_supported_mode_count": command_queue_mode_summary.get("execution_supported_mode_count", 0),
         "command_queue_active_control_channel_mode_count": command_queue_mode_summary.get("active_control_channel_mode_count", 0),
@@ -7521,6 +7525,8 @@ def status_document(cfg):
                 "command_queue_modes_by_requires_operator_host",
                 "command_queue_modes_by_would_poll_if_configured",
                 "command_queue_modes_by_live_supported",
+                "command_queue_modes_by_delivery_supported",
+                "command_queue_modes_by_result_upload_supported",
                 "command_queue_modes_by_execution_supported",
                 "command_queue_modes_by_active_control_channel",
                 "command_queue_modes_by_operator_supplied_command_execution",
@@ -7776,6 +7782,8 @@ def status_document(cfg):
         "command_queue_modes_by_requires_operator_host": command_queue.get("command_queue_modes_by_requires_operator_host") or {},
         "command_queue_modes_by_would_poll_if_configured": command_queue.get("command_queue_modes_by_would_poll_if_configured") or {},
         "command_queue_modes_by_live_supported": command_queue.get("command_queue_modes_by_live_supported") or {},
+        "command_queue_modes_by_delivery_supported": command_queue.get("command_queue_modes_by_delivery_supported") or {},
+        "command_queue_modes_by_result_upload_supported": command_queue.get("command_queue_modes_by_result_upload_supported") or {},
         "command_queue_modes_by_execution_supported": command_queue.get("command_queue_modes_by_execution_supported") or {},
         "command_queue_modes_by_active_control_channel": command_queue.get("command_queue_modes_by_active_control_channel") or {},
         "command_queue_modes_by_operator_supplied_command_execution": command_queue.get("command_queue_modes_by_operator_supplied_command_execution") or {},
@@ -7799,6 +7807,7 @@ def print_command_queue_mode_lines(queue):
         f"total={mode_summary.get('mode_count', 0)} "
         f"would_poll_if_configured={mode_summary.get('polling_mode_count', 0)} "
         f"operator_host_required={mode_summary.get('operator_host_required_mode_count', 0)} "
+        f"delivery_supported={mode_summary.get('delivery_supported_mode_count', 0)} "
         f"result_upload_supported={mode_summary.get('result_upload_supported_mode_count', 0)} "
         f"execution_supported={mode_summary.get('execution_supported_mode_count', 0)} "
         f"active_control_channel={mode_summary.get('active_control_channel_mode_count', 0)}"

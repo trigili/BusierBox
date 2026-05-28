@@ -1030,7 +1030,7 @@ def main():
         if (invalid_queue_text.returncode != 0 or
                 "policy_valid=no" not in invalid_queue_text.stdout or
                 "arbitrary_execution_allowed=no" not in invalid_queue_text.stdout or
-                "modes: total=5 would_poll_if_configured=3 operator_host_required=3 result_upload_supported=5 execution_supported=0 active_control_channel=0" not in invalid_queue_text.stdout or
+                "modes: total=5 would_poll_if_configured=3 operator_host_required=3 delivery_supported=0 result_upload_supported=5 execution_supported=0 active_control_channel=0" not in invalid_queue_text.stdout or
                 "mode daemon: lifecycle=long-running requires_operator_host=yes would_poll_if_configured=yes execution_supported=no active_control_channel=no" not in invalid_queue_text.stdout or
                 "mode stop: lifecycle=stop requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in invalid_queue_text.stdout or
                 "policy_error=disabled command queue must keep allowed commands policy none" not in invalid_queue_text.stdout):
@@ -1533,7 +1533,7 @@ def main():
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
                 ("command_copy_records", len(queue_status_json.get("command_copy_records") or []), "command_copy_records_by_has_command"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
-                ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_mode"),
+                ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_result_upload_supported"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
                 ("workbench_config_fields", len(queue_status_json.get("workbench_config_fields") or []), "workbench_config_fields_by_key"),
                 ("workbench_jobs", len(queue_status_json.get("workbench_jobs") or []), "workbench_jobs_by_id"),
@@ -1790,6 +1790,8 @@ def main():
         command_queue_modes_by_lifecycle = queue_status_json.get("command_queue_modes_by_lifecycle") or {}
         command_queue_modes_by_polling = queue_status_json.get("command_queue_modes_by_would_poll_if_configured") or {}
         command_queue_modes_by_live = queue_status_json.get("command_queue_modes_by_live_supported") or {}
+        command_queue_modes_by_delivery = queue_status_json.get("command_queue_modes_by_delivery_supported") or {}
+        command_queue_modes_by_result_upload = queue_status_json.get("command_queue_modes_by_result_upload_supported") or {}
         command_queue_modes_by_execution = queue_status_json.get("command_queue_modes_by_execution_supported") or {}
         command_queue_modes_by_control = queue_status_json.get("command_queue_modes_by_active_control_channel") or {}
         command_queue_modes_by_operator_exec = queue_status_json.get("command_queue_modes_by_operator_supplied_command_execution") or {}
@@ -1841,6 +1843,8 @@ def main():
                 len(command_queue_modes_by_polling.get("True", [])) != 3 or
                 len(command_queue_modes_by_polling.get("False", [])) != 2 or
                 len(command_queue_modes_by_live.get("True", [])) != 3 or
+                len(command_queue_modes_by_delivery.get("False", [])) != 5 or
+                len(command_queue_modes_by_result_upload.get("True", [])) != 5 or
                 len(command_queue_modes_by_execution.get("False", [])) != 5 or
                 len(command_queue_modes_by_control.get("False", [])) != 5 or
                 len(command_queue_modes_by_operator_exec.get("False", [])) != 5 or
@@ -1848,12 +1852,14 @@ def main():
                 command_queue_mode_summary.get("polling_mode_count") != 3 or
                 command_queue_mode_summary.get("operator_host_required_mode_count") != 3 or
                 command_queue_mode_summary.get("live_supported_mode_count") != 3 or
+                command_queue_mode_summary.get("delivery_supported_mode_count") != 0 or
                 command_queue_mode_summary.get("result_upload_supported_mode_count") != 5 or
                 command_queue_mode_summary.get("execution_supported_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_mode_count") != 5 or
                 queue_status_json["summary"].get("command_queue_polling_mode_count") != 3 or
                 queue_status_json["summary"].get("command_queue_operator_host_required_mode_count") != 3 or
                 queue_status_json["summary"].get("command_queue_live_supported_mode_count") != 3 or
+                queue_status_json["summary"].get("command_queue_delivery_supported_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_result_upload_supported_mode_count") != 5 or
                 queue_status_json["summary"].get("command_queue_execution_supported_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_active_control_channel_mode_count") != 0 or
@@ -2122,7 +2128,7 @@ def main():
                 "result_size_buckets: small=1" not in queue_status_text.stdout or
                 "latest_created=" not in queue_status_text.stdout or
                 "latest_result=" not in queue_status_text.stdout or
-                "modes: total=5 would_poll_if_configured=3 operator_host_required=3 result_upload_supported=5 execution_supported=0 active_control_channel=0" not in queue_status_text.stdout or
+                "modes: total=5 would_poll_if_configured=3 operator_host_required=3 delivery_supported=0 result_upload_supported=5 execution_supported=0 active_control_channel=0" not in queue_status_text.stdout or
                 "mode status: lifecycle=inspect requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
                 "mode daemon: lifecycle=long-running requires_operator_host=yes would_poll_if_configured=yes execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
                 "mode stop: lifecycle=stop requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
