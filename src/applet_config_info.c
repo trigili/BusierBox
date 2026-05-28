@@ -100,6 +100,9 @@ int applet_config_info_main(int argc, char **argv)
     printf("compiled_rshell_session_policy=%s\n", bb_config_compiled("BB_RSHELL_SESSION_POLICY"));
     printf("compiled_rshell_operator_host=%s\n", bb_config_compiled("BB_OPERATOR_SERVER_HOST"));
     printf("compiled_command_queue_enable=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_ENABLE"));
+    printf("compiled_command_queue_require_token=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_REQUIRE_TOKEN"));
+    printf("compiled_command_queue_token_source=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_TOKEN_SOURCE"));
+    printf("compiled_command_queue_token_configured=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_TOKEN")[0] ? "yes" : "no");
     printf("compiled_command_queue_allowed_commands=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_ALLOWED_COMMANDS"));
     printf("compiled_command_queue_allow_arbitrary=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_ALLOW_ARBITRARY"));
     printf("compiled_command_queue_poll_interval_sec=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"));
@@ -114,6 +117,9 @@ int applet_config_info_main(int argc, char **argv)
     printf("effective_rshell_session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
     printf("effective_rshell_operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
     printf("effective_command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
+    printf("effective_command_queue_require_token=%s\n", BB_COMMAND_QUEUE_REQUIRE_TOKEN);
+    printf("effective_command_queue_token_source=%s\n", BB_COMMAND_QUEUE_TOKEN_SOURCE);
+    printf("effective_command_queue_token_configured=%s\n", BB_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
     printf("effective_command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("effective_command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
     printf("effective_command_queue_poll_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
