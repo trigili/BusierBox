@@ -96,12 +96,13 @@ operator-supplied command actions for audits. The JSON also includes
 `rc-local:evidence-push` or `evidence:dmesg-push`. Installed-action boolean
 indexes cover evidence upload, `dmesg` capture, reverse-shell chaining,
 operator-supplied command execution, command queue enablement, hidden control
-channels, and external-write requirements. This lets operator UIs jump directly
-to evidence, reverse-shell, command, or status hooks without rescanning the full
-list. Status JSON mirrors the same `api` and `api_resources*` discovery fields
-for installed hooks. Summary booleans also state whether every installed hook
-requires an external write and whether any hook executes an operator-supplied
-command.
+channels, external-write requirements, hook presence, copied binary presence,
+script presence, and reboot-survival class. This lets operator UIs jump
+directly to evidence, reverse-shell, command, status, or broken hook records
+without rescanning the full list. Status JSON mirrors the same `api` and
+`api_resources*` discovery fields for installed hooks. Summary booleans also
+state whether every installed hook requires an external write and whether any
+hook executes an operator-supplied command.
 
 `busierbox recovery` remains as a deprecated compatibility alias. Internal hook
 markers still use `BUSIERBOX RECOVERY` so older cleanup/status checks keep

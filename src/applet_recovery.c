@@ -411,10 +411,11 @@ static int recovery_status_one(const char *root, const struct recovery_method *m
     return 0;
 }
 
-static int recovery_status_index_match(const char *kind, const struct recovery_method *m,
+static int recovery_status_index_match(const char *root, const char *name,
+                                       const char *kind, const struct recovery_method *m,
                                        const char *action, const char *value)
 {
-    char key[128];
+    char key[128], path[PATH_MAX], bin[PATH_MAX], script[PATH_MAX];
     if (!strcmp(kind, "method"))
         return !strcmp(m->name, value);
     if (!strcmp(kind, "action"))
@@ -445,6 +446,20 @@ static int recovery_status_index_match(const char *kind, const struct recovery_m
         return !strcmp("no", value);
     if (!strcmp(kind, "requires_external_write"))
         return !strcmp(m->requires_external_write, value);
+    if (!strcmp(kind, "survives_reboot"))
+        return !strcmp(m->survives_reboot, value);
+    if (!strcmp(kind, "hook_present")) {
+        recovery_join(path, sizeof(path), root, m->path);
+        return !strcmp(path_exists(path) ? "yes" : "no", value);
+    }
+    if (!strcmp(kind, "binary_present")) {
+        recovery_bin_path(bin, sizeof(bin), root, name);
+        return !strcmp(path_exists(bin) ? "yes" : "no", value);
+    }
+    if (!strcmp(kind, "script_present")) {
+        recovery_script_path(script, sizeof(script), root, name);
+        return !strcmp(path_exists(script) ? "yes" : "no", value);
+    }
     return 0;
 }
 
@@ -461,7 +476,7 @@ static int recovery_print_status_index_array(const char *root, const char *name,
         char action[64], generated[PATH_MAX * 2];
         if (!recovery_status_one(root, &recovery_methods[j], name, action, sizeof(action), generated, sizeof(generated)))
             continue;
-        if (recovery_status_index_match(kind, &recovery_methods[j], action[0] ? action : "unknown", value)) {
+        if (recovery_status_index_match(root, name, kind, &recovery_methods[j], action[0] ? action : "unknown", value)) {
             printf("%s%d", first ? "" : ",", installed_index);
             first = 0;
             matched = 1;
@@ -480,7 +495,7 @@ static int recovery_status_index_has_match(const char *root, const char *name,
         char action[64], generated[PATH_MAX * 2];
         if (!recovery_status_one(root, &recovery_methods[j], name, action, sizeof(action), generated, sizeof(generated)))
             continue;
-        if (recovery_status_index_match(kind, &recovery_methods[j], action[0] ? action : "unknown", value))
+        if (recovery_status_index_match(root, name, kind, &recovery_methods[j], action[0] ? action : "unknown", value))
             return 1;
     }
     return 0;
@@ -594,6 +609,24 @@ static void recovery_print_status_indexes(const char *root, const char *name)
     recovery_print_status_yes_no_index(root, name, "installations_by_command_queue_enabled", "command_queue_enabled");
     recovery_print_status_yes_no_index(root, name, "installations_by_hidden_control_channel", "hidden_control_channel");
     recovery_print_status_yes_no_index(root, name, "installations_by_requires_external_write", "requires_external_write");
+    recovery_print_status_yes_no_index(root, name, "installations_by_hook_present", "hook_present");
+    recovery_print_status_yes_no_index(root, name, "installations_by_binary_present", "binary_present");
+    recovery_print_status_yes_no_index(root, name, "installations_by_script_present", "script_present");
+    fputs(",\"installations_by_survives_reboot\":{", stdout);
+    first = 1;
+    {
+        static const char *survives[] = {"yes", "event", "login-only", "maybe", NULL};
+        for (i = 0; survives[i]; i++) {
+            if (!recovery_status_index_has_match(root, name, "survives_reboot", survives[i]))
+                continue;
+            fputs(first ? "" : ",", stdout);
+            bb_json_string(stdout, survives[i]);
+            fputc(':', stdout);
+            recovery_print_status_index_array(root, name, "survives_reboot", survives[i]);
+            first = 0;
+        }
+    }
+    fputs("}", stdout);
 }
 
 static void recovery_print_status_api_collections(int installed_count)
@@ -611,7 +644,11 @@ static void recovery_print_status_api_collections(int installed_count)
     fputs("\"installations_by_executes_operator_supplied_command\",", stdout);
     fputs("\"installations_by_command_queue_enabled\",", stdout);
     fputs("\"installations_by_hidden_control_channel\",", stdout);
-    fputs("\"installations_by_requires_external_write\"", stdout);
+    fputs("\"installations_by_requires_external_write\",", stdout);
+    fputs("\"installations_by_hook_present\",", stdout);
+    fputs("\"installations_by_binary_present\",", stdout);
+    fputs("\"installations_by_script_present\",", stdout);
+    fputs("\"installations_by_survives_reboot\"", stdout);
     fputs("]}}", stdout);
 }
 
@@ -646,7 +683,7 @@ static void recovery_print_api_resources(int storage_count, int method_count,
     const char *storage_indexes = "\"storage_by_class\",\"storage_by_survives_reboot\"";
     const char *method_indexes = "\"methods_by_name\",\"methods_by_survives_reboot\",\"methods_by_intrusiveness\",\"methods_by_requires_external_write\"";
     const char *action_indexes = "\"actions_by_name\",\"actions_by_category\",\"actions_by_uploads_evidence\",\"actions_by_collects_dmesg\",\"actions_by_starts_rshell\",\"actions_by_starts_rshell_after_evidence\",\"actions_by_executes_operator_supplied_command\",\"actions_by_command_queue_enabled\",\"actions_by_hidden_control_channel\",\"actions_by_requires_explicit_apply\",\"actions_by_requires_external_write\"";
-    const char *installation_indexes = "\"installations_by_method\",\"installations_by_action\",\"installations_by_category\",\"installations_by_method_action\",\"installations_by_category_action\",\"installations_by_uploads_evidence\",\"installations_by_collects_dmesg\",\"installations_by_starts_rshell\",\"installations_by_starts_rshell_after_evidence\",\"installations_by_executes_operator_supplied_command\",\"installations_by_command_queue_enabled\",\"installations_by_hidden_control_channel\",\"installations_by_requires_external_write\"";
+    const char *installation_indexes = "\"installations_by_method\",\"installations_by_action\",\"installations_by_category\",\"installations_by_method_action\",\"installations_by_category_action\",\"installations_by_uploads_evidence\",\"installations_by_collects_dmesg\",\"installations_by_starts_rshell\",\"installations_by_starts_rshell_after_evidence\",\"installations_by_executes_operator_supplied_command\",\"installations_by_command_queue_enabled\",\"installations_by_hidden_control_channel\",\"installations_by_requires_external_write\",\"installations_by_hook_present\",\"installations_by_binary_present\",\"installations_by_script_present\",\"installations_by_survives_reboot\"";
     int is_status = installed_count >= 0;
     int resource_count = is_status ? 1 : 3;
 

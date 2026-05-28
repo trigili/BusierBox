@@ -244,6 +244,10 @@ assert data["installations_by_action"]["status-only"] == [0]
 assert data["installations_by_category"]["status"] == [0]
 assert data["installations_by_method_action"]["rc-local:status-only"] == [0]
 assert data["installations_by_category_action"]["status:status-only"] == [0]
+assert data["installations_by_hook_present"]["yes"] == [0]
+assert data["installations_by_binary_present"]["yes"] == [0]
+assert data["installations_by_script_present"]["no"] == [0]
+assert data["installations_by_survives_reboot"]["yes"] == [0]
 assert item["action"] == "status-only"
 assert item["action_category"] == "status"
 assert item["uploads_evidence"] is False
@@ -319,6 +323,10 @@ assert data["installations_by_executes_operator_supplied_command"]["no"] == [0]
 assert data["installations_by_command_queue_enabled"]["no"] == [0]
 assert data["installations_by_hidden_control_channel"]["no"] == [0]
 assert data["installations_by_requires_external_write"]["yes"] == [0]
+assert data["installations_by_hook_present"]["yes"] == [0]
+assert data["installations_by_binary_present"]["yes"] == [0]
+assert data["installations_by_script_present"]["no"] == [0]
+assert data["installations_by_survives_reboot"]["yes"] == [0]
 api_indexes = data["api_collections"]["installations"]["indexes"]
 meta = data["api"]
 resources = data["api_resources"]
@@ -337,6 +345,8 @@ assert resources_by_primary_key["method"][0]["name"] == "installations"
 assert "installations_by_uploads_evidence" in api_indexes
 assert "installations_by_collects_dmesg" in api_indexes
 assert "installations_by_hidden_control_channel" in api_indexes
+assert "installations_by_binary_present" in api_indexes
+assert "installations_by_survives_reboot" in api_indexes
 assert item["action"] == "evidence-push"
 assert item["action_category"] == "evidence"
 assert item["uploads_evidence"] is True
@@ -488,6 +498,8 @@ assert item["generated_command"] == "/usr/bin/bbx_recovery.recovery.sh"
 assert item["script_path"] == f"{root}/usr/bin/bbx_recovery.recovery.sh"
 assert item["script_present"] is True
 assert item["binary_present"] is True
+assert data["installations_by_script_present"]["yes"] == [0]
+assert data["installations_by_binary_present"]["yes"] == [0]
 PY
 "$bb" cleanup-ledger --json | python3 -m json.tool >"$tmp/script-ledger.json"
 python3 - <<'PY' "$tmp/script-ledger.json"
