@@ -3667,6 +3667,8 @@ def main():
                 upload_session.get("has_uploads") is not True or
                 upload_session.get("has_fetches") is not False or
                 upload_session.get("has_events") is not True or
+                upload_session.get("metadata_exists") is not True or
+                upload_session.get("event_log_exists") is not True or
                 not isinstance(upload_session.get("duration_sec"), int) or
                 upload_session.get("metadata_path") != str(session_json_paths[0]) or
                 upload_session.get("event_log") != str(session_json_paths[0].parent / "events.jsonl")):
@@ -3687,6 +3689,8 @@ def main():
                 session_root_state.get("sessions_with_uploads_count") != 1 or
                 session_root_state.get("sessions_with_fetches_count") != 0 or
                 session_root_state.get("sessions_with_events_count") != 1 or
+                session_root_state.get("sessions_with_metadata_count") != 1 or
+                session_root_state.get("sessions_with_event_logs_count") != 1 or
                 upload_summary.get("session_root_exists") is not True or
                 upload_summary.get("session_root_recent_count") != 1 or
                 upload_summary.get("session_total_upload_count") != 1 or
@@ -3698,7 +3702,9 @@ def main():
                 upload_summary.get("session_max_duration_sec", -1) < 0 or
                 upload_summary.get("sessions_with_uploads_count") != 1 or
                 upload_summary.get("sessions_with_fetches_count") != 0 or
-                upload_summary.get("sessions_with_events_count") != 1):
+                upload_summary.get("sessions_with_events_count") != 1 or
+                upload_summary.get("sessions_with_metadata_count") != 1 or
+                upload_summary.get("sessions_with_event_logs_count") != 1):
             print("server json status missing session root browser state", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
@@ -3714,6 +3720,8 @@ def main():
         sessions_by_has_fetches = upload_doc.get("sessions_by_has_fetches") or {}
         sessions_by_has_events = upload_doc.get("sessions_by_has_events") or {}
         sessions_by_duration_known = upload_doc.get("sessions_by_duration_known") or {}
+        sessions_by_metadata_exists = upload_doc.get("sessions_by_metadata_exists") or {}
+        sessions_by_event_log_exists = upload_doc.get("sessions_by_event_log_exists") or {}
         events_by_session = upload_doc.get("events_by_session") or {}
         events_by_session_event = upload_doc.get("events_by_session_event") or {}
         upload_events_by_service_event = upload_doc.get("events_by_service_event") or {}
@@ -3757,13 +3765,19 @@ def main():
                 sessions_by_has_fetches.get("no", [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_has_events.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_duration_known.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
+                sessions_by_metadata_exists.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
+                sessions_by_event_log_exists.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
                 upload_summary.get("session_service_state_counts", {}).get(session_service_state_key) != 1 or
                 upload_summary.get("session_service_exit_reason_counts", {}).get(session_service_exit_key) != 1 or
                 upload_summary.get("session_service_remote_counts", {}).get(session_service_remote_key) != 1 or
                 upload_summary.get("session_has_uploads_counts", {}).get("yes") != 1 or
                 upload_summary.get("session_has_fetches_counts", {}).get("no") != 1 or
                 upload_summary.get("session_has_events_counts", {}).get("yes") != 1 or
-                upload_summary.get("session_duration_known_counts", {}).get("yes") != 1):
+                upload_summary.get("session_duration_known_counts", {}).get("yes") != 1 or
+                upload_summary.get("session_metadata_exists_counts", {}).get("yes") != 1 or
+                upload_summary.get("session_event_log_exists_counts", {}).get("yes") != 1 or
+                "sessions_by_metadata_exists" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", []) or
+                "sessions_by_event_log_exists" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", [])):
             print("server json status missing session/event lookup indexes", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1

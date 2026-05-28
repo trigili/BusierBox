@@ -411,7 +411,9 @@ class SessionManager:
                     if duration is not None:
                         meta["duration_sec"] = duration
                 meta["metadata_path"] = str(metadata_path)
+                meta["metadata_exists"] = metadata_path.is_file()
                 meta["event_log"] = str(events_path) if events_path.is_file() else ""
+                meta["event_log_exists"] = events_path.is_file()
                 meta["event_count"] = count_file_lines(events_path)
                 meta["upload_count"] = len(meta.get("uploads") or [])
                 meta["fetch_count"] = len(meta.get("fetches") or [])
@@ -434,7 +436,9 @@ class SessionManager:
                 "service": service,
                 "path": str(path),
                 "metadata_path": str(metadata_path) if metadata_path.is_file() else "",
+                "metadata_exists": metadata_path.is_file(),
                 "event_log": str(events_path) if events_path.is_file() else "",
+                "event_log_exists": events_path.is_file(),
                 "event_count": event_count,
                 "upload_count": upload_count,
                 "fetch_count": 0,
@@ -2435,6 +2439,8 @@ def session_record_indexes(records):
     by_has_events = {"yes": [], "no": []}
     by_has_artifacts = {"yes": [], "no": []}
     by_duration_known = {"yes": [], "no": []}
+    by_metadata_exists = {"yes": [], "no": []}
+    by_event_log_exists = {"yes": [], "no": []}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -2464,6 +2470,8 @@ def session_record_indexes(records):
         by_has_events["yes" if rec.get("has_events") is True or int_value(rec.get("event_count")) > 0 else "no"].append(rec)
         by_has_artifacts["yes" if rec.get("has_artifacts") is True or int_value(rec.get("artifact_count")) > 0 else "no"].append(rec)
         by_duration_known["yes" if rec.get("duration_sec") not in (None, "") else "no"].append(rec)
+        by_metadata_exists["yes" if rec.get("metadata_exists") is True else "no"].append(rec)
+        by_event_log_exists["yes" if rec.get("event_log_exists") is True else "no"].append(rec)
     return (
         by_id,
         by_service,
@@ -2478,6 +2486,8 @@ def session_record_indexes(records):
         by_has_events,
         by_has_artifacts,
         by_duration_known,
+        by_metadata_exists,
+        by_event_log_exists,
     )
 
 
@@ -2497,6 +2507,8 @@ def session_root_record(cfg, records):
     sessions_with_fetches = 0
     sessions_with_events = 0
     sessions_with_artifacts = 0
+    sessions_with_metadata = 0
+    sessions_with_event_logs = 0
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -2530,6 +2542,10 @@ def session_root_record(cfg, records):
             sessions_with_events += 1
         if artifact_count > 0:
             sessions_with_artifacts += 1
+        if rec.get("metadata_exists") is True:
+            sessions_with_metadata += 1
+        if rec.get("event_log_exists") is True:
+            sessions_with_event_logs += 1
     return {
         "path": str(path),
         "exists": path.is_dir(),
@@ -2549,6 +2565,8 @@ def session_root_record(cfg, records):
         "sessions_with_fetches_count": sessions_with_fetches,
         "sessions_with_events_count": sessions_with_events,
         "sessions_with_artifacts_count": sessions_with_artifacts,
+        "sessions_with_metadata_count": sessions_with_metadata,
+        "sessions_with_event_logs_count": sessions_with_event_logs,
         "latest_session_updated_at": latest_record_value(records, ("updated_at", "ended_at", "started_at")),
     }
 
@@ -6810,7 +6828,9 @@ def status_document(cfg):
      sessions_by_has_fetches,
      sessions_by_has_events,
      sessions_by_has_artifacts,
-     sessions_by_duration_known) = session_record_indexes(sessions)
+     sessions_by_duration_known,
+     sessions_by_metadata_exists,
+     sessions_by_event_log_exists) = session_record_indexes(sessions)
     event_stats = event_log_stats(cfg, event_limit)
     event_log_state = event_log_state_record(cfg, event_stats)
     events = event_stats["tail"]
@@ -7183,6 +7203,8 @@ def status_document(cfg):
         "session_has_events_counts": {key: len(value) for key, value in sessions_by_has_events.items()},
         "session_has_artifacts_counts": {key: len(value) for key, value in sessions_by_has_artifacts.items()},
         "session_duration_known_counts": {key: len(value) for key, value in sessions_by_duration_known.items()},
+        "session_metadata_exists_counts": {key: len(value) for key, value in sessions_by_metadata_exists.items()},
+        "session_event_log_exists_counts": {key: len(value) for key, value in sessions_by_event_log_exists.items()},
         "session_total_upload_count": session_root_state.get("total_upload_count", 0),
         "session_total_fetch_count": session_root_state.get("total_fetch_count", 0),
         "session_total_event_count": session_root_state.get("total_event_count", 0),
@@ -7195,6 +7217,8 @@ def status_document(cfg):
         "sessions_with_fetches_count": session_root_state.get("sessions_with_fetches_count", 0),
         "sessions_with_events_count": session_root_state.get("sessions_with_events_count", 0),
         "sessions_with_artifacts_count": session_root_state.get("sessions_with_artifacts_count", 0),
+        "sessions_with_metadata_count": session_root_state.get("sessions_with_metadata_count", 0),
+        "sessions_with_event_logs_count": session_root_state.get("sessions_with_event_logs_count", 0),
         "latest_session_updated_at": latest_record_value(sessions, ("updated_at", "ended_at", "started_at")),
         "target_command_count": target_command_summary.get("total_count", 0),
         "target_command_network_count": target_command_summary.get("network_count", 0),
@@ -7478,6 +7502,7 @@ def status_document(cfg):
                 "sessions_by_service_remote", "sessions_by_has_uploads",
                 "sessions_by_has_fetches", "sessions_by_has_events",
                 "sessions_by_has_artifacts", "sessions_by_duration_known",
+                "sessions_by_metadata_exists", "sessions_by_event_log_exists",
             ), "session_count",
         ),
         "events": api_collection_record(
@@ -7763,6 +7788,8 @@ def status_document(cfg):
         "sessions_by_has_events": sessions_by_has_events,
         "sessions_by_has_artifacts": sessions_by_has_artifacts,
         "sessions_by_duration_known": sessions_by_duration_known,
+        "sessions_by_metadata_exists": sessions_by_metadata_exists,
+        "sessions_by_event_log_exists": sessions_by_event_log_exists,
         "events": events,
         "events_by_id": events_by_id,
         "events_by_session": events_by_session,

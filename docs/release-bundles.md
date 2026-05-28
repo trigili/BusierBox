@@ -542,11 +542,14 @@ session browser records are exposed as `sessions`, `sessions_by_id`,
 `sessions_by_has_uploads`, `sessions_by_has_fetches`,
 `sessions_by_has_events`, `sessions_by_has_artifacts`, and
 `sessions_by_duration_known` for separating timed sessions from records that
-do not have enough timestamps yet.
+do not have enough timestamps yet. `sessions_by_metadata_exists` and
+`sessions_by_event_log_exists` let session/file browsers show only records
+whose local metadata or per-session event logs can be opened without probing
+the filesystem again.
 `session_root_state`
 summarizes the session directory, recent session ids, service/state counts,
 session activity totals, and counts of sessions with uploads, fetches, events,
-or artifacts for file-browser views. Completed session metadata includes
+artifacts, metadata files, or event logs for file-browser views. Completed session metadata includes
 `duration_sec`, and `session_root_state` plus `summary` expose total, average,
 maximum, and known-duration counts for dashboards. Aggregate counts remain in
 `summary`, including
@@ -564,6 +567,7 @@ maximum, and known-duration counts for dashboards. Aggregate counts remain in
 `fetch_http_status_remote_counts`, `session_service_state_counts`,
 `session_service_exit_reason_counts`, `session_service_remote_counts`,
 `session_duration_known_counts`, `session_duration_known_count`,
+`session_metadata_exists_counts`, `session_event_log_exists_counts`,
 `session_total_duration_sec`, `session_average_duration_sec`, and
 `session_max_duration_sec` for
 compact dashboards.
