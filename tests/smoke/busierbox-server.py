@@ -494,6 +494,9 @@ def main():
                 queue_summary.get("arbitrary_policy_requested") is not False or
                 queue_summary.get("arbitrary_execution_allowed") is not False or
                 queue_summary.get("poll_interval_sec") != "5" or
+                queue_summary.get("poll_jitter_pct") != "0" or
+                queue_summary.get("poll_backoff") != "none" or
+                queue_summary.get("poll_max_interval_sec") != "300" or
                 queue_summary.get("max_polls") != "0" or
                 queue_summary.get("poll_transport_supported") is not True or
                 queue_summary.get("live_polling_supported") is not True or
@@ -512,6 +515,9 @@ def main():
                 queue_policy_summary.get("poll_transport_supported") is not True or
                 queue_policy_summary.get("live_polling_supported") is not True or
                 queue_policy_summary.get("poll_interval_sec") != "5" or
+                queue_policy_summary.get("poll_jitter_pct") != "0" or
+                queue_policy_summary.get("poll_backoff") != "none" or
+                queue_policy_summary.get("poll_max_interval_sec") != "300" or
                 queue_policy_summary.get("max_polls") != "0" or
                 queue_policy_summary.get("active_control_channel") is not False or
                 queue_policy_summary.get("error_count") != 0):
@@ -973,6 +979,9 @@ def main():
                 queue_status_json["summary"].get("command_queue_poll_transport_supported") is not True or
                 queue_status_json["summary"].get("command_queue_live_polling_supported") is not True or
                 queue_status_json["summary"].get("command_queue_poll_interval_sec") != "5" or
+                queue_status_json["summary"].get("command_queue_poll_jitter_pct") != "0" or
+                queue_status_json["summary"].get("command_queue_poll_backoff") != "none" or
+                queue_status_json["summary"].get("command_queue_poll_max_interval_sec") != "300" or
                 queue_status_json["summary"].get("command_queue_max_polls") != "0" or
                 queue_status_json["summary"].get("command_queue_arbitrary_policy_requested") is not False or
                 queue_status_json["summary"].get("command_queue_arbitrary_execution_allowed") is not False or

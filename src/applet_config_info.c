@@ -103,6 +103,9 @@ int applet_config_info_main(int argc, char **argv)
     printf("compiled_command_queue_allowed_commands=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_ALLOWED_COMMANDS"));
     printf("compiled_command_queue_allow_arbitrary=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_ALLOW_ARBITRARY"));
     printf("compiled_command_queue_poll_interval_sec=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"));
+    printf("compiled_command_queue_poll_jitter_pct=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_POLL_JITTER_PCT"));
+    printf("compiled_command_queue_poll_backoff=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_POLL_BACKOFF"));
+    printf("compiled_command_queue_poll_max_interval_sec=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC"));
     printf("compiled_command_queue_max_polls=%s\n", bb_config_compiled("BB_COMMAND_QUEUE_MAX_POLLS"));
     printf("effective_zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
     printf("effective_noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
@@ -114,6 +117,9 @@ int applet_config_info_main(int argc, char **argv)
     printf("effective_command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
     printf("effective_command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
     printf("effective_command_queue_poll_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
+    printf("effective_command_queue_poll_jitter_pct=%s\n", BB_COMMAND_QUEUE_POLL_JITTER_PCT);
+    printf("effective_command_queue_poll_backoff=%s\n", BB_COMMAND_QUEUE_POLL_BACKOFF);
+    printf("effective_command_queue_poll_max_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
     printf("effective_command_queue_max_polls=%s\n", BB_COMMAND_QUEUE_MAX_POLLS);
     printf("effective_command_queue_policy_valid=%s\n", command_queue_policy_valid ? "yes" : "no");
     for (i = 0; i < command_queue_policy.count; i++)

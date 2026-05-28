@@ -252,6 +252,9 @@ if (queue.get("enabled") != "no" or
         queue.get("arbitrary_policy_requested") is not False or
         queue.get("arbitrary_execution_allowed") is not False or
         queue.get("poll_interval_sec") != "5" or
+        queue.get("poll_jitter_pct") != "0" or
+        queue.get("poll_backoff") != "none" or
+        queue.get("poll_max_interval_sec") != "300" or
         queue.get("max_polls") != "0" or
         queue.get("poll_transport_supported") is not True or
         queue.get("live_polling_supported") is not True or
@@ -314,6 +317,9 @@ if (queue.get("enabled") != "no" or
         queue.get("arbitrary_policy_requested") is not False or
         queue.get("arbitrary_execution_allowed") is not False or
         queue.get("poll_interval_sec") != "5" or
+        queue.get("poll_jitter_pct") != "0" or
+        queue.get("poll_backoff") != "none" or
+        queue.get("poll_max_interval_sec") != "300" or
         queue.get("max_polls") != "0" or
         queue.get("poll_transport_supported") is not True or
         queue.get("live_polling_supported") is not True or

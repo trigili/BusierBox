@@ -93,6 +93,9 @@ BB_COMMAND_QUEUE_TOKEN_SOURCE="manual"
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS="none"
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY="no"
 BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="5"
+BB_COMMAND_QUEUE_POLL_JITTER_PCT="0"
+BB_COMMAND_QUEUE_POLL_BACKOFF="none"
+BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC="300"
 BB_COMMAND_QUEUE_MAX_POLLS="0"
 BB_SERVER_CONFIG_PATH="local/server-config.json"
 BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
@@ -197,6 +200,9 @@ BB_COMMAND_QUEUE_TOKEN_SOURCE="${BB_COMMAND_QUEUE_TOKEN_SOURCE:-manual}"
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS="${BB_COMMAND_QUEUE_ALLOWED_COMMANDS:-none}"
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY="${BB_COMMAND_QUEUE_ALLOW_ARBITRARY:-no}"
 BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="${BB_COMMAND_QUEUE_POLL_INTERVAL_SEC:-5}"
+BB_COMMAND_QUEUE_POLL_JITTER_PCT="${BB_COMMAND_QUEUE_POLL_JITTER_PCT:-0}"
+BB_COMMAND_QUEUE_POLL_BACKOFF="${BB_COMMAND_QUEUE_POLL_BACKOFF:-none}"
+BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC="${BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC:-300}"
 BB_COMMAND_QUEUE_MAX_POLLS="${BB_COMMAND_QUEUE_MAX_POLLS:-0}"
 BB_SERVER_CONFIG_PATH="${BB_SERVER_CONFIG_PATH:-local/server-config.json}"
 BB_TARGETS="${BB_TARGETS:-${BB_TARGET_PRESET:-native}}"
@@ -546,6 +552,9 @@ BB_COMMAND_QUEUE_TOKEN_SOURCE="$BB_COMMAND_QUEUE_TOKEN_SOURCE"
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS="$BB_COMMAND_QUEUE_ALLOWED_COMMANDS"
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY="$BB_COMMAND_QUEUE_ALLOW_ARBITRARY"
 BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="$BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"
+BB_COMMAND_QUEUE_POLL_JITTER_PCT="$BB_COMMAND_QUEUE_POLL_JITTER_PCT"
+BB_COMMAND_QUEUE_POLL_BACKOFF="$BB_COMMAND_QUEUE_POLL_BACKOFF"
+BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC="$BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC"
 BB_COMMAND_QUEUE_MAX_POLLS="$BB_COMMAND_QUEUE_MAX_POLLS"
 BB_SERVER_CONFIG_PATH="$BB_SERVER_CONFIG_PATH"
 BB_BUSYBOX_GROUPS="$BB_BUSYBOX_GROUPS"
@@ -939,12 +948,18 @@ validate_config() {
         no|yes) ;;
         *) _errors="$_errors\n- invalid command queue arbitrary-execution flag: $BB_COMMAND_QUEUE_ALLOW_ARBITRARY." ;;
     esac
+    case "$BB_COMMAND_QUEUE_POLL_BACKOFF" in
+        none|linear|exponential) ;;
+        *) _errors="$_errors\n- invalid command queue poll backoff: $BB_COMMAND_QUEUE_POLL_BACKOFF." ;;
+    esac
     is_int_value "$BB_RSHELL_RETRY_COUNT" || _errors="$_errors\n- BB_RSHELL_RETRY_COUNT must be an integer (-1 means retry indefinitely)."
     is_uint_value "$BB_RSHELL_RETRY_INTERVAL_SEC" || _errors="$_errors\n- BB_RSHELL_RETRY_INTERVAL_SEC must be a non-negative integer."
     is_uint_value "$BB_RSHELL_RETRY_JITTER_PCT" || _errors="$_errors\n- BB_RSHELL_RETRY_JITTER_PCT must be a non-negative integer."
     is_uint_value "$BB_RSHELL_RETRY_MAX_INTERVAL_SEC" || _errors="$_errors\n- BB_RSHELL_RETRY_MAX_INTERVAL_SEC must be a non-negative integer."
     is_uint_value "$BB_COMMAND_QUEUE_PORT" || _errors="$_errors\n- BB_COMMAND_QUEUE_PORT must be a non-negative integer."
     is_uint_value "$BB_COMMAND_QUEUE_POLL_INTERVAL_SEC" || _errors="$_errors\n- BB_COMMAND_QUEUE_POLL_INTERVAL_SEC must be a non-negative integer."
+    is_uint_value "$BB_COMMAND_QUEUE_POLL_JITTER_PCT" || _errors="$_errors\n- BB_COMMAND_QUEUE_POLL_JITTER_PCT must be a non-negative integer."
+    is_uint_value "$BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC" || _errors="$_errors\n- BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC must be a non-negative integer."
     is_uint_value "$BB_COMMAND_QUEUE_MAX_POLLS" || _errors="$_errors\n- BB_COMMAND_QUEUE_MAX_POLLS must be a non-negative integer."
     if [ "$BB_COMMAND_QUEUE_ENABLE" != yes ]; then
         [ "$BB_COMMAND_QUEUE_ALLOWED_COMMANDS" = none ] || _errors="$_errors\n- command queue is disabled but allowed commands is $BB_COMMAND_QUEUE_ALLOWED_COMMANDS; keep disabled queues at policy=none."
@@ -2949,7 +2964,7 @@ configure_applet_configuration() {
 configure_command_queue() {
     while :; do
         dialog --title "Advanced / Explicit command queue" \
-            --menu "This enables target-side polling for operator-supplied commands. It is not needed for normal reverse shells or file transfer. Leave disabled unless you explicitly want this behavior.\n\nLive polling can contact the operator endpoint, but queued command execution is not implemented." 25 92 10 \
+            --menu "This enables target-side polling for operator-supplied commands. It is not needed for normal reverse shells or file transfer. Leave disabled unless you explicitly want this behavior.\n\nLive polling can contact the operator endpoint, but queued command execution is not implemented." 28 92 13 \
             "1" "Enable command queue: $BB_COMMAND_QUEUE_ENABLE" \
             "2" "Port: $BB_COMMAND_QUEUE_PORT" \
             "3" "TLS: $BB_COMMAND_QUEUE_TLS" \
@@ -2958,7 +2973,10 @@ configure_command_queue() {
             "6" "Allowed commands policy: $BB_COMMAND_QUEUE_ALLOWED_COMMANDS" \
             "7" "Allow arbitrary commands: $BB_COMMAND_QUEUE_ALLOW_ARBITRARY" \
             "8" "Poll interval seconds: $BB_COMMAND_QUEUE_POLL_INTERVAL_SEC" \
-            "9" "Daemon max polls: $BB_COMMAND_QUEUE_MAX_POLLS" \
+            "9" "Poll backoff: $BB_COMMAND_QUEUE_POLL_BACKOFF" \
+            "10" "Poll jitter percent: $BB_COMMAND_QUEUE_POLL_JITTER_PCT" \
+            "11" "Poll max interval seconds: $BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC" \
+            "12" "Daemon max polls: $BB_COMMAND_QUEUE_MAX_POLLS" \
             "0" "Back" \
             2>"$temp_out" || return 0
         _choice=$(cat "$temp_out")
@@ -2994,7 +3012,18 @@ configure_command_queue() {
                 fi
                 ;;
             8) dialog --title "Command queue poll interval" --inputbox "Seconds between explicit live daemon poll attempts." 8 70 "$BB_COMMAND_QUEUE_POLL_INTERVAL_SEC" 2>"$temp_out" || true; BB_COMMAND_QUEUE_POLL_INTERVAL_SEC=$(cat "$temp_out") ;;
-            9) dialog --title "Command queue max polls" --inputbox "Maximum explicit live daemon polls; 0 means no fixed limit." 8 70 "$BB_COMMAND_QUEUE_MAX_POLLS" 2>"$temp_out" || true; BB_COMMAND_QUEUE_MAX_POLLS=$(cat "$temp_out") ;;
+            9)
+                dialog --title "Command queue poll backoff" --radiolist "Select interval growth for explicit live daemon polling." 12 72 3 \
+                    "none" "Fixed interval" "$(mode_onoff "$BB_COMMAND_QUEUE_POLL_BACKOFF" none)" \
+                    "linear" "Linear interval growth" "$(mode_onoff "$BB_COMMAND_QUEUE_POLL_BACKOFF" linear)" \
+                    "exponential" "Exponential interval growth" "$(mode_onoff "$BB_COMMAND_QUEUE_POLL_BACKOFF" exponential)" \
+                    2>"$temp_out" || true
+                _v=$(cat "$temp_out" | tr -d '"')
+                [ -n "$_v" ] && BB_COMMAND_QUEUE_POLL_BACKOFF="$_v"
+                ;;
+            10) dialog --title "Command queue poll jitter" --inputbox "Jitter percentage applied to explicit live daemon poll sleeps." 8 76 "$BB_COMMAND_QUEUE_POLL_JITTER_PCT" 2>"$temp_out" || true; BB_COMMAND_QUEUE_POLL_JITTER_PCT=$(cat "$temp_out") ;;
+            11) dialog --title "Command queue max poll interval" --inputbox "Maximum poll interval after backoff, in seconds." 8 70 "$BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC" 2>"$temp_out" || true; BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC=$(cat "$temp_out") ;;
+            12) dialog --title "Command queue max polls" --inputbox "Maximum explicit live daemon polls; 0 means no fixed limit." 8 70 "$BB_COMMAND_QUEUE_MAX_POLLS" 2>"$temp_out" || true; BB_COMMAND_QUEUE_MAX_POLLS=$(cat "$temp_out") ;;
             0) return 0 ;;
         esac
     done

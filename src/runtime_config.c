@@ -151,6 +151,15 @@
 #ifndef BB_COMMAND_QUEUE_POLL_INTERVAL_SEC
 #define BB_COMMAND_QUEUE_POLL_INTERVAL_SEC "5"
 #endif
+#ifndef BB_COMMAND_QUEUE_POLL_JITTER_PCT
+#define BB_COMMAND_QUEUE_POLL_JITTER_PCT "0"
+#endif
+#ifndef BB_COMMAND_QUEUE_POLL_BACKOFF
+#define BB_COMMAND_QUEUE_POLL_BACKOFF "none"
+#endif
+#ifndef BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC
+#define BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC "300"
+#endif
 #ifndef BB_COMMAND_QUEUE_MAX_POLLS
 #define BB_COMMAND_QUEUE_MAX_POLLS "0"
 #endif
@@ -213,6 +222,9 @@ static struct cfg_entry cfg[] = {
     {"BB_COMMAND_QUEUE_ALLOWED_COMMANDS", BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "", 0},
     {"BB_COMMAND_QUEUE_ALLOW_ARBITRARY", BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "", 0},
     {"BB_COMMAND_QUEUE_POLL_INTERVAL_SEC", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC, "", 0},
+    {"BB_COMMAND_QUEUE_POLL_JITTER_PCT", BB_COMMAND_QUEUE_POLL_JITTER_PCT, "", 0},
+    {"BB_COMMAND_QUEUE_POLL_BACKOFF", BB_COMMAND_QUEUE_POLL_BACKOFF, "", 0},
+    {"BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC", BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC, "", 0},
     {"BB_COMMAND_QUEUE_MAX_POLLS", BB_COMMAND_QUEUE_MAX_POLLS, "", 0},
 };
 
@@ -532,6 +544,9 @@ void bb_print_autoexec_config(void)
     printf("command_queue_allowed_commands=%s\n", bb_config_get("BB_COMMAND_QUEUE_ALLOWED_COMMANDS"));
     printf("command_queue_allow_arbitrary=%s\n", bb_config_get("BB_COMMAND_QUEUE_ALLOW_ARBITRARY"));
     printf("command_queue_poll_interval_sec=%s\n", bb_config_get("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"));
+    printf("command_queue_poll_jitter_pct=%s\n", bb_config_get("BB_COMMAND_QUEUE_POLL_JITTER_PCT"));
+    printf("command_queue_poll_backoff=%s\n", bb_config_get("BB_COMMAND_QUEUE_POLL_BACKOFF"));
+    printf("command_queue_poll_max_interval_sec=%s\n", bb_config_get("BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC"));
     printf("command_queue_max_polls=%s\n", bb_config_get("BB_COMMAND_QUEUE_MAX_POLLS"));
     printf("autorun_guard_enabled=%s\n", bb_config_get("BB_AUTORUN_GUARD_ENABLE"));
     printf("autorun_guard_path=%s\n", bb_config_get("BB_AUTORUN_GUARD_PATH"));

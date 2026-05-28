@@ -491,8 +491,10 @@ result counts. Compact safety booleans such as
 `command_queue_arbitrary_execution_allowed`, and
 `command_queue_safe_disabled_default` are also mirrored for UI badges that must
 not scan the full queue policy object. The configured
-`command_queue_poll_interval_sec` and `command_queue_max_polls` are mirrored for
-interval-polling controls. `command_queue.mode_semantics` and
+`command_queue_poll_interval_sec`, `command_queue_poll_jitter_pct`,
+`command_queue_poll_backoff`, `command_queue_poll_max_interval_sec`, and
+`command_queue_max_polls` are mirrored for interval-polling controls.
+`command_queue.mode_semantics` and
 `command_queue.mode_summary` expose the same target-side `status`, `poll`,
 `once`, and `daemon` lifecycle labels, live-poll support flags, and
 non-execution booleans used by the target applet; compact counts are mirrored

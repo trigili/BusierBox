@@ -46,6 +46,11 @@ BB_COMMAND_QUEUE_REQUIRE_TOKEN="yes"
 BB_COMMAND_QUEUE_TOKEN_SOURCE="manual"
 BB_COMMAND_QUEUE_ALLOWED_COMMANDS="none"
 BB_COMMAND_QUEUE_ALLOW_ARBITRARY="no"
+BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="5"
+BB_COMMAND_QUEUE_POLL_JITTER_PCT="0"
+BB_COMMAND_QUEUE_POLL_BACKOFF="none"
+BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC="300"
+BB_COMMAND_QUEUE_MAX_POLLS="0"
 ```
 
 Live polling has additional target-side controls. These can be supplied as
@@ -53,17 +58,26 @@ environment variables or CLI flags:
 
 ```sh
 BB_COMMAND_QUEUE_POLL_INTERVAL_SEC=5
+BB_COMMAND_QUEUE_POLL_JITTER_PCT=0
+BB_COMMAND_QUEUE_POLL_BACKOFF=none
+BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC=300
 BB_COMMAND_QUEUE_MAX_POLLS=0
 
 busierbox command-queue daemon --live \
   --operator-host 192.0.2.10 \
   --poll-interval-sec 5 \
+  --poll-backoff linear \
+  --poll-jitter-pct 10 \
+  --poll-max-interval-sec 60 \
   --max-polls 3 \
   --event-log ./command-queue-events.jsonl
 ```
 
 `--max-polls 0` means no fixed limit for `daemon`; `poll` and `once` always run
-a single live poll attempt. Each live attempt sends a plain HTTP
+a single live poll attempt. `BB_COMMAND_QUEUE_POLL_BACKOFF` may be `none`,
+`linear`, or `exponential`; jitter is applied only to daemon sleeps between
+poll attempts, and `BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC` caps the computed
+delay. Each live attempt sends a plain HTTP
 `GET /command-queue/poll` request when `BB_COMMAND_QUEUE_TLS=no`, records
 `command_queue_poll_attempt`, then `command_queue_poll_no_command`,
 `command_queue_poll_complete`, or `command_queue_poll_error`. Delivered command

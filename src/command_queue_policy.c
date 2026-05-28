@@ -34,6 +34,11 @@ static int valid_policy_value(const char *s)
                  !strcmp(s, "allowlist") || !strcmp(s, "custom"));
 }
 
+static int valid_backoff_value(const char *s)
+{
+    return s && (!strcmp(s, "none") || !strcmp(s, "linear") || !strcmp(s, "exponential"));
+}
+
 static void policy_add_error(struct command_queue_policy_report *report, const char *error)
 {
     if (report->count < (int)(sizeof(report->errors) / sizeof(report->errors[0])))
@@ -50,6 +55,12 @@ struct command_queue_policy_report bb_command_queue_validate_policy(void)
         policy_add_error(&report, "invalid command queue port");
     if (!valid_uint_value(BB_COMMAND_QUEUE_POLL_INTERVAL_SEC))
         policy_add_error(&report, "invalid command queue poll interval");
+    if (!valid_uint_value(BB_COMMAND_QUEUE_POLL_JITTER_PCT))
+        policy_add_error(&report, "invalid command queue poll jitter");
+    if (!valid_backoff_value(BB_COMMAND_QUEUE_POLL_BACKOFF))
+        policy_add_error(&report, "invalid command queue poll backoff");
+    if (!valid_uint_value(BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC))
+        policy_add_error(&report, "invalid command queue poll max interval");
     if (!valid_uint_value(BB_COMMAND_QUEUE_MAX_POLLS))
         policy_add_error(&report, "invalid command queue max polls");
     if (!exact_value(BB_COMMAND_QUEUE_TLS, "yes", "no"))

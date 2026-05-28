@@ -22,6 +22,7 @@ struct poll_run_result {
     int failures;
     int delivered_commands;
     int rejected_commands;
+    int last_delay_sec;
     int stopped_by_limit;
     int stopped_by_signal;
     char last_status[64];
@@ -34,6 +35,11 @@ static volatile sig_atomic_t stop_daemon;
 static int yes_value(const char *s)
 {
     return s && (!strcmp(s, "yes") || !strcmp(s, "1") || !strcmp(s, "true") || !strcmp(s, "on"));
+}
+
+static int valid_backoff_value(const char *s)
+{
+    return s && (!strcmp(s, "none") || !strcmp(s, "linear") || !strcmp(s, "exponential"));
 }
 
 static int parse_nonnegative_int(const char *s, int fallback)
@@ -50,6 +56,38 @@ static int parse_nonnegative_int(const char *s, int fallback)
     return (int)v;
 }
 
+static int poll_delay_for_attempt(int attempt, int interval_sec, const char *backoff,
+                                  int max_interval_sec, int jitter_pct)
+{
+    int delay = interval_sec;
+
+    if (interval_sec < 0)
+        interval_sec = 0;
+    if (max_interval_sec < interval_sec)
+        max_interval_sec = interval_sec;
+    if (!strcmp(backoff ? backoff : "", "linear"))
+        delay = interval_sec * (attempt + 1);
+    else if (!strcmp(backoff ? backoff : "", "exponential")) {
+        int i;
+        delay = interval_sec;
+        for (i = 0; i < attempt && delay < max_interval_sec; i++) {
+            if (delay > max_interval_sec / 2) {
+                delay = max_interval_sec;
+                break;
+            }
+            delay *= 2;
+        }
+    }
+    if (delay > max_interval_sec)
+        delay = max_interval_sec;
+    if (jitter_pct > 0 && delay > 0) {
+        int span = (delay * jitter_pct) / 100;
+        if (span > 0)
+            delay = delay - span + (int)((time(NULL) + attempt) % (unsigned int)(span * 2 + 1));
+    }
+    return delay < 0 ? 0 : delay;
+}
+
 static void handle_stop(int signo)
 {
     (void)signo;
@@ -64,7 +102,7 @@ static int is_help(int argc, char **argv)
 static void print_help(void)
 {
     puts("usage: busierbox command-queue [status|poll|once|daemon] [--json] [--dry-run|--live] [--operator-host HOST]");
-    puts("       busierbox command-queue daemon --live [--max-polls N] [--poll-interval-sec N] [--event-log PATH]");
+    puts("       busierbox command-queue daemon --live [--max-polls N] [--poll-interval-sec N] [--poll-backoff none|linear|exponential] [--poll-jitter-pct N] [--poll-max-interval-sec N] [--event-log PATH]");
     puts("Inspect explicit opt-in command queue policy and target polling state.");
     puts("Live mode can receive queued command metadata; command execution is not implemented.");
 }
@@ -258,7 +296,9 @@ static int connect_operator_once(const char *host, const char *port, char *err, 
 }
 
 static struct poll_run_result run_live_poll(const char *mode, const char *operator_host,
-                                            int interval_sec, int max_polls,
+                                            int interval_sec, int jitter_pct,
+                                            const char *backoff,
+                                            int backoff_max_interval_sec, int max_polls,
                                             const char *event_log)
 {
     struct poll_run_result result;
@@ -306,8 +346,10 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
             break;
         if (limit > 0 && result.attempts >= limit)
             break;
-        if (interval_sec > 0)
-            sleep((unsigned int)interval_sec);
+        result.last_delay_sec = poll_delay_for_attempt(result.attempts - 1, interval_sec, backoff,
+                                                       backoff_max_interval_sec, jitter_pct);
+        if (result.last_delay_sec > 0)
+            sleep((unsigned int)result.last_delay_sec);
     }
     result.stopped_by_signal = stop_daemon ? 1 : 0;
     result.stopped_by_limit = (!result.stopped_by_signal && !strcmp(mode, "daemon") && limit > 0 && result.attempts >= limit);
@@ -363,6 +405,7 @@ static void print_poll_run_json(const struct poll_run_result *run)
     printf(",\"failures\":%d", run ? run->failures : 0);
     printf(",\"delivered_commands\":%d", run ? run->delivered_commands : 0);
     printf(",\"rejected_commands\":%d", run ? run->rejected_commands : 0);
+    printf(",\"last_delay_sec\":%d", run ? run->last_delay_sec : 0);
     printf(",\"stopped_by_limit\":%s", run && run->stopped_by_limit ? "true" : "false");
     printf(",\"stopped_by_signal\":%s", run && run->stopped_by_signal ? "true" : "false");
     fputs(",\"last_status\":", stdout);
@@ -377,7 +420,8 @@ static void print_poll_run_json(const struct poll_run_result *run)
 }
 
 static void print_json(const char *mode, int dry_run, const char *operator_host,
-                       int interval_sec, int max_polls, const char *event_log,
+                       int interval_sec, int jitter_pct, const char *backoff,
+                       int backoff_max_interval_sec, int max_polls, const char *event_log,
                        const struct poll_run_result *run)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
@@ -458,6 +502,10 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     printf(",\"poll_transport_supported\":%s", dry_run ? "false" : "true");
     printf(",\"active_control_channel\":%s", (!dry_run && would_poll) ? "true" : "false");
     printf(",\"poll_interval_sec\":%d", interval_sec);
+    printf(",\"poll_jitter_pct\":%d", jitter_pct);
+    fputs(",\"poll_backoff\":", stdout);
+    bb_json_string(stdout, backoff ? backoff : "");
+    printf(",\"poll_max_interval_sec\":%d", backoff_max_interval_sec);
     printf(",\"max_polls\":%d", max_polls);
     fputs(",\"event_log\":", stdout);
     bb_json_string(stdout, event_log ? event_log : "");
@@ -498,7 +546,8 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
 }
 
 static void print_text(const char *mode, int dry_run, const char *operator_host,
-                       int interval_sec, int max_polls, const char *event_log,
+                       int interval_sec, int jitter_pct, const char *backoff,
+                       int backoff_max_interval_sec, int max_polls, const char *event_log,
                        const struct poll_run_result *run)
 {
     int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
@@ -538,6 +587,9 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_poll_transport_supported=%s\n", dry_run ? "no" : "yes");
     printf("command_queue_active_control_channel=%s\n", (!dry_run && mode_would_poll(mode, enabled, operator_host, &policy)) ? "yes" : "no");
     printf("command_queue_poll_interval_sec=%d\n", interval_sec);
+    printf("command_queue_poll_jitter_pct=%d\n", jitter_pct);
+    printf("command_queue_poll_backoff=%s\n", backoff ? backoff : "");
+    printf("command_queue_poll_max_interval_sec=%d\n", backoff_max_interval_sec);
     printf("command_queue_max_polls=%d\n", max_polls);
     printf("command_queue_event_log=%s\n", event_log ? event_log : "");
     printf("command_queue_status=%s\n", mode_status(mode, enabled, operator_host, &policy, dry_run));
@@ -563,6 +615,7 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_poll_run_failures=%d\n", run ? run->failures : 0);
     printf("command_queue_poll_run_delivered_commands=%d\n", run ? run->delivered_commands : 0);
     printf("command_queue_poll_run_rejected_commands=%d\n", run ? run->rejected_commands : 0);
+    printf("command_queue_poll_run_last_delay_sec=%d\n", run ? run->last_delay_sec : 0);
     printf("command_queue_poll_run_stopped_by_limit=%s\n", run && run->stopped_by_limit ? "yes" : "no");
     printf("command_queue_poll_run_stopped_by_signal=%s\n", run && run->stopped_by_signal ? "yes" : "no");
     printf("command_queue_poll_run_last_status=%s\n", run ? run->last_status : "not_run");
@@ -576,9 +629,12 @@ int applet_command_queue_main(int argc, char **argv)
     const char *mode = "status";
     const char *operator_host = BB_OPERATOR_SERVER_HOST;
     const char *event_log = "";
+    const char *backoff = BB_COMMAND_QUEUE_POLL_BACKOFF;
     struct poll_run_result run;
     int json = 0, dry_run = 1;
     int interval_sec = parse_nonnegative_int(BB_COMMAND_QUEUE_POLL_INTERVAL_SEC, 5);
+    int jitter_pct = parse_nonnegative_int(BB_COMMAND_QUEUE_POLL_JITTER_PCT, 0);
+    int backoff_max_interval_sec = parse_nonnegative_int(BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC, 300);
     int max_polls = parse_nonnegative_int(BB_COMMAND_QUEUE_MAX_POLLS, 0);
     int i;
 
@@ -599,6 +655,16 @@ int applet_command_queue_main(int argc, char **argv)
             operator_host = argv[++i];
         } else if (!strcmp(argv[i], "--poll-interval-sec") && i + 1 < argc) {
             interval_sec = parse_nonnegative_int(argv[++i], interval_sec);
+        } else if (!strcmp(argv[i], "--poll-backoff") && i + 1 < argc) {
+            backoff = argv[++i];
+            if (!valid_backoff_value(backoff)) {
+                fprintf(stderr, "command-queue: invalid --poll-backoff %s\n", backoff);
+                return 2;
+            }
+        } else if (!strcmp(argv[i], "--poll-jitter-pct") && i + 1 < argc) {
+            jitter_pct = parse_nonnegative_int(argv[++i], jitter_pct);
+        } else if (!strcmp(argv[i], "--poll-max-interval-sec") && i + 1 < argc) {
+            backoff_max_interval_sec = parse_nonnegative_int(argv[++i], backoff_max_interval_sec);
         } else if (!strcmp(argv[i], "--max-polls") && i + 1 < argc) {
             max_polls = parse_nonnegative_int(argv[++i], max_polls);
         } else if (!strcmp(argv[i], "--event-log") && i + 1 < argc) {
@@ -622,12 +688,15 @@ int applet_command_queue_main(int argc, char **argv)
         } else if (!operator_host || !operator_host[0]) {
             snprintf(run.last_status, sizeof(run.last_status), "missing_operator_host");
         } else {
-            run = run_live_poll(mode, operator_host, interval_sec, max_polls, event_log);
+            run = run_live_poll(mode, operator_host, interval_sec, jitter_pct, backoff,
+                                backoff_max_interval_sec, max_polls, event_log);
         }
     }
     if (json)
-        print_json(mode, dry_run, operator_host, interval_sec, max_polls, event_log, &run);
+        print_json(mode, dry_run, operator_host, interval_sec, jitter_pct,
+                   backoff, backoff_max_interval_sec, max_polls, event_log, &run);
     else
-        print_text(mode, dry_run, operator_host, interval_sec, max_polls, event_log, &run);
+        print_text(mode, dry_run, operator_host, interval_sec, jitter_pct,
+                   backoff, backoff_max_interval_sec, max_polls, event_log, &run);
     return 0;
 }

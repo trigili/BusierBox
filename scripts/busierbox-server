@@ -324,6 +324,9 @@ DEFAULTS = {
     "command_queue_allowed_commands": "none",
     "command_queue_allow_arbitrary": "no",
     "command_queue_poll_interval_sec": "5",
+    "command_queue_poll_jitter_pct": "0",
+    "command_queue_poll_backoff": "none",
+    "command_queue_poll_max_interval_sec": "300",
     "command_queue_max_polls": "0",
     "rshell_session_policy": "single",
 }
@@ -1653,6 +1656,12 @@ def command_queue_policy_errors(cfg):
         errors.append("invalid command queue port")
     if not valid_uint_string(cfg.get("command_queue_poll_interval_sec", "5")):
         errors.append("invalid command queue poll interval")
+    if not valid_uint_string(cfg.get("command_queue_poll_jitter_pct", "0")):
+        errors.append("invalid command queue poll jitter")
+    if str(cfg.get("command_queue_poll_backoff", "none")) not in ("none", "linear", "exponential"):
+        errors.append("invalid command queue poll backoff")
+    if not valid_uint_string(cfg.get("command_queue_poll_max_interval_sec", "300")):
+        errors.append("invalid command queue poll max interval")
     if not valid_uint_string(cfg.get("command_queue_max_polls", "0")):
         errors.append("invalid command queue max polls")
     if not valid_yes_no(cfg.get("command_queue_tls", "yes")):
@@ -1785,6 +1794,9 @@ def command_queue_summary(cfg):
     allowed_commands = str(cfg.get("command_queue_allowed_commands", "none"))
     allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
     poll_interval_sec = str(cfg.get("command_queue_poll_interval_sec", "5"))
+    poll_jitter_pct = str(cfg.get("command_queue_poll_jitter_pct", "0"))
+    poll_backoff = str(cfg.get("command_queue_poll_backoff", "none"))
+    poll_max_interval_sec = str(cfg.get("command_queue_poll_max_interval_sec", "300"))
     max_polls = str(cfg.get("command_queue_max_polls", "0"))
     policy_errors = command_queue_policy_errors(cfg)
     policy_valid = not policy_errors
@@ -1807,6 +1819,9 @@ def command_queue_summary(cfg):
         "live_polling_supported": True,
         "active_control_channel": False,
         "poll_interval_sec": poll_interval_sec,
+        "poll_jitter_pct": poll_jitter_pct,
+        "poll_backoff": poll_backoff,
+        "poll_max_interval_sec": poll_max_interval_sec,
         "max_polls": max_polls,
         "arbitrary_policy_requested": arbitrary_policy_requested,
         "arbitrary_execution_allowed": False,
@@ -1823,6 +1838,9 @@ def command_queue_summary(cfg):
         "allowed_commands": allowed_commands,
         "allow_arbitrary": allow_arbitrary,
         "poll_interval_sec": poll_interval_sec,
+        "poll_jitter_pct": poll_jitter_pct,
+        "poll_backoff": poll_backoff,
+        "poll_max_interval_sec": poll_max_interval_sec,
         "max_polls": max_polls,
         "policy_valid": policy_valid,
         "policy_errors": policy_errors,
@@ -4944,6 +4962,9 @@ def status_document(cfg):
         "command_queue_poll_transport_supported": bool(command_queue_policy_summary.get("poll_transport_supported", False)),
         "command_queue_live_polling_supported": bool(command_queue_policy_summary.get("live_polling_supported", False)),
         "command_queue_poll_interval_sec": command_queue_policy_summary.get("poll_interval_sec", "5"),
+        "command_queue_poll_jitter_pct": command_queue_policy_summary.get("poll_jitter_pct", "0"),
+        "command_queue_poll_backoff": command_queue_policy_summary.get("poll_backoff", "none"),
+        "command_queue_poll_max_interval_sec": command_queue_policy_summary.get("poll_max_interval_sec", "300"),
         "command_queue_max_polls": command_queue_policy_summary.get("max_polls", "0"),
         "command_queue_arbitrary_policy_requested": bool(command_queue_policy_summary.get("arbitrary_policy_requested", False)),
         "command_queue_arbitrary_execution_allowed": bool(command_queue_policy_summary.get("arbitrary_execution_allowed", False)),
@@ -5572,6 +5593,7 @@ def print_status(cfg, json_output=False):
     print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')}")
     print(f"  allowed_commands={queue.get('allowed_commands', '')} allow_arbitrary={queue.get('allow_arbitrary', '')} active_control_channel=no")
     print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={'yes' if queue.get('configured_for_polling') else 'no'} arbitrary_policy_requested={'yes' if queue.get('arbitrary_policy_requested') else 'no'} arbitrary_execution_allowed=no")
+    print(f"  polling: interval={queue.get('poll_interval_sec', '')} jitter_pct={queue.get('poll_jitter_pct', '')} backoff={queue.get('poll_backoff', '')} max_interval={queue.get('poll_max_interval_sec', '')} max_polls={queue.get('max_polls', '')}")
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported=no delivery_supported=no")
