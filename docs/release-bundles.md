@@ -929,8 +929,9 @@ from an invalid policy. Human `--status` and the line-oriented fallback print a
 compact warning summary by total, type, service, and port before the detailed
 warning records. Service-related
 warnings include the configured and actual states, bind address, port, PID,
-PID ownership evidence, listener PIDs, possible bind owners, error text, and
-process/session log paths when those fields are available. This lets a TUI, future web UI, or
+PID ownership evidence, listener PIDs, possible bind owners with process name,
+executable path, and command line, error text, and process/session log paths
+when those fields are available. This lets a TUI, future web UI, or
 automation client show actionable cleanup guidance without scraping the
 human-readable `--status` output. Actual service state is bind-address aware:
 a listener on the same port but a different address is reported as listener

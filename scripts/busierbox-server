@@ -5540,6 +5540,29 @@ def pid_cmdline(pid):
         return ""
 
 
+def pid_comm(pid):
+    try:
+        return Path(f"/proc/{int(pid)}/comm").read_text(encoding="utf-8", errors="replace").strip()
+    except (OSError, ValueError, TypeError):
+        return ""
+
+
+def pid_exe(pid):
+    try:
+        return os.readlink(f"/proc/{int(pid)}/exe")
+    except (OSError, ValueError, TypeError):
+        return ""
+
+
+def pid_process_record(pid):
+    return {
+        "pid": int(pid),
+        "process_name": pid_comm(pid),
+        "exe": pid_exe(pid),
+        "cmdline": pid_cmdline(pid),
+    }
+
+
 def pid_cmdline_args(pid):
     try:
         raw = Path(f"/proc/{int(pid)}/cmdline").read_bytes()
@@ -5692,7 +5715,7 @@ def listener_endpoints(port):
     for entry in entries:
         pids = inode_pids.get(entry["inode"], [])
         entry["pids"] = pids
-        entry["processes"] = [{"pid": pid, "cmdline": pid_cmdline(pid)} for pid in pids]
+        entry["processes"] = [pid_process_record(pid) for pid in pids]
     return entries
 
 
@@ -5768,13 +5791,20 @@ def bind_listen_socket(cfg, service, port, backlog):
             sock.close()
         except OSError:
             pass
-        owners = [{"pid": pid, "cmdline": pid_cmdline(pid)} for pid in port_listener_pids(port)]
+        owners = [pid_process_record(pid) for pid in port_listener_pids(port)]
         mark_service_error(cfg, service, exc, {"listen_host": str(cfg["listen_host"]), "port": int(port), "owners": owners}, event_name="bind_error")
         print(f"{service}: unable to bind {cfg['listen_host']}:{port}: {exc}", file=sys.stderr)
         if owners:
             print("possible listener owners:", file=sys.stderr)
             for owner in owners:
-                print(f"  pid={owner['pid']} {owner['cmdline']}", file=sys.stderr)
+                details = []
+                if owner.get("process_name"):
+                    details.append(f"process={owner.get('process_name')}")
+                if owner.get("exe"):
+                    details.append(f"exe={owner.get('exe')}")
+                if owner.get("cmdline"):
+                    details.append(f"cmdline={owner.get('cmdline')}")
+                print(f"  pid={owner['pid']} {' '.join(details)}", file=sys.stderr)
         print("Run: scripts/busierbox-server --status", file=sys.stderr)
         print("Or stop managed listeners with: scripts/busierbox-server --stop", file=sys.stderr)
         raise
@@ -7474,10 +7504,7 @@ def service_status_rows(cfg):
             "matching_listener_pids": info.get("matching_listener_pids", []),
             "listener_endpoints": info.get("listener_endpoints", []),
             "matching_listener_endpoints": info.get("matching_listener_endpoints", []),
-            "listener_processes": [
-                {"pid": listener_pid, "cmdline": pid_cmdline(listener_pid)}
-                for listener_pid in info.get("listener_pids", [])
-            ],
+            "listener_processes": [pid_process_record(listener_pid) for listener_pid in info.get("listener_pids", [])],
             "stale": stale,
             "error": rec.get("error", ""),
             "stopped_at": rec.get("stopped_at", ""),
@@ -9377,10 +9404,10 @@ def print_status(cfg, json_output=False):
                 print(f"    listener={endpoint.get('address', '')}:{endpoint.get('port', '')} family={endpoint.get('family', '')} pids={pids}")
         if row["listener_processes"]:
             for owner in row["listener_processes"]:
-                print(f"    listener_pid={owner['pid']} {owner.get('cmdline', '')}")
+                print(f"    listener_pid={owner['pid']} process={owner.get('process_name', '')} exe={owner.get('exe', '')} cmdline={owner.get('cmdline', '')}")
         if row["owners"]:
             for owner in row["owners"]:
-                print(f"    recorded_owner_pid={owner.get('pid', '')} {owner.get('cmdline', '')}")
+                print(f"    recorded_owner_pid={owner.get('pid', '')} process={owner.get('process_name', '')} exe={owner.get('exe', '')} cmdline={owner.get('cmdline', '')}")
         if row["error"]:
             print(f"    error: {row['error']}")
         if row.get("stopped_reason"):
@@ -9735,7 +9762,7 @@ def print_workbench(cfg, include_api_summary=True):
             if warning.get("error"):
                 print(f"    error: {warning.get('error', '')}")
             for owner in warning.get("owners") or []:
-                print(f"    owner_pid={owner.get('pid', '')} {owner.get('cmdline', '')}")
+                print(f"    owner_pid={owner.get('pid', '')} process={owner.get('process_name', '')} exe={owner.get('exe', '')} cmdline={owner.get('cmdline', '')}")
             for pid in warning.get("listener_pids") or []:
                 print(f"    listener_pid={pid}")
     else:

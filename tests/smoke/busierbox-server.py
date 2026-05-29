@@ -2406,7 +2406,12 @@ def main():
             print(json.dumps(state_service, indent=2), file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
-        if not rows["file-service"].get("listener_pids") or not rows["file-service"].get("listener_processes"):
+        listener_processes = rows["file-service"].get("listener_processes") or []
+        if (not rows["file-service"].get("listener_pids") or
+                not listener_processes or
+                not listener_processes[0].get("process_name") or
+                not listener_processes[0].get("exe") or
+                "cmdline" not in listener_processes[0]):
             print("status missing actual listener pid/process details", file=sys.stderr)
             lifecycle_proc.terminate()
             return 1
@@ -2996,8 +3001,19 @@ def main():
         if state_after_bind["services"]["file-service"].get("status") != "error":
             print("bind failure did not mark service error", file=sys.stderr)
             return 1
-        if not state_after_bind["services"]["file-service"].get("owners"):
+        bind_fail_owners = state_after_bind["services"]["file-service"].get("owners") or []
+        if not bind_fail_owners:
             print("bind failure did not record possible listener owners", file=sys.stderr)
+            return 1
+        if (not bind_fail_owners[-1].get("process_name") or
+                not bind_fail_owners[-1].get("exe") or
+                "cmdline" not in bind_fail_owners[-1] or
+                "process=" not in combined_bind or
+                "exe=" not in combined_bind or
+                "cmdline=" not in combined_bind):
+            print("bind failure did not record structured owner process details", file=sys.stderr)
+            print(combined_bind, file=sys.stderr)
+            print(json.dumps(bind_fail_owners, indent=2), file=sys.stderr)
             return 1
         command_queue_bind_state = Path(tmp) / "operator-session" / "command-queue-bind-fail-state.json"
         command_queue_bind_cfg = Path(tmp) / "server-config-command-queue-bind-fail.json"
@@ -3051,6 +3067,9 @@ def main():
                 bind_fail_warnings[-1].get("bind_address") != "127.0.0.1" or
                 bind_fail_warnings[-1].get("port") != bind_fail_port or
                 not bind_fail_warnings[-1].get("owners") or
+                not bind_fail_warnings[-1].get("owners", [{}])[-1].get("process_name") or
+                not bind_fail_warnings[-1].get("owners", [{}])[-1].get("exe") or
+                "cmdline" not in bind_fail_warnings[-1].get("owners", [{}])[-1] or
                 bind_fail_service.get("warning_count") != 1 or
                 "service_error" not in bind_fail_service.get("warning_types", []) or
                 bind_fail_port_row.get("warning_count") != 1 or
@@ -3147,6 +3166,10 @@ def main():
                 "Warning summary:" not in bind_fail_text_status.stdout or
                 "service_error=1" not in bind_fail_text_status.stdout or
                 "services=file-service=1" not in bind_fail_text_status.stdout or
+                "recorded_owner_pid=" not in bind_fail_text_status.stdout or
+                "process=" not in bind_fail_text_status.stdout or
+                "exe=" not in bind_fail_text_status.stdout or
+                "cmdline=" not in bind_fail_text_status.stdout or
                 f"ports={bind_fail_port}=1" not in bind_fail_text_status.stdout):
             print("bind failure text status missing inline service warning badge", file=sys.stderr)
             print(bind_fail_text_status.stdout, file=sys.stderr)
@@ -3161,6 +3184,9 @@ def main():
                 "unable to bind" not in bind_fail_workbench.stdout or
                 f"bind: 127.0.0.1:{bind_fail_port}" not in bind_fail_workbench.stdout or
                 "owner_pid=" not in bind_fail_workbench.stdout or
+                "process=" not in bind_fail_workbench.stdout or
+                "exe=" not in bind_fail_workbench.stdout or
+                "cmdline=" not in bind_fail_workbench.stdout or
                 "suggested_action:" not in bind_fail_workbench.stdout or
                 "Warning summary:" not in bind_fail_workbench.stdout or
                 "service_error=1" not in bind_fail_workbench.stdout or
