@@ -5346,6 +5346,98 @@ def main():
             print("server api status missing target collection", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+
+        action_operator_dir = Path(tmp) / "operator-session-target-actions"
+        action_cfg = Path(tmp) / "server-config-target-actions.json"
+        action_cfg.write_text(json.dumps({
+            "operator_session_dir": str(action_operator_dir),
+            "session_root": str(Path(tmp) / "sessions-target-actions"),
+            "server_state": str(action_operator_dir / "server-state.json"),
+            "staged_files": str(action_operator_dir / "staged-files.json"),
+            "command_queue_file": str(action_operator_dir / "command-queue.json"),
+            "targets_file": str(action_operator_dir / "targets.json"),
+            "listen_host": "127.0.0.1",
+            "file_service_port": free_port(),
+        }), encoding="utf-8")
+        action_label = run(
+            "scripts/busierbox-server",
+            "--config", str(action_cfg),
+            "--set-target-label", "target-action",
+            "--target-label", "Action Router",
+        )
+        if action_label.returncode != 0:
+            print("target workflow action label setup failed", file=sys.stderr)
+            print(action_label.stderr, file=sys.stderr)
+            return 1
+        action_staged_source = Path(tmp) / "action-staged.txt"
+        action_staged_source.write_text("target workflow staged file\n", encoding="utf-8")
+        action_stage = run(
+            "scripts/busierbox-server",
+            "--config", str(action_cfg),
+            "--run-target-workflow-action", "target-action:stage-file-fetch",
+            "--target-workflow-local-file", str(action_staged_source),
+            "--target-workflow-request-name", "action-staged.txt",
+        )
+        if (action_stage.returncode != 0 or
+                "target workflow action: target-action:stage-file-fetch" not in action_stage.stdout or
+                "headless_command=" not in action_stage.stdout or
+                "target=target-action label=Action Router" not in action_stage.stdout or
+                "action-staged.txt" not in action_stage.stdout):
+            print("headless target workflow stage action failed", file=sys.stderr)
+            print(action_stage.stdout, file=sys.stderr)
+            print(action_stage.stderr, file=sys.stderr)
+            return 1
+        line_action_state = action_operator_dir / "line-target-action-state.json"
+        line_master, line_slave = pty.openpty()
+        try:
+            line_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(action_cfg),
+                    "--state-file", str(line_action_state),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=line_slave,
+                stdout=line_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(line_slave)
+            line_slave = -1
+            time.sleep(0.5)
+            os.write(line_master, b"15\ntarget-action:queue-command\nbusierbox survey --json\nq\n")
+            _line_stdout, line_stderr = line_proc.communicate(timeout=8)
+        finally:
+            if line_slave != -1:
+                os.close(line_slave)
+            try:
+                os.close(line_master)
+            except OSError:
+                pass
+        if line_proc.returncode != 0 or "Traceback" in (line_stderr or ""):
+            print("line TUI target workflow action did not exit cleanly", file=sys.stderr)
+            print(line_stderr or "", file=sys.stderr)
+            return 1
+        action_doc = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(action_cfg),
+            "--json-status",
+        ).stdout)
+        action_queue = (action_doc.get("command_queue") or {}).get("commands_by_target_id", {}).get("target-action") or []
+        action_staged = (action_doc.get("staged_by_target_id") or {}).get("target-action") or []
+        action_events = action_doc.get("events_by_event") or {}
+        if (len(action_queue) != 1 or
+                action_queue[0].get("command") != "busierbox survey --json" or
+                len(action_staged) != 1 or
+                action_staged[0].get("request_name") != "action-staged.txt" or
+                not action_events.get("target_workflow_action_selected") or
+                action_doc.get("summary", {}).get("command_queue_target_counts", {}).get("target-action") != 1 or
+                action_doc.get("summary", {}).get("staged_target_counts", {}).get("target-action") != 1):
+            print("target workflow actions did not mutate target-scoped queue/staged state", file=sys.stderr)
+            print(json.dumps(action_doc, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
         if (upload_doc.get("target_attribution", {}).get("upload_with_target_count") != 1 or
                 upload_doc.get("target_attribution", {}).get("upload_without_target_count") != 0 or
                 upload_doc.get("target_attribution_records_by_scope", {}).get("uploads", {}).get("all_activity_has_target_id") is not True or

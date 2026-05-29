@@ -14379,6 +14379,97 @@ def stop_recorded_service(cfg, service):
         print(f"{service}: unable to stop pid {pid}: {exc}", file=sys.stderr)
 
 
+def scoped_target_cfg(cfg, target_id, target_label=""):
+    scoped = dict(cfg)
+    scoped["_target_id_filter"] = str(target_id or "").strip()
+    if target_label:
+        scoped["_target_label_filter"] = str(target_label or "")
+    return scoped
+
+
+def find_target_workflow_action(cfg, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("target workflow action is required")
+    snap = workbench_snapshot(cfg)
+    actions = snap.get("target_workflow_actions") or []
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(actions):
+            raise ValueError(f"target workflow action number out of range: {text}")
+        return actions[idx]
+    for rec in actions:
+        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
+            return rec
+    raise ValueError(f"target workflow action not found: {text}")
+
+
+def run_target_workflow_action(cfg, selector, command_input="", local_file="", request_name="", input_func=None):
+    rec = find_target_workflow_action(cfg, selector)
+    action_id = str(rec.get("action_id") or "")
+    target_id = str(rec.get("target_id") or "")
+    target_label = str(rec.get("target_label") or "")
+    scoped = scoped_target_cfg(cfg, target_id, target_label=target_label)
+    append_event(cfg, "workbench", "target_workflow_action_selected", details={
+        "id": rec.get("id", ""),
+        "action_id": action_id,
+        "target_id": target_id,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "requires_input": bool(rec.get("requires_input")),
+    })
+    print(f"target workflow action: {rec.get('id', '')}")
+    print(f"headless_command={rec.get('headless_command', rec.get('command', ''))}")
+
+    if action_id == "inspect-status":
+        return print_status(scoped, json_output=False)
+    if action_id == "open-workbench":
+        print_workbench(scoped)
+        return 0
+    if action_id == "queue-command":
+        command = str(command_input or "")
+        if not command and input_func:
+            value = input_func("command to queue> ")
+            command = value if value is not None else ""
+        if not command.strip():
+            raise ValueError("queue-command target workflow action requires a command")
+        queued = queue_command(scoped, command)
+        print(f"queued {queued['id']}: {queued['command']}")
+        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        return 0
+    if action_id == "stage-file-fetch":
+        path = str(local_file or "")
+        if not path and input_func:
+            value = input_func("local file> ")
+            path = value if value is not None else ""
+        request = str(request_name or "")
+        if not request and input_func:
+            value = input_func("target request name> ")
+            request = value if value is not None else ""
+        if not path.strip():
+            raise ValueError("stage-file-fetch target workflow action requires a local file")
+        if not request.strip():
+            request = Path(path).name
+        staged = stage_file(scoped, path, request)
+        print(f"staged {staged['request_name']} <- {staged['source_path']}")
+        print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
+        print(render_fetch_command(staged["request_name"], scoped))
+        return 0
+    if action_id == "start-file-service":
+        start_service_process(scoped, "file-service")
+        return 0
+    if action_id == "serve-survey-bootstrap":
+        start_service_process(scoped, "survey-bootstrap")
+        return 0
+    if action_id.startswith("start-bridge:"):
+        profile = str(rec.get("bridge_profile") or action_id.split(":", 1)[1])
+        if not profile:
+            raise ValueError("start-bridge target workflow action is missing a bridge profile")
+        start_service_process(scoped, "bridge", argv_extra=["--bridge-profile", profile])
+        return 0
+    raise ValueError(f"unsupported target workflow action: {action_id}")
+
+
 def run_line_tui(cfg):
     def line_input(prompt):
         sys.stdout.write(prompt)
@@ -14438,6 +14529,7 @@ def run_line_tui(cfg):
         print("  12 start background workflow job")
         print("  13 cancel background workflow job")
         print("  14 configure BusierBox build field")
+        print("  15 run target workflow action")
         print("  c show/copy generated commands")
         print("  r refresh")
         print("  ? help")
@@ -14514,6 +14606,20 @@ def run_line_tui(cfg):
                 "action_count": len(snap.get("workbench_actions") or []),
                 "target_workflow_action_count": len(snap.get("target_workflow_actions") or []),
             })
+        elif choice == "15":
+            snap = workbench_snapshot(cfg)
+            actions = snap.get("target_workflow_actions") or []
+            for idx, rec in enumerate(actions, 1):
+                print(f"{idx}: {rec.get('id', '')} {rec.get('label', '')}")
+                print(f"   command: {rec.get('headless_command', rec.get('command', ''))}")
+                print(f"   target={rec.get('target_id', '')} workflow={rec.get('workflow', '')} input={'yes' if rec.get('requires_input') else 'no'}")
+            selected_line = line_input("target workflow action id or number> ")
+            selected = selected_line.strip() if selected_line is not None else ""
+            if selected:
+                try:
+                    run_target_workflow_action(cfg, selected, input_func=line_input)
+                except (ValueError, IndexError) as exc:
+                    print(exc)
         elif choice == "12":
             snap = workbench_snapshot(cfg)
             runnable = [rec for rec in snap.get("workbench_actions") or [] if rec.get("background_supported")]
@@ -14580,7 +14686,7 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage release item, 11 actions, 12 start job, 13 cancel job, 14 config, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 
@@ -15204,6 +15310,14 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     parser.add_argument("--cancel-workbench-job",
                         help="cancel a managed workbench background job by id when ownership evidence matches")
     parser.add_argument("--job-command", help=argparse.SUPPRESS)
+    parser.add_argument("--run-target-workflow-action",
+                        help="run a target workflow action by id or visible number")
+    parser.add_argument("--target-workflow-command",
+                        help="command text for the queue-command target workflow action")
+    parser.add_argument("--target-workflow-local-file",
+                        help="local file path for the stage-file-fetch target workflow action")
+    parser.add_argument("--target-workflow-request-name",
+                        help="target request name for the stage-file-fetch target workflow action")
     parser.add_argument("--list-build-config", action="store_true",
                         help="list guided BusierBox build configuration fields")
     parser.add_argument("--set-build-config", action="append", default=[],
@@ -15364,6 +15478,14 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             print(f"cancel requested for workbench job {rec.get('id', args.cancel_workbench_job)}")
             print(f"pid={rec.get('pid', '')}")
             return 0
+        if args.run_target_workflow_action:
+            return run_target_workflow_action(
+                cfg,
+                args.run_target_workflow_action,
+                command_input=args.target_workflow_command or "",
+                local_file=args.target_workflow_local_file or "",
+                request_name=args.target_workflow_request_name or "",
+            )
         if args.list_build_config:
             for rec in workbench_config_field_records(cfg):
                 print(f"{rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} category={rec.get('category', '')} configured={'yes' if rec.get('configured') else 'no'}")

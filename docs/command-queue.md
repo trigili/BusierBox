@@ -356,6 +356,23 @@ fetch, start the file service, and start any bridge profile tied to that target.
 Each action carries a `headless_command` so the TUI can show the exact CLI path
 instead of hiding automation behind an interactive-only flow.
 
+The same actions can be run headlessly or from the line-oriented TUI. For
+automation, use the stable action id:
+
+```sh
+scripts/busierbox-server --run-target-workflow-action target-alpha:queue-command \
+  --target-workflow-command 'busierbox survey --json'
+
+scripts/busierbox-server --run-target-workflow-action target-alpha:stage-file-fetch \
+  --target-workflow-local-file ./dist/busierbox-target-full \
+  --target-workflow-request-name busierbox
+```
+
+In line-mode TUI, action `15` lists the target workflow actions and prompts for
+the required command/path fields before applying the same target-scoped queue or
+staging operation. No action changes the safety boundary: target execution still
+requires an explicit target-side fetch, upload, poll, or bridge connection.
+
 The smoke suite includes a deterministic intermittent-connectivity harness for
 this path. It queues target-scoped work while targets are offline, proves an
 anonymous poll cannot drain target mailboxes, simulates a stale/offline
