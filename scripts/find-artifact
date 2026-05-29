@@ -526,6 +526,34 @@ def match_indexes(rows):
     return indexes
 
 
+def dedupe_alternative_indexes(records):
+    by_release = {}
+    by_tuple_path = {}
+    by_payload_preset = {}
+    by_compatibility = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        release = rec.get("release_name", "")
+        tuple_path = rec.get("tuple_path", "")
+        payload_preset = rec.get("payload_preset", "")
+        compatibility = rec.get("compatibility_label", "")
+        if release:
+            by_release.setdefault(release, []).append(rec)
+        if tuple_path:
+            by_tuple_path.setdefault(tuple_path, []).append(rec)
+        if payload_preset:
+            by_payload_preset.setdefault(payload_preset, []).append(rec)
+        if compatibility:
+            by_compatibility.setdefault(compatibility, []).append(rec)
+    return {
+        "dedupe_alternatives_by_release": by_release,
+        "dedupe_alternatives_by_tuple_path": by_tuple_path,
+        "dedupe_alternatives_by_payload_preset": by_payload_preset,
+        "dedupe_alternatives_by_compatibility": by_compatibility,
+    }
+
+
 def api_collection_record(name, count, indexes, summary_key, primary_key=""):
     return {
         "name": name,
@@ -581,6 +609,7 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
     dedupe = (index.get("dedupe", {}).get(selected_sha, {}) or {}).get("artifacts") or []
     visible_matches = rows if args.all else rows[:1]
     indexes = match_indexes(visible_matches)
+    dedupe_indexes = dedupe_alternative_indexes(dedupe)
     filters = filter_records(args, survey_context)
     filters_by_name, filters_by_source, filters_by_name_source = filter_record_indexes(filters)
     api_collections = {
@@ -613,7 +642,12 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
         "dedupe_alternatives": api_collection_record(
             "dedupe_alternatives",
             len(dedupe),
-            [],
+            [
+                "dedupe_alternatives_by_release",
+                "dedupe_alternatives_by_tuple_path",
+                "dedupe_alternatives_by_payload_preset",
+                "dedupe_alternatives_by_compatibility",
+            ],
             "dedupe_count",
             "artifact_path",
         ),
@@ -661,6 +695,7 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
         "selected": selected,
         "dedupe_alternatives": dedupe,
         "dedupe_count": len(dedupe),
+        **dedupe_indexes,
         "matches": visible_matches,
         **indexes,
         "api_collections": api_collections,
@@ -668,6 +703,7 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
             "release_count": index.get("release_count", 0),
             "artifact_count": index.get("artifact_count", 0),
             "deduplicated_artifact_count": index.get("deduplicated_artifact_count", 0),
+            "duplicate_artifact_hash_count": index.get("duplicate_artifact_hash_count", 0),
             "release_self_test_count": index.get("release_self_test_count", 0),
             "release_license_count": index.get("release_license_count", 0),
             "release_license_valid_count": index.get("release_license_valid_count", 0),
@@ -677,6 +713,12 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
             "release_self_test_command_queue_execution_supported_count": index.get("release_self_test_command_queue_execution_supported_count", 0),
             "release_self_test_command_queue_operator_supplied_command_execution_count": index.get("release_self_test_command_queue_operator_supplied_command_execution_count", 0),
             "artifacts_by_sha_count": len(index.get("artifacts_by_sha") or {}),
+            "dedupe_records_by_count": len(index.get("dedupe_records_by_count") or {}),
+            "dedupe_records_by_duplicate": len(index.get("dedupe_records_by_duplicate") or {}),
+            "dedupe_records_by_release": len(index.get("dedupe_records_by_release") or {}),
+            "dedupe_records_by_tuple_path": len(index.get("dedupe_records_by_tuple_path") or {}),
+            "dedupe_records_by_payload_preset": len(index.get("dedupe_records_by_payload_preset") or {}),
+            "dedupe_records_by_compatibility": len(index.get("dedupe_records_by_compatibility") or {}),
             "artifacts_by_release_count": len(index.get("artifacts_by_release") or {}),
             "artifacts_by_tuple_path_count": len(index.get("artifacts_by_tuple_path") or {}),
             "artifacts_by_tool_count": len(index.get("artifacts_by_tool") or {}),

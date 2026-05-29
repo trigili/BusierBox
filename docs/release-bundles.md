@@ -202,7 +202,18 @@ full artifact-record maps named `artifacts_by_tool`,
 `artifacts_by_payload_preset`, `artifacts_by_feature`, and
 `artifacts_by_compatibility` for TUI/web clients that need to render details
 without rescanning every artifact. `compatibility_counts` gives compact badge
-counts for exact/likely/heuristic/unsafe/incompatible buckets. Composite maps
+counts for exact/likely/heuristic/unsafe/incompatible buckets. The `dedupe`
+map keeps the legacy sha256 lookup, while `dedupe_records` adds UI-friendly
+records with release names, tuple paths, payload presets, compatibility labels,
+artifact paths, duplicate flags, and lookup maps named
+`dedupe_records_by_sha256`, `dedupe_records_by_count`,
+`dedupe_records_by_duplicate`, `dedupe_records_by_release`,
+`dedupe_records_by_tuple_path`, `dedupe_records_by_payload_preset`, and
+`dedupe_records_by_compatibility`. `scripts/find-artifact
+--recommendation-json` mirrors the selected artifact's hash alternatives under
+`dedupe_alternatives` with indexes named `dedupe_alternatives_by_release`,
+`dedupe_alternatives_by_tuple_path`, `dedupe_alternatives_by_payload_preset`,
+and `dedupe_alternatives_by_compatibility`. Composite maps
 `artifacts_by_tool_payload_preset`, `artifacts_by_feature_payload_preset`, and
 `artifacts_by_tuple_payload_preset` let clients jump directly to combinations
 such as `tcpdump:survey-core`, `reverse-ssh:ssh-operator`, or

@@ -188,6 +188,7 @@ assert index["release_self_test_command_queue_token_configured_count"] == 0
 assert index["release_self_test_command_queue_execution_supported_count"] == 0
 assert index["release_self_test_command_queue_operator_supplied_command_execution_count"] == 0
 assert index["deduplicated_artifact_count"] == 2
+assert index["duplicate_artifact_hash_count"] == 1
 assert index["device_count"] == 2
 assert index["device_record_count"] == 3
 assert index["tuple_count"] == 1
@@ -197,6 +198,22 @@ assert "ssh-operator" in index["payload_presets"]
 assert "trailer" in index["features"]
 sha, rec = next(iter(index["dedupe"].items()))
 assert rec["count"] == 2
+assert rec["artifacts"][0]["artifact_path"]
+assert rec["artifacts"][0]["tuple_path"] == "by-tuple/mipsel/musl/4.x/mips32r2-24kc"
+assert rec["artifacts"][0]["payload_preset"] in {"survey-core", "ssh-operator"}
+assert rec["artifacts"][0]["compatibility_label"] == "exact"
+assert len(index["dedupe_records"]) == 2
+assert index["dedupe_records_by_sha256"][sha]["duplicate"] is True
+assert index["dedupe_records_by_sha256"][sha]["count"] == 2
+assert set(index["dedupe_records_by_sha256"][sha]["release_names"]) == {"one", "two"}
+assert set(index["dedupe_records_by_sha256"][sha]["payload_presets"]) == {"survey-core", "ssh-operator"}
+assert index["dedupe_records_by_count"]["2"][0]["sha256"] == sha
+assert index["dedupe_records_by_duplicate"]["true"][0]["sha256"] == sha
+assert len(index["dedupe_records_by_duplicate"]["false"]) == 1
+assert index["dedupe_records_by_release"]["one"][0]["sha256"] == sha
+assert index["dedupe_records_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]
+assert index["dedupe_records_by_payload_preset"]["survey-core"][0]["duplicate"] is True
+assert index["dedupe_records_by_compatibility"]["unsafe"][0]["duplicate"] is False
 assert len(index["artifacts_by_sha"][sha]) == 2
 assert {item["release_name"] for item in index["artifacts_by_sha"][sha]} == {"one", "two"}
 assert index["release_self_tests_by_release"]["one"][0]["status"] == "pass"
@@ -315,6 +332,9 @@ assert api["dedupe"]["count"] == index["deduplicated_artifact_count"]
 assert api["dedupe"]["summary_key"] == "deduplicated_artifact_count"
 assert api["dedupe"]["count_summary_key"] == "deduplicated_artifact_count"
 assert api["dedupe"]["primary_key"] == "sha256"
+assert "dedupe_records_by_sha256" in api["dedupe"]["indexes"]
+assert "dedupe_records_by_duplicate" in api["dedupe"]["indexes"]
+assert "dedupe_records_by_payload_preset" in api["dedupe"]["indexes"]
 assert api["devices"]["count"] == index["device_record_count"]
 assert api["devices"]["summary_key"] == "device_record_count"
 assert api["devices"]["count_summary_key"] == "device_record_count"
@@ -344,6 +364,7 @@ assert "artifacts_by_tool" in resources_by_name["artifacts"]["indexes"]
 assert resources_by_records_key["recommendations"][0]["collection_key"] == "api_collections.recommendations"
 assert resources_by_summary_key["recommendation_count"][0]["name"] == "recommendations"
 assert resources_by_primary_key["sha256"][0]["name"] == "dedupe"
+assert resources_by_name["dedupe"]["indexes"]
 PY
 
 scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null
@@ -463,6 +484,8 @@ assert doc["api_collections"]["matches"]["count_summary_key"] == "visible_match_
 assert doc["api_collections"]["matches"]["primary_key"] == "artifact_path"
 assert doc["api_collections"]["dedupe_alternatives"]["count_summary_key"] == "dedupe_count"
 assert doc["api_collections"]["dedupe_alternatives"]["primary_key"] == "artifact_path"
+assert "dedupe_alternatives_by_release" in doc["api_collections"]["dedupe_alternatives"]["indexes"]
+assert "dedupe_alternatives_by_payload_preset" in doc["api_collections"]["dedupe_alternatives"]["indexes"]
 assert doc["api_collections"]["filter_records"]["count"] == doc["filter_count"]
 assert doc["api_collections"]["filter_records"]["summary_key"] == "filter_count"
 assert doc["api_collections"]["filter_records"]["count_summary_key"] == "filter_count"
@@ -488,7 +511,13 @@ assert doc["matches_by_component_license"]["BusyBox:GPL-2.0"][0]["release_name"]
 assert doc["matches_by_command_queue_enabled"]["false"][0]["release_name"] == "two"
 assert doc["matches_by_command_queue_execution_supported"]["false"][0]["release_name"] == "two"
 assert doc["matches_by_command_queue_operator_supplied_command_execution"]["false"][0]["release_name"] == "two"
+assert doc["dedupe_alternatives_by_release"]["one"][0]["payload_preset"] == "survey-core"
+assert doc["dedupe_alternatives_by_release"]["two"][0]["payload_preset"] == "ssh-operator"
+assert doc["dedupe_alternatives_by_payload_preset"]["ssh-operator"][0]["release_name"] == "two"
+assert doc["dedupe_alternatives_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]
+assert doc["dedupe_alternatives_by_compatibility"]["exact"]
 assert doc["index"]["deduplicated_artifact_count"] == 2
+assert doc["index"]["duplicate_artifact_hash_count"] == 1
 assert doc["index"]["release_self_test_count"] == 3
 assert doc["index"]["release_license_count"] == 3
 assert doc["index"]["release_license_valid_count"] == 3
@@ -498,6 +527,12 @@ assert doc["index"]["release_self_test_command_queue_token_configured_count"] ==
 assert doc["index"]["release_self_test_command_queue_execution_supported_count"] == 0
 assert doc["index"]["release_self_test_command_queue_operator_supplied_command_execution_count"] == 0
 assert doc["index"]["artifacts_by_sha_count"] == 2
+assert doc["index"]["dedupe_records_by_count"] == 2
+assert doc["index"]["dedupe_records_by_duplicate"] == 2
+assert doc["index"]["dedupe_records_by_release"] == 3
+assert doc["index"]["dedupe_records_by_tuple_path"] == 1
+assert doc["index"]["dedupe_records_by_payload_preset"] == 3
+assert doc["index"]["dedupe_records_by_compatibility"] == 2
 assert doc["index"]["artifacts_by_release_count"] == 3
 assert doc["index"]["artifacts_by_tuple_path_count"] == 1
 assert doc["index"]["artifacts_by_tool_count"] == 4
@@ -658,5 +693,7 @@ grep -q 'combined_gplv2_compatible' docs/release-bundles.md
 grep -q -- '--gplv2-compatible yes|no' docs/release-bundles.md
 grep -q 'matches_by_component_license' docs/release-bundles.md
 grep -q 'api_resources_by_records_key' docs/release-bundles.md
+grep -q 'dedupe_records_by_duplicate' docs/release-bundles.md
+grep -q 'dedupe_alternatives_by_payload_preset' docs/release-bundles.md
 
 printf '%s\n' "release-repo-index ok"

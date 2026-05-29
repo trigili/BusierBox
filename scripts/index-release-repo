@@ -519,6 +519,10 @@ def build_repo_index(paths):
                     "release_name": release_name,
                     "release_dir": str(release_dir),
                     "artifact": artifact,
+                    "artifact_path": str(release_dir / artifact) if artifact else "",
+                    "tuple_path": record.get("tuple_path", ""),
+                    "payload_preset": record.get("payload_preset", ""),
+                    "compatibility_label": ((record.get("compatibility") or {}).get("label") or "exact"),
                 })
             if record.get("payload_preset"):
                 presets.setdefault(record["payload_preset"], []).append(record["artifact_path"])
@@ -553,6 +557,50 @@ def build_repo_index(paths):
             tuple_records_by_tuple_path.setdefault(tuple_path, []).append(record)
             if record.get("release_name"):
                 tuple_records_by_release.setdefault(record["release_name"], []).append(record)
+    dedupe_records = []
+    dedupe_records_by_sha256 = {}
+    dedupe_records_by_count = {}
+    dedupe_records_by_duplicate = {}
+    dedupe_records_by_release = {}
+    dedupe_records_by_tuple_path = {}
+    dedupe_records_by_payload_preset = {}
+    dedupe_records_by_compatibility = {}
+    for sha in sorted(by_sha):
+        rec = by_sha[sha]
+        artifacts_for_sha = [
+            item for item in rec.get("artifacts") or []
+            if isinstance(item, dict)
+        ]
+        release_names = unique([item.get("release_name", "") for item in artifacts_for_sha])
+        release_dirs_for_sha = unique([item.get("release_dir", "") for item in artifacts_for_sha])
+        tuple_paths = unique([item.get("tuple_path", "") for item in artifacts_for_sha])
+        payload_presets_for_sha = unique([item.get("payload_preset", "") for item in artifacts_for_sha])
+        compatibility_labels = unique([item.get("compatibility_label", "") for item in artifacts_for_sha])
+        artifact_paths = unique([item.get("artifact_path", "") for item in artifacts_for_sha])
+        record = {
+            "sha256": sha,
+            "count": int(rec.get("count", 0) or 0),
+            "duplicate": int(rec.get("count", 0) or 0) > 1,
+            "release_names": release_names,
+            "release_dirs": release_dirs_for_sha,
+            "tuple_paths": tuple_paths,
+            "payload_presets": payload_presets_for_sha,
+            "compatibility_labels": compatibility_labels,
+            "artifact_paths": artifact_paths,
+            "artifacts": artifacts_for_sha,
+        }
+        dedupe_records.append(record)
+        dedupe_records_by_sha256[sha] = record
+        dedupe_records_by_count.setdefault(str(record["count"]), []).append(record)
+        dedupe_records_by_duplicate.setdefault("true" if record["duplicate"] else "false", []).append(record)
+        for release_name in release_names:
+            dedupe_records_by_release.setdefault(release_name, []).append(record)
+        for tuple_path in tuple_paths:
+            dedupe_records_by_tuple_path.setdefault(tuple_path, []).append(record)
+        for payload_preset in payload_presets_for_sha:
+            dedupe_records_by_payload_preset.setdefault(payload_preset, []).append(record)
+        for compatibility_label in compatibility_labels:
+            dedupe_records_by_compatibility.setdefault(compatibility_label, []).append(record)
     artifacts_by_sha = {}
     artifacts_by_release = {}
     artifacts_by_tuple_path = {}
@@ -680,6 +728,15 @@ def build_repo_index(paths):
         "release_license_records_by_component_license",
         "release_license_records_by_notice_file",
     ]
+    dedupe_record_index_names = [
+        "dedupe_records_by_sha256",
+        "dedupe_records_by_count",
+        "dedupe_records_by_duplicate",
+        "dedupe_records_by_release",
+        "dedupe_records_by_tuple_path",
+        "dedupe_records_by_payload_preset",
+        "dedupe_records_by_compatibility",
+    ]
     api_collections = {
         "artifacts": api_collection_record(
             "artifacts",
@@ -707,8 +764,8 @@ def build_repo_index(paths):
         ),
         "dedupe": api_collection_record(
             "dedupe",
-            len(by_sha),
-            [],
+            len(dedupe_records),
+            dedupe_record_index_names,
             "deduplicated_artifact_count",
             "sha256",
         ),
@@ -772,6 +829,7 @@ def build_repo_index(paths):
         "tuple_count": len(tuples),
         "tuple_record_count": len(tuple_records),
         "recommendation_count": recommendation_count,
+        "duplicate_artifact_hash_count": len(dedupe_records_by_duplicate.get("true", [])),
         "release_dirs": [str(path) for path in release_dirs],
         "release_self_tests": release_self_tests,
         "release_self_tests_by_release": {key: release_self_tests_by_release[key] for key in sorted(release_self_tests_by_release)},
@@ -802,6 +860,14 @@ def build_repo_index(paths):
         "artifacts_by_command_queue_execution_supported": {key: artifacts_by_command_queue_execution_supported[key] for key in sorted(artifacts_by_command_queue_execution_supported)},
         "artifacts_by_command_queue_operator_supplied_command_execution": {key: artifacts_by_command_queue_operator_supplied_command_execution[key] for key in sorted(artifacts_by_command_queue_operator_supplied_command_execution)},
         "dedupe": {key: by_sha[key] for key in sorted(by_sha)},
+        "dedupe_records": dedupe_records,
+        "dedupe_records_by_sha256": {key: dedupe_records_by_sha256[key] for key in sorted(dedupe_records_by_sha256)},
+        "dedupe_records_by_count": {key: dedupe_records_by_count[key] for key in sorted(dedupe_records_by_count)},
+        "dedupe_records_by_duplicate": {key: dedupe_records_by_duplicate[key] for key in sorted(dedupe_records_by_duplicate)},
+        "dedupe_records_by_release": {key: dedupe_records_by_release[key] for key in sorted(dedupe_records_by_release)},
+        "dedupe_records_by_tuple_path": {key: dedupe_records_by_tuple_path[key] for key in sorted(dedupe_records_by_tuple_path)},
+        "dedupe_records_by_payload_preset": {key: dedupe_records_by_payload_preset[key] for key in sorted(dedupe_records_by_payload_preset)},
+        "dedupe_records_by_compatibility": {key: dedupe_records_by_compatibility[key] for key in sorted(dedupe_records_by_compatibility)},
         "devices": {key: devices[key] for key in sorted(devices)},
         "device_records": device_records,
         "device_records_by_alias": {key: device_records_by_alias[key] for key in sorted(device_records_by_alias)},
