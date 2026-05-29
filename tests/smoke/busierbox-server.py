@@ -557,6 +557,33 @@ def main():
             print("json status missing bridged survey bootstrap route metadata", file=sys.stderr)
             print(json.dumps(bridged_survey_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        bridged_survey_text_status = run(
+            "scripts/busierbox-server",
+            "--config", str(survey_cfg),
+            "--bridge-profile", "survey-route",
+            "--status",
+        )
+        if ("Generated target commands:" not in bridged_survey_text_status.stdout or
+                "routes: bridge=" not in bridged_survey_text_status.stdout or
+                "bridge profiles: survey-route=" not in bridged_survey_text_status.stdout or
+                f"route=bridge bridge_profile=survey-route path=operator:{survey_route_port} -> rack-host:19001" not in bridged_survey_text_status.stdout or
+                f"command={expected_survey_command}" not in bridged_survey_text_status.stdout):
+            print("text status missing bridged survey target command route", file=sys.stderr)
+            print(bridged_survey_text_status.stdout, file=sys.stderr)
+            return 1
+        bridged_survey_tui = run(
+            "scripts/busierbox-server",
+            "--config", str(survey_cfg),
+            "--bridge-profile", "survey-route",
+            "--tui",
+        )
+        if ("Generated target commands:" not in bridged_survey_tui.stdout or
+                "routes: bridge=" not in bridged_survey_tui.stdout or
+                "bridge profiles: survey-route=" not in bridged_survey_tui.stdout or
+                f"command={expected_survey_command}" not in bridged_survey_tui.stdout):
+            print("workbench missing bridged survey target command route", file=sys.stderr)
+            print(bridged_survey_tui.stdout, file=sys.stderr)
+            return 1
 
         command_copy_file = queue_operator_dir / "last-command.txt"
         copied = run(

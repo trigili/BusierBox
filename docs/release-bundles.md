@@ -780,11 +780,15 @@ audit bundled game data without unpacking the payload manifest or seeing the
 builder's local source path.
 Generated target commands are exposed both as legacy strings in
 `target_commands` and as structured `target_command_records` entries with
-purpose, service, side, network, explicit-target-action, and
-operator-supplied-command execution metadata. Each record also carries a
-1-based `ordinal`, `copy_selector`, `copy_command`, `copy_supported`, and
-`command_sha256`, letting operator UIs copy or de-duplicate generated commands
-without relying on array position alone. The generated `rshell` command record
+purpose, service, side, network, route, explicit-target-action, and
+operator-supplied-command execution metadata. Route fields include
+`route_kind`, `target_route`, `route_host`, `route_port`, `bridge_profile`,
+`bridge_route_path`, and `requires_bridge`, so operator UIs can show whether a
+generated command uses a direct listener or a selected bridge profile. Each
+record also carries a 1-based `ordinal`, `copy_selector`, `copy_command`,
+`copy_supported`, and `command_sha256`, letting operator UIs copy or
+de-duplicate generated commands without relying on array position alone. The
+generated `rshell` command record
 also carries `metadata.session_policy`, validity, errors, and
 `session_semantics`, plus `metadata.retry` and `metadata.retry_timing`, so
 operator UIs can distinguish single-shot, reconnect, and persistent
@@ -794,11 +798,12 @@ command itself.
 `target_commands_by_request`, `target_commands_by_side`, and
 `target_commands_by_purpose` index those records for service panes, staged
 fetch rows, and command-category views. Safety indexes
-`target_commands_by_network`,
+`target_commands_by_network`, `target_commands_by_route_kind`,
+`target_commands_by_bridge_profile`, `target_commands_by_requires_bridge`,
 `target_commands_by_requires_explicit_target_action`, and
 `target_commands_by_executes_operator_supplied_commands` let clients separate
-network helpers, manual target actions, and command-like behavior without
-rescanning the records. `target_commands_by_ordinal`,
+network helpers, direct or bridged routes, manual target actions, and
+command-like behavior without rescanning the records. `target_commands_by_ordinal`,
 `target_commands_by_command_sha256`, and `target_commands_by_copy_supported`
 make command copy/export views stable and directly addressable. Composite indexes
 `target_commands_by_service_purpose` and `target_commands_by_side_purpose`
@@ -816,8 +821,8 @@ with matching fields mirrored into `summary`. This lets future frontends show
 the same commands without guessing whether a command is a safe explicit
 fetch/upload helper or control-like behavior. Human `--status` and the
 line-oriented fallback print the same target-command safety summary, including
-rshell policy validity and policy error counts, before listing generated
-commands.
+route counts, bridge profile counts, rshell policy validity, and policy error
+counts, before listing generated commands with route badges.
 Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
 `command_queue_status_counts`. Queue records are also indexed by

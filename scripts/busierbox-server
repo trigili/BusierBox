@@ -12751,6 +12751,10 @@ def print_target_command_summary(doc):
         f"all_require_explicit_target_action={'yes' if summary.get('target_command_all_require_explicit_target_action') else 'no'}"
     )
     print(f"  sides: {format_counts(summary.get('target_command_side_counts') or {})}")
+    if summary.get("target_command_route_kind_counts"):
+        print(f"  routes: {format_counts(summary.get('target_command_route_kind_counts') or {})}")
+    if summary.get("target_command_bridge_profile_counts"):
+        print(f"  bridge profiles: {format_counts(summary.get('target_command_bridge_profile_counts') or {})}")
     if summary.get("target_command_session_policy_counts"):
         print(f"  rshell policies: {format_counts(summary.get('target_command_session_policy_counts') or {})}")
     if summary.get("target_command_session_policy_valid_counts"):
@@ -12758,6 +12762,31 @@ def print_target_command_summary(doc):
         print(f"  rshell policy errors: {summary.get('target_command_session_policy_error_count', 0)}")
     if summary.get("target_command_retry_backoff_counts"):
         print(f"  rshell retry backoff: {format_counts(summary.get('target_command_retry_backoff_counts') or {})}")
+
+
+def target_command_route_text(rec):
+    route_kind = str(rec.get("route_kind") or "direct")
+    host = str(rec.get("route_host") or "")
+    port = rec.get("route_port", "")
+    endpoint = f"{host}:{port}" if host and port not in (None, "") else ""
+    if route_kind == "bridge":
+        profile = str(rec.get("bridge_profile") or "-")
+        path = str(rec.get("bridge_route_path") or "")
+        suffix = f" path={path}" if path else ""
+        return f"route=bridge bridge_profile={profile}{suffix}"
+    if endpoint:
+        return f"route=direct endpoint={endpoint}"
+    return f"route={route_kind}"
+
+
+def target_command_display_line(rec, prefix=""):
+    command = str(rec.get("command") or "")
+    service = str(rec.get("service") or "")
+    ordinal = rec.get("ordinal", "")
+    route = target_command_route_text(rec)
+    ordinal_text = f"{ordinal}: " if ordinal not in (None, "") else ""
+    service_text = f" service={service}" if service else ""
+    return f"{prefix}{ordinal_text}{route}{service_text} command={command}"
 
 
 def print_workbench_action_summary(doc):
@@ -13280,8 +13309,9 @@ def print_status(cfg, json_output=False):
     print("")
     print("Generated target commands:")
     print_target_command_summary(doc)
-    for cmd in doc.get("target_commands") or []:
-        print(f"  {cmd}")
+    for rec in doc.get("target_command_records") or []:
+        if isinstance(rec, dict):
+            print("  " + target_command_display_line(rec))
     print("")
     print("Operator workflow actions:")
     print_workbench_action_summary(doc)
@@ -13605,8 +13635,9 @@ def print_workbench(cfg, include_api_summary=True):
     print("")
     print("Generated target commands:")
     print_target_command_summary(snap)
-    for cmd in snap["target_commands"]:
-        print(f"  {cmd}")
+    for rec in snap.get("target_command_records") or []:
+        if isinstance(rec, dict):
+            print("  " + target_command_display_line(rec))
     print("")
     print("Operator workflow actions:")
     print_workbench_action_summary(snap)
@@ -14099,9 +14130,14 @@ def run_curses_tui(cfg):
                 f"{'>' if pane == 4 and idx == selected else ' '} {e.get('ts', '')} {e.get('level', '')} {e.get('service', '')}:{e.get('event', '')}"
                 for idx, e in enumerate(recent_events)
             ] or ["none"]
+            target_command_records = snap.get("target_command_records") or []
             command_lines = [
-                f"{'>' if pane == 5 and idx == selected else ' '} {idx + 1}: {cmd}"
-                for idx, cmd in enumerate(snap["target_commands"])
+                target_command_display_line(
+                    rec,
+                    prefix=f"{'>' if pane == 5 and idx == selected else ' '} ",
+                )
+                for idx, rec in enumerate(target_command_records)
+                if isinstance(rec, dict)
             ] or ["none"]
             service_lines = []
             for idx, row in enumerate(services):
@@ -14249,11 +14285,13 @@ def run_curses_tui(cfg):
                     detail_lines.extend(artifact_compatibility_lines({"compatibility": recommendation.get("compatibility") or {}}))
                 for path in (source.get("artifact_paths") or [])[:6]:
                     detail_lines.append(f"artifact_path: {path}")
-            elif pane == 5 and snap["target_commands"]:
-                command = snap["target_commands"][min(selected, len(snap["target_commands"]) - 1)]
+            elif pane == 5 and snap.get("target_command_records"):
+                rec = snap["target_command_records"][min(selected, len(snap["target_command_records"]) - 1)]
+                command = str(rec.get("command") or "")
                 detail_lines = [
                     "generated target command:",
                     command,
+                    target_command_route_text(rec),
                     f"copy_file: {command_copy_path(cfg)}",
                     "c copies command locally",
                 ]
@@ -14410,8 +14448,8 @@ def run_curses_tui(cfg):
                 safe_add(stdscr, height - 2, 0, f"Refreshed workbench at {rec.get('last_refresh_at', '')}")
                 stdscr.getch()
             elif key in (ord("c"), ord("C")):
-                if snap["target_commands"]:
-                    idx = min(selected, len(snap["target_commands"]) - 1) + 1 if pane == 5 else 1
+                if snap.get("target_command_records"):
+                    idx = min(selected, len(snap["target_command_records"]) - 1) + 1 if pane == 5 else 1
                     try:
                         rec = copy_generated_command(cfg, idx)
                         safe_add(stdscr, height - 2, 0, f"Copied command {idx} to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
@@ -14426,7 +14464,7 @@ def run_curses_tui(cfg):
                 len(snap["uploads"]) if pane == 2 else
                 len(snap["sessions"]) if pane == 3 else
                 len(recent_events) if pane == 4 else
-                len(snap["target_commands"]) if pane == 5 else
+                len(snap.get("target_command_records") or []) if pane == 5 else
                 len(release_artifacts) if pane == 6 else
                 (1 + len(release_devices[:5]) + len(release_tuples[:5])) if pane == 7 else
                 1
