@@ -342,6 +342,7 @@ def main():
                 guided_by_key.get("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC", {}).get("value") != "10" or
                 guided_by_key.get("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC", {}).get("fixed_options") is not False or
                 guided_by_key.get("BB_COMMAND_QUEUE_POLL_BACKOFF", {}).get("options") != ["none", "linear", "exponential"] or
+                guided_by_key.get("BB_RSHELL_TRANSPORT", {}).get("examples") != ["ssh", "socat", "builtin", "none"] or
                 guided_by_key.get("BB_RSHELL_TRANSPORT", {}).get("options") != ["ssh", "socat", "builtin", "none"] or
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("fixed_options") is not True or
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("option_count") != 3 or

@@ -2027,7 +2027,7 @@ WORKBENCH_BUILD_CONFIG_FIELDS = [
     ("trailer", "BB_TRAILER_OVERRIDE_CATEGORIES", "trailer override categories", "runtime operator launch retry"),
     ("recovery", "BB_AUTORUN_GUARD_ENABLE", "autorun/recovery guard", "yes no"),
     ("recovery", "BB_RECOVERY_BINARY_NAME", "recovery binary name", "busierbox_recovery"),
-    ("rshell", "BB_RSHELL_TRANSPORT", "reverse shell transport", "ssh tls-shell plain-shell none"),
+    ("rshell", "BB_RSHELL_TRANSPORT", "reverse shell transport", "ssh socat builtin none"),
     ("rshell", "BB_RSHELL_RUN_MODE", "reverse shell run mode", "auto foreground background"),
     ("rshell", "BB_RSHELL_SESSION_POLICY", "reverse shell session policy", "single reconnect persistent"),
     ("command-queue", "BB_COMMAND_QUEUE_ENABLE", "command queue enable", "no yes"),
