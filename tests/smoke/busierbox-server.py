@@ -1322,6 +1322,28 @@ def main():
         poll_before = json.loads(poll_target_queue_file.read_text(encoding="utf-8"))
         alpha_id = next(rec["id"] for rec in poll_before["commands"] if rec.get("target_id") == "target-alpha")
         bravo_id = next(rec["id"] for rec in poll_before["commands"] if rec.get("target_id") == "target-bravo")
+        anonymous_poll_server = subprocess.Popen(
+            ["scripts/busierbox-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        anonymous_poll_response = connect_with_retry(poll_target_port, (
+            b"GET /command-queue/poll HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Connection: close\r\n\r\n"
+        ))
+        anonymous_stdout, anonymous_stderr = anonymous_poll_server.communicate(timeout=15)
+        anonymous_after = json.loads(poll_target_queue_file.read_text(encoding="utf-8"))
+        if (anonymous_poll_server.returncode != 0 or
+                b"HTTP/1.1 204 No Content" not in anonymous_poll_response or
+                any(rec.get("status") != "queued" for rec in anonymous_after["commands"])):
+            print("anonymous command queue poll should not receive target-scoped commands", file=sys.stderr)
+            print(anonymous_poll_response.decode("utf-8", errors="replace"), file=sys.stderr)
+            print(anonymous_stdout, file=sys.stderr)
+            print(anonymous_stderr, file=sys.stderr)
+            return 1
         poll_target_server = subprocess.Popen(
             ["scripts/busierbox-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
@@ -1356,6 +1378,14 @@ def main():
             print("target-scoped command queue poll mutated the wrong records", file=sys.stderr)
             print(json.dumps(poll_after, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        target_result = json.dumps({
+            "schema": 1,
+            "command_id": alpha_id,
+            "status": "completed",
+            "exit_code": 0,
+            "stdout_bytes": 1,
+            "stderr_bytes": 0,
+        }).encode("utf-8")
         poll_target_status = json.loads(run(
             "scripts/busierbox-server", "--config", str(poll_target_cfg),
             "--target-id", "target-alpha",
@@ -1373,6 +1403,59 @@ def main():
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_poll_delivered" for event in poll_target_status.get("events") or [])):
             print("target-scoped command queue poll missing from filtered status", file=sys.stderr)
             print(json.dumps(poll_target_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        result_without_target_server = subprocess.Popen(
+            ["scripts/busierbox-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        result_without_target_response = connect_with_retry(poll_target_port, (
+            b"POST /command-queue/result HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Content-Length: " + str(len(target_result)).encode("ascii") + b"\r\n"
+            b"Connection: close\r\n\r\n" + target_result
+        ))
+        result_without_target_stdout, result_without_target_stderr = result_without_target_server.communicate(timeout=15)
+        if (result_without_target_server.returncode != 0 or
+                b"HTTP/1.1 400 Bad Request" not in result_without_target_response or
+                b"command result target id required" not in result_without_target_response):
+            print("target-scoped command result without target id was not rejected", file=sys.stderr)
+            print(result_without_target_response.decode("utf-8", errors="replace"), file=sys.stderr)
+            print(result_without_target_stdout, file=sys.stderr)
+            print(result_without_target_stderr, file=sys.stderr)
+            return 1
+        result_wrong_target_server = subprocess.Popen(
+            ["scripts/busierbox-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        result_wrong_target_response = connect_with_retry(poll_target_port, (
+            b"POST /command-queue/result HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"X-BusierBox-Target-Id: target-bravo\r\n"
+            b"Content-Length: " + str(len(target_result)).encode("ascii") + b"\r\n"
+            b"Connection: close\r\n\r\n" + target_result
+        ))
+        result_wrong_target_stdout, result_wrong_target_stderr = result_wrong_target_server.communicate(timeout=15)
+        if (result_wrong_target_server.returncode != 0 or
+                b"HTTP/1.1 400 Bad Request" not in result_wrong_target_response or
+                b"command result target mismatch" not in result_wrong_target_response):
+            print("target-scoped command result wrong target was not rejected", file=sys.stderr)
+            print(result_wrong_target_response.decode("utf-8", errors="replace"), file=sys.stderr)
+            print(result_wrong_target_stdout, file=sys.stderr)
+            print(result_wrong_target_stderr, file=sys.stderr)
+            return 1
+        result_reject_after = json.loads(poll_target_queue_file.read_text(encoding="utf-8"))
+        alpha_after_reject = next(rec for rec in result_reject_after["commands"] if rec.get("id") == alpha_id)
+        if alpha_after_reject.get("status") != "delivered" or alpha_after_reject.get("result"):
+            print("rejected target-scoped command result mutated the command record", file=sys.stderr)
+            print(json.dumps(result_reject_after, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         workbench_jobs_file = queue_operator_dir / "workbench-jobs.json"
