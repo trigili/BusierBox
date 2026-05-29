@@ -2232,6 +2232,68 @@ def selected_target_context(cfg):
     return target_context_fields(cfg, configured_target_filter(cfg))
 
 
+def set_workbench_target_filter(cfg, selector, targets=None):
+    text = str(selector or "").strip()
+    now = utc_now()
+    if text.lower() in ("", "all", "clear", "*"):
+        cfg.pop("_target_id_filter", None)
+        cfg.pop("_target_label_filter", None)
+        update_server_state(cfg, "workbench", "open", {
+            "selected_target_id": "",
+            "selected_target_label": "",
+            "selected_target_at": now,
+        })
+        append_event(cfg, "workbench", "workbench_target_filter_cleared", details={"selected_at": now})
+        return {"target_id": "", "target_label": "", "selected": False}
+
+    records = []
+    if targets is not None:
+        records = [rec for rec in targets or [] if isinstance(rec, dict)]
+    else:
+        for target_id, rec in sorted((load_targets(cfg).get("targets") or {}).items()):
+            if isinstance(rec, dict):
+                item = dict(rec)
+                item.setdefault("target_id", target_id)
+                records.append(item)
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(records):
+            raise ValueError(f"target number out of range: {text}")
+        selected = records[idx]
+    else:
+        lower = text.lower()
+        selected = {}
+        for rec in records:
+            target_id = str(rec.get("target_id") or "")
+            label = str(rec.get("label") or rec.get("target_label") or "")
+            aliases = [str(item) for item in rec.get("aliases") or []]
+            if text == target_id or lower == label.lower() or lower in [alias.lower() for alias in aliases]:
+                selected = rec
+                break
+        if not selected:
+            raise ValueError(f"target not found: {text}")
+    target_id = str(selected.get("target_id") or "").strip()
+    if not target_id:
+        raise ValueError(f"target not found: {text}")
+    target_label = str(selected.get("label") or selected.get("target_label") or "")
+    cfg["_target_id_filter"] = target_id
+    if target_label:
+        cfg["_target_label_filter"] = target_label
+    else:
+        cfg.pop("_target_label_filter", None)
+    update_server_state(cfg, "workbench", "open", {
+        "selected_target_id": target_id,
+        "selected_target_label": target_label,
+        "selected_target_at": now,
+    })
+    append_event(cfg, "workbench", "workbench_target_selected", details={
+        "target_id": target_id,
+        "target_label": target_label,
+        "selected_at": now,
+    })
+    return {"target_id": target_id, "target_label": target_label, "selected": True}
+
+
 def valid_profile_name(name):
     text = str(name or "").strip()
     return bool(text) and all(ch.isalnum() or ch in "._-" for ch in text)
@@ -6266,6 +6328,7 @@ def update_server_state(cfg, action, status="configured", extra=None):
         "managed_by", "process_log", "session_log", "staged_file", "workbench_mode",
         "url", "target_command", "target_route", "route_kind", "route_host",
         "route_port", "bridge_profile", "bridge_route_path", "requires_bridge",
+        "selected_target_id", "selected_target_label", "selected_target_at",
     ):
         if previous.get(key):
             service[key] = previous[key]
@@ -10118,6 +10181,9 @@ def workbench_snapshot(cfg):
             "mode": workbench_state.get("workbench_mode", ""),
             "last_refresh_at": workbench_state.get("last_refresh_at", ""),
             "refresh_count": int(workbench_state.get("refresh_count", 0) or 0),
+            "selected_target_id": workbench_state.get("selected_target_id", ""),
+            "selected_target_label": workbench_state.get("selected_target_label", ""),
+            "selected_target_at": workbench_state.get("selected_target_at", ""),
         },
     }
 
@@ -14618,6 +14684,7 @@ def run_line_tui(cfg):
         print("  13 cancel background workflow job")
         print("  14 configure BusierBox build field")
         print("  15 run target workflow action")
+        print("  16 select target filter")
         print("  c show/copy generated commands")
         print("  r refresh")
         print("  ? help")
@@ -14708,6 +14775,35 @@ def run_line_tui(cfg):
                     run_target_workflow_action(cfg, selected, input_func=line_input)
                 except (ValueError, IndexError) as exc:
                     print(exc)
+        elif choice == "16":
+            unfiltered_cfg = dict(cfg)
+            unfiltered_cfg.pop("_target_id_filter", None)
+            unfiltered_cfg.pop("_target_label_filter", None)
+            snap = workbench_snapshot(unfiltered_cfg)
+            targets = snap.get("targets") or []
+            current = configured_target_filter(cfg)
+            if targets:
+                for idx, rec in enumerate(targets, 1):
+                    marker = "*" if str(rec.get("target_id") or "") == current else " "
+                    print(
+                        f"{idx}:{marker} {rec.get('target_id', '')} "
+                        f"label={rec.get('label', '') or '-'} "
+                        f"state={rec.get('connectivity_state', '') or '-'} "
+                        f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
+                    )
+            else:
+                print("no known targets; use all/clear to remove any current filter")
+            selected_line = line_input("target number/id/label, or all to clear> ")
+            selected = selected_line.strip() if selected_line is not None else ""
+            if selected:
+                try:
+                    rec = set_workbench_target_filter(cfg, selected, targets=targets)
+                    if rec.get("selected"):
+                        print(f"selected target {rec.get('target_id', '')} label={rec.get('target_label', '') or '-'}")
+                    else:
+                        print("target filter cleared")
+                except ValueError as exc:
+                    print(exc)
         elif choice == "12":
             snap = workbench_snapshot(cfg)
             runnable = [rec for rec in snap.get("workbench_actions") or [] if rec.get("background_supported")]
@@ -14774,7 +14870,7 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 

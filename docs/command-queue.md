@@ -372,6 +372,11 @@ In line-mode TUI, action `15` lists the target workflow actions and prompts for
 the required command/path fields before applying the same target-scoped queue or
 staging operation. No action changes the safety boundary: target execution still
 requires an explicit target-side fetch, upload, poll, or bridge connection.
+Action `16` selects the current target filter for the workbench session by
+target number, id, label, or alias; enter `all` to clear the filter and return
+to the fleet view. The selected target is recorded in workbench state and
+subsequent generated commands, staging operations, and target workflow actions
+use that target context.
 
 The smoke suite includes a deterministic intermittent-connectivity harness for
 this path. It queues target-scoped work while targets are offline, proves an

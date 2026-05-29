@@ -5415,7 +5415,7 @@ def main():
             os.close(line_slave)
             line_slave = -1
             time.sleep(0.5)
-            os.write(line_master, b"15\ntarget-action:queue-command\nbusierbox survey --json\nq\n")
+            os.write(line_master, b"16\ntarget-action\n15\ntarget-action:queue-command\nbusierbox survey --json\nq\n")
             _line_stdout, line_stderr = line_proc.communicate(timeout=8)
         finally:
             if line_slave != -1:
@@ -5436,15 +5436,20 @@ def main():
         action_queue = (action_doc.get("command_queue") or {}).get("commands_by_target_id", {}).get("target-action") or []
         action_staged = (action_doc.get("staged_by_target_id") or {}).get("target-action") or []
         action_events = action_doc.get("events_by_event") or {}
+        line_workbench_state = (json.loads(line_action_state.read_text(encoding="utf-8")).get("services") or {}).get("workbench") or {}
         if (len(action_queue) != 1 or
                 action_queue[0].get("command") != "busierbox survey --json" or
                 len(action_staged) != 1 or
                 action_staged[0].get("request_name") != "action-staged.txt" or
                 not action_events.get("target_workflow_action_selected") or
+                not action_events.get("workbench_target_selected") or
+                line_workbench_state.get("selected_target_id") != "target-action" or
+                line_workbench_state.get("selected_target_label") != "Action Router" or
                 action_doc.get("summary", {}).get("command_queue_target_counts", {}).get("target-action") != 1 or
                 action_doc.get("summary", {}).get("staged_target_counts", {}).get("target-action") != 1):
             print("target workflow actions did not mutate target-scoped queue/staged state", file=sys.stderr)
             print(json.dumps(action_doc, indent=2, sort_keys=True), file=sys.stderr)
+            print(json.dumps(line_workbench_state, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         if (upload_doc.get("target_attribution", {}).get("upload_with_target_count") != 1 or
                 upload_doc.get("target_attribution", {}).get("upload_without_target_count") != 0 or
