@@ -96,7 +96,10 @@ generated `evidence push` command so reboot uploads are scoped to the same
 operator target record. If explicit options are omitted, `BB_TARGET_ID` or
 `BUSIERBOX_TARGET_ID` and `BB_TARGET_LABEL` or `BUSIERBOX_TARGET_LABEL` are
 used when present. Dry-run JSON reports the identity source under
-`target_identity`.
+`target_identity`. Installed-hook status parses the generated command back into
+`installations[].target_identity` and indexes installed records by
+`installations_by_target_id`, `installations_by_target_label`, and
+`installations_by_target_alias` for operator/API views.
 `persistence --survey --json` reports all available action semantics, while
 `persistence status --json` reports each installed action's category and
 semantics, including whether it uploads evidence, captures `dmesg`, starts

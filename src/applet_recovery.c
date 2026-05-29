@@ -346,6 +346,126 @@ static int append_upload_target_arg(char *out, size_t outsz, const char *opt, co
     return append_shell_word(out, outsz, value);
 }
 
+static const char *skip_shell_spaces(const char *p)
+{
+    while (p && (*p == ' ' || *p == '\t'))
+        p++;
+    return p;
+}
+
+static int read_shell_word_value(const char **cursor, char *out, size_t outsz)
+{
+    const char *p = skip_shell_spaces(*cursor);
+    size_t j = 0;
+    int quoted = 0;
+
+    if (!outsz)
+        return -1;
+    out[0] = '\0';
+    while (p && *p) {
+        if (!quoted && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n'))
+            break;
+        if (*p == '\'') {
+            quoted = !quoted;
+            p++;
+            continue;
+        }
+        if (!quoted && *p == '\\' && p[1])
+            p++;
+        if (j + 1 >= outsz)
+            return -1;
+        out[j++] = *p++;
+    }
+    out[j] = '\0';
+    *cursor = p;
+    return j ? 0 : -1;
+}
+
+static int extract_shell_option_value(const char *command, const char *opt, char *out, size_t outsz)
+{
+    const char *p = command;
+    size_t optlen = strlen(opt);
+
+    if (outsz)
+        out[0] = '\0';
+    while (p && (p = strstr(p, opt)) != NULL) {
+        if ((p == command || p[-1] == ' ' || p[-1] == '\t') &&
+            (p[optlen] == ' ' || p[optlen] == '\t')) {
+            p += optlen;
+            return read_shell_word_value(&p, out, outsz);
+        }
+        p += optlen;
+    }
+    return -1;
+}
+
+static int extract_next_shell_option_value(const char **cursor, const char *opt, char *out, size_t outsz)
+{
+    const char *p = *cursor;
+    size_t optlen = strlen(opt);
+
+    if (outsz)
+        out[0] = '\0';
+    while (p && (p = strstr(p, opt)) != NULL) {
+        if ((*cursor == p || p[-1] == ' ' || p[-1] == '\t') &&
+            (p[optlen] == ' ' || p[optlen] == '\t')) {
+            p += optlen;
+            if (read_shell_word_value(&p, out, outsz) != 0)
+                return -1;
+            *cursor = p;
+            return 0;
+        }
+        p += optlen;
+    }
+    *cursor = p ? p : "";
+    return -1;
+}
+
+static void recovery_command_target_id(const char *command, char *out, size_t outsz)
+{
+    extract_shell_option_value(command, "--target-id", out, outsz);
+}
+
+static void recovery_command_target_label(const char *command, char *out, size_t outsz)
+{
+    extract_shell_option_value(command, "--target-label", out, outsz);
+}
+
+static void recovery_print_target_aliases_json(const char *command)
+{
+    const char *cursor = command;
+    char alias[256];
+    int first = 1;
+
+    fputc('[', stdout);
+    while (extract_next_shell_option_value(&cursor, "--target-alias", alias, sizeof(alias)) == 0) {
+        fputs(first ? "" : ",", stdout);
+        bb_json_string(stdout, alias);
+        first = 0;
+    }
+    fputc(']', stdout);
+}
+
+static int recovery_command_has_target_alias(const char *command, const char *value)
+{
+    const char *cursor = command;
+    char alias[256];
+
+    while (extract_next_shell_option_value(&cursor, "--target-alias", alias, sizeof(alias)) == 0) {
+        if (!strcmp(alias, value))
+            return 1;
+    }
+    return 0;
+}
+
+static int recovery_command_has_any_target_alias(const char *command)
+{
+    const char *cursor = command;
+    char alias[256];
+
+    return extract_next_shell_option_value(&cursor, "--target-alias", alias, sizeof(alias)) == 0 && alias[0];
+}
+
 static int backup_existing_file(const char *path, char *backup, size_t backupsz)
 {
     struct stat st;
@@ -495,7 +615,8 @@ static int recovery_status_one(const char *root, const struct recovery_method *m
 
 static int recovery_status_index_match(const char *root, const char *name,
                                        const char *kind, const struct recovery_method *m,
-                                       const char *action, const char *value)
+                                       const char *action, const char *command,
+                                       const char *value)
 {
     char key[128], path[PATH_MAX], bin[PATH_MAX], script[PATH_MAX];
     if (!strcmp(kind, "method"))
@@ -530,6 +651,18 @@ static int recovery_status_index_match(const char *root, const char *name,
         return !strcmp(m->requires_external_write, value);
     if (!strcmp(kind, "survives_reboot"))
         return !strcmp(m->survives_reboot, value);
+    if (!strcmp(kind, "target_id")) {
+        char target_id[256];
+        recovery_command_target_id(command, target_id, sizeof(target_id));
+        return target_id[0] && !strcmp(target_id, value);
+    }
+    if (!strcmp(kind, "target_label")) {
+        char target_label[256];
+        recovery_command_target_label(command, target_label, sizeof(target_label));
+        return target_label[0] && !strcmp(target_label, value);
+    }
+    if (!strcmp(kind, "target_alias"))
+        return recovery_command_has_target_alias(command, value);
     if (!strcmp(kind, "hook_present")) {
         recovery_join(path, sizeof(path), root, m->path);
         return !strcmp(path_exists(path) ? "yes" : "no", value);
@@ -558,7 +691,7 @@ static int recovery_print_status_index_array(const char *root, const char *name,
         char action[64], generated[PATH_MAX * 2];
         if (!recovery_status_one(root, &recovery_methods[j], name, action, sizeof(action), generated, sizeof(generated)))
             continue;
-        if (recovery_status_index_match(root, name, kind, &recovery_methods[j], action[0] ? action : "unknown", value)) {
+        if (recovery_status_index_match(root, name, kind, &recovery_methods[j], action[0] ? action : "unknown", generated, value)) {
             printf("%s%d", first ? "" : ",", installed_index);
             first = 0;
             matched = 1;
@@ -577,7 +710,7 @@ static int recovery_status_index_has_match(const char *root, const char *name,
         char action[64], generated[PATH_MAX * 2];
         if (!recovery_status_one(root, &recovery_methods[j], name, action, sizeof(action), generated, sizeof(generated)))
             continue;
-        if (recovery_status_index_match(root, name, kind, &recovery_methods[j], action[0] ? action : "unknown", value))
+        if (recovery_status_index_match(root, name, kind, &recovery_methods[j], action[0] ? action : "unknown", generated, value))
             return 1;
     }
     return 0;
@@ -601,6 +734,69 @@ static void recovery_print_status_yes_no_index(const char *root, const char *nam
         fputc(':', stdout);
         recovery_print_status_index_array(root, name, kind, yes_no[i]);
         first = 0;
+    }
+    fputs("}", stdout);
+}
+
+static int value_seen(char values[][256], int count, const char *value)
+{
+    int i;
+    for (i = 0; i < count; i++)
+        if (!strcmp(values[i], value))
+            return 1;
+    return 0;
+}
+
+static void recovery_collect_status_target_values(const char *root, const char *name,
+                                                  const char *kind,
+                                                  char values[][256], int *count, int max_count)
+{
+    size_t j;
+
+    *count = 0;
+    for (j = 0; j < sizeof(recovery_methods) / sizeof(recovery_methods[0]); j++) {
+        char action[64], generated[PATH_MAX * 2], value[256];
+        if (!recovery_status_one(root, &recovery_methods[j], name, action, sizeof(action), generated, sizeof(generated)))
+            continue;
+        if (!strcmp(kind, "target_id")) {
+            recovery_command_target_id(generated, value, sizeof(value));
+            if (!value[0])
+                continue;
+            if (!value_seen(values, *count, value) && *count < max_count)
+                snprintf(values[(*count)++], 256, "%s", value);
+        } else if (!strcmp(kind, "target_label")) {
+            recovery_command_target_label(generated, value, sizeof(value));
+            if (!value[0])
+                continue;
+            if (!value_seen(values, *count, value) && *count < max_count)
+                snprintf(values[(*count)++], 256, "%s", value);
+        } else if (!strcmp(kind, "target_alias")) {
+            const char *cursor = generated;
+            while (extract_next_shell_option_value(&cursor, "--target-alias", value, sizeof(value)) == 0) {
+                if (!value[0])
+                    continue;
+                if (!value_seen(values, *count, value) && *count < max_count)
+                    snprintf(values[(*count)++], 256, "%s", value);
+            }
+        }
+    }
+}
+
+static void recovery_print_status_target_index(const char *root, const char *name,
+                                               const char *json_key, const char *kind)
+{
+    char values[64][256];
+    int count, i;
+
+    recovery_collect_status_target_values(root, name, kind, values, &count, 64);
+    fputs(",", stdout);
+    bb_json_string(stdout, json_key);
+    fputs(":{", stdout);
+    for (i = 0; i < count; i++) {
+        fputs(i ? "," : "", stdout);
+        bb_json_string(stdout, values[i]);
+        fputc(':', stdout);
+        recovery_print_status_index_array(root, name, kind, values[i]);
     }
     fputs("}", stdout);
 }
@@ -691,6 +887,9 @@ static void recovery_print_status_indexes(const char *root, const char *name)
     recovery_print_status_yes_no_index(root, name, "installations_by_command_queue_enabled", "command_queue_enabled");
     recovery_print_status_yes_no_index(root, name, "installations_by_hidden_control_channel", "hidden_control_channel");
     recovery_print_status_yes_no_index(root, name, "installations_by_requires_external_write", "requires_external_write");
+    recovery_print_status_target_index(root, name, "installations_by_target_id", "target_id");
+    recovery_print_status_target_index(root, name, "installations_by_target_label", "target_label");
+    recovery_print_status_target_index(root, name, "installations_by_target_alias", "target_alias");
     recovery_print_status_yes_no_index(root, name, "installations_by_hook_present", "hook_present");
     recovery_print_status_yes_no_index(root, name, "installations_by_binary_present", "binary_present");
     recovery_print_status_yes_no_index(root, name, "installations_by_script_present", "script_present");
@@ -727,6 +926,9 @@ static void recovery_print_status_api_collections(int installed_count)
     fputs("\"installations_by_command_queue_enabled\",", stdout);
     fputs("\"installations_by_hidden_control_channel\",", stdout);
     fputs("\"installations_by_requires_external_write\",", stdout);
+    fputs("\"installations_by_target_id\",", stdout);
+    fputs("\"installations_by_target_label\",", stdout);
+    fputs("\"installations_by_target_alias\",", stdout);
     fputs("\"installations_by_hook_present\",", stdout);
     fputs("\"installations_by_binary_present\",", stdout);
     fputs("\"installations_by_script_present\",", stdout);
@@ -765,7 +967,7 @@ static void recovery_print_api_resources(int storage_count, int method_count,
     const char *storage_indexes = "\"storage_by_class\",\"storage_by_survives_reboot\"";
     const char *method_indexes = "\"methods_by_name\",\"methods_by_survives_reboot\",\"methods_by_intrusiveness\",\"methods_by_requires_external_write\"";
     const char *action_indexes = "\"actions_by_name\",\"actions_by_category\",\"actions_by_uploads_evidence\",\"actions_by_collects_dmesg\",\"actions_by_starts_rshell\",\"actions_by_starts_rshell_after_evidence\",\"actions_by_executes_operator_supplied_command\",\"actions_by_command_queue_enabled\",\"actions_by_hidden_control_channel\",\"actions_by_requires_explicit_apply\",\"actions_by_requires_external_write\"";
-    const char *installation_indexes = "\"installations_by_method\",\"installations_by_action\",\"installations_by_category\",\"installations_by_method_action\",\"installations_by_category_action\",\"installations_by_uploads_evidence\",\"installations_by_collects_dmesg\",\"installations_by_starts_rshell\",\"installations_by_starts_rshell_after_evidence\",\"installations_by_executes_operator_supplied_command\",\"installations_by_command_queue_enabled\",\"installations_by_hidden_control_channel\",\"installations_by_requires_external_write\",\"installations_by_hook_present\",\"installations_by_binary_present\",\"installations_by_script_present\",\"installations_by_survives_reboot\"";
+    const char *installation_indexes = "\"installations_by_method\",\"installations_by_action\",\"installations_by_category\",\"installations_by_method_action\",\"installations_by_category_action\",\"installations_by_uploads_evidence\",\"installations_by_collects_dmesg\",\"installations_by_starts_rshell\",\"installations_by_starts_rshell_after_evidence\",\"installations_by_executes_operator_supplied_command\",\"installations_by_command_queue_enabled\",\"installations_by_hidden_control_channel\",\"installations_by_requires_external_write\",\"installations_by_target_id\",\"installations_by_target_label\",\"installations_by_target_alias\",\"installations_by_hook_present\",\"installations_by_binary_present\",\"installations_by_script_present\",\"installations_by_survives_reboot\"";
     int is_status = installed_count >= 0;
     int resource_count = is_status ? 1 : 3;
 
@@ -1542,9 +1744,12 @@ int applet_recovery_main(int argc, char **argv)
         for (j = 0; j < sizeof(recovery_methods) / sizeof(recovery_methods[0]); j++) {
             char action[64], generated[PATH_MAX * 2], path[PATH_MAX], bin[PATH_MAX], script[PATH_MAX];
             if (recovery_status_one(root, &recovery_methods[j], name, action, sizeof(action), generated, sizeof(generated))) {
+                char target_id[256], target_label[256];
                 recovery_join(path, sizeof(path), root, recovery_methods[j].path);
                 recovery_bin_path(bin, sizeof(bin), root, name);
                 recovery_script_path(script, sizeof(script), root, name);
+                recovery_command_target_id(generated, target_id, sizeof(target_id));
+                recovery_command_target_label(generated, target_label, sizeof(target_label));
                 if (json) {
                     printf("%s{\"method\":", found ? "," : "");
                     bb_json_string(stdout, recovery_methods[j].name);
@@ -1565,6 +1770,12 @@ int applet_recovery_main(int argc, char **argv)
                     fputs(",\"command_queue_enabled\":false", stdout);
                     fputs(",\"hidden_control_channel\":false", stdout);
                     fputs(",\"generated_command\":", stdout); bb_json_string(stdout, generated);
+                    fputs(",\"target_identity\":{\"target_id\":", stdout); bb_json_string(stdout, target_id);
+                    fputs(",\"target_label\":", stdout); bb_json_string(stdout, target_label);
+                    fputs(",\"target_aliases\":", stdout); recovery_print_target_aliases_json(generated);
+                    fputs(",\"source\":", stdout);
+                    bb_json_string(stdout, (target_id[0] || target_label[0] || recovery_command_has_any_target_alias(generated)) ? "generated-command" : "none");
+                    fputs("}", stdout);
                     fputs(",\"survives_reboot\":", stdout); bb_json_string(stdout, recovery_methods[j].survives_reboot);
                     fputs(",\"intrusiveness\":", stdout); bb_json_string(stdout, recovery_methods[j].intrusiveness);
                     fputs(",\"reversibility\":", stdout); bb_json_string(stdout, recovery_methods[j].reversibility);
@@ -1582,6 +1793,18 @@ int applet_recovery_main(int argc, char **argv)
                     printf("installed_action=%s\n", action[0] ? action : "unknown");
                     if (generated[0])
                         printf("installed_command=%s\n", generated);
+                    if (target_id[0])
+                        printf("installed_target_id=%s\n", target_id);
+                    if (target_label[0])
+                        printf("installed_target_label=%s\n", target_label);
+                    {
+                        const char *cursor = generated;
+                        char target_alias[256];
+                        while (extract_next_shell_option_value(&cursor, "--target-alias", target_alias, sizeof(target_alias)) == 0) {
+                            if (target_alias[0])
+                                printf("installed_target_alias=%s\n", target_alias);
+                        }
+                    }
                     printf("installed_survives_reboot=%s\n", recovery_methods[j].survives_reboot);
                     printf("installed_requires_external_write=%s\n", recovery_methods[j].requires_external_write);
                 }

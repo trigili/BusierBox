@@ -372,6 +372,37 @@ assert data["target_identity"]["source"] == "environment"
 assert "--target-id env-recovery" in data["generated_command"]
 assert "--target-label 'Env Router'" in data["generated_command"]
 PY
+"$bb" persistence install --method rc-local --action evidence-push --target-id target-recovery --target-label "Recovery Router" --target-alias lab-router --apply --root "$tmp/root" --name bbx_recovery >/dev/null
+grep -q 'action=evidence-push' "$tmp/root/etc/rc.local"
+grep -q -- "--target-id target-recovery --target-label 'Recovery Router' --target-alias lab-router --quiet" "$tmp/root/etc/rc.local"
+"$bb" persistence status --root "$tmp/root" --name bbx_recovery >"$tmp/evidence-target-status"
+grep -q '^installed_target_id=target-recovery$' "$tmp/evidence-target-status"
+grep -q '^installed_target_label=Recovery Router$' "$tmp/evidence-target-status"
+grep -q '^installed_target_alias=lab-router$' "$tmp/evidence-target-status"
+"$bb" persistence status --json --root "$tmp/root" --name bbx_recovery >"$tmp/evidence-target-status.json"
+python3 -m json.tool "$tmp/evidence-target-status.json" >/dev/null
+python3 - <<'PY' "$tmp/evidence-target-status.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+item = data["installations"][0]
+identity = item["target_identity"]
+assert identity["target_id"] == "target-recovery"
+assert identity["target_label"] == "Recovery Router"
+assert identity["target_aliases"] == ["lab-router"]
+assert identity["source"] == "generated-command"
+assert data["installations_by_target_id"]["target-recovery"] == [0]
+assert data["installations_by_target_label"]["Recovery Router"] == [0]
+assert data["installations_by_target_alias"]["lab-router"] == [0]
+api_indexes = data["api_collections"]["installations"]["indexes"]
+assert "installations_by_target_id" in api_indexes
+assert "installations_by_target_label" in api_indexes
+assert "installations_by_target_alias" in api_indexes
+api_resource_indexes = data["api_resources_by_name"]["installations"]["indexes"]
+assert "installations_by_target_id" in api_resource_indexes
+assert "installations_by_target_label" in api_resource_indexes
+assert "installations_by_target_alias" in api_resource_indexes
+PY
+"$bb" persistence uninstall --method rc-local --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 "$bb" persistence install --method rc-local --action evidence-push --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 grep -q 'action=evidence-push' "$tmp/root/etc/rc.local"
 grep -q '/usr/bin/bbx_recovery evidence push --quiet' "$tmp/root/etc/rc.local"
