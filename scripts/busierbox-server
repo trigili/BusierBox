@@ -1302,6 +1302,16 @@ def operator_state_record(name, kind, path, exists, valid, record_count=0, error
         status = "error"
     else:
         status = "ok"
+    requires_operator_action = status in ("invalid", "error")
+    severity = "error" if requires_operator_action else ("warning" if status == "missing" else "info")
+    remediation_class = "repair_operator_state" if requires_operator_action else ("initialize_operator_state" if status == "missing" else "none")
+    suggested_action = ""
+    if status == "invalid":
+        suggested_action = "inspect, repair, archive, or remove the invalid operator state file"
+    elif status == "error":
+        suggested_action = "inspect operator state file permissions and filesystem errors"
+    elif status == "missing":
+        suggested_action = "state will be created when the related operator workflow is used"
     rec = {
         "name": name,
         "kind": kind,
@@ -1310,6 +1320,10 @@ def operator_state_record(name, kind, path, exists, valid, record_count=0, error
         "valid": bool(valid),
         "status": status,
         "unhealthy": status in ("missing", "invalid", "error"),
+        "severity": severity,
+        "remediation_class": remediation_class,
+        "requires_operator_action": requires_operator_action,
+        "suggested_action": suggested_action,
         "record_count": int(record_count or 0),
         "error": str(error or ""),
     }
@@ -1375,6 +1389,9 @@ def operator_state_indexes(records):
         "operator_state_records_by_exists": records_by_key(records, "exists"),
         "operator_state_records_by_valid": records_by_key(records, "valid"),
         "operator_state_records_by_unhealthy": records_by_key(records, "unhealthy"),
+        "operator_state_records_by_severity": records_by_key(records, "severity"),
+        "operator_state_records_by_remediation_class": records_by_key(records, "remediation_class"),
+        "operator_state_records_by_requires_operator_action": records_by_key(records, "requires_operator_action"),
         "operator_state_records_by_path": {rec.get("path", ""): rec for rec in records or [] if rec.get("path")},
         "operator_state_records_by_kind_status": records_by_composite(records, ("kind", "status")),
     }
@@ -8262,6 +8279,9 @@ def status_document(cfg):
                 "operator_state_records_by_name", "operator_state_records_by_kind",
                 "operator_state_records_by_status", "operator_state_records_by_exists",
                 "operator_state_records_by_valid", "operator_state_records_by_unhealthy",
+                "operator_state_records_by_severity",
+                "operator_state_records_by_remediation_class",
+                "operator_state_records_by_requires_operator_action",
                 "operator_state_records_by_path",
                 "operator_state_records_by_kind_status",
             ), "operator_state_count",

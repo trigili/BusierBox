@@ -790,6 +790,8 @@ def main():
         invalid_operator_state_by_status = invalid_state_doc.get("operator_state_records_by_status") or {}
         invalid_operator_state_by_kind_status = invalid_state_doc.get("operator_state_records_by_kind_status") or {}
         invalid_operator_state_by_unhealthy = invalid_state_doc.get("operator_state_records_by_unhealthy") or {}
+        invalid_operator_state_by_action = invalid_state_doc.get("operator_state_records_by_requires_operator_action") or {}
+        invalid_operator_state_by_remediation = invalid_state_doc.get("operator_state_records_by_remediation_class") or {}
         if (invalid_state_doc.get("summary", {}).get("server_state_valid") is not False or
                 invalid_state_doc.get("summary", {}).get("staged_files_valid") is not False or
                 invalid_state_doc.get("summary", {}).get("command_queue_file_valid") is not False or
@@ -839,8 +841,18 @@ def main():
                 invalid_operator_state_by_name.get("command_queue", {}).get("status") != "invalid" or
                 invalid_operator_state_by_name.get("server_state", {}).get("unhealthy") is not True or
                 invalid_operator_state_by_name.get("session_root", {}).get("unhealthy") is not True or
+                invalid_operator_state_by_name.get("server_state", {}).get("requires_operator_action") is not True or
+                invalid_operator_state_by_name.get("session_root", {}).get("requires_operator_action") is not False or
+                invalid_operator_state_by_name.get("server_state", {}).get("remediation_class") != "repair_operator_state" or
+                invalid_operator_state_by_name.get("session_root", {}).get("remediation_class") != "initialize_operator_state" or
+                invalid_operator_state_by_name.get("server_state", {}).get("severity") != "error" or
+                invalid_operator_state_by_name.get("session_root", {}).get("severity") != "warning" or
+                "repair" not in invalid_operator_state_by_name.get("server_state", {}).get("suggested_action", "") or
                 len(invalid_operator_state_by_status.get("invalid") or []) != 3 or
                 len(invalid_operator_state_by_unhealthy.get("True") or []) != 7 or
+                len(invalid_operator_state_by_action.get("True") or []) != 3 or
+                len(invalid_operator_state_by_remediation.get("repair_operator_state") or []) != 3 or
+                len(invalid_operator_state_by_remediation.get("initialize_operator_state") or []) != 4 or
                 len(invalid_operator_state_by_kind_status.get("json-state:invalid") or []) != 3 or
                 invalid_warnings_by_path.get(str(invalid_state_file), [{}])[0].get("type") != "invalid_server_state" or
                 invalid_warnings_by_path.get(str(invalid_staged_file), [{}])[0].get("type") != "invalid_staged_files_state" or
@@ -850,6 +862,8 @@ def main():
                 "path_status_by_warning_type" not in (invalid_path_api.get("indexes") or []) or
                 "operator_state_records_by_status" not in (invalid_operator_state_api.get("indexes") or []) or
                 "operator_state_records_by_unhealthy" not in (invalid_operator_state_api.get("indexes") or []) or
+                "operator_state_records_by_remediation_class" not in (invalid_operator_state_api.get("indexes") or []) or
+                "operator_state_records_by_requires_operator_action" not in (invalid_operator_state_api.get("indexes") or []) or
                 "operator_state_records_by_kind_status" not in (invalid_operator_state_api.get("indexes") or []) or
                 "browser_paths_by_has_warnings" not in (invalid_browser_api.get("indexes") or []) or
                 "browser_paths_by_warning_type" not in (invalid_browser_api.get("indexes") or [])):
