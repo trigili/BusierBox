@@ -1309,6 +1309,7 @@ def operator_state_record(name, kind, path, exists, valid, record_count=0, error
         "exists": bool(exists),
         "valid": bool(valid),
         "status": status,
+        "unhealthy": status in ("missing", "invalid", "error"),
         "record_count": int(record_count or 0),
         "error": str(error or ""),
     }
@@ -1373,6 +1374,7 @@ def operator_state_indexes(records):
         "operator_state_records_by_status": records_by_key(records, "status"),
         "operator_state_records_by_exists": records_by_key(records, "exists"),
         "operator_state_records_by_valid": records_by_key(records, "valid"),
+        "operator_state_records_by_unhealthy": records_by_key(records, "unhealthy"),
         "operator_state_records_by_path": {rec.get("path", ""): rec for rec in records or [] if rec.get("path")},
         "operator_state_records_by_kind_status": records_by_composite(records, ("kind", "status")),
     }
@@ -8259,7 +8261,8 @@ def status_document(cfg):
             "operator_state_records", operator_state_records_list, "name", (
                 "operator_state_records_by_name", "operator_state_records_by_kind",
                 "operator_state_records_by_status", "operator_state_records_by_exists",
-                "operator_state_records_by_valid", "operator_state_records_by_path",
+                "operator_state_records_by_valid", "operator_state_records_by_unhealthy",
+                "operator_state_records_by_path",
                 "operator_state_records_by_kind_status",
             ), "operator_state_count",
         ),

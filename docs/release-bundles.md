@@ -473,10 +473,11 @@ render every operator path as a table. `operator_state_records` provides a
 content-health table for the main operator state surfaces: server state,
 staged-files ledger, command queue ledger, last copied command, workbench jobs,
 event log, and session root. Those records carry `status=ok|missing|invalid|error`,
-`exists`, `valid`, `record_count`, and `error`, with lookup maps such as
+`exists`, `valid`, `unhealthy`, `record_count`, and `error`, with lookup maps such as
 `operator_state_records_by_name`, `operator_state_records_by_kind`,
 `operator_state_records_by_status`, `operator_state_records_by_exists`,
-`operator_state_records_by_valid`, `operator_state_records_by_path`, and
+`operator_state_records_by_valid`, `operator_state_records_by_unhealthy`,
+`operator_state_records_by_path`, and
 `operator_state_records_by_kind_status`. Summary mirrors the state status,
 kind, existence, validity, and kind/status counts, plus direct
 `operator_state_ok_count`, `operator_state_missing_count`,
