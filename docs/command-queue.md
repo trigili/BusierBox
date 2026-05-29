@@ -323,12 +323,24 @@ queue records:
 - `targets[].latest_command_result_at` and `latest_command_result_id` point to
   the latest received command result for that target.
 
-The status API also exposes `targets_by_connectivity_state`,
+The status API also exposes a `target_mailbox_records` collection with one
+record per target-scoped queued command. Each record includes the command id,
+target id/label, command text, command digest, queue status, created/delivered
+timestamps, result timestamp, result status, exit code, output-size metadata,
+and booleans for pending work and result availability. Indexes such as
+`target_mailbox_records_by_target_id`,
+`target_mailbox_records_by_status`,
+`target_mailbox_records_by_pending_work`, and
+`target_mailbox_records_by_has_result` let TUI or API clients build per-target
+mailbox panes without scraping the raw command queue.
+
+Target status also exposes `targets_by_connectivity_state`,
 `targets_by_last_seen_via`, `targets_by_has_next_expected_poll`, and
-`targets_by_mailbox_pending_work`, plus matching summary counters. These fields
-are intended for the TUI and headless dashboards so an operator can queue work
-while a target is gone, see the last successful phone-home path, and confirm
-delivery when the target reconnects.
+`targets_by_mailbox_pending_work`, plus matching summary counters. Text status
+and the noninteractive workbench print each target's recent mailbox items below
+the heartbeat and mailbox counts, so an operator can queue work while a target
+is gone, see the last successful phone-home path, inspect pending work, and
+confirm delivery when the target reconnects.
 
 The smoke suite includes a deterministic intermittent-connectivity harness for
 this path. It queues target-scoped work while targets are offline, proves an

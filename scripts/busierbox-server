@@ -1711,6 +1711,95 @@ def target_mailbox_counts(cfg):
     return counts, latest_result
 
 
+def target_mailbox_record_from_command(rec, target_labels=None):
+    if not isinstance(rec, dict):
+        return None
+    target_id = str(rec.get("target_id") or "")
+    if not target_id:
+        return None
+    command_id = str(rec.get("id") or "")
+    status = str(rec.get("status") or "")
+    result = rec.get("result") if isinstance(rec.get("result"), dict) else {}
+    result_status = str(result.get("status") or "")
+    result_exit_code = result.get("exit_code")
+    command_text = str(rec.get("command") or "")
+    command_sha256 = str(rec.get("command_sha256") or "")
+    if command_text and not command_sha256:
+        command_sha256 = hashlib.sha256(command_text.encode("utf-8")).hexdigest()
+    has_result = bool(str(rec.get("result_received_at") or "") or status == "result-received")
+    pending_work = status == "queued"
+    output_bytes = rec.get("result_output_bytes")
+    output_bucket = command_result_output_size_bucket(output_bytes) if has_result else ""
+    return {
+        "id": command_id,
+        "command_id": command_id,
+        "target_id": target_id,
+        "target_label": str((target_labels or {}).get(target_id) or ""),
+        "status": status,
+        "command": command_text,
+        "command_sha256": command_sha256,
+        "created_at": str(rec.get("created_at") or ""),
+        "delivered_at": str(rec.get("delivered_at") or ""),
+        "result_received_at": str(rec.get("result_received_at") or ""),
+        "result_status": result_status,
+        "result_exit_code": result_exit_code if result_exit_code not in (None, "") else "",
+        "result_source_path": str(rec.get("result_source_path") or ""),
+        "result_output_bytes": int_value(output_bytes),
+        "result_output_size_bucket": output_bucket,
+        "result_output_exceeded_limit": rec.get("result_output_exceeded_limit") is True,
+        "max_output_bytes": rec.get("max_output_bytes", ""),
+        "timeout_sec": rec.get("timeout_sec", ""),
+        "pending_work": pending_work,
+        "pending_delivery": pending_work,
+        "delivered_without_result": status == "delivered" and not has_result,
+        "has_result": has_result,
+    }
+
+
+def target_mailbox_records_from_commands(commands, targets_by_id=None):
+    target_labels = {
+        str(target_id): str((rec or {}).get("label") or "")
+        for target_id, rec in (targets_by_id or {}).items()
+        if target_id
+    }
+    records = []
+    for rec in commands or []:
+        item = target_mailbox_record_from_command(rec, target_labels)
+        if item:
+            records.append(item)
+    records.sort(
+        key=lambda rec: (
+            str(rec.get("created_at") or ""),
+            str(rec.get("command_id") or ""),
+        ),
+        reverse=True,
+    )
+    return records
+
+
+def target_mailbox_record_indexes(records):
+    return {
+        "target_mailbox_records_by_id": {
+            rec.get("id", ""): rec for rec in records or [] if rec.get("id")
+        },
+        "target_mailbox_records_by_command_id": {
+            rec.get("command_id", ""): rec for rec in records or [] if rec.get("command_id")
+        },
+        "target_mailbox_records_by_target_id": records_by_key(records, "target_id"),
+        "target_mailbox_records_by_target_label": records_by_key(records, "target_label"),
+        "target_mailbox_records_by_status": records_by_key(records, "status"),
+        "target_mailbox_records_by_pending_work": records_by_key(records, "pending_work"),
+        "target_mailbox_records_by_pending_delivery": records_by_key(records, "pending_delivery"),
+        "target_mailbox_records_by_delivered_without_result": records_by_key(records, "delivered_without_result"),
+        "target_mailbox_records_by_has_result": records_by_key(records, "has_result"),
+        "target_mailbox_records_by_result_status": records_by_key(records, "result_status"),
+        "target_mailbox_records_by_result_exit_code": records_by_key(records, "result_exit_code"),
+        "target_mailbox_records_by_result_output_exceeded_limit": records_by_key(records, "result_output_exceeded_limit"),
+        "target_mailbox_records_by_result_output_size_bucket": records_by_key(records, "result_output_size_bucket"),
+        "target_mailbox_records_by_command_sha256": records_by_key(records, "command_sha256"),
+    }
+
+
 def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
     last_seen = str(rec.get("last_seen_at") or rec.get("latest_activity_at") or "")
     last_seen_epoch = parse_utc_timestamp(last_seen)
@@ -10286,6 +10375,11 @@ def status_document(cfg):
             "by_service_detail_target_identity_confidence": count_index(events_by_service_detail_target_identity_confidence),
         }
     command_queue = command_queue_summary(cfg)
+    target_mailbox_records = target_mailbox_records_from_commands(
+        command_queue.get("commands") or [],
+        targets_by_id,
+    )
+    target_mailbox_index_maps = target_mailbox_record_indexes(target_mailbox_records)
     command_queue_policy_summary_record = command_queue.get("policy_summary") or {}
     command_queue_policy_record = {
         "id": "command-queue",
@@ -11136,6 +11230,7 @@ def status_document(cfg):
         "target_filter_reduced_observed_activity": bool(target_filter_record.get("filter_reduced_observed_activity", False)),
         "target_filter_event_tail_count": len(events),
         "target_filter_command_queue_command_count": len(command_queue.get("commands") or []),
+        "target_filter_target_mailbox_record_count": len(target_mailbox_records),
         "target_filter_target_command_record_count": target_command_summary.get("total_count", 0),
         "target_filter_record_count": len(target_filter_records),
         "target_filter_selected_target_found": bool(selected_target),
@@ -11346,6 +11441,12 @@ def status_document(cfg):
         "command_queue_delivery_policy_active_control_channel_counts": command_queue.get("delivery_policy_active_control_channel_counts") or {},
         "command_queue_latest_created_at": command_queue.get("latest_created_at", ""),
         "command_queue_latest_result_received_at": command_queue.get("latest_result_received_at", ""),
+        "target_mailbox_record_count": len(target_mailbox_records),
+        "target_mailbox_status_counts": record_count_by_key(target_mailbox_records, "status"),
+        "target_mailbox_pending_work_counts": record_count_by_key(target_mailbox_records, "pending_work"),
+        "target_mailbox_has_result_counts": record_count_by_key(target_mailbox_records, "has_result"),
+        "target_mailbox_result_status_counts": record_count_by_key(target_mailbox_records, "result_status"),
+        "target_mailbox_result_exit_code_counts": record_count_by_key(target_mailbox_records, "result_exit_code"),
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
         "command_queue_policy_error_count": len(command_queue.get("policy_errors") or []),
         "command_queue_policy_record_count": len(command_queue_policy_records),
@@ -11758,6 +11859,24 @@ def status_document(cfg):
                 "command_queue_state_records_by_valid",
                 "command_queue_state_records_by_has_commands",
             ), "command_queue_state_record_count",
+        ),
+        "target_mailbox_records": api_collection_record(
+            "target_mailbox_records", target_mailbox_records, "command_id", (
+                "target_mailbox_records_by_id",
+                "target_mailbox_records_by_command_id",
+                "target_mailbox_records_by_target_id",
+                "target_mailbox_records_by_target_label",
+                "target_mailbox_records_by_status",
+                "target_mailbox_records_by_pending_work",
+                "target_mailbox_records_by_pending_delivery",
+                "target_mailbox_records_by_delivered_without_result",
+                "target_mailbox_records_by_has_result",
+                "target_mailbox_records_by_result_status",
+                "target_mailbox_records_by_result_exit_code",
+                "target_mailbox_records_by_result_output_exceeded_limit",
+                "target_mailbox_records_by_result_output_size_bucket",
+                "target_mailbox_records_by_command_sha256",
+            ), "target_mailbox_record_count",
         ),
         "workbench_jobs_state_records": api_collection_record(
             "workbench_jobs_state_records", workbench_jobs_state_records, "path", (
@@ -12252,6 +12371,8 @@ def status_document(cfg):
         "targets_by_observed_capability": targets_by_observed_capability,
         "targets_by_missing_capability": targets_by_missing_capability,
         "targets_by_observed_constraint": targets_by_observed_constraint,
+        "target_mailbox_records": target_mailbox_records,
+        **target_mailbox_index_maps,
         "staged": staged,
         "staged_records": staged_records,
         "staged_by_request": staged_by_request,
@@ -12656,6 +12777,7 @@ def print_target_summary(doc, limit=8):
         f"latest={summary.get('latest_target_id') or '-'} "
         f"latest_seen={summary.get('latest_target_seen_at') or '-'}"
     )
+    mailbox_by_target = doc.get("target_mailbox_records_by_target_id") or {}
     for rec in records[:limit]:
         aliases = ",".join(str(item) for item in rec.get("aliases") or []) or "-"
         remotes = ",".join(str(item) for item in rec.get("remote_addresses") or []) or "-"
@@ -12679,6 +12801,21 @@ def print_target_summary(doc, limit=8):
                 f"results={rec.get('mailbox_result_received_command_count', 0)} "
                 f"pending={rec.get('mailbox_pending_work_count', 0)}"
             )
+            target_id = str(rec.get("target_id") or "")
+            for item in (mailbox_by_target.get(target_id) or [])[:3]:
+                command_text = str(item.get("command") or "").replace("\n", "\\n")
+                if len(command_text) > 96:
+                    command_text = f"{command_text[:93]}..."
+                print(
+                    f"      mailbox_command {item.get('command_id', '')} "
+                    f"status={item.get('status', '') or '-'} "
+                    f"result={item.get('result_status', '') or '-'} "
+                    f"exit={item.get('result_exit_code', '') if item.get('result_exit_code') != '' else '-'} "
+                    f"created={item.get('created_at', '') or '-'} "
+                    f"delivered={item.get('delivered_at', '') or '-'} "
+                    f"result_at={item.get('result_received_at', '') or '-'} "
+                    f"command={command_text}"
+                )
         if rec.get("latest_activity_operation") or rec.get("latest_activity_service"):
             print(
                 f"    latest_activity={rec.get('latest_activity_operation', '') or '-'} "

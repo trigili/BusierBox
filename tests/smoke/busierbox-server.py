@@ -1972,6 +1972,8 @@ def main():
         result_alpha = (result_status.get("targets_by_id") or {}).get("target-alpha") or {}
         result_bravo = (result_status.get("targets_by_id") or {}).get("target-bravo") or {}
         result_alpha_command = ((result_status.get("command_queue") or {}).get("commands_by_result_status") or {}).get("completed", [{}])[0]
+        result_alpha_mailbox = (result_status.get("target_mailbox_records_by_command_id") or {}).get(alpha_id) or {}
+        result_bravo_mailbox = (result_status.get("target_mailbox_records_by_command_id") or {}).get(bravo_id) or {}
         if (result_alpha.get("connectivity_state") != "online" or
                 result_alpha.get("last_seen_via") != "command-queue:command_queue_result" or
                 result_alpha.get("mailbox_result_received_command_count") != 1 or
@@ -1984,8 +1986,30 @@ def main():
                 result_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("offline") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_pending_work_count") != 1 or
                 result_status.get("summary", {}).get("target_last_seen_via_counts", {}).get("command-queue:command_queue_result") != 1 or
+                result_status.get("summary", {}).get("target_mailbox_record_count") != 2 or
+                result_status.get("summary", {}).get("target_mailbox_status_counts", {}).get("queued") != 1 or
+                result_status.get("summary", {}).get("target_mailbox_status_counts", {}).get("result-received") != 1 or
+                result_status.get("summary", {}).get("target_mailbox_result_status_counts", {}).get("completed") != 1 or
+                (result_status.get("api_collections") or {}).get("target_mailbox_records", {}).get("count") != 2 or
                 result_alpha_command.get("id") != alpha_id or
                 result_alpha_command.get("target_id") != "target-alpha" or
+                result_alpha_mailbox.get("target_id") != "target-alpha" or
+                result_alpha_mailbox.get("target_label") != "Alpha Router" or
+                result_alpha_mailbox.get("status") != "result-received" or
+                result_alpha_mailbox.get("result_status") != "completed" or
+                result_alpha_mailbox.get("result_exit_code") != 0 or
+                result_alpha_mailbox.get("has_result") is not True or
+                result_alpha_mailbox.get("pending_work") is not False or
+                not result_alpha_mailbox.get("result_received_at") or
+                result_bravo_mailbox.get("target_id") != "target-bravo" or
+                result_bravo_mailbox.get("target_label") != "Bravo Router" or
+                result_bravo_mailbox.get("status") != "queued" or
+                result_bravo_mailbox.get("pending_work") is not True or
+                result_bravo_mailbox.get("has_result") is not False or
+                ((result_status.get("target_mailbox_records_by_target_id") or {}).get("target-alpha") or [{}])[0].get("command_id") != alpha_id or
+                ((result_status.get("target_mailbox_records_by_target_id") or {}).get("target-bravo") or [{}])[0].get("command_id") != bravo_id or
+                ((result_status.get("target_mailbox_records_by_pending_work") or {}).get("True") or [{}])[0].get("command_id") != bravo_id or
+                ((result_status.get("target_mailbox_records_by_has_result") or {}).get("True") or [{}])[0].get("command_id") != alpha_id or
                 ((result_status.get("targets_by_mailbox_pending_work") or {}).get("yes") or [{}])[0].get("target_id") != "target-bravo" or
                 ((result_status.get("targets_by_last_seen_via") or {}).get("command-queue:command_queue_result") or [{}])[0].get("target_id") != "target-alpha" or
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_result_upload_received" for event in result_status.get("events") or [])):
@@ -2000,9 +2024,12 @@ def main():
                 "state=online" not in result_status_text.stdout or
                 "heartbeat_via=command-queue:command_queue_result" not in result_status_text.stdout or
                 "mailbox queued=0 delivered=0 results=1 pending=0" not in result_status_text.stdout or
+                f"mailbox_command {alpha_id} status=result-received" not in result_status_text.stdout or
+                "result=completed exit=0" not in result_status_text.stdout or
                 "target-bravo label=Bravo Router" not in result_status_text.stdout or
                 "state=offline" not in result_status_text.stdout or
-                "mailbox queued=1 delivered=0 results=0 pending=1" not in result_status_text.stdout):
+                "mailbox queued=1 delivered=0 results=0 pending=1" not in result_status_text.stdout or
+                f"mailbox_command {bravo_id} status=queued" not in result_status_text.stdout):
             print("text status missing intermittent mailbox heartbeat/result summary", file=sys.stderr)
             print(result_status_text.stdout, file=sys.stderr)
             return 1
