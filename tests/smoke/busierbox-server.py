@@ -1613,16 +1613,26 @@ def main():
         ]
         invalid_rshell_record = (invalid_rshell_status.get("target_commands_by_service") or {}).get("rshell", [{}])[0]
         invalid_rshell_metadata = invalid_rshell_record.get("metadata") or {}
+        invalid_rshell_policy_record = (invalid_rshell_status.get("rshell_session_policy_records_by_id") or {}).get("rshell") or {}
         if (invalid_rshell_metadata.get("session_policy") != "bogus" or
                 invalid_rshell_metadata.get("session_policy_valid") is not False or
                 "unsupported rshell session policy" not in invalid_rshell_metadata.get("session_policy_errors", []) or
                 "unsupported rshell session policy" not in (invalid_rshell_metadata.get("session_policy_summary") or {}).get("errors", []) or
+                invalid_rshell_policy_record.get("session_policy") != "bogus" or
+                invalid_rshell_policy_record.get("session_policy_valid") is not False or
+                "unsupported rshell session policy" not in invalid_rshell_policy_record.get("session_policy_errors", []) or
+                invalid_rshell_status.get("rshell_session_policy_records_by_session_policy_valid", {}).get("False", [{}])[0].get("id") != "rshell" or
+                invalid_rshell_status.get("summary", {}).get("rshell_session_policy_record_count") != 1 or
+                invalid_rshell_status.get("summary", {}).get("rshell_session_policy") != "bogus" or
+                invalid_rshell_status.get("summary", {}).get("rshell_session_policy_valid") is not False or
+                invalid_rshell_status.get("summary", {}).get("rshell_session_policy_error_count") != 1 or
                 not invalid_rshell_warnings or
                 invalid_rshell_warnings[-1].get("session_policy") != "bogus" or
                 "unsupported rshell session policy" not in invalid_rshell_warnings[-1].get("session_policy_errors", []) or
                 invalid_rshell_status.get("summary", {}).get("warning_type_counts", {}).get("invalid_rshell_session_policy") != 1 or
                 invalid_rshell_status.get("summary", {}).get("target_command_session_policy_valid_counts", {}).get("False") != 1 or
                 invalid_rshell_status.get("summary", {}).get("target_command_session_policy_error_count") != 1 or
+                "rshell_session_policy_records_by_retry_scope" not in ((invalid_rshell_status.get("api_collections") or {}).get("rshell_session_policy_records") or {}).get("indexes", []) or
                 invalid_rshell_status.get("warnings_by_type", {}).get("invalid_rshell_session_policy", [{}])[-1].get("session_policy") != "bogus"):
             print("server json status missing invalid rshell session policy warning", file=sys.stderr)
             print(invalid_rshell_status_doc.stdout, file=sys.stderr)
@@ -1839,6 +1849,7 @@ def main():
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
                 ("target_filter_records", len(queue_status_json.get("target_filter_records") or []), "target_filter_records_by_active"),
                 ("target_attribution_records", len(queue_status_json.get("target_attribution_records") or []), "target_attribution_records_by_scope"),
+                ("rshell_session_policy_records", len(queue_status_json.get("rshell_session_policy_records") or []), "rshell_session_policy_records_by_session_policy_valid"),
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
                 ("staged_files_state_records", len(queue_status_json.get("staged_files_state_records") or []), "staged_files_state_records_by_valid"),
                 ("command_copy_records", len(queue_status_json.get("command_copy_records") or []), "command_copy_records_by_has_command"),
@@ -1896,6 +1907,9 @@ def main():
                 api_resources_by_name.get("target_attribution_records", {}).get("records_key") != "target_attribution_records" or
                 api_resources_by_summary_key.get("target_attribution_record_count", [{}])[0].get("name") != "target_attribution_records" or
                 not any(rec.get("name") == "target_attribution_records" for rec in api_resources_by_primary_key.get("scope", [])) or
+                api_resources_by_name.get("rshell_session_policy_records", {}).get("records_key") != "rshell_session_policy_records" or
+                api_resources_by_summary_key.get("rshell_session_policy_record_count", [{}])[0].get("name") != "rshell_session_policy_records" or
+                not any(rec.get("name") == "rshell_session_policy_records" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("staged_files_state_records", {}).get("records_key") != "staged_files_state_records" or
                 api_resources_by_summary_key.get("staged_files_state_record_count", [{}])[0].get("name") != "staged_files_state_records" or
                 not any(rec.get("name") == "staged_files_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
@@ -4569,6 +4583,7 @@ def main():
         rshell_policy_summary = rshell_metadata.get("session_policy_summary") or {}
         rshell_retry = rshell_metadata.get("retry") or {}
         rshell_retry_timing = rshell_metadata.get("retry_timing") or {}
+        rshell_policy_record = (upload_doc.get("rshell_session_policy_records_by_id") or {}).get("rshell") or {}
         rshell_purpose = "start the configured reverse shell transport from the target"
         if (len(target_commands_by_service.get("file-service") or []) < 6 or
                 len(target_commands_by_side.get("target") or []) != len(target_records) or
@@ -4614,6 +4629,17 @@ def main():
                 rshell_retry.get("max_interval_sec") != "8" or
                 rshell_retry_timing.get("sample_delays_sec") != [3, 6, 8] or
                 rshell_retry_timing.get("sample_delays_exclude_jitter") is not True or
+                rshell_policy_record.get("session_policy") != "reconnect" or
+                rshell_policy_record.get("session_policy_valid") is not True or
+                rshell_policy_record.get("retry_scope") != "pre-connect+post-disconnect" or
+                rshell_policy_record.get("pre_connect_retry_count") != "2" or
+                rshell_policy_record.get("post_disconnect_retry_count") != "2" or
+                rshell_policy_record.get("retry_backoff") != "linear" or
+                rshell_policy_record.get("reconnects_after_disconnect") is not True or
+                rshell_policy_record.get("session_resume_supported") is not False or
+                upload_doc.get("rshell_session_policy_records_by_session_policy", {}).get("reconnect", [{}])[0].get("id") != "rshell" or
+                upload_doc.get("rshell_session_policy_records_by_reconnects_after_disconnect", {}).get("True", [{}])[0].get("id") != "rshell" or
+                "rshell_session_policy_records_by_persistent_lifecycle" not in ((upload_doc.get("api_collections") or {}).get("rshell_session_policy_records") or {}).get("indexes", []) or
                 target_summary.get("by_service", {}).get("file-service", 0) < 6 or
                 target_summary.get("by_service", {}).get("rshell") != 1 or
                 target_summary.get("copy_supported_count") != len(target_records) or
@@ -4624,6 +4650,11 @@ def main():
                 upload_summary.get("target_command_session_policy_counts", {}).get("reconnect") != 1 or
                 upload_summary.get("target_command_session_policy_valid_counts", {}).get("True") != 1 or
                 upload_summary.get("target_command_session_policy_error_count") != 0 or
+                upload_summary.get("rshell_session_policy_record_count") != 1 or
+                upload_summary.get("rshell_session_policy") != "reconnect" or
+                upload_summary.get("rshell_session_policy_valid") is not True or
+                upload_summary.get("rshell_session_policy_retry_scope") != "pre-connect+post-disconnect" or
+                upload_summary.get("rshell_session_policy_reconnects_after_disconnect") is not True or
                 upload_summary.get("target_command_retry_backoff_counts", {}).get("linear") != 1):
             print("server json status missing generated command service/session-policy lookup", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)

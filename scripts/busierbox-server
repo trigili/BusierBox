@@ -8812,6 +8812,41 @@ def status_document(cfg):
         "release_state_records_by_explicit_release_dir": records_by_key(release_state_records, "explicit_release_dir"),
         "release_state_records_by_marker_count": records_by_key(release_state_records, "release_marker_count"),
     }
+    rshell_session_policy = rshell_session_policy_record(cfg)
+    rshell_policy_summary = rshell_session_policy.get("session_policy_summary") or {}
+    rshell_retry = rshell_session_policy.get("retry") or {}
+    rshell_session_policy_record_item = {
+        "id": "rshell",
+        "session_policy": rshell_session_policy.get("session_policy", ""),
+        "session_policy_valid": bool(rshell_session_policy.get("session_policy_valid", False)),
+        "session_policy_errors": rshell_session_policy.get("session_policy_errors") or [],
+        "retry_scope": rshell_policy_summary.get("retry_scope", ""),
+        "pre_connect_retry_count": rshell_policy_summary.get("pre_connect_retry_count", ""),
+        "post_disconnect_retry_count": rshell_policy_summary.get("post_disconnect_retry_count", ""),
+        "retry_backoff": rshell_retry.get("backoff", ""),
+        "retry_interval_sec": rshell_retry.get("interval_sec", ""),
+        "retry_jitter_pct": rshell_retry.get("jitter_pct", ""),
+        "retry_max_interval_sec": rshell_retry.get("max_interval_sec", ""),
+        "stops_after_success": bool(rshell_policy_summary.get("stops_after_success", False)),
+        "reconnects_after_disconnect": bool(rshell_policy_summary.get("reconnects_after_disconnect", False)),
+        "persistent_lifecycle": bool(rshell_policy_summary.get("persistent_lifecycle", False)),
+        "fresh_session_on_reconnect": bool(rshell_policy_summary.get("fresh_session_on_reconnect", False)),
+        "session_resume_supported": bool(rshell_policy_summary.get("session_resume_supported", False)),
+        "session_semantics": rshell_session_policy.get("session_semantics") or {},
+        "session_policy_summary": rshell_policy_summary,
+        "retry": rshell_retry,
+        "retry_timing": rshell_session_policy.get("retry_timing") or {},
+    }
+    rshell_session_policy_records = [rshell_session_policy_record_item]
+    rshell_session_policy_index_maps = {
+        "rshell_session_policy_records_by_id": {rec.get("id", ""): rec for rec in rshell_session_policy_records if rec.get("id")},
+        "rshell_session_policy_records_by_session_policy": records_by_key(rshell_session_policy_records, "session_policy"),
+        "rshell_session_policy_records_by_session_policy_valid": records_by_key(rshell_session_policy_records, "session_policy_valid"),
+        "rshell_session_policy_records_by_retry_scope": records_by_key(rshell_session_policy_records, "retry_scope"),
+        "rshell_session_policy_records_by_retry_backoff": records_by_key(rshell_session_policy_records, "retry_backoff"),
+        "rshell_session_policy_records_by_reconnects_after_disconnect": records_by_key(rshell_session_policy_records, "reconnects_after_disconnect"),
+        "rshell_session_policy_records_by_persistent_lifecycle": records_by_key(rshell_session_policy_records, "persistent_lifecycle"),
+    }
     workbench_config_fields = workbench_config_field_records(cfg)
     workbench_config_field_index_maps = workbench_config_field_indexes(workbench_config_fields)
     workbench_config_field_stats = workbench_config_field_summary(workbench_config_fields)
@@ -9435,6 +9470,13 @@ def status_document(cfg):
         "target_command_session_policy_counts": target_command_summary.get("by_session_policy") or {},
         "target_command_session_policy_valid_counts": target_command_summary.get("by_session_policy_valid") or {},
         "target_command_session_policy_error_count": target_command_summary.get("session_policy_error_count", 0),
+        "rshell_session_policy_record_count": len(rshell_session_policy_records),
+        "rshell_session_policy": rshell_session_policy_record_item.get("session_policy", ""),
+        "rshell_session_policy_valid": bool(rshell_session_policy_record_item.get("session_policy_valid", False)),
+        "rshell_session_policy_error_count": len(rshell_session_policy_record_item.get("session_policy_errors") or []),
+        "rshell_session_policy_retry_scope": rshell_session_policy_record_item.get("retry_scope", ""),
+        "rshell_session_policy_reconnects_after_disconnect": bool(rshell_session_policy_record_item.get("reconnects_after_disconnect", False)),
+        "rshell_session_policy_persistent_lifecycle": bool(rshell_session_policy_record_item.get("persistent_lifecycle", False)),
         "target_command_retry_backoff_counts": target_command_summary.get("by_retry_backoff") or {},
         "event_count": event_summary_stats["total_count"],
         "event_log_total_count": event_stats["total_count"],
@@ -9776,6 +9818,17 @@ def status_document(cfg):
                 "target_commands_by_retry_backoff", "target_commands_by_retry_interval_sec",
                 "target_commands_by_retry_post_disconnect_count",
             ), "target_command_count",
+        ),
+        "rshell_session_policy_records": api_collection_record(
+            "rshell_session_policy_records", rshell_session_policy_records, "id", (
+                "rshell_session_policy_records_by_id",
+                "rshell_session_policy_records_by_session_policy",
+                "rshell_session_policy_records_by_session_policy_valid",
+                "rshell_session_policy_records_by_retry_scope",
+                "rshell_session_policy_records_by_retry_backoff",
+                "rshell_session_policy_records_by_reconnects_after_disconnect",
+                "rshell_session_policy_records_by_persistent_lifecycle",
+            ), "rshell_session_policy_record_count",
         ),
         "targets": api_collection_record(
             "targets", targets, "target_id", (
@@ -10125,6 +10178,9 @@ def status_document(cfg):
         "target_attribution": target_attribution,
         "target_attribution_records": target_attribution_records,
         **target_attribution_index_maps,
+        "rshell_session_policy": rshell_session_policy,
+        "rshell_session_policy_records": rshell_session_policy_records,
+        **rshell_session_policy_index_maps,
         "api_resources": api_resources,
         **api_resource_indexes,
         "api_collections": api_collections,
