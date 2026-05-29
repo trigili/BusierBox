@@ -112,9 +112,26 @@ sh -n scripts/busierbox-bringup tests/smoke/integration-glinet-harness.sh
 tests/smoke/integration-glinet-harness.sh
 git diff --check
 make smoke-test
+make test-qemu-user
+make test-qemu-system
+scripts/make-release --name smoke-goal --targets native --payload-presets survey-core,default
+scripts/release-self-test --release-dir dist/releases/smoke-goal-20260529-051526
+scripts/release-self-test --release-dir dist/releases/smoke-goal-20260529-051526 --json
 ```
 
-Result: all passed.
+Result:
+
+- `make smoke-test` passed.
+- `make test-qemu-user` passed for `native`; cross-target rows skipped because
+  the corresponding cross artifacts or qemu interpreters were not present.
+- `make test-qemu-system` completed with every matrix row skipped because the
+  example environments are disabled by default.
+- `scripts/make-release --name smoke-goal --targets native --payload-presets
+  survey-core,default` built a native release at
+  `dist/releases/smoke-goal-20260529-051526`.
+- `scripts/release-self-test --release-dir
+  dist/releases/smoke-goal-20260529-051526` passed, and the `--json` output
+  parsed with `python3 -m json.tool`.
 
 Recent full smoke coverage included:
 
@@ -142,5 +159,8 @@ Recent full smoke coverage included:
   sessions where the implementation is pipe-backed.
 - No-residue mode is operational cleanup hygiene, not forensic erasure.
 - QEMU user/system and GL.iNet hardware gates are environment-dependent. The
-  smoke suite validates their harness behavior, but those optional gates still
-  need local binaries/images or hardware to produce non-skip end-to-end evidence.
+  local qemu-user gate currently proves the native row and records skips for
+  unavailable cross artifacts/interpreters. The qemu-system matrix is disabled
+  by default, so it records skips until local kernels/root filesystems and
+  enabled environment entries are supplied. GL.iNet hardware validation still
+  requires a reachable target.
