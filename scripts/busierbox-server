@@ -9359,6 +9359,7 @@ def handle_file_service_http(cfg, conn, files_dir, addr):
 def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
     remote = f"{addr[0]}:{addr[1]}"
     target_identity = target_identity_from_headers(headers)
+    command_id = ""
     if method not in {"PUT", "POST"}:
         payload = {"schema": 1, "status": "rejected", "reason": "command queue result accepts only PUT or POST"}
         send_json_response(conn, 405, payload)
@@ -9388,7 +9389,10 @@ def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
     except ValueError as exc:
         payload = {"schema": 1, "status": "rejected", "reason": str(exc)}
         send_json_response(conn, 400, payload)
-        return details_with_target(cfg, {"operation": "command_queue_result", "status": "rejected", "http_status": 400, "method": method, "remote_addr": remote, "reason": str(exc)}, target_identity)
+        details = {"operation": "command_queue_result", "status": "rejected", "http_status": 400, "method": method, "remote_addr": remote, "reason": str(exc)}
+        if command_id:
+            details["command_id"] = command_id
+        return details_with_target(cfg, details, target_identity)
     response = {
         "schema": 1,
         "status": "result-received",

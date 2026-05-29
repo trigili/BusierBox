@@ -416,6 +416,26 @@ def write_bad_token_phone_home_artifact(artifact_dir, doc, command_id):
     })
 
 
+def write_target_mismatch_phone_home_artifact(artifact_dir, doc, command_id):
+    write_json(artifact_dir / "target-mismatch-phone-home.json", {
+        "schema": 1,
+        "kind": "target-mismatch-phone-home-artifact",
+        "command_id": command_id,
+        "summary": {
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+            "target_phone_home_failed_counts": doc.get("summary", {}).get("target_phone_home_failed_counts", {}),
+            "target_phone_home_http_status_counts": doc.get("summary", {}).get("target_phone_home_http_status_counts", {}),
+            "target_phone_home_pending_reason_counts": doc.get("summary", {}).get("target_phone_home_pending_reason_counts", {}),
+        },
+        "mailbox_record": (doc.get("target_mailbox_records_by_command_id") or {}).get(command_id) or {},
+        "phone_home_records": [
+            rec for rec in (doc.get("target_phone_home_records") or [])
+            if rec.get("command_id") == command_id and rec.get("status") == "rejected"
+        ],
+    })
+
+
 def write_transfer_log_artifact(artifact_dir, doc, response):
     alpha = (doc.get("targets_by_id") or {}).get("target-alpha") or {}
     uploads = doc.get("uploads") or []
@@ -898,6 +918,28 @@ def run_harness(artifact_dir):
     phases.append({"name": "duplicate-poll", "status": "pass", "artifact": "after-duplicate-alpha-poll.json"})
 
     proc = start_one_shot(cfg, "command-queue")
+    mismatched_result = connect_with_retry(
+        queue_port,
+        result_request(alpha_id, "target-bravo", "Bravo Router"),
+    )
+    wait_proc(proc, "mismatched alpha result")
+    save_response(artifact_dir, "mismatched-alpha-result", mismatched_result)
+    after_mismatch = status(cfg, artifact_dir, "after-mismatched-alpha-result")
+    alpha_after_mismatch = after_mismatch["target_mailbox_records_by_command_id"][alpha_id]
+    mismatch_attempts = [
+        rec for rec in after_mismatch.get("target_phone_home_records") or []
+        if rec.get("kind") == "result" and rec.get("command_id") == alpha_id and rec.get("failed") is True
+    ]
+    assert_condition(b"HTTP/1.1 400 Bad Request" in mismatched_result, "mismatched result upload should return HTTP 400")
+    assert_condition(b"command result target mismatch" in mismatched_result, "mismatched result upload should explain target mismatch")
+    assert_condition(alpha_after_mismatch["status"] == "delivered", "mismatched result mutated command status", alpha_after_mismatch)
+    assert_condition(alpha_after_mismatch["delivered_without_result"] is True, "mismatched result should leave command awaiting result", alpha_after_mismatch)
+    assert_condition(mismatch_attempts, "mismatched result phone-home rejection was not recorded")
+    assert_condition("command result target mismatch" in mismatch_attempts[0].get("reason", ""), "mismatched result rejection reason missing", mismatch_attempts[0])
+    write_target_mismatch_phone_home_artifact(artifact_dir, after_mismatch, alpha_id)
+    phases.append({"name": "target-mismatch-result-upload", "status": "pass", "artifact": "after-mismatched-alpha-result.json"})
+
+    proc = start_one_shot(cfg, "command-queue")
     dropped_result = connect_with_retry(
         queue_port,
         dropped_result_request(alpha_id, "target-alpha", "Alpha Router"),
@@ -912,7 +954,7 @@ def run_harness(artifact_dir):
     assert_condition(alpha_command["delivered_without_result"] is True, "dropped result should leave command awaiting result", alpha_command)
     assert_condition(after_dropped_result["targets_by_id"]["target-alpha"]["mailbox_result_received_command_count"] == 0, "dropped result should not count as received")
     assert_condition(
-        after_dropped_result["summary"]["event_type_detail_status_counts"].get("command_queue_result_upload:rejected") == 1,
+        after_dropped_result["summary"]["event_type_detail_status_counts"].get("command_queue_result_upload:rejected", 0) >= 2,
         "dropped result rejection event missing",
         after_dropped_result["summary"]["event_type_detail_status_counts"],
     )

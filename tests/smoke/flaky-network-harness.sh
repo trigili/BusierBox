@@ -11,6 +11,7 @@ test -s "$tmp/flaky-network/offline-workflow-mailbox.json"
 test -s "$tmp/flaky-network/mailbox-lifecycle.json"
 test -s "$tmp/flaky-network/restart-persistence.json"
 test -s "$tmp/flaky-network/bad-token-phone-home.json"
+test -s "$tmp/flaky-network/target-mismatch-phone-home.json"
 test -s "$tmp/flaky-network/command-result.json"
 test -s "$tmp/flaky-network/phone-home-attempts.json"
 test -s "$tmp/flaky-network/transfer.log"
@@ -28,6 +29,7 @@ workflow = json.loads((artifact_dir / "offline-workflow-mailbox.json").read_text
 lifecycle = json.loads((artifact_dir / "mailbox-lifecycle.json").read_text(encoding="utf-8"))
 restart = json.loads((artifact_dir / "restart-persistence.json").read_text(encoding="utf-8"))
 bad_token = json.loads((artifact_dir / "bad-token-phone-home.json").read_text(encoding="utf-8"))
+mismatch = json.loads((artifact_dir / "target-mismatch-phone-home.json").read_text(encoding="utf-8"))
 result = json.loads((artifact_dir / "command-result.json").read_text(encoding="utf-8"))
 phone_home = json.loads((artifact_dir / "phone-home-attempts.json").read_text(encoding="utf-8"))
 transfer = json.loads((artifact_dir / "transfer.log").read_text(encoding="utf-8"))
@@ -64,6 +66,10 @@ assert bad_token["kind"] == "bad-token-phone-home-artifact"
 assert bad_token["mailbox_record"]["status"] == "queued"
 assert bad_token["summary"]["target_phone_home_http_status_counts"]["403"] == 1
 assert bad_token["phone_home_records"][0]["reason"] == "invalid token"
+assert mismatch["kind"] == "target-mismatch-phone-home-artifact"
+assert mismatch["mailbox_record"]["status"] == "delivered"
+assert mismatch["phone_home_records"][0]["failed"] is True
+assert "command result target mismatch" in mismatch["phone_home_records"][0]["reason"]
 assert result["kind"] == "command-result-artifact"
 assert result["status"] == "result-received"
 assert result["result_status"] == "completed"
@@ -84,6 +90,7 @@ for name in (
     "mailbox-lifecycle.json",
     "restart-persistence.json",
     "bad-token-phone-home.json",
+    "target-mismatch-phone-home.json",
     "command-result.json",
     "phone-home-attempts.json",
     "transfer.log",

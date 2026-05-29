@@ -16,6 +16,8 @@ virtual network boundaries:
   not drain queued mailbox work
 - a short phone-home window delivers only the reconnecting target's work
 - duplicate polls do not redeliver already delivered commands
+- target-mismatched result uploads are rejected, recorded with the mismatch
+  reason, and do not mutate the delivered command
 - dropped/truncated result uploads are rejected without mutating delivered work
 - rejected result uploads are exposed as failed phone-home attempts with the
   rejection reason
@@ -36,8 +38,9 @@ JSON, dropped-result evidence, bridge response data, and `summary.json`. It also
 writes focused debug artifacts that mirror the QEMU lab contract:
 `target-mailbox.json`, `offline-workflow-mailbox.json`, `command-result.json`,
 `phone-home-attempts.json`, `mailbox-lifecycle.json`,
-`restart-persistence.json`, `bad-token-phone-home.json`, `transfer.log`,
-`bridge-events.jsonl`, and `artifact-manifest.json`. The smoke wrapper
+`restart-persistence.json`, `bad-token-phone-home.json`,
+`target-mismatch-phone-home.json`, `transfer.log`, `bridge-events.jsonl`, and
+`artifact-manifest.json`. The smoke wrapper
 `tests/smoke/flaky-network-harness.sh` runs the same scenario from
 `make smoke-test` with a temporary artifact directory and validates those
 focused artifacts.
