@@ -139,6 +139,8 @@ class EventLog:
         by_detail_target_id = {}
         by_detail_target_label = {}
         by_detail_expected_target_id = {}
+        by_detail_target_identity_source = {}
+        by_detail_target_identity_confidence = {}
         by_detail_poll_mode = {}
         by_detail_poll_interval_sec = {}
         by_detail_poll_jitter_pct = {}
@@ -177,6 +179,10 @@ class EventLog:
         by_service_detail_target_label = {}
         by_event_detail_expected_target_id = {}
         by_service_detail_expected_target_id = {}
+        by_event_detail_target_identity_source = {}
+        by_service_detail_target_identity_source = {}
+        by_event_detail_target_identity_confidence = {}
+        by_service_detail_target_identity_confidence = {}
         first_ts = ""
         latest_ts = ""
         for rec in records:
@@ -203,6 +209,8 @@ class EventLog:
             detail_target_id = str(details.get("target_id") or "")
             detail_target_label = str(details.get("target_label") or "")
             detail_expected_target_id = str(details.get("expected_target_id") or "")
+            detail_target_identity_source = str(details.get("target_identity_source") or "")
+            detail_target_identity_confidence = str(details.get("target_identity_confidence") or "")
             detail_poll_mode = str(details.get("poll_mode") or "")
             detail_poll_interval_sec = str(details.get("poll_interval_sec") or "")
             detail_poll_jitter_pct = str(details.get("poll_jitter_pct") or "")
@@ -274,6 +282,10 @@ class EventLog:
                 by_detail_target_label[detail_target_label] = by_detail_target_label.get(detail_target_label, 0) + 1
             if detail_expected_target_id:
                 by_detail_expected_target_id[detail_expected_target_id] = by_detail_expected_target_id.get(detail_expected_target_id, 0) + 1
+            if detail_target_identity_source:
+                by_detail_target_identity_source[detail_target_identity_source] = by_detail_target_identity_source.get(detail_target_identity_source, 0) + 1
+            if detail_target_identity_confidence:
+                by_detail_target_identity_confidence[detail_target_identity_confidence] = by_detail_target_identity_confidence.get(detail_target_identity_confidence, 0) + 1
             if detail_poll_mode:
                 by_detail_poll_mode[detail_poll_mode] = by_detail_poll_mode.get(detail_poll_mode, 0) + 1
             if detail_poll_interval_sec:
@@ -382,6 +394,18 @@ class EventLog:
             if service and detail_expected_target_id:
                 key = f"{service}:{detail_expected_target_id}"
                 by_service_detail_expected_target_id[key] = by_service_detail_expected_target_id.get(key, 0) + 1
+            if event and detail_target_identity_source:
+                key = f"{event}:{detail_target_identity_source}"
+                by_event_detail_target_identity_source[key] = by_event_detail_target_identity_source.get(key, 0) + 1
+            if service and detail_target_identity_source:
+                key = f"{service}:{detail_target_identity_source}"
+                by_service_detail_target_identity_source[key] = by_service_detail_target_identity_source.get(key, 0) + 1
+            if event and detail_target_identity_confidence:
+                key = f"{event}:{detail_target_identity_confidence}"
+                by_event_detail_target_identity_confidence[key] = by_event_detail_target_identity_confidence.get(key, 0) + 1
+            if service and detail_target_identity_confidence:
+                key = f"{service}:{detail_target_identity_confidence}"
+                by_service_detail_target_identity_confidence[key] = by_service_detail_target_identity_confidence.get(key, 0) + 1
         return {
             "path": str(self.path),
             "total_count": len(records),
@@ -419,6 +443,8 @@ class EventLog:
             "by_detail_target_id": by_detail_target_id,
             "by_detail_target_label": by_detail_target_label,
             "by_detail_expected_target_id": by_detail_expected_target_id,
+            "by_detail_target_identity_source": by_detail_target_identity_source,
+            "by_detail_target_identity_confidence": by_detail_target_identity_confidence,
             "by_detail_poll_mode": by_detail_poll_mode,
             "by_detail_poll_interval_sec": by_detail_poll_interval_sec,
             "by_detail_poll_jitter_pct": by_detail_poll_jitter_pct,
@@ -457,6 +483,10 @@ class EventLog:
             "by_service_detail_target_label": by_service_detail_target_label,
             "by_event_detail_expected_target_id": by_event_detail_expected_target_id,
             "by_service_detail_expected_target_id": by_service_detail_expected_target_id,
+            "by_event_detail_target_identity_source": by_event_detail_target_identity_source,
+            "by_service_detail_target_identity_source": by_service_detail_target_identity_source,
+            "by_event_detail_target_identity_confidence": by_event_detail_target_identity_confidence,
+            "by_service_detail_target_identity_confidence": by_service_detail_target_identity_confidence,
             "tail": tail,
         }
 
@@ -3612,6 +3642,8 @@ def event_record_indexes(records):
     by_detail_target_id = {}
     by_detail_target_label = {}
     by_detail_expected_target_id = {}
+    by_detail_target_identity_source = {}
+    by_detail_target_identity_confidence = {}
     by_detail_poll_mode = {}
     by_detail_poll_interval_sec = {}
     by_detail_poll_jitter_pct = {}
@@ -3650,6 +3682,10 @@ def event_record_indexes(records):
     by_service_detail_target_label = {}
     by_event_detail_expected_target_id = {}
     by_service_detail_expected_target_id = {}
+    by_event_detail_target_identity_source = {}
+    by_service_detail_target_identity_source = {}
+    by_event_detail_target_identity_confidence = {}
+    by_service_detail_target_identity_confidence = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -3676,6 +3712,8 @@ def event_record_indexes(records):
         detail_target_id = str(details.get("target_id") or "")
         detail_target_label = str(details.get("target_label") or "")
         detail_expected_target_id = str(details.get("expected_target_id") or "")
+        detail_target_identity_source = str(details.get("target_identity_source") or "")
+        detail_target_identity_confidence = str(details.get("target_identity_confidence") or "")
         detail_poll_mode = str(details.get("poll_mode") or "")
         detail_poll_interval_sec = str(details.get("poll_interval_sec") or "")
         detail_poll_jitter_pct = str(details.get("poll_jitter_pct") or "")
@@ -3740,6 +3778,10 @@ def event_record_indexes(records):
             by_detail_target_label.setdefault(detail_target_label, []).append(rec)
         if detail_expected_target_id:
             by_detail_expected_target_id.setdefault(detail_expected_target_id, []).append(rec)
+        if detail_target_identity_source:
+            by_detail_target_identity_source.setdefault(detail_target_identity_source, []).append(rec)
+        if detail_target_identity_confidence:
+            by_detail_target_identity_confidence.setdefault(detail_target_identity_confidence, []).append(rec)
         if detail_poll_mode:
             by_detail_poll_mode.setdefault(detail_poll_mode, []).append(rec)
         if detail_poll_interval_sec:
@@ -3816,6 +3858,14 @@ def event_record_indexes(records):
             by_event_detail_expected_target_id.setdefault(f"{event}:{detail_expected_target_id}", []).append(rec)
         if service and detail_expected_target_id:
             by_service_detail_expected_target_id.setdefault(f"{service}:{detail_expected_target_id}", []).append(rec)
+        if event and detail_target_identity_source:
+            by_event_detail_target_identity_source.setdefault(f"{event}:{detail_target_identity_source}", []).append(rec)
+        if service and detail_target_identity_source:
+            by_service_detail_target_identity_source.setdefault(f"{service}:{detail_target_identity_source}", []).append(rec)
+        if event and detail_target_identity_confidence:
+            by_event_detail_target_identity_confidence.setdefault(f"{event}:{detail_target_identity_confidence}", []).append(rec)
+        if service and detail_target_identity_confidence:
+            by_service_detail_target_identity_confidence.setdefault(f"{service}:{detail_target_identity_confidence}", []).append(rec)
     return (
         by_id, by_session, by_service, by_event, by_level, by_remote,
         by_service_event, by_session_event, by_service_level, by_event_level,
@@ -3826,6 +3876,7 @@ def event_record_indexes(records):
         by_detail_job_id, by_detail_action_id,
         by_detail_key, by_detail_config_path,
         by_detail_target_id, by_detail_target_label, by_detail_expected_target_id,
+        by_detail_target_identity_source, by_detail_target_identity_confidence,
         by_detail_poll_mode, by_detail_poll_interval_sec, by_detail_poll_jitter_pct,
         by_detail_poll_backoff, by_detail_poll_max_interval_sec, by_detail_max_polls,
         by_event_detail_status, by_service_detail_status,
@@ -3844,6 +3895,8 @@ def event_record_indexes(records):
         by_event_detail_target_id, by_service_detail_target_id,
         by_event_detail_target_label, by_service_detail_target_label,
         by_event_detail_expected_target_id, by_service_detail_expected_target_id,
+        by_event_detail_target_identity_source, by_service_detail_target_identity_source,
+        by_event_detail_target_identity_confidence, by_service_detail_target_identity_confidence,
     )
 
 
@@ -8529,6 +8582,8 @@ def status_document(cfg):
      events_by_detail_target_id,
      events_by_detail_target_label,
      events_by_detail_expected_target_id,
+     events_by_detail_target_identity_source,
+     events_by_detail_target_identity_confidence,
      events_by_detail_poll_mode,
      events_by_detail_poll_interval_sec,
      events_by_detail_poll_jitter_pct,
@@ -8566,7 +8621,11 @@ def status_document(cfg):
      events_by_event_detail_target_label,
      events_by_service_detail_target_label,
      events_by_event_detail_expected_target_id,
-     events_by_service_detail_expected_target_id) = event_record_indexes(events)
+     events_by_service_detail_expected_target_id,
+     events_by_event_detail_target_identity_source,
+     events_by_service_detail_target_identity_source,
+     events_by_event_detail_target_identity_confidence,
+     events_by_service_detail_target_identity_confidence) = event_record_indexes(events)
     event_summary_stats = event_stats
     if target_filter_id:
         first_filtered_event_at = ""
@@ -8615,6 +8674,8 @@ def status_document(cfg):
             "by_detail_target_id": count_index(events_by_detail_target_id),
             "by_detail_target_label": count_index(events_by_detail_target_label),
             "by_detail_expected_target_id": count_index(events_by_detail_expected_target_id),
+            "by_detail_target_identity_source": count_index(events_by_detail_target_identity_source),
+            "by_detail_target_identity_confidence": count_index(events_by_detail_target_identity_confidence),
             "by_detail_poll_mode": count_index(events_by_detail_poll_mode),
             "by_detail_poll_interval_sec": count_index(events_by_detail_poll_interval_sec),
             "by_detail_poll_jitter_pct": count_index(events_by_detail_poll_jitter_pct),
@@ -8653,6 +8714,10 @@ def status_document(cfg):
             "by_service_detail_target_label": count_index(events_by_service_detail_target_label),
             "by_event_detail_expected_target_id": count_index(events_by_event_detail_expected_target_id),
             "by_service_detail_expected_target_id": count_index(events_by_service_detail_expected_target_id),
+            "by_event_detail_target_identity_source": count_index(events_by_event_detail_target_identity_source),
+            "by_service_detail_target_identity_source": count_index(events_by_service_detail_target_identity_source),
+            "by_event_detail_target_identity_confidence": count_index(events_by_event_detail_target_identity_confidence),
+            "by_service_detail_target_identity_confidence": count_index(events_by_service_detail_target_identity_confidence),
         }
     command_queue = command_queue_summary(cfg)
     unfiltered_counts["command_queue_commands"] = command_queue.get(
@@ -9174,6 +9239,8 @@ def status_document(cfg):
         "event_detail_target_id_counts": event_summary_stats.get("by_detail_target_id") or {},
         "event_detail_target_label_counts": event_summary_stats.get("by_detail_target_label") or {},
         "event_detail_expected_target_id_counts": event_summary_stats.get("by_detail_expected_target_id") or {},
+        "event_detail_target_identity_source_counts": event_summary_stats.get("by_detail_target_identity_source") or {},
+        "event_detail_target_identity_confidence_counts": event_summary_stats.get("by_detail_target_identity_confidence") or {},
         "event_detail_poll_mode_counts": event_summary_stats.get("by_detail_poll_mode") or {},
         "event_detail_poll_interval_sec_counts": event_summary_stats.get("by_detail_poll_interval_sec") or {},
         "event_detail_poll_jitter_pct_counts": event_summary_stats.get("by_detail_poll_jitter_pct") or {},
@@ -9212,6 +9279,10 @@ def status_document(cfg):
         "event_service_detail_target_label_counts": event_summary_stats.get("by_service_detail_target_label") or {},
         "event_type_detail_expected_target_id_counts": event_summary_stats.get("by_event_detail_expected_target_id") or {},
         "event_service_detail_expected_target_id_counts": event_summary_stats.get("by_service_detail_expected_target_id") or {},
+        "event_type_detail_target_identity_source_counts": event_summary_stats.get("by_event_detail_target_identity_source") or {},
+        "event_service_detail_target_identity_source_counts": event_summary_stats.get("by_service_detail_target_identity_source") or {},
+        "event_type_detail_target_identity_confidence_counts": event_summary_stats.get("by_event_detail_target_identity_confidence") or {},
+        "event_service_detail_target_identity_confidence_counts": event_summary_stats.get("by_service_detail_target_identity_confidence") or {},
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_delivered_count": command_queue.get("delivered_count", 0),
@@ -9530,6 +9601,8 @@ def status_document(cfg):
                 "events_by_event_detail_config_path", "events_by_service_detail_config_path",
                 "events_by_detail_target_id", "events_by_detail_target_label",
                 "events_by_detail_expected_target_id",
+                "events_by_detail_target_identity_source",
+                "events_by_detail_target_identity_confidence",
                 "events_by_detail_poll_mode", "events_by_detail_poll_interval_sec",
                 "events_by_detail_poll_jitter_pct", "events_by_detail_poll_backoff",
                 "events_by_detail_poll_max_interval_sec", "events_by_detail_max_polls",
@@ -9537,6 +9610,10 @@ def status_document(cfg):
                 "events_by_event_detail_target_label", "events_by_service_detail_target_label",
                 "events_by_event_detail_expected_target_id",
                 "events_by_service_detail_expected_target_id",
+                "events_by_event_detail_target_identity_source",
+                "events_by_service_detail_target_identity_source",
+                "events_by_event_detail_target_identity_confidence",
+                "events_by_service_detail_target_identity_confidence",
             ), "event_tail_count",
         ),
         "release_artifacts": api_collection_record(
@@ -9908,6 +9985,8 @@ def status_document(cfg):
         "events_by_detail_target_id": events_by_detail_target_id,
         "events_by_detail_target_label": events_by_detail_target_label,
         "events_by_detail_expected_target_id": events_by_detail_expected_target_id,
+        "events_by_detail_target_identity_source": events_by_detail_target_identity_source,
+        "events_by_detail_target_identity_confidence": events_by_detail_target_identity_confidence,
         "events_by_detail_poll_mode": events_by_detail_poll_mode,
         "events_by_detail_poll_interval_sec": events_by_detail_poll_interval_sec,
         "events_by_detail_poll_jitter_pct": events_by_detail_poll_jitter_pct,
@@ -9946,6 +10025,10 @@ def status_document(cfg):
         "events_by_service_detail_target_label": events_by_service_detail_target_label,
         "events_by_event_detail_expected_target_id": events_by_event_detail_expected_target_id,
         "events_by_service_detail_expected_target_id": events_by_service_detail_expected_target_id,
+        "events_by_event_detail_target_identity_source": events_by_event_detail_target_identity_source,
+        "events_by_service_detail_target_identity_source": events_by_service_detail_target_identity_source,
+        "events_by_event_detail_target_identity_confidence": events_by_event_detail_target_identity_confidence,
+        "events_by_service_detail_target_identity_confidence": events_by_service_detail_target_identity_confidence,
         "event_log_state": event_log_state,
         "event_log_stats": {
             key: value for key, value in event_stats.items() if key != "tail"

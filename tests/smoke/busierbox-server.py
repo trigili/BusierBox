@@ -4721,10 +4721,16 @@ def main():
                 "events_by_service_detail_sha256" not in (upload_events_api.get("indexes") or []) or
                 "events_by_detail_target_id" not in (upload_events_api.get("indexes") or []) or
                 "events_by_detail_target_label" not in (upload_events_api.get("indexes") or []) or
+                "events_by_detail_target_identity_source" not in (upload_events_api.get("indexes") or []) or
+                "events_by_detail_target_identity_confidence" not in (upload_events_api.get("indexes") or []) or
                 "events_by_event_detail_target_id" not in (upload_events_api.get("indexes") or []) or
                 "events_by_service_detail_target_id" not in (upload_events_api.get("indexes") or []) or
                 "events_by_event_detail_target_label" not in (upload_events_api.get("indexes") or []) or
                 "events_by_service_detail_target_label" not in (upload_events_api.get("indexes") or []) or
+                "events_by_event_detail_target_identity_source" not in (upload_events_api.get("indexes") or []) or
+                "events_by_service_detail_target_identity_source" not in (upload_events_api.get("indexes") or []) or
+                "events_by_event_detail_target_identity_confidence" not in (upload_events_api.get("indexes") or []) or
+                "events_by_service_detail_target_identity_confidence" not in (upload_events_api.get("indexes") or []) or
                 not upload_remote or
                 sessions_by_remote.get(upload_remote, [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_service_state.get(session_service_state_key, [{}])[0].get("session_id") != uploaded_session_id or
@@ -4771,6 +4777,8 @@ def main():
                 upload_event_stats.get("by_detail_sha256", {}).get(upload_sha256, 0) < 1 or
                 upload_event_stats.get("by_detail_target_id", {}).get("target-alpha", 0) < 1 or
                 upload_event_stats.get("by_detail_target_label", {}).get("Alpha Router", 0) < 1 or
+                upload_event_stats.get("by_detail_target_identity_source", {}).get("http-header", 0) < 1 or
+                upload_event_stats.get("by_detail_target_identity_confidence", {}).get("explicit", 0) < 1 or
                 upload_event_stats.get("by_event_detail_status", {}).get("upload_complete:ok", 0) < 1 or
                 upload_event_stats.get("by_service_detail_status", {}).get("file-service:ok", 0) < 1 or
                 upload_event_stats.get("by_event_detail_sha256", {}).get(f"upload_complete:{upload_sha256}", 0) < 1 or
@@ -4781,6 +4789,10 @@ def main():
                 upload_event_stats.get("by_service_detail_target_id", {}).get("file-service:target-alpha", 0) < 1 or
                 upload_event_stats.get("by_event_detail_target_label", {}).get("upload_complete:Alpha Router", 0) < 1 or
                 upload_event_stats.get("by_service_detail_target_label", {}).get("file-service:Alpha Router", 0) < 1 or
+                upload_event_stats.get("by_event_detail_target_identity_source", {}).get("upload_complete:http-header", 0) < 1 or
+                upload_event_stats.get("by_service_detail_target_identity_source", {}).get("file-service:http-header", 0) < 1 or
+                upload_event_stats.get("by_event_detail_target_identity_confidence", {}).get("upload_complete:explicit", 0) < 1 or
+                upload_event_stats.get("by_service_detail_target_identity_confidence", {}).get("file-service:explicit", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_remote_counts", {}).get(upload_remote, 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_status_counts", {}).get("ok", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_operation_counts", {}).get("upload", 0) < 1 or
@@ -4789,6 +4801,8 @@ def main():
                 upload_doc.get("summary", {}).get("event_detail_sha256_counts", {}).get(upload_sha256, 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_target_id_counts", {}).get("target-alpha", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_target_label_counts", {}).get("Alpha Router", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_detail_target_identity_source_counts", {}).get("http-header", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_detail_target_identity_confidence_counts", {}).get("explicit", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_type_detail_status_counts", {}).get("upload_complete:ok", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_service_detail_status_counts", {}).get("file-service:ok", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_type_detail_sha256_counts", {}).get(f"upload_complete:{upload_sha256}", 0) < 1 or
@@ -4798,7 +4812,11 @@ def main():
                 upload_doc.get("summary", {}).get("event_type_detail_target_id_counts", {}).get("upload_complete:target-alpha", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_service_detail_target_id_counts", {}).get("file-service:target-alpha", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_type_detail_target_label_counts", {}).get("upload_complete:Alpha Router", 0) < 1 or
-                upload_doc.get("summary", {}).get("event_service_detail_target_label_counts", {}).get("file-service:Alpha Router", 0) < 1):
+                upload_doc.get("summary", {}).get("event_service_detail_target_label_counts", {}).get("file-service:Alpha Router", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_type_detail_target_identity_source_counts", {}).get("upload_complete:http-header", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_service_detail_target_identity_source_counts", {}).get("file-service:http-header", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_type_detail_target_identity_confidence_counts", {}).get("upload_complete:explicit", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_service_detail_target_identity_confidence_counts", {}).get("file-service:explicit", 0) < 1):
             print("server json status missing upload event log stats", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
