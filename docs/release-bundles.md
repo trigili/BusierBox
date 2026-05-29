@@ -1148,7 +1148,9 @@ background-job, and target-execution flags, and are indexed through
 `workbench_actions_by_event` and `workbench_actions_by_config_path`, so
 future TUI/web clients can render workflow screens and verify that default
 workbench actions do not execute on the target without inventing a second
-configuration format. Workbench state records
+configuration format. Target workflow action selection and completion events
+carry the same headless command metadata, so interrupted target-specific flows
+still leave an auditable CLI command. Workbench state records
 also keep `workbench_mode` (`curses`, `line`, or `noninteractive`) so status
 consumers can distinguish the active operator surface after shutdown. The same
 status output also exposes `workbench_config_fields` for guided edits of the existing

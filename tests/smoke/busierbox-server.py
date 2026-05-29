@@ -6218,7 +6218,12 @@ def main():
                 action_queue[0].get("command") != "busierbox survey --json" or
                 len(action_staged) != 1 or
                 action_staged[0].get("request_name") != "action-staged.txt" or
-                not action_events.get("target_workflow_action_selected") or
+                not any(
+                    (event.get("details") or {}).get("target_id") == "target-action" and
+                    (event.get("details") or {}).get("action_id") == "queue-command" and
+                    "--target-id target-action --queue-command COMMAND" in ((event.get("details") or {}).get("headless_command") or "")
+                    for event in action_events.get("target_workflow_action_selected", [])
+                ) or
                 completed_by_action.get("stage-file-fetch", {}).get("request_name") != "action-staged.txt" or
                 completed_by_action.get("stage-file-fetch", {}).get("target_id") != "target-action" or
                 completed_by_action.get("queue-command", {}).get("command_id") != action_queue[0].get("id") or

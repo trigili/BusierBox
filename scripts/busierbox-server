@@ -14837,9 +14837,11 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         "id": rec.get("id", ""),
         "action_id": action_id,
         "target_id": target_id,
+        "target_label": target_label,
         "workflow": rec.get("workflow", ""),
         "category": rec.get("category", ""),
         "requires_input": bool(rec.get("requires_input")),
+        "headless_command": rec.get("headless_command", rec.get("command", "")),
     })
     print(f"target workflow action: {rec.get('id', '')}")
     print(f"headless_command={rec.get('headless_command', rec.get('command', ''))}")
