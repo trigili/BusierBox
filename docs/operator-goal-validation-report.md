@@ -51,7 +51,15 @@ complete.
   sessions, events, command-queue records, generated target commands, capability
   evidence, and compatibility report labels. Status also reports
   target-attributed versus legacy no-target uploads, fetches, and sessions so
-  old single-target traffic stays valid but auditable.
+  old single-target traffic stays valid but auditable. Target-filter records now
+  distinguish generated command activity from observed target activity, mirror
+  selected-target capability and compatibility evidence, and expose the same
+  compact selected-target summary in JSON/API status, `--status`, fallback
+  workbench output, and the curses workbench banner.
+- Event-log status distinguishes invalid logs, truncated tails, omitted records,
+  and intentionally suppressed tails. JSON/API status, `--status`, and fallback
+  workbench output expose whether the event tail has records, has omitted
+  records, or is empty only because `--event-limit 0` was requested.
 - Local/offline release indexes expose deduplicated artifacts, tuple/device/tool
   lookups, payload preset and feature lookups, provider status, Doom WAD
   metadata, command-queue safety metadata, corresponding-source filters, and
@@ -155,6 +163,17 @@ tests/smoke/busierbox-server.py
 
 Result:
 
+- The server smoke test passed after target-filter state records were expanded
+  with filtered/unfiltered activity counts, observed-activity counts that
+  exclude generated target commands, selected-target capability/compatibility
+  evidence, and lookup indexes for future API clients.
+- The server smoke test passed after `--status`, fallback workbench output, and
+  the curses workbench banner were aligned on the same target-filter summary,
+  including observed target activity and selected-target evidence.
+- The server smoke test passed after event-log state records gained
+  `tail_has_records`, `tail_has_omitted_records`, and
+  `tail_empty_due_to_limit`, with the same state visible in human operator
+  views for `--event-limit 0`.
 - The server smoke test passed after target records were extended to retain
   compatibility evidence from uploaded target reports, including lookup maps and
   summary counts by compatibility label, baseline label, release, and payload
