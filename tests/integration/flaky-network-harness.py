@@ -119,6 +119,45 @@ def start_one_shot(cfg, transport, timeout="10", extra=None):
     )
 
 
+def start_operator_daemon(cfg, *services):
+    args = [str(SERVER), "--config", str(cfg), "--daemon"]
+    for service in services:
+        args.extend(["--daemon-service", service])
+    return subprocess.Popen(
+        args,
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def wait_for_service(cfg, proc, service, expected="listening", timeout=20):
+    deadline = time.time() + timeout
+    latest = {}
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            stdout, stderr = proc.communicate(timeout=1)
+            raise RuntimeError(f"operator daemon exited early: stdout={stdout} stderr={stderr}")
+        result = run(str(SERVER), "--config", str(cfg), "--json-status")
+        if result.returncode == 0:
+            latest = json.loads(result.stdout)
+            service_rec = (latest.get("services_by_name") or {}).get(service) or {}
+            if service_rec.get("actual") == expected:
+                return latest
+        time.sleep(0.1)
+    raise RuntimeError(f"{service} did not reach {expected}: {json.dumps(latest, sort_keys=True)}")
+
+
+def stop_operator_daemon(cfg, proc):
+    stop = run(str(SERVER), "--config", str(cfg), "--stop")
+    if stop.returncode != 0 or "failed=0" not in stop.stdout:
+        raise RuntimeError(f"operator daemon stop failed: stdout={stop.stdout} stderr={stop.stderr}")
+    stdout, stderr = proc.communicate(timeout=8)
+    if proc.returncode not in (0, -15):
+        raise RuntimeError(f"operator daemon exited unexpectedly: rc={proc.returncode} stdout={stdout} stderr={stderr}")
+
+
 def wait_proc(proc, name):
     out, err = proc.communicate(timeout=15)
     if proc.returncode != 0:
@@ -430,6 +469,31 @@ def write_mailbox_lifecycle_artifact(artifact_dir, doc, failed_id, expired_id):
     })
 
 
+def write_restart_persistence_artifact(artifact_dir, before_start, after_stop_queue, after_restart, first_id, second_id):
+    write_json(artifact_dir / "restart-persistence.json", {
+        "schema": 1,
+        "kind": "restart-persistence-artifact",
+        "first_command_id": first_id,
+        "second_command_id": second_id,
+        "before_start": {
+            "target_mailbox_pending_work_count": before_start.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "command_queue_status_counts": before_start.get("summary", {}).get("command_queue_status_counts", {}),
+        },
+        "after_stop_queue": {
+            "target_mailbox_pending_work_count": after_stop_queue.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "command_queue_status_counts": after_stop_queue.get("summary", {}).get("command_queue_status_counts", {}),
+        },
+        "after_restart": {
+            "target_mailbox_pending_work_count": after_restart.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_phone_home_status_counts": after_restart.get("summary", {}).get("target_phone_home_status_counts", {}),
+            "target_phone_home_record_count": after_restart.get("summary", {}).get("target_phone_home_record_count", 0),
+        },
+        "first_mailbox_record": (after_restart.get("target_mailbox_records_by_command_id") or {}).get(first_id) or {},
+        "second_mailbox_record": (after_restart.get("target_mailbox_records_by_command_id") or {}).get(second_id) or {},
+        "phone_home_records": after_restart.get("target_phone_home_records") or [],
+    })
+
+
 def write_artifact_manifest(artifact_dir, phases):
     records = []
     for path in sorted(artifact_dir.iterdir()):
@@ -599,6 +663,70 @@ def run_mailbox_lifecycle_scenario(artifact_dir):
     return {"name": "mailbox-failed-expired", "status": "pass", "artifact": "mailbox-lifecycle-status.json"}
 
 
+def run_restart_persistence_scenario(artifact_dir):
+    scenario_dir = artifact_dir / "restart-persistence-session"
+    queue_port = free_port()
+    cfg = scenario_dir / "server-config.json"
+    queue_file = scenario_dir / "command-queue.json"
+    write_json(cfg, {
+        "listen_host": "127.0.0.1",
+        "operator_session_dir": str(scenario_dir),
+        "session_root": str(scenario_dir / "sessions"),
+        "server_state": str(scenario_dir / "server-state.json"),
+        "targets_file": str(scenario_dir / "targets.json"),
+        "command_queue_file": str(queue_file),
+        "command_queue_enable": "yes",
+        "command_queue_tls": "no",
+        "command_queue_port": str(queue_port),
+        "command_queue_require_token": "no",
+        "command_queue_allowed_commands": "busierbox-only",
+        "command_queue_allow_arbitrary": "no",
+    })
+
+    queue_command(cfg, "target-restart-a", "Restart Router A", "busierbox survey --json")
+    before_start = status(cfg, artifact_dir, "restart-before-start")
+    first_id = command_ids(queue_file)["target-restart-a"]
+    assert_condition(before_start["summary"]["target_mailbox_pending_work_count"] == 1, "restart scenario initial queue missing", before_start["summary"])
+
+    daemon = start_operator_daemon(cfg, "command-queue")
+    try:
+        wait_for_service(cfg, daemon, "command-queue")
+        first_poll = connect_with_retry(queue_port, poll_request("target-restart-a", "Restart Router A"))
+        save_response(artifact_dir, "restart-first-poll", first_poll)
+        assert_condition(b"HTTP/1.1 200 OK" in first_poll and first_id.encode("ascii") in first_poll, "first restart command did not deliver")
+        stop_operator_daemon(cfg, daemon)
+    finally:
+        if daemon.poll() is None:
+            daemon.terminate()
+            daemon.communicate(timeout=8)
+
+    queue_command(cfg, "target-restart-b", "Restart Router B", "busierbox survey --json")
+    after_stop_queue = status(cfg, artifact_dir, "restart-after-stop-queue")
+    second_id = command_ids(queue_file)["target-restart-b"]
+    second_before = (after_stop_queue.get("target_mailbox_records_by_command_id") or {}).get(second_id) or {}
+    assert_condition(second_before.get("status") == "queued", "second command was not queued while daemon stopped", second_before)
+
+    daemon = start_operator_daemon(cfg, "command-queue")
+    try:
+        wait_for_service(cfg, daemon, "command-queue")
+        second_poll = connect_with_retry(queue_port, poll_request("target-restart-b", "Restart Router B"))
+        save_response(artifact_dir, "restart-second-poll", second_poll)
+        assert_condition(b"HTTP/1.1 200 OK" in second_poll and second_id.encode("ascii") in second_poll, "queued command did not survive daemon restart")
+        after_restart = status(cfg, artifact_dir, "restart-after-reconnect")
+        first_after = (after_restart.get("target_mailbox_records_by_command_id") or {}).get(first_id) or {}
+        second_after = (after_restart.get("target_mailbox_records_by_command_id") or {}).get(second_id) or {}
+        assert_condition(first_after.get("status") == "delivered", "first restart command delivery missing", first_after)
+        assert_condition(second_after.get("status") == "delivered", "second restart command delivery missing", second_after)
+        assert_condition(after_restart["summary"]["target_phone_home_status_counts"].get("delivered", 0) >= 2, "restart phone-home deliveries missing")
+        write_restart_persistence_artifact(artifact_dir, before_start, after_stop_queue, after_restart, first_id, second_id)
+        stop_operator_daemon(cfg, daemon)
+    finally:
+        if daemon.poll() is None:
+            daemon.terminate()
+            daemon.communicate(timeout=8)
+    return {"name": "restart-persistence", "status": "pass", "artifact": "restart-after-reconnect.json"}
+
+
 def assert_condition(condition, message, detail=None):
     if not condition:
         if detail is not None:
@@ -644,6 +772,7 @@ def run_harness(artifact_dir):
 
     phases.append(run_offline_workflow_queue_scenario(artifact_dir))
     phases.append(run_mailbox_lifecycle_scenario(artifact_dir))
+    phases.append(run_restart_persistence_scenario(artifact_dir))
 
     queue_command(cfg, "target-alpha", "Alpha Router", "busierbox survey --json")
     queue_command(cfg, "target-bravo", "Bravo Router", "busierbox survey --json")

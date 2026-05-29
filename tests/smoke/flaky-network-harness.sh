@@ -9,6 +9,7 @@ test -s "$tmp/flaky-network/summary.json"
 test -s "$tmp/flaky-network/target-mailbox.json"
 test -s "$tmp/flaky-network/offline-workflow-mailbox.json"
 test -s "$tmp/flaky-network/mailbox-lifecycle.json"
+test -s "$tmp/flaky-network/restart-persistence.json"
 test -s "$tmp/flaky-network/command-result.json"
 test -s "$tmp/flaky-network/phone-home-attempts.json"
 test -s "$tmp/flaky-network/transfer.log"
@@ -24,6 +25,7 @@ artifact_dir = Path(sys.argv[1])
 mailbox = json.loads((artifact_dir / "target-mailbox.json").read_text(encoding="utf-8"))
 workflow = json.loads((artifact_dir / "offline-workflow-mailbox.json").read_text(encoding="utf-8"))
 lifecycle = json.loads((artifact_dir / "mailbox-lifecycle.json").read_text(encoding="utf-8"))
+restart = json.loads((artifact_dir / "restart-persistence.json").read_text(encoding="utf-8"))
 result = json.loads((artifact_dir / "command-result.json").read_text(encoding="utf-8"))
 phone_home = json.loads((artifact_dir / "phone-home-attempts.json").read_text(encoding="utf-8"))
 transfer = json.loads((artifact_dir / "transfer.log").read_text(encoding="utf-8"))
@@ -52,6 +54,10 @@ assert lifecycle["expired_mailbox_record"]["expired"] is True
 assert lifecycle["expired_mailbox_record"]["pending_work"] is False
 assert lifecycle["summary"]["target_mailbox_result_status_counts"]["failed"] == 1
 assert lifecycle["summary"]["target_mailbox_expired_counts"]["True"] == 1
+assert restart["kind"] == "restart-persistence-artifact"
+assert restart["before_start"]["target_mailbox_pending_work_count"] == 1
+assert restart["second_mailbox_record"]["status"] == "delivered"
+assert restart["after_restart"]["target_phone_home_status_counts"]["delivered"] >= 2
 assert result["kind"] == "command-result-artifact"
 assert result["status"] == "result-received"
 assert result["result_status"] == "completed"
@@ -70,6 +76,7 @@ for name in (
     "target-mailbox.json",
     "offline-workflow-mailbox.json",
     "mailbox-lifecycle.json",
+    "restart-persistence.json",
     "command-result.json",
     "phone-home-attempts.json",
     "transfer.log",
