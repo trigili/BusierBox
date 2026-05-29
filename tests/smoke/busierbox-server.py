@@ -2923,6 +2923,15 @@ def main():
                 return 1
             os.write(tui_master, b"q\n")
             _tui_owned_stdout, tui_owned_stderr = tui_owned_proc.communicate(timeout=5)
+            tui_owned_output = b""
+            while True:
+                try:
+                    chunk = os.read(tui_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                tui_owned_output += chunk
         finally:
             if tui_slave != -1:
                 os.close(tui_slave)
@@ -2933,6 +2942,11 @@ def main():
         if tui_owned_proc.returncode != 0 or "Traceback" in (tui_owned_stderr or ""):
             print("line TUI did not quit cleanly after starting managed service", file=sys.stderr)
             print(tui_owned_stderr or "", file=sys.stderr)
+            return 1
+        tui_owned_text = tui_owned_output.decode("utf-8", errors="replace")
+        if "Workbench summary:" not in tui_owned_text or "events=0" in tui_owned_text:
+            print("line TUI summary did not report populated event counts", file=sys.stderr)
+            print(tui_owned_text, file=sys.stderr)
             return 1
         tui_after = run(
             "scripts/busierbox-server", "--config", str(tui_owned_cfg),
