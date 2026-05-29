@@ -472,7 +472,8 @@ but omits event records.
 When `--target-id ID` is active, the status document includes a `target_filter`
 record with unfiltered and filtered collection counts, the selected target
 record when known, and direct selected-target fields such as label, aliases,
-identity sources, identity confidence, latest activity, and notes presence.
+identity sources, identity confidence, latest activity, latest file/survey/bridge
+route state, and notes presence.
 The normalized `target_filter_records` API collection carries the same counts,
 including staged files, event tail records, queued command metadata, generated
 target commands, and booleans for whether the filter reduced or retained

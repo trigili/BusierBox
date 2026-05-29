@@ -7271,11 +7271,18 @@ def main():
                 filtered_alpha_registry.get("selected_target_label") != "Alpha Router Renamed" or
                 filtered_alpha_registry.get("selected_target_identity_confidence") != "explicit" or
                 filtered_alpha_registry.get("selected_target_notes_present") is not True or
+                filtered_alpha_registry.get("selected_target_latest_file_transfer_operation") != "upload" or
+                filtered_alpha_registry.get("selected_target_latest_file_transfer_status") != "ok" or
+                filtered_alpha_registry.get("selected_target_latest_file_transfer_route_kind") != "direct" or
                 filtered_alpha.get("target_registry_state_records_by_filter_active", {}).get("True", [{}])[0].get("id") != "target-registry" or
+                filtered_alpha.get("target_registry_state_records_by_selected_target_latest_file_transfer_route_kind", {}).get("direct", [{}])[0].get("id") != "target-registry" or
                 filtered_alpha.get("summary", {}).get("target_registry_has_selected_target") is not True or
                 filtered_alpha.get("target_filter", {}).get("selected_target_found") is not True or
                 filtered_alpha.get("target_filter", {}).get("selected_target_label") != "Alpha Router Renamed" or
                 filtered_alpha.get("target_filter", {}).get("selected_target_identity_confidence") != "explicit" or
+                filtered_alpha.get("target_filter", {}).get("selected_target_latest_file_transfer_operation") != "upload" or
+                filtered_alpha.get("target_filter", {}).get("selected_target_latest_file_transfer_status") != "ok" or
+                filtered_alpha.get("target_filter", {}).get("selected_target_latest_file_transfer_route_kind") != "direct" or
                 "http-header" not in (filtered_alpha.get("target_filter", {}).get("selected_target_identity_sources") or []) or
                 "lab-alpha" not in (filtered_alpha.get("target_filter", {}).get("selected_target_aliases") or []) or
                 "rack-1" not in (filtered_alpha.get("target_filter", {}).get("selected_target_aliases") or []) or
@@ -7284,6 +7291,8 @@ def main():
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_found") is not True or
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_label") != "Alpha Router Renamed" or
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_identity_confidence") != "explicit" or
+                filtered_alpha.get("api", {}).get("target_filter_selected_target_latest_file_transfer_status") != "ok" or
+                filtered_alpha.get("api", {}).get("target_filter_selected_target_latest_file_transfer_route_kind") != "direct" or
                 filtered_alpha.get("target_filter", {}).get("unfiltered_counts", {}).get("targets") != 2 or
                 filtered_alpha.get("summary", {}).get("target_count") != 1 or
                 filtered_alpha.get("summary", {}).get("upload_count") != 1 or
@@ -7302,6 +7311,9 @@ def main():
                 filtered_alpha.get("summary", {}).get("target_filter_selected_target_found") is not True or
                 filtered_alpha.get("summary", {}).get("target_filter_selected_target_identity_source_count") < 1 or
                 filtered_alpha_record.get("selected_target_label") != "Alpha Router Renamed" or
+                filtered_alpha_record.get("selected_target_latest_file_transfer_operation") != "upload" or
+                filtered_alpha_record.get("selected_target_latest_file_transfer_status") != "ok" or
+                filtered_alpha_record.get("selected_target_latest_file_transfer_route_kind") != "direct" or
                 filtered_alpha_record.get("unfiltered_target_count") != 2 or
                 filtered_alpha_record.get("filtered_target_count") != 1 or
                 filtered_alpha_record.get("unfiltered_upload_count") != 2 or
@@ -7320,7 +7332,10 @@ def main():
                 filtered_alpha.get("summary", {}).get("target_filter_has_observed_activity") is not True or
                 filtered_alpha.get("summary", {}).get("target_filter_reduced_observed_activity") is not True or
                 (filtered_alpha.get("target_filter_records_by_selected_target_found") or {}).get("True", [{}])[0].get("target_id") != "target-alpha" or
+                (filtered_alpha.get("target_filter_records_by_selected_target_latest_file_transfer_route_kind") or {}).get("direct", [{}])[0].get("target_id") != "target-alpha" or
                 "target_filter_records_by_selected_target_identity_confidence" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
+                "target_filter_records_by_selected_target_latest_file_transfer_route_kind" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
+                "target_registry_state_records_by_selected_target_latest_file_transfer_route_kind" not in ((filtered_alpha.get("api_collections") or {}).get("target_registry_state_records") or {}).get("indexes", []) or
                 "target_filter_records_by_filter_reduced_activity" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
                 "target_filter_records_by_has_filtered_observed_activity" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
                 (filtered_alpha.get("target_filter_records_by_filter_reduced_activity") or {}).get("True", [{}])[0].get("target_id") != "target-alpha" or
@@ -7398,6 +7413,7 @@ def main():
         )
         if (filtered_status.returncode != 0 or
                 "target_filter: target-bravo targets=1 uploads=1" not in filtered_status.stdout or
+                "file_transfer=upload status=ok route=direct" not in filtered_status.stdout or
                 "observed=" not in filtered_status.stdout or
                 "observed_seen=yes" not in filtered_status.stdout or
                 "label=Bravo Router confidence=explicit" not in filtered_status.stdout or

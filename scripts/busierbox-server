@@ -10853,6 +10853,18 @@ def status_document(cfg):
         "selected_target_identity_source_count": len(selected_target_sources),
         "selected_target_alias_count": len(selected_target.get("aliases") or []),
         "selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
+        "selected_target_latest_file_transfer_operation": str(selected_target.get("latest_file_transfer_operation") or ""),
+        "selected_target_latest_file_transfer_status": str(selected_target.get("latest_file_transfer_status") or ""),
+        "selected_target_latest_file_transfer_route_kind": str(selected_target.get("latest_file_transfer_route_kind") or ""),
+        "selected_target_latest_file_transfer_bridge_profile": str(selected_target.get("latest_file_transfer_bridge_profile") or ""),
+        "selected_target_latest_survey_result_kind": str(selected_target.get("latest_survey_result_kind") or ""),
+        "selected_target_latest_survey_result_status": str(selected_target.get("latest_survey_result_status") or ""),
+        "selected_target_latest_survey_result_route_kind": str(selected_target.get("latest_survey_result_route_kind") or ""),
+        "selected_target_latest_survey_result_bridge_profile": str(selected_target.get("latest_survey_result_bridge_profile") or ""),
+        "selected_target_latest_bridge_profile": str(selected_target.get("latest_bridge_profile") or ""),
+        "selected_target_latest_bridge_status": str(selected_target.get("latest_bridge_status") or ""),
+        "selected_target_latest_bridge_route_path": str(selected_target.get("latest_bridge_route_path") or ""),
+        "selected_target_latest_bridge_failure_reason": str(selected_target.get("latest_bridge_failure_reason") or ""),
         "selected_target_latest_capability_report_kind": str(selected_target.get("latest_capability_report_kind") or ""),
         "selected_target_latest_capability_check_count": int_value(selected_target_capability_summary.get("check_count", 0)),
         "selected_target_latest_capability_pass_count": int_value(selected_target_capability_summary.get("capability_pass_count", 0)),
@@ -10915,6 +10927,12 @@ def status_document(cfg):
         "target_registry_state_records_by_filter_target_id": records_by_key(target_registry_state_records, "filter_target_id"),
         "target_registry_state_records_by_selected_target_found": records_by_key(target_registry_state_records, "selected_target_found"),
         "target_registry_state_records_by_selected_target_identity_confidence": records_by_key(target_registry_state_records, "selected_target_identity_confidence"),
+        "target_registry_state_records_by_selected_target_latest_file_transfer_status": records_by_key(target_registry_state_records, "selected_target_latest_file_transfer_status"),
+        "target_registry_state_records_by_selected_target_latest_file_transfer_route_kind": records_by_key(target_registry_state_records, "selected_target_latest_file_transfer_route_kind"),
+        "target_registry_state_records_by_selected_target_latest_survey_result_status": records_by_key(target_registry_state_records, "selected_target_latest_survey_result_status"),
+        "target_registry_state_records_by_selected_target_latest_survey_result_route_kind": records_by_key(target_registry_state_records, "selected_target_latest_survey_result_route_kind"),
+        "target_registry_state_records_by_selected_target_latest_bridge_profile": records_by_key(target_registry_state_records, "selected_target_latest_bridge_profile"),
+        "target_registry_state_records_by_selected_target_latest_bridge_status": records_by_key(target_registry_state_records, "selected_target_latest_bridge_status"),
         "target_registry_state_records_by_selected_target_latest_capability_report_kind": records_by_key(target_registry_state_records, "selected_target_latest_capability_report_kind"),
         "target_registry_state_records_by_selected_target_latest_compatibility_label": records_by_key(target_registry_state_records, "selected_target_latest_compatibility_label"),
         "target_registry_state_records_by_selected_target_latest_compatibility_release_name": records_by_key(target_registry_state_records, "selected_target_latest_compatibility_release_name"),
@@ -11286,6 +11304,18 @@ def status_document(cfg):
         "selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
         "selected_target_latest_activity_service": str(selected_target.get("latest_activity_service") or ""),
         "selected_target_latest_activity_operation": str(selected_target.get("latest_activity_operation") or ""),
+        "selected_target_latest_file_transfer_operation": str(selected_target.get("latest_file_transfer_operation") or ""),
+        "selected_target_latest_file_transfer_status": str(selected_target.get("latest_file_transfer_status") or ""),
+        "selected_target_latest_file_transfer_route_kind": str(selected_target.get("latest_file_transfer_route_kind") or ""),
+        "selected_target_latest_file_transfer_bridge_profile": str(selected_target.get("latest_file_transfer_bridge_profile") or ""),
+        "selected_target_latest_survey_result_kind": str(selected_target.get("latest_survey_result_kind") or ""),
+        "selected_target_latest_survey_result_status": str(selected_target.get("latest_survey_result_status") or ""),
+        "selected_target_latest_survey_result_route_kind": str(selected_target.get("latest_survey_result_route_kind") or ""),
+        "selected_target_latest_survey_result_bridge_profile": str(selected_target.get("latest_survey_result_bridge_profile") or ""),
+        "selected_target_latest_bridge_profile": str(selected_target.get("latest_bridge_profile") or ""),
+        "selected_target_latest_bridge_status": str(selected_target.get("latest_bridge_status") or ""),
+        "selected_target_latest_bridge_route_path": str(selected_target.get("latest_bridge_route_path") or ""),
+        "selected_target_latest_bridge_failure_reason": str(selected_target.get("latest_bridge_failure_reason") or ""),
         "selected_target_latest_capability_report_kind": str(selected_target.get("latest_capability_report_kind") or ""),
         "selected_target_latest_capability_check_count": int_value(selected_target_capability_summary.get("check_count", 0)),
         "selected_target_latest_capability_pass_count": int_value(selected_target_capability_summary.get("capability_pass_count", 0)),
@@ -11407,6 +11437,12 @@ def status_document(cfg):
         "target_filter_records_by_selected_target_notes_present": records_by_key(target_filter_records, "selected_target_notes_present"),
         "target_filter_records_by_selected_target_latest_activity_service": records_by_key(target_filter_records, "selected_target_latest_activity_service"),
         "target_filter_records_by_selected_target_latest_activity_operation": records_by_key(target_filter_records, "selected_target_latest_activity_operation"),
+        "target_filter_records_by_selected_target_latest_file_transfer_status": records_by_key(target_filter_records, "selected_target_latest_file_transfer_status"),
+        "target_filter_records_by_selected_target_latest_file_transfer_route_kind": records_by_key(target_filter_records, "selected_target_latest_file_transfer_route_kind"),
+        "target_filter_records_by_selected_target_latest_survey_result_status": records_by_key(target_filter_records, "selected_target_latest_survey_result_status"),
+        "target_filter_records_by_selected_target_latest_survey_result_route_kind": records_by_key(target_filter_records, "selected_target_latest_survey_result_route_kind"),
+        "target_filter_records_by_selected_target_latest_bridge_profile": records_by_key(target_filter_records, "selected_target_latest_bridge_profile"),
+        "target_filter_records_by_selected_target_latest_bridge_status": records_by_key(target_filter_records, "selected_target_latest_bridge_status"),
         "target_filter_records_by_selected_target_latest_capability_report_kind": records_by_key(target_filter_records, "selected_target_latest_capability_report_kind"),
         "target_filter_records_by_selected_target_latest_compatibility_report_kind": records_by_key(target_filter_records, "selected_target_latest_compatibility_report_kind"),
         "target_filter_records_by_selected_target_latest_compatibility_label": records_by_key(target_filter_records, "selected_target_latest_compatibility_label"),
@@ -12604,6 +12640,12 @@ def status_document(cfg):
                 "target_registry_state_records_by_filter_target_id",
                 "target_registry_state_records_by_selected_target_found",
                 "target_registry_state_records_by_selected_target_identity_confidence",
+                "target_registry_state_records_by_selected_target_latest_file_transfer_status",
+                "target_registry_state_records_by_selected_target_latest_file_transfer_route_kind",
+                "target_registry_state_records_by_selected_target_latest_survey_result_status",
+                "target_registry_state_records_by_selected_target_latest_survey_result_route_kind",
+                "target_registry_state_records_by_selected_target_latest_bridge_profile",
+                "target_registry_state_records_by_selected_target_latest_bridge_status",
                 "target_registry_state_records_by_selected_target_latest_capability_report_kind",
                 "target_registry_state_records_by_selected_target_latest_compatibility_label",
                 "target_registry_state_records_by_selected_target_latest_compatibility_release_name",
@@ -12629,6 +12671,12 @@ def status_document(cfg):
                 "target_filter_records_by_selected_target_notes_present",
                 "target_filter_records_by_selected_target_latest_activity_service",
                 "target_filter_records_by_selected_target_latest_activity_operation",
+                "target_filter_records_by_selected_target_latest_file_transfer_status",
+                "target_filter_records_by_selected_target_latest_file_transfer_route_kind",
+                "target_filter_records_by_selected_target_latest_survey_result_status",
+                "target_filter_records_by_selected_target_latest_survey_result_route_kind",
+                "target_filter_records_by_selected_target_latest_bridge_profile",
+                "target_filter_records_by_selected_target_latest_bridge_status",
                 "target_filter_records_by_selected_target_latest_capability_report_kind",
                 "target_filter_records_by_selected_target_latest_compatibility_report_kind",
                 "target_filter_records_by_selected_target_latest_compatibility_label",
@@ -12985,6 +13033,12 @@ def status_document(cfg):
             "target_filter_selected_target_found": bool(selected_target),
             "target_filter_selected_target_label": str(selected_target.get("label") or ""),
             "target_filter_selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
+            "target_filter_selected_target_latest_file_transfer_status": str(selected_target.get("latest_file_transfer_status") or ""),
+            "target_filter_selected_target_latest_file_transfer_route_kind": str(selected_target.get("latest_file_transfer_route_kind") or ""),
+            "target_filter_selected_target_latest_survey_result_status": str(selected_target.get("latest_survey_result_status") or ""),
+            "target_filter_selected_target_latest_survey_result_route_kind": str(selected_target.get("latest_survey_result_route_kind") or ""),
+            "target_filter_selected_target_latest_bridge_profile": str(selected_target.get("latest_bridge_profile") or ""),
+            "target_filter_selected_target_latest_bridge_status": str(selected_target.get("latest_bridge_status") or ""),
             "target_filter_selected_target_latest_capability_report_kind": str(selected_target.get("latest_capability_report_kind") or ""),
             "target_filter_selected_target_latest_compatibility_label": str(selected_target.get("latest_compatibility_label") or ""),
             "target_filter_selected_target_latest_compatibility_release_name": str(selected_target.get("latest_compatibility_release_name") or ""),
@@ -13003,6 +13057,18 @@ def status_document(cfg):
             "selected_target_identity_sources": selected_target_sources,
             "selected_target_latest_activity_service": str(selected_target.get("latest_activity_service") or ""),
             "selected_target_latest_activity_operation": str(selected_target.get("latest_activity_operation") or ""),
+            "selected_target_latest_file_transfer_operation": str(selected_target.get("latest_file_transfer_operation") or ""),
+            "selected_target_latest_file_transfer_status": str(selected_target.get("latest_file_transfer_status") or ""),
+            "selected_target_latest_file_transfer_route_kind": str(selected_target.get("latest_file_transfer_route_kind") or ""),
+            "selected_target_latest_file_transfer_bridge_profile": str(selected_target.get("latest_file_transfer_bridge_profile") or ""),
+            "selected_target_latest_survey_result_kind": str(selected_target.get("latest_survey_result_kind") or ""),
+            "selected_target_latest_survey_result_status": str(selected_target.get("latest_survey_result_status") or ""),
+            "selected_target_latest_survey_result_route_kind": str(selected_target.get("latest_survey_result_route_kind") or ""),
+            "selected_target_latest_survey_result_bridge_profile": str(selected_target.get("latest_survey_result_bridge_profile") or ""),
+            "selected_target_latest_bridge_profile": str(selected_target.get("latest_bridge_profile") or ""),
+            "selected_target_latest_bridge_status": str(selected_target.get("latest_bridge_status") or ""),
+            "selected_target_latest_bridge_route_path": str(selected_target.get("latest_bridge_route_path") or ""),
+            "selected_target_latest_bridge_failure_reason": str(selected_target.get("latest_bridge_failure_reason") or ""),
             "selected_target_latest_capability_report_kind": str(selected_target.get("latest_capability_report_kind") or ""),
             "selected_target_latest_capability_check_count": int_value(selected_target_capability_summary.get("check_count", 0)),
             "selected_target_latest_capability_pass_count": int_value(selected_target_capability_summary.get("capability_pass_count", 0)),
@@ -13566,8 +13632,35 @@ def target_filter_evidence_lines(target_filter):
     if not isinstance(target_filter, dict) or not target_filter.get("active"):
         return []
     lines = []
+    file_operation = str(target_filter.get("selected_target_latest_file_transfer_operation") or "")
+    survey_kind = str(target_filter.get("selected_target_latest_survey_result_kind") or "")
+    bridge_profile = str(target_filter.get("selected_target_latest_bridge_profile") or "")
     capability_kind = str(target_filter.get("selected_target_latest_capability_report_kind") or "")
     compatibility_label = str(target_filter.get("selected_target_latest_compatibility_label") or "")
+    if file_operation:
+        lines.append(
+            "file_transfer="
+            f"{file_operation} "
+            f"status={target_filter.get('selected_target_latest_file_transfer_status') or '-'} "
+            f"route={target_filter.get('selected_target_latest_file_transfer_route_kind') or '-'} "
+            f"bridge_profile={target_filter.get('selected_target_latest_file_transfer_bridge_profile') or '-'}"
+        )
+    if survey_kind:
+        lines.append(
+            "survey_result="
+            f"{survey_kind} "
+            f"status={target_filter.get('selected_target_latest_survey_result_status') or '-'} "
+            f"route={target_filter.get('selected_target_latest_survey_result_route_kind') or '-'} "
+            f"bridge_profile={target_filter.get('selected_target_latest_survey_result_bridge_profile') or '-'}"
+        )
+    if bridge_profile:
+        lines.append(
+            "bridge="
+            f"{bridge_profile} "
+            f"status={target_filter.get('selected_target_latest_bridge_status') or '-'} "
+            f"path={target_filter.get('selected_target_latest_bridge_route_path') or '-'} "
+            f"failure={target_filter.get('selected_target_latest_bridge_failure_reason') or '-'}"
+        )
     if capability_kind:
         lines.append(
             "capability="
