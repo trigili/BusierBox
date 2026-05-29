@@ -503,16 +503,16 @@ def main():
         if (bridge_service.get("port") != bridge_port or
                 bridge_service.get("actual") != "stopped" or
                 bridge_status.get("summary", {}).get("bridge_profile_count") != 2 or
-                bridge_status.get("summary", {}).get("target_workflow_action_count") != 8 or
+                bridge_status.get("summary", {}).get("target_workflow_action_count") != 9 or
                 bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("lab-http") != 1 or
                 bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("chain-http") != 1 or
                 bridge_status.get("summary", {}).get("target_workflow_action_requires_target_online_count") != 2 or
-                bridge_status.get("summary", {}).get("target_workflow_action_offline_supported_count") != 6 or
-                bridge_status.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 2 or
+                bridge_status.get("summary", {}).get("target_workflow_action_offline_supported_count") != 7 or
+                bridge_status.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 3 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_activity_count") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_profile_counts", {}).get("lab-http") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("closed") != 1 or
-                len(bridge_workflow_actions) != 8 or
+                len(bridge_workflow_actions) != 9 or
                 bridge_action.get("target_id") != "target-bridge" or
                 bridge_action.get("workflow") != "bridge" or
                 bridge_action.get("requires_target_online") is not True or
@@ -633,7 +633,7 @@ def main():
         bridge_failure_target = (bridge_failure_status.get("targets_by_id") or {}).get("target-bridge") or {}
         bridge_failure_events = bridge_failure_status.get("events_by_event") or {}
         if (bridge_failure_status.get("summary", {}).get("bridge_profile_count") != 3 or
-                bridge_failure_status.get("summary", {}).get("target_workflow_action_count") != 9 or
+                bridge_failure_status.get("summary", {}).get("target_workflow_action_count") != 10 or
                 bridge_failure_status.get("summary", {}).get("target_workflow_action_requires_target_online_count") != 3 or
                 bridge_failure_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("error") != 1 or
                 bridge_failure_target.get("latest_bridge_profile") != "bad-http" or
@@ -6214,15 +6214,16 @@ def main():
                 upload_summary.get("target_latest_file_transfer_operation_counts", {}).get("upload") != 1 or
                 upload_summary.get("target_latest_file_transfer_status_counts", {}).get("ok") != 1 or
                 upload_summary.get("target_latest_file_transfer_route_kind_counts", {}).get("direct") != 1 or
-                upload_summary.get("target_workflow_action_count") != 6 or
-                upload_summary.get("target_workflow_action_target_counts", {}).get("target-alpha") != 6 or
+                upload_summary.get("target_workflow_action_count") != 7 or
+                upload_summary.get("target_workflow_action_target_counts", {}).get("target-alpha") != 7 or
                 upload_summary.get("target_workflow_action_workflow_counts", {}).get("command-queue") != 1 or
                 upload_summary.get("target_workflow_action_workflow_counts", {}).get("file-service") != 2 or
+                upload_summary.get("target_workflow_action_workflow_counts", {}).get("survey-bootstrap") != 2 or
                 upload_summary.get("target_workflow_action_requires_input_count") != 2 or
-                upload_summary.get("target_workflow_action_offline_supported_count") != 6 or
+                upload_summary.get("target_workflow_action_offline_supported_count") != 7 or
                 upload_summary.get("target_workflow_action_requires_target_online_count") != 0 or
-                upload_summary.get("target_workflow_action_queues_offline_work_count") != 2 or
-                upload_summary.get("target_workflow_action_target_phone_home_required_count") != 3 or
+                upload_summary.get("target_workflow_action_queues_offline_work_count") != 3 or
+                upload_summary.get("target_workflow_action_target_phone_home_required_count") != 4 or
                 len(targets) != 1 or
                 target_alpha.get("label") != "Alpha Router" or
                 "lab-alpha" not in (target_alpha.get("aliases") or []) or
@@ -6234,10 +6235,13 @@ def main():
                 target_alpha.get("latest_file_transfer_route_kind") != "direct" or
                 target_alpha.get("latest_file_transfer_sha256") != upload_sha256 or
                 target_alpha.get("latest_session_id") != session_json_paths[0].parent.name or
-                len(alpha_workflow_actions) != 6 or
+                len(alpha_workflow_actions) != 7 or
                 alpha_actions_by_action.get("queue-command", {}).get("headless_command") != f"scripts/busierbox-server --config {str(upload_cfg)} --target-id target-alpha --queue-command COMMAND" or
                 alpha_actions_by_action.get("queue-command", {}).get("queues_offline_work") is not True or
                 alpha_actions_by_action.get("queue-command", {}).get("target_phone_home_required") is not True or
+                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("queues_offline_work") is not True or
+                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("target_phone_home_required") is not True or
+                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("headless_command") != f"scripts/busierbox-server --config {str(upload_cfg)} --run-target-workflow-action target-alpha:queue-survey-bootstrap" or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("requires_input") is not True or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("queues_offline_work") is not True or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("offline_supported") is not True or
@@ -6371,6 +6375,21 @@ def main():
             print("line TUI target detail did not show mailbox/activity and headless command", file=sys.stderr)
             print(line_text, file=sys.stderr)
             return 1
+        action_survey = run(
+            "scripts/busierbox-server",
+            "--config", str(action_cfg),
+            "--run-target-workflow-action", "target-action:queue-survey-bootstrap",
+        )
+        if (action_survey.returncode != 0 or
+                "target workflow action: target-action:queue-survey-bootstrap" not in action_survey.stdout or
+                "queued " not in action_survey.stdout or
+                "wget -O- " not in action_survey.stdout or
+                "| /bin/sh" not in action_survey.stdout or
+                "target=target-action label=Action Router" not in action_survey.stdout):
+            print("headless target workflow survey queue action failed", file=sys.stderr)
+            print(action_survey.stdout, file=sys.stderr)
+            print(action_survey.stderr, file=sys.stderr)
+            return 1
         action_doc = json.loads(run(
             "scripts/busierbox-server",
             "--config", str(action_cfg),
@@ -6382,13 +6401,22 @@ def main():
         action_events = action_doc.get("events_by_event") or {}
         selected_events = action_events.get("workbench_target_selected") or []
         action_completed = action_events.get("target_workflow_action_completed") or []
+        queued_survey = [
+            rec for rec in action_queue
+            if "wget -O- " in str(rec.get("command") or "") and "| /bin/sh" in str(rec.get("command") or "")
+        ]
+        queued_manual = [
+            rec for rec in action_queue
+            if rec.get("command") == "busierbox survey --json"
+        ]
         completed_by_action = {
             (event.get("details") or {}).get("action_id"): event.get("details") or {}
             for event in action_completed
         }
         line_workbench_state = (json.loads(line_action_state.read_text(encoding="utf-8")).get("services") or {}).get("workbench") or {}
-        if (len(action_queue) != 1 or
-                action_queue[0].get("command") != "busierbox survey --json" or
+        if (len(action_queue) != 2 or
+                len(queued_manual) != 1 or
+                len(queued_survey) != 1 or
                 len(action_staged) != 1 or
                 action_staged[0].get("request_name") != "action-staged.txt" or
                 not any(
@@ -6400,10 +6428,16 @@ def main():
                 completed_by_action.get("stage-file-fetch", {}).get("request_name") != "action-staged.txt" or
                 completed_by_action.get("stage-file-fetch", {}).get("target_id") != "target-action" or
                 completed_by_action.get("stage-file-fetch", {}).get("queues_offline_work") is not True or
-                completed_by_action.get("queue-command", {}).get("command_id") != action_queue[0].get("id") or
+                completed_by_action.get("queue-command", {}).get("command_id") != queued_manual[0].get("id") or
                 completed_by_action.get("queue-command", {}).get("target_id") != "target-action" or
                 completed_by_action.get("queue-command", {}).get("queues_offline_work") is not True or
                 completed_by_action.get("queue-command", {}).get("target_phone_home_required") is not True or
+                completed_by_action.get("queue-survey-bootstrap", {}).get("command_id") != queued_survey[0].get("id") or
+                completed_by_action.get("queue-survey-bootstrap", {}).get("target_id") != "target-action" or
+                completed_by_action.get("queue-survey-bootstrap", {}).get("result") != "queued-survey-bootstrap" or
+                completed_by_action.get("queue-survey-bootstrap", {}).get("queues_offline_work") is not True or
+                completed_by_action.get("queue-survey-bootstrap", {}).get("target_phone_home_required") is not True or
+                "wget -O- " not in completed_by_action.get("queue-survey-bootstrap", {}).get("queued_command", "") or
                 "headless_command" not in completed_by_action.get("queue-command", {}) or
                 not any(
                     (event.get("details") or {}).get("target_id") == "target-action" and
@@ -6417,7 +6451,8 @@ def main():
                 ) or
                 line_workbench_state.get("selected_target_id") != "target-action" or
                 line_workbench_state.get("selected_target_label") != "Action Router" or
-                action_doc.get("summary", {}).get("command_queue_target_counts", {}).get("target-action") != 1 or
+                action_doc.get("summary", {}).get("command_queue_target_counts", {}).get("target-action") != 2 or
+                action_doc.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 3 or
                 action_doc.get("summary", {}).get("staged_target_counts", {}).get("target-action") != 1):
             print("target workflow actions did not mutate target-scoped queue/staged state", file=sys.stderr)
             print(json.dumps(action_doc, indent=2, sort_keys=True), file=sys.stderr)

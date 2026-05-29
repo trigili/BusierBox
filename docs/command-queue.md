@@ -366,8 +366,9 @@ and confirm delivery when the target reconnects.
 For target-centered operator UX, status JSON also includes
 `target_workflow_actions`. These records are generated per target and expose the
 same workflows a TUI should offer: inspect scoped status, open a scoped
-workbench, queue mailbox work, serve survey bootstrap, stage a file for target
-fetch, start the file service, and start any bridge profile tied to that target.
+workbench, queue mailbox work, queue a survey bootstrap command, serve survey
+bootstrap, stage a file for target fetch, start the file service, and start any
+bridge profile tied to that target.
 Each action carries a `headless_command` so the TUI can show the exact CLI path
 instead of hiding automation behind an interactive-only flow. Action records
 also expose `offline_supported`, `requires_target_online`,
@@ -383,6 +384,8 @@ automation, use the stable action id:
 ```sh
 scripts/busierbox-server --run-target-workflow-action target-alpha:queue-command \
   --target-workflow-command 'busierbox survey --json'
+
+scripts/busierbox-server --run-target-workflow-action target-alpha:queue-survey-bootstrap
 
 scripts/busierbox-server --run-target-workflow-action target-alpha:stage-file-fetch \
   --target-workflow-local-file ./dist/busierbox-target-full \

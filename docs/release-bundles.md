@@ -824,6 +824,9 @@ de-duplicate generated commands without relying on array position alone. The
 line-oriented survey bootstrap action prints and records the same
 `--transport survey-bootstrap` command, including any selected bridge profile,
 on both the workbench action event and the underlying service-start event. The
+target workflow action `queue-survey-bootstrap` records the generated
+`wget -O- ... | /bin/sh` survey command as target-scoped mailbox work, giving
+offline targets the same headless/TUI queue path as generic queued commands. The
 generated `rshell` command record
 also carries `metadata.session_policy`, validity, errors, and
 `session_semantics`, plus `metadata.retry` and `metadata.retry_timing`, so

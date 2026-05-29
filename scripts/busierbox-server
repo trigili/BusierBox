@@ -3571,6 +3571,16 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
         )
         add(
             target,
+            "queue-survey-bootstrap",
+            "survey",
+            "Queue survey bootstrap command for this target mailbox",
+            base + " --run-target-workflow-action " + shquote(f"{target_id}:queue-survey-bootstrap"),
+            "survey-bootstrap",
+            queues_offline_work=True,
+            target_phone_home_required=True,
+        )
+        add(
+            target,
             "stage-file-fetch",
             "file-transfer",
             "Stage a local file for this target to fetch",
@@ -15210,6 +15220,29 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             "result": "queued-command",
             "command_id": queued.get("id", ""),
             "command_sha256": queued.get("command_sha256", ""),
+        })
+        return 0
+    if action_id == "queue-survey-bootstrap":
+        command = render_survey_bootstrap_command(scoped)
+        queued = queue_command(scoped, command)
+        print(f"queued {queued['id']}: {queued['command']}")
+        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        append_event(cfg, "workbench", "target_workflow_action_completed", details={
+            "id": rec.get("id", ""),
+            "action_id": action_id,
+            "target_id": target_id,
+            "target_label": target_label,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "offline_supported": bool(rec.get("offline_supported")),
+            "requires_target_online": bool(rec.get("requires_target_online")),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+            "result": "queued-survey-bootstrap",
+            "command_id": queued.get("id", ""),
+            "command_sha256": queued.get("command_sha256", ""),
+            "queued_command": queued.get("command", ""),
         })
         return 0
     if action_id == "stage-file-fetch":
