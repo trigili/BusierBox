@@ -954,6 +954,38 @@ def command_copy_indexes(records):
     }
 
 
+def workbench_jobs_state_record(cfg):
+    path = workbench_jobs_path(cfg)
+    rec = {
+        "path": str(path),
+        "exists": False,
+        "valid": False,
+        "schema": None,
+        "job_count": 0,
+        "error": "",
+    }
+    try:
+        rec["exists"] = path.exists()
+        if not rec["exists"]:
+            return rec
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            rec["error"] = "workbench-jobs JSON is not an object"
+            return rec
+        jobs = data.get("jobs")
+        if not isinstance(jobs, list):
+            rec["error"] = "workbench-jobs JSON jobs field is not a list"
+            return rec
+        rec.update({
+            "valid": True,
+            "schema": data.get("schema"),
+            "job_count": len(jobs),
+        })
+    except (OSError, json.JSONDecodeError) as exc:
+        rec["error"] = str(exc)
+    return rec
+
+
 def workbench_jobs_path(cfg):
     return Path(str(cfg.get("workbench_jobs_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "workbench-jobs.json"))
 
@@ -1258,6 +1290,91 @@ def service_manager_resource_indexes(records):
         "service_manager_resources_by_pid": records_by_key(records, "pid"),
         "service_manager_resources_by_kind_state": records_by_composite(records, ("kind", "state")),
         "service_manager_resources_by_kind_active": records_by_composite(records, ("kind", "active")),
+    }
+
+
+def operator_state_record(name, kind, path, exists, valid, record_count=0, error="", extra=None):
+    if exists and not valid:
+        status = "invalid"
+    elif not exists:
+        status = "missing"
+    elif error:
+        status = "error"
+    else:
+        status = "ok"
+    rec = {
+        "name": name,
+        "kind": kind,
+        "path": str(path),
+        "exists": bool(exists),
+        "valid": bool(valid),
+        "status": status,
+        "record_count": int(record_count or 0),
+        "error": str(error or ""),
+    }
+    if extra:
+        rec.update(extra)
+    return rec
+
+
+def operator_state_records(cfg, server_state, staged_files_state, command_queue_state,
+                           command_copy, workbench_jobs_state, event_log_state,
+                           session_root_state):
+    return [
+        operator_state_record(
+            "server_state", "json-state", server_state.get("path", state_file_path(cfg)),
+            server_state.get("exists", False), server_state.get("valid", False),
+            server_state.get("service_count", 0), server_state.get("error", ""),
+            {"schema": server_state.get("schema"), "session_count": server_state.get("session_count", 0)},
+        ),
+        operator_state_record(
+            "staged_files", "json-state", staged_files_state.get("path", staged_file_path(cfg)),
+            staged_files_state.get("exists", False), staged_files_state.get("valid", False),
+            staged_files_state.get("staged_count", 0), staged_files_state.get("error", ""),
+            {"schema": staged_files_state.get("schema")},
+        ),
+        operator_state_record(
+            "command_queue", "json-state", command_queue_state.get("path", command_queue_path(cfg)),
+            command_queue_state.get("exists", False), command_queue_state.get("valid", False),
+            command_queue_state.get("command_count", 0), command_queue_state.get("error", ""),
+            {"schema": command_queue_state.get("schema")},
+        ),
+        operator_state_record(
+            "command_copy", "text-state", command_copy.get("path", command_copy_path(cfg)),
+            command_copy.get("exists", False), command_copy.get("readable", False),
+            1 if command_copy.get("has_command") else 0, command_copy.get("error", ""),
+            {"readable": command_copy.get("readable", False), "has_command": command_copy.get("has_command", False)},
+        ),
+        operator_state_record(
+            "workbench_jobs", "json-state", workbench_jobs_state.get("path", workbench_jobs_path(cfg)),
+            workbench_jobs_state.get("exists", False), workbench_jobs_state.get("valid", False),
+            workbench_jobs_state.get("job_count", 0), workbench_jobs_state.get("error", ""),
+            {"schema": workbench_jobs_state.get("schema")},
+        ),
+        operator_state_record(
+            "event_log", "jsonl-log", event_log_state.get("path", EventLog(cfg).path),
+            event_log_state.get("exists", False), event_log_state.get("valid", False),
+            event_log_state.get("event_count", 0), event_log_state.get("error", ""),
+            {"invalid_count": event_log_state.get("invalid_count", 0), "tail_count": event_log_state.get("tail_count", 0)},
+        ),
+        operator_state_record(
+            "session_root", "directory", session_root_state.get("path", cfg.get("session_root", "local/sessions")),
+            session_root_state.get("exists", False), session_root_state.get("exists", False),
+            session_root_state.get("recent_session_count", 0), session_root_state.get("error", ""),
+            {"recent_session_ids": session_root_state.get("recent_session_ids") or []},
+        ),
+    ]
+
+
+def operator_state_indexes(records):
+    return {
+        "operator_state_records_by_name": {rec.get("name", ""): rec for rec in records or [] if rec.get("name")},
+        "operator_state_records_by_kind": records_by_key(records, "kind"),
+        "operator_state_records_by_status": records_by_key(records, "status"),
+        "operator_state_records_by_exists": records_by_key(records, "exists"),
+        "operator_state_records_by_valid": records_by_key(records, "valid"),
+        "operator_state_records_by_path": {rec.get("path", ""): rec for rec in records or [] if rec.get("path")},
+        "operator_state_records_by_kind_status": records_by_composite(records, ("kind", "status")),
     }
 
 
@@ -7554,6 +7671,12 @@ def status_document(cfg):
     command_copy = command_copy_record(cfg)
     command_copy_records = [command_copy]
     command_copy_record_indexes = command_copy_indexes(command_copy_records)
+    workbench_jobs_state = workbench_jobs_state_record(cfg)
+    operator_state_records_list = operator_state_records(
+        cfg, server_state, staged_files_state, command_queue_state,
+        command_copy, workbench_jobs_state, event_log_state, session_root_state,
+    )
+    operator_state_index_maps = operator_state_indexes(operator_state_records_list)
     path_status = status_path_records(paths)
     path_status_records = status_path_record_list(path_status)
     path_status_indexes = status_path_record_indexes(path_status_records)
@@ -7738,6 +7861,15 @@ def status_document(cfg):
         "command_queue_file_command_count": command_queue_state.get("command_count", 0),
         "command_copy_exists_count": 1 if command_copy.get("exists") is True else 0,
         "command_copy_has_command_count": 1 if command_copy.get("has_command") is True else 0,
+        "workbench_jobs_file_exists": bool(workbench_jobs_state.get("exists", False)),
+        "workbench_jobs_file_valid": bool(workbench_jobs_state.get("valid", False)),
+        "workbench_jobs_file_job_count": workbench_jobs_state.get("job_count", 0),
+        "operator_state_count": len(operator_state_records_list),
+        "operator_state_status_counts": record_count_by_key(operator_state_records_list, "status"),
+        "operator_state_kind_counts": record_count_by_key(operator_state_records_list, "kind"),
+        "operator_state_exists_counts": record_count_by_key(operator_state_records_list, "exists"),
+        "operator_state_valid_counts": record_count_by_key(operator_state_records_list, "valid"),
+        "operator_state_kind_status_counts": {key: len(value) for key, value in operator_state_index_maps.get("operator_state_records_by_kind_status", {}).items()},
         "staged_count": len(staged),
         "staged_total_size": staged_summary.get("total_size", 0),
         "staged_kind_counts": record_count_by_key(staged_records, "stage_kind"),
@@ -8104,6 +8236,14 @@ def status_document(cfg):
                 "path_status_by_has_warnings", "path_status_by_warning_type",
             ), "path_status_count",
         ),
+        "operator_state_records": api_collection_record(
+            "operator_state_records", operator_state_records_list, "name", (
+                "operator_state_records_by_name", "operator_state_records_by_kind",
+                "operator_state_records_by_status", "operator_state_records_by_exists",
+                "operator_state_records_by_valid", "operator_state_records_by_path",
+                "operator_state_records_by_kind_status",
+            ), "operator_state_count",
+        ),
         "browser_paths": api_collection_record(
             "browser_paths", browser_paths, "id", (
                 "browser_paths_by_kind", "browser_paths_by_path",
@@ -8349,6 +8489,9 @@ def status_document(cfg):
         "command_copy_records": command_copy_records,
         **command_copy_record_indexes,
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
+        "workbench_jobs_state": workbench_jobs_state,
+        "operator_state_records": operator_state_records_list,
+        **operator_state_index_maps,
         "build_config": str(build_config_path(cfg)),
         "event_log": str(event_log_path),
         "session_root": session_root,

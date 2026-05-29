@@ -469,7 +469,18 @@ of the same path health data, with lookup maps such as `path_status_by_name`,
 `path_status_by_expected_kind_mismatch`, plus warning-health maps
 `path_status_by_has_warnings` and `path_status_by_warning_type`.
 `api_collections.path_status_records` lists those indexes for clients that
-render every operator path as a table. `browser_paths` provides a normalized operator file
+render every operator path as a table. `operator_state_records` provides a
+content-health table for the main operator state surfaces: server state,
+staged-files ledger, command queue ledger, last copied command, workbench jobs,
+event log, and session root. Those records carry `status=ok|missing|invalid|error`,
+`exists`, `valid`, `record_count`, and `error`, with lookup maps such as
+`operator_state_records_by_name`, `operator_state_records_by_kind`,
+`operator_state_records_by_status`, `operator_state_records_by_exists`,
+`operator_state_records_by_valid`, `operator_state_records_by_path`, and
+`operator_state_records_by_kind_status`. Summary mirrors the state status,
+kind, existence, validity, and kind/status counts so clients can show corrupt
+or missing operator ledgers without re-reading JSON files. `browser_paths`
+provides a normalized operator file
 browser list for future TUI/web clients, covering operator ledgers, session
 directories, upload/fetch metadata, staged sources, event logs, TLS files,
 release bundle files, and release recommendation artifact targets. The same records are grouped in `browser_paths_by_kind`,
