@@ -437,7 +437,10 @@ static void plan_print_command_queue_mode_record(const char *mode, int configure
     printf(",\"configured_for_polling\":%s", configured ? "true" : "false");
     printf(",\"requires_operator_host\":%s", polls ? "true" : "false");
     printf(",\"would_poll_if_configured\":%s", polls ? "true" : "false");
+    printf(",\"target_polling_supported\":%s", polls ? "true" : "false");
     fputs(",\"requires_explicit_target_action\":true", stdout);
+    fputs(",\"delivery_supported\":false", stdout);
+    fputs(",\"result_upload_supported\":true", stdout);
     fputs(",\"execution_supported\":false", stdout);
     fputs(",\"executes_commands\":false", stdout);
     fputs(",\"operator_supplied_command_execution\":false", stdout);
@@ -482,6 +485,12 @@ static void plan_print_command_queue_mode_index_array(const char *field, const c
             candidate = polls ? "true" : "false";
         else if (!strcmp(field, "planned"))
             candidate = planned ? "true" : "false";
+        else if (!strcmp(field, "target_polling_supported"))
+            candidate = polls ? "true" : "false";
+        else if (!strcmp(field, "delivery_supported"))
+            candidate = "false";
+        else if (!strcmp(field, "result_upload_supported"))
+            candidate = "true";
         else if (!strcmp(field, "execution_supported"))
             candidate = "false";
         else if (!strcmp(field, "active_control_channel"))
@@ -535,6 +544,30 @@ static void plan_print_command_queue_mode_indexes(int configured)
         fputc(':', stdout);
         plan_print_command_queue_mode_index_array("planned", bools[i], configured);
     }
+    fputs("},\"mode_records_by_target_polling_supported\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        plan_print_command_queue_mode_index_array("target_polling_supported", bools[i], configured);
+    }
+    fputs("},\"mode_records_by_delivery_supported\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        plan_print_command_queue_mode_index_array("delivery_supported", bools[i], configured);
+    }
+    fputs("},\"mode_records_by_result_upload_supported\":{", stdout);
+    for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
+        if (i)
+            fputc(',', stdout);
+        bb_json_string(stdout, bools[i]);
+        fputc(':', stdout);
+        plan_print_command_queue_mode_index_array("result_upload_supported", bools[i], configured);
+    }
     fputs("},\"mode_records_by_execution_supported\":{", stdout);
     for (i = 0; i < sizeof(bools) / sizeof(bools[0]); i++) {
         if (i)
@@ -566,6 +599,7 @@ static void plan_print_command_queue_mode_summary(int configured)
 {
     fputs(",\"mode_summary\":{\"mode_count\":5,\"polling_mode_count\":3,\"operator_host_required_mode_count\":3", stdout);
     printf(",\"planned_mode_count\":%d", configured ? 1 : 0);
+    fputs(",\"target_polling_supported_mode_count\":3,\"delivery_supported_mode_count\":0,\"result_upload_supported_mode_count\":5", stdout);
     fputs(",\"execution_supported_mode_count\":0,\"active_control_channel_mode_count\":0,\"operator_supplied_command_execution_mode_count\":0}", stdout);
 }
 
@@ -573,7 +607,7 @@ static void plan_print_command_queue_api_collections(void)
 {
     fputs(",\"api_collections\":{\"mode_records\":{\"name\":\"mode_records\",\"count\":5", stdout);
     fputs(",\"count_summary_key\":\"mode_summary.mode_count\",\"primary_key\":\"mode\",\"summary_key\":\"mode_summary.mode_count\"", stdout);
-    fputs(",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_planned\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\",\"mode_records_by_operator_supplied_command_execution\"]}}", stdout);
+    fputs(",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_planned\",\"mode_records_by_target_polling_supported\",\"mode_records_by_delivery_supported\",\"mode_records_by_result_upload_supported\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\",\"mode_records_by_operator_supplied_command_execution\"]}}", stdout);
 }
 
 static void plan_print_command_queue(int json)

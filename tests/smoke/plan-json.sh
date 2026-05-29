@@ -154,22 +154,34 @@ assert len(mode_records) == 5
 assert mode_records[1]["mode"] == "poll"
 assert mode_records[1]["planned"] is True
 assert mode_records[1]["would_start"] is True
+assert mode_records[1]["target_polling_supported"] is True
+assert mode_records[1]["delivery_supported"] is False
+assert mode_records[1]["result_upload_supported"] is True
 assert mode_records[1]["operator_supplied_command_execution"] is False
 assert command_queue["mode_records_by_mode"]["poll"] == [1]
 assert command_queue["mode_records_by_lifecycle"]["single-poll"] == [1]
 assert command_queue["mode_records_by_would_poll_if_configured"]["true"] == [1, 2, 3]
 assert command_queue["mode_records_by_planned"]["true"] == [1]
+assert command_queue["mode_records_by_target_polling_supported"]["true"] == [1, 2, 3]
+assert command_queue["mode_records_by_delivery_supported"]["false"] == [0, 1, 2, 3, 4]
+assert command_queue["mode_records_by_result_upload_supported"]["true"] == [0, 1, 2, 3, 4]
 assert command_queue["mode_records_by_execution_supported"]["false"] == [0, 1, 2, 3, 4]
 assert command_queue["mode_records_by_active_control_channel"]["false"] == [0, 1, 2, 3, 4]
 assert command_queue["mode_records_by_operator_supplied_command_execution"]["false"] == [0, 1, 2, 3, 4]
 assert mode_summary["mode_count"] == 5
 assert mode_summary["planned_mode_count"] == 1
+assert mode_summary["target_polling_supported_mode_count"] == 3
+assert mode_summary["delivery_supported_mode_count"] == 0
+assert mode_summary["result_upload_supported_mode_count"] == 5
 assert mode_summary["execution_supported_mode_count"] == 0
 assert api_modes["count"] == 5
 assert api_modes["summary_key"] == "mode_summary.mode_count"
 assert api_modes["count_summary_key"] == "mode_summary.mode_count"
 assert api_modes["primary_key"] == "mode"
 assert "mode_records_by_planned" in api_modes["indexes"]
+assert "mode_records_by_target_polling_supported" in api_modes["indexes"]
+assert "mode_records_by_delivery_supported" in api_modes["indexes"]
+assert "mode_records_by_result_upload_supported" in api_modes["indexes"]
 assert "mode_records_by_operator_supplied_command_execution" in api_modes["indexes"]
 
 assert recovery["command"] == "recovery install"

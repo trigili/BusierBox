@@ -178,6 +178,12 @@ operator-supplied-command execution posture.
   flat record/index/API pattern, plus `mode_records_by_planned`, so dashboards
   can show that a valid enabled policy would start explicit `command-queue
   poll` without implying command execution.
+- Plan mode records also expose target-polling support, delivery support,
+  result-upload support, execution support, active-control-channel posture, and
+  operator-supplied-command execution posture. Delivery remains false in plan
+  output because delivery only happens during explicit target-side `--live`
+  polling; result-upload support is advertised so frontends can prepare the
+  rejection/result metadata workflow.
 - `mode_summary` mirrors those mode records into compact counts for polling
   modes, operator-host-required modes, delivery-capable live modes, active
   control-channel modes, result-upload modes, and execution-capable modes.
