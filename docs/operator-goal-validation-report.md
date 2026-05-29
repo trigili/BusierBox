@@ -1,0 +1,146 @@
+# Operator Goal Validation Report
+
+Date: 2026-05-29
+Branch: `main`
+
+This report records current evidence for the operator/server hardening goal in
+`local/GOAL.md`. It is a validation snapshot, not a claim that the entire goal is
+complete.
+
+## What Changed
+
+- Server lifecycle and status handling now center on structured service/session
+  state in `scripts/busierbox-server`, with `--status`, `--stop`,
+  `--json-status`, and `--api-status` surfaces for operator and future frontend
+  use.
+- The workbench exposes services, staged files, uploads, sessions, events,
+  generated target commands, build/config fields, background jobs, release
+  browsing, and pager-based local path inspection without target execution by
+  default.
+- Reverse shell lifecycle behavior is explicit through
+  `BB_RSHELL_SESSION_POLICY=single|reconnect|persistent`, with status, plan,
+  manifest, runtime-config, menuconfig, release, and server metadata exposure.
+- Structured JSONL events are used for service starts/stops, bind failures,
+  connections, uploads, fetches, staged-file changes, command-queue activity,
+  jobs, and shutdown-related records.
+- `busierbox reality-test` provides local capability, constraint, and explicit
+  operator-side upload/fetch probes, with JSON indexes for integration and
+  bringup consumers.
+- Compatibility scoring now distinguishes exact, likely, heuristic, unsafe, and
+  incompatible selections across survey recommendations, release search, release
+  indexes, and bringup output.
+- No-residue behavior exposes `BB_NORESIDUE_LEVEL=best-effort|aggressive`, dry
+  run residue plans, cleanup counters, and non-forensic caveats in user-facing
+  status and docs.
+- Recovery workflows include visible evidence push, evidence-then-rshell, and
+  dmesg-push actions behind explicit apply and external-write gates.
+- `scripts/busierbox-bringup` now summarizes the requested ten-step onboarding
+  flow through `bringup_flow_steps`, lookup maps, summary counts, and API
+  collection metadata.
+- Command queue behavior is explicit and opt-in. The current build supports
+  visible polling, queue records, delivery/rejection metadata, result upload
+  records, daemon status/stop state, and safety reporting. Target command
+  execution remains intentionally unsupported.
+- Multi-target status tracks target ids, labels, aliases, identity source and
+  confidence, target filters, target-scoped staged records, uploads, fetches,
+  sessions, events, command-queue records, and generated target commands.
+- Local/offline release indexes expose deduplicated artifacts, tuple/device/tool
+  lookups, payload preset and feature lookups, provider status, Doom WAD
+  metadata, command-queue safety metadata, and recommendation records.
+
+## Evidence Map
+
+Server lifecycle:
+- `scripts/busierbox-server --status`
+- `scripts/busierbox-server --stop`
+- `tests/smoke/busierbox-server.py`
+
+Workbench and future API status:
+- `scripts/busierbox-server --json-status`
+- `scripts/busierbox-server --api-status`
+- `docs/release-bundles.md`
+- `tests/smoke/busierbox-server.py`
+
+Reverse shell policy:
+- `src/applet_rshell.c`
+- `src/runtime_config.c`
+- `src/applet_manifest.c`
+- `tests/smoke/rshell-lifecycle.sh`
+- `tests/smoke/manifest-metadata.sh`
+
+Reality test and compatibility:
+- `src/applet_reality_test.c`
+- `scripts/config-from-survey`
+- `scripts/find-artifact`
+- `tests/smoke/reality-test.sh`
+- `tests/smoke/config-from-survey.sh`
+- `tests/smoke/release-repo-index.sh`
+
+No-residue cleanup:
+- `src/applet_clean.c`
+- `src/runtime_paths.c`
+- `docs/cleanup-ledger.md`
+- `tests/smoke/clean-json.sh`
+- `tests/smoke/runtime-modes.sh`
+
+Recovery and persistence:
+- `src/applet_recovery.c`
+- `docs/recovery.md`
+- `docs/persistence.md`
+- `tests/smoke/recovery.sh`
+
+Bringup:
+- `scripts/busierbox-bringup`
+- `docs/bringup.md`
+- `docs/survey-and-bringup.md`
+- `tests/smoke/integration-glinet-harness.sh`
+
+Release and offline artifact browsing:
+- `scripts/make-release`
+- `scripts/index-release-repo`
+- `scripts/find-artifact`
+- `scripts/release-self-test`
+- `tests/smoke/release-bundles.sh`
+- `tests/smoke/release-repo-index.sh`
+
+## Verification Run
+
+Commands run for the most recent committed slice:
+
+```sh
+sh -n scripts/busierbox-bringup tests/smoke/integration-glinet-harness.sh
+tests/smoke/integration-glinet-harness.sh
+git diff --check
+make smoke-test
+```
+
+Result: all passed.
+
+Recent full smoke coverage included:
+
+- server lifecycle, status, stop, bind failure, stale state, TUI fallback, and
+  workbench status checks
+- event log writing and API indexes
+- rshell policy validation and single/reconnect/persistent behavior
+- reality-test JSON and active operator upload/fetch checks
+- compatibility scoring fixtures, including old uClibc MIPS, big-endian MIPS,
+  non-OpenWrt, low storage, noexec, read-only rootfs, and broken procfs inputs
+- no-residue level config, dry-run residue plans, and cleanup counters
+- recovery evidence-push fake-root behavior
+- bringup recommend-only and release-selection paths
+- command queue disabled-by-default, schema/status, polling, result upload, and
+  no-execution safety boundaries
+- release bundle generation, release self-test, and release repository indexes
+
+## Caveats
+
+- `command-queue` execution is intentionally not implemented. Metadata delivery,
+  rejection decisions, result upload, daemon status, and server queue records are
+  present; executing target-side operator commands remains a later explicit
+  feature.
+- Builtin TLS/plain shell transports do not claim PTY-backed interactive
+  sessions where the implementation is pipe-backed.
+- No-residue mode is operational cleanup hygiene, not forensic erasure.
+- QEMU user/system and GL.iNet hardware gates are environment-dependent. The
+  smoke suite validates their harness behavior, but those optional gates still
+  need local binaries/images or hardware to produce non-skip end-to-end evidence.
