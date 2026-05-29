@@ -478,7 +478,12 @@ top-level filter object. When the selected target has uploaded capability or
 compatibility evidence, the filter context also mirrors the latest report kind,
 capability check/pass/fail counts, compatibility label, baseline label, release,
 payload preset, and reason count so clients can render selected-target health
-without joining through `targets_by_id`.
+without joining through `targets_by_id`. The filter record separates total
+activity from observed activity: generated target commands count toward total
+activity, while observed activity covers stored records such as uploads, fetches,
+sessions, events, staged files, and command queue records. That lets an unknown
+target filter still show generated commands without implying that the target has
+actually been seen.
 The top-level `api` catalog mirrors the selected target label/confidence and
 whether the target was found, so future TUI/web clients can render filter
 context without joining `targets_by_id` first. If the filter does not match a

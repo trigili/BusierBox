@@ -9277,11 +9277,33 @@ def status_document(cfg):
         target_filter_record["filtered_command_queue_command_count"] +
         target_filter_record["filtered_target_command_record_count"]
     )
+    target_filter_record["unfiltered_observed_activity_count"] = (
+        target_filter_record["unfiltered_upload_count"] +
+        target_filter_record["unfiltered_fetch_count"] +
+        target_filter_record["unfiltered_staged_count"] +
+        target_filter_record["unfiltered_session_count"] +
+        target_filter_record["unfiltered_event_tail_count"] +
+        target_filter_record["unfiltered_command_queue_command_count"]
+    )
+    target_filter_record["filtered_observed_activity_count"] = (
+        target_filter_record["filtered_upload_count"] +
+        target_filter_record["filtered_fetch_count"] +
+        target_filter_record["filtered_staged_count"] +
+        target_filter_record["filtered_session_count"] +
+        target_filter_record["filtered_event_tail_count"] +
+        target_filter_record["filtered_command_queue_command_count"]
+    )
     target_filter_record["has_unfiltered_activity"] = target_filter_record["unfiltered_activity_count"] > 0
     target_filter_record["has_filtered_activity"] = target_filter_record["filtered_activity_count"] > 0
     target_filter_record["filter_reduced_activity"] = (
         bool(target_filter_id) and
         target_filter_record["filtered_activity_count"] < target_filter_record["unfiltered_activity_count"]
+    )
+    target_filter_record["has_unfiltered_observed_activity"] = target_filter_record["unfiltered_observed_activity_count"] > 0
+    target_filter_record["has_filtered_observed_activity"] = target_filter_record["filtered_observed_activity_count"] > 0
+    target_filter_record["filter_reduced_observed_activity"] = (
+        bool(target_filter_id) and
+        target_filter_record["filtered_observed_activity_count"] < target_filter_record["unfiltered_observed_activity_count"]
     )
     target_filter_index_maps = {
         "target_filter_records_by_id": {rec["id"]: rec for rec in target_filter_records},
@@ -9301,6 +9323,9 @@ def status_document(cfg):
         "target_filter_records_by_has_unfiltered_activity": records_by_key(target_filter_records, "has_unfiltered_activity"),
         "target_filter_records_by_has_filtered_activity": records_by_key(target_filter_records, "has_filtered_activity"),
         "target_filter_records_by_filter_reduced_activity": records_by_key(target_filter_records, "filter_reduced_activity"),
+        "target_filter_records_by_has_unfiltered_observed_activity": records_by_key(target_filter_records, "has_unfiltered_observed_activity"),
+        "target_filter_records_by_has_filtered_observed_activity": records_by_key(target_filter_records, "has_filtered_observed_activity"),
+        "target_filter_records_by_filter_reduced_observed_activity": records_by_key(target_filter_records, "filter_reduced_observed_activity"),
     }
     target_command_state_record = {
         "id": "target-commands",
@@ -10412,6 +10437,9 @@ def status_document(cfg):
                 "target_filter_records_by_has_unfiltered_activity",
                 "target_filter_records_by_has_filtered_activity",
                 "target_filter_records_by_filter_reduced_activity",
+                "target_filter_records_by_has_unfiltered_observed_activity",
+                "target_filter_records_by_has_filtered_observed_activity",
+                "target_filter_records_by_filter_reduced_observed_activity",
             ), "target_filter_record_count",
         ),
         "target_attribution_records": api_collection_record(
@@ -10771,6 +10799,13 @@ def status_document(cfg):
                 "command_queue_commands": len(command_queue.get("commands") or []),
                 "staged_records": len(staged_records),
                 "target_command_records": len(target_command_records),
+            },
+            "observed_activity_counts": {
+                "unfiltered": target_filter_record.get("unfiltered_observed_activity_count", 0),
+                "filtered": target_filter_record.get("filtered_observed_activity_count", 0),
+                "has_unfiltered": bool(target_filter_record.get("has_unfiltered_observed_activity", False)),
+                "has_filtered": bool(target_filter_record.get("has_filtered_observed_activity", False)),
+                "filter_reduced": bool(target_filter_record.get("filter_reduced_observed_activity", False)),
             },
         },
         "target_filter_records": target_filter_records,
