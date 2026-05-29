@@ -1305,6 +1305,57 @@ def list_merge_unique(existing, values):
     return out
 
 
+def capability_report_summary(metadata):
+    stored_path = str((metadata or {}).get("stored_path") or "").strip()
+    if not stored_path:
+        return {}
+    path = Path(stored_path)
+    try:
+        if not path.is_file() or path.stat().st_size > 2 * 1024 * 1024:
+            return {}
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(report, dict):
+        return {}
+    checks = [
+        item for item in (report.get("checks") or [])
+        if isinstance(item, dict) and item.get("name")
+    ]
+    summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+    observed = {
+        "schema": 1,
+        "kind": str((metadata or {}).get("upload_kind") or ""),
+        "path": stored_path,
+        "metadata_path": str((metadata or {}).get("metadata_path") or ""),
+        "sha256": str((metadata or {}).get("sha256") or ""),
+        "check_count": len(checks),
+        "pass_count": int(summary.get("pass", 0) or 0),
+        "fail_count": int(summary.get("fail", 0) or 0),
+        "skipped_count": int(summary.get("skipped", 0) or 0),
+        "capability_pass_count": int(summary.get("capability_pass", 0) or 0),
+        "capability_fail_count": int(summary.get("capability_fail", 0) or 0),
+        "operator_pass_count": int(summary.get("operator_pass", 0) or 0),
+        "operator_fail_count": int(summary.get("operator_fail", 0) or 0),
+        "operator_skipped_count": int(summary.get("operator_skipped", 0) or 0),
+        "available": [],
+        "unavailable": [],
+        "skipped": [],
+        "constraints": summary.get("constraints") if isinstance(summary.get("constraints"), dict) else {},
+    }
+    for item in checks:
+        name = str(item.get("name") or "")
+        if not name:
+            continue
+        if item.get("skipped") is True:
+            observed["skipped"].append(name)
+        elif item.get("ok") is True or item.get("available") is True:
+            observed["available"].append(name)
+        elif item.get("ok") is False or item.get("available") is False:
+            observed["unavailable"].append(name)
+    return observed
+
+
 def record_target_activity(cfg, metadata, service, session_id=""):
     target_id = str((metadata or {}).get("target_id") or "").strip()
     if not target_id:
@@ -1335,6 +1386,15 @@ def record_target_activity(cfg, metadata, service, session_id=""):
         rec["latest_upload_id"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or metadata.get("filename") or "")
         if str(metadata.get("upload_kind") or "") in {"reality-test", "capability-report", "survey"}:
             rec["latest_capability_report"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or "")
+            rec["latest_capability_report_path"] = str(metadata.get("stored_path") or "")
+            rec["latest_capability_report_metadata_path"] = str(metadata.get("metadata_path") or "")
+            rec["latest_capability_report_kind"] = str(metadata.get("upload_kind") or "")
+            observed = capability_report_summary(metadata)
+            if observed:
+                rec["latest_capability_summary"] = observed
+                rec["observed_capabilities"] = list_merge_unique(rec.get("observed_capabilities") or [], observed.get("available") or [])
+                rec["observed_missing_capabilities"] = list_merge_unique(rec.get("observed_missing_capabilities") or [], observed.get("unavailable") or [])
+                rec["observed_constraints"] = observed.get("constraints") or {}
     elif operation == "fetch":
         rec["fetch_count"] = int(rec.get("fetch_count", 0) or 0) + 1
         rec["latest_fetch_id"] = str(metadata.get("request_name") or metadata.get("source_path") or "")

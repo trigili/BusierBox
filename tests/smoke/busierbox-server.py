@@ -4938,6 +4938,109 @@ def main():
             print(json.dumps(scoped_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
+        capability_port = free_port()
+        capability_operator_dir = Path(tmp) / "operator-session-capability-target"
+        capability_cfg = Path(tmp) / "server-config-capability-target.json"
+        capability_cfg.write_text(json.dumps({
+            "file_service_enable": "yes",
+            "listen_host": "127.0.0.1",
+            "file_service_port": capability_port,
+            "session_root": str(Path(tmp) / "sessions-capability-target"),
+            "operator_session_dir": str(capability_operator_dir),
+            "server_state": str(capability_operator_dir / "server-state.json"),
+            "staged_files": str(capability_operator_dir / "staged-files.json"),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+        }), encoding="utf-8")
+        capability_proc = subprocess.Popen(
+            [
+                str(server),
+                "--config", str(capability_cfg),
+                "--file-service",
+                "--one-shot",
+                "--timeout", "5",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        capability_payload = json.dumps({
+            "schema": 1,
+            "checks": [
+                {"name": "runtime_root_writable", "type": "capability", "status": "pass", "ok": True, "available": True, "skipped": False},
+                {"name": "pty", "type": "capability", "status": "fail", "ok": False, "available": False, "skipped": False},
+                {"name": "operator_upload", "type": "operator", "status": "skipped", "ok": False, "skipped": True},
+            ],
+            "summary": {
+                "check_count": 3,
+                "pass": 1,
+                "fail": 1,
+                "skipped": 1,
+                "capability_pass": 1,
+                "capability_fail": 1,
+                "operator_pass": 0,
+                "operator_fail": 0,
+                "operator_skipped": 1,
+                "constraints": {
+                    "tmp_noexec": False,
+                    "rootfs_read_only": True,
+                    "procfs_partial": False,
+                },
+            },
+        }, sort_keys=True).encode("utf-8")
+        capability_request = (
+            "PUT /upload/reality-test.json HTTP/1.1\r\n"
+            "Host: 127.0.0.1\r\n"
+            "X-BusierBox-Source-Path: /tmp/reality-test.json\r\n"
+            "X-BusierBox-Upload-Kind: reality-test\r\n"
+            "X-BusierBox-Target-Id: target-capability\r\n"
+            "X-BusierBox-Target-Label: Capability Router\r\n"
+            f"Content-Length: {len(capability_payload)}\r\n"
+            "\r\n"
+        ).encode("ascii") + capability_payload
+        capability_response = b""
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", capability_port), timeout=0.5) as raw:
+                    with context.wrap_socket(raw, server_hostname="busierbox") as tls:
+                        tls.sendall(capability_request)
+                        while True:
+                            chunk = tls.recv(65536)
+                            if not chunk:
+                                break
+                            capability_response += chunk
+                break
+            except (ConnectionRefusedError, TimeoutError, OSError):
+                time.sleep(0.05)
+        capability_stdout, capability_stderr = capability_proc.communicate(timeout=5)
+        if capability_proc.returncode != 0 or b"HTTP/1.1 200 OK" not in capability_response:
+            print("capability report target upload failed", file=sys.stderr)
+            print(capability_response.decode("utf-8", errors="replace"), file=sys.stderr)
+            print(capability_stdout, file=sys.stderr)
+            print(capability_stderr, file=sys.stderr)
+            return 1
+        capability_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(capability_cfg),
+            "--target-id", "target-capability",
+            "--json-status",
+        ).stdout)
+        capability_target = (capability_status.get("targets_by_id") or {}).get("target-capability") or {}
+        capability_summary = capability_target.get("latest_capability_summary") or {}
+        if (capability_target.get("latest_capability_report_kind") != "reality-test" or
+                not capability_target.get("latest_capability_report_path", "").endswith("reality-test.json") or
+                capability_summary.get("check_count") != 3 or
+                capability_summary.get("capability_pass_count") != 1 or
+                capability_summary.get("capability_fail_count") != 1 or
+                "runtime_root_writable" not in (capability_target.get("observed_capabilities") or []) or
+                "pty" not in (capability_target.get("observed_missing_capabilities") or []) or
+                capability_target.get("observed_constraints", {}).get("rootfs_read_only") is not True):
+            print("target capability report upload did not update observed capabilities", file=sys.stderr)
+            print(json.dumps(capability_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
         tui_sigint_state = Path(tmp) / "operator-session" / "tui-sigint-state.json"
         tui_master, tui_slave = pty.openpty()
         try:
