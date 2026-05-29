@@ -3809,6 +3809,9 @@ def main():
             "Host: 127.0.0.1\r\n"
             "X-BusierBox-Source-Path: /tmp/evidence.txt\r\n"
             "X-BusierBox-Upload-Kind: evidence\r\n"
+            "X-BusierBox-Target-Id: target-alpha\r\n"
+            "X-BusierBox-Target-Label: Alpha Router\r\n"
+            "X-BusierBox-Target-Alias: lab-alpha\r\n"
             "X-BusierBox-UID: 0\r\n"
             "X-BusierBox-GID: 0\r\n"
             "X-BusierBox-Mode: 0644\r\n"
@@ -3855,6 +3858,14 @@ def main():
         if len(metadata.get("sha256", "")) != 64:
             print("file service metadata missing sha256", file=sys.stderr)
             return 1
+        if (metadata.get("target_id") != "target-alpha" or
+                metadata.get("target_label") != "Alpha Router" or
+                metadata.get("target_identity_source") != "http-header" or
+                metadata.get("target_identity_confidence") != "explicit" or
+                "lab-alpha" not in (metadata.get("target_aliases") or [])):
+            print("file service metadata missing target identity", file=sys.stderr)
+            print(metadata, file=sys.stderr)
+            return 1
         upload_sha256 = metadata.get("sha256", "")
         session_json_paths = list(session_root.glob("*/session.json"))
         if len(session_json_paths) != 1:
@@ -3888,6 +3899,9 @@ def main():
             return 1
         if any(event.get("session_path") != str(session_json_paths[0].parent) for event in session_events):
             print("session event records should carry the exact session path", file=sys.stderr)
+            return 1
+        if not any(event.get("details", {}).get("target_id") == "target-alpha" for event in session_events):
+            print("session event records should carry target_id when supplied", file=sys.stderr)
             return 1
         close_events = [event for event in session_events if event.get("event") == "connection_close"]
         if (not close_events or
@@ -3924,6 +3938,31 @@ def main():
         upload_doc = json.loads(upload_status_json.stdout)
         upload_event_stats = upload_doc.get("event_log_stats") or {}
         upload_summary = upload_doc.get("summary") or {}
+        targets = upload_doc.get("targets") or []
+        targets_by_id = upload_doc.get("targets_by_id") or {}
+        target_alpha = targets_by_id.get("target-alpha") or {}
+        if (upload_doc.get("targets_file") != str(upload_operator_dir / "targets.json") or
+                upload_summary.get("target_count") != 1 or
+                upload_summary.get("latest_target_id") != "target-alpha" or
+                upload_summary.get("target_identity_confidence_counts", {}).get("explicit") != 1 or
+                upload_summary.get("target_service_counts", {}).get("file-service") != 1 or
+                len(targets) != 1 or
+                target_alpha.get("label") != "Alpha Router" or
+                "lab-alpha" not in (target_alpha.get("aliases") or []) or
+                target_alpha.get("upload_count") != 1 or
+                target_alpha.get("latest_session_id") != session_json_paths[0].parent.name or
+                "file-service" not in (target_alpha.get("services_seen") or []) or
+                "http-header" not in (target_alpha.get("identity_sources") or [])):
+            print("server json status missing target ledger records", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
+        target_api = (upload_doc.get("api_collections") or {}).get("targets") or {}
+        if ("targets_by_id" not in (target_api.get("indexes") or []) or
+                "targets_by_identity_confidence" not in (target_api.get("indexes") or []) or
+                "targets" not in (upload_doc.get("api_resources_by_name") or {})):
+            print("server api status missing target collection", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
         session_close_key = f"{session_doc.get('session_id')}:connection_close"
         if (upload_event_stats.get("by_session_event", {}).get(session_close_key) != 1 or
                 upload_summary.get("event_session_event_counts", {}).get(session_close_key) != 1 or
@@ -4092,6 +4131,8 @@ def main():
                 upload_item.get("event_log") != str(session_json_paths[0].parent / "events.jsonl") or
                 upload_item.get("sha256_prefix") != metadata.get("sha256", "")[:12] or
                 upload_item.get("upload_kind") != "evidence" or
+                upload_item.get("target_id") != "target-alpha" or
+                upload_item.get("target_label") != "Alpha Router" or
                 upload_item.get("status") != "ok"):
             print("server json status missing upload browser metadata", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
@@ -4107,6 +4148,7 @@ def main():
         uploads_by_filename = upload_doc.get("uploads_by_filename") or {}
         uploads_by_kind = upload_doc.get("uploads_by_kind") or {}
         uploads_by_sha = upload_doc.get("uploads_by_sha256") or {}
+        uploads_by_target = upload_doc.get("uploads_by_target_id") or {}
         uploads_by_source = upload_doc.get("uploads_by_source_path") or {}
         uploads_by_stored = upload_doc.get("uploads_by_stored_path") or {}
         uploads_by_stored_exists = upload_doc.get("uploads_by_stored_exists") or {}
@@ -4126,6 +4168,7 @@ def main():
         if (uploads_by_filename.get("evidence.txt", [{}])[0].get("metadata_path") != str(metadata_path) or
                 uploads_by_kind.get("evidence", [{}])[0].get("filename") != "evidence.txt" or
                 uploads_by_sha.get(metadata.get("sha256"), [{}])[0].get("filename") != "evidence.txt" or
+                uploads_by_target.get("target-alpha", [{}])[0].get("filename") != "evidence.txt" or
                 uploads_by_source.get("/tmp/evidence.txt", [{}])[0].get("stored_path") != str(uploaded[0]) or
                 uploads_by_stored.get(str(uploaded[0]), {}).get("source_path") != "/tmp/evidence.txt" or
                 uploads_by_stored_exists.get("yes", [{}])[0].get("filename") != "evidence.txt" or
@@ -4142,6 +4185,7 @@ def main():
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         if (upload_summary.get("upload_remote_counts", {}).get(upload_remote) != 1 or
+                upload_summary.get("upload_target_counts", {}).get("target-alpha") != 1 or
                 upload_summary.get("upload_metadata_exists_counts", {}).get("yes") != 1 or
                 upload_summary.get("upload_event_log_exists_counts", {}).get("yes") != 1 or
                 upload_summary.get("upload_kind_status_counts", {}).get(upload_kind_status_key) != 1 or
@@ -4154,7 +4198,8 @@ def main():
             return 1
         upload_api = (upload_doc.get("api_collections") or {}).get("uploads") or {}
         if ("uploads_by_metadata_exists" not in (upload_api.get("indexes") or []) or
-                "uploads_by_event_log_exists" not in (upload_api.get("indexes") or [])):
+                "uploads_by_event_log_exists" not in (upload_api.get("indexes") or []) or
+                "uploads_by_target_id" not in (upload_api.get("indexes") or [])):
             print("server json status missing upload metadata/log availability API indexes", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
@@ -4421,6 +4466,10 @@ def main():
                 "Activity summary:" not in upload_status_text.stdout or
                 "session durations:" not in upload_status_text.stdout or
                 "uploads=1" not in upload_status_text.stdout or
+                "targets=1" not in upload_status_text.stdout or
+                "Targets:" not in upload_status_text.stdout or
+                "target-alpha label=Alpha Router confidence=explicit" not in upload_status_text.stdout or
+                "target: target-alpha label=Alpha Router confidence=explicit" not in upload_status_text.stdout or
                 "stored_exists=True" not in upload_status_text.stdout or
                 f"upload={upload_item.get('timestamp')}" not in upload_status_text.stdout or
                 f"remote: {upload_remote} at {upload_item.get('timestamp')}" not in upload_status_text.stdout or
@@ -4450,6 +4499,9 @@ def main():
                 "Workbench mode: noninteractive" not in uploads_view.stdout or
                 "Activity summary:" not in uploads_view.stdout or
                 "Path health:" not in uploads_view.stdout or
+                "Targets:" not in uploads_view.stdout or
+                "target-alpha label=Alpha Router confidence=explicit" not in uploads_view.stdout or
+                "target: target-alpha label=Alpha Router confidence=explicit" not in uploads_view.stdout or
                 "state_file: exists=" not in uploads_view.stdout or
                 "event_log:" not in uploads_view.stdout or
                 "tls_cert:" not in uploads_view.stdout or
@@ -4458,6 +4510,7 @@ def main():
                 "detail_operations: upload=" not in uploads_view.stdout or
                 "detail_http_statuses: 200=" not in uploads_view.stdout or
                 "uploads=1" not in uploads_view.stdout or
+                "targets=1" not in uploads_view.stdout or
                 "active_control_channel=no" not in uploads_view.stdout or
                 "arbitrary_execution_allowed=no" not in uploads_view.stdout or
                 "policy_flags: operator_queue_records_only=yes metadata_only_default=yes safe_disabled_default=yes" not in uploads_view.stdout or
@@ -4482,6 +4535,89 @@ def main():
         if uploads_view_state.get("services", {}).get("workbench", {}).get("workbench_mode") != "noninteractive":
             print("noninteractive workbench did not persist workbench mode", file=sys.stderr)
             print(json.dumps(uploads_view_state, indent=2), file=sys.stderr)
+            return 1
+
+        label_update = run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--set-target-label", "target-alpha",
+            "--target-label", "Alpha Router Renamed",
+            "--target-alias", "rack-1",
+        )
+        if label_update.returncode != 0 or "Alpha Router Renamed" not in label_update.stdout:
+            print("target label update failed", file=sys.stderr)
+            print(label_update.stdout, file=sys.stderr)
+            print(label_update.stderr, file=sys.stderr)
+            return 1
+        label_events = [json.loads(line) for line in global_events_path.read_text(encoding="utf-8").splitlines()]
+        upload_complete_events = [
+            event for event in label_events
+            if event.get("event") == "upload_complete"
+        ]
+        if not upload_complete_events or upload_complete_events[-1].get("details", {}).get("target_label") != "Alpha Router":
+            print("target label update rewrote immutable upload event history", file=sys.stderr)
+            return 1
+
+        proc2 = subprocess.Popen(
+            [
+                str(server),
+                "--config", str(upload_cfg),
+                "--file-service",
+                "--one-shot",
+                "--timeout", "5",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        payload2 = b"busierbox evidence two\n"
+        request2 = (
+            "PUT /upload/evidence-bravo.txt HTTP/1.1\r\n"
+            "Host: 127.0.0.1\r\n"
+            "X-BusierBox-Source-Path: /tmp/evidence-bravo.txt\r\n"
+            "X-BusierBox-Upload-Kind: evidence\r\n"
+            "X-BusierBox-Target-Id: target-bravo\r\n"
+            "X-BusierBox-Target-Label: Bravo Router\r\n"
+            f"Content-Length: {len(payload2)}\r\n"
+            "\r\n"
+        ).encode("ascii") + payload2
+        response2 = b""
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", upload_port), timeout=0.5) as raw:
+                    with context.wrap_socket(raw, server_hostname="busierbox") as tls:
+                        tls.sendall(request2)
+                        while True:
+                            chunk = tls.recv(65536)
+                            if not chunk:
+                                break
+                            response2 += chunk
+                break
+            except (ConnectionRefusedError, TimeoutError, OSError):
+                time.sleep(0.05)
+        stdout2, stderr2 = proc2.communicate(timeout=5)
+        if proc2.returncode != 0 or b"HTTP/1.1 200 OK" not in response2:
+            print("second target upload failed:", file=sys.stderr)
+            print(stdout2, file=sys.stderr)
+            print(stderr2, file=sys.stderr)
+            print(response2.decode("utf-8", errors="replace"), file=sys.stderr)
+            return 1
+        multi_target_doc = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--json-status",
+        ).stdout)
+        if (multi_target_doc.get("summary", {}).get("target_count") != 2 or
+                multi_target_doc.get("summary", {}).get("upload_target_counts", {}).get("target-alpha") != 1 or
+                multi_target_doc.get("summary", {}).get("upload_target_counts", {}).get("target-bravo") != 1 or
+                (multi_target_doc.get("targets_by_id") or {}).get("target-alpha", {}).get("label") != "Alpha Router Renamed" or
+                (multi_target_doc.get("targets_by_id") or {}).get("target-bravo", {}).get("label") != "Bravo Router" or
+                len((multi_target_doc.get("uploads_by_target_id") or {}).get("target-alpha") or []) != 1 or
+                len((multi_target_doc.get("uploads_by_target_id") or {}).get("target-bravo") or []) != 1):
+            print("two uploads from distinct target ids did not remain separate", file=sys.stderr)
+            print(json.dumps(multi_target_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         tui_sigint_state = Path(tmp) / "operator-session" / "tui-sigint-state.json"

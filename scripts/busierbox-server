@@ -700,7 +700,7 @@ class SessionManager:
             atomic_write_json(path, current)
             return current
 
-    def upsert_state(self, cfg, log_dir, service, state, remote="", exit_reason=""):
+    def upsert_state(self, cfg, log_dir, service, state, remote="", exit_reason="", **extra):
         with self._lock:
             data = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}, "sessions": []})
             if not isinstance(data, dict):
@@ -720,6 +720,9 @@ class SessionManager:
                 "exit_reason": exit_reason or "",
                 "updated_at": utc_now(),
             }
+            for key, value in (extra or {}).items():
+                if value not in (None, ""):
+                    summary[key] = value
             replaced = False
             for idx, item in enumerate(sessions):
                 if isinstance(item, dict) and item.get("session_id") == sid:
@@ -789,6 +792,7 @@ DEFAULT_STAGED_FILE = DEFAULT_OPERATOR_SESSION_DIR / "staged-files.json"
 DEFAULT_COMMAND_QUEUE_FILE = DEFAULT_OPERATOR_SESSION_DIR / "command-queue.json"
 DEFAULT_COMMAND_COPY_FILE = DEFAULT_OPERATOR_SESSION_DIR / "last-command.txt"
 DEFAULT_WORKBENCH_JOBS_FILE = DEFAULT_OPERATOR_SESSION_DIR / "workbench-jobs.json"
+DEFAULT_TARGETS_FILE = DEFAULT_OPERATOR_SESSION_DIR / "targets.json"
 DEFAULTS = {
     "transport": "ssh",
     "encryption": "tls",
@@ -812,6 +816,7 @@ DEFAULTS = {
     "command_queue_file": str(DEFAULT_COMMAND_QUEUE_FILE),
     "command_copy_file": str(DEFAULT_COMMAND_COPY_FILE),
     "workbench_jobs_file": str(DEFAULT_WORKBENCH_JOBS_FILE),
+    "targets_file": str(DEFAULT_TARGETS_FILE),
     "command_queue_enable": "no",
     "command_queue_port": "22205",
     "command_queue_tls": "yes",
@@ -918,6 +923,10 @@ def command_queue_path(cfg):
     return Path(str(cfg.get("command_queue_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "command-queue.json"))
 
 
+def targets_path(cfg):
+    return Path(str(cfg.get("targets_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "targets.json"))
+
+
 def command_copy_path(cfg):
     return Path(str(cfg.get("command_copy_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "last-command.txt"))
 
@@ -1016,6 +1025,7 @@ def apply_operator_session_path_defaults(cfg, explicit_keys):
         "command_queue_file": operator_dir / "command-queue.json",
         "command_copy_file": operator_dir / "last-command.txt",
         "workbench_jobs_file": operator_dir / "workbench-jobs.json",
+        "targets_file": operator_dir / "targets.json",
         "authorized_dbclient_pubkey": operator_dir / "id_dbclient.pub",
         "operator_host_key": operator_dir / "operator_ssh_host_key",
         "tls_cert": operator_dir / "shell-server.crt",
@@ -1243,6 +1253,188 @@ def records_by_composite(records, keys):
             continue
         grouped.setdefault(":".join(parts), []).append(rec)
     return grouped
+
+
+def target_identity_from_headers(headers):
+    headers = headers or {}
+    target_id = str(headers.get("x-busierbox-target-id") or headers.get("x-busierbox-target") or "").strip()
+    if not target_id:
+        return {}
+    aliases = [
+        item.strip()
+        for item in str(headers.get("x-busierbox-target-alias") or "").split(",")
+        if item.strip()
+    ]
+    return {
+        "target_id": target_id,
+        "target_label": str(headers.get("x-busierbox-target-label") or "").strip(),
+        "target_aliases": aliases,
+        "target_identity_source": "http-header",
+        "target_identity_confidence": "explicit",
+    }
+
+
+def attach_target_identity(metadata, headers):
+    metadata = dict(metadata or {})
+    metadata.update(target_identity_from_headers(headers))
+    return metadata
+
+
+def load_targets(cfg):
+    data = read_json_file(targets_path(cfg), {"schema": 1, "targets": {}})
+    if not isinstance(data, dict):
+        data = {"schema": 1, "targets": {}}
+    if not isinstance(data.get("targets"), dict):
+        data["targets"] = {}
+    data.setdefault("schema", 1)
+    return data
+
+
+def list_merge_unique(existing, values):
+    out = [str(item) for item in (existing or []) if str(item)]
+    seen = set(out)
+    for value in values or []:
+        value = str(value or "")
+        if value and value not in seen:
+            out.append(value)
+            seen.add(value)
+    return out
+
+
+def record_target_activity(cfg, metadata, service, session_id=""):
+    target_id = str((metadata or {}).get("target_id") or "").strip()
+    if not target_id:
+        return {}
+    now = utc_now()
+    data = load_targets(cfg)
+    targets = data.setdefault("targets", {})
+    rec = targets.get(target_id)
+    if not isinstance(rec, dict):
+        rec = {"target_id": target_id, "first_seen_at": now, "notes": ""}
+    rec.setdefault("target_id", target_id)
+    rec.setdefault("first_seen_at", now)
+    rec["last_seen_at"] = now
+    label = str((metadata or {}).get("target_label") or "").strip()
+    if label:
+        rec["label"] = label
+    rec["aliases"] = list_merge_unique(rec.get("aliases") or [], (metadata or {}).get("target_aliases") or [])
+    rec["remote_addresses"] = list_merge_unique(rec.get("remote_addresses") or [], [metadata.get("remote_addr", "")])
+    rec["services_seen"] = list_merge_unique(rec.get("services_seen") or [], [service])
+    rec["identity_sources"] = list_merge_unique(rec.get("identity_sources") or [], [metadata.get("target_identity_source", "")])
+    confidence = str((metadata or {}).get("target_identity_confidence") or "best-effort")
+    rec["identity_confidence"] = confidence
+    if session_id:
+        rec["latest_session_id"] = str(session_id)
+    operation = str((metadata or {}).get("operation") or "")
+    if operation == "upload":
+        rec["upload_count"] = int(rec.get("upload_count", 0) or 0) + 1
+        rec["latest_upload_id"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or metadata.get("filename") or "")
+        if str(metadata.get("upload_kind") or "") in {"reality-test", "capability-report", "survey"}:
+            rec["latest_capability_report"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or "")
+    elif operation == "fetch":
+        rec["fetch_count"] = int(rec.get("fetch_count", 0) or 0) + 1
+        rec["latest_fetch_id"] = str(metadata.get("request_name") or metadata.get("source_path") or "")
+    targets[target_id] = rec
+    atomic_write_json(targets_path(cfg), data)
+    append_event(cfg, "targets", "target_seen", details={
+        "target_id": target_id,
+        "target_label": rec.get("label", ""),
+        "identity_confidence": confidence,
+        "identity_source": metadata.get("target_identity_source", ""),
+        "service": service,
+        "activity_operation": operation,
+        "remote_addr": metadata.get("remote_addr", ""),
+        "session_id": session_id,
+    })
+    return rec
+
+
+def set_target_label(cfg, target_id, label, aliases=None, notes=None):
+    target_id = str(target_id or "").strip()
+    if not target_id:
+        raise ValueError("target id is required")
+    data = load_targets(cfg)
+    targets = data.setdefault("targets", {})
+    rec = targets.get(target_id)
+    if not isinstance(rec, dict):
+        now = utc_now()
+        rec = {"target_id": target_id, "first_seen_at": now, "last_seen_at": now, "notes": ""}
+    rec["label"] = str(label or "").strip()
+    rec["aliases"] = list_merge_unique(rec.get("aliases") or [], aliases or [])
+    if notes is not None:
+        rec["notes"] = str(notes)
+    targets[target_id] = rec
+    atomic_write_json(targets_path(cfg), data)
+    append_event(cfg, "targets", "target_label_set", details={
+        "target_id": target_id,
+        "target_label": rec.get("label", ""),
+        "aliases": rec.get("aliases") or [],
+    })
+    return rec
+
+
+def target_records(cfg):
+    targets = load_targets(cfg).get("targets") or {}
+    records = [dict(rec) for rec in targets.values() if isinstance(rec, dict)]
+    records.sort(key=lambda rec: (str(rec.get("last_seen_at") or ""), str(rec.get("target_id") or "")), reverse=True)
+    return records
+
+
+def target_record_indexes(records):
+    by_id = {}
+    by_label = {}
+    by_alias = {}
+    by_remote_addr = {}
+    by_service = {}
+    by_identity_confidence = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        target_id = str(rec.get("target_id") or "")
+        if target_id:
+            by_id[target_id] = rec
+        label = str(rec.get("label") or "")
+        if label:
+            by_label.setdefault(label, []).append(rec)
+        confidence = str(rec.get("identity_confidence") or "")
+        if confidence:
+            by_identity_confidence.setdefault(confidence, []).append(rec)
+        for alias in rec.get("aliases") or []:
+            alias = str(alias or "")
+            if alias:
+                by_alias.setdefault(alias, []).append(rec)
+        for remote in rec.get("remote_addresses") or []:
+            remote = str(remote or "")
+            if remote:
+                by_remote_addr.setdefault(remote, []).append(rec)
+        for service in rec.get("services_seen") or []:
+            service = str(service or "")
+            if service:
+                by_service.setdefault(service, []).append(rec)
+    return by_id, by_label, by_alias, by_remote_addr, by_service, by_identity_confidence
+
+
+def target_record_summary(records):
+    latest = (records or [{}])[0] if records else {}
+    service_counts = {}
+    remote_count = 0
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        remote_count += len(rec.get("remote_addresses") or [])
+        for service in rec.get("services_seen") or []:
+            service = str(service or "")
+            if service:
+                service_counts[service] = service_counts.get(service, 0) + 1
+    return {
+        "target_count": len(records or []),
+        "latest_target_id": latest.get("target_id", ""),
+        "latest_target_label": latest.get("label", ""),
+        "latest_target_seen_at": latest.get("last_seen_at", ""),
+        "target_identity_confidence_counts": record_count_by_key(records, "identity_confidence"),
+        "target_service_counts": service_counts,
+        "target_remote_address_count": remote_count,
+    }
 
 
 def service_manager_resource_records(snapshot):
@@ -2775,6 +2967,7 @@ def upload_record_indexes(records):
     by_filename = {}
     by_kind = {}
     by_sha256 = {}
+    by_target_id = {}
     by_source_path = {}
     by_stored_path = {}
     by_stored_exists = records_by_bool(records, "stored_exists")
@@ -2792,6 +2985,7 @@ def upload_record_indexes(records):
         filename = str(rec.get("filename") or "")
         kind = str(rec.get("upload_kind") or "file")
         sha256 = str(rec.get("sha256") or "")
+        target_id = str(rec.get("target_id") or "")
         source_path = str(rec.get("source_path") or "")
         stored_path = str(rec.get("stored_path") or "")
         remote_addr = str(rec.get("remote_addr") or "")
@@ -2802,6 +2996,8 @@ def upload_record_indexes(records):
             by_kind.setdefault(kind, []).append(rec)
         if sha256:
             by_sha256.setdefault(sha256, []).append(rec)
+        if target_id:
+            by_target_id.setdefault(target_id, []).append(rec)
         if source_path:
             by_source_path.setdefault(source_path, []).append(rec)
         if stored_path:
@@ -2823,6 +3019,7 @@ def upload_record_indexes(records):
         by_filename,
         by_kind,
         by_sha256,
+        by_target_id,
         by_source_path,
         by_stored_path,
         by_stored_exists,
@@ -2840,6 +3037,7 @@ def upload_record_indexes(records):
 def fetch_record_indexes(records):
     by_request = {}
     by_sha256 = {}
+    by_target_id = {}
     by_source_path = {}
     by_source_exists = records_by_bool(records, "source_exists")
     by_metadata_exists = records_by_bool(records, "metadata_exists")
@@ -2856,6 +3054,7 @@ def fetch_record_indexes(records):
             continue
         request_name = str(rec.get("request_name") or "")
         sha256 = str(rec.get("sha256") or "")
+        target_id = str(rec.get("target_id") or "")
         source_path = str(rec.get("source_path") or "")
         status = str(rec.get("status") or "")
         http_status = rec.get("http_status")
@@ -2864,6 +3063,8 @@ def fetch_record_indexes(records):
             by_request.setdefault(request_name, []).append(rec)
         if sha256:
             by_sha256.setdefault(sha256, []).append(rec)
+        if target_id:
+            by_target_id.setdefault(target_id, []).append(rec)
         if source_path:
             by_source_path.setdefault(source_path, []).append(rec)
         if status:
@@ -2884,6 +3085,7 @@ def fetch_record_indexes(records):
     return (
         by_request,
         by_sha256,
+        by_target_id,
         by_source_path,
         by_source_exists,
         by_metadata_exists,
@@ -5891,8 +6093,8 @@ def write_session_record(log_dir, record):
     return SESSION_MANAGER.write_record(log_dir, record)
 
 
-def upsert_state_session(cfg, log_dir, service, state, remote="", exit_reason=""):
-    return SESSION_MANAGER.upsert_state(cfg, log_dir, service, state, remote=remote, exit_reason=exit_reason)
+def upsert_state_session(cfg, log_dir, service, state, remote="", exit_reason="", **extra):
+    return SESSION_MANAGER.upsert_state(cfg, log_dir, service, state, remote=remote, exit_reason=exit_reason, **extra)
 
 
 def start_session_record(cfg, service, log_dir, remote="", state="starting", details=None):
@@ -6473,34 +6675,34 @@ def read_http_upload(conn, files_dir, addr):
             key, value = line.split(":", 1)
             headers[key.strip().lower()] = value.strip()
     if method not in {"PUT", "POST"}:
-        return {
+        return attach_target_identity({
             "operation": "upload",
             "status": "rejected",
             "reason": "receive-only file service accepts only PUT or POST",
             "method": method,
             "source_path": target,
             "remote_addr": f"{addr[0]}:{addr[1]}",
-        }, 405
+        }, headers), 405
     if "content-length" not in headers:
-        return {
+        return attach_target_identity({
             "operation": "upload",
             "status": "rejected",
             "reason": "missing Content-Length",
             "method": method,
             "source_path": target,
             "remote_addr": f"{addr[0]}:{addr[1]}",
-        }, 411
+        }, headers), 411
     try:
         expected = int(headers["content-length"])
     except ValueError:
-        return {
+        return attach_target_identity({
             "operation": "upload",
             "status": "rejected",
             "reason": "invalid Content-Length",
             "method": method,
             "source_path": target,
             "remote_addr": f"{addr[0]}:{addr[1]}",
-        }, 400
+        }, headers), 400
     source_path = headers.get("x-busierbox-source-path") or urllib.parse.urlparse(target).path
     upload_kind = headers.get("x-busierbox-upload-kind") or "file"
     out_name = safe_upload_name(source_path)
@@ -6544,6 +6746,7 @@ def read_http_upload(conn, files_dir, addr):
         "mode": headers.get("x-busierbox-mode", ""),
         "transfer_status": status,
     }
+    metadata.update(target_identity_from_headers(headers))
     meta_path = files_dir / f"{out_path.name}.metadata.json"
     metadata["metadata_path"] = str(meta_path)
     meta_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -6634,16 +6837,16 @@ def stream_fetch_response(conn, src, status_code=200, content_type="application/
             conn.sendall(chunk)
 
 
-def handle_staged_fetch(cfg, conn, method, target, addr):
+def handle_staged_fetch(cfg, conn, method, target, headers, addr):
     if method not in {"GET", "HEAD"}:
         payload = {"status": "rejected", "reason": "staged fetch accepts only GET or HEAD"}
         send_http_response(conn, 405, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
-        return {"operation": "fetch", "status": "rejected", "http_status": 405, "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}
+        return attach_target_identity({"operation": "fetch", "status": "rejected", "http_status": 405, "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}, headers)
     parsed = urllib.parse.urlparse(target)
     if parsed.path not in {"/fetch", "/fetch/"}:
         payload = {"status": "rejected", "reason": "unknown fetch endpoint"}
         send_http_response(conn, 404, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
-        return {"operation": "fetch", "status": "rejected", "http_status": 404, "reason": "unknown endpoint", "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}
+        return attach_target_identity({"operation": "fetch", "status": "rejected", "http_status": 404, "reason": "unknown endpoint", "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}, headers)
     query = urllib.parse.parse_qs(parsed.query)
     name = query.get("name", [""])[0]
     try:
@@ -6651,18 +6854,18 @@ def handle_staged_fetch(cfg, conn, method, target, addr):
     except ValueError as exc:
         payload = {"status": "rejected", "reason": str(exc)}
         send_http_response(conn, 400, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
-        return {"operation": "fetch", "status": "rejected", "http_status": 400, "reason": str(exc), "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}
+        return attach_target_identity({"operation": "fetch", "status": "rejected", "http_status": 400, "reason": str(exc), "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}, headers)
     staged = load_staged(cfg).get("staged", {})
     rec = staged.get(name)
     if not rec:
         payload = {"status": "missing", "reason": "no staged file for request", "request_name": name}
         send_http_response(conn, 404, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
-        return {"operation": "fetch", "status": "missing", "http_status": 404, "method": method, "request_name": name, "remote_addr": f"{addr[0]}:{addr[1]}"}
+        return attach_target_identity({"operation": "fetch", "status": "missing", "http_status": 404, "method": method, "request_name": name, "remote_addr": f"{addr[0]}:{addr[1]}"}, headers)
     src = Path(rec.get("source_path", ""))
     if not src.is_file():
         payload = {"status": "missing", "reason": "staged source file is no longer present", "request_name": name}
         send_http_response(conn, 404, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
-        return {"operation": "fetch", "status": "missing-source", "http_status": 404, "method": method, "request_name": name, "remote_addr": f"{addr[0]}:{addr[1]}"}
+        return attach_target_identity({"operation": "fetch", "status": "missing-source", "http_status": 404, "method": method, "request_name": name, "remote_addr": f"{addr[0]}:{addr[1]}"}, headers)
     headers = {
         "X-BusierBox-Request-Name": urllib.parse.quote(name, safe="/._-"),
         "X-BusierBox-Sha256": rec.get("sha256", ""),
@@ -6670,7 +6873,7 @@ def handle_staged_fetch(cfg, conn, method, target, addr):
         "Content-Disposition": f"attachment; filename={urllib.parse.quote(Path(name).name or src.name)}",
     }
     stream_fetch_response(conn, src, 200, "application/octet-stream", headers=headers, head_only=(method == "HEAD"))
-    return {
+    return attach_target_identity({
         "operation": "fetch",
         "status": "served",
         "http_status": 200,
@@ -6681,13 +6884,13 @@ def handle_staged_fetch(cfg, conn, method, target, addr):
         "sha256": rec.get("sha256", ""),
         "timestamp": utc_now(),
         "remote_addr": f"{addr[0]}:{addr[1]}",
-    }
+    }, headers)
 
 
 def handle_file_service_http(cfg, conn, files_dir, addr):
     method, target, _version, headers, body = read_http_headers(conn)
     if method in {"GET", "HEAD"}:
-        return handle_staged_fetch(cfg, conn, method, target, addr), 200
+        return handle_staged_fetch(cfg, conn, method, target, headers, addr), 200
     if method not in {"PUT", "POST"}:
         metadata = {
             "operation": "upload",
@@ -6697,6 +6900,7 @@ def handle_file_service_http(cfg, conn, files_dir, addr):
             "source_path": target,
             "remote_addr": f"{addr[0]}:{addr[1]}",
         }
+        metadata.update(target_identity_from_headers(headers))
         send_json_response(conn, 405, metadata)
         return metadata, 405
     # Reconstruct the header block for the existing upload reader to keep upload
@@ -7124,16 +7328,20 @@ def serve_file_service(cfg, timeout, max_sessions=0):
                         update_session_record(log_dir, state="active", remote=f"{addr[0]}:{addr[1]}")
                         upsert_state_session(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}")
                         metadata, status_code = handle_file_service_http(cfg, conn, files_dir, addr)
+                        target_rec = record_target_activity(cfg, metadata, service, session_id=log_dir.name)
                         if metadata.get("operation") == "fetch":
                             print(f"file-service fetch {metadata.get('status')}: {metadata.get('request_name')} <- {metadata.get('source_path', metadata.get('reason', ''))}")
                             append_session_list_item(log_dir, "fetches", metadata)
-                            append_event(cfg, service, "fetch_start", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details={"request_name": metadata.get("request_name", ""), "method": metadata.get("method", "")})
+                            append_event(cfg, service, "fetch_start", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details={"request_name": metadata.get("request_name", ""), "method": metadata.get("method", ""), "target_id": metadata.get("target_id", ""), "target_label": metadata.get("target_label", "")})
                             append_event(cfg, service, "fetch_complete", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
                         else:
                             print(f"file-service upload {metadata.get('status')}: {metadata.get('stored_path', metadata.get('reason', ''))}")
                             append_session_list_item(log_dir, "uploads", metadata)
-                            append_event(cfg, service, "upload_start", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details={"filename": metadata.get("filename", ""), "expected_size": metadata.get("expected_size", "")})
+                            append_event(cfg, service, "upload_start", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details={"filename": metadata.get("filename", ""), "expected_size": metadata.get("expected_size", ""), "target_id": metadata.get("target_id", ""), "target_label": metadata.get("target_label", "")})
                             append_event(cfg, service, "upload_complete", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
+                        if target_rec:
+                            update_session_record(log_dir, target_id=metadata.get("target_id", ""), target_label=target_rec.get("label", ""))
+                            upsert_state_session(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}", target_id=metadata.get("target_id", ""))
             except Exception as exc:
                 metadata = {"operation": "unknown", "status": "error", "reason": str(exc)}
                 status_code = 500
@@ -7156,6 +7364,7 @@ def serve_file_service(cfg, timeout, max_sessions=0):
                         "http_status": metadata.get("http_status", status_code),
                         "request_name": metadata.get("request_name", ""),
                         "filename": metadata.get("filename", ""),
+                        "target_id": metadata.get("target_id", ""),
                     },
                 )
                 sessions += 1
@@ -7643,6 +7852,14 @@ def status_document(cfg):
     service_manager_resource_index_maps = service_manager_resource_indexes(service_manager_resources)
     uploads = recent_upload_metadata(cfg)
     fetches = recent_fetch_metadata(cfg)
+    targets = target_records(cfg)
+    (targets_by_id,
+     targets_by_label,
+     targets_by_alias,
+     targets_by_remote_addr,
+     targets_by_service,
+     targets_by_identity_confidence) = target_record_indexes(targets)
+    target_summary = target_record_summary(targets)
     sessions = recent_session_records(cfg)
     session_root_state = session_root_record(cfg, sessions)
     reconcile_workbench_job_completion_events(cfg)
@@ -7754,6 +7971,7 @@ def status_document(cfg):
     (uploads_by_filename,
      uploads_by_kind,
      uploads_by_sha256,
+     uploads_by_target_id,
      uploads_by_source_path,
      uploads_by_stored_path,
      uploads_by_stored_exists,
@@ -7767,6 +7985,7 @@ def status_document(cfg):
      uploads_by_status_remote_addr) = upload_record_indexes(uploads)
     (fetches_by_request,
      fetches_by_sha256,
+     fetches_by_target_id,
      fetches_by_source_path,
      fetches_by_source_exists,
      fetches_by_metadata_exists,
@@ -7803,6 +8022,7 @@ def status_document(cfg):
         "command_queue_file": str(command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
+        "targets_file": str(targets_path(cfg)),
         "build_config": str(build_config_path(cfg)),
         "event_log": str(event_log_path),
         "session_root": session_root,
@@ -8093,6 +8313,7 @@ def status_document(cfg):
         "upload_kind_counts": record_count_by_key(uploads, "upload_kind"),
         "upload_status_counts": record_count_by_key(uploads, "status"),
         "upload_remote_counts": record_count_by_key(uploads, "remote_addr"),
+        "upload_target_counts": record_count_by_key(uploads, "target_id"),
         "upload_kind_status_counts": {key: len(value) for key, value in uploads_by_kind_status.items()},
         "upload_filename_status_counts": {key: len(value) for key, value in uploads_by_filename_status.items()},
         "upload_status_stored_exists_counts": {key: len(value) for key, value in uploads_by_status_stored_exists.items()},
@@ -8107,11 +8328,13 @@ def status_document(cfg):
         "fetch_status_counts": record_count_by_key(fetches, "status"),
         "fetch_http_status_counts": record_count_by_key(fetches, "http_status"),
         "fetch_remote_counts": record_count_by_key(fetches, "remote_addr"),
+        "fetch_target_counts": record_count_by_key(fetches, "target_id"),
         "fetch_request_status_counts": {key: len(value) for key, value in fetches_by_request_status.items()},
         "fetch_status_source_exists_counts": {key: len(value) for key, value in fetches_by_status_source_exists.items()},
         "fetch_status_remote_counts": {key: len(value) for key, value in fetches_by_status_remote_addr.items()},
         "fetch_http_status_remote_counts": {key: len(value) for key, value in fetches_by_http_status_remote_addr.items()},
         "latest_fetch_at": latest_record_value(fetches, ("timestamp", "updated_at")),
+        **target_summary,
         "session_count": len(sessions),
         "session_root_exists": bool(session_root_state.get("exists", False)),
         "session_root_recent_count": session_root_state.get("recent_session_count", 0),
@@ -8446,6 +8669,13 @@ def status_document(cfg):
                 "target_commands_by_retry_post_disconnect_count",
             ), "target_command_count",
         ),
+        "targets": api_collection_record(
+            "targets", targets, "target_id", (
+                "targets_by_id", "targets_by_label", "targets_by_alias",
+                "targets_by_remote_addr", "targets_by_service",
+                "targets_by_identity_confidence",
+            ), "target_count",
+        ),
         "staged_records": api_collection_record(
             "staged_records", staged_records, "request_name", (
                 "staged_by_request", "staged_by_kind", "staged_by_sha256", "staged_by_source_path",
@@ -8463,7 +8693,7 @@ def status_document(cfg):
         "uploads": api_collection_record(
             "uploads", uploads, "metadata_path", (
                 "uploads_by_session", "uploads_by_filename", "uploads_by_kind", "uploads_by_sha256",
-                "uploads_by_source_path", "uploads_by_stored_path", "uploads_by_remote_addr",
+                "uploads_by_target_id", "uploads_by_source_path", "uploads_by_stored_path", "uploads_by_remote_addr",
                 "uploads_by_status", "uploads_by_kind_status", "uploads_by_filename_status",
                 "uploads_by_stored_exists", "uploads_by_status_stored_exists",
                 "uploads_by_status_remote_addr", "uploads_by_metadata_exists",
@@ -8472,7 +8702,7 @@ def status_document(cfg):
         ),
         "fetches": api_collection_record(
             "fetches", fetches, "metadata_path", (
-                "fetches_by_session", "fetches_by_request", "fetches_by_sha256",
+                "fetches_by_session", "fetches_by_request", "fetches_by_sha256", "fetches_by_target_id",
                 "fetches_by_source_path", "fetches_by_status", "fetches_by_http_status",
                 "fetches_by_source_exists", "fetches_by_remote_addr", "fetches_by_request_status",
                 "fetches_by_status_source_exists", "fetches_by_metadata_exists",
@@ -8657,6 +8887,7 @@ def status_document(cfg):
         "command_copy_records": command_copy_records,
         **command_copy_record_indexes,
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
+        "targets_file": str(targets_path(cfg)),
         "workbench_jobs_state": workbench_jobs_state,
         "operator_state_records": operator_state_records_list,
         **operator_state_index_maps,
@@ -8756,6 +8987,14 @@ def status_document(cfg):
         "target_commands_by_retry_backoff": target_commands_by_retry_backoff,
         "target_commands_by_retry_interval_sec": target_commands_by_retry_interval_sec,
         "target_commands_by_retry_post_disconnect_count": target_commands_by_retry_post_disconnect_count,
+        "targets": targets,
+        "target_summary": target_summary,
+        "targets_by_id": targets_by_id,
+        "targets_by_label": targets_by_label,
+        "targets_by_alias": targets_by_alias,
+        "targets_by_remote_addr": targets_by_remote_addr,
+        "targets_by_service": targets_by_service,
+        "targets_by_identity_confidence": targets_by_identity_confidence,
         "staged": staged,
         "staged_records": staged_records,
         "staged_by_request": staged_by_request,
@@ -8771,6 +9010,7 @@ def status_document(cfg):
         "uploads_by_filename": uploads_by_filename,
         "uploads_by_kind": uploads_by_kind,
         "uploads_by_sha256": uploads_by_sha256,
+        "uploads_by_target_id": uploads_by_target_id,
         "uploads_by_source_path": uploads_by_source_path,
         "uploads_by_stored_path": uploads_by_stored_path,
         "uploads_by_stored_exists": uploads_by_stored_exists,
@@ -8786,6 +9026,7 @@ def status_document(cfg):
         "fetches_by_session": records_by_session(fetches),
         "fetches_by_request": fetches_by_request,
         "fetches_by_sha256": fetches_by_sha256,
+        "fetches_by_target_id": fetches_by_target_id,
         "fetches_by_source_path": fetches_by_source_path,
         "fetches_by_source_exists": fetches_by_source_exists,
         "fetches_by_metadata_exists": fetches_by_metadata_exists,
@@ -8953,6 +9194,7 @@ def print_activity_summary(summary):
         f"staged={summary.get('staged_count', 0)} "
         f"uploads={summary.get('upload_count', 0)} "
         f"fetches={summary.get('fetch_count', 0)} "
+        f"targets={summary.get('target_count', 0)} "
         f"sessions={summary.get('session_count', 0)} "
         f"events={summary.get('event_count', 0)}"
     )
@@ -8975,7 +9217,14 @@ def print_activity_summary(summary):
         f"staged={summary.get('latest_staged_at') or '-'} "
         f"upload={summary.get('latest_upload_at') or '-'} "
         f"fetch={summary.get('latest_fetch_at') or '-'} "
+        f"target={summary.get('latest_target_seen_at') or '-'} "
         f"session={summary.get('latest_session_updated_at') or '-'}"
+    )
+    print(
+        "  targets: "
+        f"latest={summary.get('latest_target_id') or '-'} "
+        f"confidence={format_counts(summary.get('target_identity_confidence_counts') or {})} "
+        f"services={format_counts(summary.get('target_service_counts') or {})}"
     )
     print(
         "  service lifecycle: "
@@ -9028,6 +9277,36 @@ def print_api_resource_summary(doc, limit=8):
         )
     if len(resources) > limit:
         print(f"  ... {len(resources) - limit} more resource(s)")
+
+
+def print_target_summary(doc, limit=8):
+    print("Targets:")
+    records = doc.get("targets") or []
+    if not records:
+        print("  none")
+        return
+    summary = doc.get("summary") or {}
+    print(
+        f"  count={summary.get('target_count', len(records))} "
+        f"latest={summary.get('latest_target_id') or '-'} "
+        f"latest_seen={summary.get('latest_target_seen_at') or '-'}"
+    )
+    for rec in records[:limit]:
+        aliases = ",".join(str(item) for item in rec.get("aliases") or []) or "-"
+        remotes = ",".join(str(item) for item in rec.get("remote_addresses") or []) or "-"
+        services = ",".join(str(item) for item in rec.get("services_seen") or []) or "-"
+        print(
+            f"  {rec.get('target_id', '')} label={rec.get('label', '') or '-'} "
+            f"confidence={rec.get('identity_confidence', '') or '-'} "
+            f"last_seen={rec.get('last_seen_at', '') or '-'}"
+        )
+        print(f"    aliases={aliases} services={services} remotes={remotes}")
+        if rec.get("latest_upload_id") or rec.get("latest_fetch_id") or rec.get("latest_session_id"):
+            print(
+                f"    latest_session={rec.get('latest_session_id', '') or '-'} "
+                f"latest_upload={rec.get('latest_upload_id', '') or '-'} "
+                f"latest_fetch={rec.get('latest_fetch_id', '') or '-'}"
+            )
 
 
 def print_operator_state_records(doc):
@@ -9383,6 +9662,7 @@ def print_status(cfg, json_output=False):
     if (doc.get("command_copy") or {}).get("has_command"):
         print(f"  last_copied_command: {(doc.get('command_copy') or {}).get('command', '')}")
     print(f"  workbench_jobs_file: {doc['workbench_jobs_file']}")
+    print(f"  targets_file: {doc['targets_file']}")
     print(f"  session_root: {doc['session_root']}")
     manager = doc.get("service_manager") or {}
     print(
@@ -9409,6 +9689,8 @@ def print_status(cfg, json_output=False):
         print(f"  {name}: exists={exists} parent_exists={parent_exists} writable={writable} kind={rec.get('expected_kind', '')} path={rec.get('path', '')}")
     print("")
     print_operator_state_records(doc)
+    print("")
+    print_target_summary(doc)
     print("")
     print("Services:")
     for row in doc["services"]:
@@ -9524,6 +9806,8 @@ def print_status(cfg, json_output=False):
             print(f"  {meta.get('filename', '')} kind={meta.get('upload_kind', 'file')} size={meta.get('size', '')} sha256={meta.get('sha256_prefix', '')} status={meta.get('status', '')} stored_exists={meta.get('stored_exists', False)}")
             print(f"    source: {meta.get('source_path', '')}")
             print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
+            if meta.get("target_id"):
+                print(f"    target: {meta.get('target_id', '')} label={meta.get('target_label', '')} confidence={meta.get('target_identity_confidence', '')}")
             print(f"    stored: {meta.get('stored_path', '')}")
             print(f"    metadata: {meta.get('metadata_path', meta.get('_metadata_path', ''))}")
             print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
@@ -9536,6 +9820,8 @@ def print_status(cfg, json_output=False):
             print(f"  {meta.get('request_name', '')} size={meta.get('size', '')} sha256={meta.get('sha256_prefix', '')} status={meta.get('status', '')} http={meta.get('http_status', '')} source_exists={meta.get('source_exists', False)}")
             print(f"    source: {meta.get('source_path', '')}")
             print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
+            if meta.get("target_id"):
+                print(f"    target: {meta.get('target_id', '')} label={meta.get('target_label', '')} confidence={meta.get('target_identity_confidence', '')}")
             print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
             if meta.get("event_log"):
                 print(f"    event_log: {meta.get('event_log', '')}")
@@ -9733,6 +10019,7 @@ def print_workbench(cfg, include_api_summary=True):
         ("command_queue_file", "command_queue_file"),
         ("command_copy_file", "command_copy_file"),
         ("workbench_jobs_file", "workbench_jobs_file"),
+        ("targets_file", "targets_file"),
         ("event_log", "event_log"),
         ("session_root", "session_root"),
     ):
@@ -9750,6 +10037,8 @@ def print_workbench(cfg, include_api_summary=True):
         print(f"  {name}: exists={exists} parent_exists={parent_exists} writable={writable} kind={rec.get('expected_kind', '')}")
     print("")
     print_operator_state_records(snap)
+    print("")
+    print_target_summary(snap)
     print("")
     print("Local IP candidates:")
     candidates = snap["local_ips"]
@@ -9812,6 +10101,8 @@ def print_workbench(cfg, include_api_summary=True):
             print(f"  {meta.get('filename', '')} kind={meta.get('upload_kind', 'file')} size={meta.get('size', '')} sha256={sha} status={meta.get('transfer_status', meta.get('status', ''))}")
             print(f"    source: {meta.get('source_path', '')}")
             print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
+            if meta.get("target_id"):
+                print(f"    target: {meta.get('target_id', '')} label={meta.get('target_label', '')} confidence={meta.get('target_identity_confidence', '')}")
             print(f"    stored: {meta.get('stored_path', '')}")
             print(f"    metadata: {meta.get('metadata_path', meta.get('_metadata_path', ''))}")
             print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
@@ -9827,6 +10118,8 @@ def print_workbench(cfg, include_api_summary=True):
             print(f"  {meta.get('request_name', '')} size={meta.get('size', '')} sha256={sha} status={meta.get('status', '')} http={meta.get('http_status', '')}")
             print(f"    source: {meta.get('source_path', '')}")
             print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
+            if meta.get("target_id"):
+                print(f"    target: {meta.get('target_id', '')} label={meta.get('target_label', '')} confidence={meta.get('target_identity_confidence', '')}")
             print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
             if meta.get("event_log"):
                 print(f"    event_log: {meta.get('event_log', '')}")
@@ -10785,6 +11078,14 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="operator command queue JSON path")
     parser.add_argument("--command-copy-file",
                         help="operator last copied/generated command text path")
+    parser.add_argument("--targets-file",
+                        help="operator target ledger JSON path")
+    parser.add_argument("--set-target-label",
+                        help="set or override a friendly label for target id in targets.json")
+    parser.add_argument("--target-label",
+                        help="friendly label to use with --set-target-label")
+    parser.add_argument("--target-alias", action="append",
+                        help="alias to attach with --set-target-label; may be repeated")
     parser.add_argument("--copy-target-command", type=int,
                         help="copy/export generated target command N to clipboard when available and to the command copy file")
     parser.add_argument("--start-workbench-job",
@@ -10866,6 +11167,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["command_queue_file"] = args.command_queue_file
     if args.command_copy_file:
         cfg["command_copy_file"] = args.command_copy_file
+    if args.targets_file:
+        cfg["targets_file"] = args.targets_file
     if args.release_dir:
         cfg["release_dir"] = args.release_dir
     if args.managed_by:
@@ -10908,6 +11211,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             print(f"copied target command {args.copy_target_command} to {rec['path']}")
             print(f"clipboard={'yes' if rec['clipboard'] else 'no'}")
             print(rec["text"])
+            return 0
+        if args.set_target_label:
+            if args.target_label is None:
+                raise ValueError("--set-target-label requires --target-label")
+            rec = set_target_label(cfg, args.set_target_label, args.target_label, aliases=args.target_alias or [])
+            print(f"target {rec.get('target_id', '')} label={rec.get('label', '')}")
+            print(f"targets_file={targets_path(cfg)}")
             return 0
     except ValueError as exc:
         print(f"busierbox-server: {exc}", file=sys.stderr)
