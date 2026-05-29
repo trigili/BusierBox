@@ -1458,6 +1458,7 @@ def target_record_indexes(records):
     by_identity_source = {}
     by_latest_activity_service = {}
     by_latest_activity_operation = {}
+    by_has_notes = {}
     by_capability_report_kind = {}
     by_observed_capability = {}
     by_missing_capability = {}
@@ -1471,6 +1472,7 @@ def target_record_indexes(records):
         label = str(rec.get("label") or "")
         if label:
             by_label.setdefault(label, []).append(rec)
+        by_has_notes.setdefault("yes" if str(rec.get("notes") or "").strip() else "no", []).append(rec)
         confidence = str(rec.get("identity_confidence") or "")
         if confidence:
             by_identity_confidence.setdefault(confidence, []).append(rec)
@@ -1516,7 +1518,7 @@ def target_record_indexes(records):
         by_id, by_label, by_alias, by_remote_addr, by_service,
         by_identity_confidence, by_identity_source,
         by_latest_activity_service, by_latest_activity_operation,
-        by_capability_report_kind, by_observed_capability,
+        by_has_notes, by_capability_report_kind, by_observed_capability,
         by_missing_capability, by_observed_constraint,
     )
 
@@ -1533,9 +1535,12 @@ def target_record_summary(records):
     observed_constraint_counts = {}
     remote_count = 0
     report_count = 0
+    notes_count = 0
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
+        if str(rec.get("notes") or "").strip():
+            notes_count += 1
         remote_count += len(rec.get("remote_addresses") or [])
         for service in rec.get("services_seen") or []:
             service = str(service or "")
@@ -1579,6 +1584,8 @@ def target_record_summary(records):
         "target_identity_source_counts": identity_source_counts,
         "target_service_counts": service_counts,
         "target_remote_address_count": remote_count,
+        "target_notes_count": notes_count,
+        "target_without_notes_count": max(len(records or []) - notes_count, 0),
         "target_latest_activity_service_counts": latest_activity_service_counts,
         "target_latest_activity_operation_counts": latest_activity_operation_counts,
         "target_capability_report_count": report_count,
@@ -8218,6 +8225,7 @@ def status_document(cfg):
      targets_by_identity_source,
      targets_by_latest_activity_service,
      targets_by_latest_activity_operation,
+     targets_by_has_notes,
      targets_by_capability_report_kind,
      targets_by_observed_capability,
      targets_by_missing_capability,
@@ -9074,6 +9082,7 @@ def status_document(cfg):
                 "targets_by_identity_confidence", "targets_by_identity_source",
                 "targets_by_latest_activity_service",
                 "targets_by_latest_activity_operation",
+                "targets_by_has_notes",
                 "targets_by_capability_report_kind",
                 "targets_by_observed_capability",
                 "targets_by_missing_capability",
@@ -9426,6 +9435,7 @@ def status_document(cfg):
         "targets_by_identity_source": targets_by_identity_source,
         "targets_by_latest_activity_service": targets_by_latest_activity_service,
         "targets_by_latest_activity_operation": targets_by_latest_activity_operation,
+        "targets_by_has_notes": targets_by_has_notes,
         "targets_by_capability_report_kind": targets_by_capability_report_kind,
         "targets_by_observed_capability": targets_by_observed_capability,
         "targets_by_missing_capability": targets_by_missing_capability,
@@ -9745,6 +9755,8 @@ def print_target_summary(doc, limit=8):
                 f"at={rec.get('latest_activity_at', '') or '-'}"
             )
         print(f"    aliases={aliases} services={services} remotes={remotes}")
+        if str(rec.get("notes") or "").strip():
+            print(f"    notes={str(rec.get('notes') or '').strip()}")
         if rec.get("latest_upload_id") or rec.get("latest_fetch_id") or rec.get("latest_session_id"):
             print(
                 f"    latest_session={rec.get('latest_session_id', '') or '-'} "
@@ -11573,6 +11585,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="friendly label to use with --set-target-label")
     parser.add_argument("--target-alias", action="append",
                         help="alias to attach with --set-target-label; may be repeated")
+    parser.add_argument("--target-notes",
+                        help="operator notes to store with --set-target-label")
     parser.add_argument("--copy-target-command", type=int,
                         help="copy/export generated target command N to clipboard when available and to the command copy file")
     parser.add_argument("--start-workbench-job",
@@ -11704,8 +11718,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         if args.set_target_label:
             if args.target_label is None:
                 raise ValueError("--set-target-label requires --target-label")
-            rec = set_target_label(cfg, args.set_target_label, args.target_label, aliases=args.target_alias or [])
+            rec = set_target_label(
+                cfg, args.set_target_label, args.target_label,
+                aliases=args.target_alias or [], notes=args.target_notes,
+            )
             print(f"target {rec.get('target_id', '')} label={rec.get('label', '')}")
+            if str(rec.get("notes") or "").strip():
+                print(f"notes={str(rec.get('notes') or '').strip()}")
             print(f"targets_file={targets_path(cfg)}")
             return 0
     except ValueError as exc:

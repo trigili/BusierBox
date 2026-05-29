@@ -4783,8 +4783,11 @@ def main():
             "--set-target-label", "target-alpha",
             "--target-label", "Alpha Router Renamed",
             "--target-alias", "rack-1",
+            "--target-notes", "primary lab router",
         )
-        if label_update.returncode != 0 or "Alpha Router Renamed" not in label_update.stdout:
+        if (label_update.returncode != 0 or
+                "Alpha Router Renamed" not in label_update.stdout or
+                "notes=primary lab router" not in label_update.stdout):
             print("target label update failed", file=sys.stderr)
             print(label_update.stdout, file=sys.stderr)
             print(label_update.stderr, file=sys.stderr)
@@ -4854,8 +4857,13 @@ def main():
                 multi_target_doc.get("summary", {}).get("upload_target_counts", {}).get("target-alpha") != 1 or
                 multi_target_doc.get("summary", {}).get("upload_target_counts", {}).get("target-bravo") != 1 or
                 (multi_target_doc.get("targets_by_id") or {}).get("target-alpha", {}).get("label") != "Alpha Router Renamed" or
+                (multi_target_doc.get("targets_by_id") or {}).get("target-alpha", {}).get("notes") != "primary lab router" or
                 (multi_target_doc.get("targets_by_id") or {}).get("target-bravo", {}).get("label") != "Bravo Router" or
                 "lab-bravo" not in ((multi_target_doc.get("targets_by_id") or {}).get("target-bravo", {}).get("aliases") or []) or
+                multi_target_doc.get("summary", {}).get("target_notes_count") != 1 or
+                multi_target_doc.get("summary", {}).get("target_without_notes_count") != 1 or
+                ((multi_target_doc.get("targets_by_has_notes") or {}).get("yes") or [{}])[0].get("target_id") != "target-alpha" or
+                "targets_by_has_notes" not in ((multi_target_doc.get("api_collections") or {}).get("targets") or {}).get("indexes", []) or
                 len((multi_target_doc.get("uploads_by_target_id") or {}).get("target-alpha") or []) != 1 or
                 len((multi_target_doc.get("uploads_by_target_id") or {}).get("target-bravo") or []) != 1):
             print("two uploads from distinct target ids did not remain separate", file=sys.stderr)
@@ -4876,6 +4884,9 @@ def main():
                 filtered_alpha.get("summary", {}).get("upload_target_counts", {}).get("target-alpha") != 1 or
                 "target-bravo" in (filtered_alpha.get("targets_by_id") or {}) or
                 (filtered_alpha.get("targets_by_id") or {}).get("target-alpha", {}).get("label") != "Alpha Router Renamed" or
+                (filtered_alpha.get("targets_by_id") or {}).get("target-alpha", {}).get("notes") != "primary lab router" or
+                filtered_alpha.get("summary", {}).get("target_notes_count") != 1 or
+                ((filtered_alpha.get("targets_by_has_notes") or {}).get("yes") or [{}])[0].get("target_id") != "target-alpha" or
                 len((filtered_alpha.get("uploads_by_target_id") or {}).get("target-alpha") or []) != 1 or
                 (filtered_alpha.get("uploads_by_target_id") or {}).get("target-bravo")):
             print("target-filtered JSON status did not narrow target records", file=sys.stderr)
@@ -4890,6 +4901,7 @@ def main():
         if (filtered_status.returncode != 0 or
                 "target_filter: target-bravo targets=1 uploads=1" not in filtered_status.stdout or
                 "target-bravo label=Bravo Router confidence=explicit" not in filtered_status.stdout or
+                "notes=primary lab router" in filtered_status.stdout or
                 "target-alpha label=Alpha Router Renamed" in filtered_status.stdout):
             print("target-filtered text status did not show selected target only", file=sys.stderr)
             print(filtered_status.stdout, file=sys.stderr)
