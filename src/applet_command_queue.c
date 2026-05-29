@@ -1257,7 +1257,10 @@ static void print_api_collections_json(void)
 {
     fputs(",\"api_collections\":{\"mode_records\":{\"name\":\"mode_records\",\"count\":5", stdout);
     fputs(",\"count_summary_key\":\"mode_summary.mode_count\",\"primary_key\":\"mode\",\"summary_key\":\"mode_summary.mode_count\"", stdout);
-    fputs(",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_live_supported\",\"mode_records_by_delivery_supported\",\"mode_records_by_result_upload_supported\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\",\"mode_records_by_operator_supplied_command_execution\"]}}", stdout);
+    fputs(",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_live_supported\",\"mode_records_by_delivery_supported\",\"mode_records_by_result_upload_supported\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\",\"mode_records_by_operator_supplied_command_execution\"]}", stdout);
+    fputs(",\"daemon_state_records\":{\"name\":\"daemon_state_records\",\"count\":1", stdout);
+    fputs(",\"count_summary_key\":\"daemon_state_record_count\",\"primary_key\":\"id\",\"summary_key\":\"daemon_state_record_count\"", stdout);
+    fputs(",\"indexes\":[\"daemon_state_records_by_id\",\"daemon_state_records_by_present\",\"daemon_state_records_by_valid\",\"daemon_state_records_by_running\",\"daemon_state_records_by_stale\",\"daemon_state_records_by_ownership_verified\",\"daemon_state_records_by_status\",\"daemon_state_records_by_mode\",\"daemon_state_records_by_has_state_file\",\"daemon_state_records_by_has_event_log\",\"daemon_state_records_by_has_polling_config\",\"daemon_state_records_by_managed_running\",\"daemon_state_records_by_needs_cleanup\"]}}", stdout);
 }
 
 static void print_poll_run_json(const struct poll_run_result *run)
@@ -1337,6 +1340,83 @@ static void print_daemon_state_json(const char *state_file, const struct daemon_
     fputs(",\"event_log\":", stdout);
     bb_json_string(stdout, state ? state->event_log : "");
     fputc('}', stdout);
+}
+
+static const char *json_bool_key(int value)
+{
+    return value ? "true" : "false";
+}
+
+static void print_daemon_state_bool_index(const char *name, int value)
+{
+    printf(",\"daemon_state_records_by_%s\":{\"%s\":[0]}", name, json_bool_key(value));
+}
+
+static void print_daemon_state_string_index(const char *name, const char *value)
+{
+    printf(",\"daemon_state_records_by_%s\":{", name);
+    if (value && value[0]) {
+        bb_json_string(stdout, value);
+        fputs(":[0]", stdout);
+    }
+    fputc('}', stdout);
+}
+
+static void print_daemon_state_records_json(const char *state_file, const struct daemon_state *state)
+{
+    int has_state_file = state_file && state_file[0];
+    int has_event_log = state && state->event_log[0];
+    int has_polling_config = state && (state->poll_interval_sec > 0 || state->poll_max_interval_sec > 0 || state->max_polls > 0 || state->poll_backoff[0]);
+    int managed_running = state && state->running && state->ownership_verified;
+    int needs_cleanup = state && (state->stale || (state->present && !state->valid));
+
+    fputs(",\"daemon_state_record_count\":1", stdout);
+    fputs(",\"daemon_state_records\":[{\"id\":\"command-queue-daemon\"", stdout);
+    fputs(",\"state_file\":", stdout);
+    bb_json_string(stdout, state_file ? state_file : "");
+    printf(",\"present\":%s", state && state->present ? "true" : "false");
+    printf(",\"valid\":%s", state && state->valid ? "true" : "false");
+    printf(",\"running\":%s", state && state->running ? "true" : "false");
+    printf(",\"stale\":%s", state && state->stale ? "true" : "false");
+    printf(",\"ownership_verified\":%s", state && state->ownership_verified ? "true" : "false");
+    printf(",\"pid\":%d", state ? state->pid : 0);
+    fputs(",\"status\":", stdout);
+    bb_json_string(stdout, state ? state->status : "missing");
+    fputs(",\"error\":", stdout);
+    bb_json_string(stdout, state ? state->error : "");
+    fputs(",\"started_at\":", stdout);
+    bb_json_string(stdout, state ? state->started_at : "");
+    fputs(",\"mode\":", stdout);
+    bb_json_string(stdout, state ? state->mode : "");
+    fputs(",\"endpoint\":", stdout);
+    bb_json_string(stdout, state ? state->endpoint : "");
+    printf(",\"poll_interval_sec\":%d", state ? state->poll_interval_sec : 0);
+    printf(",\"poll_jitter_pct\":%d", state ? state->poll_jitter_pct : 0);
+    fputs(",\"poll_backoff\":", stdout);
+    bb_json_string(stdout, state ? state->poll_backoff : "");
+    printf(",\"poll_max_interval_sec\":%d", state ? state->poll_max_interval_sec : 0);
+    printf(",\"max_polls\":%d", state ? state->max_polls : 0);
+    fputs(",\"event_log\":", stdout);
+    bb_json_string(stdout, state ? state->event_log : "");
+    printf(",\"has_state_file\":%s", has_state_file ? "true" : "false");
+    printf(",\"has_event_log\":%s", has_event_log ? "true" : "false");
+    printf(",\"has_polling_config\":%s", has_polling_config ? "true" : "false");
+    printf(",\"managed_running\":%s", managed_running ? "true" : "false");
+    printf(",\"needs_cleanup\":%s", needs_cleanup ? "true" : "false");
+    fputs("}]", stdout);
+    fputs(",\"daemon_state_records_by_id\":{\"command-queue-daemon\":[0]}", stdout);
+    print_daemon_state_bool_index("present", state && state->present);
+    print_daemon_state_bool_index("valid", state && state->valid);
+    print_daemon_state_bool_index("running", state && state->running);
+    print_daemon_state_bool_index("stale", state && state->stale);
+    print_daemon_state_bool_index("ownership_verified", state && state->ownership_verified);
+    print_daemon_state_string_index("status", state ? state->status : "missing");
+    print_daemon_state_string_index("mode", state ? state->mode : "");
+    print_daemon_state_bool_index("has_state_file", has_state_file);
+    print_daemon_state_bool_index("has_event_log", has_event_log);
+    print_daemon_state_bool_index("has_polling_config", has_polling_config);
+    print_daemon_state_bool_index("managed_running", managed_running);
+    print_daemon_state_bool_index("needs_cleanup", needs_cleanup);
 }
 
 static void print_stop_result_json(const struct stop_result *stop)
@@ -1493,6 +1573,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     print_api_collections_json();
     print_poll_run_json(run);
     print_daemon_state_json(state_file, daemon_state);
+    print_daemon_state_records_json(state_file, daemon_state);
     print_stop_result_json(stop);
     fputs(",\"safety_boundary\":\"target polling is explicit; live mode can receive queued command metadata but command execution is not implemented\"", stdout);
     fputs(",\"queued_command\":", stdout);
