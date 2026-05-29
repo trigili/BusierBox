@@ -3588,6 +3588,7 @@ def workbench_action_summary(records):
 def target_workflow_action_records(cfg, targets, bridge_profiles=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/busierbox-server --config " + shquote(config_path)
+    release = release_context(cfg)
     bridge_by_target = {}
     for profile in bridge_profiles or []:
         if not isinstance(profile, dict):
@@ -3703,6 +3704,18 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             queues_offline_work=False,
             target_phone_home_required=True,
         )
+        if release:
+            add(
+                target,
+                "stage-release-artifact",
+                "release",
+                "Stage a release artifact for this target to fetch",
+                base + " --run-target-workflow-action " + shquote(f"{target_id}:stage-release-artifact") + " --target-workflow-command RELEASE_SELECTOR",
+                "release-artifact",
+                requires_input=True,
+                queues_offline_work=True,
+                target_phone_home_required=True,
+            )
         add(
             target,
             "queue-staged-fetch",
@@ -15500,6 +15513,43 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             "target_upload_path": target_path,
             "target_command": command,
             "target_command_sha256": hashlib.sha256(command.encode("utf-8")).hexdigest() if command else "",
+        })
+        return 0
+    if action_id == "stage-release-artifact":
+        selector = str(command_input or "")
+        if not selector and input_func:
+            value = input_func("release artifact selector> ")
+            selector = value if value is not None else ""
+        selector = selector.strip()
+        if not selector:
+            raise ValueError("stage-release-artifact target workflow action requires a release selector")
+        staged = stage_release_selection(scoped, selector)
+        print(f"staged {staged['request_name']} <- {staged['source_path']}")
+        print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
+        print(f"release_path={staged.get('release_path', '')} tuple_path={staged.get('tuple_path', '')} payload_preset={staged.get('payload_preset', '')}")
+        print(render_fetch_command(staged["request_name"], scoped))
+        append_event(cfg, "workbench", "target_workflow_action_completed", details={
+            "id": rec.get("id", ""),
+            "action_id": action_id,
+            "target_id": target_id,
+            "target_label": target_label,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "offline_supported": bool(rec.get("offline_supported")),
+            "requires_target_online": bool(rec.get("requires_target_online")),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+            "result": "staged-release-artifact",
+            "selector": selector,
+            "request_name": staged.get("request_name", ""),
+            "source_path": staged.get("source_path", ""),
+            "sha256": staged.get("sha256", ""),
+            "release_artifact_name": staged.get("release_artifact_name", ""),
+            "release_path": staged.get("release_path", ""),
+            "tuple_path": staged.get("tuple_path", ""),
+            "payload_preset": staged.get("payload_preset", ""),
+            "compatibility": staged.get("compatibility") or {},
         })
         return 0
     if action_id == "queue-staged-fetch":

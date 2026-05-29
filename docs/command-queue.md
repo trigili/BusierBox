@@ -373,7 +373,8 @@ For target-centered operator UX, status JSON also includes
 `target_workflow_actions`. These records are generated per target and expose the
 same workflows a TUI should offer: inspect scoped status, open a scoped
 workbench, queue mailbox work, queue a survey bootstrap command, serve survey
-bootstrap, stage a file for target fetch, queue a staged fetch command, show a
+bootstrap, stage a file for target fetch, stage a release artifact for target
+fetch when a release bundle is available, queue a staged fetch command, show a
 target upload command, start the file service, start any bridge profile tied to
 that target, and queue a bridge-related reverse-access start command for the
 target mailbox.
@@ -398,6 +399,9 @@ scripts/busierbox-server --run-target-workflow-action target-alpha:queue-survey-
 scripts/busierbox-server --run-target-workflow-action target-alpha:stage-file-fetch \
   --target-workflow-local-file ./dist/busierbox-target-full \
   --target-workflow-request-name busierbox
+
+scripts/busierbox-server --run-target-workflow-action target-alpha:stage-release-artifact \
+  --target-workflow-command by_device:lab-router
 
 scripts/busierbox-server --run-target-workflow-action target-alpha:queue-staged-fetch \
   --target-workflow-request-name busierbox

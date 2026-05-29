@@ -9388,6 +9388,103 @@ def main():
             print("line-oriented TUI did not record release staging event", file=sys.stderr)
             print(json.dumps(line_release_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        target_release_state = Path(tmp) / "operator-session" / "target-release-state.json"
+        target_release_staged = Path(tmp) / "operator-session" / "target-release-staged.json"
+        target_release_targets = Path(tmp) / "operator-session" / "target-release-targets.json"
+        target_release_label = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(target_release_state),
+                "--staged-file", str(target_release_staged),
+                "--targets-file", str(target_release_targets),
+                "--set-target-label", "target-release",
+                "--target-label", "Release Router",
+            ],
+            cwd=release_dir,
+            text=True,
+            capture_output=True,
+        )
+        if target_release_label.returncode != 0:
+            print("target release workflow label setup failed", file=sys.stderr)
+            print(target_release_label.stdout, file=sys.stderr)
+            print(target_release_label.stderr, file=sys.stderr)
+            return 1
+        target_release_stage = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(target_release_state),
+                "--staged-file", str(target_release_staged),
+                "--targets-file", str(target_release_targets),
+                "--run-target-workflow-action", "target-release:stage-release-artifact",
+                "--target-workflow-command", "by_device:lab-router",
+            ],
+            cwd=release_dir,
+            text=True,
+            capture_output=True,
+        )
+        if (target_release_stage.returncode != 0 or
+                "target workflow action: target-release:stage-release-artifact" not in target_release_stage.stdout or
+                "staged busierbox-test" not in target_release_stage.stdout or
+                "target=target-release label=Release Router" not in target_release_stage.stdout or
+                "release_path=bin/busierbox-test" not in target_release_stage.stdout or
+                "busierbox fetch busierbox-test" not in target_release_stage.stdout):
+            print("target release workflow stage action failed", file=sys.stderr)
+            print(target_release_stage.stdout, file=sys.stderr)
+            print(target_release_stage.stderr, file=sys.stderr)
+            return 1
+        target_release_status = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(target_release_state),
+                "--staged-file", str(target_release_staged),
+                "--targets-file", str(target_release_targets),
+                "--event-limit", "16",
+                "--json-status",
+            ],
+            cwd=release_dir,
+            text=True,
+            capture_output=True,
+        )
+        target_release_doc = json.loads(target_release_status.stdout)
+        target_release_staged_records = (target_release_doc.get("staged_by_target_id") or {}).get("target-release") or []
+        target_release_actions = (target_release_doc.get("target_workflow_actions_by_target_id") or {}).get("target-release") or []
+        target_release_actions_by_action = {
+            rec.get("action_id"): rec for rec in target_release_actions if isinstance(rec, dict)
+        }
+        target_release_events = target_release_doc.get("events_by_event") or {}
+        target_release_completed = [
+            event.get("details") or {}
+            for event in target_release_events.get("target_workflow_action_completed", [])
+            if (event.get("details") or {}).get("action_id") == "stage-release-artifact"
+        ]
+        if (target_release_status.returncode != 0 or
+                target_release_doc.get("summary", {}).get("target_workflow_action_count") != 10 or
+                target_release_doc.get("summary", {}).get("target_workflow_action_workflow_counts", {}).get("release-artifact") != 1 or
+                target_release_doc.get("summary", {}).get("target_workflow_action_requires_input_count") != 5 or
+                target_release_doc.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 5 or
+                target_release_doc.get("summary", {}).get("target_workflow_action_target_phone_home_required_count") != 7 or
+                len(target_release_staged_records) != 1 or
+                target_release_staged_records[0].get("stage_kind") != "release-artifact" or
+                target_release_staged_records[0].get("target_id") != "target-release" or
+                target_release_staged_records[0].get("target_label") != "Release Router" or
+                target_release_staged_records[0].get("release_path") != "bin/busierbox-test" or
+                target_release_staged_records[0].get("tuple_path") != "by-tuple/native/host/host/host" or
+                target_release_actions_by_action.get("stage-release-artifact", {}).get("requires_input") is not True or
+                target_release_actions_by_action.get("stage-release-artifact", {}).get("queues_offline_work") is not True or
+                target_release_actions_by_action.get("stage-release-artifact", {}).get("target_phone_home_required") is not True or
+                "RELEASE_SELECTOR" not in target_release_actions_by_action.get("stage-release-artifact", {}).get("headless_command", "") or
+                not target_release_completed or
+                target_release_completed[-1].get("result") != "staged-release-artifact" or
+                target_release_completed[-1].get("selector") != "by_device:lab-router" or
+                target_release_completed[-1].get("target_id") != "target-release" or
+                target_release_completed[-1].get("release_path") != "bin/busierbox-test" or
+                target_release_completed[-1].get("tuple_path") != "by-tuple/native/host/host/host"):
+            print("target release workflow status missing staged release metadata", file=sys.stderr)
+            print(json.dumps(target_release_doc, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
         staged_status = subprocess.run(
             [
                 str(server),
