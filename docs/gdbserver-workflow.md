@@ -87,7 +87,7 @@ GEF and pwndbg are operator-side GDB plugins in this workflow. Do not bundle
 them onto small targets unless target-side full GDB plus Python has been
 explicitly selected and validated.
 
-## GL.iNet / mipsel-musl Caveat
+## Static MIPS Caveat
 
 Buildroot GDB/BFD is known to fail for some mipsel/mips musl static builds.
 BusierBox pre-excludes that Buildroot provider in best-effort mode and reports a

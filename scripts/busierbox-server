@@ -2123,8 +2123,8 @@ def records_by_list_item(records, key):
 
 
 WORKBENCH_BUILD_CONFIG_FIELDS = [
-    ("target", "BB_TARGET_PRESET", "target/device preset", "glinet-mt7621-openwrt-musl native"),
-    ("target", "BB_TARGETS", "target build list", "glinet-mt7621-openwrt-musl"),
+    ("target", "BB_TARGET_PRESET", "target/device preset", "mipsel-linux-4.x-musl native"),
+    ("target", "BB_TARGETS", "target build list", "mipsel-linux-4.x-musl armv7-linux-3.x-musl"),
     ("payload", "BB_PAYLOAD_PRESET", "payload set", "survey-core default ssh-operator"),
     ("payload", "BB_BUSYBOX_GROUPS", "BusyBox applet groups", "shell fileops disk process network text system"),
     ("payload", "BB_HEAVY_TOOLS", "heavy payload tools", "tmux strace gdbserver"),

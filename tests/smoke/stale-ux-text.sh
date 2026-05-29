@@ -79,6 +79,7 @@ require_text docs/persistence.md 'actions_by_starts_rshell_after_evidence'
 require_text docs/persistence.md 'actions_by_requires_explicit_apply'
 require_text docs/persistence.md 'actions_by_requires_external_write'
 require_text docs/gdbserver-workflow.md 'payload/bin/gdbserver'
+require_text docs/gdbserver-workflow.md 'Static MIPS Caveat'
 require_text docs/survey-and-bringup.md 'without changing target tuple compatibility or payload contents'
 require_text docs/integration-glinet.md 'best-effort ephemeral runtime cleanup'
 
