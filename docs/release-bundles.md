@@ -1137,6 +1137,10 @@ relevance, control-like behavior, and explicit operator-choice requirements so
 operator UIs can render guided edits, show the underlying `--set-build-config`
 command, badge control-like settings, and verify those edits only update the
 shared shell assignment config.
+The line-oriented workbench workflow-action view prints the equivalent
+`--status` command and records it on `workbench_actions_viewed`, so operators
+can inspect the same workflow/action catalog through either the TUI or a
+headless status call.
 Operators can update supported keys with `--set-build-config KEY=VALUE`; fixed
 choice values are validated before writing. The line-oriented workbench shows
 the exact underlying command before writing the same config file that

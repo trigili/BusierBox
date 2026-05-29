@@ -829,6 +829,67 @@ def main():
             print(json.dumps(copied_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
+        actions_tui_master, actions_tui_slave = pty.openpty()
+        try:
+            actions_tui_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(cfg),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=actions_tui_slave,
+                stdout=actions_tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(actions_tui_slave)
+            actions_tui_slave = -1
+            time.sleep(0.3)
+            os.write(actions_tui_master, b"11\nq\n")
+            _actions_tui_stdout, actions_tui_stderr = actions_tui_proc.communicate(timeout=8)
+            actions_tui_output = b""
+            while True:
+                try:
+                    chunk = os.read(actions_tui_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                actions_tui_output += chunk
+        finally:
+            if actions_tui_slave != -1:
+                os.close(actions_tui_slave)
+            try:
+                os.close(actions_tui_master)
+            except OSError:
+                pass
+        actions_tui_text = actions_tui_output.decode("utf-8", errors="replace")
+        if (actions_tui_proc.returncode != 0 or
+                "Traceback" in (actions_tui_stderr or "") or
+                "Workbench action summary:" not in actions_tui_text or
+                "headless_command: scripts/busierbox-server --config" not in actions_tui_text or
+                "--status" not in actions_tui_text or
+                "operator-daemon-status" not in actions_tui_text):
+            print("line TUI workflow-action view did not expose headless status command", file=sys.stderr)
+            print(actions_tui_text, file=sys.stderr)
+            print(actions_tui_stderr or "", file=sys.stderr)
+            return 1
+        actions_tui_events = [
+            json.loads(line)
+            for line in (queue_operator_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if not any(
+                event.get("event") == "workbench_actions_viewed" and
+                "--status" in ((event.get("details") or {}).get("headless_command") or "") and
+                (event.get("details") or {}).get("action_count", 0) > 0
+                for event in actions_tui_events):
+            print("line TUI workflow-action view did not record headless command event", file=sys.stderr)
+            print(json.dumps(actions_tui_events[-8:], indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
         guided_build_config = Path(tmp) / "guided-busierbox.conf"
         guided_build_config.write_text(
             'BB_TARGET_PRESET="native"\n'

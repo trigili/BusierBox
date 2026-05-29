@@ -14990,17 +14990,24 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
         elif choice == "11":
+            headless = (
+                "scripts/busierbox-server --config "
+                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + " --status"
+            )
             snap = workbench_snapshot(cfg)
             print_workbench_action_summary(snap)
+            print(f"headless_command: {headless}")
             for idx, rec in enumerate(snap.get("workbench_actions") or [], 1):
                 print(f"{idx}: {rec.get('id', '')} {rec.get('label', '')}")
-                print(f"   command: {rec.get('command', '')}")
+                print(f"   command: {rec.get('headless_command', rec.get('command', ''))}")
                 print(f"   category={rec.get('category', '')} background_supported={'yes' if rec.get('background_supported') else 'no'} confirm={'yes' if rec.get('requires_confirmation') else 'no'}")
             for idx, rec in enumerate(snap.get("target_workflow_actions") or [], 1):
                 print(f"target {idx}: {rec.get('id', '')} {rec.get('label', '')}")
                 print(f"   command: {rec.get('headless_command', rec.get('command', ''))}")
                 print(f"   target={rec.get('target_id', '')} category={rec.get('category', '')} workflow={rec.get('workflow', '')} input={'yes' if rec.get('requires_input') else 'no'}")
             append_event(cfg, "workbench", "workbench_actions_viewed", details={
+                "headless_command": headless,
                 "action_count": len(snap.get("workbench_actions") or []),
                 "target_workflow_action_count": len(snap.get("target_workflow_actions") or []),
             })
