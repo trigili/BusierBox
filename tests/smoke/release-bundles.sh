@@ -723,6 +723,12 @@ by_name = doc.get("diagnostic_records_by_name") or {}
 by_category = doc.get("diagnostic_records_by_category") or {}
 by_status = doc.get("diagnostic_records_by_status") or {}
 api = (doc.get("api_collections") or {}).get("diagnostic_records") or {}
+api_meta = doc.get("api") or {}
+api_resources = doc.get("api_resources") or []
+api_resources_by_name = doc.get("api_resources_by_name") or {}
+api_resources_by_records_key = doc.get("api_resources_by_records_key") or {}
+api_resources_by_summary_key = doc.get("api_resources_by_summary_key") or {}
+api_resources_by_primary_key = doc.get("api_resources_by_primary_key") or {}
 if doc.get("diagnostic_record_count") != len(records) or len(records) < 10:
     raise SystemExit(f"release self-test diagnostic records missing: {doc!r}")
 if by_name.get("command_queue_safety", {}).get("status") != "pass":
@@ -748,6 +754,16 @@ if (api.get("count") != len(records) or
         api.get("primary_key") != "name" or
         "diagnostic_records_by_category" not in (api.get("indexes") or [])):
     raise SystemExit(f"release self-test diagnostic api collection missing: {api!r}")
+if (api_meta.get("schema") != 1 or
+        api_meta.get("resource_count") != len(api_resources) or
+        api_meta.get("resources_key") != "api_resources" or
+        api_meta.get("collections_key") != "api_collections"):
+    raise SystemExit(f"release self-test api metadata missing: {doc!r}")
+if (api_resources_by_name.get("diagnostic_records", {}).get("records_key") != "diagnostic_records" or
+        api_resources_by_records_key.get("diagnostic_records", [{}])[0].get("collection_key") != "api_collections.diagnostic_records" or
+        api_resources_by_summary_key.get("diagnostic_record_count", [{}])[0].get("primary_key") != "name" or
+        api_resources_by_primary_key.get("name", [{}])[0].get("summary_key") != "diagnostic_record_count"):
+    raise SystemExit(f"release self-test api resource indexes missing: {doc!r}")
 PY
 scripts/release-self-test --release-dir "$work/release" --json >"$work/release-self-test-wrapper.json"
 python3 - "$work/release-self-test-wrapper.json" <<'PY'

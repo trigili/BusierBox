@@ -139,9 +139,9 @@ counters such as
 `command_queue_execution_supported_count` and
 `command_queue_operator_supplied_command_execution_count`. It also includes
 normalized `diagnostic_records` with lookup maps by name, category, and status
-plus `api_collections.diagnostic_records`, so release dashboards can render
-individual checks without scraping flat summary keys or the human
-`release-self-test ok` line.
+plus `api`, `api_resources`, and `api_collections.diagnostic_records`, so
+release dashboards can discover and render individual checks without scraping
+flat summary keys or the human `release-self-test ok` line.
 
 Use `scripts/release-find` to choose an artifact without reading every
 manifest:
