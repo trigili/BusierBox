@@ -699,9 +699,15 @@ static void print_noresidue_policy_json(FILE *out)
     fprintf(out, "}");
 }
 
+static int rshell_session_policy_valid(const char *policy);
+static int rshell_session_policy_reconnects(const char *policy);
+static const char *rshell_session_post_disconnect_retry_count(const char *policy);
+
 void bb_print_autoexec_config(void)
 {
     const char *zero_arg_custom_command = bb_config_get("BB_ZERO_ARG_CUSTOM_COMMAND");
+    const char *rshell_policy = bb_config_get("BB_RSHELL_SESSION_POLICY");
+    int rshell_reconnects = rshell_session_policy_reconnects(rshell_policy);
 
     printf("zero_arg_mode=%s\n", bb_config_get("BB_ZERO_ARG_MODE"));
     printf("runtime_mode=%s\n", bb_config_get("BB_RUNTIME_MODE"));
@@ -716,7 +722,16 @@ void bb_print_autoexec_config(void)
     printf("rshell_allow_plaintext=%s\n", bb_config_get("BB_RSHELL_ALLOW_PLAINTEXT"));
     printf("rshell_authkeys_mode=%s\n", bb_config_get("BB_RSHELL_AUTHKEYS_MODE"));
     printf("rshell_run_mode=%s\n", bb_config_get("BB_RSHELL_RUN_MODE"));
-    printf("rshell_session_policy=%s\n", bb_config_get("BB_RSHELL_SESSION_POLICY"));
+    printf("rshell_session_policy=%s\n", rshell_policy);
+    printf("rshell_session_policy_valid=%s\n", rshell_session_policy_valid(rshell_policy) ? "yes" : "no");
+    printf("rshell_retry_scope=%s\n", rshell_reconnects ? "pre-connect+post-disconnect" : "pre-connect");
+    printf("rshell_pre_connect_retry_count=%s\n", bb_config_get("BB_RSHELL_RETRY_COUNT"));
+    printf("rshell_post_disconnect_retry_count=%s\n", rshell_session_post_disconnect_retry_count(rshell_policy));
+    printf("rshell_stop_after_first_success=%s\n", !strcmp(rshell_policy, "single") ? "yes" : "no");
+    printf("rshell_reconnect_after_disconnect=%s\n", rshell_reconnects ? "yes" : "no");
+    printf("rshell_persistent_lifecycle=%s\n", !strcmp(rshell_policy, "persistent") ? "yes" : "no");
+    printf("rshell_fresh_session_on_reconnect=%s\n", rshell_reconnects ? "yes" : "no");
+    printf("rshell_session_resume_supported=no\n");
     printf("rshell_generate_hostkey_if_missing=%s\n", bb_config_get("BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING"));
     printf("rshell_socat_port=%s\n", bb_config_get("BB_RSHELL_SOCAT_PORT"));
     printf("rshell_shell_provider=%s\n", bb_config_get("BB_RSHELL_SHELL_PROVIDER"));
@@ -930,6 +945,8 @@ int applet_runtime_config_main(int argc, char **argv)
     size_t j;
     struct command_queue_policy_report command_queue_policy = bb_command_queue_validate_policy();
     int command_queue_policy_valid = bb_command_queue_policy_valid(&command_queue_policy);
+    const char *rshell_policy = bb_config_get("BB_RSHELL_SESSION_POLICY");
+    int rshell_reconnects = rshell_session_policy_reconnects(rshell_policy);
 
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
         puts("usage: busierbox runtime-config [--json]");
@@ -1033,6 +1050,16 @@ int applet_runtime_config_main(int argc, char **argv)
     printf("command_queue_safe_disabled_default=%s\n", (command_queue_policy_valid && strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "no")) ? "yes" : "no");
     for (i = 0; i < command_queue_policy.count; i++)
         printf("command_queue_policy_error=%s\n", command_queue_policy.errors[i]);
+    printf("rshell_session_policy=%s\n", rshell_policy);
+    printf("rshell_session_policy_valid=%s\n", rshell_session_policy_valid(rshell_policy) ? "yes" : "no");
+    printf("rshell_retry_scope=%s\n", rshell_reconnects ? "pre-connect+post-disconnect" : "pre-connect");
+    printf("rshell_pre_connect_retry_count=%s\n", bb_config_get("BB_RSHELL_RETRY_COUNT"));
+    printf("rshell_post_disconnect_retry_count=%s\n", rshell_session_post_disconnect_retry_count(rshell_policy));
+    printf("rshell_stop_after_first_success=%s\n", !strcmp(rshell_policy, "single") ? "yes" : "no");
+    printf("rshell_reconnect_after_disconnect=%s\n", rshell_reconnects ? "yes" : "no");
+    printf("rshell_persistent_lifecycle=%s\n", !strcmp(rshell_policy, "persistent") ? "yes" : "no");
+    printf("rshell_fresh_session_on_reconnect=%s\n", rshell_reconnects ? "yes" : "no");
+    printf("rshell_session_resume_supported=no\n");
     for (j = 0; j < sizeof(cfg) / sizeof(cfg[0]); j++) {
         printf("compiled_%s=%s\n", cfg[j].key, cfg[j].compiled);
         printf("effective_%s=%s\n", cfg[j].key, bb_config_get(cfg[j].key));
