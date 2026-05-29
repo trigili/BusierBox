@@ -1867,6 +1867,7 @@ def main():
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
                 ("target_filter_records", len(queue_status_json.get("target_filter_records") or []), "target_filter_records_by_active"),
                 ("target_attribution_records", len(queue_status_json.get("target_attribution_records") or []), "target_attribution_records_by_scope"),
+                ("target_command_state_records", len(queue_status_json.get("target_command_state_records") or []), "target_command_state_records_by_safe_explicit_target_action_boundary"),
                 ("rshell_session_policy_records", len(queue_status_json.get("rshell_session_policy_records") or []), "rshell_session_policy_records_by_session_policy_valid"),
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
                 ("staged_files_state_records", len(queue_status_json.get("staged_files_state_records") or []), "staged_files_state_records_by_valid"),
@@ -1932,6 +1933,9 @@ def main():
                 api_resources_by_name.get("target_attribution_records", {}).get("records_key") != "target_attribution_records" or
                 api_resources_by_summary_key.get("target_attribution_record_count", [{}])[0].get("name") != "target_attribution_records" or
                 not any(rec.get("name") == "target_attribution_records" for rec in api_resources_by_primary_key.get("scope", [])) or
+                api_resources_by_name.get("target_command_state_records", {}).get("records_key") != "target_command_state_records" or
+                api_resources_by_summary_key.get("target_command_state_record_count", [{}])[0].get("name") != "target_command_state_records" or
+                not any(rec.get("name") == "target_command_state_records" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("rshell_session_policy_records", {}).get("records_key") != "rshell_session_policy_records" or
                 api_resources_by_summary_key.get("rshell_session_policy_record_count", [{}])[0].get("name") != "rshell_session_policy_records" or
                 not any(rec.get("name") == "rshell_session_policy_records" for rec in api_resources_by_primary_key.get("id", [])) or
@@ -4592,6 +4596,7 @@ def main():
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         target_summary = upload_doc.get("target_command_summary") or {}
+        target_command_state = (upload_doc.get("target_command_state_records_by_id") or {}).get("target-commands") or {}
         if (target_summary.get("total_count") != len(target_records) or
                 target_summary.get("target_count") != len(target_records) or
                 target_summary.get("network_count") != len(target_records) or
@@ -4610,11 +4615,32 @@ def main():
                 upload_summary.get("target_command_explicit_action_count") != len(target_records) or
                 upload_summary.get("target_command_operator_supplied_execution_count") != 0 or
                 upload_summary.get("target_command_copy_supported_count") != len(target_records) or
+                upload_summary.get("target_command_state_record_count") != 1 or
+                upload_summary.get("target_command_state_has_commands") is not True or
+                upload_summary.get("target_command_state_has_network_commands") is not True or
+                upload_summary.get("target_command_state_has_copy_supported_commands") is not True or
+                upload_summary.get("target_command_state_has_operator_supplied_command_execution") is not False or
+                upload_summary.get("target_command_state_safe_explicit_target_action_boundary") is not True or
+                upload_summary.get("target_command_state_has_session_policy_errors") is not False or
                 upload_summary.get("target_command_executes_operator_supplied_commands") is not False or
                 upload_summary.get("target_command_all_require_explicit_target_action") is not True or
                 upload_summary.get("target_command_side_counts", {}).get("target") != len(target_records) or
                 upload_summary.get("target_command_purpose_counts", {}).get("start the configured reverse shell transport from the target") != 1):
             print("server json status missing aggregate target command safety counts", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
+        if (target_command_state.get("id") != "target-commands" or
+                target_command_state.get("command_count") != len(target_records) or
+                target_command_state.get("network_count") != len(target_records) or
+                target_command_state.get("explicit_target_action_count") != len(target_records) or
+                target_command_state.get("operator_supplied_command_execution_count") != 0 or
+                target_command_state.get("has_commands") is not True or
+                target_command_state.get("has_operator_supplied_command_execution") is not False or
+                target_command_state.get("all_require_explicit_target_action") is not True or
+                target_command_state.get("safe_explicit_target_action_boundary") is not True or
+                upload_doc.get("target_command_state_records_by_safe_explicit_target_action_boundary", {}).get("True", [{}])[0].get("id") != "target-commands" or
+                "target_command_state_records_by_has_operator_supplied_command_execution" not in ((upload_doc.get("api_collections") or {}).get("target_command_state_records") or {}).get("indexes", [])):
+            print("server json status missing target command safety state record", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         target_commands_by_service = upload_doc.get("target_commands_by_service") or {}
