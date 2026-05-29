@@ -14798,6 +14798,7 @@ def run_line_tui(cfg):
         print("  15 run target workflow action")
         print("  16 select target filter")
         print("  17 manage bridge profiles")
+        print("  18 inspect target mailbox/activity")
         print("  c show/copy generated commands")
         print("  r refresh")
         print("  ? help")
@@ -15045,8 +15046,95 @@ def run_line_tui(cfg):
                     print(f"unknown bridge action: {action}")
             except ValueError as exc:
                 print(exc)
+        elif choice == "18":
+            unfiltered_cfg = dict(cfg)
+            unfiltered_cfg.pop("_target_id_filter", None)
+            unfiltered_cfg.pop("_target_label_filter", None)
+            snap = workbench_snapshot(unfiltered_cfg)
+            targets = snap.get("targets") or []
+            current = configured_target_filter(cfg)
+            if targets:
+                for idx, rec in enumerate(targets, 1):
+                    marker = "*" if str(rec.get("target_id") or "") == current else " "
+                    print(
+                        f"{idx}:{marker} {rec.get('target_id', '')} "
+                        f"label={rec.get('label', '') or '-'} "
+                        f"state={rec.get('connectivity_state', '') or '-'} "
+                        f"mailbox_pending={rec.get('mailbox_pending_work_count', 0)} "
+                        f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
+                    )
+            else:
+                print("no known targets")
+            selected_line = line_input("target number/id/label, current, or all> ")
+            selected = selected_line.strip() if selected_line is not None else ""
+            if not selected:
+                continue
+            try:
+                target = {}
+                if selected.lower() == "current":
+                    if not current:
+                        raise ValueError("no current target filter is selected")
+                    for rec in targets:
+                        if str(rec.get("target_id") or "") == current:
+                            target = rec
+                            break
+                    if not target:
+                        raise ValueError(f"target not found: {current}")
+                elif selected.lower() in ("all", "*"):
+                    print("headless_command: scripts/busierbox-server --config " + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG))) + " --status")
+                    print_target_summary(snap)
+                    append_event(cfg, "workbench", "workbench_targets_inspected", details={
+                        "scope": "all",
+                        "target_count": len(targets),
+                    })
+                    continue
+                elif selected.isdigit():
+                    idx = int(selected) - 1
+                    if idx < 0 or idx >= len(targets):
+                        raise ValueError(f"target number out of range: {selected}")
+                    target = targets[idx]
+                else:
+                    lower = selected.lower()
+                    for rec in targets:
+                        target_id = str(rec.get("target_id") or "")
+                        label = str(rec.get("label") or "")
+                        aliases = [str(item) for item in rec.get("aliases") or []]
+                        if selected == target_id or lower == label.lower() or lower in [alias.lower() for alias in aliases]:
+                            target = rec
+                            break
+                    if not target:
+                        raise ValueError(f"target not found: {selected}")
+                target_id = str(target.get("target_id") or "")
+                target_label = str(target.get("label") or target.get("target_label") or "")
+                scoped = scoped_target_cfg(cfg, target_id, target_label=target_label)
+                scoped_snap = workbench_snapshot(scoped)
+                headless = (
+                    "scripts/busierbox-server --config "
+                    + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                    + " --target-id "
+                    + shquote(target_id)
+                    + " --status"
+                )
+                print(f"Target detail: {target_id} label={target_label or '-'}")
+                print(f"headless_command: {headless}")
+                print_target_summary(scoped_snap, limit=3)
+                actions = scoped_snap.get("target_workflow_actions") or []
+                if actions:
+                    print("Target workflow actions:")
+                    for idx, rec in enumerate(actions[:8], 1):
+                        print(f"  {idx}: {rec.get('id', '')} {rec.get('label', '')}")
+                        print(f"     command: {rec.get('headless_command', rec.get('command', ''))}")
+                append_event(cfg, "workbench", "workbench_target_inspected", details={
+                    "target_id": target_id,
+                    "target_label": target_label,
+                    "headless_command": headless,
+                    "mailbox_pending_work_count": target.get("mailbox_pending_work_count", 0),
+                    "last_seen": target.get("last_seen", "") or target.get("last_seen_at", ""),
+                })
+            except ValueError as exc:
+                print(exc)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 18 target detail, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 

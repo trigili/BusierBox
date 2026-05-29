@@ -376,7 +376,10 @@ Action `16` selects the current target filter for the workbench session by
 target number, id, label, or alias; enter `all` to clear the filter and return
 to the fleet view. The selected target is recorded in workbench state and
 subsequent generated commands, staging operations, and target workflow actions
-use that target context.
+use that target context. Action `18` opens a target detail view for the current
+target, a selected target, or all targets; it prints heartbeat/mailbox/activity
+state, recent mailbox records, target workflow actions, and the equivalent
+`--target-id TARGET --status` command.
 
 The smoke suite includes a deterministic intermittent-connectivity harness for
 this path. It queues target-scoped work while targets are offline, proves an
