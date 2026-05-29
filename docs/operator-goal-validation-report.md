@@ -22,6 +22,8 @@ complete.
 - Reverse shell lifecycle behavior is explicit through
   `BB_RSHELL_SESSION_POLICY=single|reconnect|persistent`, with status, plan,
   manifest, runtime-config, menuconfig, release, and server metadata exposure.
+  The workbench guided build config now uses the same target-side transport
+  names as the runtime config: `ssh|socat|builtin|none`.
 - Structured JSONL events are used for service starts/stops, bind failures,
   connections, uploads, fetches, staged-file changes, command-queue activity,
   jobs, and shutdown-related records.
@@ -141,16 +143,21 @@ Licensing:
 
 ## Verification Run
 
-Commands run for the most recent committed slice:
+Commands run for the most recent committed slices:
 
 ```sh
 python3 -m py_compile scripts/busierbox-server tests/smoke/busierbox-server.py
+tests/smoke/rshell-transport-names.sh
 git diff --check
 tests/smoke/busierbox-server.py
 ```
 
 Result:
 
+- The server smoke test passed after guided workbench config examples were
+  aligned with the accepted `BB_RSHELL_TRANSPORT=ssh|socat|builtin|none`
+  values. This keeps target-side transport settings separate from operator
+  listener names such as `tls-shell` and `plain-shell`.
 - The server smoke test passed after the release summary text was extended to
   expose corresponding-source posture.
 - `scripts/busierbox-server --status` and the TUI release browser now render
@@ -172,6 +179,9 @@ tests/smoke/release-repo-index.sh
 
 Result:
 
+- `scripts/release-self-test --json` now includes `api`, `api_resources`,
+  resource lookup maps, and `api_collections.diagnostic_records`, matching the
+  API discovery shape used by other operator-facing JSON surfaces.
 - `scripts/release-self-test --json` now validates and reports
   `corresponding_source_required`, `corresponding_source_status`,
   corresponding-source input counts, and package license audit requirements in
