@@ -1401,7 +1401,10 @@ def main():
             "--start-workbench-job", "package-artifact",
             "--job-command", "printf 'job ready\\n'; sleep 30",
         )
-        if started_job.returncode != 0 or "started workbench job" not in started_job.stdout:
+        if (started_job.returncode != 0 or
+                "started workbench job" not in started_job.stdout or
+                "--start-workbench-job package-artifact" not in started_job.stdout or
+                "--job-command " not in started_job.stdout):
             print("workbench background job did not start", file=sys.stderr)
             print(started_job.stdout, file=sys.stderr)
             print(started_job.stderr, file=sys.stderr)
@@ -1509,9 +1512,19 @@ def main():
             json.loads(line)
             for line in (workbench_job_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
         ]
-        if (not any(event.get("event") == "workbench_job_started" and event.get("details", {}).get("job_id") == job_id for event in job_events) or
-                not any(event.get("event") == "workbench_job_cancel_requested" and event.get("details", {}).get("job_id") == job_id for event in job_events)):
+        if (not any(
+                    event.get("event") == "workbench_job_started" and
+                    event.get("details", {}).get("job_id") == job_id and
+                    "--start-workbench-job package-artifact" in event.get("details", {}).get("headless_command", "") and
+                    "--job-command " in event.get("details", {}).get("headless_command", "")
+                    for event in job_events) or
+                not any(
+                    event.get("event") == "workbench_job_cancel_requested" and
+                    event.get("details", {}).get("job_id") == job_id and
+                    f"--cancel-workbench-job {job_id}" in event.get("details", {}).get("headless_command", "")
+                    for event in job_events)):
             print("workbench background job events missing", file=sys.stderr)
+            print(json.dumps(job_events[-8:], indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         quick_job = run(

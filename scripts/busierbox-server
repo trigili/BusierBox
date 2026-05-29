@@ -3788,7 +3788,29 @@ def workbench_job_summary(records):
     }
 
 
-def start_workbench_job(cfg, action_id, command_override=None):
+def start_workbench_job_headless_command(cfg, action_id, command_override=None):
+    parts = [
+        "scripts/busierbox-server",
+        "--config",
+        str(cfg.get("_config_path", DEFAULT_CONFIG)),
+        "--start-workbench-job",
+        str(action_id or ""),
+    ]
+    if command_override:
+        parts.extend(["--job-command", str(command_override)])
+    return " ".join(shquote(part) for part in parts)
+
+
+def cancel_workbench_job_headless_command(cfg, job_id):
+    return (
+        "scripts/busierbox-server --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --cancel-workbench-job "
+        + shquote(str(job_id or ""))
+    )
+
+
+def start_workbench_job(cfg, action_id, command_override=None, headless_command=""):
     actions = {rec.get("id", ""): rec for rec in workbench_action_records(cfg) if rec.get("id")}
     action = actions.get(str(action_id or ""))
     if not action:
@@ -3800,6 +3822,7 @@ def start_workbench_job(cfg, action_id, command_override=None):
         raise ValueError("workbench action has no command")
     if not command_override and any(token in command for token in (" NAME ", " ARTIFACT ", "KEY=VALUE")):
         raise ValueError("workbench action command contains placeholders and must be configured before running")
+    headless_command = headless_command or start_workbench_job_headless_command(cfg, action_id, command_override=command_override)
     data = load_workbench_jobs(cfg)
     job_id = next_workbench_job_id(data)
     operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
@@ -3848,11 +3871,18 @@ def start_workbench_job(cfg, action_id, command_override=None):
     }
     data["jobs"].append(rec)
     write_workbench_jobs(cfg, data)
-    append_event(cfg, "workbench", "workbench_job_started", details={"job_id": job_id, "action_id": action_id, "command": command, "pid": proc.pid, "log_path": str(log_path)})
+    append_event(cfg, "workbench", "workbench_job_started", details={
+        "job_id": job_id,
+        "action_id": action_id,
+        "command": command,
+        "pid": proc.pid,
+        "log_path": str(log_path),
+        "headless_command": headless_command,
+    })
     return {item.get("id"): item for item in workbench_job_records(cfg, [action])}.get(job_id, rec)
 
 
-def cancel_workbench_job(cfg, job_id):
+def cancel_workbench_job(cfg, job_id, headless_command=""):
     data = load_workbench_jobs(cfg)
     for rec in data.get("jobs") or []:
         if not isinstance(rec, dict) or str(rec.get("id") or "") != str(job_id):
@@ -3874,7 +3904,13 @@ def cancel_workbench_job(cfg, job_id):
             "cancel_signal": "SIGTERM",
         })
         write_workbench_jobs(cfg, data)
-        append_event(cfg, "workbench", "workbench_job_cancel_requested", details={"job_id": job_id, "pid": pid, "process_group_id": process_group, "ownership_evidence": current.get("ownership_evidence") or []})
+        append_event(cfg, "workbench", "workbench_job_cancel_requested", details={
+            "job_id": job_id,
+            "pid": pid,
+            "process_group_id": process_group,
+            "ownership_evidence": current.get("ownership_evidence") or [],
+            "headless_command": headless_command or cancel_workbench_job_headless_command(cfg, job_id),
+        })
         return current
     raise ValueError(f"unknown workbench job: {job_id}")
 
@@ -15180,7 +15216,7 @@ def run_line_tui(cfg):
                         + " --start-workbench-job "
                         + shquote(action)
                     )
-                    rec = start_workbench_job(cfg, action)
+                    rec = start_workbench_job(cfg, action, headless_command=headless)
                     print(f"started job {rec.get('id', '')}: pid={rec.get('pid', '')} log={rec.get('log_path', '')}")
                     print(f"headless_command: {headless}")
                     print(f"command: {rec.get('command', '')}")
@@ -15200,7 +15236,7 @@ def run_line_tui(cfg):
                         + " --cancel-workbench-job "
                         + shquote(job_id)
                     )
-                    rec = cancel_workbench_job(cfg, job_id)
+                    rec = cancel_workbench_job(cfg, job_id, headless_command=headless)
                     print(f"cancel requested for {rec.get('id', job_id)}")
                     print(f"headless_command: {headless}")
                 except ValueError as exc:
@@ -16284,15 +16320,28 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             return print_bridge_profiles(cfg, json_output=args.json_bridge_profiles)
         if args.start_workbench_job:
             print(f"workbench action: {args.start_workbench_job}")
-            rec = start_workbench_job(cfg, args.start_workbench_job, command_override=args.job_command)
+            headless = start_workbench_job_headless_command(
+                cfg,
+                args.start_workbench_job,
+                command_override=args.job_command,
+            )
+            rec = start_workbench_job(
+                cfg,
+                args.start_workbench_job,
+                command_override=args.job_command,
+                headless_command=headless,
+            )
             print(f"started workbench job {rec.get('id', '')}: pid={rec.get('pid', '')}")
             print(f"log={rec.get('log_path', '')}")
+            print(f"headless_command={headless}")
             print(f"command={rec.get('command', '')}")
             return 0
         if args.cancel_workbench_job:
-            rec = cancel_workbench_job(cfg, args.cancel_workbench_job)
+            headless = cancel_workbench_job_headless_command(cfg, args.cancel_workbench_job)
+            rec = cancel_workbench_job(cfg, args.cancel_workbench_job, headless_command=headless)
             print(f"cancel requested for workbench job {rec.get('id', args.cancel_workbench_job)}")
             print(f"pid={rec.get('pid', '')}")
+            print(f"headless_command={headless}")
             return 0
         if args.run_target_workflow_action:
             return run_target_workflow_action(
