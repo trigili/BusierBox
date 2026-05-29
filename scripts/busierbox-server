@@ -14825,9 +14825,27 @@ def run_line_tui(cfg):
             path = path_line.strip() if path_line is not None else ""
             name = name_line.strip() if name_line is not None else ""
             try:
+                headless = (
+                    "scripts/busierbox-server --config "
+                    + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                    + " --serve-file "
+                    + shquote(path)
+                    + " --as "
+                    + shquote(name)
+                    + " --list-staged"
+                )
                 rec = stage_file(cfg, path, name)
                 print(f"staged {rec['request_name']}")
+                print(f"headless_command: {headless}")
                 print(render_fetch_command(rec["request_name"], cfg))
+                append_event(cfg, "workbench", "workbench_file_staged", details={
+                    "headless_command": headless,
+                    "request_name": rec.get("request_name", ""),
+                    "source_path": rec.get("source_path", ""),
+                    "stage_kind": rec.get("stage_kind", ""),
+                    "target_id": rec.get("target_id", ""),
+                    "target_label": rec.get("target_label", ""),
+                })
             except ValueError as exc:
                 print(exc)
         elif choice == "7":
@@ -14837,7 +14855,21 @@ def run_line_tui(cfg):
             name = name_line.strip() if name_line is not None else ""
             if name:
                 try:
-                    print("unstaged" if unstage_file(cfg, name) else "not staged")
+                    headless = (
+                        "scripts/busierbox-server --config "
+                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                        + " --unstage "
+                        + shquote(name)
+                        + " --list-staged"
+                    )
+                    existed = unstage_file(cfg, name)
+                    print("unstaged" if existed else "not staged")
+                    print(f"headless_command: {headless}")
+                    append_event(cfg, "workbench", "workbench_file_unstaged", details={
+                        "headless_command": headless,
+                        "request_name": name,
+                        "existed": existed,
+                    })
                 except ValueError as exc:
                     print(exc)
         elif choice == "9" or choice == "v":

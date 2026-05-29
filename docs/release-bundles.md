@@ -636,6 +636,12 @@ release artifacts staged through the workbench keep
 their `release_path`, `tuple_path`, `payload_preset`, and `compatibility`
 metadata so file-browser panes can distinguish release artifacts from arbitrary
 local files.
+In the line-oriented workbench, plain file stage and unstage actions print the
+equivalent `--serve-file ... --as ... --list-staged` or
+`--unstage ... --list-staged` command and record
+`workbench_file_staged` / `workbench_file_unstaged` events. That keeps manual
+TUI use aligned with the same headless staged-file ledger and audit stream used
+by automation.
 `summary` includes `staged_total_size`, `staged_source_exists_count`, and
 `staged_source_missing_count` for staged-file health, generated fetch-command
 counts for copy/show command panes, `staged_kind_counts` for
