@@ -2663,6 +2663,8 @@ def service_record_indexes(records):
     by_pid_alive = records_by_bool(records, "pid_alive")
     by_pid_managed = records_by_bool(records, "pid_managed")
     by_listener_bind_mismatch = records_by_bool(records, "listener_bind_mismatch")
+    by_session_log_exists = records_by_bool(records, "session_log_exists")
+    by_process_log_exists = records_by_bool(records, "process_log_exists")
     by_has_error = {"yes": [], "no": []}
     for rec in records or []:
         if not isinstance(rec, dict):
@@ -2692,7 +2694,8 @@ def service_record_indexes(records):
     return (
         by_actual, by_configured, by_bind_address, by_port, by_pid,
         by_listener_pid, by_tls, by_stale, by_pid_alive, by_pid_managed,
-        by_listener_bind_mismatch, by_has_error, by_stopped_reason,
+        by_listener_bind_mismatch, by_session_log_exists,
+        by_process_log_exists, by_has_error, by_stopped_reason,
     )
 
 
@@ -7410,6 +7413,8 @@ def service_status_rows(cfg):
         ownership_evidence = managed_server_evidence(pid, cfg=cfg, rec=rec) if pid else []
         actual = "listening" if info["listening"] else "stopped"
         stale = bool(rec.get("status") == "listening" and not info["listening"])
+        session_log = str(rec.get("session_log", "") or "")
+        process_log = str(rec.get("process_log", "") or "")
         rows.append({
             "name": name,
             "port": info["port"],
@@ -7434,8 +7439,10 @@ def service_status_rows(cfg):
             "stopped_at": rec.get("stopped_at", ""),
             "stopped_reason": rec.get("stopped_reason", ""),
             "owners": rec.get("owners", []),
-            "session_log": rec.get("session_log", ""),
-            "process_log": rec.get("process_log", ""),
+            "session_log": session_log,
+            "session_log_exists": Path(session_log).exists() if session_log else False,
+            "process_log": process_log,
+            "process_log_exists": Path(process_log).exists() if process_log else False,
             "listener_bind_mismatch": bool(info.get("listener_endpoints")) and not bool(info.get("matching_listener_endpoints")),
         })
     return rows
@@ -7686,6 +7693,8 @@ def status_document(cfg):
      services_by_pid_alive,
      services_by_pid_managed,
      services_by_listener_bind_mismatch,
+     services_by_session_log_exists,
+     services_by_process_log_exists,
      services_by_has_error,
      services_by_stopped_reason) = service_record_indexes(services)
     ports = port_records_from_services(services)
@@ -7753,7 +7762,9 @@ def status_document(cfg):
             "stopped_at": row.get("stopped_at", ""),
             "stopped_reason": row.get("stopped_reason", ""),
             "process_log": row.get("process_log", ""),
+            "process_log_exists": row.get("process_log_exists", False),
             "session_log": row.get("session_log", ""),
+            "session_log_exists": row.get("session_log_exists", False),
         }
         for row in services
     }
@@ -7935,6 +7946,8 @@ def status_document(cfg):
         "service_pid_alive_counts": {key: len(value) for key, value in services_by_pid_alive.items()},
         "service_pid_managed_counts": {key: len(value) for key, value in services_by_pid_managed.items()},
         "service_listener_bind_mismatch_counts": {key: len(value) for key, value in services_by_listener_bind_mismatch.items()},
+        "service_session_log_exists_counts": {key: len(value) for key, value in services_by_session_log_exists.items()},
+        "service_process_log_exists_counts": {key: len(value) for key, value in services_by_process_log_exists.items()},
         "service_has_error_counts": {key: len(value) for key, value in services_by_has_error.items()},
         "service_stopped_reason_counts": {key: len(value) for key, value in services_by_stopped_reason.items()},
         "service_manager_shutdown_requested": bool(service_manager.get("shutdown_requested", False)),
@@ -8256,6 +8269,7 @@ def status_document(cfg):
                 "services_by_listener_pid", "services_by_tls", "services_by_stale",
                 "services_by_pid_alive", "services_by_pid_managed",
                 "services_by_listener_bind_mismatch", "services_by_has_error",
+                "services_by_session_log_exists", "services_by_process_log_exists",
                 "services_by_stopped_reason", "services_by_has_warnings",
                 "services_by_warning_type",
             ), "service_count",
@@ -8587,6 +8601,8 @@ def status_document(cfg):
         "services_by_pid_alive": services_by_pid_alive,
         "services_by_pid_managed": services_by_pid_managed,
         "services_by_listener_bind_mismatch": services_by_listener_bind_mismatch,
+        "services_by_session_log_exists": services_by_session_log_exists,
+        "services_by_process_log_exists": services_by_process_log_exists,
         "services_by_has_error": services_by_has_error,
         "services_by_stopped_reason": services_by_stopped_reason,
         "services_by_has_warnings": services_by_has_warnings,
@@ -8855,6 +8871,8 @@ def print_activity_summary(summary):
         f"configured={format_counts(summary.get('service_configured_counts') or {})} "
         f"stale={format_counts(summary.get('service_stale_counts') or {})} "
         f"errors={format_counts(summary.get('service_has_error_counts') or {})} "
+        f"session_logs={format_counts(summary.get('service_session_log_exists_counts') or {})} "
+        f"process_logs={format_counts(summary.get('service_process_log_exists_counts') or {})} "
         f"stopped_reasons={format_counts(summary.get('service_stopped_reason_counts') or {})}"
     )
 

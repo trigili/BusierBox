@@ -435,7 +435,11 @@ state, and port in `services_by_name`, `services_by_actual`,
 `services_by_tls`, `services_by_stale`, `services_by_pid_alive`,
 `services_by_pid_managed`, `services_by_listener_bind_mismatch`, and
 `services_by_has_error` let frontend clients filter operator rows without
-reconstructing their own maps. `services_by_stopped_reason` and
+reconstructing their own maps. Service rows also carry `session_log_exists` and
+`process_log_exists`, with `services_by_session_log_exists`,
+`services_by_process_log_exists`, `summary.service_session_log_exists_counts`,
+and `summary.service_process_log_exists_counts` for log badges without probing
+the filesystem. `services_by_stopped_reason` and
 `summary.service_stopped_reason_counts` let clients summarize clean exits,
 signals, and operator stop actions without rescanning every service row.
 Human `--status` mirrors the same stopped-reason counts in its service

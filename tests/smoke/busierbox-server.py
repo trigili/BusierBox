@@ -1674,6 +1674,8 @@ def main():
                 len(api_resources_by_warning_indexes.get("True", [])) < 4 or
                 not any(rec.get("name") == "browser_paths" for rec in api_resources_by_warning_indexes.get("True", [])) or
                 "services_by_name" not in (api_resources_by_name.get("services", {}).get("indexes") or []) or
+                "services_by_session_log_exists" not in (api_resources_by_name.get("services", {}).get("indexes") or []) or
+                "services_by_process_log_exists" not in (api_resources_by_name.get("services", {}).get("indexes") or []) or
                 api_resources_by_name.get("command_queue_commands", {}).get("records_key") != "command_queue.commands" or
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
                 api_resources_by_name.get("workbench_actions", {}).get("records_key") != "workbench_actions" or
@@ -1853,9 +1855,13 @@ def main():
             print("server json status missing reusable server-state record", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
+        service_session_log_counts = queue_status_json["summary"].get("service_session_log_exists_counts", {})
+        service_process_log_counts = queue_status_json["summary"].get("service_process_log_exists_counts", {})
         if (queue_status_json["summary"].get("service_count") != 5 or
                 queue_status_json["summary"].get("service_actual_counts", {}).get("stopped") != 5 or
-                queue_status_json["summary"].get("service_configured_counts", {}).get("unknown", 0) < 3):
+                queue_status_json["summary"].get("service_configured_counts", {}).get("unknown", 0) < 3 or
+                sum(service_session_log_counts.values()) != 5 or
+                sum(service_process_log_counts.values()) != 5):
             print("server json status service summary is wrong", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -1867,6 +1873,8 @@ def main():
         services_by_actual = queue_status_json.get("services_by_actual") or {}
         services_by_configured = queue_status_json.get("services_by_configured") or {}
         services_by_port = queue_status_json.get("services_by_port") or {}
+        services_by_session_log_exists = queue_status_json.get("services_by_session_log_exists") or {}
+        services_by_process_log_exists = queue_status_json.get("services_by_process_log_exists") or {}
         ports = queue_status_json.get("ports") or []
         ports_by_number = queue_status_json.get("ports_by_number") or {}
         ports_by_service = queue_status_json.get("ports_by_service") or {}
@@ -1874,7 +1882,9 @@ def main():
         file_service_port = str(services_by_name.get("file-service", {}).get("port", ""))
         if (len(services_by_actual.get("stopped", [])) != 5 or
                 len(services_by_configured.get("unknown", [])) < 3 or
-                not any(row.get("name") == "file-service" for row in services_by_port.get(file_service_port, []))):
+                not any(row.get("name") == "file-service" for row in services_by_port.get(file_service_port, [])) or
+                sum(len(value) for value in services_by_session_log_exists.values()) != 5 or
+                sum(len(value) for value in services_by_process_log_exists.values()) != 5):
             print("server json status missing grouped service lookup maps", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -2416,12 +2426,20 @@ def main():
                 not any(row.get("name") == "file-service" for row in (status_doc.get("services_by_pid_alive") or {}).get("yes", [])) or
                 not any(row.get("name") == "file-service" for row in (status_doc.get("services_by_pid_managed") or {}).get("yes", [])) or
                 not any(row.get("name") == "file-service" for row in (status_doc.get("services_by_listener_bind_mismatch") or {}).get("no", [])) or
+                not any(row.get("name") == "file-service" for row in (status_doc.get("services_by_session_log_exists") or {}).get("yes", [])) or
+                not any(row.get("name") == "file-service" for row in (status_doc.get("services_by_process_log_exists") or {}).get("no", [])) or
+                rows["file-service"].get("session_log_exists") is not True or
+                rows["file-service"].get("process_log_exists") is not False or
+                (status_doc.get("services_by_name") or {}).get("file-service", {}).get("session_log_exists") is not True or
+                (status_doc.get("services_by_name") or {}).get("file-service", {}).get("process_log_exists") is not False or
                 len((status_doc.get("services_by_has_error") or {}).get("no", [])) != 5 or
                 lifecycle_summary.get("service_bind_address_counts", {}).get("127.0.0.1") != 5 or
                 lifecycle_summary.get("service_tls_counts", {}).get("yes") != 2 or
                 lifecycle_summary.get("service_tls_counts", {}).get("no") != 3 or
                 lifecycle_summary.get("service_pid_alive_counts", {}).get("yes") != 1 or
-                lifecycle_summary.get("service_pid_managed_counts", {}).get("yes") != 1):
+                lifecycle_summary.get("service_pid_managed_counts", {}).get("yes") != 1 or
+                lifecycle_summary.get("service_session_log_exists_counts", {}).get("yes") != 1 or
+                lifecycle_summary.get("service_process_log_exists_counts", {}).get("no") != 5):
             print("status missing service lifecycle/filter indexes", file=sys.stderr)
             print(status.stdout, file=sys.stderr)
             lifecycle_proc.terminate()
