@@ -3347,6 +3347,7 @@ def session_record_indexes(records):
     by_service_state = {}
     by_service_exit_reason = {}
     by_service_remote = {}
+    by_target_id = {}
     by_has_uploads = {"yes": [], "no": []}
     by_has_fetches = {"yes": [], "no": []}
     by_has_events = {"yes": [], "no": []}
@@ -3364,6 +3365,7 @@ def session_record_indexes(records):
         state = str(rec.get("state") or "")
         exit_reason = str(rec.get("exit_reason") or "")
         remote = str(rec.get("remote") or "")
+        target_id = str(rec.get("target_id") or "")
         if session_id_value:
             by_id[session_id_value] = rec
         if service:
@@ -3380,6 +3382,8 @@ def session_record_indexes(records):
             by_service_exit_reason.setdefault(f"{service}:{exit_reason}", []).append(rec)
         if service and remote:
             by_service_remote.setdefault(f"{service}:{remote}", []).append(rec)
+        if target_id:
+            by_target_id.setdefault(target_id, []).append(rec)
         by_has_uploads["yes" if rec.get("has_uploads") is True or int_value(rec.get("upload_count")) > 0 else "no"].append(rec)
         by_has_fetches["yes" if rec.get("has_fetches") is True or int_value(rec.get("fetch_count")) > 0 else "no"].append(rec)
         by_has_events["yes" if rec.get("has_events") is True or int_value(rec.get("event_count")) > 0 else "no"].append(rec)
@@ -3398,6 +3402,7 @@ def session_record_indexes(records):
         by_service_state,
         by_service_exit_reason,
         by_service_remote,
+        by_target_id,
         by_has_uploads,
         by_has_fetches,
         by_has_events,
@@ -8293,6 +8298,7 @@ def status_document(cfg):
      sessions_by_service_state,
      sessions_by_service_exit_reason,
      sessions_by_service_remote,
+     sessions_by_target_id,
      sessions_by_has_uploads,
      sessions_by_has_fetches,
      sessions_by_has_events,
@@ -8787,6 +8793,7 @@ def status_document(cfg):
         "session_state_counts": record_count_by_key(sessions, "state"),
         "session_exit_reason_counts": record_count_by_key(sessions, "exit_reason"),
         "session_remote_counts": record_count_by_key(sessions, "remote"),
+        "session_target_counts": record_count_by_key(sessions, "target_id"),
         "session_service_state_counts": {key: len(value) for key, value in sessions_by_service_state.items()},
         "session_service_exit_reason_counts": {key: len(value) for key, value in sessions_by_service_exit_reason.items()},
         "session_service_remote_counts": {key: len(value) for key, value in sessions_by_service_remote.items()},
@@ -9172,7 +9179,7 @@ def status_document(cfg):
                 "sessions_by_id", "sessions_by_service", "sessions_by_state",
                 "sessions_by_exit_reason", "sessions_by_remote",
                 "sessions_by_service_state", "sessions_by_service_exit_reason",
-                "sessions_by_service_remote", "sessions_by_has_uploads",
+                "sessions_by_service_remote", "sessions_by_target_id", "sessions_by_has_uploads",
                 "sessions_by_has_fetches", "sessions_by_has_events",
                 "sessions_by_has_artifacts", "sessions_by_has_session_log",
                 "sessions_by_duration_known", "sessions_by_metadata_exists",
@@ -9537,6 +9544,7 @@ def status_document(cfg):
         "sessions_by_service_state": sessions_by_service_state,
         "sessions_by_service_exit_reason": sessions_by_service_exit_reason,
         "sessions_by_service_remote": sessions_by_service_remote,
+        "sessions_by_target_id": sessions_by_target_id,
         "sessions_by_has_uploads": sessions_by_has_uploads,
         "sessions_by_has_fetches": sessions_by_has_fetches,
         "sessions_by_has_events": sessions_by_has_events,

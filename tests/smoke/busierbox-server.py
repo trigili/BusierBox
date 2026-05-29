@@ -4617,6 +4617,7 @@ def main():
         sessions_by_service_state = upload_doc.get("sessions_by_service_state") or {}
         sessions_by_service_exit_reason = upload_doc.get("sessions_by_service_exit_reason") or {}
         sessions_by_service_remote = upload_doc.get("sessions_by_service_remote") or {}
+        sessions_by_target_id = upload_doc.get("sessions_by_target_id") or {}
         sessions_by_has_uploads = upload_doc.get("sessions_by_has_uploads") or {}
         sessions_by_has_fetches = upload_doc.get("sessions_by_has_fetches") or {}
         sessions_by_has_events = upload_doc.get("sessions_by_has_events") or {}
@@ -4694,6 +4695,7 @@ def main():
                 sessions_by_service_state.get(session_service_state_key, [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_service_exit_reason.get(session_service_exit_key, [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_service_remote.get(session_service_remote_key, [{}])[0].get("session_id") != uploaded_session_id or
+                sessions_by_target_id.get("target-alpha", [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_has_uploads.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_has_fetches.get("no", [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_has_events.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
@@ -4705,6 +4707,7 @@ def main():
                 upload_summary.get("session_service_state_counts", {}).get(session_service_state_key) != 1 or
                 upload_summary.get("session_service_exit_reason_counts", {}).get(session_service_exit_key) != 1 or
                 upload_summary.get("session_service_remote_counts", {}).get(session_service_remote_key) != 1 or
+                upload_summary.get("session_target_counts", {}).get("target-alpha") != 1 or
                 upload_summary.get("session_has_uploads_counts", {}).get("yes") != 1 or
                 upload_summary.get("session_has_fetches_counts", {}).get("no") != 1 or
                 upload_summary.get("session_has_events_counts", {}).get("yes") != 1 or
@@ -4714,6 +4717,7 @@ def main():
                 upload_summary.get("session_event_log_exists_counts", {}).get("yes") != 1 or
                 upload_summary.get("session_log_exists_counts", {}).get("yes") != 1 or
                 "sessions_by_metadata_exists" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", []) or
+                "sessions_by_target_id" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", []) or
                 "sessions_by_event_log_exists" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", []) or
                 "sessions_by_has_session_log" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", []) or
                 "sessions_by_session_log_exists" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", [])):
