@@ -9,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/busierbox.c src/payload_runtime.c src/applet_extract.c src/applet_list.c src/applet_manifest.c src/applet_doctor.c src/applet_reality_test.c src/applet_config_info.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/applet_fetch.c src/applet_rshell.c src/applet_upload.c src/applet_command_queue.c src/command_queue_policy.c src/ledger.c src/runtime_paths.c src/runtime_probe.c src/json_helpers.c src/payload_extract.c src/payload_dispatch.c src/trailer_config.c src/runtime_config.c src/sha256.c
 
-.PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release verify-artifact check-buildroot-tool-mappings check-licensing target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-glinet test-all
+.PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release verify-artifact check-buildroot-tool-mappings check-licensing target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-qemu-flaky-network test-glinet test-all
 
 all: build
 
@@ -115,6 +115,7 @@ smoke-test:
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/integration-report.sh; else printf '%s\n' "skip: python3 integration report smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/build-matrix.sh; else printf '%s\n' "skip: python3 build matrix smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/qemu-matrix.sh; else printf '%s\n' "skip: python3 qemu matrix smoke unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/qemu-flaky-network-lab.sh; else printf '%s\n' "skip: python3 qemu flaky network lab smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/release-bundles.sh; else printf '%s\n' "skip: python3 release bundle smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/release-repo-index.sh; else printf '%s\n' "skip: python3 release repo index smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/offline-tools.sh; else printf '%s\n' "skip: python3 offline tools smoke unavailable"; fi
@@ -173,10 +174,13 @@ test-qemu-user: package-native
 test-qemu-system:
 	@tests/qemu-system/run-qemu-system-matrix
 
+test-qemu-flaky-network:
+	@tests/qemu-system/run-flaky-network-lab --run
+
 test-glinet:
 	@tests/integration/glinet/run
 
-test-all: smoke-test test-qemu-user test-qemu-system
+test-all: smoke-test test-qemu-user test-qemu-system test-qemu-flaky-network
 
 clean:
 	@rm -f dist/busierbox dist/busierbox.sha256 dist/busierbox-*

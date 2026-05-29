@@ -15,6 +15,10 @@ grep -q 'summary.json' "$ROOT/tests/qemu-user/run-qemu-user-matrix"
 grep -q '"records_by_status"' "$ROOT/tests/qemu-user/run-qemu-user-matrix"
 grep -q 'summary.json' "$ROOT/tests/qemu-system/run-qemu-system-matrix"
 grep -q '"records_by_status"' "$ROOT/tests/qemu-system/run-qemu-system-matrix"
+grep -q 'qemu-flaky-network-lab-plan' "$ROOT/tests/qemu-system/run-flaky-network-lab"
+grep -q 'link_transitions' "$ROOT/tests/qemu-system/run-flaky-network-lab"
+grep -q '^test-qemu-flaky-network:' "$ROOT/Makefile"
+grep -q '^test-all: smoke-test test-qemu-user test-qemu-system test-qemu-flaky-network$' "$ROOT/Makefile"
 
 if ! command -v python3 >/dev/null 2>&1; then
     printf '%s\n' "skip: python3 qemu matrix smoke unavailable"

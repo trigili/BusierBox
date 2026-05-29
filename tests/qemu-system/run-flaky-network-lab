@@ -1,0 +1,260 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+MATRIX="$ROOT/tests/matrix/environments.example.json"
+ARTIFACT_ROOT=${ARTIFACT_ROOT:-"$ROOT/tests/artifacts/qemu-flaky-network"}
+ENVIRONMENT=""
+MODE=plan
+
+usage() {
+    cat <<'EOF'
+Usage: tests/qemu-system/run-flaky-network-lab [--matrix PATH] [--environment NAME] [--artifact-root DIR] [--plan-only|--run]
+
+Creates an artifact-backed plan for a networked QEMU intermittent-connectivity
+lab. The default --plan-only mode does not require QEMU, root privileges, tap
+devices, or network access. --run is opt-in and skip-friendly when the selected
+environment is unavailable.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --matrix)
+            MATRIX=$2
+            shift 2
+            ;;
+        --environment)
+            ENVIRONMENT=$2
+            shift 2
+            ;;
+        --artifact-root)
+            ARTIFACT_ROOT=$2
+            shift 2
+            ;;
+        --plan-only)
+            MODE=plan
+            shift
+            ;;
+        --run)
+            MODE=run
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            printf '%s\n' "unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+mkdir -p "$ARTIFACT_ROOT"
+
+if ! command -v python3 >/dev/null 2>&1; then
+    printf '%s\n' "SKIP qemu-flaky-network: python3 is required to read $MATRIX"
+    exit 0
+fi
+
+python3 - "$MATRIX" "$ENVIRONMENT" "$ARTIFACT_ROOT" "$MODE" "$ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+matrix_path, requested_env, artifact_root, mode, root = sys.argv[1:]
+artifact_root_path = Path(artifact_root)
+artifact_root_path.mkdir(parents=True, exist_ok=True)
+
+with open(matrix_path, "r", encoding="utf-8") as fh:
+    matrix = json.load(fh)
+
+environments = [item for item in matrix.get("environments", []) if isinstance(item, dict)]
+if requested_env:
+    environments = [item for item in environments if item.get("name") == requested_env]
+if not environments:
+    raise SystemExit(f"no QEMU environment matched {requested_env or matrix_path}")
+
+env = environments[0]
+name = env.get("name") or "unnamed"
+run_dir = artifact_root_path / name
+run_dir.mkdir(parents=True, exist_ok=True)
+
+phases = [
+    {
+        "name": "offline-queue",
+        "link_state": "target-links-down",
+        "operator_expectation": "queue target-alpha and target-bravo mailbox work while no target can poll",
+        "artifacts": ["offline-status.json", "target-mailbox.json"],
+    },
+    {
+        "name": "short-phone-home-window",
+        "link_state": "target-alpha-link-up",
+        "operator_expectation": "target-alpha drains one queued command and refreshes last_seen/next_expected_poll",
+        "artifacts": ["after-alpha-poll.json", "target-alpha-poll.log"],
+    },
+    {
+        "name": "duplicate-poll",
+        "link_state": "target-alpha-link-up",
+        "operator_expectation": "target-alpha duplicate poll receives no duplicate command",
+        "artifacts": ["after-duplicate-alpha-poll.json", "target-alpha-duplicate-poll.log"],
+    },
+    {
+        "name": "result-upload",
+        "link_state": "target-alpha-link-up",
+        "operator_expectation": "target-alpha uploads command result and mailbox records result-received",
+        "artifacts": ["after-alpha-result.json", "command-result.json"],
+    },
+    {
+        "name": "survey-window",
+        "link_state": "target-alpha-link-up",
+        "operator_expectation": "survey bootstrap script and result cross the QEMU network boundary",
+        "artifacts": ["after-survey-result.json", "survey-bootstrap-results.json"],
+    },
+    {
+        "name": "partial-transfer",
+        "link_state": "target-alpha-link-flap",
+        "operator_expectation": "interrupted upload records transfer_status=truncated",
+        "artifacts": ["after-partial-upload.json", "transfer.log"],
+    },
+    {
+        "name": "bridge-interruption",
+        "link_state": "bridge-path-flap",
+        "operator_expectation": "bridge profile records latest relay or failure with route path",
+        "artifacts": ["after-bridge-relay.json", "bridge-events.jsonl"],
+    },
+    {
+        "name": "return-offline",
+        "link_state": "target-links-down",
+        "operator_expectation": "targets age back to stale/offline while queued target-bravo work remains visible",
+        "artifacts": ["final-status.json", "summary.json"],
+    },
+]
+
+topology = {
+    "schema": 1,
+    "kind": "qemu-flaky-network-topology",
+    "environment": name,
+    "operator_node": {
+        "name": "operator",
+        "role": "busierbox-server",
+        "host_forward_ports": {
+            "command_queue": 22205,
+            "file_service": 22204,
+            "survey_bootstrap": 22207,
+            "bridge": 22206,
+        },
+    },
+    "target_nodes": [
+        {"name": "target-alpha", "role": "polling-target", "mailbox": "target-alpha"},
+        {"name": "target-bravo", "role": "polling-target", "mailbox": "target-bravo"},
+    ],
+    "networks": [
+        {"name": "operator-lan", "kind": "tap-or-user", "purpose": "operator services"},
+        {"name": "target-alpha-link", "kind": "controllable", "purpose": "target-alpha phone-home window"},
+        {"name": "target-bravo-link", "kind": "controllable", "purpose": "target-bravo remains offline"},
+        {"name": "bridge-path", "kind": "controllable", "purpose": "bridge route interruption"},
+    ],
+    "link_transitions": [
+        {"phase": "offline-queue", "target-alpha-link": "down", "target-bravo-link": "down", "bridge-path": "down"},
+        {"phase": "short-phone-home-window", "target-alpha-link": "up", "target-bravo-link": "down", "bridge-path": "down"},
+        {"phase": "partial-transfer", "target-alpha-link": "flap", "target-bravo-link": "down", "bridge-path": "down"},
+        {"phase": "bridge-interruption", "target-alpha-link": "up", "target-bravo-link": "down", "bridge-path": "flap"},
+        {"phase": "return-offline", "target-alpha-link": "down", "target-bravo-link": "down", "bridge-path": "down"},
+    ],
+}
+
+base_qemu = [
+    env.get("qemu_binary", ""),
+    "-M", env.get("qemu_machine", ""),
+    "-cpu", env.get("qemu_cpu", ""),
+    "-kernel", str(Path(root) / env.get("kernel_path", "")),
+    "-drive", "file=" + str(Path(root) / env.get("rootfs_path", "")) + ",if=virtio,format=raw",
+    "-append", (env.get("append_args", "") + " init=/bin/sh").strip(),
+    "-nographic",
+    "-no-reboot",
+]
+
+operator_commands = [
+    "scripts/busierbox-server --daemon --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
+    "scripts/busierbox-server --target-id target-alpha --queue-command 'busierbox survey --json'",
+    "scripts/busierbox-server --target-id target-bravo --queue-command 'busierbox survey --json'",
+    "scripts/busierbox-server --json-status > offline-status.json",
+    "scripts/busierbox-server --json-status > final-status.json",
+]
+
+target_commands = [
+    "BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_TLS=no BB_OPERATOR_SERVER_HOST=<operator-ip> busierbox command-queue daemon --live",
+    "wget -O- http://<operator-ip>:22207/survey.sh | /bin/sh",
+    "busierbox upload /tmp/evidence.txt --operator http://<operator-ip>:22204",
+]
+
+plan = {
+    "schema": 1,
+    "kind": "qemu-flaky-network-lab-plan",
+    "mode": mode,
+    "matrix": matrix_path,
+    "artifact_dir": str(run_dir),
+    "environment": env,
+    "topology_path": str(run_dir / "topology.json"),
+    "phase_count": len(phases),
+    "phases": phases,
+    "operator_commands": operator_commands,
+    "target_commands": target_commands,
+    "qemu_command_template": base_qemu,
+    "required_artifacts": sorted({artifact for phase in phases for artifact in phase["artifacts"]}),
+}
+
+enabled = bool(env.get("enabled", False))
+missing = []
+for key in ("qemu_binary", "kernel_path", "rootfs_path", "busierbox_path"):
+    value = env.get(key, "")
+    if not value:
+        missing.append(key)
+        continue
+    if key == "qemu_binary":
+        continue
+    if not (Path(root) / value).exists():
+        missing.append(key)
+
+status = "planned"
+reason = "plan-only"
+if mode == "run":
+    status = "skip"
+    if not enabled:
+        reason = "environment disabled in matrix"
+    elif missing:
+        reason = "missing " + ",".join(missing)
+    else:
+        reason = "live flaky-network QEMU execution is opt-in scaffolded; use the emitted plan artifacts to wire host tap/link controls"
+
+summary = {
+    "schema": 1,
+    "kind": "qemu-flaky-network-lab",
+    "status": status,
+    "reason": reason,
+    "mode": mode,
+    "environment": name,
+    "artifact_dir": str(run_dir),
+    "plan": str(run_dir / "plan.json"),
+    "topology": str(run_dir / "topology.json"),
+    "phase_count": len(phases),
+    "phase_names": [phase["name"] for phase in phases],
+    "required_artifacts": plan["required_artifacts"],
+    "records_by_status": {status: [0]},
+}
+
+(run_dir / "topology.json").write_text(json.dumps(topology, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+(run_dir / "plan.json").write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+(run_dir / "operator-commands.sh").write_text("#!/bin/sh\nset -eu\n\n" + "\n".join(operator_commands) + "\n", encoding="utf-8")
+(run_dir / "target-commands.sh").write_text("#!/bin/sh\nset -eu\n\n" + "\n".join(target_commands) + "\n", encoding="utf-8")
+(run_dir / "link-transitions.json").write_text(json.dumps(topology["link_transitions"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
+(run_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+(artifact_root_path / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+(artifact_root_path / "summary.txt").write_text(f"{status.upper()} {name} {reason}\n", encoding="utf-8")
+
+print(f"{status.upper()} {name} {reason}")
+print(f"artifacts={run_dir}")
+PY

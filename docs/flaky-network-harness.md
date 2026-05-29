@@ -30,3 +30,26 @@ run in CI without QEMU, tap devices, root privileges, or network downloads. A
 future QEMU lab should reuse the same phase names and expected artifacts while
 adding operator/target VM topology, link-state transitions, image/kernel
 metadata, tap/bridge setup, and target-side poll logs.
+
+For the networked-QEMU path, `tests/qemu-system/run-flaky-network-lab` creates
+that lab plan without requiring QEMU by default:
+
+```sh
+tests/qemu-system/run-flaky-network-lab --artifact-root local/qemu-flaky/latest
+```
+
+The plan artifacts include `topology.json`, `link-transitions.json`,
+`operator-commands.sh`, `target-commands.sh`, `plan.json`, and `summary.json`.
+They record the operator node, target nodes, controllable links, phase names,
+expected per-phase artifacts, QEMU command template, and the exact operator and
+target commands to run once a real image/kernel/tap setup is available.
+
+To ask for the opt-in QEMU path, use:
+
+```sh
+make test-qemu-flaky-network
+```
+
+Like the existing QEMU matrix runner, this remains skip-friendly when the
+example environments are disabled or the local host lacks the requested QEMU
+inputs.
