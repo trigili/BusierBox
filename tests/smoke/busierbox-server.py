@@ -1833,6 +1833,7 @@ def main():
                 ("operator_network_records", len(queue_status_json.get("operator_network_records") or []), "operator_network_records_by_selected"),
                 ("browser_paths", len(browser_paths), "browser_paths_by_expected_kind_mismatch"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
+                ("target_filter_records", len(queue_status_json.get("target_filter_records") or []), "target_filter_records_by_active"),
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
                 ("command_copy_records", len(queue_status_json.get("command_copy_records") or []), "command_copy_records_by_has_command"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
@@ -1873,6 +1874,9 @@ def main():
                 api_resources_by_name.get("operator_network_records", {}).get("records_key") != "operator_network_records" or
                 api_resources_by_summary_key.get("operator_network_record_count", [{}])[0].get("name") != "operator_network_records" or
                 not any(rec.get("name") == "operator_network_records" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("target_filter_records", {}).get("records_key") != "target_filter_records" or
+                api_resources_by_summary_key.get("target_filter_record_count", [{}])[0].get("name") != "target_filter_records" or
+                not any(rec.get("name") == "target_filter_records" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("release_state_records", {}).get("records_key") != "release_state_records" or
                 api_resources_by_summary_key.get("release_state_record_count", [{}])[0].get("name") != "release_state_records" or
                 api_resources_by_primary_key.get("release_dir", [{}])[0].get("name") != "release_state_records" or
@@ -5141,6 +5145,12 @@ def main():
                 (filtered_alpha.get("targets_by_id") or {}).get("target-alpha", {}).get("label") != "Alpha Router Renamed" or
                 (filtered_alpha.get("targets_by_id") or {}).get("target-alpha", {}).get("notes") != "primary lab router" or
                 filtered_alpha.get("summary", {}).get("target_notes_count") != 1 or
+                filtered_alpha.get("summary", {}).get("target_filter_record_count") != 1 or
+                filtered_alpha.get("summary", {}).get("target_filter_selected_target_found") is not True or
+                filtered_alpha.get("summary", {}).get("target_filter_selected_target_identity_source_count") < 1 or
+                (filtered_alpha.get("target_filter_records_by_target_id") or {}).get("target-alpha", [{}])[0].get("selected_target_label") != "Alpha Router Renamed" or
+                (filtered_alpha.get("target_filter_records_by_selected_target_found") or {}).get("True", [{}])[0].get("target_id") != "target-alpha" or
+                "target_filter_records_by_selected_target_identity_confidence" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
                 ((filtered_alpha.get("targets_by_has_notes") or {}).get("yes") or [{}])[0].get("target_id") != "target-alpha" or
                 len((filtered_alpha.get("uploads_by_target_id") or {}).get("target-alpha") or []) != 1 or
                 (filtered_alpha.get("uploads_by_target_id") or {}).get("target-bravo")):
@@ -5166,6 +5176,10 @@ def main():
                 filtered_unknown.get("target_filter", {}).get("unfiltered_counts", {}).get("targets") != 2 or
                 filtered_unknown.get("target_filter", {}).get("filtered_counts", {}).get("targets") != 0 or
                 filtered_unknown.get("summary", {}).get("target_count") != 0 or
+                filtered_unknown.get("summary", {}).get("target_filter_record_count") != 1 or
+                filtered_unknown.get("summary", {}).get("target_filter_selected_target_found") is not False or
+                (filtered_unknown.get("target_filter_records_by_target_id") or {}).get("target-missing", [{}])[0].get("selected_target_found") is not False or
+                (filtered_unknown.get("target_filter_records_by_active") or {}).get("True", [{}])[0].get("target_id") != "target-missing" or
                 not unknown_target_warnings or
                 unknown_target_warnings[-1].get("target_id") != "target-missing" or
                 filtered_unknown.get("summary", {}).get("warning_type_counts", {}).get("unknown_target_filter") != 1 or
