@@ -1479,6 +1479,51 @@ def capability_report_summary(metadata):
     return observed
 
 
+def compatibility_report_summary(metadata):
+    stored_path = str((metadata or {}).get("stored_path") or "").strip()
+    if not stored_path:
+        return {}
+    path = Path(stored_path)
+    try:
+        if not path.is_file() or path.stat().st_size > 2 * 1024 * 1024:
+            return {}
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(report, dict):
+        return {}
+    selected = report.get("selected") if isinstance(report.get("selected"), dict) else {}
+    compatibility = report.get("effective_compatibility")
+    if not isinstance(compatibility, dict):
+        compatibility = selected.get("effective_compatibility")
+    if not isinstance(compatibility, dict):
+        compatibility = report.get("compatibility")
+    if not isinstance(compatibility, dict):
+        compatibility = selected.get("compatibility")
+    if not isinstance(compatibility, dict):
+        return {}
+    label = str(compatibility.get("label") or "")
+    if not label:
+        return {}
+    baseline = str(compatibility.get("baseline_label") or ((selected.get("compatibility") or {}).get("label") if isinstance(selected.get("compatibility"), dict) else "") or "")
+    return {
+        "schema": 1,
+        "kind": str((metadata or {}).get("upload_kind") or ""),
+        "path": stored_path,
+        "metadata_path": str((metadata or {}).get("metadata_path") or ""),
+        "sha256": str((metadata or {}).get("sha256") or ""),
+        "label": label,
+        "baseline_label": baseline,
+        "source": str(compatibility.get("source") or report.get("command") or ""),
+        "reason_count": len(compatibility.get("reasons") or []),
+        "reasons": [str(item) for item in (compatibility.get("reasons") or [])],
+        "release_name": str(selected.get("release_name") or report.get("release_name") or ""),
+        "artifact": str(selected.get("artifact") or selected.get("artifact_path") or report.get("artifact") or ""),
+        "tuple_path": str(selected.get("tuple_path") or report.get("tuple_path") or ""),
+        "payload_preset": str(selected.get("payload_preset") or report.get("payload_preset") or ""),
+    }
+
+
 def record_target_activity(cfg, metadata, service, session_id=""):
     target_id = str((metadata or {}).get("target_id") or "").strip()
     if not target_id:
@@ -1522,6 +1567,19 @@ def record_target_activity(cfg, metadata, service, session_id=""):
                 rec["observed_capabilities"] = list_merge_unique(rec.get("observed_capabilities") or [], observed.get("available") or [])
                 rec["observed_missing_capabilities"] = list_merge_unique(rec.get("observed_missing_capabilities") or [], observed.get("unavailable") or [])
                 rec["observed_constraints"] = observed.get("constraints") or {}
+        compatibility = compatibility_report_summary(metadata)
+        if compatibility:
+            rec["latest_compatibility_report"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or "")
+            rec["latest_compatibility_report_path"] = str(metadata.get("stored_path") or "")
+            rec["latest_compatibility_report_metadata_path"] = str(metadata.get("metadata_path") or "")
+            rec["latest_compatibility_report_kind"] = str(metadata.get("upload_kind") or "")
+            rec["latest_compatibility_summary"] = compatibility
+            rec["latest_compatibility_label"] = compatibility.get("label", "")
+            rec["latest_compatibility_baseline_label"] = compatibility.get("baseline_label", "")
+            rec["latest_compatibility_release_name"] = compatibility.get("release_name", "")
+            rec["latest_compatibility_artifact"] = compatibility.get("artifact", "")
+            rec["latest_compatibility_tuple_path"] = compatibility.get("tuple_path", "")
+            rec["latest_compatibility_payload_preset"] = compatibility.get("payload_preset", "")
     elif operation == "fetch":
         rec["fetch_count"] = int(rec.get("fetch_count", 0) or 0) + 1
         rec["latest_fetch_id"] = str(metadata.get("request_name") or metadata.get("source_path") or "")
@@ -1583,6 +1641,11 @@ def target_record_indexes(records):
     by_latest_activity_operation = {}
     by_has_notes = {}
     by_capability_report_kind = {}
+    by_compatibility_report_kind = {}
+    by_compatibility_label = {}
+    by_compatibility_baseline_label = {}
+    by_compatibility_release = {}
+    by_compatibility_payload_preset = {}
     by_observed_capability = {}
     by_missing_capability = {}
     by_observed_constraint = {}
@@ -1624,6 +1687,21 @@ def target_record_indexes(records):
         report_kind = str(rec.get("latest_capability_report_kind") or "")
         if report_kind:
             by_capability_report_kind.setdefault(report_kind, []).append(rec)
+        compatibility_kind = str(rec.get("latest_compatibility_report_kind") or "")
+        if compatibility_kind:
+            by_compatibility_report_kind.setdefault(compatibility_kind, []).append(rec)
+        compatibility_label = str(rec.get("latest_compatibility_label") or "")
+        if compatibility_label:
+            by_compatibility_label.setdefault(compatibility_label, []).append(rec)
+        compatibility_baseline = str(rec.get("latest_compatibility_baseline_label") or "")
+        if compatibility_baseline:
+            by_compatibility_baseline_label.setdefault(compatibility_baseline, []).append(rec)
+        compatibility_release = str(rec.get("latest_compatibility_release_name") or "")
+        if compatibility_release:
+            by_compatibility_release.setdefault(compatibility_release, []).append(rec)
+        compatibility_payload = str(rec.get("latest_compatibility_payload_preset") or "")
+        if compatibility_payload:
+            by_compatibility_payload_preset.setdefault(compatibility_payload, []).append(rec)
         for capability in rec.get("observed_capabilities") or []:
             capability = str(capability or "")
             if capability:
@@ -1641,7 +1719,10 @@ def target_record_indexes(records):
         by_id, by_label, by_alias, by_remote_addr, by_service,
         by_identity_confidence, by_identity_source,
         by_latest_activity_service, by_latest_activity_operation,
-        by_has_notes, by_capability_report_kind, by_observed_capability,
+        by_has_notes, by_capability_report_kind,
+        by_compatibility_report_kind, by_compatibility_label,
+        by_compatibility_baseline_label, by_compatibility_release,
+        by_compatibility_payload_preset, by_observed_capability,
         by_missing_capability, by_observed_constraint,
     )
 
@@ -1653,6 +1734,11 @@ def target_record_summary(records):
     latest_activity_service_counts = {}
     latest_activity_operation_counts = {}
     report_kind_counts = {}
+    compatibility_report_kind_counts = {}
+    compatibility_label_counts = {}
+    compatibility_baseline_label_counts = {}
+    compatibility_release_counts = {}
+    compatibility_payload_preset_counts = {}
     observed_capability_counts = {}
     missing_capability_counts = {}
     observed_constraint_counts = {}
@@ -1684,6 +1770,22 @@ def target_record_summary(records):
             report_kind_counts[report_kind] = report_kind_counts.get(report_kind, 0) + 1
         if rec.get("latest_capability_report") or rec.get("latest_capability_report_path"):
             report_count += 1
+        if rec.get("latest_compatibility_report") or rec.get("latest_compatibility_report_path"):
+            compatibility_report_kind = str(rec.get("latest_compatibility_report_kind") or "")
+            if compatibility_report_kind:
+                compatibility_report_kind_counts[compatibility_report_kind] = compatibility_report_kind_counts.get(compatibility_report_kind, 0) + 1
+            compatibility_label = str(rec.get("latest_compatibility_label") or "")
+            if compatibility_label:
+                compatibility_label_counts[compatibility_label] = compatibility_label_counts.get(compatibility_label, 0) + 1
+            compatibility_baseline = str(rec.get("latest_compatibility_baseline_label") or "")
+            if compatibility_baseline:
+                compatibility_baseline_label_counts[compatibility_baseline] = compatibility_baseline_label_counts.get(compatibility_baseline, 0) + 1
+            compatibility_release = str(rec.get("latest_compatibility_release_name") or "")
+            if compatibility_release:
+                compatibility_release_counts[compatibility_release] = compatibility_release_counts.get(compatibility_release, 0) + 1
+            compatibility_payload = str(rec.get("latest_compatibility_payload_preset") or "")
+            if compatibility_payload:
+                compatibility_payload_preset_counts[compatibility_payload] = compatibility_payload_preset_counts.get(compatibility_payload, 0) + 1
         for capability in rec.get("observed_capabilities") or []:
             capability = str(capability or "")
             if capability:
@@ -1713,6 +1815,12 @@ def target_record_summary(records):
         "target_latest_activity_operation_counts": latest_activity_operation_counts,
         "target_capability_report_count": report_count,
         "target_capability_report_kind_counts": report_kind_counts,
+        "target_compatibility_report_count": sum(compatibility_report_kind_counts.values()),
+        "target_compatibility_report_kind_counts": compatibility_report_kind_counts,
+        "target_compatibility_label_counts": compatibility_label_counts,
+        "target_compatibility_baseline_label_counts": compatibility_baseline_label_counts,
+        "target_compatibility_release_counts": compatibility_release_counts,
+        "target_compatibility_payload_preset_counts": compatibility_payload_preset_counts,
         "target_observed_capability_counts": observed_capability_counts,
         "target_missing_capability_counts": missing_capability_counts,
         "target_observed_constraint_counts": observed_constraint_counts,
@@ -8659,6 +8767,11 @@ def status_document(cfg):
      targets_by_latest_activity_operation,
      targets_by_has_notes,
      targets_by_capability_report_kind,
+     targets_by_compatibility_report_kind,
+     targets_by_compatibility_label,
+     targets_by_compatibility_baseline_label,
+     targets_by_compatibility_release,
+     targets_by_compatibility_payload_preset,
      targets_by_observed_capability,
      targets_by_missing_capability,
      targets_by_observed_constraint) = target_record_indexes(targets)
@@ -8689,6 +8802,7 @@ def status_document(cfg):
         "latest_activity_service_counts": target_summary.get("target_latest_activity_service_counts") or {},
         "latest_activity_operation_counts": target_summary.get("target_latest_activity_operation_counts") or {},
         "capability_report_count": int_value(target_summary.get("target_capability_report_count", 0)),
+        "compatibility_report_count": int_value(target_summary.get("target_compatibility_report_count", 0)),
     }
     target_registry_state_record.update({
         "has_targets": target_registry_state_record.get("target_count", 0) > 0,
@@ -8700,6 +8814,7 @@ def status_document(cfg):
         ),
         "has_identity_sources": bool(target_registry_state_record.get("identity_source_counts")),
         "has_capability_reports": target_registry_state_record.get("capability_report_count", 0) > 0,
+        "has_compatibility_reports": target_registry_state_record.get("compatibility_report_count", 0) > 0,
     })
     target_registry_state_records = [target_registry_state_record]
     target_registry_state_index_maps = {
@@ -8713,6 +8828,7 @@ def status_document(cfg):
         "target_registry_state_records_by_has_latest_activity": records_by_key(target_registry_state_records, "has_latest_activity"),
         "target_registry_state_records_by_has_identity_sources": records_by_key(target_registry_state_records, "has_identity_sources"),
         "target_registry_state_records_by_has_capability_reports": records_by_key(target_registry_state_records, "has_capability_reports"),
+        "target_registry_state_records_by_has_compatibility_reports": records_by_key(target_registry_state_records, "has_compatibility_reports"),
     }
     sessions = recent_session_records(cfg)
     unfiltered_counts["sessions"] = len(sessions)
@@ -9662,6 +9778,7 @@ def status_document(cfg):
         "target_registry_has_latest_activity": bool(target_registry_state_record.get("has_latest_activity", False)),
         "target_registry_has_identity_sources": bool(target_registry_state_record.get("has_identity_sources", False)),
         "target_registry_has_capability_reports": bool(target_registry_state_record.get("has_capability_reports", False)),
+        "target_registry_has_compatibility_reports": bool(target_registry_state_record.get("has_compatibility_reports", False)),
         "target_filter_active": bool(target_filter_id),
         "target_filter_id": target_filter_id,
         "target_filter_unfiltered_target_count": unfiltered_counts.get("targets", 0),
@@ -10165,6 +10282,11 @@ def status_document(cfg):
                 "targets_by_latest_activity_operation",
                 "targets_by_has_notes",
                 "targets_by_capability_report_kind",
+                "targets_by_compatibility_report_kind",
+                "targets_by_compatibility_label",
+                "targets_by_compatibility_baseline_label",
+                "targets_by_compatibility_release",
+                "targets_by_compatibility_payload_preset",
                 "targets_by_observed_capability",
                 "targets_by_missing_capability",
                 "targets_by_observed_constraint",
@@ -10182,6 +10304,7 @@ def status_document(cfg):
                 "target_registry_state_records_by_has_latest_activity",
                 "target_registry_state_records_by_has_identity_sources",
                 "target_registry_state_records_by_has_capability_reports",
+                "target_registry_state_records_by_has_compatibility_reports",
             ), "target_registry_state_record_count",
         ),
         "target_filter_records": api_collection_record(
@@ -10697,6 +10820,11 @@ def status_document(cfg):
         "targets_by_latest_activity_operation": targets_by_latest_activity_operation,
         "targets_by_has_notes": targets_by_has_notes,
         "targets_by_capability_report_kind": targets_by_capability_report_kind,
+        "targets_by_compatibility_report_kind": targets_by_compatibility_report_kind,
+        "targets_by_compatibility_label": targets_by_compatibility_label,
+        "targets_by_compatibility_baseline_label": targets_by_compatibility_baseline_label,
+        "targets_by_compatibility_release": targets_by_compatibility_release,
+        "targets_by_compatibility_payload_preset": targets_by_compatibility_payload_preset,
         "targets_by_observed_capability": targets_by_observed_capability,
         "targets_by_missing_capability": targets_by_missing_capability,
         "targets_by_observed_constraint": targets_by_observed_constraint,
@@ -11081,6 +11209,14 @@ def print_target_summary(doc, limit=8):
             print(
                 f"    capability_report={rec.get('latest_capability_report_kind', '') or '-'} "
                 f"available={available} missing={missing} constraints={constraint_text}"
+            )
+        if rec.get("latest_compatibility_label"):
+            print(
+                f"    compatibility_report={rec.get('latest_compatibility_report_kind', '') or '-'} "
+                f"label={rec.get('latest_compatibility_label', '') or '-'} "
+                f"baseline={rec.get('latest_compatibility_baseline_label', '') or '-'} "
+                f"release={rec.get('latest_compatibility_release_name', '') or '-'} "
+                f"payload={rec.get('latest_compatibility_payload_preset', '') or '-'}"
             )
 
 

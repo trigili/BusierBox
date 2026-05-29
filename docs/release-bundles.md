@@ -478,6 +478,18 @@ The same status payload includes `target_attribution` plus mirrored summary
 counts for uploads, fetches, and sessions with and without `target_id`, so
 legacy single-target traffic remains valid but visible instead of being
 silently confused with an identified target.
+When an uploaded target evidence file includes compatibility metadata, target
+records also retain the latest compatibility report path, label, baseline label,
+release, tuple path, artifact, and payload preset. Summary counters expose
+`target_compatibility_report_count`, `target_compatibility_label_counts`,
+`target_compatibility_baseline_label_counts`,
+`target_compatibility_release_counts`, and
+`target_compatibility_payload_preset_counts`; lookup maps include
+`targets_by_compatibility_report_kind`, `targets_by_compatibility_label`,
+`targets_by_compatibility_baseline_label`,
+`targets_by_compatibility_release`, and
+`targets_by_compatibility_payload_preset` for target-scoped recommendation and
+compatibility dashboards.
 Service rows remain available in `services`,
 and the same records are indexed by service name, actual state, configured
 state, and port in `services_by_name`, `services_by_actual`,

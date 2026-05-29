@@ -5727,6 +5727,19 @@ def main():
                     "procfs_partial": False,
                 },
             },
+            "selected": {
+                "release_name": "operator-smoke",
+                "artifact": "bin/busierbox-test",
+                "tuple_path": "by-tuple/native/host/host/host",
+                "payload_preset": "survey-core",
+                "compatibility": {"label": "exact", "reasons": ["fixture baseline"]},
+                "effective_compatibility": {
+                    "label": "unsafe",
+                    "baseline_label": "exact",
+                    "source": "release-index+reality",
+                    "reasons": ["runtime root execution failed in reality-test"],
+                },
+            },
         }, sort_keys=True).encode("utf-8")
         capability_request = (
             "PUT /upload/reality-test.json HTTP/1.1\r\n"
@@ -5768,10 +5781,17 @@ def main():
         ).stdout)
         capability_target = (capability_status.get("targets_by_id") or {}).get("target-capability") or {}
         capability_summary = capability_target.get("latest_capability_summary") or {}
+        target_compatibility = capability_target.get("latest_compatibility_summary") or {}
         capability_status_summary = capability_status.get("summary") or {}
         capability_api_indexes = (((capability_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or [])
         if (capability_target.get("latest_capability_report_kind") != "reality-test" or
                 not capability_target.get("latest_capability_report_path", "").endswith("reality-test.json") or
+                capability_target.get("latest_compatibility_report_kind") != "reality-test" or
+                capability_target.get("latest_compatibility_label") != "unsafe" or
+                capability_target.get("latest_compatibility_baseline_label") != "exact" or
+                capability_target.get("latest_compatibility_release_name") != "operator-smoke" or
+                capability_target.get("latest_compatibility_payload_preset") != "survey-core" or
+                target_compatibility.get("reason_count") != 1 or
                 capability_summary.get("check_count") != 3 or
                 capability_summary.get("capability_pass_count") != 1 or
                 capability_summary.get("capability_fail_count") != 1 or
@@ -5780,14 +5800,30 @@ def main():
                 capability_target.get("observed_constraints", {}).get("rootfs_read_only") is not True or
                 capability_status_summary.get("target_capability_report_count") != 1 or
                 capability_status_summary.get("target_capability_report_kind_counts", {}).get("reality-test") != 1 or
+                capability_status_summary.get("target_compatibility_report_count") != 1 or
+                capability_status_summary.get("target_compatibility_report_kind_counts", {}).get("reality-test") != 1 or
+                capability_status_summary.get("target_compatibility_label_counts", {}).get("unsafe") != 1 or
+                capability_status_summary.get("target_compatibility_baseline_label_counts", {}).get("exact") != 1 or
+                capability_status_summary.get("target_compatibility_release_counts", {}).get("operator-smoke") != 1 or
+                capability_status_summary.get("target_compatibility_payload_preset_counts", {}).get("survey-core") != 1 or
                 capability_status_summary.get("target_observed_capability_counts", {}).get("runtime_root_writable") != 1 or
                 capability_status_summary.get("target_missing_capability_counts", {}).get("pty") != 1 or
                 capability_status_summary.get("target_observed_constraint_counts", {}).get("rootfs_read_only:true") != 1 or
                 ((capability_status.get("targets_by_capability_report_kind") or {}).get("reality-test") or [{}])[0].get("target_id") != "target-capability" or
+                ((capability_status.get("targets_by_compatibility_report_kind") or {}).get("reality-test") or [{}])[0].get("target_id") != "target-capability" or
+                ((capability_status.get("targets_by_compatibility_label") or {}).get("unsafe") or [{}])[0].get("target_id") != "target-capability" or
+                ((capability_status.get("targets_by_compatibility_baseline_label") or {}).get("exact") or [{}])[0].get("target_id") != "target-capability" or
+                ((capability_status.get("targets_by_compatibility_release") or {}).get("operator-smoke") or [{}])[0].get("target_id") != "target-capability" or
+                ((capability_status.get("targets_by_compatibility_payload_preset") or {}).get("survey-core") or [{}])[0].get("target_id") != "target-capability" or
                 ((capability_status.get("targets_by_observed_capability") or {}).get("runtime_root_writable") or [{}])[0].get("target_id") != "target-capability" or
                 ((capability_status.get("targets_by_missing_capability") or {}).get("pty") or [{}])[0].get("target_id") != "target-capability" or
                 ((capability_status.get("targets_by_observed_constraint") or {}).get("rootfs_read_only:true") or [{}])[0].get("target_id") != "target-capability" or
                 "targets_by_capability_report_kind" not in capability_api_indexes or
+                "targets_by_compatibility_report_kind" not in capability_api_indexes or
+                "targets_by_compatibility_label" not in capability_api_indexes or
+                "targets_by_compatibility_baseline_label" not in capability_api_indexes or
+                "targets_by_compatibility_release" not in capability_api_indexes or
+                "targets_by_compatibility_payload_preset" not in capability_api_indexes or
                 "targets_by_observed_capability" not in capability_api_indexes or
                 "targets_by_missing_capability" not in capability_api_indexes or
                 "targets_by_observed_constraint" not in capability_api_indexes):

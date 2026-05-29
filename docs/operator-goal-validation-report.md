@@ -48,9 +48,10 @@ complete.
   execution remains intentionally unsupported.
 - Multi-target status tracks target ids, labels, aliases, identity source and
   confidence, target filters, target-scoped staged records, uploads, fetches,
-  sessions, events, command-queue records, and generated target commands. Status
-  also reports target-attributed versus legacy no-target uploads, fetches, and
-  sessions so old single-target traffic stays valid but auditable.
+  sessions, events, command-queue records, generated target commands, capability
+  evidence, and compatibility report labels. Status also reports
+  target-attributed versus legacy no-target uploads, fetches, and sessions so
+  old single-target traffic stays valid but auditable.
 - Local/offline release indexes expose deduplicated artifacts, tuple/device/tool
   lookups, payload preset and feature lookups, provider status, Doom WAD
   metadata, command-queue safety metadata, corresponding-source filters, and
@@ -154,6 +155,10 @@ tests/smoke/busierbox-server.py
 
 Result:
 
+- The server smoke test passed after target records were extended to retain
+  compatibility evidence from uploaded target reports, including lookup maps and
+  summary counts by compatibility label, baseline label, release, and payload
+  preset.
 - The server smoke test passed after guided workbench config examples were
   aligned with the accepted `BB_RSHELL_TRANSPORT=ssh|socat|builtin|none`
   values. This keeps target-side transport settings separate from operator
