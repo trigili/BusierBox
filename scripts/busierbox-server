@@ -14919,6 +14919,16 @@ def run_line_tui(cfg):
                 print(exc)
         elif choice == "7":
             print_staged(cfg)
+            headless = (
+                "scripts/busierbox-server --config "
+                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + " --list-staged"
+            )
+            print(f"headless_command: {headless}")
+            append_event(cfg, "workbench", "workbench_staged_files_viewed", details={
+                "headless_command": headless,
+                "staged_count": len(staged_record_list(enriched_staged_records(cfg))),
+            })
         elif choice == "8" or choice == "d":
             name_line = line_input("target request name> ")
             name = name_line.strip() if name_line is not None else ""

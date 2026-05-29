@@ -7408,7 +7408,7 @@ def main():
             os.close(line_stage_slave)
             line_stage_slave = -1
             time.sleep(0.3)
-            os.write(line_stage_master, f"6\n{line_stage_source}\n/tmp/line-stage\n8\n/tmp/line-stage\nq\n".encode("utf-8"))
+            os.write(line_stage_master, f"6\n{line_stage_source}\n/tmp/line-stage\n7\n8\n/tmp/line-stage\nq\n".encode("utf-8"))
             line_stage_chunks = []
             deadline = time.time() + 5
             while line_stage_proc.poll() is None and time.time() < deadline:
@@ -7439,6 +7439,7 @@ def main():
                 "headless_command: scripts/busierbox-server --config" not in line_stage_stdout or
                 "--serve-file " not in line_stage_stdout or
                 "--as /tmp/line-stage --list-staged" not in line_stage_stdout or
+                "--config " + str(upload_cfg) + " --list-staged" not in line_stage_stdout or
                 "--unstage /tmp/line-stage --list-staged" not in line_stage_stdout):
             print("line-oriented TUI stage/unstage did not expose headless commands", file=sys.stderr)
             print(line_stage_stdout, file=sys.stderr)
@@ -7463,14 +7464,35 @@ def main():
             print(line_stage_status.stderr, file=sys.stderr)
             return 1
         line_stage_status_doc = json.loads(line_stage_status.stdout)
-        file_stage_events = (line_stage_status_doc.get("events_by_event") or {}).get("workbench_file_staged") or []
-        file_unstage_events = (line_stage_status_doc.get("events_by_event") or {}).get("workbench_file_unstaged") or []
-        if (not file_stage_events or
-                not file_unstage_events or
-                (file_stage_events[-1].get("details") or {}).get("request_name") != "/tmp/line-stage" or
-                "--serve-file " not in ((file_stage_events[-1].get("details") or {}).get("headless_command") or "") or
-                (file_unstage_events[-1].get("details") or {}).get("request_name") != "/tmp/line-stage" or
-                "--unstage /tmp/line-stage --list-staged" not in ((file_unstage_events[-1].get("details") or {}).get("headless_command") or "")):
+        line_stage_events = [
+            json.loads(line)
+            for line in Path(line_stage_status_doc.get("event_log", "")).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        file_stage_events = [
+            event for event in line_stage_events
+            if event.get("event") == "workbench_file_staged"
+        ]
+        file_view_events = [
+            event for event in line_stage_events
+            if event.get("event") == "workbench_staged_files_viewed"
+        ]
+        file_unstage_events = [
+            event for event in line_stage_events
+            if event.get("event") == "workbench_file_unstaged"
+        ]
+        if (not any(
+                    (event.get("details") or {}).get("request_name") == "/tmp/line-stage" and
+                    "--serve-file " in ((event.get("details") or {}).get("headless_command") or "")
+                    for event in file_stage_events) or
+                not any(
+                    (event.get("details") or {}).get("staged_count", 0) >= 1 and
+                    "--list-staged" in ((event.get("details") or {}).get("headless_command") or "")
+                    for event in file_view_events) or
+                not any(
+                    (event.get("details") or {}).get("request_name") == "/tmp/line-stage" and
+                    "--unstage /tmp/line-stage --list-staged" in ((event.get("details") or {}).get("headless_command") or "")
+                    for event in file_unstage_events)):
             print("line-oriented TUI stage/unstage did not record workbench events", file=sys.stderr)
             print(json.dumps(line_stage_status_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
