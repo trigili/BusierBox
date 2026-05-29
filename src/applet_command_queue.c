@@ -62,10 +62,17 @@ struct daemon_state {
     int ownership_verified;
     int stale;
     int pid;
+    int poll_interval_sec;
+    int poll_jitter_pct;
+    int poll_max_interval_sec;
+    int max_polls;
     char status[64];
     char error[160];
+    char mode[64];
     char started_at[32];
     char endpoint[512];
+    char poll_backoff[64];
+    char event_log[PATH_MAX];
 };
 
 struct stop_result {
@@ -330,9 +337,30 @@ static void read_daemon_state(const char *path, struct daemon_state *state)
         kv_value(line, "started_at", value, sizeof(value));
         if (value[0])
             snprintf(state->started_at, sizeof(state->started_at), "%s", value);
+        kv_value(line, "mode", value, sizeof(value));
+        if (value[0])
+            snprintf(state->mode, sizeof(state->mode), "%s", value);
         kv_value(line, "endpoint", value, sizeof(value));
         if (value[0])
             snprintf(state->endpoint, sizeof(state->endpoint), "%s", value);
+        kv_value(line, "poll_interval_sec", value, sizeof(value));
+        if (value[0])
+            state->poll_interval_sec = parse_nonnegative_int(value, 0);
+        kv_value(line, "poll_jitter_pct", value, sizeof(value));
+        if (value[0])
+            state->poll_jitter_pct = parse_nonnegative_int(value, 0);
+        kv_value(line, "poll_backoff", value, sizeof(value));
+        if (value[0])
+            snprintf(state->poll_backoff, sizeof(state->poll_backoff), "%s", value);
+        kv_value(line, "poll_max_interval_sec", value, sizeof(value));
+        if (value[0])
+            state->poll_max_interval_sec = parse_nonnegative_int(value, 0);
+        kv_value(line, "max_polls", value, sizeof(value));
+        if (value[0])
+            state->max_polls = parse_nonnegative_int(value, 0);
+        kv_value(line, "event_log", value, sizeof(value));
+        if (value[0])
+            snprintf(state->event_log, sizeof(state->event_log), "%s", value);
     }
     fclose(fh);
     state->valid = saw_schema && saw_service && state->pid > 1;
@@ -1258,8 +1286,18 @@ static void print_daemon_state_json(const char *state_file, const struct daemon_
     bb_json_string(stdout, state ? state->error : "");
     fputs(",\"started_at\":", stdout);
     bb_json_string(stdout, state ? state->started_at : "");
+    fputs(",\"mode\":", stdout);
+    bb_json_string(stdout, state ? state->mode : "");
     fputs(",\"endpoint\":", stdout);
     bb_json_string(stdout, state ? state->endpoint : "");
+    printf(",\"poll_interval_sec\":%d", state ? state->poll_interval_sec : 0);
+    printf(",\"poll_jitter_pct\":%d", state ? state->poll_jitter_pct : 0);
+    fputs(",\"poll_backoff\":", stdout);
+    bb_json_string(stdout, state ? state->poll_backoff : "");
+    printf(",\"poll_max_interval_sec\":%d", state ? state->poll_max_interval_sec : 0);
+    printf(",\"max_polls\":%d", state ? state->max_polls : 0);
+    fputs(",\"event_log\":", stdout);
+    bb_json_string(stdout, state ? state->event_log : "");
     fputc('}', stdout);
 }
 
@@ -1536,7 +1574,14 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_daemon_pid=%d\n", daemon_state ? daemon_state->pid : 0);
     printf("command_queue_daemon_status=%s\n", daemon_state ? daemon_state->status : "missing");
     printf("command_queue_daemon_started_at=%s\n", daemon_state ? daemon_state->started_at : "");
+    printf("command_queue_daemon_mode=%s\n", daemon_state ? daemon_state->mode : "");
     printf("command_queue_daemon_endpoint=%s\n", daemon_state ? daemon_state->endpoint : "");
+    printf("command_queue_daemon_poll_interval_sec=%d\n", daemon_state ? daemon_state->poll_interval_sec : 0);
+    printf("command_queue_daemon_poll_jitter_pct=%d\n", daemon_state ? daemon_state->poll_jitter_pct : 0);
+    printf("command_queue_daemon_poll_backoff=%s\n", daemon_state ? daemon_state->poll_backoff : "");
+    printf("command_queue_daemon_poll_max_interval_sec=%d\n", daemon_state ? daemon_state->poll_max_interval_sec : 0);
+    printf("command_queue_daemon_max_polls=%d\n", daemon_state ? daemon_state->max_polls : 0);
+    printf("command_queue_daemon_event_log=%s\n", daemon_state ? daemon_state->event_log : "");
     printf("command_queue_daemon_error=%s\n", daemon_state ? daemon_state->error : "");
     printf("command_queue_stop_attempted=%s\n", stop && stop->attempted ? "yes" : "no");
     printf("command_queue_stop_signaled=%s\n", stop && stop->signaled ? "yes" : "no");
