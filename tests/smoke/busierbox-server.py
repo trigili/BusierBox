@@ -1356,6 +1356,12 @@ def main():
             b"Host: 127.0.0.1\r\n"
             b"X-BusierBox-Target-Id: target-alpha\r\n"
             b"X-BusierBox-Target-Label: Alpha Router\r\n"
+            b"X-BusierBox-Command-Queue-Mode: poll\r\n"
+            b"X-BusierBox-Command-Queue-Poll-Interval-Sec: 11\r\n"
+            b"X-BusierBox-Command-Queue-Poll-Jitter-Pct: 4\r\n"
+            b"X-BusierBox-Command-Queue-Poll-Backoff: exponential\r\n"
+            b"X-BusierBox-Command-Queue-Poll-Max-Interval-Sec: 44\r\n"
+            b"X-BusierBox-Command-Queue-Max-Polls: 9\r\n"
             b"Connection: close\r\n\r\n"
         )
         poll_response = connect_with_retry(poll_target_port, poll_request)
@@ -1400,7 +1406,16 @@ def main():
                 (poll_target_status.get("targets_by_id") or {}).get("target-alpha", {}).get("latest_activity_operation") != "command_queue_poll" or
                 ((poll_target_status.get("targets_by_latest_activity_service") or {}).get("command-queue") or [{}])[0].get("target_id") != "target-alpha" or
                 ((poll_target_status.get("targets_by_latest_activity_operation") or {}).get("command_queue_poll") or [{}])[0].get("target_id") != "target-alpha" or
-                not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_poll_delivered" for event in poll_target_status.get("events") or [])):
+                not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_poll_delivered" for event in poll_target_status.get("events") or []) or
+                poll_target_status.get("summary", {}).get("event_detail_poll_mode_counts", {}).get("poll", 0) < 1 or
+                poll_target_status.get("summary", {}).get("event_detail_poll_interval_sec_counts", {}).get("11", 0) < 1 or
+                poll_target_status.get("summary", {}).get("event_detail_poll_jitter_pct_counts", {}).get("4", 0) < 1 or
+                poll_target_status.get("summary", {}).get("event_detail_poll_backoff_counts", {}).get("exponential", 0) < 1 or
+                poll_target_status.get("summary", {}).get("event_detail_poll_max_interval_sec_counts", {}).get("44", 0) < 1 or
+                poll_target_status.get("summary", {}).get("event_detail_max_polls_counts", {}).get("9", 0) < 1 or
+                (poll_target_status.get("event_log_stats") or {}).get("by_detail_poll_backoff", {}).get("exponential", 0) < 1 or
+                ((poll_target_status.get("events_by_detail_poll_interval_sec") or {}).get("11") or [{}])[0].get("details", {}).get("poll_backoff") != "exponential" or
+                "events_by_detail_poll_interval_sec" not in (((poll_target_status.get("api_collections") or {}).get("events") or {}).get("indexes") or [])):
             print("target-scoped command queue poll missing from filtered status", file=sys.stderr)
             print(json.dumps(poll_target_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1

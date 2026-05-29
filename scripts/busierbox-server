@@ -139,6 +139,12 @@ class EventLog:
         by_detail_target_id = {}
         by_detail_target_label = {}
         by_detail_expected_target_id = {}
+        by_detail_poll_mode = {}
+        by_detail_poll_interval_sec = {}
+        by_detail_poll_jitter_pct = {}
+        by_detail_poll_backoff = {}
+        by_detail_poll_max_interval_sec = {}
+        by_detail_max_polls = {}
         by_event_detail_status = {}
         by_service_detail_status = {}
         by_event_detail_operation = {}
@@ -197,6 +203,12 @@ class EventLog:
             detail_target_id = str(details.get("target_id") or "")
             detail_target_label = str(details.get("target_label") or "")
             detail_expected_target_id = str(details.get("expected_target_id") or "")
+            detail_poll_mode = str(details.get("poll_mode") or "")
+            detail_poll_interval_sec = str(details.get("poll_interval_sec") or "")
+            detail_poll_jitter_pct = str(details.get("poll_jitter_pct") or "")
+            detail_poll_backoff = str(details.get("poll_backoff") or "")
+            detail_poll_max_interval_sec = str(details.get("poll_max_interval_sec") or "")
+            detail_max_polls = str(details.get("max_polls") or "")
             if ts and (not first_ts or ts < first_ts):
                 first_ts = ts
             if ts > latest_ts:
@@ -262,6 +274,18 @@ class EventLog:
                 by_detail_target_label[detail_target_label] = by_detail_target_label.get(detail_target_label, 0) + 1
             if detail_expected_target_id:
                 by_detail_expected_target_id[detail_expected_target_id] = by_detail_expected_target_id.get(detail_expected_target_id, 0) + 1
+            if detail_poll_mode:
+                by_detail_poll_mode[detail_poll_mode] = by_detail_poll_mode.get(detail_poll_mode, 0) + 1
+            if detail_poll_interval_sec:
+                by_detail_poll_interval_sec[detail_poll_interval_sec] = by_detail_poll_interval_sec.get(detail_poll_interval_sec, 0) + 1
+            if detail_poll_jitter_pct:
+                by_detail_poll_jitter_pct[detail_poll_jitter_pct] = by_detail_poll_jitter_pct.get(detail_poll_jitter_pct, 0) + 1
+            if detail_poll_backoff:
+                by_detail_poll_backoff[detail_poll_backoff] = by_detail_poll_backoff.get(detail_poll_backoff, 0) + 1
+            if detail_poll_max_interval_sec:
+                by_detail_poll_max_interval_sec[detail_poll_max_interval_sec] = by_detail_poll_max_interval_sec.get(detail_poll_max_interval_sec, 0) + 1
+            if detail_max_polls:
+                by_detail_max_polls[detail_max_polls] = by_detail_max_polls.get(detail_max_polls, 0) + 1
             if event and detail_status:
                 key = f"{event}:{detail_status}"
                 by_event_detail_status[key] = by_event_detail_status.get(key, 0) + 1
@@ -395,6 +419,12 @@ class EventLog:
             "by_detail_target_id": by_detail_target_id,
             "by_detail_target_label": by_detail_target_label,
             "by_detail_expected_target_id": by_detail_expected_target_id,
+            "by_detail_poll_mode": by_detail_poll_mode,
+            "by_detail_poll_interval_sec": by_detail_poll_interval_sec,
+            "by_detail_poll_jitter_pct": by_detail_poll_jitter_pct,
+            "by_detail_poll_backoff": by_detail_poll_backoff,
+            "by_detail_poll_max_interval_sec": by_detail_poll_max_interval_sec,
+            "by_detail_max_polls": by_detail_max_polls,
             "by_event_detail_status": by_event_detail_status,
             "by_service_detail_status": by_service_detail_status,
             "by_event_detail_operation": by_event_detail_operation,
@@ -3582,6 +3612,12 @@ def event_record_indexes(records):
     by_detail_target_id = {}
     by_detail_target_label = {}
     by_detail_expected_target_id = {}
+    by_detail_poll_mode = {}
+    by_detail_poll_interval_sec = {}
+    by_detail_poll_jitter_pct = {}
+    by_detail_poll_backoff = {}
+    by_detail_poll_max_interval_sec = {}
+    by_detail_max_polls = {}
     by_event_detail_status = {}
     by_service_detail_status = {}
     by_event_detail_operation = {}
@@ -3640,6 +3676,12 @@ def event_record_indexes(records):
         detail_target_id = str(details.get("target_id") or "")
         detail_target_label = str(details.get("target_label") or "")
         detail_expected_target_id = str(details.get("expected_target_id") or "")
+        detail_poll_mode = str(details.get("poll_mode") or "")
+        detail_poll_interval_sec = str(details.get("poll_interval_sec") or "")
+        detail_poll_jitter_pct = str(details.get("poll_jitter_pct") or "")
+        detail_poll_backoff = str(details.get("poll_backoff") or "")
+        detail_poll_max_interval_sec = str(details.get("poll_max_interval_sec") or "")
+        detail_max_polls = str(details.get("max_polls") or "")
         if event_id:
             by_id[event_id] = rec
         if session_id:
@@ -3698,6 +3740,18 @@ def event_record_indexes(records):
             by_detail_target_label.setdefault(detail_target_label, []).append(rec)
         if detail_expected_target_id:
             by_detail_expected_target_id.setdefault(detail_expected_target_id, []).append(rec)
+        if detail_poll_mode:
+            by_detail_poll_mode.setdefault(detail_poll_mode, []).append(rec)
+        if detail_poll_interval_sec:
+            by_detail_poll_interval_sec.setdefault(detail_poll_interval_sec, []).append(rec)
+        if detail_poll_jitter_pct:
+            by_detail_poll_jitter_pct.setdefault(detail_poll_jitter_pct, []).append(rec)
+        if detail_poll_backoff:
+            by_detail_poll_backoff.setdefault(detail_poll_backoff, []).append(rec)
+        if detail_poll_max_interval_sec:
+            by_detail_poll_max_interval_sec.setdefault(detail_poll_max_interval_sec, []).append(rec)
+        if detail_max_polls:
+            by_detail_max_polls.setdefault(detail_max_polls, []).append(rec)
         if event and detail_status:
             by_event_detail_status.setdefault(f"{event}:{detail_status}", []).append(rec)
         if service and detail_status:
@@ -3772,6 +3826,8 @@ def event_record_indexes(records):
         by_detail_job_id, by_detail_action_id,
         by_detail_key, by_detail_config_path,
         by_detail_target_id, by_detail_target_label, by_detail_expected_target_id,
+        by_detail_poll_mode, by_detail_poll_interval_sec, by_detail_poll_jitter_pct,
+        by_detail_poll_backoff, by_detail_poll_max_interval_sec, by_detail_max_polls,
         by_event_detail_status, by_service_detail_status,
         by_event_detail_operation, by_service_detail_operation,
         by_event_detail_http_status, by_service_detail_http_status,
@@ -8473,6 +8529,12 @@ def status_document(cfg):
      events_by_detail_target_id,
      events_by_detail_target_label,
      events_by_detail_expected_target_id,
+     events_by_detail_poll_mode,
+     events_by_detail_poll_interval_sec,
+     events_by_detail_poll_jitter_pct,
+     events_by_detail_poll_backoff,
+     events_by_detail_poll_max_interval_sec,
+     events_by_detail_max_polls,
      events_by_event_detail_status,
      events_by_service_detail_status,
      events_by_event_detail_operation,
@@ -8553,6 +8615,12 @@ def status_document(cfg):
             "by_detail_target_id": count_index(events_by_detail_target_id),
             "by_detail_target_label": count_index(events_by_detail_target_label),
             "by_detail_expected_target_id": count_index(events_by_detail_expected_target_id),
+            "by_detail_poll_mode": count_index(events_by_detail_poll_mode),
+            "by_detail_poll_interval_sec": count_index(events_by_detail_poll_interval_sec),
+            "by_detail_poll_jitter_pct": count_index(events_by_detail_poll_jitter_pct),
+            "by_detail_poll_backoff": count_index(events_by_detail_poll_backoff),
+            "by_detail_poll_max_interval_sec": count_index(events_by_detail_poll_max_interval_sec),
+            "by_detail_max_polls": count_index(events_by_detail_max_polls),
             "by_event_detail_status": count_index(events_by_event_detail_status),
             "by_service_detail_status": count_index(events_by_service_detail_status),
             "by_event_detail_operation": count_index(events_by_event_detail_operation),
@@ -9106,6 +9174,12 @@ def status_document(cfg):
         "event_detail_target_id_counts": event_summary_stats.get("by_detail_target_id") or {},
         "event_detail_target_label_counts": event_summary_stats.get("by_detail_target_label") or {},
         "event_detail_expected_target_id_counts": event_summary_stats.get("by_detail_expected_target_id") or {},
+        "event_detail_poll_mode_counts": event_summary_stats.get("by_detail_poll_mode") or {},
+        "event_detail_poll_interval_sec_counts": event_summary_stats.get("by_detail_poll_interval_sec") or {},
+        "event_detail_poll_jitter_pct_counts": event_summary_stats.get("by_detail_poll_jitter_pct") or {},
+        "event_detail_poll_backoff_counts": event_summary_stats.get("by_detail_poll_backoff") or {},
+        "event_detail_poll_max_interval_sec_counts": event_summary_stats.get("by_detail_poll_max_interval_sec") or {},
+        "event_detail_max_polls_counts": event_summary_stats.get("by_detail_max_polls") or {},
         "event_type_detail_status_counts": event_summary_stats.get("by_event_detail_status") or {},
         "event_service_detail_status_counts": event_summary_stats.get("by_service_detail_status") or {},
         "event_type_detail_operation_counts": event_summary_stats.get("by_event_detail_operation") or {},
@@ -9456,6 +9530,9 @@ def status_document(cfg):
                 "events_by_event_detail_config_path", "events_by_service_detail_config_path",
                 "events_by_detail_target_id", "events_by_detail_target_label",
                 "events_by_detail_expected_target_id",
+                "events_by_detail_poll_mode", "events_by_detail_poll_interval_sec",
+                "events_by_detail_poll_jitter_pct", "events_by_detail_poll_backoff",
+                "events_by_detail_poll_max_interval_sec", "events_by_detail_max_polls",
                 "events_by_event_detail_target_id", "events_by_service_detail_target_id",
                 "events_by_event_detail_target_label", "events_by_service_detail_target_label",
                 "events_by_event_detail_expected_target_id",
@@ -9831,6 +9908,12 @@ def status_document(cfg):
         "events_by_detail_target_id": events_by_detail_target_id,
         "events_by_detail_target_label": events_by_detail_target_label,
         "events_by_detail_expected_target_id": events_by_detail_expected_target_id,
+        "events_by_detail_poll_mode": events_by_detail_poll_mode,
+        "events_by_detail_poll_interval_sec": events_by_detail_poll_interval_sec,
+        "events_by_detail_poll_jitter_pct": events_by_detail_poll_jitter_pct,
+        "events_by_detail_poll_backoff": events_by_detail_poll_backoff,
+        "events_by_detail_poll_max_interval_sec": events_by_detail_poll_max_interval_sec,
+        "events_by_detail_max_polls": events_by_detail_max_polls,
         "events_by_event_detail_status": events_by_event_detail_status,
         "events_by_service_detail_status": events_by_service_detail_status,
         "events_by_event_detail_operation": events_by_event_detail_operation,
