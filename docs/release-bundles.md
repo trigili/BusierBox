@@ -1069,7 +1069,9 @@ because `--event-limit 0` was requested, the pane still exposes that as
 tail-status metadata instead of looking like an empty log. When a target filter
 has selected-target capability or compatibility evidence, the curses details
 pane appends the same selected-target evidence lines exposed by `--status` and
-the line-oriented fallback workbench. `v` opens the
+the line-oriented fallback workbench. The fallback workbench's compact refresh
+summary also repeats event-tail availability and active target-filter context,
+so a non-curses operator does not lose those cues after refreshes. `v` opens the
 selected local metadata/log/artifact/event-log path in the operator's pager when
 one is available, and `c` copies the selected generated target command to the
 local clipboard when possible plus

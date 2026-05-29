@@ -12591,6 +12591,7 @@ def run_line_tui(cfg):
         else:
             snap = workbench_snapshot(cfg)
             summary = snap.get("summary") or {}
+            tail_status = event_tail_availability_text(snap)
             print(
                 "Workbench summary: "
                 f"listening={summary.get('listening_count', 0)} "
@@ -12599,8 +12600,12 @@ def run_line_tui(cfg):
                 f"uploads={summary.get('upload_count', 0)} "
                 f"fetches={summary.get('fetch_count', 0)} "
                 f"sessions={summary.get('session_count', 0)} "
-                f"events={summary.get('event_count', 0)}"
+                f"events={summary.get('event_count', 0)} "
+                f"{tail_status}"
             )
+            target_filter = snap.get("target_filter") or {}
+            if target_filter.get("active"):
+                print(target_filter_summary_text(target_filter, prefix="Target filter:"))
         print("")
         print("Actions:")
         print("  1 start ssh")
