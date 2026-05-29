@@ -347,7 +347,11 @@ Target status also exposes `targets_by_connectivity_state`,
 `targets_by_last_seen_via`, `targets_by_has_next_expected_poll`, and
 `targets_by_mailbox_pending_work`, plus workflow indexes such as
 `targets_by_latest_file_transfer_operation`,
-`targets_by_latest_survey_result_kind`, and
+`targets_by_latest_file_transfer_route_kind`,
+`targets_by_latest_file_transfer_bridge_profile`,
+`targets_by_latest_survey_result_kind`,
+`targets_by_latest_survey_result_route_kind`,
+`targets_by_latest_survey_result_bridge_profile`, and
 `targets_by_latest_bridge_profile`. Text status and the noninteractive
 workbench print each target's recent mailbox items and latest workflow activity
 below the heartbeat and mailbox counts, so an operator can queue work while a

@@ -1913,8 +1913,12 @@ def target_record_indexes(records):
     by_mailbox_pending_work = {}
     by_latest_file_transfer_operation = {}
     by_latest_file_transfer_status = {}
+    by_latest_file_transfer_route_kind = {}
+    by_latest_file_transfer_bridge_profile = {}
     by_latest_survey_result_kind = {}
     by_latest_survey_result_status = {}
+    by_latest_survey_result_route_kind = {}
+    by_latest_survey_result_bridge_profile = {}
     by_latest_bridge_profile = {}
     by_latest_bridge_status = {}
     by_has_latest_bridge_activity = {}
@@ -1966,12 +1970,24 @@ def target_record_indexes(records):
         file_status = str(rec.get("latest_file_transfer_status") or "")
         if file_status:
             by_latest_file_transfer_status.setdefault(file_status, []).append(rec)
+        file_route_kind = str(rec.get("latest_file_transfer_route_kind") or "")
+        if file_route_kind:
+            by_latest_file_transfer_route_kind.setdefault(file_route_kind, []).append(rec)
+        file_bridge_profile = str(rec.get("latest_file_transfer_bridge_profile") or "")
+        if file_bridge_profile:
+            by_latest_file_transfer_bridge_profile.setdefault(file_bridge_profile, []).append(rec)
         survey_kind = str(rec.get("latest_survey_result_kind") or "")
         if survey_kind:
             by_latest_survey_result_kind.setdefault(survey_kind, []).append(rec)
         survey_status = str(rec.get("latest_survey_result_status") or "")
         if survey_status:
             by_latest_survey_result_status.setdefault(survey_status, []).append(rec)
+        survey_route_kind = str(rec.get("latest_survey_result_route_kind") or "")
+        if survey_route_kind:
+            by_latest_survey_result_route_kind.setdefault(survey_route_kind, []).append(rec)
+        survey_bridge_profile = str(rec.get("latest_survey_result_bridge_profile") or "")
+        if survey_bridge_profile:
+            by_latest_survey_result_bridge_profile.setdefault(survey_bridge_profile, []).append(rec)
         bridge_profile = str(rec.get("latest_bridge_profile") or "")
         if bridge_profile:
             by_latest_bridge_profile.setdefault(bridge_profile, []).append(rec)
@@ -2028,7 +2044,9 @@ def target_record_indexes(records):
         by_connectivity_state, by_last_seen_via,
         by_has_next_expected_poll, by_mailbox_pending_work,
         by_latest_file_transfer_operation, by_latest_file_transfer_status,
+        by_latest_file_transfer_route_kind, by_latest_file_transfer_bridge_profile,
         by_latest_survey_result_kind, by_latest_survey_result_status,
+        by_latest_survey_result_route_kind, by_latest_survey_result_bridge_profile,
         by_latest_bridge_profile, by_latest_bridge_status,
         by_has_latest_bridge_activity,
         by_has_notes, by_capability_report_kind,
@@ -2049,8 +2067,12 @@ def target_record_summary(records):
     last_seen_via_counts = {}
     latest_file_transfer_operation_counts = {}
     latest_file_transfer_status_counts = {}
+    latest_file_transfer_route_kind_counts = {}
+    latest_file_transfer_bridge_profile_counts = {}
     latest_survey_result_kind_counts = {}
     latest_survey_result_status_counts = {}
+    latest_survey_result_route_kind_counts = {}
+    latest_survey_result_bridge_profile_counts = {}
     latest_bridge_profile_counts = {}
     latest_bridge_status_counts = {}
     report_kind_counts = {}
@@ -2111,6 +2133,12 @@ def target_record_summary(records):
             file_status = str(rec.get("latest_file_transfer_status") or "")
             if file_status:
                 latest_file_transfer_status_counts[file_status] = latest_file_transfer_status_counts.get(file_status, 0) + 1
+            file_route_kind = str(rec.get("latest_file_transfer_route_kind") or "")
+            if file_route_kind:
+                latest_file_transfer_route_kind_counts[file_route_kind] = latest_file_transfer_route_kind_counts.get(file_route_kind, 0) + 1
+            file_bridge_profile = str(rec.get("latest_file_transfer_bridge_profile") or "")
+            if file_bridge_profile:
+                latest_file_transfer_bridge_profile_counts[file_bridge_profile] = latest_file_transfer_bridge_profile_counts.get(file_bridge_profile, 0) + 1
         if str(rec.get("latest_survey_result_at") or ""):
             latest_survey_result_count += 1
             survey_kind = str(rec.get("latest_survey_result_kind") or "")
@@ -2119,6 +2147,12 @@ def target_record_summary(records):
             survey_status = str(rec.get("latest_survey_result_status") or "")
             if survey_status:
                 latest_survey_result_status_counts[survey_status] = latest_survey_result_status_counts.get(survey_status, 0) + 1
+            survey_route_kind = str(rec.get("latest_survey_result_route_kind") or "")
+            if survey_route_kind:
+                latest_survey_result_route_kind_counts[survey_route_kind] = latest_survey_result_route_kind_counts.get(survey_route_kind, 0) + 1
+            survey_bridge_profile = str(rec.get("latest_survey_result_bridge_profile") or "")
+            if survey_bridge_profile:
+                latest_survey_result_bridge_profile_counts[survey_bridge_profile] = latest_survey_result_bridge_profile_counts.get(survey_bridge_profile, 0) + 1
         if str(rec.get("latest_bridge_activity_at") or ""):
             latest_bridge_activity_count += 1
             bridge_profile = str(rec.get("latest_bridge_profile") or "")
@@ -2183,9 +2217,13 @@ def target_record_summary(records):
         "target_latest_file_transfer_count": latest_file_transfer_count,
         "target_latest_file_transfer_operation_counts": latest_file_transfer_operation_counts,
         "target_latest_file_transfer_status_counts": latest_file_transfer_status_counts,
+        "target_latest_file_transfer_route_kind_counts": latest_file_transfer_route_kind_counts,
+        "target_latest_file_transfer_bridge_profile_counts": latest_file_transfer_bridge_profile_counts,
         "target_latest_survey_result_count": latest_survey_result_count,
         "target_latest_survey_result_kind_counts": latest_survey_result_kind_counts,
         "target_latest_survey_result_status_counts": latest_survey_result_status_counts,
+        "target_latest_survey_result_route_kind_counts": latest_survey_result_route_kind_counts,
+        "target_latest_survey_result_bridge_profile_counts": latest_survey_result_bridge_profile_counts,
         "target_latest_bridge_activity_count": latest_bridge_activity_count,
         "target_latest_bridge_profile_counts": latest_bridge_profile_counts,
         "target_latest_bridge_status_counts": latest_bridge_status_counts,
@@ -10775,8 +10813,12 @@ def status_document(cfg):
      targets_by_mailbox_pending_work,
      targets_by_latest_file_transfer_operation,
      targets_by_latest_file_transfer_status,
+     targets_by_latest_file_transfer_route_kind,
+     targets_by_latest_file_transfer_bridge_profile,
      targets_by_latest_survey_result_kind,
      targets_by_latest_survey_result_status,
+     targets_by_latest_survey_result_route_kind,
+     targets_by_latest_survey_result_bridge_profile,
      targets_by_latest_bridge_profile,
      targets_by_latest_bridge_status,
      targets_by_has_latest_bridge_activity,
@@ -12532,8 +12574,12 @@ def status_document(cfg):
                 "targets_by_mailbox_pending_work",
                 "targets_by_latest_file_transfer_operation",
                 "targets_by_latest_file_transfer_status",
+                "targets_by_latest_file_transfer_route_kind",
+                "targets_by_latest_file_transfer_bridge_profile",
                 "targets_by_latest_survey_result_kind",
                 "targets_by_latest_survey_result_status",
+                "targets_by_latest_survey_result_route_kind",
+                "targets_by_latest_survey_result_bridge_profile",
                 "targets_by_latest_bridge_profile",
                 "targets_by_latest_bridge_status",
                 "targets_by_has_latest_bridge_activity",
@@ -13158,8 +13204,12 @@ def status_document(cfg):
         "targets_by_mailbox_pending_work": targets_by_mailbox_pending_work,
         "targets_by_latest_file_transfer_operation": targets_by_latest_file_transfer_operation,
         "targets_by_latest_file_transfer_status": targets_by_latest_file_transfer_status,
+        "targets_by_latest_file_transfer_route_kind": targets_by_latest_file_transfer_route_kind,
+        "targets_by_latest_file_transfer_bridge_profile": targets_by_latest_file_transfer_bridge_profile,
         "targets_by_latest_survey_result_kind": targets_by_latest_survey_result_kind,
         "targets_by_latest_survey_result_status": targets_by_latest_survey_result_status,
+        "targets_by_latest_survey_result_route_kind": targets_by_latest_survey_result_route_kind,
+        "targets_by_latest_survey_result_bridge_profile": targets_by_latest_survey_result_bridge_profile,
         "targets_by_latest_bridge_profile": targets_by_latest_bridge_profile,
         "targets_by_latest_bridge_status": targets_by_latest_bridge_status,
         "targets_by_has_latest_bridge_activity": targets_by_has_latest_bridge_activity,

@@ -727,6 +727,7 @@ def main():
                 not (survey_status.get("events_by_event") or {}).get("survey_bootstrap_result") or
                 survey_status.get("summary", {}).get("target_latest_survey_result_count") != 1 or
                 survey_status.get("summary", {}).get("target_latest_survey_result_kind_counts", {}).get("survey-bootstrap") != 1 or
+                survey_status.get("summary", {}).get("target_latest_survey_result_route_kind_counts", {}).get("direct") != 1 or
                 survey_target.get("latest_survey_result_kind") != "survey-bootstrap" or
                 survey_target.get("latest_survey_result_status") != "received" or
                 survey_target.get("latest_survey_result_route_kind") != "direct" or
@@ -734,6 +735,7 @@ def main():
                 survey_target.get("latest_activity_service") != "survey-bootstrap" or
                 survey_target.get("latest_activity_operation") != "survey_bootstrap_result" or
                 ((survey_status.get("targets_by_latest_survey_result_kind") or {}).get("survey-bootstrap") or [{}])[0].get("target_id") != "target-survey" or
+                ((survey_status.get("targets_by_latest_survey_result_route_kind") or {}).get("direct") or [{}])[0].get("target_id") != "target-survey" or
                 ((survey_status.get("targets_by_latest_survey_result_status") or {}).get("received") or [{}])[0].get("target_id") != "target-survey"):
             print("json status missing survey bootstrap evidence", file=sys.stderr)
             print(json.dumps(survey_status, indent=2, sort_keys=True), file=sys.stderr)
@@ -6184,6 +6186,7 @@ def main():
                 upload_summary.get("target_latest_file_transfer_count") != 1 or
                 upload_summary.get("target_latest_file_transfer_operation_counts", {}).get("upload") != 1 or
                 upload_summary.get("target_latest_file_transfer_status_counts", {}).get("ok") != 1 or
+                upload_summary.get("target_latest_file_transfer_route_kind_counts", {}).get("direct") != 1 or
                 upload_summary.get("target_workflow_action_count") != 6 or
                 upload_summary.get("target_workflow_action_target_counts", {}).get("target-alpha") != 6 or
                 upload_summary.get("target_workflow_action_workflow_counts", {}).get("command-queue") != 1 or
@@ -6228,6 +6231,10 @@ def main():
                 "targets_by_latest_activity_operation" not in (target_api.get("indexes") or []) or
                 "targets_by_latest_file_transfer_operation" not in (target_api.get("indexes") or []) or
                 "targets_by_latest_file_transfer_status" not in (target_api.get("indexes") or []) or
+                "targets_by_latest_file_transfer_route_kind" not in (target_api.get("indexes") or []) or
+                "targets_by_latest_file_transfer_bridge_profile" not in (target_api.get("indexes") or []) or
+                "targets_by_latest_survey_result_route_kind" not in (target_api.get("indexes") or []) or
+                "targets_by_latest_survey_result_bridge_profile" not in (target_api.get("indexes") or []) or
                 "target_workflow_actions_by_target_id" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
                 "target_workflow_actions_by_queues_offline_work" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
                 "target_workflow_actions_by_requires_target_online" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
@@ -6236,6 +6243,7 @@ def main():
                 ((upload_doc.get("targets_by_latest_activity_operation") or {}).get("upload") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("targets_by_latest_file_transfer_operation") or {}).get("upload") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("targets_by_latest_file_transfer_status") or {}).get("ok") or [{}])[0].get("target_id") != "target-alpha" or
+                ((upload_doc.get("targets_by_latest_file_transfer_route_kind") or {}).get("direct") or [{}])[0].get("target_id") != "target-alpha" or
                 "targets" not in (upload_doc.get("api_resources_by_name") or {})):
             print("server api status missing target collection", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
