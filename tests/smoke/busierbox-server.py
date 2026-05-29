@@ -4972,6 +4972,110 @@ def main():
             print("target-scoped staged/queue records missing from JSON/API status", file=sys.stderr)
             print(json.dumps(scoped_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        target_fetch_proc = subprocess.Popen(
+            [
+                str(server),
+                "--config", str(upload_cfg),
+                "--file-service",
+                "--file-service-tls", "no",
+                "--one-shot",
+                "--timeout", "5",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        wrong_target_request = (
+            "GET /fetch?name=%2Ftmp%2Fbravo-staged.txt HTTP/1.1\r\n"
+            "Host: 127.0.0.1\r\n"
+            "X-BusierBox-Target-Id: target-alpha\r\n"
+            "\r\n"
+        ).encode("ascii")
+        wrong_target_response = connect_with_retry(upload_port, wrong_target_request)
+        wrong_stdout, wrong_stderr = target_fetch_proc.communicate(timeout=5)
+        if target_fetch_proc.returncode != 0:
+            print("target-scoped staged fetch mismatch server exited nonzero:", file=sys.stderr)
+            print(wrong_stdout, file=sys.stderr)
+            print(wrong_stderr, file=sys.stderr)
+            return 1
+        if (b"HTTP/1.1 403 Forbidden" not in wrong_target_response or
+                b"target mismatch" not in wrong_target_response or
+                b"target scoped staged file" in wrong_target_response):
+            print("target-scoped staged fetch mismatch was not rejected", file=sys.stderr)
+            print(wrong_target_response.decode("utf-8", errors="replace"), file=sys.stderr)
+            return 1
+        target_fetch_proc = subprocess.Popen(
+            [
+                str(server),
+                "--config", str(upload_cfg),
+                "--file-service",
+                "--file-service-tls", "no",
+                "--one-shot",
+                "--timeout", "5",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        matching_target_request = (
+            "GET /fetch?name=%2Ftmp%2Fbravo-staged.txt HTTP/1.1\r\n"
+            "Host: 127.0.0.1\r\n"
+            "X-BusierBox-Target-Id: target-bravo\r\n"
+            "X-BusierBox-Target-Label: Bravo Router\r\n"
+            "X-BusierBox-Target-Alias: lab-bravo\r\n"
+            "\r\n"
+        ).encode("ascii")
+        matching_target_response = connect_with_retry(upload_port, matching_target_request)
+        match_stdout, match_stderr = target_fetch_proc.communicate(timeout=5)
+        if target_fetch_proc.returncode != 0:
+            print("target-scoped staged fetch match server exited nonzero:", file=sys.stderr)
+            print(match_stdout, file=sys.stderr)
+            print(match_stderr, file=sys.stderr)
+            return 1
+        if (b"HTTP/1.1 200 OK" not in matching_target_response or
+                not matching_target_response.endswith(b"target scoped staged file\n")):
+            print("target-scoped staged fetch match was not served", file=sys.stderr)
+            print(matching_target_response.decode("utf-8", errors="replace"), file=sys.stderr)
+            return 1
+        target_fetch_docs = [
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in session_root.glob("*/session.json")
+        ]
+        served_target_fetches = [
+            fetch
+            for doc in target_fetch_docs
+            for fetch in doc.get("fetches") or []
+            if fetch.get("request_name") == "/tmp/bravo-staged.txt" and fetch.get("status") == "served"
+        ]
+        rejected_target_fetches = [
+            fetch
+            for doc in target_fetch_docs
+            for fetch in doc.get("fetches") or []
+            if fetch.get("request_name") == "/tmp/bravo-staged.txt" and fetch.get("status") == "rejected"
+        ]
+        if (not served_target_fetches or
+                served_target_fetches[-1].get("target_id") != "target-bravo" or
+                served_target_fetches[-1].get("target_label") != "Bravo Router" or
+                "lab-bravo" not in (served_target_fetches[-1].get("target_aliases") or []) or
+                not rejected_target_fetches or
+                rejected_target_fetches[-1].get("http_status") != 403 or
+                rejected_target_fetches[-1].get("expected_target_id") != "target-bravo"):
+            print("target-scoped staged fetch session metadata missing target enforcement details", file=sys.stderr)
+            print(json.dumps(target_fetch_docs, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        scoped_fetch_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--target-id", "target-bravo",
+            "--json-status",
+        ).stdout)
+        if (scoped_fetch_status.get("summary", {}).get("fetch_target_counts", {}).get("target-bravo") != 1 or
+                (scoped_fetch_status.get("fetches_by_target_id") or {}).get("target-bravo", [{}])[0].get("request_name") != "/tmp/bravo-staged.txt"):
+            print("target-scoped staged fetch not reflected in target-filtered status", file=sys.stderr)
+            print(json.dumps(scoped_fetch_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
 
         capability_port = free_port()
         capability_operator_dir = Path(tmp) / "operator-session-capability-target"

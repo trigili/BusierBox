@@ -604,9 +604,20 @@ class SessionManager:
 
     def log_dir(self, cfg, label):
         root = Path(str(cfg["session_root"]))
-        path = root / (time.strftime("%Y%m%d-%H%M%S") + "-" + label)
-        path.mkdir(parents=True, exist_ok=True)
-        return path
+        root.mkdir(parents=True, exist_ok=True)
+        prefix = time.strftime("%Y%m%d-%H%M%S") + "-" + label
+        with self._lock:
+            for idx in range(1000):
+                name = prefix if idx == 0 else f"{prefix}-{idx + 1}"
+                path = root / name
+                try:
+                    path.mkdir(parents=False, exist_ok=False)
+                    return path
+                except FileExistsError:
+                    continue
+            path = root / f"{prefix}-{time.monotonic_ns()}"
+            path.mkdir(parents=False, exist_ok=False)
+            return path
 
     def session_id(self, log_dir):
         return Path(log_dir).name
@@ -7115,6 +7126,7 @@ def send_http_response(conn, status_code, body=b"", content_type="application/oc
         204: "No Content",
         200: "OK",
         400: "Bad Request",
+        403: "Forbidden",
         404: "Not Found",
         405: "Method Not Allowed",
         411: "Length Required",
@@ -7151,15 +7163,16 @@ def stream_fetch_response(conn, src, status_code=200, content_type="application/
 
 
 def handle_staged_fetch(cfg, conn, method, target, headers, addr):
+    request_headers = dict(headers or {})
     if method not in {"GET", "HEAD"}:
         payload = {"status": "rejected", "reason": "staged fetch accepts only GET or HEAD"}
         send_http_response(conn, 405, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
-        return attach_target_identity({"operation": "fetch", "status": "rejected", "http_status": 405, "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}, headers)
+        return attach_target_identity({"operation": "fetch", "status": "rejected", "http_status": 405, "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}, request_headers)
     parsed = urllib.parse.urlparse(target)
     if parsed.path not in {"/fetch", "/fetch/"}:
         payload = {"status": "rejected", "reason": "unknown fetch endpoint"}
         send_http_response(conn, 404, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
-        return attach_target_identity({"operation": "fetch", "status": "rejected", "http_status": 404, "reason": "unknown endpoint", "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}, headers)
+        return attach_target_identity({"operation": "fetch", "status": "rejected", "http_status": 404, "reason": "unknown endpoint", "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}, request_headers)
     query = urllib.parse.parse_qs(parsed.query)
     name = query.get("name", [""])[0]
     try:
@@ -7167,25 +7180,50 @@ def handle_staged_fetch(cfg, conn, method, target, headers, addr):
     except ValueError as exc:
         payload = {"status": "rejected", "reason": str(exc)}
         send_http_response(conn, 400, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
-        return attach_target_identity({"operation": "fetch", "status": "rejected", "http_status": 400, "reason": str(exc), "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}, headers)
+        return attach_target_identity({"operation": "fetch", "status": "rejected", "http_status": 400, "reason": str(exc), "method": method, "remote_addr": f"{addr[0]}:{addr[1]}"}, request_headers)
     staged = load_staged(cfg).get("staged", {})
     rec = staged.get(name)
     if not rec:
         payload = {"status": "missing", "reason": "no staged file for request", "request_name": name}
         send_http_response(conn, 404, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
-        return attach_target_identity({"operation": "fetch", "status": "missing", "http_status": 404, "method": method, "request_name": name, "remote_addr": f"{addr[0]}:{addr[1]}"}, headers)
+        return attach_target_identity({"operation": "fetch", "status": "missing", "http_status": 404, "method": method, "request_name": name, "remote_addr": f"{addr[0]}:{addr[1]}"}, request_headers)
+    target_identity = target_identity_from_headers(request_headers)
+    staged_target_id = str(rec.get("target_id") or "").strip()
+    request_target_id = str(target_identity.get("target_id") or "").strip()
+    if staged_target_id and request_target_id != staged_target_id:
+        reason = "target id required" if not request_target_id else "target mismatch"
+        payload = {
+            "status": "rejected",
+            "reason": reason,
+            "request_name": name,
+            "expected_target_id": staged_target_id,
+            "target_id": request_target_id,
+        }
+        send_http_response(conn, 403, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
+        details = attach_target_identity({
+            "operation": "fetch",
+            "status": "rejected",
+            "http_status": 403,
+            "reason": reason,
+            "method": method,
+            "request_name": name,
+            "expected_target_id": staged_target_id,
+            "remote_addr": f"{addr[0]}:{addr[1]}",
+        }, request_headers)
+        details.setdefault("target_id", request_target_id)
+        return details
     src = Path(rec.get("source_path", ""))
     if not src.is_file():
         payload = {"status": "missing", "reason": "staged source file is no longer present", "request_name": name}
         send_http_response(conn, 404, json.dumps(payload).encode("utf-8") + b"\n", "application/json")
-        return attach_target_identity({"operation": "fetch", "status": "missing-source", "http_status": 404, "method": method, "request_name": name, "remote_addr": f"{addr[0]}:{addr[1]}"}, headers)
-    headers = {
+        return attach_target_identity({"operation": "fetch", "status": "missing-source", "http_status": 404, "method": method, "request_name": name, "remote_addr": f"{addr[0]}:{addr[1]}"}, request_headers)
+    response_headers = {
         "X-BusierBox-Request-Name": urllib.parse.quote(name, safe="/._-"),
         "X-BusierBox-Sha256": rec.get("sha256", ""),
         "X-BusierBox-Source-Size": str(src.stat().st_size),
         "Content-Disposition": f"attachment; filename={urllib.parse.quote(Path(name).name or src.name)}",
     }
-    stream_fetch_response(conn, src, 200, "application/octet-stream", headers=headers, head_only=(method == "HEAD"))
+    stream_fetch_response(conn, src, 200, "application/octet-stream", headers=response_headers, head_only=(method == "HEAD"))
     return attach_target_identity({
         "operation": "fetch",
         "status": "served",
@@ -7197,7 +7235,7 @@ def handle_staged_fetch(cfg, conn, method, target, headers, addr):
         "sha256": rec.get("sha256", ""),
         "timestamp": utc_now(),
         "remote_addr": f"{addr[0]}:{addr[1]}",
-    }, headers)
+    }, request_headers)
 
 
 def handle_file_service_http(cfg, conn, files_dir, addr):
