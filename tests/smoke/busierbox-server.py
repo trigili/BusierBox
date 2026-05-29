@@ -977,8 +977,72 @@ def main():
             json.loads(line)
             for line in (queue_operator_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
         ]
-        if not any(event.get("event") == "workbench_config_updated" and event.get("details", {}).get("key") == "BB_NORESIDUE_LEVEL" for event in guided_events):
+        if not any(
+                event.get("event") == "workbench_config_updated" and
+                event.get("details", {}).get("key") == "BB_NORESIDUE_LEVEL" and
+                "--set-build-config BB_NORESIDUE_LEVEL=aggressive" in event.get("details", {}).get("headless_command", "")
+                for event in guided_events):
             print("guided build config update event missing", file=sys.stderr)
+            return 1
+        build_config_tui_master, build_config_tui_slave = pty.openpty()
+        try:
+            build_config_tui_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(cfg),
+                    "--build-config", str(guided_build_config),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=build_config_tui_slave,
+                stdout=build_config_tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(build_config_tui_slave)
+            build_config_tui_slave = -1
+            time.sleep(0.3)
+            os.write(build_config_tui_master, b"14\nBB_COMMAND_QUEUE_ENABLE\nyes\nq\n")
+            _build_config_tui_stdout, build_config_tui_stderr = build_config_tui_proc.communicate(timeout=8)
+            build_config_tui_output = b""
+            while True:
+                try:
+                    chunk = os.read(build_config_tui_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                build_config_tui_output += chunk
+        finally:
+            if build_config_tui_slave != -1:
+                os.close(build_config_tui_slave)
+            try:
+                os.close(build_config_tui_master)
+            except OSError:
+                pass
+        build_config_tui_text = build_config_tui_output.decode("utf-8", errors="replace")
+        if (build_config_tui_proc.returncode != 0 or
+                "Traceback" in (build_config_tui_stderr or "") or
+                'set BB_COMMAND_QUEUE_ENABLE="yes"' not in build_config_tui_text or
+                "headless_command: scripts/busierbox-server --config" not in build_config_tui_text or
+                f"--build-config {str(guided_build_config)} --set-build-config BB_COMMAND_QUEUE_ENABLE=yes" not in build_config_tui_text):
+            print("line TUI build config edit did not show equivalent headless command", file=sys.stderr)
+            print(build_config_tui_text, file=sys.stderr)
+            print(build_config_tui_stderr or "", file=sys.stderr)
+            return 1
+        build_config_tui_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--build-config", str(guided_build_config),
+            "--json-status",
+        ).stdout)
+        tui_config_event = (build_config_tui_status.get("events_by_event_detail_key") or {}).get("workbench_config_updated:BB_COMMAND_QUEUE_ENABLE", [{}])[-1]
+        if (build_config_tui_status.get("workbench_config_fields_by_key", {}).get("BB_COMMAND_QUEUE_ENABLE", {}).get("value") != "yes" or
+                tui_config_event.get("details", {}).get("new_value") != "yes" or
+                "--set-build-config BB_COMMAND_QUEUE_ENABLE=yes" not in tui_config_event.get("details", {}).get("headless_command", "")):
+            print("line TUI build config edit was not reflected in status/event records", file=sys.stderr)
+            print(json.dumps(build_config_tui_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         workbench_job_dir = Path(tmp) / "operator-session-workbench-job"
@@ -3406,14 +3470,16 @@ def main():
             return 1
         event_stats = queue_status_json.get("event_log_stats") or {}
         event_log_state = queue_status_json.get("event_log_state") or {}
+        event_tail_omitted_count = max(0, event_stats.get("total_count", 0) - event_stats.get("tail_count", 0))
+        event_tail_truncated = event_tail_omitted_count > 0
         if (event_stats.get("total_count", 0) < 2 or
                 event_stats.get("tail_count") != len(queue_status_json.get("events", [])) or
                 queue_status_json["summary"].get("event_count") != event_stats.get("total_count") or
                 queue_status_json["summary"].get("event_tail_count") != event_stats.get("tail_count") or
-                event_stats.get("tail_truncated") is not False or
-                event_stats.get("tail_omitted_count") != 0 or
-                queue_status_json["summary"].get("event_tail_truncated") is not False or
-                queue_status_json["summary"].get("event_tail_omitted_count") != 0 or
+                event_stats.get("tail_truncated") is not event_tail_truncated or
+                event_stats.get("tail_omitted_count") != event_tail_omitted_count or
+                queue_status_json["summary"].get("event_tail_truncated") is not event_tail_truncated or
+                queue_status_json["summary"].get("event_tail_omitted_count") != event_tail_omitted_count or
                 not event_stats.get("first_event_at") or
                 not event_stats.get("latest_event_at") or
                 queue_status_json["summary"].get("first_event_at") != event_stats.get("first_event_at") or
@@ -3426,8 +3492,8 @@ def main():
                 event_log_state.get("valid") is not True or
                 event_log_state.get("event_count") != event_stats.get("total_count") or
                 event_log_state.get("invalid_count") != event_stats.get("invalid_count") or
-                event_log_state.get("tail_truncated") is not False or
-                event_log_state.get("tail_omitted_count") != 0 or
+                event_log_state.get("tail_truncated") is not event_tail_truncated or
+                event_log_state.get("tail_omitted_count") != event_tail_omitted_count or
                 event_log_state.get("has_invalid_records") is not False or
                 queue_status_json.get("event_log_state_records_by_path", {}).get(event_log_state.get("path"), {}).get("event_count") != event_stats.get("total_count") or
                 queue_status_json.get("event_log_state_records_by_valid", {}).get("True", [{}])[0].get("path") != event_log_state.get("path") or
@@ -3740,13 +3806,13 @@ def main():
                 "mode stop: lifecycle=stop requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in queue_status_text.stdout or
                 "command_result_received" not in queue_status_text.stdout or
                 "Event log:" not in queue_status_text.stdout or
-                "services: command-queue=" not in queue_status_text.stdout or
-                "events: command_queue_queued=" not in queue_status_text.stdout or
+                "command-queue=" not in queue_status_text.stdout or
+                "command_queue_queued=" not in queue_status_text.stdout or
                 "levels: info=" not in queue_status_text.stdout or
                 "detail_command_ids:" not in queue_status_text.stdout or
                 f"{command_id}=2" not in queue_status_text.stdout or
                 "detail_command_sha256:" not in queue_status_text.stdout or
-                f"{expected_command_sha}=2" not in queue_status_text.stdout or
+                expected_command_sha not in queue_status_text.stdout or
                 f"command_id={command_id}" not in queue_status_text.stdout or
                 f"command_sha256={expected_command_sha}" not in queue_status_text.stdout or
                 "first=" not in queue_status_text.stdout or

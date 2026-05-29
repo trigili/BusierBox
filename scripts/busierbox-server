@@ -3086,12 +3086,22 @@ def set_workbench_build_config(cfg, assignment):
     path = build_config_path(cfg)
     old_value = parse_build_config(path).get("values", {}).get(key, "")
     write_build_config_value(path, key, value)
+    command = "scripts/busierbox-server --build-config " + shquote(str(path)) + " --set-build-config " + shquote(f"{key}={value}")
+    headless_command = (
+        "scripts/busierbox-server --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --build-config "
+        + shquote(str(path))
+        + " --set-build-config "
+        + shquote(f"{key}={value}")
+    )
     append_event(cfg, "workbench", "workbench_config_updated", details={
         "config_path": str(path),
         "key": key,
         "old_value": old_value,
         "new_value": value,
-        "command": "scripts/busierbox-server --build-config " + shquote(str(path)) + " --set-build-config " + shquote(f"{key}={value}"),
+        "command": command,
+        "headless_command": headless_command,
     })
     return {rec.get("key"): rec for rec in workbench_config_field_records(cfg)}.get(key, {"key": key, "value": value, "config_path": str(path)})
 
@@ -15086,8 +15096,17 @@ def run_line_tui(cfg):
                     print(f"underlying command: scripts/busierbox-server --build-config {shquote(str(build_config_path(cfg)))} --set-build-config {shquote(key + '=VALUE')}")
                     value_line = line_input("new value> ")
                     value = value_line if value_line is not None else ""
+                    headless = (
+                        "scripts/busierbox-server --config "
+                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                        + " --build-config "
+                        + shquote(str(build_config_path(cfg)))
+                        + " --set-build-config "
+                        + shquote(f"{key}={value}")
+                    )
                     updated = set_workbench_build_config(cfg, f"{key}={value}")
                     print(f"set {updated.get('key', key)}={shell_double_quote(updated.get('value', value))}")
+                    print(f"headless_command: {headless}")
                 except (ValueError, IndexError) as exc:
                     print(exc)
         elif choice == "r":

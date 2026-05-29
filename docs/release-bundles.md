@@ -1140,7 +1140,11 @@ shared shell assignment config.
 Operators can update supported keys with `--set-build-config KEY=VALUE`; fixed
 choice values are validated before writing. The line-oriented workbench shows
 the exact underlying command before writing the same config file that
-`scripts/menuconfig` and noninteractive builds consume. Background-capable
+`scripts/menuconfig` and noninteractive builds consume, then prints the exact
+equivalent headless `--config ... --build-config ... --set-build-config ...`
+command after a guided TUI edit succeeds. The matching `workbench_config_updated`
+event records both the direct build-config command and the full headless command
+for audit logs and future operator frontends. Background-capable
 workflow tasks are represented in `workbench_jobs` with start time, command, PID
 ownership metadata, log path, effective state, managed exit-status sidecars,
 finish time, outcome, log size, and a bounded last-output tail with explicit
