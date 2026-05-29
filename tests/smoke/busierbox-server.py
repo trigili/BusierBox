@@ -1840,6 +1840,7 @@ def main():
                 ("target_filter_records", len(queue_status_json.get("target_filter_records") or []), "target_filter_records_by_active"),
                 ("target_attribution_records", len(queue_status_json.get("target_attribution_records") or []), "target_attribution_records_by_scope"),
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
+                ("staged_files_state_records", len(queue_status_json.get("staged_files_state_records") or []), "staged_files_state_records_by_valid"),
                 ("command_copy_records", len(queue_status_json.get("command_copy_records") or []), "command_copy_records_by_has_command"),
                 ("command_queue_state_records", len(queue_status_json.get("command_queue_state_records") or []), "command_queue_state_records_by_valid"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
@@ -1895,6 +1896,9 @@ def main():
                 api_resources_by_name.get("target_attribution_records", {}).get("records_key") != "target_attribution_records" or
                 api_resources_by_summary_key.get("target_attribution_record_count", [{}])[0].get("name") != "target_attribution_records" or
                 not any(rec.get("name") == "target_attribution_records" for rec in api_resources_by_primary_key.get("scope", [])) or
+                api_resources_by_name.get("staged_files_state_records", {}).get("records_key") != "staged_files_state_records" or
+                api_resources_by_summary_key.get("staged_files_state_record_count", [{}])[0].get("name") != "staged_files_state_records" or
+                not any(rec.get("name") == "staged_files_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
                 api_resources_by_name.get("release_state_records", {}).get("records_key") != "release_state_records" or
                 api_resources_by_summary_key.get("release_state_record_count", [{}])[0].get("name") != "release_state_records" or
                 api_resources_by_primary_key.get("release_dir", [{}])[0].get("name") != "release_state_records" or
@@ -2068,8 +2072,14 @@ def main():
             return 1
         if (staged_files_state.get("path") != queue_status_json.get("staged_files") or
                 staged_files_state.get("exists") != staged_path_status.get("exists") or
+                staged_files_state.get("has_staged") != (staged_files_state.get("staged_count", 0) > 0) or
+                queue_status_json.get("staged_files_state_records_by_path", {}).get(staged_files_state.get("path"), {}).get("staged_count") != staged_files_state.get("staged_count") or
+                queue_status_json.get("staged_files_state_records_by_has_staged", {}).get(str(bool(staged_files_state.get("has_staged"))), [{}])[0].get("path") != staged_files_state.get("path") or
                 queue_status_json["summary"].get("staged_files_exists") != bool(staged_files_state.get("exists")) or
                 queue_status_json["summary"].get("staged_files_valid") != bool(staged_files_state.get("valid")) or
+                queue_status_json["summary"].get("staged_files_state_record_count") != 1 or
+                queue_status_json["summary"].get("staged_files_state_has_staged") != bool(staged_files_state.get("has_staged")) or
+                "staged_files_state_records_by_has_staged" not in ((queue_status_json.get("api_collections") or {}).get("staged_files_state_records") or {}).get("indexes", []) or
                 not isinstance(staged_files_state.get("request_names"), list)):
             print("server json status missing reusable staged-files state record", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
@@ -6839,9 +6849,15 @@ def main():
             return 1
         if (staged_files_state.get("valid") is not True or
                 staged_files_state.get("staged_count", 0) < 1 or
+                staged_files_state.get("has_staged") is not True or
                 "/tmp/myfile" not in staged_files_state.get("request_names", []) or
+                status_doc.get("staged_files_state_records_by_path", {}).get(staged_files_state.get("path"), {}).get("staged_count") != staged_files_state.get("staged_count") or
+                status_doc.get("staged_files_state_records_by_has_staged", {}).get("True", [{}])[0].get("path") != staged_files_state.get("path") or
+                "staged_files_state_records_by_schema" not in ((status_doc.get("api_collections") or {}).get("staged_files_state_records") or {}).get("indexes", []) or
                 staged_summary.get("staged_files_valid") is not True or
-                staged_summary.get("staged_files_state_count", 0) < 1):
+                staged_summary.get("staged_files_state_count", 0) < 1 or
+                staged_summary.get("staged_files_state_record_count") != 1 or
+                staged_summary.get("staged_files_state_has_staged") is not True):
             print("json status missing staged-files ledger state", file=sys.stderr)
             print(status_enriched.stdout, file=sys.stderr)
             return 1
