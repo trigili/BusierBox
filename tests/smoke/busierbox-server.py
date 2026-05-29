@@ -2367,6 +2367,145 @@ def main():
             print(expired_result.stdout, file=sys.stderr)
             print(expired_result.stderr, file=sys.stderr)
             return 1
+
+        failed_label = run(
+            "scripts/busierbox-server", "--config", str(expired_cfg),
+            "--set-target-label", "target-failed",
+            "--target-label", "Failed Router",
+        )
+        if failed_label.returncode != 0:
+            print("failed command target label setup failed", file=sys.stderr)
+            print(failed_label.stderr, file=sys.stderr)
+            return 1
+        failed_queue = run(
+            "scripts/busierbox-server", "--config", str(expired_cfg),
+            "--target-id", "target-failed",
+            "--queue-command", "busierbox survey --json",
+        )
+        if failed_queue.returncode != 0:
+            print("failed command queue setup failed", file=sys.stderr)
+            print(failed_queue.stdout, file=sys.stderr)
+            print(failed_queue.stderr, file=sys.stderr)
+            return 1
+        failed_doc = json.loads(expired_queue_file.read_text(encoding="utf-8"))
+        failed_id = next(rec["id"] for rec in failed_doc["commands"] if rec.get("target_id") == "target-failed")
+        failed_poll_server = subprocess.Popen(
+            ["scripts/busierbox-server", "--config", str(expired_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        failed_poll_response = connect_with_retry(expired_port, (
+            b"GET /command-queue/poll HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"X-BusierBox-Target-Id: target-failed\r\n"
+            b"X-BusierBox-Target-Label: Failed Router\r\n"
+            b"Connection: close\r\n\r\n"
+        ))
+        failed_poll_stdout, failed_poll_stderr = failed_poll_server.communicate(timeout=15)
+        if (failed_poll_server.returncode != 0 or
+                b"HTTP/1.1 200 OK" not in failed_poll_response or
+                failed_id.encode("ascii") not in failed_poll_response):
+            print("failed target command was not delivered before failed result", file=sys.stderr)
+            print(failed_poll_response.decode("utf-8", errors="replace"), file=sys.stderr)
+            print(failed_poll_stdout, file=sys.stderr)
+            print(failed_poll_stderr, file=sys.stderr)
+            return 1
+        failed_result = json.dumps({
+            "schema": 1,
+            "command_id": failed_id,
+            "status": "failed",
+            "exit_code": 23,
+            "stdout_bytes": 0,
+            "stderr_bytes": 11,
+        }).encode("utf-8")
+        failed_result_server = subprocess.Popen(
+            ["scripts/busierbox-server", "--config", str(expired_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        failed_result_response = connect_with_retry(expired_port, (
+            b"POST /command-queue/result HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"X-BusierBox-Target-Id: target-failed\r\n"
+            b"X-BusierBox-Target-Label: Failed Router\r\n"
+            b"Content-Length: " + str(len(failed_result)).encode("ascii") + b"\r\n"
+            b"Connection: close\r\n\r\n" + failed_result
+        ))
+        failed_result_stdout, failed_result_stderr = failed_result_server.communicate(timeout=15)
+        if (failed_result_server.returncode != 0 or
+                b"HTTP/1.1 200 OK" not in failed_result_response or
+                b'"result_status": "failed"' not in failed_result_response):
+            print("failed target command result upload failed", file=sys.stderr)
+            print(failed_result_response.decode("utf-8", errors="replace"), file=sys.stderr)
+            print(failed_result_stdout, file=sys.stderr)
+            print(failed_result_stderr, file=sys.stderr)
+            return 1
+        failed_expired_status = json.loads(run(
+            "scripts/busierbox-server", "--config", str(expired_cfg),
+            "--json-status",
+        ).stdout)
+        failed_mailbox = (failed_expired_status.get("target_mailbox_records_by_command_id") or {}).get(failed_id) or {}
+        if (failed_mailbox.get("status") != "result-received" or
+                failed_mailbox.get("result_status") != "failed" or
+                failed_mailbox.get("result_exit_code") != 23 or
+                failed_expired_status.get("summary", {}).get("target_mailbox_result_status_counts", {}).get("failed") != 1 or
+                ((failed_expired_status.get("target_mailbox_records_by_result_status") or {}).get("failed") or [{}])[0].get("command_id") != failed_id):
+            print("failed command result missing mailbox/API state", file=sys.stderr)
+            print(json.dumps(failed_expired_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        lifecycle_tui_master, lifecycle_tui_slave = pty.openpty()
+        try:
+            lifecycle_tui_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(expired_cfg),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=lifecycle_tui_slave,
+                stdout=lifecycle_tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(lifecycle_tui_slave)
+            lifecycle_tui_slave = -1
+            time.sleep(0.5)
+            os.write(lifecycle_tui_master, b"20\nq\n")
+            _lifecycle_tui_stdout, lifecycle_tui_stderr = lifecycle_tui_proc.communicate(timeout=8)
+            lifecycle_tui_output = b""
+            while True:
+                try:
+                    chunk = os.read(lifecycle_tui_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                lifecycle_tui_output += chunk
+        finally:
+            if lifecycle_tui_slave != -1:
+                os.close(lifecycle_tui_slave)
+            try:
+                os.close(lifecycle_tui_master)
+            except OSError:
+                pass
+        lifecycle_tui_text = lifecycle_tui_output.decode("utf-8", errors="replace")
+        if (lifecycle_tui_proc.returncode != 0 or
+                "Traceback" in (lifecycle_tui_stderr or "") or
+                "Target mailbox records:" not in lifecycle_tui_text or
+                f"{expired_id} target=target-expired state=online status=expired waiting_for=none expired=yes pending=no result=- exit=-" not in lifecycle_tui_text or
+                f"{failed_id} target=target-failed state=online status=result-received waiting_for=none expired=no pending=no result=failed exit=23" not in lifecycle_tui_text or
+                "expires=2000-01-01T00:00:01Z" not in lifecycle_tui_text or
+                "result_latency_sec=" not in lifecycle_tui_text):
+            print("line TUI command queue inspection missing failed/expired lifecycle state", file=sys.stderr)
+            print(lifecycle_tui_text, file=sys.stderr)
+            print(lifecycle_tui_stderr or "", file=sys.stderr)
+            return 1
         if (queue_summary.get("enabled") != "no" or
                 queue_summary.get("default_enabled") is not False or
                 queue_summary.get("allowed_commands") != "none" or
