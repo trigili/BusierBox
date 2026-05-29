@@ -2762,6 +2762,108 @@ def main():
             print("line TUI quit did not log workbench-owned service stop", file=sys.stderr)
             return 1
 
+        tui_sigterm_owned_port = free_port()
+        tui_sigterm_owned_operator_dir = Path(tmp) / "operator-session-tui-sigterm-owned"
+        tui_sigterm_owned_cfg = Path(tmp) / "server-config-tui-sigterm-owned.json"
+        tui_sigterm_owned_state = tui_sigterm_owned_operator_dir / "server-state.json"
+        tui_sigterm_owned_staged = tui_sigterm_owned_operator_dir / "staged-files.json"
+        tui_sigterm_owned_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "file_service_port": tui_sigterm_owned_port,
+            "session_root": str(Path(tmp) / "sessions-tui-sigterm-owned"),
+            "tls_cert": str(cert_path),
+            "tls_key": str(key_path),
+            "file_service_tls": "no",
+            "operator_session_dir": str(tui_sigterm_owned_operator_dir),
+        }), encoding="utf-8")
+        sigterm_owned_master, sigterm_owned_slave = pty.openpty()
+        try:
+            tui_sigterm_owned_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(tui_sigterm_owned_cfg),
+                    "--state-file", str(tui_sigterm_owned_state),
+                    "--staged-file", str(tui_sigterm_owned_staged),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=sigterm_owned_slave,
+                stdout=sigterm_owned_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(sigterm_owned_slave)
+            sigterm_owned_slave = -1
+            time.sleep(0.3)
+            os.write(sigterm_owned_master, b"4\n")
+            deadline = time.time() + 5
+            while time.time() < deadline:
+                tui_sigterm_owned_status = run(
+                    "scripts/busierbox-server", "--config", str(tui_sigterm_owned_cfg),
+                    "--state-file", str(tui_sigterm_owned_state),
+                    "--staged-file", str(tui_sigterm_owned_staged),
+                    "--json-status",
+                )
+                if tui_sigterm_owned_status.returncode == 0:
+                    tui_sigterm_owned_doc = json.loads(tui_sigterm_owned_status.stdout)
+                    tui_sigterm_owned_rows = {row["name"]: row for row in tui_sigterm_owned_doc["services"]}
+                    if tui_sigterm_owned_rows["file-service"]["actual"] == "listening":
+                        break
+                time.sleep(0.05)
+            else:
+                print("line TUI SIGTERM fixture did not start managed file-service", file=sys.stderr)
+                tui_sigterm_owned_proc.terminate()
+                tui_sigterm_owned_proc.communicate(timeout=2)
+                return 1
+            tui_sigterm_owned_proc.terminate()
+            _tui_sigterm_owned_stdout, tui_sigterm_owned_stderr = tui_sigterm_owned_proc.communicate(timeout=5)
+        finally:
+            if sigterm_owned_slave != -1:
+                os.close(sigterm_owned_slave)
+            try:
+                os.close(sigterm_owned_master)
+            except OSError:
+                pass
+        if tui_sigterm_owned_proc.returncode not in (0, 130, 143, -signal.SIGTERM) or "Traceback" in (tui_sigterm_owned_stderr or ""):
+            print("line TUI SIGTERM did not exit cleanly after starting managed service", file=sys.stderr)
+            print(tui_sigterm_owned_stderr or "", file=sys.stderr)
+            return 1
+        tui_sigterm_owned_after = run(
+            "scripts/busierbox-server", "--config", str(tui_sigterm_owned_cfg),
+            "--state-file", str(tui_sigterm_owned_state),
+            "--staged-file", str(tui_sigterm_owned_staged),
+            "--json-status",
+        )
+        tui_sigterm_owned_after_doc = json.loads(tui_sigterm_owned_after.stdout)
+        tui_sigterm_owned_after_rows = {row["name"]: row for row in tui_sigterm_owned_after_doc["services"]}
+        tui_sigterm_owned_services = tui_sigterm_owned_after_doc.get("server_state", {}).get("services", {})
+        if (tui_sigterm_owned_after_rows["file-service"]["actual"] == "listening" or
+                tui_sigterm_owned_services.get("file-service", {}).get("status") != "stopped" or
+                tui_sigterm_owned_services.get("file-service", {}).get("stopped_reason") != "workbench-stop:SIGTERM" or
+                tui_sigterm_owned_services.get("workbench", {}).get("stopped_reason") != "SIGTERM"):
+            print("line TUI SIGTERM did not stop services it started with SIGTERM state", file=sys.stderr)
+            print(tui_sigterm_owned_after.stdout, file=sys.stderr)
+            return 1
+        try:
+            with socket.create_connection(("127.0.0.1", tui_sigterm_owned_port), timeout=0.2):
+                print("line TUI SIGTERM-owned file-service port still listening", file=sys.stderr)
+                return 1
+        except (ConnectionRefusedError, TimeoutError, OSError):
+            pass
+        tui_sigterm_owned_events = [
+            json.loads(line) for line in (tui_sigterm_owned_operator_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        if not any(
+                event.get("service") == "file-service" and
+                event.get("event") == "service_stop" and
+                event.get("details", {}).get("via") == "workbench-stop" and
+                event.get("details", {}).get("reason") == "SIGTERM" and
+                event.get("details", {}).get("port_released") is True
+                for event in tui_sigterm_owned_events):
+            print("line TUI SIGTERM did not log workbench-owned service stop with port release", file=sys.stderr)
+            return 1
+
         tui_sigterm_operator_dir = Path(tmp) / "operator-session-tui-sigterm"
         tui_sigterm_cfg = Path(tmp) / "server-config-tui-sigterm.json"
         tui_sigterm_state = tui_sigterm_operator_dir / "server-state.json"

@@ -9876,15 +9876,28 @@ def stop_recorded_service(cfg, service):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     rec = (state.get("services") or {}).get(service, {})
     pid = rec.get("pid")
+    managed_by_current_workbench = str(rec.get("managed_by", "")) == str(os.getpid())
     if not pid:
         print(f"{service}: no recorded pid")
-        mark_service_stopped(cfg, service, "workbench-stop:no-pid")
-        append_event(cfg, service, "service_stop", details={"reason": "no-pid", "via": "workbench-stop"})
+        reason = SHUTDOWN_REASON if SHUTDOWN_REASON else "no-pid"
+        stopped_reason = f"workbench-stop:{reason}" if SHUTDOWN_REASON else "workbench-stop:no-pid"
+        details = {"reason": reason, "via": "workbench-stop"}
+        if SHUTDOWN_REASON:
+            details["port_released"] = wait_service_port_released(cfg, service, pid=pid, timeout=0.1)
+        mark_service_stopped(cfg, service, stopped_reason)
+        append_event(cfg, service, "service_stop", details=details)
         return
     if not pid_alive(pid):
         print(f"{service}: stale pid {pid}; marked stopped")
-        mark_service_stopped(cfg, service, "workbench-stop:stale-pid")
-        append_event(cfg, service, "service_stop", details={"pid": pid, "reason": "stale-pid", "via": "workbench-stop"})
+        reason = "stale-pid"
+        stopped_reason = "workbench-stop:stale-pid"
+        details = {"pid": pid, "reason": reason, "via": "workbench-stop"}
+        if SHUTDOWN_REASON and managed_by_current_workbench:
+            reason = SHUTDOWN_REASON
+            stopped_reason = f"workbench-stop:{SHUTDOWN_REASON}"
+            details.update({"reason": reason, "port_released": wait_service_port_released(cfg, service, pid=pid, timeout=0.1)})
+        mark_service_stopped(cfg, service, stopped_reason)
+        append_event(cfg, service, "service_stop", details=details)
         return
     ownership_evidence = managed_server_evidence(pid, cfg=cfg, rec=rec)
     if not ownership_evidence:
