@@ -506,12 +506,17 @@ def main():
                 bridge_status.get("summary", {}).get("target_workflow_action_count") != 8 or
                 bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("lab-http") != 1 or
                 bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("chain-http") != 1 or
+                bridge_status.get("summary", {}).get("target_workflow_action_requires_target_online_count") != 2 or
+                bridge_status.get("summary", {}).get("target_workflow_action_offline_supported_count") != 6 or
+                bridge_status.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 2 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_activity_count") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_profile_counts", {}).get("lab-http") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("closed") != 1 or
                 len(bridge_workflow_actions) != 8 or
                 bridge_action.get("target_id") != "target-bridge" or
                 bridge_action.get("workflow") != "bridge" or
+                bridge_action.get("requires_target_online") is not True or
+                bridge_action.get("offline_supported") is not False or
                 bridge_action.get("headless_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --transport bridge --bridge-profile lab-http" or
                 bridge_profile.get("target_id") != "target-bridge" or
                 bridge_profile.get("purpose") != "web-admin" or
@@ -528,6 +533,7 @@ def main():
                 bridge_profile.get("last_bytes_from_client", 0) < len(b"hello") or
                 bridge_profile.get("last_bytes_from_upstream", 0) < len(b"bridge:hello") or
                 "lab-http" not in [rec.get("name") for rec in ((bridge_status.get("bridge_profiles_by_target_id") or {}).get("target-bridge") or [])] or
+                ((bridge_status.get("target_workflow_actions_by_requires_target_online") or {}).get("True") or [{}])[0].get("workflow") != "bridge" or
                 "bridge_profiles_by_current_state" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 "bridge_profiles_by_hop_count" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 not bridge_events.get("workbench_bridge_profile_inspected") or
@@ -6083,6 +6089,10 @@ def main():
                 upload_summary.get("target_workflow_action_workflow_counts", {}).get("command-queue") != 1 or
                 upload_summary.get("target_workflow_action_workflow_counts", {}).get("file-service") != 2 or
                 upload_summary.get("target_workflow_action_requires_input_count") != 2 or
+                upload_summary.get("target_workflow_action_offline_supported_count") != 6 or
+                upload_summary.get("target_workflow_action_requires_target_online_count") != 0 or
+                upload_summary.get("target_workflow_action_queues_offline_work_count") != 2 or
+                upload_summary.get("target_workflow_action_target_phone_home_required_count") != 3 or
                 len(targets) != 1 or
                 target_alpha.get("label") != "Alpha Router" or
                 "lab-alpha" not in (target_alpha.get("aliases") or []) or
@@ -6095,10 +6105,15 @@ def main():
                 target_alpha.get("latest_session_id") != session_json_paths[0].parent.name or
                 len(alpha_workflow_actions) != 6 or
                 alpha_actions_by_action.get("queue-command", {}).get("headless_command") != f"scripts/busierbox-server --config {str(upload_cfg)} --target-id target-alpha --queue-command COMMAND" or
+                alpha_actions_by_action.get("queue-command", {}).get("queues_offline_work") is not True or
+                alpha_actions_by_action.get("queue-command", {}).get("target_phone_home_required") is not True or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("requires_input") is not True or
+                alpha_actions_by_action.get("stage-file-fetch", {}).get("queues_offline_work") is not True or
+                alpha_actions_by_action.get("stage-file-fetch", {}).get("offline_supported") is not True or
                 alpha_actions_by_action.get("inspect-status", {}).get("workflow") != "status" or
                 ((upload_doc.get("target_workflow_actions_by_workflow") or {}).get("command-queue") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("target_workflow_actions_by_requires_input") or {}).get("True") or [{}])[0].get("target_id") != "target-alpha" or
+                ((upload_doc.get("target_workflow_actions_by_queues_offline_work") or {}).get("True") or [{}])[0].get("target_id") != "target-alpha" or
                 "file-service" not in (target_alpha.get("services_seen") or []) or
                 "http-header" not in (target_alpha.get("identity_sources") or [])):
             print("server json status missing target ledger records", file=sys.stderr)
@@ -6113,6 +6128,8 @@ def main():
                 "targets_by_latest_file_transfer_operation" not in (target_api.get("indexes") or []) or
                 "targets_by_latest_file_transfer_status" not in (target_api.get("indexes") or []) or
                 "target_workflow_actions_by_target_id" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
+                "target_workflow_actions_by_queues_offline_work" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
+                "target_workflow_actions_by_requires_target_online" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
                 ((upload_doc.get("targets_by_identity_source") or {}).get("http-header") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("targets_by_latest_activity_service") or {}).get("file-service") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("targets_by_latest_activity_operation") or {}).get("upload") or [{}])[0].get("target_id") != "target-alpha" or
@@ -6211,6 +6228,8 @@ def main():
                 "headless_command: scripts/busierbox-server --config" not in line_text or
                 "--target-id target-action --status" not in line_text or
                 " --status" not in line_text or
+                "queues_offline_work=yes" not in line_text or
+                "offline=yes requires_online=no" not in line_text or
                 "mailbox queued=1 delivered=0 results=0 pending=1" not in line_text or
                 "Target workflow actions:" not in line_text):
             print("line TUI target detail did not show mailbox/activity and headless command", file=sys.stderr)
@@ -6244,8 +6263,11 @@ def main():
                 ) or
                 completed_by_action.get("stage-file-fetch", {}).get("request_name") != "action-staged.txt" or
                 completed_by_action.get("stage-file-fetch", {}).get("target_id") != "target-action" or
+                completed_by_action.get("stage-file-fetch", {}).get("queues_offline_work") is not True or
                 completed_by_action.get("queue-command", {}).get("command_id") != action_queue[0].get("id") or
                 completed_by_action.get("queue-command", {}).get("target_id") != "target-action" or
+                completed_by_action.get("queue-command", {}).get("queues_offline_work") is not True or
+                completed_by_action.get("queue-command", {}).get("target_phone_home_required") is not True or
                 "headless_command" not in completed_by_action.get("queue-command", {}) or
                 not any(
                     (event.get("details") or {}).get("target_id") == "target-action" and

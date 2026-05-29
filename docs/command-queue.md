@@ -357,7 +357,13 @@ same workflows a TUI should offer: inspect scoped status, open a scoped
 workbench, queue mailbox work, serve survey bootstrap, stage a file for target
 fetch, start the file service, and start any bridge profile tied to that target.
 Each action carries a `headless_command` so the TUI can show the exact CLI path
-instead of hiding automation behind an interactive-only flow.
+instead of hiding automation behind an interactive-only flow. Action records
+also expose `offline_supported`, `requires_target_online`,
+`queues_offline_work`, and `target_phone_home_required`, with matching status
+summary counts and lookup maps. TUI and API clients can use those fields to show
+which target workflows can be prepared while a target is offline, which bridge
+actions need the target online now, and which actions leave mailbox or staged
+work waiting for the next phone-home window.
 
 The same actions can be run headlessly or from the line-oriented TUI. For
 automation, use the stable action id:

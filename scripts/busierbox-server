@@ -3380,7 +3380,10 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             bridge_by_target.setdefault(target_id, []).append(profile)
     records = []
 
-    def add(target, action_id, category, label, command, workflow, requires_input=False, available=True, bridge_profile=""):
+    def add(target, action_id, category, label, command, workflow, requires_input=False,
+            available=True, bridge_profile="", offline_supported=True,
+            requires_target_online=False, queues_offline_work=False,
+            target_phone_home_required=False):
         target_id = str(target.get("target_id") or "")
         if not target_id:
             return
@@ -3398,6 +3401,10 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "requires_input": bool(requires_input),
             "available": bool(available),
             "bridge_profile": str(bridge_profile or ""),
+            "offline_supported": bool(offline_supported),
+            "requires_target_online": bool(requires_target_online),
+            "queues_offline_work": bool(queues_offline_work),
+            "target_phone_home_required": bool(target_phone_home_required),
             "execution_default": "show-command",
             "target_execution": False,
             "tui_visible": True,
@@ -3435,6 +3442,8 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             base + target_arg + " --queue-command COMMAND",
             "command-queue",
             requires_input=True,
+            queues_offline_work=True,
+            target_phone_home_required=True,
         )
         add(
             target,
@@ -3443,6 +3452,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "Serve survey bootstrap for this target",
             base + target_arg + " --transport survey-bootstrap",
             "survey-bootstrap",
+            target_phone_home_required=True,
         )
         add(
             target,
@@ -3452,6 +3462,8 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             base + target_arg + " --serve-file LOCAL_PATH --serve-as REQUEST_NAME",
             "file-service",
             requires_input=True,
+            queues_offline_work=True,
+            target_phone_home_required=True,
         )
         add(
             target,
@@ -3463,6 +3475,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
         )
         for profile in bridge_by_target.get(target_id) or []:
             profile_name = str(profile.get("name") or "")
+            requires_target_online = bool(profile.get("requires_target_online"))
             add(
                 target,
                 f"start-bridge:{profile_name}",
@@ -3472,6 +3485,8 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
                 "bridge",
                 available=bool(profile_name),
                 bridge_profile=profile_name,
+                offline_supported=not requires_target_online,
+                requires_target_online=requires_target_online,
             )
     records.sort(key=lambda rec: (rec.get("target_id", ""), rec.get("category", ""), rec.get("action_id", "")))
     return records
@@ -3486,6 +3501,10 @@ def target_workflow_action_indexes(records):
         "target_workflow_actions_by_workflow": records_by_key(records, "workflow"),
         "target_workflow_actions_by_available": records_by_key(records, "available"),
         "target_workflow_actions_by_requires_input": records_by_key(records, "requires_input"),
+        "target_workflow_actions_by_offline_supported": records_by_key(records, "offline_supported"),
+        "target_workflow_actions_by_requires_target_online": records_by_key(records, "requires_target_online"),
+        "target_workflow_actions_by_queues_offline_work": records_by_key(records, "queues_offline_work"),
+        "target_workflow_actions_by_target_phone_home_required": records_by_key(records, "target_phone_home_required"),
         "target_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
         "target_workflow_actions_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
     }
@@ -3499,8 +3518,16 @@ def target_workflow_action_summary(records):
         "workflow_counts": record_count_by_key(records, "workflow"),
         "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
         "requires_input_count": len([rec for rec in records or [] if rec.get("requires_input") is True]),
+        "offline_supported_count": len([rec for rec in records or [] if rec.get("offline_supported") is True]),
+        "requires_target_online_count": len([rec for rec in records or [] if rec.get("requires_target_online") is True]),
+        "queues_offline_work_count": len([rec for rec in records or [] if rec.get("queues_offline_work") is True]),
+        "target_phone_home_required_count": len([rec for rec in records or [] if rec.get("target_phone_home_required") is True]),
         "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
         "target_connectivity_state_counts": record_count_by_key(records, "target_connectivity_state"),
+        "offline_supported_counts": record_count_by_key(records, "offline_supported"),
+        "requires_target_online_counts": record_count_by_key(records, "requires_target_online"),
+        "queues_offline_work_counts": record_count_by_key(records, "queues_offline_work"),
+        "target_phone_home_required_counts": record_count_by_key(records, "target_phone_home_required"),
     }
 
 
@@ -11997,11 +12024,19 @@ def status_document(cfg):
         "target_workflow_action_count": target_workflow_action_stats.get("total_count", 0),
         "target_workflow_action_available_count": target_workflow_action_stats.get("available_count", 0),
         "target_workflow_action_requires_input_count": target_workflow_action_stats.get("requires_input_count", 0),
+        "target_workflow_action_offline_supported_count": target_workflow_action_stats.get("offline_supported_count", 0),
+        "target_workflow_action_requires_target_online_count": target_workflow_action_stats.get("requires_target_online_count", 0),
+        "target_workflow_action_queues_offline_work_count": target_workflow_action_stats.get("queues_offline_work_count", 0),
+        "target_workflow_action_target_phone_home_required_count": target_workflow_action_stats.get("target_phone_home_required_count", 0),
         "target_workflow_action_target_counts": target_workflow_action_stats.get("target_counts") or {},
         "target_workflow_action_category_counts": target_workflow_action_stats.get("category_counts") or {},
         "target_workflow_action_workflow_counts": target_workflow_action_stats.get("workflow_counts") or {},
         "target_workflow_action_bridge_profile_counts": target_workflow_action_stats.get("bridge_profile_counts") or {},
         "target_workflow_action_connectivity_state_counts": target_workflow_action_stats.get("target_connectivity_state_counts") or {},
+        "target_workflow_action_offline_supported_counts": target_workflow_action_stats.get("offline_supported_counts") or {},
+        "target_workflow_action_requires_target_online_counts": target_workflow_action_stats.get("requires_target_online_counts") or {},
+        "target_workflow_action_queues_offline_work_counts": target_workflow_action_stats.get("queues_offline_work_counts") or {},
+        "target_workflow_action_target_phone_home_required_counts": target_workflow_action_stats.get("target_phone_home_required_counts") or {},
         "event_count": event_summary_stats["total_count"],
         "event_log_total_count": event_stats["total_count"],
         "event_log_exists": bool(event_log_state.get("exists", False)),
@@ -12412,6 +12447,10 @@ def status_document(cfg):
                 "target_workflow_actions_by_workflow",
                 "target_workflow_actions_by_available",
                 "target_workflow_actions_by_requires_input",
+                "target_workflow_actions_by_offline_supported",
+                "target_workflow_actions_by_requires_target_online",
+                "target_workflow_actions_by_queues_offline_work",
+                "target_workflow_actions_by_target_phone_home_required",
                 "target_workflow_actions_by_bridge_profile",
                 "target_workflow_actions_by_target_connectivity_state",
             ), "target_workflow_action_count",
@@ -13700,10 +13739,13 @@ def print_workbench_action_summary(doc):
         "Target workflow action summary: "
         f"total={summary.get('target_workflow_action_count', 0)} "
         f"available={summary.get('target_workflow_action_available_count', 0)} "
-        f"requires_input={summary.get('target_workflow_action_requires_input_count', 0)}"
+        f"requires_input={summary.get('target_workflow_action_requires_input_count', 0)} "
+        f"offline_supported={summary.get('target_workflow_action_offline_supported_count', 0)} "
+        f"requires_online={summary.get('target_workflow_action_requires_target_online_count', 0)}"
     )
     print(f"  target workflow categories: {format_counts(summary.get('target_workflow_action_category_counts') or {})}")
     print(f"  target workflows: {format_counts(summary.get('target_workflow_action_workflow_counts') or {})}")
+    print(f"  offline work: {format_counts(summary.get('target_workflow_action_queues_offline_work_counts') or {})}")
 
 
 def print_workbench_job_summary(doc):
@@ -14215,11 +14257,14 @@ def print_status(cfg, json_output=False):
         for rec in doc.get("target_workflow_actions") or []:
             requires_input = "yes" if rec.get("requires_input") else "no"
             available = "yes" if rec.get("available") else "no"
+            offline = "yes" if rec.get("offline_supported") else "no"
+            requires_online = "yes" if rec.get("requires_target_online") else "no"
             bridge = f" bridge_profile={rec.get('bridge_profile', '')}" if rec.get("bridge_profile") else ""
             print(
                 f"  {rec.get('id', '')} target={rec.get('target_id', '')} "
                 f"category={rec.get('category', '')} workflow={rec.get('workflow', '')} "
-                f"available={available} input={requires_input}{bridge}"
+                f"available={available} input={requires_input} offline={offline} "
+                f"requires_online={requires_online}{bridge}"
             )
             print(f"    {rec.get('headless_command', rec.get('command', ''))}")
     print_workbench_job_summary(doc)
@@ -14558,11 +14603,14 @@ def print_workbench(cfg, include_api_summary=True):
         for rec in actions[:3]:
             requires_input = "yes" if rec.get("requires_input") else "no"
             available = "yes" if rec.get("available") else "no"
+            offline = "yes" if rec.get("offline_supported") else "no"
+            requires_online = "yes" if rec.get("requires_target_online") else "no"
             bridge = f" bridge_profile={rec.get('bridge_profile', '')}" if rec.get("bridge_profile") else ""
             print(
                 f"  {rec.get('id', '')} target={rec.get('target_id', '')} "
                 f"category={rec.get('category', '')} workflow={rec.get('workflow', '')} "
-                f"available={available} input={requires_input}{bridge}"
+                f"available={available} input={requires_input} offline={offline} "
+                f"requires_online={requires_online}{bridge}"
             )
             print(f"    {rec.get('headless_command', rec.get('command', ''))}")
         if len(actions) > 3:
@@ -14853,6 +14901,10 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         "category": rec.get("category", ""),
         "requires_input": bool(rec.get("requires_input")),
         "headless_command": rec.get("headless_command", rec.get("command", "")),
+        "offline_supported": bool(rec.get("offline_supported")),
+        "requires_target_online": bool(rec.get("requires_target_online")),
+        "queues_offline_work": bool(rec.get("queues_offline_work")),
+        "target_phone_home_required": bool(rec.get("target_phone_home_required")),
     })
     print(f"target workflow action: {rec.get('id', '')}")
     print(f"headless_command={rec.get('headless_command', rec.get('command', ''))}")
@@ -14880,6 +14932,10 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             "workflow": rec.get("workflow", ""),
             "category": rec.get("category", ""),
             "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "offline_supported": bool(rec.get("offline_supported")),
+            "requires_target_online": bool(rec.get("requires_target_online")),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
             "result": "queued-command",
             "command_id": queued.get("id", ""),
             "command_sha256": queued.get("command_sha256", ""),
@@ -14910,6 +14966,10 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             "workflow": rec.get("workflow", ""),
             "category": rec.get("category", ""),
             "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "offline_supported": bool(rec.get("offline_supported")),
+            "requires_target_online": bool(rec.get("requires_target_online")),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
             "result": "staged-file-fetch",
             "request_name": staged.get("request_name", ""),
             "source_path": staged.get("source_path", ""),
@@ -14926,6 +14986,10 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             "workflow": rec.get("workflow", ""),
             "category": rec.get("category", ""),
             "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "offline_supported": bool(rec.get("offline_supported")),
+            "requires_target_online": bool(rec.get("requires_target_online")),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
             "result": "started-service",
             "service": "file-service",
         })
@@ -14940,6 +15004,10 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             "workflow": rec.get("workflow", ""),
             "category": rec.get("category", ""),
             "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "offline_supported": bool(rec.get("offline_supported")),
+            "requires_target_online": bool(rec.get("requires_target_online")),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
             "result": "started-service",
             "service": "survey-bootstrap",
         })
@@ -14957,6 +15025,10 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             "workflow": rec.get("workflow", ""),
             "category": rec.get("category", ""),
             "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "offline_supported": bool(rec.get("offline_supported")),
+            "requires_target_online": bool(rec.get("requires_target_online")),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
             "result": "started-service",
             "service": "bridge",
             "bridge_profile": profile,
@@ -15246,7 +15318,13 @@ def run_line_tui(cfg):
             for idx, rec in enumerate(snap.get("target_workflow_actions") or [], 1):
                 print(f"target {idx}: {rec.get('id', '')} {rec.get('label', '')}")
                 print(f"   command: {rec.get('headless_command', rec.get('command', ''))}")
-                print(f"   target={rec.get('target_id', '')} category={rec.get('category', '')} workflow={rec.get('workflow', '')} input={'yes' if rec.get('requires_input') else 'no'}")
+                print(
+                    f"   target={rec.get('target_id', '')} category={rec.get('category', '')} "
+                    f"workflow={rec.get('workflow', '')} input={'yes' if rec.get('requires_input') else 'no'} "
+                    f"offline={'yes' if rec.get('offline_supported') else 'no'} "
+                    f"requires_online={'yes' if rec.get('requires_target_online') else 'no'} "
+                    f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'}"
+                )
             append_event(cfg, "workbench", "workbench_actions_viewed", details={
                 "headless_command": headless,
                 "action_count": len(snap.get("workbench_actions") or []),
@@ -15540,6 +15618,11 @@ def run_line_tui(cfg):
                     for idx, rec in enumerate(actions[:8], 1):
                         print(f"  {idx}: {rec.get('id', '')} {rec.get('label', '')}")
                         print(f"     command: {rec.get('headless_command', rec.get('command', ''))}")
+                        print(
+                            f"     offline={'yes' if rec.get('offline_supported') else 'no'} "
+                            f"requires_online={'yes' if rec.get('requires_target_online') else 'no'} "
+                            f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'}"
+                        )
                 append_event(cfg, "workbench", "workbench_target_inspected", details={
                     "target_id": target_id,
                     "target_label": target_label,
