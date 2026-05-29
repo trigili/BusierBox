@@ -8600,6 +8600,55 @@ def status_document(cfg):
     target_summary = target_record_summary(targets)
     selected_target = dict(targets_by_id.get(target_filter_id) or {}) if target_filter_id else {}
     selected_target_sources = selected_target.get("identity_sources") or []
+    target_registry_state_record = {
+        "id": "target-registry",
+        "target_count": int_value(target_summary.get("target_count", 0)),
+        "unfiltered_target_count": int_value(unfiltered_counts.get("targets", 0)),
+        "filter_active": bool(target_filter_id),
+        "filter_target_id": target_filter_id,
+        "selected_target_found": bool(selected_target),
+        "selected_target_label": str(selected_target.get("label") or ""),
+        "selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
+        "selected_target_identity_source_count": len(selected_target_sources),
+        "selected_target_alias_count": len(selected_target.get("aliases") or []),
+        "selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
+        "latest_target_id": str(target_summary.get("latest_target_id") or ""),
+        "latest_target_label": str(target_summary.get("latest_target_label") or ""),
+        "latest_target_seen_at": str(target_summary.get("latest_target_seen_at") or ""),
+        "remote_address_count": int_value(target_summary.get("target_remote_address_count", 0)),
+        "notes_count": int_value(target_summary.get("target_notes_count", 0)),
+        "without_notes_count": int_value(target_summary.get("target_without_notes_count", 0)),
+        "identity_confidence_counts": target_summary.get("target_identity_confidence_counts") or {},
+        "identity_source_counts": target_summary.get("target_identity_source_counts") or {},
+        "service_counts": target_summary.get("target_service_counts") or {},
+        "latest_activity_service_counts": target_summary.get("target_latest_activity_service_counts") or {},
+        "latest_activity_operation_counts": target_summary.get("target_latest_activity_operation_counts") or {},
+        "capability_report_count": int_value(target_summary.get("target_capability_report_count", 0)),
+    }
+    target_registry_state_record.update({
+        "has_targets": target_registry_state_record.get("target_count", 0) > 0,
+        "has_unfiltered_targets": target_registry_state_record.get("unfiltered_target_count", 0) > 0,
+        "has_selected_target": bool(selected_target),
+        "has_latest_activity": bool(
+            target_registry_state_record.get("latest_activity_service_counts") or
+            target_registry_state_record.get("latest_activity_operation_counts")
+        ),
+        "has_identity_sources": bool(target_registry_state_record.get("identity_source_counts")),
+        "has_capability_reports": target_registry_state_record.get("capability_report_count", 0) > 0,
+    })
+    target_registry_state_records = [target_registry_state_record]
+    target_registry_state_index_maps = {
+        "target_registry_state_records_by_id": {rec.get("id", ""): rec for rec in target_registry_state_records if rec.get("id")},
+        "target_registry_state_records_by_has_targets": records_by_key(target_registry_state_records, "has_targets"),
+        "target_registry_state_records_by_has_unfiltered_targets": records_by_key(target_registry_state_records, "has_unfiltered_targets"),
+        "target_registry_state_records_by_filter_active": records_by_key(target_registry_state_records, "filter_active"),
+        "target_registry_state_records_by_filter_target_id": records_by_key(target_registry_state_records, "filter_target_id"),
+        "target_registry_state_records_by_selected_target_found": records_by_key(target_registry_state_records, "selected_target_found"),
+        "target_registry_state_records_by_selected_target_identity_confidence": records_by_key(target_registry_state_records, "selected_target_identity_confidence"),
+        "target_registry_state_records_by_has_latest_activity": records_by_key(target_registry_state_records, "has_latest_activity"),
+        "target_registry_state_records_by_has_identity_sources": records_by_key(target_registry_state_records, "has_identity_sources"),
+        "target_registry_state_records_by_has_capability_reports": records_by_key(target_registry_state_records, "has_capability_reports"),
+    }
     sessions = recent_session_records(cfg)
     unfiltered_counts["sessions"] = len(sessions)
     if target_filter_id:
@@ -9505,6 +9554,13 @@ def status_document(cfg):
         "fetch_http_status_remote_counts": {key: len(value) for key, value in fetches_by_http_status_remote_addr.items()},
         "latest_fetch_at": latest_record_value(fetches, ("timestamp", "updated_at")),
         **target_summary,
+        "target_registry_state_record_count": len(target_registry_state_records),
+        "target_registry_has_targets": bool(target_registry_state_record.get("has_targets", False)),
+        "target_registry_has_unfiltered_targets": bool(target_registry_state_record.get("has_unfiltered_targets", False)),
+        "target_registry_has_selected_target": bool(target_registry_state_record.get("has_selected_target", False)),
+        "target_registry_has_latest_activity": bool(target_registry_state_record.get("has_latest_activity", False)),
+        "target_registry_has_identity_sources": bool(target_registry_state_record.get("has_identity_sources", False)),
+        "target_registry_has_capability_reports": bool(target_registry_state_record.get("has_capability_reports", False)),
         "target_filter_active": bool(target_filter_id),
         "target_filter_id": target_filter_id,
         "target_filter_unfiltered_target_count": unfiltered_counts.get("targets", 0),
@@ -9992,6 +10048,20 @@ def status_document(cfg):
                 "targets_by_observed_constraint",
             ), "target_count",
         ),
+        "target_registry_state_records": api_collection_record(
+            "target_registry_state_records", target_registry_state_records, "id", (
+                "target_registry_state_records_by_id",
+                "target_registry_state_records_by_has_targets",
+                "target_registry_state_records_by_has_unfiltered_targets",
+                "target_registry_state_records_by_filter_active",
+                "target_registry_state_records_by_filter_target_id",
+                "target_registry_state_records_by_selected_target_found",
+                "target_registry_state_records_by_selected_target_identity_confidence",
+                "target_registry_state_records_by_has_latest_activity",
+                "target_registry_state_records_by_has_identity_sources",
+                "target_registry_state_records_by_has_capability_reports",
+            ), "target_registry_state_record_count",
+        ),
         "target_filter_records": api_collection_record(
             "target_filter_records", target_filter_records, "id", (
                 "target_filter_records_by_id",
@@ -10473,6 +10543,8 @@ def status_document(cfg):
         "target_commands_by_retry_post_disconnect_count": target_commands_by_retry_post_disconnect_count,
         "targets": targets,
         "target_summary": target_summary,
+        "target_registry_state_records": target_registry_state_records,
+        **target_registry_state_index_maps,
         "targets_by_id": targets_by_id,
         "targets_by_label": targets_by_label,
         "targets_by_alias": targets_by_alias,

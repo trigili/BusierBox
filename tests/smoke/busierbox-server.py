@@ -1865,6 +1865,7 @@ def main():
                 ("operator_network_records", len(queue_status_json.get("operator_network_records") or []), "operator_network_records_by_selected"),
                 ("browser_paths", len(browser_paths), "browser_paths_by_expected_kind_mismatch"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
+                ("target_registry_state_records", len(queue_status_json.get("target_registry_state_records") or []), "target_registry_state_records_by_has_targets"),
                 ("target_filter_records", len(queue_status_json.get("target_filter_records") or []), "target_filter_records_by_active"),
                 ("target_attribution_records", len(queue_status_json.get("target_attribution_records") or []), "target_attribution_records_by_scope"),
                 ("target_command_state_records", len(queue_status_json.get("target_command_state_records") or []), "target_command_state_records_by_safe_explicit_target_action_boundary"),
@@ -1927,6 +1928,9 @@ def main():
                 api_resources_by_name.get("operator_network_records", {}).get("records_key") != "operator_network_records" or
                 api_resources_by_summary_key.get("operator_network_record_count", [{}])[0].get("name") != "operator_network_records" or
                 not any(rec.get("name") == "operator_network_records" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("target_registry_state_records", {}).get("records_key") != "target_registry_state_records" or
+                api_resources_by_summary_key.get("target_registry_state_record_count", [{}])[0].get("name") != "target_registry_state_records" or
+                not any(rec.get("name") == "target_registry_state_records" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("target_filter_records", {}).get("records_key") != "target_filter_records" or
                 api_resources_by_summary_key.get("target_filter_record_count", [{}])[0].get("name") != "target_filter_records" or
                 not any(rec.get("name") == "target_filter_records" for rec in api_resources_by_primary_key.get("id", [])) or
@@ -5298,7 +5302,22 @@ def main():
             "--config", str(upload_cfg),
             "--json-status",
         ).stdout)
+        multi_target_registry = (multi_target_doc.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}
         if (multi_target_doc.get("summary", {}).get("target_count") != 2 or
+                multi_target_registry.get("target_count") != 2 or
+                multi_target_registry.get("unfiltered_target_count") != 2 or
+                multi_target_registry.get("has_targets") is not True or
+                multi_target_registry.get("filter_active") is not False or
+                multi_target_registry.get("selected_target_found") is not False or
+                multi_target_registry.get("has_identity_sources") is not True or
+                multi_target_registry.get("has_latest_activity") is not True or
+                multi_target_registry.get("identity_confidence_counts", {}).get("explicit") != 2 or
+                multi_target_registry.get("latest_activity_service_counts", {}).get("file-service") != 2 or
+                multi_target_doc.get("summary", {}).get("target_registry_state_record_count") != 1 or
+                multi_target_doc.get("summary", {}).get("target_registry_has_targets") is not True or
+                multi_target_doc.get("summary", {}).get("target_registry_has_identity_sources") is not True or
+                multi_target_doc.get("target_registry_state_records_by_has_targets", {}).get("True", [{}])[0].get("id") != "target-registry" or
+                "target_registry_state_records_by_selected_target_found" not in ((multi_target_doc.get("api_collections") or {}).get("target_registry_state_records") or {}).get("indexes", []) or
                 multi_target_doc.get("summary", {}).get("upload_target_counts", {}).get("target-alpha") != 1 or
                 multi_target_doc.get("summary", {}).get("upload_target_counts", {}).get("target-bravo") != 1 or
                 (multi_target_doc.get("targets_by_id") or {}).get("target-alpha", {}).get("label") != "Alpha Router Renamed" or
@@ -5320,8 +5339,19 @@ def main():
             "--target-id", "target-alpha",
             "--json-status",
         ).stdout)
+        filtered_alpha_registry = (filtered_alpha.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}
         if (filtered_alpha.get("target_filter", {}).get("target_id") != "target-alpha" or
                 filtered_alpha.get("target_filter", {}).get("active") is not True or
+                filtered_alpha_registry.get("target_count") != 1 or
+                filtered_alpha_registry.get("unfiltered_target_count") != 2 or
+                filtered_alpha_registry.get("filter_active") is not True or
+                filtered_alpha_registry.get("filter_target_id") != "target-alpha" or
+                filtered_alpha_registry.get("selected_target_found") is not True or
+                filtered_alpha_registry.get("selected_target_label") != "Alpha Router Renamed" or
+                filtered_alpha_registry.get("selected_target_identity_confidence") != "explicit" or
+                filtered_alpha_registry.get("selected_target_notes_present") is not True or
+                filtered_alpha.get("target_registry_state_records_by_filter_active", {}).get("True", [{}])[0].get("id") != "target-registry" or
+                filtered_alpha.get("summary", {}).get("target_registry_has_selected_target") is not True or
                 filtered_alpha.get("target_filter", {}).get("selected_target_found") is not True or
                 filtered_alpha.get("target_filter", {}).get("selected_target_label") != "Alpha Router Renamed" or
                 filtered_alpha.get("target_filter", {}).get("selected_target_identity_confidence") != "explicit" or
@@ -5369,8 +5399,17 @@ def main():
             item for item in filtered_unknown.get("warnings", [])
             if item.get("type") == "unknown_target_filter"
         ]
+        filtered_unknown_registry = (filtered_unknown.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}
         if (filtered_unknown.get("target_filter", {}).get("target_id") != "target-missing" or
                 filtered_unknown.get("target_filter", {}).get("active") is not True or
+                filtered_unknown_registry.get("target_count") != 0 or
+                filtered_unknown_registry.get("unfiltered_target_count") != 2 or
+                filtered_unknown_registry.get("filter_active") is not True or
+                filtered_unknown_registry.get("filter_target_id") != "target-missing" or
+                filtered_unknown_registry.get("selected_target_found") is not False or
+                filtered_unknown_registry.get("has_targets") is not False or
+                filtered_unknown_registry.get("has_unfiltered_targets") is not True or
+                filtered_unknown.get("target_registry_state_records_by_selected_target_found", {}).get("False", [{}])[0].get("id") != "target-registry" or
                 filtered_unknown.get("target_filter", {}).get("selected_target_found") is not False or
                 filtered_unknown.get("target_filter", {}).get("selected_target") != {} or
                 filtered_unknown.get("target_filter", {}).get("selected_target_label") != "" or
