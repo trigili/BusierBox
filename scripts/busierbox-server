@@ -5767,6 +5767,7 @@ def stage_release_selection(cfg, selector):
 def render_fetch_command(request_name, cfg, host=None, force=False):
     candidates = local_ips()
     host = host or (candidates[0] if candidates else "OPERATOR_IP")
+    target_ctx = selected_target_context(cfg)
     cmd = [
         "busierbox",
         "fetch",
@@ -5780,12 +5781,17 @@ def render_fetch_command(request_name, cfg, host=None, force=False):
         cmd.append("--no-tls")
     if force:
         cmd.append("--force")
+    if target_ctx.get("target_id"):
+        cmd.extend(["--target-id", target_ctx.get("target_id", "")])
+    if target_ctx.get("target_label"):
+        cmd.extend(["--target-label", target_ctx.get("target_label", "")])
     return " ".join(shquote(part) for part in cmd)
 
 
 def render_file_service_command(parts, cfg, host=None):
     candidates = local_ips()
     host = host or (candidates[0] if candidates else "OPERATOR_IP")
+    target_ctx = selected_target_context(cfg)
     cmd = [
         "./busierbox",
         *parts,
@@ -5796,6 +5802,10 @@ def render_file_service_command(parts, cfg, host=None):
     ]
     if not yes(cfg.get("file_service_tls", "yes")):
         cmd.append("--no-tls")
+    if target_ctx.get("target_id"):
+        cmd.extend(["--target-id", target_ctx.get("target_id", "")])
+    if target_ctx.get("target_label"):
+        cmd.extend(["--target-label", target_ctx.get("target_label", "")])
     return " ".join(shquote(part) for part in cmd)
 
 
@@ -10085,7 +10095,11 @@ def generated_target_command_records(cfg, staged=None):
         record["ordinal"] = idx
         record["copy_supported"] = bool(command)
         record["copy_selector"] = str(idx)
-        record["copy_command"] = f"scripts/busierbox-server --copy-target-command {idx}"
+        copy_cmd = ["scripts/busierbox-server"]
+        if configured_target_filter(cfg):
+            copy_cmd.extend(["--target-id", configured_target_filter(cfg)])
+        copy_cmd.extend(["--copy-target-command", str(idx)])
+        record["copy_command"] = " ".join(shquote(part) for part in copy_cmd)
         record["command_sha256"] = hashlib.sha256(command.encode("utf-8")).hexdigest() if command else ""
     return records
 

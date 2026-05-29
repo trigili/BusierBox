@@ -4948,6 +4948,9 @@ def main():
                 scoped_doc.get("summary", {}).get("command_queue_target_counts", {}).get("target-bravo") != 1 or
                 (scoped_doc.get("command_queue") or {}).get("commands_by_target_id", {}).get("target-bravo", [{}])[0].get("command") != "busierbox survey" or
                 scoped_doc.get("summary", {}).get("target_command_target_counts", {}).get("target-bravo", 0) < 1 or
+                not any("--target-id target-bravo" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or
+                not any("--target-label 'Bravo Router'" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or
+                not any("--target-id target-bravo --copy-target-command" in str(rec.get("copy_command", "")) for rec in scoped_doc.get("target_command_records") or []) or
                 "target_commands_by_target_id" not in ((scoped_doc.get("api_collections") or {}).get("target_command_records") or {}).get("indexes", []) or
                 "staged_by_target_id" not in ((scoped_doc.get("api_collections") or {}).get("staged_records") or {}).get("indexes", []) or
                 "commands_by_target_id" not in ((scoped_doc.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", [])):

@@ -41,6 +41,8 @@ struct upload_opts {
     const char *tls;
     const char *dest;
     const char *method;
+    const char *target_id;
+    const char *target_label;
     int quiet;
 };
 
@@ -329,6 +331,8 @@ static int parse_common_opts(int argc, char **argv, struct upload_opts *opts)
     opts->tls = BB_OPERATOR_FILE_SERVICE_TLS;
     opts->dest = NULL;
     opts->method = "PUT";
+    opts->target_id = NULL;
+    opts->target_label = NULL;
     opts->quiet = 0;
 
     for (i = 0; i < argc; i++) {
@@ -360,6 +364,18 @@ static int parse_common_opts(int argc, char **argv, struct upload_opts *opts)
             opts->dest = argv[i];
         } else if (!strcmp(argv[i], "--post")) {
             opts->method = "POST";
+        } else if (!strcmp(argv[i], "--target-id")) {
+            if (++i >= argc) {
+                fputs("upload: --target-id requires a value\n", stderr);
+                return -1;
+            }
+            opts->target_id = argv[i];
+        } else if (!strcmp(argv[i], "--target-label")) {
+            if (++i >= argc) {
+                fputs("upload: --target-label requires a value\n", stderr);
+                return -1;
+            }
+            opts->target_label = argv[i];
         } else if (!strcmp(argv[i], "--quiet") || !strcmp(argv[i], "-q")) {
             opts->quiet = 1;
         } else {
@@ -376,6 +392,7 @@ int bb_operator_upload_file(const char *path, const char *source_path, const cha
     struct upload_opts opts;
     struct stat st;
     char source[512], url_name[128], header[8192];
+    char target_id[256], target_label[256], target_headers[768];
     int fd, sock, status;
 
     if (parse_common_opts(argc, argv, &opts) != 0)
@@ -396,6 +413,15 @@ int bb_operator_upload_file(const char *path, const char *source_path, const cha
     }
     clean_header_value(source_path && *source_path ? source_path : path, source, sizeof(source));
     clean_url_part(opts.dest ? opts.dest : path_basename(source), url_name, sizeof(url_name));
+    clean_header_value(opts.target_id, target_id, sizeof(target_id));
+    clean_header_value(opts.target_label, target_label, sizeof(target_label));
+    target_headers[0] = '\0';
+    if (target_id[0])
+        snprintf(target_headers + strlen(target_headers), sizeof(target_headers) - strlen(target_headers),
+                 "X-BusierBox-Target-Id: %s\r\n", target_id);
+    if (target_label[0])
+        snprintf(target_headers + strlen(target_headers), sizeof(target_headers) - strlen(target_headers),
+                 "X-BusierBox-Target-Label: %s\r\n", target_label);
     snprintf(header, sizeof(header),
              "%s /upload/%s HTTP/1.1\r\n"
              "Host: %s\r\n"
@@ -407,10 +433,11 @@ int bb_operator_upload_file(const char *path, const char *source_path, const cha
              "X-BusierBox-Uid: %ld\r\n"
              "X-BusierBox-Gid: %ld\r\n"
              "X-BusierBox-Mode: %04o\r\n"
+             "%s"
              "Connection: close\r\n\r\n",
              opts.method, url_name, opts.host, (long long)st.st_size,
              kind && *kind ? kind : "file", source, (long)st.st_uid, (long)st.st_gid,
-             (unsigned int)(st.st_mode & 07777));
+             (unsigned int)(st.st_mode & 07777), target_headers);
 
     sock = tcp_connect_host(opts.host, opts.port);
     if (sock < 0) {
@@ -445,8 +472,8 @@ int bb_operator_upload_file(const char *path, const char *source_path, const cha
 
 static void usage(void)
 {
-    puts("usage: busierbox put PATH [--host HOST] [--port PORT] [--tls yes|no] [--dest NAME]");
-    puts("       busierbox upload PATH [--host HOST] [--port PORT] [--tls yes|no] [--dest NAME]");
+    puts("usage: busierbox put PATH [--host HOST] [--port PORT] [--tls yes|no] [--dest NAME] [--target-id ID] [--target-label LABEL]");
+    puts("       busierbox upload PATH [--host HOST] [--port PORT] [--tls yes|no] [--dest NAME] [--target-id ID] [--target-label LABEL]");
     puts("Upload a local target file to the receive-only operator file service.");
 }
 
@@ -526,7 +553,7 @@ static int write_evidence_json(FILE *out)
 
 static void config_push_usage(void)
 {
-    puts("usage: busierbox config-push [--host HOST] [--port PORT] [--tls yes|no]");
+    puts("usage: busierbox config-push [--host HOST] [--port PORT] [--tls yes|no] [--target-id ID] [--target-label LABEL]");
     puts("Generate effective config JSON and upload it to the receive-only operator file service.");
 }
 

@@ -30,20 +30,65 @@ static int wait_status_ok(pid_t pid)
     return WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
-static int run_downloader(const char *tool, const char *url, const char *out, int tls)
+static void clean_header_value(const char *in, char *out, size_t outsz)
+{
+    size_t i, j = 0;
+    if (!outsz)
+        return;
+    for (i = 0; in && in[i] && j + 1 < outsz; i++) {
+        if (in[i] == '\r' || in[i] == '\n')
+            continue;
+        out[j++] = in[i];
+    }
+    out[j] = '\0';
+}
+
+static int run_downloader(const char *tool, const char *url, const char *out, int tls,
+                          const char *target_id, const char *target_label)
 {
     pid_t pid = fork();
     if (pid < 0)
         return -1;
     if (pid == 0) {
+        char id_header[320], label_header[320];
+        int have_id = target_id && target_id[0];
+        int have_label = target_label && target_label[0];
+        if (have_id)
+            snprintf(id_header, sizeof(id_header), "X-BusierBox-Target-Id: %s", target_id);
+        if (have_label)
+            snprintf(label_header, sizeof(label_header), "X-BusierBox-Target-Label: %s", target_label);
         if (!strcmp(tool, "wget")) {
-            if (tls)
+            if (tls && have_id && have_label)
+                execlp("wget", "wget", "--no-check-certificate", "--header", id_header, "--header", label_header, "-O", out, url, (char *)NULL);
+            else if (tls && have_id)
+                execlp("wget", "wget", "--no-check-certificate", "--header", id_header, "-O", out, url, (char *)NULL);
+            else if (tls && have_label)
+                execlp("wget", "wget", "--no-check-certificate", "--header", label_header, "-O", out, url, (char *)NULL);
+            else if (tls)
                 execlp("wget", "wget", "--no-check-certificate", "-O", out, url, (char *)NULL);
+            else if (have_id && have_label)
+                execlp("wget", "wget", "--header", id_header, "--header", label_header, "-O", out, url, (char *)NULL);
+            else if (have_id)
+                execlp("wget", "wget", "--header", id_header, "-O", out, url, (char *)NULL);
+            else if (have_label)
+                execlp("wget", "wget", "--header", label_header, "-O", out, url, (char *)NULL);
             else
                 execlp("wget", "wget", "-O", out, url, (char *)NULL);
         } else {
-            if (tls)
+            if (tls && have_id && have_label)
+                execlp("curl", "curl", "-fkL", "-H", id_header, "-H", label_header, "-o", out, url, (char *)NULL);
+            else if (tls && have_id)
+                execlp("curl", "curl", "-fkL", "-H", id_header, "-o", out, url, (char *)NULL);
+            else if (tls && have_label)
+                execlp("curl", "curl", "-fkL", "-H", label_header, "-o", out, url, (char *)NULL);
+            else if (tls)
                 execlp("curl", "curl", "-fkL", "-o", out, url, (char *)NULL);
+            else if (have_id && have_label)
+                execlp("curl", "curl", "-fL", "-H", id_header, "-H", label_header, "-o", out, url, (char *)NULL);
+            else if (have_id)
+                execlp("curl", "curl", "-fL", "-H", id_header, "-o", out, url, (char *)NULL);
+            else if (have_label)
+                execlp("curl", "curl", "-fL", "-H", label_header, "-o", out, url, (char *)NULL);
             else
                 execlp("curl", "curl", "-fL", "-o", out, url, (char *)NULL);
         }
@@ -102,16 +147,20 @@ int applet_fetch_main(int argc, char **argv)
     const char *request = NULL;
     const char *host = NULL;
     const char *out = NULL;
+    const char *target_id_arg = NULL;
+    const char *target_label_arg = NULL;
     int port = 22204;
     int tls = 1;
     int force = 0;
     char encoded[PATH_MAX * 3];
     char url[PATH_MAX * 4];
     char tmp[PATH_MAX];
+    char target_id[256];
+    char target_label[256];
     int i;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox fetch REQUEST --host HOST [--port PORT] [--output PATH] [--force] [--no-tls]");
+        puts("usage: busierbox fetch REQUEST --host HOST [--port PORT] [--output PATH] [--force] [--no-tls] [--target-id ID] [--target-label LABEL]");
         puts("Fetches an operator-staged file from busierbox-server only when explicitly run on the target.");
         puts("Refuses path traversal and refuses to overwrite an existing output unless --force is present.");
         return 0;
@@ -138,6 +187,18 @@ int applet_fetch_main(int argc, char **argv)
             out = argv[i];
         } else if (!strcmp(argv[i], "--force")) {
             force = 1;
+        } else if (!strcmp(argv[i], "--target-id")) {
+            if (++i >= argc) {
+                fputs("fetch: --target-id requires a value\n", stderr);
+                return 2;
+            }
+            target_id_arg = argv[i];
+        } else if (!strcmp(argv[i], "--target-label")) {
+            if (++i >= argc) {
+                fputs("fetch: --target-label requires a value\n", stderr);
+                return 2;
+            }
+            target_label_arg = argv[i];
         } else if (!strcmp(argv[i], "--no-tls")) {
             tls = 0;
         } else if (!strcmp(argv[i], "--tls")) {
@@ -178,9 +239,12 @@ int applet_fetch_main(int argc, char **argv)
     url_encode(request, encoded, sizeof(encoded));
     snprintf(url, sizeof(url), "%s://%s:%d/fetch?name=%s", tls ? "https" : "http", host, port, encoded);
     snprintf(tmp, sizeof(tmp), "%s.tmp.%ld", out, (long)getpid());
+    clean_header_value(target_id_arg, target_id, sizeof(target_id));
+    clean_header_value(target_label_arg, target_label, sizeof(target_label));
     unlink(tmp);
     printf("fetch: downloading %s -> %s\n", request, out);
-    if (run_downloader("wget", url, tmp, tls) != 0 && run_downloader("curl", url, tmp, tls) != 0) {
+    if (run_downloader("wget", url, tmp, tls, target_id, target_label) != 0 &&
+            run_downloader("curl", url, tmp, tls, target_id, target_label) != 0) {
         unlink(tmp);
         fputs("fetch: download failed; need wget or curl in PATH\n", stderr);
         return 1;
@@ -249,8 +313,8 @@ int applet_fetch_full_main(int argc, char **argv)
         return 2;
     }
     printf("fetch-full: downloading %s -> %s\n", url, out);
-    if (run_downloader("wget", url, out, !strncmp(url, "https:", 6)) != 0 &&
-        run_downloader("curl", url, out, !strncmp(url, "https:", 6)) != 0) {
+    if (run_downloader("wget", url, out, !strncmp(url, "https:", 6), "", "") != 0 &&
+        run_downloader("curl", url, out, !strncmp(url, "https:", 6), "", "") != 0) {
         fprintf(stderr, "fetch-full: download failed; need wget or curl in PATH\n");
         return 1;
     }
