@@ -134,8 +134,10 @@ counts, artifact-config round-trip counts, compatibility and payload-preset
 counts, licensing posture fields such as `project_license`,
 `combined_gplv2_compatible`, `corresponding_source_required`,
 `corresponding_source_status`, and
-`corresponding_source_requires_package_license_audit`, and command-queue safety
-counters such as
+`corresponding_source_requires_package_license_audit`, license evidence fields
+such as `license_evidence_verified_at`, `license_evidence_source_count`,
+`license_evidence_source_licenses`, and `license_evidence_source_urls`, and
+command-queue safety counters such as
 `command_queue_execution_supported_count` and
 `command_queue_operator_supplied_command_execution_count`. It also includes
 normalized `diagnostic_records` with lookup maps by name, category, and status

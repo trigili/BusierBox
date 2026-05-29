@@ -691,6 +691,16 @@ if doc.get("corresponding_source_release_input_count", 0) < 7:
     raise SystemExit(f"release self-test corresponding source release inputs missing: {doc!r}")
 if doc.get("corresponding_source_reconstruction_input_count", 0) < 4:
     raise SystemExit(f"release self-test corresponding source reconstruction inputs missing: {doc!r}")
+if doc.get("license_evidence_source_count", 0) < 4:
+    raise SystemExit(f"release self-test license evidence sources missing: {doc!r}")
+if not doc.get("license_evidence_verified_at"):
+    raise SystemExit(f"release self-test license evidence verification date missing: {doc!r}")
+if "BusyBox" not in (doc.get("license_evidence_source_names") or []):
+    raise SystemExit(f"release self-test BusyBox license evidence missing: {doc!r}")
+if (doc.get("license_evidence_source_licenses") or {}).get("BusyBox") != "GPL-2.0":
+    raise SystemExit(f"release self-test BusyBox license evidence mismatch: {doc!r}")
+if (doc.get("license_evidence_source_urls") or {}).get("Buildroot") != "https://buildroot.org/downloads/manual/manual.html":
+    raise SystemExit(f"release self-test Buildroot license evidence URL missing: {doc!r}")
 if doc.get("license_notice_count") != 11:
     raise SystemExit(f"release self-test license notice count missing: {doc!r}")
 notice_files = doc.get("license_notice_files") or []
@@ -742,6 +752,10 @@ if license_diag.get("details", {}).get("corresponding_source_status") != "requir
     raise SystemExit(f"release self-test license diagnostic corresponding source status missing: {by_name!r}")
 if license_diag.get("details", {}).get("corresponding_source_requires_package_license_audit") is not True:
     raise SystemExit(f"release self-test license diagnostic package audit missing: {by_name!r}")
+if license_diag.get("details", {}).get("license_evidence_source_count", 0) < 4:
+    raise SystemExit(f"release self-test license diagnostic evidence sources missing: {by_name!r}")
+if (license_diag.get("details", {}).get("license_evidence_source_licenses") or {}).get("BusyBox") != "GPL-2.0":
+    raise SystemExit(f"release self-test license diagnostic evidence license mismatch: {by_name!r}")
 if by_name["command_queue_safety"]["details"].get("execution_supported_count") != 0:
     raise SystemExit(f"release self-test command queue execution diagnostic unsafe: {by_name!r}")
 if by_name.get("compatibility_labels", {}).get("details", {}).get("counts", {}).get("exact") != 1:
