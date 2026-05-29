@@ -13,7 +13,7 @@ make_release() {
     device=$6
     compatibility_label=${7:-exact}
     doom_wads_json=${8:-[]}
-    mkdir -p "$dir/bin" "$dir/manifests" "$dir/LICENSES"
+    mkdir -p "$dir/bin" "$dir/manifests" "$dir/LICENSES" "$dir/docs"
     printf '%s\n' "$name artifact" >"$dir/bin/busierbox-$name-full"
     cat >"$dir/release.json" <<JSON
 {
@@ -50,6 +50,7 @@ JSON
     printf '%s\n' "Buildroot notice" >"$dir/LICENSES/buildroot.txt"
     printf '%s\n' "doom-ascii notice" >"$dir/LICENSES/doom-ascii.txt"
     printf '%s\n' "miniz notice" >"$dir/LICENSES/miniz.txt"
+    printf '%s\n' "BusierBox licensing guide" >"$dir/docs/licensing.md"
     cat >"$dir/manifests/license-policy.json" <<'JSON'
 {
   "schema": 1,
@@ -143,7 +144,7 @@ JSON
   "release_device_count": 1,
   "project_license": "GPL-2.0-or-later",
   "combined_gplv2_compatible": true,
-  "license_notice_count": 10,
+  "license_notice_count": 11,
   "license_notice_files": [
     "LICENSE.busierbox",
     "LICENSE",
@@ -152,6 +153,7 @@ JSON
     "LICENSES/buildroot.txt",
     "LICENSES/doom-ascii.txt",
     "LICENSES/miniz.txt",
+    "docs/licensing.md",
     "manifests/license-policy.json",
     "sources.lock.json",
     "manifests/sources.lock.json"
@@ -223,9 +225,10 @@ assert len(index["release_license_records_by_project_license"]["GPL-2.0-or-later
 assert len(index["release_license_records_by_combined_gplv2_compatible"]["true"]) == 3
 assert len(index["release_license_records_by_component"]["BusyBox"]) == 3
 assert index["release_license_records_by_component_license"]["BusyBox:GPL-2.0"][0]["combined_gplv2_compatible"] is True
-assert index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["notice_count"] == 10
+assert index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["notice_count"] == 11
 assert index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["missing_notice_count"] == 0
 assert "manifests/sources.lock.json" in index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["required_notice_files"]
+assert "docs/licensing.md" in index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["required_notice_files"]
 assert index["artifacts_by_release"]["one"][0]["release_self_test_status"] == "pass"
 assert index["artifacts_by_release"]["one"][0]["release_self_test"]["checked_artifact_count"] == 1
 assert index["artifacts_by_release"]["one"][0]["release_license"]["project_license"] == "GPL-2.0-or-later"
@@ -386,7 +389,7 @@ grep -q '^release_self_test_status=pass$' "$tmp/find-device.out"
 grep -q '^release_self_test_path=release-self-test.json$' "$tmp/find-device.out"
 grep -q '^project_license=GPL-2.0-or-later$' "$tmp/find-device.out"
 grep -q '^combined_gplv2_compatible=yes$' "$tmp/find-device.out"
-grep -q '^license_notice_count=10$' "$tmp/find-device.out"
+grep -q '^license_notice_count=11$' "$tmp/find-device.out"
 grep -q '^license_component=BusyBox GPL-2.0$' "$tmp/find-device.out"
 grep -q '^release_self_test_command_queue_token_required_count=1$' "$tmp/find-device.out"
 grep -q '^release_self_test_command_queue_token_configured_count=0$' "$tmp/find-device.out"
@@ -570,7 +573,7 @@ assert doc["index"]["release_license_records_by_project_license_count"] == 1
 assert doc["index"]["release_license_records_by_combined_gplv2_compatible_count"] == 1
 assert doc["index"]["release_license_records_by_component_count"] == 5
 assert doc["index"]["release_license_records_by_component_license_count"] == 5
-assert doc["index"]["release_license_records_by_notice_file_count"] == 10
+assert doc["index"]["release_license_records_by_notice_file_count"] == 11
 assert doc["selected"]["release_self_test"]["status"] == "pass"
 assert doc["selected"]["release_license"]["project_license"] == "GPL-2.0-or-later"
 assert doc["selected"]["release_license"]["combined_gplv2_compatible"] is True

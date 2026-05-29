@@ -1152,6 +1152,7 @@ def write_release_helpers(script_dir):
             "LICENSES/buildroot.txt",
             "LICENSES/doom-ascii.txt",
             "LICENSES/miniz.txt",
+            "docs/licensing.md",
             "manifests/license-policy.json",
             "sources.lock.json",
             "manifests/sources.lock.json",

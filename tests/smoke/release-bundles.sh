@@ -669,13 +669,13 @@ if doc.get("project_license") != "GPL-2.0-or-later":
     raise SystemExit(f"release self-test project license missing: {doc!r}")
 if doc.get("combined_gplv2_compatible") is not True:
     raise SystemExit(f"release self-test GPL compatibility missing: {doc!r}")
-if doc.get("license_notice_count") != 10:
+if doc.get("license_notice_count") != 11:
     raise SystemExit(f"release self-test license notice count missing: {doc!r}")
 notice_files = doc.get("license_notice_files") or []
 for rel in ("LICENSES/busybox.txt", "LICENSES/buildroot.txt", "LICENSES/doom-ascii.txt", "LICENSES/miniz.txt"):
     if rel not in notice_files:
         raise SystemExit(f"release self-test license notice files missing {rel}: {doc!r}")
-for rel in ("sources.lock.json", "manifests/sources.lock.json"):
+for rel in ("docs/licensing.md", "sources.lock.json", "manifests/sources.lock.json"):
     if rel not in notice_files:
         raise SystemExit(f"release self-test license notice files missing {rel}: {doc!r}")
 if doc.get("checked_artifact_count") != 1 or doc.get("native_manifest_checked_count") != 1:

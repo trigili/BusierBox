@@ -17,6 +17,7 @@ REQUIRED_LICENSE_FILES = (
     "LICENSES/buildroot.txt",
     "LICENSES/doom-ascii.txt",
     "LICENSES/miniz.txt",
+    "docs/licensing.md",
     "manifests/license-policy.json",
     "sources.lock.json",
     "manifests/sources.lock.json",
