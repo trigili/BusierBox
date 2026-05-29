@@ -1834,6 +1834,7 @@ def main():
                 ("browser_paths", len(browser_paths), "browser_paths_by_expected_kind_mismatch"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
                 ("target_filter_records", len(queue_status_json.get("target_filter_records") or []), "target_filter_records_by_active"),
+                ("target_attribution_records", len(queue_status_json.get("target_attribution_records") or []), "target_attribution_records_by_scope"),
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
                 ("command_copy_records", len(queue_status_json.get("command_copy_records") or []), "command_copy_records_by_has_command"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
@@ -1877,6 +1878,9 @@ def main():
                 api_resources_by_name.get("target_filter_records", {}).get("records_key") != "target_filter_records" or
                 api_resources_by_summary_key.get("target_filter_record_count", [{}])[0].get("name") != "target_filter_records" or
                 not any(rec.get("name") == "target_filter_records" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("target_attribution_records", {}).get("records_key") != "target_attribution_records" or
+                api_resources_by_summary_key.get("target_attribution_record_count", [{}])[0].get("name") != "target_attribution_records" or
+                not any(rec.get("name") == "target_attribution_records" for rec in api_resources_by_primary_key.get("scope", [])) or
                 api_resources_by_name.get("release_state_records", {}).get("records_key") != "release_state_records" or
                 api_resources_by_summary_key.get("release_state_record_count", [{}])[0].get("name") != "release_state_records" or
                 api_resources_by_primary_key.get("release_dir", [{}])[0].get("name") != "release_state_records" or
@@ -4330,6 +4334,10 @@ def main():
             return 1
         if (upload_doc.get("target_attribution", {}).get("upload_with_target_count") != 1 or
                 upload_doc.get("target_attribution", {}).get("upload_without_target_count") != 0 or
+                upload_doc.get("target_attribution_records_by_scope", {}).get("uploads", {}).get("all_activity_has_target_id") is not True or
+                upload_doc.get("target_attribution_records_by_scope", {}).get("all", {}).get("has_targeted_activity") is not True or
+                upload_doc.get("summary", {}).get("target_attribution_record_count") != 4 or
+                "target_attribution_records_by_has_legacy_activity" not in ((upload_doc.get("api_collections") or {}).get("target_attribution_records") or {}).get("indexes", []) or
                 upload_doc.get("summary", {}).get("upload_with_target_count") != 1 or
                 upload_doc.get("summary", {}).get("target_legacy_single_target_activity_present") is not False):
             print("server json status missing attributed target activity counts", file=sys.stderr)
@@ -4392,6 +4400,10 @@ def main():
                 legacy_doc.get("summary", {}).get("upload_without_target_count") != 1 or
                 legacy_doc.get("summary", {}).get("session_without_target_count") != 1 or
                 legacy_doc.get("summary", {}).get("target_attribution_without_target_count") != 2 or
+                legacy_doc.get("target_attribution_records_by_scope", {}).get("all", {}).get("has_legacy_activity") is not True or
+                legacy_doc.get("target_attribution_records_by_scope", {}).get("uploads", {}).get("without_target_count") != 1 or
+                legacy_doc.get("target_attribution_records_by_has_legacy_activity", {}).get("True", [{}])[0].get("scope") not in ("uploads", "sessions", "all") or
+                legacy_doc.get("summary", {}).get("target_attribution_legacy_scope_count", 0) < 1 or
                 legacy_doc.get("summary", {}).get("target_legacy_single_target_activity_present") is not True):
             print("legacy no-target activity was not summarized without creating a target", file=sys.stderr)
             print(legacy_status.stdout, file=sys.stderr)

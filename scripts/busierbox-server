@@ -8925,6 +8925,33 @@ def status_document(cfg):
         target_attribution["session_without_target_count"]
     )
     target_attribution["legacy_single_target_activity_present"] = target_attribution["without_target_count"] > 0
+    target_attribution_records = []
+    for scope, with_count, without_count in (
+        ("uploads", target_attribution["upload_with_target_count"], target_attribution["upload_without_target_count"]),
+        ("fetches", target_attribution["fetch_with_target_count"], target_attribution["fetch_without_target_count"]),
+        ("sessions", target_attribution["session_with_target_count"], target_attribution["session_without_target_count"]),
+        ("all", target_attribution["with_target_count"], target_attribution["without_target_count"]),
+    ):
+        total = with_count + without_count
+        target_attribution_records.append({
+            "scope": scope,
+            "with_target_count": with_count,
+            "without_target_count": without_count,
+            "total_count": total,
+            "has_targeted_activity": with_count > 0,
+            "has_legacy_activity": without_count > 0,
+            "legacy_single_target_activity_present": without_count > 0,
+            "all_activity_has_target_id": total > 0 and without_count == 0,
+            "no_activity": total == 0,
+        })
+    target_attribution_index_maps = {
+        "target_attribution_records_by_scope": {rec["scope"]: rec for rec in target_attribution_records},
+        "target_attribution_records_by_has_targeted_activity": records_by_key(target_attribution_records, "has_targeted_activity"),
+        "target_attribution_records_by_has_legacy_activity": records_by_key(target_attribution_records, "has_legacy_activity"),
+        "target_attribution_records_by_legacy_single_target_activity_present": records_by_key(target_attribution_records, "legacy_single_target_activity_present"),
+        "target_attribution_records_by_all_activity_has_target_id": records_by_key(target_attribution_records, "all_activity_has_target_id"),
+        "target_attribution_records_by_no_activity": records_by_key(target_attribution_records, "no_activity"),
+    }
     paths = {
         "operator_session_dir": str(operator_dir),
         "state_file": str(state_file_path(cfg)),
@@ -9277,6 +9304,10 @@ def status_document(cfg):
         "target_filter_selected_target_identity_source_count": len(selected_target_sources),
         "target_filter_selected_target_alias_count": len(selected_target.get("aliases") or []),
         "target_filter_selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
+        "target_attribution_record_count": len(target_attribution_records),
+        "target_attribution_scope_counts": record_count_by_key(target_attribution_records, "scope"),
+        "target_attribution_legacy_scope_count": len([rec for rec in target_attribution_records if rec.get("has_legacy_activity")]),
+        "target_attribution_targeted_scope_count": len([rec for rec in target_attribution_records if rec.get("has_targeted_activity")]),
         "session_count": len(sessions),
         "session_root_exists": bool(session_root_state.get("exists", False)),
         "session_root_recent_count": session_root_state.get("recent_session_count", 0),
@@ -9692,6 +9723,16 @@ def status_document(cfg):
                 "target_filter_records_by_selected_target_latest_activity_operation",
             ), "target_filter_record_count",
         ),
+        "target_attribution_records": api_collection_record(
+            "target_attribution_records", target_attribution_records, "scope", (
+                "target_attribution_records_by_scope",
+                "target_attribution_records_by_has_targeted_activity",
+                "target_attribution_records_by_has_legacy_activity",
+                "target_attribution_records_by_legacy_single_target_activity_present",
+                "target_attribution_records_by_all_activity_has_target_id",
+                "target_attribution_records_by_no_activity",
+            ), "target_attribution_record_count",
+        ),
         "staged_records": api_collection_record(
             "staged_records", staged_records, "request_name", (
                 "staged_by_request", "staged_by_kind", "staged_by_sha256",
@@ -9957,6 +9998,8 @@ def status_document(cfg):
         "target_filter_records": target_filter_records,
         **target_filter_index_maps,
         "target_attribution": target_attribution,
+        "target_attribution_records": target_attribution_records,
+        **target_attribution_index_maps,
         "api_resources": api_resources,
         **api_resource_indexes,
         "api_collections": api_collections,
