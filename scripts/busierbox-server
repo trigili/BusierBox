@@ -7528,7 +7528,7 @@ def clipboard_command():
     return None
 
 
-def copy_text_for_operator(cfg, text, label="command"):
+def copy_text_for_operator(cfg, text, label="command", details=None):
     value = str(text or "")
     if not value:
         raise ValueError(f"{label} is empty")
@@ -7544,24 +7544,43 @@ def copy_text_for_operator(cfg, text, label="command"):
             copied = True
         except OSError:
             copied = False
-    append_event(cfg, "workbench", "target_command_copied",
-                 details={"path": str(path), "clipboard": copied, "label": label})
+    event_details = {"path": str(path), "clipboard": copied, "label": label}
+    if isinstance(details, dict):
+        event_details.update(details)
+    append_event(cfg, "workbench", "target_command_copied", details=event_details)
     return {
         "path": str(path),
         "clipboard": copied,
         "text": value,
+        **({} if not isinstance(details, dict) else details),
     }
 
 
 def copy_generated_command(cfg, index):
-    commands = generated_target_commands(cfg)
     try:
         pos = int(index) - 1
     except (TypeError, ValueError):
         raise ValueError("target command index must be a positive integer")
-    if pos < 0 or pos >= len(commands):
+    records = generated_target_command_records(cfg)
+    if pos < 0 or pos >= len(records):
         raise ValueError(f"target command index out of range: {index}")
-    return copy_text_for_operator(cfg, commands[pos], label=f"target_command_{index}")
+    rec = records[pos]
+    command = str(rec.get("command") or "")
+    headless_parts = [
+        "scripts/busierbox-server",
+        "--config",
+        str(cfg.get("_config_path", DEFAULT_CONFIG)),
+    ]
+    if configured_target_filter(cfg):
+        headless_parts.extend(["--target-id", configured_target_filter(cfg)])
+    headless_parts.extend(["--copy-target-command", str(index)])
+    return copy_text_for_operator(cfg, command, label=f"target_command_{index}", details={
+        "headless_command": " ".join(shquote(part) for part in headless_parts),
+        "ordinal": pos + 1,
+        "command_sha256": str(rec.get("command_sha256") or ""),
+        "service": str(rec.get("service") or ""),
+        "route_kind": str(rec.get("route_kind") or ""),
+    })
 
 
 def pid_alive(pid):
@@ -15159,6 +15178,7 @@ def run_line_tui(cfg):
                 try:
                     rec = copy_generated_command(cfg, chosen)
                     print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
+                    print(f"headless_command: {rec.get('headless_command', '')}")
                 except ValueError as exc:
                     print(exc)
         elif choice == "17":

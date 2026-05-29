@@ -828,6 +828,61 @@ def main():
             print("json status missing last copied command record", file=sys.stderr)
             print(json.dumps(copied_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        copied_events = (copied_status.get("events_by_event") or {}).get("target_command_copied") or []
+        if not any(
+                "--copy-target-command 1" in ((event.get("details") or {}).get("headless_command") or "") and
+                (event.get("details") or {}).get("ordinal") == 1
+                for event in copied_events):
+            print("generated target command copy event missing headless command", file=sys.stderr)
+            print(json.dumps(copied_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
+        copy_tui_master, copy_tui_slave = pty.openpty()
+        try:
+            copy_tui_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(cfg),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=copy_tui_slave,
+                stdout=copy_tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(copy_tui_slave)
+            copy_tui_slave = -1
+            time.sleep(0.3)
+            os.write(copy_tui_master, b"c\n1\nq\n")
+            _copy_tui_stdout, copy_tui_stderr = copy_tui_proc.communicate(timeout=8)
+            copy_tui_output = b""
+            while True:
+                try:
+                    chunk = os.read(copy_tui_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                copy_tui_output += chunk
+        finally:
+            if copy_tui_slave != -1:
+                os.close(copy_tui_slave)
+            try:
+                os.close(copy_tui_master)
+            except OSError:
+                pass
+        copy_tui_text = copy_tui_output.decode("utf-8", errors="replace")
+        if (copy_tui_proc.returncode != 0 or
+                "Traceback" in (copy_tui_stderr or "") or
+                "copied command to " not in copy_tui_text or
+                "headless_command: scripts/busierbox-server --config" not in copy_tui_text or
+                "--copy-target-command 1" not in copy_tui_text):
+            print("line TUI generated-command copy did not expose headless command", file=sys.stderr)
+            print(copy_tui_text, file=sys.stderr)
+            print(copy_tui_stderr or "", file=sys.stderr)
+            return 1
 
         actions_tui_master, actions_tui_slave = pty.openpty()
         try:

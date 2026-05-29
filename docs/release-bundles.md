@@ -1098,7 +1098,10 @@ so a non-curses operator does not lose those cues after refreshes. `v` opens the
 selected local metadata/log/artifact/event-log path in the operator's pager when
 one is available, and `c` copies the selected generated target command to the
 local clipboard when possible plus
-`local/operator-session/last-command.txt`. Status JSON exposes that file as a
+`local/operator-session/last-command.txt`. The line-oriented fallback prints the
+equivalent `--copy-target-command N` command after copying, and
+`target_command_copied` events include that headless command, ordinal, and
+command hash for auditability. Status JSON exposes that file as a
 bounded `command_copy` record plus `command_copy_records_by_has_command` and
 related lookup maps, so clients can show the last copied target command without
 opening the file separately. The `r` refresh action updates
