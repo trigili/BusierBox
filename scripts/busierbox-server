@@ -13012,6 +13012,12 @@ def run_curses_tui(cfg):
                     detail_lines.append("operator state health:")
                     for rec in unhealthy_state[:5]:
                         detail_lines.append(f"{rec.get('name', '')}: {rec.get('status', '')} {rec.get('path', '')}")
+            target_filter = snap.get("target_filter") or {}
+            target_evidence = target_filter_evidence_lines(target_filter)
+            if target_evidence:
+                detail_lines.append("selected target evidence:")
+                for line in target_evidence:
+                    detail_lines.append(f"selected_target_{line}")
             stdscr.erase()
             height, width = stdscr.getmaxyx()
             active = sum(1 for row in services if row["actual"] == "listening")
@@ -13021,7 +13027,6 @@ def run_curses_tui(cfg):
             workbench = snap.get("workbench") or {}
             refresh_suffix = f"refresh={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}"
             safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} warnings={warning_count} operator_state_unhealthy={operator_state_unhealthy} | ip={snap['selected_local_ip']} | {utc_now()} | {refresh_suffix} | tab panes j/k move enter start/stop s stage d unstage v view c copy ? help q quit", curses.A_REVERSE)
-            target_filter = snap.get("target_filter") or {}
             target_filter_text = ""
             if target_filter.get("active"):
                 target_filter_text = " | " + target_filter_summary_text(target_filter, prefix="selected_target=")
