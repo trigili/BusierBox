@@ -329,6 +329,8 @@ def main():
         guided_writes_config = guided_status.get("workbench_config_fields_by_writes_config") or {}
         guided_target_execution = guided_status.get("workbench_config_fields_by_target_execution") or {}
         guided_source_format = guided_status.get("workbench_config_fields_by_source_format") or {}
+        guided_has_set_command = guided_status.get("workbench_config_fields_by_has_set_command") or {}
+        guided_set_command_kind = guided_status.get("workbench_config_fields_by_set_command_kind") or {}
         guided_safety = guided_status.get("workbench_config_fields_by_safety_boundary") or {}
         guided_control_like = guided_status.get("workbench_config_fields_by_control_like") or {}
         guided_command_queue = guided_status.get("workbench_config_fields_by_command_queue_related") or {}
@@ -346,9 +348,12 @@ def main():
                 guided_by_key.get("BB_COMMAND_QUEUE_POLL_BACKOFF", {}).get("options") != ["none", "linear", "exponential"] or
                 guided_by_key.get("BB_RSHELL_TRANSPORT", {}).get("examples") != ["ssh", "socat", "builtin", "none"] or
                 guided_by_key.get("BB_RSHELL_TRANSPORT", {}).get("options") != ["ssh", "socat", "builtin", "none"] or
+                guided_by_key.get("BB_TARGET_PRESET", {}).get("examples") != ["mipsel-linux-4.x-musl", "native"] or
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("fixed_options") is not True or
                 guided_by_key.get("BB_RSHELL_SESSION_POLICY", {}).get("option_count") != 3 or
                 guided_status.get("summary", {}).get("workbench_config_field_fixed_option_count", 0) < 17 or
+                guided_status.get("summary", {}).get("workbench_config_field_has_set_command_count") != len(guided_fields) or
+                guided_status.get("summary", {}).get("workbench_config_field_set_command_kind_counts", {}).get("server-build-config-set") != len(guided_fields) or
                 guided_status.get("summary", {}).get("workbench_config_field_control_like_count", 0) < 16 or
                 guided_status.get("summary", {}).get("workbench_config_field_safety_boundary_counts", {}).get("command-queue", 0) < 13 or
                 not guided_fixed.get("True") or
@@ -356,6 +361,9 @@ def main():
                 guided_target_execution.get("True", []) != [] or
                 len(guided_target_execution.get("False", [])) != len(guided_fields) or
                 len(guided_source_format.get("shell-assignment", [])) != len(guided_fields) or
+                len(guided_has_set_command.get("True", [])) != len(guided_fields) or
+                len(guided_set_command_kind.get("server-build-config-set", [])) != len(guided_fields) or
+                "--set-build-config BB_NORESIDUE_LEVEL=VALUE" not in guided_by_key.get("BB_NORESIDUE_LEVEL", {}).get("set_command", "") or
                 not guided_safety.get("reverse-access") or
                 not guided_control_like.get("True") or
                 not guided_command_queue.get("True") or
@@ -379,6 +387,8 @@ def main():
                 guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("primary_key") != "key" or
                 "workbench_config_fields_by_fixed_options" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", []) or
                 "workbench_config_fields_by_target_execution" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", []) or
+                "workbench_config_fields_by_has_set_command" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", []) or
+                "workbench_config_fields_by_set_command_kind" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", []) or
                 "workbench_config_fields_by_safety_boundary" not in guided_status.get("api_collections", {}).get("workbench_config_fields", {}).get("indexes", []) or
                 "events_by_detail_key" not in (((guided_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
                 "events_by_event_detail_key" not in (((guided_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or

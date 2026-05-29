@@ -2295,6 +2295,8 @@ def workbench_config_field_records(cfg):
             "set_command": "scripts/busierbox-server --build-config "
                            + shquote(str(path)) + " --set-build-config "
                            + shquote(f"{key}=VALUE"),
+            "has_set_command": True,
+            "set_command_kind": "server-build-config-set",
             **workbench_config_safety_metadata(category, key),
         })
     return records
@@ -2309,6 +2311,8 @@ def workbench_config_field_indexes(records):
         "workbench_config_fields_by_writes_config": records_by_key(records, "writes_config"),
         "workbench_config_fields_by_target_execution": records_by_key(records, "target_execution"),
         "workbench_config_fields_by_source_format": records_by_key(records, "source_format"),
+        "workbench_config_fields_by_has_set_command": records_by_key(records, "has_set_command"),
+        "workbench_config_fields_by_set_command_kind": records_by_key(records, "set_command_kind"),
         "workbench_config_fields_by_safety_boundary": records_by_key(records, "safety_boundary"),
         "workbench_config_fields_by_control_like": records_by_key(records, "control_like"),
         "workbench_config_fields_by_reverse_access_related": records_by_key(records, "reverse_access_related"),
@@ -2324,6 +2328,8 @@ def workbench_config_field_summary(records):
         "fixed_option_count": len([rec for rec in records or [] if rec.get("fixed_options") is True]),
         "category_counts": record_count_by_key(records, "category"),
         "safety_boundary_counts": record_count_by_key(records, "safety_boundary"),
+        "has_set_command_count": len([rec for rec in records or [] if rec.get("has_set_command") is True]),
+        "set_command_kind_counts": record_count_by_key(records, "set_command_kind"),
         "control_like_count": len([rec for rec in records or [] if rec.get("control_like") is True]),
         "reverse_access_related_count": len([rec for rec in records or [] if rec.get("reverse_access_related") is True]),
         "command_queue_related_count": len([rec for rec in records or [] if rec.get("command_queue_related") is True]),
@@ -10240,6 +10246,8 @@ def status_document(cfg):
         "workbench_config_field_fixed_option_count": workbench_config_field_stats.get("fixed_option_count", 0),
         "workbench_config_field_category_counts": workbench_config_field_stats.get("category_counts") or {},
         "workbench_config_field_safety_boundary_counts": workbench_config_field_stats.get("safety_boundary_counts") or {},
+        "workbench_config_field_has_set_command_count": workbench_config_field_stats.get("has_set_command_count", 0),
+        "workbench_config_field_set_command_kind_counts": workbench_config_field_stats.get("set_command_kind_counts") or {},
         "workbench_config_field_control_like_count": workbench_config_field_stats.get("control_like_count", 0),
         "workbench_config_field_reverse_access_related_count": workbench_config_field_stats.get("reverse_access_related_count", 0),
         "workbench_config_field_command_queue_related_count": workbench_config_field_stats.get("command_queue_related_count", 0),
@@ -10772,6 +10780,7 @@ def status_document(cfg):
                 "workbench_config_fields_by_configured", "workbench_config_fields_by_fixed_options",
                 "workbench_config_fields_by_writes_config", "workbench_config_fields_by_target_execution",
                 "workbench_config_fields_by_source_format",
+                "workbench_config_fields_by_has_set_command", "workbench_config_fields_by_set_command_kind",
                 "workbench_config_fields_by_safety_boundary", "workbench_config_fields_by_control_like",
                 "workbench_config_fields_by_reverse_access_related", "workbench_config_fields_by_command_queue_related",
                 "workbench_config_fields_by_requires_explicit_operator_choice",
