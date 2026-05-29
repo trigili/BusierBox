@@ -5029,6 +5029,8 @@ def main():
         ).stdout)
         capability_target = (capability_status.get("targets_by_id") or {}).get("target-capability") or {}
         capability_summary = capability_target.get("latest_capability_summary") or {}
+        capability_status_summary = capability_status.get("summary") or {}
+        capability_api_indexes = (((capability_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or [])
         if (capability_target.get("latest_capability_report_kind") != "reality-test" or
                 not capability_target.get("latest_capability_report_path", "").endswith("reality-test.json") or
                 capability_summary.get("check_count") != 3 or
@@ -5036,7 +5038,20 @@ def main():
                 capability_summary.get("capability_fail_count") != 1 or
                 "runtime_root_writable" not in (capability_target.get("observed_capabilities") or []) or
                 "pty" not in (capability_target.get("observed_missing_capabilities") or []) or
-                capability_target.get("observed_constraints", {}).get("rootfs_read_only") is not True):
+                capability_target.get("observed_constraints", {}).get("rootfs_read_only") is not True or
+                capability_status_summary.get("target_capability_report_count") != 1 or
+                capability_status_summary.get("target_capability_report_kind_counts", {}).get("reality-test") != 1 or
+                capability_status_summary.get("target_observed_capability_counts", {}).get("runtime_root_writable") != 1 or
+                capability_status_summary.get("target_missing_capability_counts", {}).get("pty") != 1 or
+                capability_status_summary.get("target_observed_constraint_counts", {}).get("rootfs_read_only:true") != 1 or
+                ((capability_status.get("targets_by_capability_report_kind") or {}).get("reality-test") or [{}])[0].get("target_id") != "target-capability" or
+                ((capability_status.get("targets_by_observed_capability") or {}).get("runtime_root_writable") or [{}])[0].get("target_id") != "target-capability" or
+                ((capability_status.get("targets_by_missing_capability") or {}).get("pty") or [{}])[0].get("target_id") != "target-capability" or
+                ((capability_status.get("targets_by_observed_constraint") or {}).get("rootfs_read_only:true") or [{}])[0].get("target_id") != "target-capability" or
+                "targets_by_capability_report_kind" not in capability_api_indexes or
+                "targets_by_observed_capability" not in capability_api_indexes or
+                "targets_by_missing_capability" not in capability_api_indexes or
+                "targets_by_observed_constraint" not in capability_api_indexes):
             print("target capability report upload did not update observed capabilities", file=sys.stderr)
             print(json.dumps(capability_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1

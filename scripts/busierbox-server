@@ -1451,6 +1451,10 @@ def target_record_indexes(records):
     by_remote_addr = {}
     by_service = {}
     by_identity_confidence = {}
+    by_capability_report_kind = {}
+    by_observed_capability = {}
+    by_missing_capability = {}
+    by_observed_constraint = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1475,13 +1479,39 @@ def target_record_indexes(records):
             service = str(service or "")
             if service:
                 by_service.setdefault(service, []).append(rec)
-    return by_id, by_label, by_alias, by_remote_addr, by_service, by_identity_confidence
+        report_kind = str(rec.get("latest_capability_report_kind") or "")
+        if report_kind:
+            by_capability_report_kind.setdefault(report_kind, []).append(rec)
+        for capability in rec.get("observed_capabilities") or []:
+            capability = str(capability or "")
+            if capability:
+                by_observed_capability.setdefault(capability, []).append(rec)
+        for capability in rec.get("observed_missing_capabilities") or []:
+            capability = str(capability or "")
+            if capability:
+                by_missing_capability.setdefault(capability, []).append(rec)
+        constraints = rec.get("observed_constraints") if isinstance(rec.get("observed_constraints"), dict) else {}
+        for name, value in sorted(constraints.items()):
+            name = str(name or "")
+            if name:
+                by_observed_constraint.setdefault(f"{name}:{str(bool(value)).lower()}", []).append(rec)
+    return (
+        by_id, by_label, by_alias, by_remote_addr, by_service,
+        by_identity_confidence, by_capability_report_kind,
+        by_observed_capability, by_missing_capability,
+        by_observed_constraint,
+    )
 
 
 def target_record_summary(records):
     latest = (records or [{}])[0] if records else {}
     service_counts = {}
+    report_kind_counts = {}
+    observed_capability_counts = {}
+    missing_capability_counts = {}
+    observed_constraint_counts = {}
     remote_count = 0
+    report_count = 0
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1490,6 +1520,25 @@ def target_record_summary(records):
             service = str(service or "")
             if service:
                 service_counts[service] = service_counts.get(service, 0) + 1
+        report_kind = str(rec.get("latest_capability_report_kind") or "")
+        if report_kind:
+            report_kind_counts[report_kind] = report_kind_counts.get(report_kind, 0) + 1
+        if rec.get("latest_capability_report") or rec.get("latest_capability_report_path"):
+            report_count += 1
+        for capability in rec.get("observed_capabilities") or []:
+            capability = str(capability or "")
+            if capability:
+                observed_capability_counts[capability] = observed_capability_counts.get(capability, 0) + 1
+        for capability in rec.get("observed_missing_capabilities") or []:
+            capability = str(capability or "")
+            if capability:
+                missing_capability_counts[capability] = missing_capability_counts.get(capability, 0) + 1
+        constraints = rec.get("observed_constraints") if isinstance(rec.get("observed_constraints"), dict) else {}
+        for name, value in sorted(constraints.items()):
+            name = str(name or "")
+            if name:
+                key = f"{name}:{str(bool(value)).lower()}"
+                observed_constraint_counts[key] = observed_constraint_counts.get(key, 0) + 1
     return {
         "target_count": len(records or []),
         "latest_target_id": latest.get("target_id", ""),
@@ -1498,6 +1547,11 @@ def target_record_summary(records):
         "target_identity_confidence_counts": record_count_by_key(records, "identity_confidence"),
         "target_service_counts": service_counts,
         "target_remote_address_count": remote_count,
+        "target_capability_report_count": report_count,
+        "target_capability_report_kind_counts": report_kind_counts,
+        "target_observed_capability_counts": observed_capability_counts,
+        "target_missing_capability_counts": missing_capability_counts,
+        "target_observed_constraint_counts": observed_constraint_counts,
     }
 
 
@@ -8108,7 +8162,11 @@ def status_document(cfg):
      targets_by_alias,
      targets_by_remote_addr,
      targets_by_service,
-     targets_by_identity_confidence) = target_record_indexes(targets)
+     targets_by_identity_confidence,
+     targets_by_capability_report_kind,
+     targets_by_observed_capability,
+     targets_by_missing_capability,
+     targets_by_observed_constraint) = target_record_indexes(targets)
     target_summary = target_record_summary(targets)
     sessions = recent_session_records(cfg)
     unfiltered_counts["sessions"] = len(sessions)
@@ -8959,6 +9017,10 @@ def status_document(cfg):
                 "targets_by_id", "targets_by_label", "targets_by_alias",
                 "targets_by_remote_addr", "targets_by_service",
                 "targets_by_identity_confidence",
+                "targets_by_capability_report_kind",
+                "targets_by_observed_capability",
+                "targets_by_missing_capability",
+                "targets_by_observed_constraint",
             ), "target_count",
         ),
         "staged_records": api_collection_record(
@@ -9304,6 +9366,10 @@ def status_document(cfg):
         "targets_by_remote_addr": targets_by_remote_addr,
         "targets_by_service": targets_by_service,
         "targets_by_identity_confidence": targets_by_identity_confidence,
+        "targets_by_capability_report_kind": targets_by_capability_report_kind,
+        "targets_by_observed_capability": targets_by_observed_capability,
+        "targets_by_missing_capability": targets_by_missing_capability,
+        "targets_by_observed_constraint": targets_by_observed_constraint,
         "staged": staged,
         "staged_records": staged_records,
         "staged_by_request": staged_by_request,
@@ -9617,6 +9683,17 @@ def print_target_summary(doc, limit=8):
                 f"    latest_session={rec.get('latest_session_id', '') or '-'} "
                 f"latest_upload={rec.get('latest_upload_id', '') or '-'} "
                 f"latest_fetch={rec.get('latest_fetch_id', '') or '-'}"
+            )
+        if rec.get("latest_capability_report_kind") or rec.get("observed_capabilities") or rec.get("observed_missing_capabilities"):
+            available = ",".join(str(item) for item in rec.get("observed_capabilities") or []) or "-"
+            missing = ",".join(str(item) for item in rec.get("observed_missing_capabilities") or []) or "-"
+            constraints = rec.get("observed_constraints") if isinstance(rec.get("observed_constraints"), dict) else {}
+            constraint_text = ",".join(
+                f"{name}:{str(bool(value)).lower()}" for name, value in sorted(constraints.items())
+            ) or "-"
+            print(
+                f"    capability_report={rec.get('latest_capability_report_kind', '') or '-'} "
+                f"available={available} missing={missing} constraints={constraint_text}"
             )
 
 
