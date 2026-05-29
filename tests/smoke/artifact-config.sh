@@ -48,6 +48,27 @@ rshell = r["rshell_readiness"]
 assert rshell["session_policy"] == r["effective_config"]["BB_RSHELL_SESSION_POLICY"]
 assert rshell["session_policy_valid"] is True
 assert rshell["session_policy_errors"] == []
+policy = r["effective_config"]["BB_RSHELL_SESSION_POLICY"]
+reconnects = policy in ("reconnect", "persistent")
+persistent = policy == "persistent"
+post_disconnect_count = "-1" if persistent else ("0" if policy == "single" else r["effective_config"]["BB_RSHELL_RETRY_COUNT"])
+assert rshell["session_semantics"]["retry_until_first_connection"] is True
+assert rshell["session_semantics"]["stop_after_first_success"] is (policy == "single")
+assert rshell["session_semantics"]["reconnect_after_disconnect"] is reconnects
+assert rshell["session_semantics"]["persistent_lifecycle"] is persistent
+assert rshell["session_semantics"]["fresh_session_on_reconnect"] is reconnects
+assert rshell["session_semantics"]["session_resume_supported"] is False
+assert rshell["session_policy_summary"]["valid"] is True
+assert rshell["session_policy_summary"]["errors"] == []
+assert rshell["session_policy_summary"]["retry_scope"] == ("pre-connect+post-disconnect" if reconnects else "pre-connect")
+assert rshell["session_policy_summary"]["pre_connect_retry_count"] == r["effective_config"]["BB_RSHELL_RETRY_COUNT"]
+assert rshell["session_policy_summary"]["post_disconnect_retry_count"] == post_disconnect_count
+assert rshell["session_policy_summary"]["stops_after_success"] is (policy == "single")
+assert rshell["session_policy_summary"]["reconnects_after_disconnect"] is reconnects
+assert rshell["session_policy_summary"]["session_resume_supported"] is False
+assert rshell["retry"]["count"] == r["effective_config"]["BB_RSHELL_RETRY_COUNT"]
+assert rshell["retry"]["pre_connect_count"] == r["effective_config"]["BB_RSHELL_RETRY_COUNT"]
+assert rshell["retry"]["post_disconnect_count"] == post_disconnect_count
 assert rshell["operator_host"] == r["effective_config"]["BB_OPERATOR_SERVER_HOST"]
 cq = r["command_queue_policy"]
 assert cq["valid"] is True
@@ -94,6 +115,8 @@ PY
 
 scripts/artifact-config set "$work/busierbox" \
     BB_RSHELL_TRANSPORT=ssh \
+    BB_RSHELL_SESSION_POLICY=reconnect \
+    BB_RSHELL_RETRY_COUNT=3 \
     BB_OPERATOR_SERVER_HOST=198.51.100.7 \
     BB_OPERATOR_REMOTE_FORWARD_PORT=2299 \
     BB_OPERATOR_SERVER_SSH_PORT=22022 \
@@ -130,6 +153,8 @@ assert r["trailer_override"]["present"] is True
 assert r["trailer_override"]["valid"] is True
 assert r["trailer_override"]["encoding"] == "plain"
 assert r["effective_config"]["BB_RSHELL_TRANSPORT"] == "ssh"
+assert r["effective_config"]["BB_RSHELL_SESSION_POLICY"] == "reconnect"
+assert r["effective_config"]["BB_RSHELL_RETRY_COUNT"] == "3"
 assert r["effective_config"]["BB_OPERATOR_SERVER_HOST"] == "198.51.100.7"
 assert r["effective_config"]["BB_OPERATOR_REMOTE_FORWARD_PORT"] == "2299"
 assert r["effective_config"]["BB_OPERATOR_SERVER_SSH_PORT"] == "22022"
@@ -151,6 +176,20 @@ assert rshell["operator_ssh_port"] == "22022"
 assert "--ssh-port 22022" in rshell["server_listener"]
 assert "2299" in rshell["connect_hint"]
 assert rshell["session_policy_valid"] is True
+assert rshell["session_semantics"]["stop_after_first_success"] is False
+assert rshell["session_semantics"]["reconnect_after_disconnect"] is True
+assert rshell["session_semantics"]["persistent_lifecycle"] is False
+assert rshell["session_semantics"]["fresh_session_on_reconnect"] is True
+assert rshell["session_semantics"]["session_resume_supported"] is False
+assert rshell["session_policy_summary"]["retry_scope"] == "pre-connect+post-disconnect"
+assert rshell["session_policy_summary"]["pre_connect_retry_count"] == "3"
+assert rshell["session_policy_summary"]["post_disconnect_retry_count"] == "3"
+assert rshell["session_policy_summary"]["stops_after_success"] is False
+assert rshell["session_policy_summary"]["reconnects_after_disconnect"] is True
+assert rshell["session_policy_summary"]["fresh_session_on_reconnect"] is True
+assert rshell["session_policy_summary"]["session_resume_supported"] is False
+assert rshell["retry"]["pre_connect_count"] == "3"
+assert rshell["retry"]["post_disconnect_count"] == "3"
 cq = r["command_queue_policy"]
 assert cq["valid"] is True
 assert cq["result_upload_supported"] is True

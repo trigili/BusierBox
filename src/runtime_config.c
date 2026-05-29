@@ -789,6 +789,20 @@ static int rshell_session_policy_valid(const char *policy)
            !strcmp(policy, "persistent");
 }
 
+static int rshell_session_policy_reconnects(const char *policy)
+{
+    return !strcmp(policy, "reconnect") || !strcmp(policy, "persistent");
+}
+
+static const char *rshell_session_post_disconnect_retry_count(const char *policy)
+{
+    if (!strcmp(policy, "single"))
+        return "0";
+    if (!strcmp(policy, "persistent"))
+        return "-1";
+    return bb_config_get("BB_RSHELL_RETRY_COUNT");
+}
+
 void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *, const char *))
 {
     const char *transport = bb_config_get("BB_RSHELL_TRANSPORT");
@@ -802,6 +816,12 @@ void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *
     const char *remote_forward_port = bb_config_get("BB_OPERATOR_REMOTE_FORWARD_PORT");
     const char *target_bind_host = bb_config_get("BB_OPERATOR_TARGET_BIND_HOST");
     const char *target_dropbear_port = bb_config_get("BB_OPERATOR_TARGET_DROPBEAR_PORT");
+    const char *retry_count = bb_config_get("BB_RSHELL_RETRY_COUNT");
+    const char *post_disconnect_retry_count = rshell_session_post_disconnect_retry_count(session_policy);
+    int policy_valid = rshell_session_policy_valid(session_policy);
+    int reconnects = rshell_session_policy_reconnects(session_policy);
+    int persistent = !strcmp(session_policy, "persistent");
+    int stops_after_success = !strcmp(session_policy, "single");
     char server[256], hint[256], target_dropbear[256];
     int warning_count = 0;
 
@@ -818,11 +838,47 @@ void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *
     json_string(out, run_mode);
     fprintf(out, ",\"session_policy\":");
     json_string(out, session_policy);
-    fprintf(out, ",\"session_policy_valid\":%s", rshell_session_policy_valid(session_policy) ? "true" : "false");
+    fprintf(out, ",\"session_policy_valid\":%s", policy_valid ? "true" : "false");
     fprintf(out, ",\"session_policy_errors\":[");
-    if (!rshell_session_policy_valid(session_policy))
+    if (!policy_valid)
         json_string(out, "unsupported rshell session policy");
     fprintf(out, "]");
+    fprintf(out, ",\"session_semantics\":{\"retry_until_first_connection\":true");
+    fprintf(out, ",\"stop_after_first_success\":%s", stops_after_success ? "true" : "false");
+    fprintf(out, ",\"reconnect_after_disconnect\":%s", reconnects ? "true" : "false");
+    fprintf(out, ",\"persistent_lifecycle\":%s", persistent ? "true" : "false");
+    fprintf(out, ",\"fresh_session_on_reconnect\":%s", reconnects ? "true" : "false");
+    fprintf(out, ",\"session_resume_supported\":false}");
+    fprintf(out, ",\"session_policy_summary\":{\"valid\":%s", policy_valid ? "true" : "false");
+    fprintf(out, ",\"errors\":[");
+    if (!policy_valid)
+        json_string(out, "unsupported rshell session policy");
+    fprintf(out, "],\"retry_scope\":");
+    json_string(out, reconnects ? "pre-connect+post-disconnect" : "pre-connect");
+    fprintf(out, ",\"pre_connect_retry_count\":");
+    json_string(out, retry_count);
+    fprintf(out, ",\"post_disconnect_retry_count\":");
+    json_string(out, post_disconnect_retry_count);
+    fprintf(out, ",\"stops_after_success\":%s", stops_after_success ? "true" : "false");
+    fprintf(out, ",\"reconnects_after_disconnect\":%s", reconnects ? "true" : "false");
+    fprintf(out, ",\"persistent_lifecycle\":%s", persistent ? "true" : "false");
+    fprintf(out, ",\"fresh_session_on_reconnect\":%s", reconnects ? "true" : "false");
+    fprintf(out, ",\"session_resume_supported\":false}");
+    fprintf(out, ",\"retry\":{\"count\":");
+    json_string(out, retry_count);
+    fprintf(out, ",\"interval_sec\":");
+    json_string(out, bb_config_get("BB_RSHELL_RETRY_INTERVAL_SEC"));
+    fprintf(out, ",\"jitter_pct\":");
+    json_string(out, bb_config_get("BB_RSHELL_RETRY_JITTER_PCT"));
+    fprintf(out, ",\"backoff\":");
+    json_string(out, bb_config_get("BB_RSHELL_RETRY_BACKOFF"));
+    fprintf(out, ",\"max_interval_sec\":");
+    json_string(out, bb_config_get("BB_RSHELL_RETRY_MAX_INTERVAL_SEC"));
+    fprintf(out, ",\"pre_connect_count\":");
+    json_string(out, retry_count);
+    fprintf(out, ",\"post_disconnect_count\":");
+    json_string(out, post_disconnect_retry_count);
+    fprintf(out, "}");
     fprintf(out, ",\"zero_arg_autorun\":%s", !strcmp(zero_arg_mode, "rshell") ? "true" : "false");
     fprintf(out, ",\"operator_host_set\":%s", operator_host[0] ? "true" : "false");
     fprintf(out, ",\"operator_host\":");
@@ -854,7 +910,7 @@ void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *
             fputc(',', out);
         json_string(out, "zero-arg execution will not start reverse access");
     }
-    if (!rshell_session_policy_valid(session_policy)) {
+    if (!policy_valid) {
         if (warning_count++)
             fputc(',', out);
         json_string(out, "unsupported rshell session policy");

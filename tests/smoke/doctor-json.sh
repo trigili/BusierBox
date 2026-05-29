@@ -55,6 +55,19 @@ if data["rshell_readiness"]["session_policy_valid"] is not True:
     raise SystemExit("doctor default rshell session policy should be valid")
 if data["rshell_readiness"]["session_policy_errors"] != []:
     raise SystemExit("doctor default rshell session policy errors should be empty")
+rshell_semantics = data["rshell_readiness"].get("session_semantics") or {}
+rshell_summary = data["rshell_readiness"].get("session_policy_summary") or {}
+rshell_retry = data["rshell_readiness"].get("retry") or {}
+if rshell_semantics.get("retry_until_first_connection") is not True:
+    raise SystemExit("doctor rshell semantics missing retry-until-first-connection")
+if rshell_semantics.get("session_resume_supported") is not False:
+    raise SystemExit("doctor rshell semantics must not claim session resume")
+if rshell_summary.get("valid") is not True or rshell_summary.get("errors") != []:
+    raise SystemExit("doctor rshell policy summary should report valid default policy")
+if rshell_summary.get("pre_connect_retry_count") != rshell_retry.get("pre_connect_count"):
+    raise SystemExit("doctor rshell pre-connect retry summary mismatch")
+if rshell_summary.get("post_disconnect_retry_count") != rshell_retry.get("post_disconnect_count"):
+    raise SystemExit("doctor rshell post-disconnect retry summary mismatch")
 if data["runtime_config"].get("effective_config_source") not in {"compiled", "trailer", "env", "cli"}:
     raise SystemExit("doctor runtime config source missing")
 if "trailer_override" not in data["runtime_config"]:
@@ -102,6 +115,10 @@ if rshell.get("session_policy_valid") is not False:
     raise SystemExit("doctor invalid rshell session policy should be invalid")
 if "unsupported rshell session policy" not in rshell.get("session_policy_errors", []):
     raise SystemExit("doctor invalid rshell session policy error missing")
+if "unsupported rshell session policy" not in (rshell.get("session_policy_summary") or {}).get("errors", []):
+    raise SystemExit("doctor invalid rshell session policy summary error missing")
+if (rshell.get("session_semantics") or {}).get("session_resume_supported") is not False:
+    raise SystemExit("doctor invalid rshell session semantics must not claim session resume")
 if "unsupported rshell session policy" not in rshell.get("warnings", []):
     raise SystemExit("doctor invalid rshell session policy warning missing")
 PY
