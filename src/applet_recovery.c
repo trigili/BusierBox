@@ -264,6 +264,88 @@ static int shell_name_safe(const char *s)
     return 1;
 }
 
+static const char *first_nonempty_env(const char *a, const char *b)
+{
+    const char *v = getenv(a);
+    if (v && v[0])
+        return v;
+    v = getenv(b);
+    return v && v[0] ? v : NULL;
+}
+
+static void clean_recovery_arg_value(const char *in, char *out, size_t outsz)
+{
+    size_t i, j = 0;
+    if (!outsz)
+        return;
+    for (i = 0; in && in[i] && j + 1 < outsz; i++) {
+        if (in[i] == '\r' || in[i] == '\n')
+            continue;
+        out[j++] = in[i];
+    }
+    out[j] = '\0';
+}
+
+static int shell_word_safe(const char *s)
+{
+    size_t i;
+    if (!s || !*s)
+        return 0;
+    for (i = 0; s[i]; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '_' || c == '-' ||
+              c == '.' || c == '/' || c == ':' || c == '@' || c == ','))
+            return 0;
+    }
+    return 1;
+}
+
+static int append_shell_word(char *out, size_t outsz, const char *word)
+{
+    size_t len = strlen(out);
+    const char *p;
+    if (len + 1 >= outsz)
+        return -1;
+    if (shell_word_safe(word)) {
+        if (snprintf(out + len, outsz - len, "%s", word) >= (int)(outsz - len))
+            return -1;
+        return 0;
+    }
+    out[len++] = '\'';
+    out[len] = '\0';
+    for (p = word; p && *p; p++) {
+        if (*p == '\'') {
+            if (len + 4 >= outsz)
+                return -1;
+            memcpy(out + len, "'\\''", 4);
+            len += 4;
+            out[len] = '\0';
+        } else {
+            if (len + 1 >= outsz)
+                return -1;
+            out[len++] = *p;
+            out[len] = '\0';
+        }
+    }
+    if (len + 1 >= outsz)
+        return -1;
+    out[len++] = '\'';
+    out[len] = '\0';
+    return 0;
+}
+
+static int append_upload_target_arg(char *out, size_t outsz, const char *opt, const char *value)
+{
+    size_t len;
+    if (!value || !value[0])
+        return 0;
+    len = strlen(out);
+    if (snprintf(out + len, outsz - len, " %s ", opt) >= (int)(outsz - len))
+        return -1;
+    return append_shell_word(out, outsz, value);
+}
+
 static int backup_existing_file(const char *path, char *backup, size_t backupsz)
 {
     struct stat st;
@@ -1118,12 +1200,16 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     const char *action = "status-only";
     const char *name = BB_RECOVERY_BINARY_NAME;
     const char *script_file = NULL;
+    const char *target_id_arg = NULL;
+    const char *target_label_arg = NULL;
+    const char *target_alias_args[16];
     int dry_run = 0, apply = 0, external = 0, json = 0;
     const struct recovery_method *m;
     char hook[PATH_MAX], bin[PATH_MAX], script_dst[PATH_MAX], bindir[PATH_MAX], backup[PATH_MAX];
     char generated[PATH_MAX * 2];
+    char target_id[256], target_label[256], target_alias[256], upload_target_args[2048];
     int backup_status;
-    int i;
+    int i, target_alias_count = 0;
 
     generated[0] = '\0';
     for (i = 2; i < argc; i++) {
@@ -1145,6 +1231,17 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
             name = argv[++i];
         else if (!strcmp(argv[i], "--file") && i + 1 < argc)
             script_file = argv[++i];
+        else if (!strcmp(argv[i], "--target-id") && i + 1 < argc)
+            target_id_arg = argv[++i];
+        else if (!strcmp(argv[i], "--target-label") && i + 1 < argc)
+            target_label_arg = argv[++i];
+        else if (!strcmp(argv[i], "--target-alias") && i + 1 < argc) {
+            if (target_alias_count >= (int)(sizeof(target_alias_args) / sizeof(target_alias_args[0]))) {
+                fprintf(stderr, "%s: too many --target-alias values\n", applet);
+                return 2;
+            }
+            target_alias_args[target_alias_count++] = argv[++i];
+        }
         else if (!strcmp(argv[i], "--")) {
             int j;
             generated[0] = '\0';
@@ -1182,14 +1279,31 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     recovery_join(hook, sizeof(hook), root, m->path);
     recovery_bin_path(bin, sizeof(bin), root, name);
     recovery_script_path(script_dst, sizeof(script_dst), root, name);
+    clean_recovery_arg_value(target_id_arg ? target_id_arg : first_nonempty_env("BB_TARGET_ID", "BUSIERBOX_TARGET_ID"),
+                             target_id, sizeof(target_id));
+    clean_recovery_arg_value(target_label_arg ? target_label_arg : first_nonempty_env("BB_TARGET_LABEL", "BUSIERBOX_TARGET_LABEL"),
+                             target_label, sizeof(target_label));
+    upload_target_args[0] = '\0';
+    if (append_upload_target_arg(upload_target_args, sizeof(upload_target_args), "--target-id", target_id) != 0 ||
+        append_upload_target_arg(upload_target_args, sizeof(upload_target_args), "--target-label", target_label) != 0) {
+        fprintf(stderr, "%s: target identity arguments are too long\n", applet);
+        return 2;
+    }
+    for (i = 0; i < target_alias_count; i++) {
+        clean_recovery_arg_value(target_alias_args[i], target_alias, sizeof(target_alias));
+        if (append_upload_target_arg(upload_target_args, sizeof(upload_target_args), "--target-alias", target_alias) != 0) {
+            fprintf(stderr, "%s: target alias arguments are too long\n", applet);
+            return 2;
+        }
+    }
     if (!strcmp(action, "rshell"))
         snprintf(generated, sizeof(generated), "/usr/bin/%s rshell start", name);
     else if (!strcmp(action, "evidence-push"))
-        snprintf(generated, sizeof(generated), "/usr/bin/%s evidence push --quiet", name);
+        snprintf(generated, sizeof(generated), "/usr/bin/%s evidence push%s --quiet", name, upload_target_args);
     else if (!strcmp(action, "evidence-then-rshell"))
-        snprintf(generated, sizeof(generated), "/usr/bin/%s evidence push --quiet && /usr/bin/%s rshell start", name, name);
+        snprintf(generated, sizeof(generated), "/usr/bin/%s evidence push%s --quiet && /usr/bin/%s rshell start", name, upload_target_args, name);
     else if (!strcmp(action, "dmesg-push"))
-        snprintf(generated, sizeof(generated), "bbx_dmesg_dir=%s/run; mkdir -p \"$bbx_dmesg_dir\" 2>/dev/null || bbx_dmesg_dir=.; bbx_dmesg=\"$bbx_dmesg_dir/%s-dmesg.txt\"; dmesg >\"$bbx_dmesg\" 2>&1; /usr/bin/%s evidence push \"$bbx_dmesg\" --dest %s-dmesg.txt --quiet; rm -f \"$bbx_dmesg\"", BB_RUNTIME_ROOT, name, name, name);
+        snprintf(generated, sizeof(generated), "bbx_dmesg_dir=%s/run; mkdir -p \"$bbx_dmesg_dir\" 2>/dev/null || bbx_dmesg_dir=.; bbx_dmesg=\"$bbx_dmesg_dir/%s-dmesg.txt\"; dmesg >\"$bbx_dmesg\" 2>&1; /usr/bin/%s evidence push \"$bbx_dmesg\"%s --dest %s-dmesg.txt --quiet; rm -f \"$bbx_dmesg\"", BB_RUNTIME_ROOT, name, name, upload_target_args, name);
     else if (!strcmp(action, "script")) {
         if (!script_file || !*script_file) {
             fprintf(stderr, "%s: recovery action script requires --file FILE\n", applet);
@@ -1232,6 +1346,19 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
             fputs(",\"action\":", stdout); bb_json_string(stdout, action);
             fputs(",\"action_category\":", stdout); bb_json_string(stdout, recovery_action_category(action));
             fputs(",\"generated_command\":", stdout); bb_json_string(stdout, generated);
+            fputs(",\"target_identity\":{\"target_id\":", stdout); bb_json_string(stdout, target_id);
+            fputs(",\"target_label\":", stdout); bb_json_string(stdout, target_label);
+            fputs(",\"target_aliases\":[", stdout);
+            for (i = 0; i < target_alias_count; i++) {
+                clean_recovery_arg_value(target_alias_args[i], target_alias, sizeof(target_alias));
+                if (i)
+                    fputc(',', stdout);
+                bb_json_string(stdout, target_alias);
+            }
+            fputs("],\"source\":", stdout);
+            bb_json_string(stdout, (target_id_arg || target_label_arg || target_alias_count) ? "arguments" :
+                           (target_id[0] || target_label[0]) ? "environment" : "none");
+            fputs("}", stdout);
             fputs(",\"paths\":{\"hook\":", stdout); bb_json_string(stdout, hook);
             fputs(",\"binary\":", stdout); bb_json_string(stdout, bin);
             fputs(",\"script\":", stdout); bb_json_string(stdout, script_dst);
@@ -1260,6 +1387,11 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
         printf("Would %s persistence method=%s name=%s root=%s\n", uninstall ? "uninstall" : "install", method, name, root);
         printf("Action: %s\n", action);
         printf("Generated command: %s\n", generated);
+        if (target_id[0] || target_label[0] || target_alias_count) {
+            printf("Target identity: id=%s label=%s aliases=%d\n",
+                   target_id[0] ? target_id : "-", target_label[0] ? target_label : "-",
+                   target_alias_count);
+        }
         printf("Would %s binary: %s\n", uninstall ? "remove" : "copy self to", bin);
         if (!strcmp(action, "script"))
             printf("Would %s script: %s from %s\n", uninstall ? "remove" : "copy", script_dst, script_file);
@@ -1349,11 +1481,12 @@ int applet_recovery_main(int argc, char **argv)
             puts("recovery is a deprecated compatibility alias for persistence.");
         puts("usage: busierbox persistence --survey|--plan [--json] [--root ROOT]");
         puts("       busierbox persistence status [--json] [--root ROOT] [--name NAME]");
-        puts("       busierbox persistence install --method METHOD [--action rshell|evidence-push|evidence-then-rshell|dmesg-push|command|script|status-only] --dry-run|--apply [--json] [--external] [--root ROOT] [--name NAME] [--file SCRIPT] [-- COMMAND]");
+        puts("       busierbox persistence install --method METHOD [--action rshell|evidence-push|evidence-then-rshell|dmesg-push|command|script|status-only] --dry-run|--apply [--json] [--external] [--root ROOT] [--name NAME] [--file SCRIPT] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS] [-- COMMAND]");
         puts("       busierbox persistence uninstall --method METHOD --dry-run|--apply [--json] [--external] [--root ROOT] [--name NAME]");
         puts("Persistence is authorized lab persistence/recovery only. Survey and plan never modify the target.");
         puts("Install and uninstall require an explicit method plus --dry-run or --apply; real-root writes require --external --apply.");
         puts("Evidence actions upload target-initiated evidence to the configured receive-only operator file service.");
+        puts("Evidence actions preserve explicit --target-* identity, or BB_TARGET_ID/BB_TARGET_LABEL when set.");
         return 0;
     }
     if (!strcmp(cmd, "install"))

@@ -57,6 +57,7 @@ busierbox persistence install --method rc-local --name busierbox_recovery --dry-
 busierbox persistence install --method rc-local --action dmesg-push --dry-run --json
 busierbox persistence install --method openwrt-procd --action rshell --external --apply
 busierbox persistence install --method rc-local --action evidence-push --dry-run
+busierbox persistence install --method rc-local --action evidence-push --target-id router-a --target-label "Router A" --dry-run
 busierbox persistence install --method rc-local --action evidence-then-rshell --external --apply
 busierbox persistence install --method rc-local --action dmesg-push --external --apply
 busierbox persistence install --method cron-reboot --action command --dry-run -- 'busierbox rshell start'
@@ -89,6 +90,13 @@ Evidence actions are explicit crash/reboot workflows for lab targets that panic
 or reboot during testing. They do not add a hidden control channel, do not
 execute operator-supplied commands, and still require the target artifact to be
 configured with an operator host/file-service before upload can succeed.
+When `--target-id`, `--target-label`, or `--target-alias` are supplied to
+`persistence install`, evidence actions bake those identity options into the
+generated `evidence push` command so reboot uploads are scoped to the same
+operator target record. If explicit options are omitted, `BB_TARGET_ID` or
+`BUSIERBOX_TARGET_ID` and `BB_TARGET_LABEL` or `BUSIERBOX_TARGET_LABEL` are
+used when present. Dry-run JSON reports the identity source under
+`target_identity`.
 `persistence --survey --json` reports all available action semantics, while
 `persistence status --json` reports each installed action's category and
 semantics, including whether it uploads evidence, captures `dmesg`, starts

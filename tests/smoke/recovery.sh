@@ -345,6 +345,33 @@ grep -q 'recovery name must use letters' "$tmp/bad-name.err"
 "$bb" persistence install --method rc-local --action evidence-push --dry-run --root "$tmp/root" --name bbx_recovery >"$tmp/evidence-dry-run"
 grep -q 'Action: evidence-push' "$tmp/evidence-dry-run"
 grep -q 'Generated command: /usr/bin/bbx_recovery evidence push --quiet' "$tmp/evidence-dry-run"
+"$bb" persistence install --method rc-local --action evidence-push --target-id target-recovery --target-label "Recovery Router" --target-alias lab-router --dry-run --json --root "$tmp/root" --name bbx_recovery >"$tmp/evidence-target-dry-run.json"
+python3 -m json.tool "$tmp/evidence-target-dry-run.json" >/dev/null
+python3 - <<'PY' "$tmp/evidence-target-dry-run.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data["target_identity"]["target_id"] == "target-recovery"
+assert data["target_identity"]["target_label"] == "Recovery Router"
+assert data["target_identity"]["target_aliases"] == ["lab-router"]
+assert data["target_identity"]["source"] == "arguments"
+cmd = data["generated_command"]
+assert "--target-id target-recovery" in cmd
+assert "--target-label 'Recovery Router'" in cmd
+assert "--target-alias lab-router" in cmd
+assert cmd.endswith(" --quiet")
+PY
+BB_TARGET_ID=env-recovery BB_TARGET_LABEL="Env Router" "$bb" persistence install --method rc-local --action evidence-push --dry-run --json --root "$tmp/root" --name bbx_recovery >"$tmp/evidence-env-target-dry-run.json"
+python3 -m json.tool "$tmp/evidence-env-target-dry-run.json" >/dev/null
+python3 - <<'PY' "$tmp/evidence-env-target-dry-run.json"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data["target_identity"]["target_id"] == "env-recovery"
+assert data["target_identity"]["target_label"] == "Env Router"
+assert data["target_identity"]["target_aliases"] == []
+assert data["target_identity"]["source"] == "environment"
+assert "--target-id env-recovery" in data["generated_command"]
+assert "--target-label 'Env Router'" in data["generated_command"]
+PY
 "$bb" persistence install --method rc-local --action evidence-push --apply --root "$tmp/root" --name bbx_recovery >/dev/null
 grep -q 'action=evidence-push' "$tmp/root/etc/rc.local"
 grep -q '/usr/bin/bbx_recovery evidence push --quiet' "$tmp/root/etc/rc.local"
