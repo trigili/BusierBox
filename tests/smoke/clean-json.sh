@@ -73,7 +73,7 @@ if not isinstance(doc.get("external_entries"), list):
     raise SystemExit("clean dry-run external_entries must be a list")
 PY
 
-    ./busierbox extract >/dev/null
+    BB_TARGET_ID=target-clean BB_TARGET_LABEL="Clean Router" ./busierbox extract >/dev/null
     test -d .busierbox/payload
     ./busierbox cleanup-ledger --json >ledger-after-extract.json
     python3 -m json.tool ledger-after-extract.json >/dev/null
@@ -108,10 +108,18 @@ if not doc.get("entries_by_scope", {}).get("payload"):
     raise SystemExit("cleanup ledger missing entries_by_scope payload index")
 if doc.get("op_counts", {}).get("extract", 0) < 1:
     raise SystemExit("cleanup ledger missing op counts")
+if doc.get("target_id_counts", {}).get("target-clean", 0) < 1:
+    raise SystemExit("cleanup ledger missing target id counts")
+if not doc.get("entries_by_target_id", {}).get("target-clean"):
+    raise SystemExit("cleanup ledger missing target id index")
+if not doc.get("entries_by_target_label", {}).get("Clean Router"):
+    raise SystemExit("cleanup ledger missing target label index")
+if not all(item.get("target_id") == "target-clean" for item in entries if isinstance(item, dict)):
+    raise SystemExit("cleanup ledger entries did not retain target id")
 api = (doc.get("api_collections") or {}).get("entries") or {}
 if api.get("count") != len(entries) or api.get("primary_key") != "path":
     raise SystemExit("cleanup ledger API collection metadata mismatch")
-for index in ("entries_by_op", "entries_by_scope", "entries_by_path", "entries_by_valid"):
+for index in ("entries_by_op", "entries_by_scope", "entries_by_path", "entries_by_target_id", "entries_by_target_label", "entries_by_valid"):
     if index not in api.get("indexes", []):
         raise SystemExit(f"cleanup ledger API index missing {index}")
 resources = doc.get("api_resources_by_name") or {}
@@ -137,6 +145,12 @@ if ".busierbox/payload" not in joined:
 scopes = {item.get("scope") for item in paths if isinstance(item, dict)}
 if "payload" not in scopes:
     raise SystemExit("residue plan missing payload cleanup scope")
+if not plan.get("ledgered_cleanup_paths_by_target_id", {}).get("target-clean"):
+    raise SystemExit("residue plan missing cleanup paths by target id")
+if not plan.get("ledgered_cleanup_paths_by_target_label", {}).get("Clean Router"):
+    raise SystemExit("residue plan missing cleanup paths by target label")
+if not all(item.get("target_id") == "target-clean" for item in paths if isinstance(item, dict)):
+    raise SystemExit("residue plan cleanup paths did not retain target id")
 actions = {item.get("cleanup_action") for item in paths if isinstance(item, dict)}
 if "remove_with_runtime_root" not in actions:
     raise SystemExit("residue plan missing runtime-root cleanup action")
@@ -156,6 +170,8 @@ if api.get("count") != len(paths):
     raise SystemExit("residue plan cleanup path API count mismatch after extract")
 if "ledgered_cleanup_paths_by_cleanup_action" not in api.get("indexes", []):
     raise SystemExit("residue plan cleanup path API missing action index")
+if "ledgered_cleanup_paths_by_target_id" not in api.get("indexes", []):
+    raise SystemExit("residue plan cleanup path API missing target id index")
 resources = plan.get("api_resources_by_name") or {}
 if resources.get("ledgered_cleanup_paths", {}).get("records_key") != "ledgered_cleanup_paths":
     raise SystemExit("residue plan cleanup path API resource missing")

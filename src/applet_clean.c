@@ -32,6 +32,8 @@ struct cleanup_record {
     char path[PATH_MAX];
     char scope[64];
     char detail[512];
+    char target_id[256];
+    char target_label[256];
     char cleanup_action[64];
 };
 
@@ -40,6 +42,8 @@ struct ledger_json_record {
     char op[64];
     char path[PATH_MAX];
     char scope[64];
+    char target_id[256];
+    char target_label[256];
     int valid;
 };
 
@@ -186,7 +190,7 @@ static int load_ledgered_cleanup_records(struct cleanup_record *records, int max
     if (!fp)
         return 0;
     while (fgets(line, sizeof(line), fp)) {
-        char ledger_path[PATH_MAX], op[64], scope[64], detail[512];
+        char ledger_path[PATH_MAX], op[64], scope[64], detail[512], target_id[256], target_label[256];
 
         if (json_get_string_field(line, "path", ledger_path, sizeof(ledger_path)) != 0)
             continue;
@@ -198,12 +202,18 @@ static int load_ledgered_cleanup_records(struct cleanup_record *records, int max
             continue;
         op[0] = '\0';
         detail[0] = '\0';
+        target_id[0] = '\0';
+        target_label[0] = '\0';
         json_get_string_field(line, "op", op, sizeof(op));
         json_get_string_field(line, "detail", detail, sizeof(detail));
+        json_get_string_field(line, "target_id", target_id, sizeof(target_id));
+        json_get_string_field(line, "target_label", target_label, sizeof(target_label));
         snprintf(records[count].op, sizeof(records[count].op), "%s", op);
         snprintf(records[count].path, sizeof(records[count].path), "%s", ledger_path);
         snprintf(records[count].scope, sizeof(records[count].scope), "%s", scope[0] ? scope : "runtime");
         snprintf(records[count].detail, sizeof(records[count].detail), "%s", detail);
+        snprintf(records[count].target_id, sizeof(records[count].target_id), "%s", target_id);
+        snprintf(records[count].target_label, sizeof(records[count].target_label), "%s", target_label);
         snprintf(records[count].cleanup_action, sizeof(records[count].cleanup_action), "%s",
                  ledger_cleanup_action(ledger_path, op, ledger));
         count++;
@@ -228,6 +238,14 @@ static void print_ledgered_cleanup_paths_json(const struct cleanup_record *recor
         bb_json_string(stdout, records[i].scope);
         fputs(",\"cleanup_action\":", stdout);
         bb_json_string(stdout, records[i].cleanup_action);
+        if (records[i].target_id[0]) {
+            fputs(",\"target_id\":", stdout);
+            bb_json_string(stdout, records[i].target_id);
+        }
+        if (records[i].target_label[0]) {
+            fputs(",\"target_label\":", stdout);
+            bb_json_string(stdout, records[i].target_label);
+        }
         if (records[i].detail[0]) {
             fputs(",\"detail\":", stdout);
             bb_json_string(stdout, records[i].detail);
@@ -246,6 +264,10 @@ static int cleanup_record_field_equals(const struct cleanup_record *record, cons
         return !strcmp(record->scope, value);
     if (!strcmp(field, "op"))
         return !strcmp(record->op, value);
+    if (!strcmp(field, "target_id"))
+        return !strcmp(record->target_id, value);
+    if (!strcmp(field, "target_label"))
+        return !strcmp(record->target_label, value);
     if (!strcmp(field, "cleanup_action"))
         return !strcmp(record->cleanup_action, value);
     return 0;
@@ -259,6 +281,10 @@ static const char *cleanup_record_field_value(const struct cleanup_record *recor
         return record->scope;
     if (!strcmp(field, "op"))
         return record->op;
+    if (!strcmp(field, "target_id"))
+        return record->target_id;
+    if (!strcmp(field, "target_label"))
+        return record->target_label;
     if (!strcmp(field, "cleanup_action"))
         return record->cleanup_action;
     return "";
@@ -311,6 +337,10 @@ static const char *ledger_json_record_field_value(const struct ledger_json_recor
         return record->scope;
     if (!strcmp(field, "path"))
         return record->path;
+    if (!strcmp(field, "target_id"))
+        return record->target_id;
+    if (!strcmp(field, "target_label"))
+        return record->target_label;
     if (!strcmp(field, "valid"))
         return record->valid ? "yes" : "no";
     return "";
@@ -482,6 +512,10 @@ static void print_residue_plan_api_json(int cleanup_count, int intended_count)
     fputc(',', stdout);
     bb_json_string(stdout, "ledgered_cleanup_paths_by_op");
     fputc(',', stdout);
+    bb_json_string(stdout, "ledgered_cleanup_paths_by_target_id");
+    fputc(',', stdout);
+    bb_json_string(stdout, "ledgered_cleanup_paths_by_target_label");
+    fputc(',', stdout);
     bb_json_string(stdout, "ledgered_cleanup_paths_by_cleanup_action");
     fputs("]}}", stdout);
     fputs(",\"api_resources\":[{\"name\":\"intended_write_path_records\",\"records_key\":\"intended_write_path_records\",\"collection_key\":\"api_collections.intended_write_path_records\",\"count\":", stdout);
@@ -560,6 +594,10 @@ static void print_residue_plan_json(int include_external, int ledger)
     print_cleanup_record_index_json(cleanup_records, cleanup_count, "scope");
     fputs(",\"ledgered_cleanup_paths_by_op\":", stdout);
     print_cleanup_record_index_json(cleanup_records, cleanup_count, "op");
+    fputs(",\"ledgered_cleanup_paths_by_target_id\":", stdout);
+    print_cleanup_record_index_json(cleanup_records, cleanup_count, "target_id");
+    fputs(",\"ledgered_cleanup_paths_by_target_label\":", stdout);
+    print_cleanup_record_index_json(cleanup_records, cleanup_count, "target_label");
     fputs(",\"ledgered_cleanup_paths_by_cleanup_action\":", stdout);
     print_cleanup_record_index_json(cleanup_records, cleanup_count, "cleanup_action");
     print_residue_plan_api_json(cleanup_count, intended_count);
@@ -850,7 +888,7 @@ int applet_cleanup_ledger_main(int argc, char **argv)
     bb_json_string(stdout, path);
     if (fp) {
         while (fgets(line, sizeof(line), fp)) {
-            char op[64], ledger_path[PATH_MAX], scope[64];
+            char op[64], ledger_path[PATH_MAX], scope[64], target_id[256], target_label[256];
             int valid;
 
             line[strcspn(line, "\r\n")] = '\0';
@@ -871,18 +909,26 @@ int applet_cleanup_ledger_main(int argc, char **argv)
             op[0] = '\0';
             ledger_path[0] = '\0';
             scope[0] = '\0';
+            target_id[0] = '\0';
+            target_label[0] = '\0';
             valid = line[0] == '{' &&
                     line[strlen(line) - 1] == '}' &&
                     json_get_string_field(line, "op", op, sizeof(op)) == 0 &&
                     json_get_string_field(line, "path", ledger_path, sizeof(ledger_path)) == 0;
             if (valid && json_get_string_field(line, "scope", scope, sizeof(scope)) != 0)
                 snprintf(scope, sizeof(scope), "%s", "runtime");
+            if (valid) {
+                json_get_string_field(line, "target_id", target_id, sizeof(target_id));
+                json_get_string_field(line, "target_label", target_label, sizeof(target_label));
+            }
             if (!valid)
                 invalid_count++;
             snprintf(records[count].raw, sizeof(records[count].raw), "%s", line);
             snprintf(records[count].op, sizeof(records[count].op), "%s", valid ? op : "");
             snprintf(records[count].path, sizeof(records[count].path), "%s", valid ? ledger_path : "");
             snprintf(records[count].scope, sizeof(records[count].scope), "%s", valid ? scope : "");
+            snprintf(records[count].target_id, sizeof(records[count].target_id), "%s", valid ? target_id : "");
+            snprintf(records[count].target_label, sizeof(records[count].target_label), "%s", valid ? target_label : "");
             records[count].valid = valid;
             count++;
         }
@@ -909,12 +955,18 @@ int applet_cleanup_ledger_main(int argc, char **argv)
     print_ledger_json_record_index(records, count, "scope");
     printf(",\"entries_by_path\":");
     print_ledger_json_record_index(records, count, "path");
+    printf(",\"entries_by_target_id\":");
+    print_ledger_json_record_index(records, count, "target_id");
+    printf(",\"entries_by_target_label\":");
+    print_ledger_json_record_index(records, count, "target_label");
     printf(",\"entries_by_valid\":");
     print_ledger_json_record_index(records, count, "valid");
     printf(",\"op_counts\":");
     print_ledger_json_counts(records, count, "op");
     printf(",\"scope_counts\":");
     print_ledger_json_counts(records, count, "scope");
+    printf(",\"target_id_counts\":");
+    print_ledger_json_counts(records, count, "target_id");
     printf(",\"api\":{\"schema\":1,\"collections_key\":\"api_collections\",\"resources_key\":\"api_resources\",\"resource_count\":1}");
     printf(",\"api_collections\":{\"entries\":{\"name\":\"entries\",\"count\":%d,\"count_summary_key\":\"entry_count\",\"summary_key\":\"entry_count\",\"primary_key\":\"path\",\"indexes\":[", count);
     bb_json_string(stdout, "entries_by_op");
@@ -922,6 +974,10 @@ int applet_cleanup_ledger_main(int argc, char **argv)
     bb_json_string(stdout, "entries_by_scope");
     fputc(',', stdout);
     bb_json_string(stdout, "entries_by_path");
+    fputc(',', stdout);
+    bb_json_string(stdout, "entries_by_target_id");
+    fputc(',', stdout);
+    bb_json_string(stdout, "entries_by_target_label");
     fputc(',', stdout);
     bb_json_string(stdout, "entries_by_valid");
     printf("]}}");

@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -21,9 +22,21 @@ const char *bb_ledger_path(char *out, size_t outsz)
     return out;
 }
 
+static const char *first_nonempty_env(const char *a, const char *b)
+{
+    const char *value = getenv(a);
+
+    if (value && value[0])
+        return value;
+    value = getenv(b);
+    return value && value[0] ? value : "";
+}
+
 void bb_ledger_record(const char *op, const char *path, const char *scope, const char *detail)
 {
     char run_dir[PATH_MAX], ledger[PATH_MAX];
+    const char *target_id = first_nonempty_env("BB_TARGET_ID", "BUSIERBOX_TARGET_ID");
+    const char *target_label = first_nonempty_env("BB_TARGET_LABEL", "BUSIERBOX_TARGET_LABEL");
     FILE *fp;
     time_t now = time(NULL);
 
@@ -43,6 +56,15 @@ void bb_ledger_record(const char *op, const char *path, const char *scope, const
     if (detail && *detail) {
         fputs(",\"detail\":", fp);
         bb_json_string(fp, detail);
+    }
+    if (target_id[0]) {
+        fputs(",\"target_id\":", fp);
+        bb_json_string(fp, target_id);
+        fputs(",\"target_identity_source\":\"environment\",\"target_identity_confidence\":\"operator-supplied\"", fp);
+    }
+    if (target_label[0]) {
+        fputs(",\"target_label\":", fp);
+        bb_json_string(fp, target_label);
     }
     fputs("}\n", fp);
     fclose(fp);

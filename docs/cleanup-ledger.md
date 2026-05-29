@@ -10,6 +10,10 @@ Each line is JSON. The initial ledger tracks top-level runtime roots, payload
 extraction roots, clean operations, explicit persistence hook writes, and explicit
 rshell root authorized-key writes. Generated `config-push` and `evidence push`
 scratch files are ledgered as runtime writes and removals before upload cleanup.
+When `BB_TARGET_ID` or `BUSIERBOX_TARGET_ID` is set, new ledger entries also
+record `target_id`, optional `target_label`, and environment-sourced identity
+metadata so operator tooling can keep cleanup evidence scoped to a known target
+without requiring a target id for simple single-target workflows.
 Extraction tracking is intentionally
 coarse-grained: it gives operators a safe cleanup view without pretending every
 extracted payload file has a separate audit entry yet.
@@ -43,6 +47,8 @@ The plan also publishes frontend-oriented lookup maps:
 `intended_write_path_records_by_name`, `intended_write_path_records_by_path`,
 `ledgered_cleanup_paths_by_path`, `ledgered_cleanup_paths_by_scope`,
 `ledgered_cleanup_paths_by_op`, and
+`ledgered_cleanup_paths_by_target_id`,
+`ledgered_cleanup_paths_by_target_label`, and
 `ledgered_cleanup_paths_by_cleanup_action`, plus `api_collections` and
 `api_resources` metadata for the `intended_write_path_records` and
 `ledgered_cleanup_paths` collections.
