@@ -10286,13 +10286,19 @@ def record_workbench_refresh(cfg, reason="manual"):
     rec = services.setdefault("workbench", {})
     count = int(rec.get("refresh_count", 0) or 0) + 1
     now = utc_now()
+    headless = "scripts/busierbox-server --config " + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG))) + " --status"
     rec.update({
         "status": rec.get("status") or "open",
         "last_refresh_at": now,
         "refresh_count": count,
     })
     atomic_write_json(state_file_path(cfg), state)
-    append_event(cfg, "workbench", "workbench_refreshed", details={"reason": reason, "refresh_count": count})
+    append_event(cfg, "workbench", "workbench_refreshed", details={
+        "reason": reason,
+        "refresh_count": count,
+        "headless_command": headless,
+    })
+    rec["headless_command"] = headless
     return rec
 
 
@@ -15167,6 +15173,7 @@ def run_line_tui(cfg):
         elif choice == "r":
             rec = record_workbench_refresh(cfg)
             print(f"refreshed workbench at {rec.get('last_refresh_at', '')}")
+            print(f"headless_command: {rec.get('headless_command', '')}")
             render_full = True
         elif choice == "c":
             commands = generated_target_commands(cfg)

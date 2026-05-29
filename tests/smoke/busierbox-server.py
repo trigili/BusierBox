@@ -945,6 +945,65 @@ def main():
             print(json.dumps(actions_tui_events[-8:], indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
+        refresh_tui_master, refresh_tui_slave = pty.openpty()
+        try:
+            refresh_tui_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(cfg),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=refresh_tui_slave,
+                stdout=refresh_tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(refresh_tui_slave)
+            refresh_tui_slave = -1
+            time.sleep(0.3)
+            os.write(refresh_tui_master, b"r\nq\n")
+            _refresh_tui_stdout, refresh_tui_stderr = refresh_tui_proc.communicate(timeout=8)
+            refresh_tui_output = b""
+            while True:
+                try:
+                    chunk = os.read(refresh_tui_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                refresh_tui_output += chunk
+        finally:
+            if refresh_tui_slave != -1:
+                os.close(refresh_tui_slave)
+            try:
+                os.close(refresh_tui_master)
+            except OSError:
+                pass
+        refresh_tui_text = refresh_tui_output.decode("utf-8", errors="replace")
+        if (refresh_tui_proc.returncode != 0 or
+                "Traceback" in (refresh_tui_stderr or "") or
+                "refreshed workbench at " not in refresh_tui_text or
+                "headless_command: scripts/busierbox-server --config" not in refresh_tui_text or
+                "--status" not in refresh_tui_text):
+            print("line TUI refresh did not expose headless status command", file=sys.stderr)
+            print(refresh_tui_text, file=sys.stderr)
+            print(refresh_tui_stderr or "", file=sys.stderr)
+            return 1
+        refresh_tui_events = [
+            json.loads(line)
+            for line in (queue_operator_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if not any(
+                event.get("event") == "workbench_refreshed" and
+                "--status" in ((event.get("details") or {}).get("headless_command") or "")
+                for event in refresh_tui_events):
+            print("line TUI refresh did not record headless command event", file=sys.stderr)
+            print(json.dumps(refresh_tui_events[-8:], indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
         guided_build_config = Path(tmp) / "guided-busierbox.conf"
         guided_build_config.write_text(
             'BB_TARGET_PRESET="native"\n'
