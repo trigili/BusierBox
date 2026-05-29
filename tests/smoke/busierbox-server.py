@@ -2814,9 +2814,17 @@ def main():
                 workbench_summary.get("workbench_action_event_counts", {}).get("workbench_job_requested", 0) < 3 or
                 workbench_summary.get("workbench_action_config_path_counts", {}).get(str(cfg), 0) < 5 or
                 actions_by_id.get("package-artifact", {}).get("command") != "make package" or
+                actions_by_id.get("operator-daemon-start", {}).get("background_supported") is not True or
+                actions_by_id.get("operator-daemon-start", {}).get("long_running") is not True or
+                "--daemon --daemon-service file-service --daemon-service command-queue" not in actions_by_id.get("operator-daemon-start", {}).get("command", "") or
+                actions_by_id.get("operator-daemon-stop", {}).get("command") != f"scripts/busierbox-server --config {str(cfg)} --stop" or
+                actions_by_id.get("systemd-user-print", {}).get("command", "").endswith("--systemd-user-action print") is not True or
+                actions_by_id.get("systemd-user-install", {}).get("writes_config") is not True or
                 actions_by_id.get("configure-trailer", {}).get("script") != "scripts/artifact-config" or
                 not actions_by_category.get("configuration") or
+                len(actions_by_category.get("daemon", [])) < 5 or
                 not actions_by_script.get("scripts/busierbox-bringup") or
+                not actions_by_script.get("scripts/busierbox-server") or
                 not actions_by_background.get("True") or
                 not actions_by_confirmation.get("True") or
                 actions_by_execution_default.get("show-command", [{}])[0].get("execution_default") != "show-command" or

@@ -2993,6 +2993,11 @@ def workbench_action_records(cfg):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     build_config = str(build_config_path(cfg))
     release_dir = str(cfg.get("release_dir") or ".")
+    daemon_services = configured_daemon_services(cfg, [])
+    if not daemon_services:
+        daemon_services = ["file-service", "command-queue"]
+    daemon_service_args = " ".join("--daemon-service " + shquote(service) for service in daemon_services)
+    daemon_command = "scripts/busierbox-server --config " + shquote(config_path) + " --daemon " + daemon_service_args
     return [
         {
             "id": "configure-binary",
@@ -3102,6 +3107,86 @@ def workbench_action_records(cfg):
             "long_running": False,
             "background_supported": False,
             "requires_confirmation": False,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
+        },
+        {
+            "id": "operator-daemon-start",
+            "category": "daemon",
+            "label": "Start operator daemon for selected services",
+            "script": "scripts/busierbox-server",
+            "command": daemon_command,
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": True,
+            "background_supported": True,
+            "requires_confirmation": True,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_job_requested",
+        },
+        {
+            "id": "operator-daemon-status",
+            "category": "daemon",
+            "label": "Inspect operator daemon and managed listener state",
+            "script": "scripts/busierbox-server",
+            "command": "scripts/busierbox-server --config " + shquote(config_path) + " --status",
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": False,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
+        },
+        {
+            "id": "operator-daemon-stop",
+            "category": "daemon",
+            "label": "Stop managed operator daemon services",
+            "script": "scripts/busierbox-server",
+            "command": "scripts/busierbox-server --config " + shquote(config_path) + " --stop",
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": True,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
+        },
+        {
+            "id": "systemd-user-print",
+            "category": "daemon",
+            "label": "Print systemd user service for operator daemon",
+            "script": "scripts/busierbox-server",
+            "command": "scripts/busierbox-server --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action print",
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": False,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
+        },
+        {
+            "id": "systemd-user-install",
+            "category": "daemon",
+            "label": "Install systemd user service for operator daemon",
+            "script": "scripts/busierbox-server",
+            "command": "scripts/busierbox-server --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action install",
+            "config_path": config_path,
+            "writes_config": True,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": True,
             "execution_default": "show-command",
             "target_execution": False,
             "event": "workbench_action_selected",
@@ -14156,11 +14241,14 @@ def print_workbench(cfg, include_api_summary=True):
     print("")
     print("Operator workflow actions:")
     print_workbench_action_summary(snap)
-    for rec in snap.get("workbench_actions") or []:
+    actions = snap.get("workbench_actions") or []
+    for rec in actions[:8]:
         bg = "yes" if rec.get("background_supported") else "no"
         confirm = "yes" if rec.get("requires_confirmation") else "no"
         print(f"  {rec.get('id', '')} category={rec.get('category', '')} script={rec.get('script', '')} background={bg} confirm={confirm}")
         print(f"    {rec.get('command', '')}")
+    if len(actions) > 8:
+        print(f"  ... {len(actions) - 8} more operator workflow action(s); choose action 11 in line mode for the full list")
     if snap.get("target_workflow_actions"):
         print("Target workflow actions:")
         actions = snap.get("target_workflow_actions") or []
@@ -14489,7 +14577,7 @@ def run_line_tui(cfg):
             return line.rstrip("\n")
         return None
 
-    render_full = True
+    render_full = False
     while not SHUTDOWN.is_set():
         print("")
         if render_full:

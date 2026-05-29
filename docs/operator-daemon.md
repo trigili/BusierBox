@@ -33,6 +33,22 @@ terminates daemon-owned child listeners through the recorded state. This keeps
 foreground/headless operation and daemon operation on the same status and event
 surface for future TUI and systemd-user integration.
 
+## Workbench Actions
+
+The operator workbench exposes daemon lifecycle controls as normal workflow
+actions, with the same headless commands shown in status JSON and TUI output:
+
+- `operator-daemon-start` starts a foreground daemon for selected services.
+- `operator-daemon-status` inspects daemon and managed listener state.
+- `operator-daemon-stop` stops managed daemon-owned services.
+- `systemd-user-print` renders the user service unit.
+- `systemd-user-install` installs the user service unit.
+
+These are metadata-backed workflow actions, so automated clients can discover
+them from `workbench_actions`, group them through
+`workbench_actions_by_category.daemon`, and decide whether to run the shown
+command directly or start long-running actions as background workbench jobs.
+
 ## Systemd User Service
 
 The same daemon command can be rendered or installed as a systemd user service:
