@@ -6917,8 +6917,10 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "command_queue_file": str(command_queue_path(cfg))})
     sessions = 0
     sock = None
+    bound = False
     try:
         sock = bind_listen_socket(cfg, service, port, 20)
+        bound = True
         sock.settimeout(timeout)
         update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "command_queue_file": str(command_queue_path(cfg))})
         append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "tls": False})
@@ -6970,19 +6972,20 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
                 sock.close()
             except OSError:
                 pass
-        stop_reason = current_stop_reason("complete")
-        update_server_state(cfg, service, "stopped", {
-            "session_log": str(log_dir),
-            "command_queue_file": str(command_queue_path(cfg)),
-            "pid": "",
-            "managed_by": "",
-            "stopped_at": utc_now(),
-            "stopped_reason": stop_reason,
-        })
-        update_session_record(log_dir, state="ended", exit_reason=stop_reason)
-        upsert_state_session(cfg, log_dir, service, "ended", exit_reason=stop_reason)
-        record_shutdown_event(cfg, service, session=log_dir)
-        append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
+        if bound:
+            stop_reason = current_stop_reason("complete")
+            update_server_state(cfg, service, "stopped", {
+                "session_log": str(log_dir),
+                "command_queue_file": str(command_queue_path(cfg)),
+                "pid": "",
+                "managed_by": "",
+                "stopped_at": utc_now(),
+                "stopped_reason": stop_reason,
+            })
+            update_session_record(log_dir, state="ended", exit_reason=stop_reason)
+            upsert_state_session(cfg, log_dir, service, "ended", exit_reason=stop_reason)
+            record_shutdown_event(cfg, service, session=log_dir)
+            append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
     return 0
 
 

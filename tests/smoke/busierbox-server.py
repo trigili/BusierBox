@@ -2879,6 +2879,34 @@ def main():
         if not state_after_bind["services"]["file-service"].get("owners"):
             print("bind failure did not record possible listener owners", file=sys.stderr)
             return 1
+        command_queue_bind_state = Path(tmp) / "operator-session" / "command-queue-bind-fail-state.json"
+        command_queue_bind_cfg = Path(tmp) / "server-config-command-queue-bind-fail.json"
+        command_queue_bind_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "command_queue_port": bind_fail_port,
+            "command_queue_tls": "no",
+            "session_root": str(Path(tmp) / "sessions-command-queue-bind-fail"),
+            "operator_session_dir": str(Path(tmp) / "operator-session"),
+        }), encoding="utf-8")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as blocker:
+            blocker.bind(("127.0.0.1", bind_fail_port))
+            blocker.listen(1)
+            command_queue_bind_fail = run(
+                "scripts/busierbox-server", "--config", str(command_queue_bind_cfg),
+                "--state-file", str(command_queue_bind_state),
+                "--transport", "command-queue",
+                "--timeout", "0.05",
+            )
+        command_queue_bind_combined = command_queue_bind_fail.stdout + command_queue_bind_fail.stderr
+        command_queue_bind_doc = json.loads(command_queue_bind_state.read_text(encoding="utf-8"))
+        if (command_queue_bind_fail.returncode == 0 or
+                "Traceback" in command_queue_bind_combined or
+                "unable to bind" not in command_queue_bind_combined or
+                command_queue_bind_doc["services"]["command-queue"].get("status") != "error"):
+            print("command-queue bind failure was not preserved as a service error", file=sys.stderr)
+            print(command_queue_bind_combined, file=sys.stderr)
+            print(json.dumps(command_queue_bind_doc, indent=2), file=sys.stderr)
+            return 1
         bind_fail_status = run(
             "scripts/busierbox-server", "--config", str(bind_fail_cfg),
             "--state-file", str(bind_fail_state),
@@ -3026,7 +3054,10 @@ def main():
             return 1
         bind_events_path = Path(tmp) / "operator-session" / "events.jsonl"
         bind_events = [json.loads(line) for line in bind_events_path.read_text(encoding="utf-8").splitlines()]
-        bind_error = [event for event in bind_events if event.get("event") == "bind_error"]
+        bind_error = [
+            event for event in bind_events
+            if event.get("event") == "bind_error" and event.get("service") == "file-service"
+        ]
         if not bind_error:
             print("bind failure did not write structured bind_error event", file=sys.stderr)
             return 1
