@@ -14800,6 +14800,7 @@ def run_line_tui(cfg):
         print("  17 manage bridge profiles")
         print("  18 inspect target mailbox/activity")
         print("  19 serve survey bootstrap")
+        print("  20 inspect command queue/results")
         print("  c show/copy generated commands")
         print("  r refresh")
         print("  ? help")
@@ -15163,8 +15164,38 @@ def run_line_tui(cfg):
                     "bridge_profile": rec.get("bridge_profile", "") if rec else "",
                 })
                 start_service_process(cfg, "survey-bootstrap")
+        elif choice == "20":
+            headless = (
+                "scripts/busierbox-server --config "
+                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + " --list-command-queue"
+            )
+            print(f"headless_command: {headless}")
+            print_command_queue(cfg, json_output=False)
+            snap = workbench_snapshot(cfg)
+            mailbox_records = snap.get("target_mailbox_records") or []
+            if mailbox_records:
+                print("Target mailbox records:")
+                for rec in mailbox_records[:8]:
+                    print(
+                        f"  {rec.get('command_id', '')} "
+                        f"target={rec.get('target_id', '') or '-'} "
+                        f"status={rec.get('status', '') or '-'} "
+                        f"pending={'yes' if rec.get('pending_work') else 'no'} "
+                        f"result={rec.get('result_status', '') or '-'} "
+                        f"exit={rec.get('result_exit_code', '') if rec.get('result_exit_code') != '' else '-'}"
+                    )
+                    if rec.get("result_received_at"):
+                        print(f"    result_at={rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
+            else:
+                print("Target mailbox records: none")
+            append_event(cfg, "workbench", "workbench_command_queue_inspected", details={
+                "headless_command": headless,
+                "command_count": len((command_queue_summary(cfg).get("commands") or [])),
+                "target_mailbox_record_count": len(mailbox_records),
+            })
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 18 target detail, 19 survey bootstrap, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 18 target detail, 19 survey bootstrap, 20 command queue, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 

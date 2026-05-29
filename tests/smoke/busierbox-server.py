@@ -2233,6 +2233,65 @@ def main():
             print("text status missing intermittent mailbox heartbeat/result summary", file=sys.stderr)
             print(result_status_text.stdout, file=sys.stderr)
             return 1
+        queue_tui_master, queue_tui_slave = pty.openpty()
+        try:
+            queue_tui_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(poll_target_cfg),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=queue_tui_slave,
+                stdout=queue_tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(queue_tui_slave)
+            queue_tui_slave = -1
+            time.sleep(0.5)
+            os.write(queue_tui_master, b"20\nq\n")
+            _queue_tui_stdout, queue_tui_stderr = queue_tui_proc.communicate(timeout=8)
+            queue_tui_output = b""
+            while True:
+                try:
+                    chunk = os.read(queue_tui_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                queue_tui_output += chunk
+        finally:
+            if queue_tui_slave != -1:
+                os.close(queue_tui_slave)
+            try:
+                os.close(queue_tui_master)
+            except OSError:
+                pass
+        queue_tui_text = queue_tui_output.decode("utf-8", errors="replace")
+        if (queue_tui_proc.returncode != 0 or
+                "Traceback" in (queue_tui_stderr or "") or
+                "headless_command: scripts/busierbox-server --config" not in queue_tui_text or
+                "--list-command-queue" not in queue_tui_text or
+                "Command queue:" not in queue_tui_text or
+                f"{alpha_id}\tresult-received" not in queue_tui_text or
+                "result: " not in queue_tui_text or
+                "Target mailbox records:" not in queue_tui_text or
+                f"{alpha_id} target=target-alpha status=result-received pending=no result=completed exit=0" not in queue_tui_text or
+                f"{bravo_id} target=target-bravo status=queued pending=yes result=- exit=-" not in queue_tui_text):
+            print("line TUI command queue inspection missing result/mailbox state", file=sys.stderr)
+            print(queue_tui_text, file=sys.stderr)
+            print(queue_tui_stderr or "", file=sys.stderr)
+            return 1
+        queue_tui_status = json.loads(run(
+            "scripts/busierbox-server", "--config", str(poll_target_cfg),
+            "--json-status",
+        ).stdout)
+        if not (queue_tui_status.get("events_by_event") or {}).get("workbench_command_queue_inspected"):
+            print("line TUI command queue inspection did not record event", file=sys.stderr)
+            print(json.dumps(queue_tui_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
 
         daemon_file_port = free_port()
         daemon_queue_port = free_port()

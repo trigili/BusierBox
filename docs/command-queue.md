@@ -56,6 +56,9 @@ opt in:
   mirror the structured `policy_summary` token posture, mode lifecycle,
   transport support, and execution flags so operators do not need JSON
   tooling to distinguish default dry-run planning from explicit `--live` metadata polling.
+  In line-mode TUI, action `20` prints the equivalent `--list-command-queue`
+  output plus target mailbox result records for completed and pending
+  target-scoped work.
 - `busierbox plan command-queue --json` and `manifest --json` expose the same
   policy validity fields and normalized mode records so release tooling and
   frontends do not treat an inconsistent policy as ready to poll.
