@@ -112,7 +112,8 @@ def main():
                  "event_id:", "details_json:", "v opens operator event log in pager", "record_workbench_refresh",
                  "workbench_refreshed", 'ord("r")', 'ord("R")', "operator_state_unhealthy",
                  "operator state health:", "legacy_without_id=", "legacy_single_target=",
-                 "target_id:", "target_label:", "target_confidence:"):
+                 "target_id:", "target_label:", "target_confidence:", "target_filter_summary_text",
+                 "observed_seen="):
         if word not in src:
             print(f"busierbox-server: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1

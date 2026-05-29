@@ -11331,6 +11331,25 @@ def target_filter_evidence_lines(target_filter):
     return lines
 
 
+def target_filter_summary_text(target_filter, prefix="target_filter:"):
+    if not isinstance(target_filter, dict) or not target_filter.get("active"):
+        return ""
+    counts = target_filter.get("filtered_counts") or {}
+    observed_counts = target_filter.get("observed_activity_counts") or {}
+    label = target_filter.get("selected_target_label") or "-"
+    confidence = target_filter.get("selected_target_identity_confidence") or "-"
+    return (
+        f"{prefix} {target_filter.get('target_id', '')} "
+        f"targets={counts.get('targets', 0)} uploads={counts.get('uploads', 0)} "
+        f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)} "
+        f"commands={counts.get('command_queue_commands', 0)} "
+        f"target_cmds={counts.get('target_command_records', 0)} "
+        f"observed={observed_counts.get('filtered', 0)}/{observed_counts.get('unfiltered', 0)} "
+        f"observed_seen={'yes' if observed_counts.get('has_filtered') else 'no'} "
+        f"label={label} confidence={confidence}"
+    )
+
+
 def print_target_summary(doc, limit=8):
     print("Targets:")
     records = doc.get("targets") or []
@@ -11767,20 +11786,7 @@ def print_status(cfg, json_output=False):
     print(f"  targets_file: {doc['targets_file']}")
     if (doc.get("target_filter") or {}).get("active"):
         target_filter = doc.get("target_filter") or {}
-        counts = target_filter.get("filtered_counts") or {}
-        observed_counts = target_filter.get("observed_activity_counts") or {}
-        label = target_filter.get("selected_target_label") or "-"
-        confidence = target_filter.get("selected_target_identity_confidence") or "-"
-        print(
-            f"  target_filter: {target_filter.get('target_id', '')} "
-            f"targets={counts.get('targets', 0)} uploads={counts.get('uploads', 0)} "
-            f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)} "
-            f"commands={counts.get('command_queue_commands', 0)} "
-            f"target_cmds={counts.get('target_command_records', 0)} "
-            f"observed={observed_counts.get('filtered', 0)}/{observed_counts.get('unfiltered', 0)} "
-            f"observed_seen={'yes' if observed_counts.get('has_filtered') else 'no'} "
-            f"label={label} confidence={confidence}"
-        )
+        print(f"  {target_filter_summary_text(target_filter)}")
         for line in target_filter_evidence_lines(target_filter):
             print(f"    selected_target_{line}")
     print(f"  session_root: {doc['session_root']}")
@@ -12122,20 +12128,7 @@ def print_workbench(cfg, include_api_summary=True):
         print(f"Workbench mode: {workbench.get('mode', '')}")
     if (snap.get("target_filter") or {}).get("active"):
         target_filter = snap.get("target_filter") or {}
-        counts = target_filter.get("filtered_counts") or {}
-        observed_counts = target_filter.get("observed_activity_counts") or {}
-        label = target_filter.get("selected_target_label") or "-"
-        confidence = target_filter.get("selected_target_identity_confidence") or "-"
-        print(
-            f"Target filter: {target_filter.get('target_id', '')} "
-            f"targets={counts.get('targets', 0)} uploads={counts.get('uploads', 0)} "
-            f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)} "
-            f"commands={counts.get('command_queue_commands', 0)} "
-            f"target_cmds={counts.get('target_command_records', 0)} "
-            f"observed={observed_counts.get('filtered', 0)}/{observed_counts.get('unfiltered', 0)} "
-            f"observed_seen={'yes' if observed_counts.get('has_filtered') else 'no'} "
-            f"label={label} confidence={confidence}"
-        )
+        print(target_filter_summary_text(target_filter, prefix="Target filter:"))
         for line in target_filter_evidence_lines(target_filter):
             print(f"  selected_target_{line}")
     print(f"Workbench refresh: count={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}")
@@ -12952,9 +12945,7 @@ def run_curses_tui(cfg):
             target_filter = snap.get("target_filter") or {}
             target_filter_text = ""
             if target_filter.get("active"):
-                label = target_filter.get("selected_target_label") or "-"
-                confidence = target_filter.get("selected_target_identity_confidence") or "-"
-                target_filter_text = f" | selected_target={target_filter.get('target_id', '')} label={label} confidence={confidence}"
+                target_filter_text = " | " + target_filter_summary_text(target_filter, prefix="selected_target=")
             safe_add(
                 stdscr,
                 1,
