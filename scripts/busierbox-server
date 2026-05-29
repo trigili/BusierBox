@@ -11269,6 +11269,33 @@ def print_api_resource_summary(doc, limit=8):
         print(f"  ... {len(resources) - limit} more resource(s)")
 
 
+def target_filter_evidence_lines(target_filter):
+    if not isinstance(target_filter, dict) or not target_filter.get("active"):
+        return []
+    lines = []
+    capability_kind = str(target_filter.get("selected_target_latest_capability_report_kind") or "")
+    compatibility_label = str(target_filter.get("selected_target_latest_compatibility_label") or "")
+    if capability_kind:
+        lines.append(
+            "capability="
+            f"{capability_kind} "
+            f"checks={target_filter.get('selected_target_latest_capability_check_count', 0)} "
+            f"pass={target_filter.get('selected_target_latest_capability_pass_count', 0)} "
+            f"fail={target_filter.get('selected_target_latest_capability_fail_count', 0)}"
+        )
+    if compatibility_label:
+        lines.append(
+            "compatibility="
+            f"{target_filter.get('selected_target_latest_compatibility_report_kind') or '-'} "
+            f"label={compatibility_label} "
+            f"baseline={target_filter.get('selected_target_latest_compatibility_baseline_label') or '-'} "
+            f"release={target_filter.get('selected_target_latest_compatibility_release_name') or '-'} "
+            f"payload={target_filter.get('selected_target_latest_compatibility_payload_preset') or '-'} "
+            f"reasons={target_filter.get('selected_target_latest_compatibility_reason_count', 0)}"
+        )
+    return lines
+
+
 def print_target_summary(doc, limit=8):
     print("Targets:")
     records = doc.get("targets") or []
@@ -11716,6 +11743,8 @@ def print_status(cfg, json_output=False):
             f"target_cmds={counts.get('target_command_records', 0)} "
             f"label={label} confidence={confidence}"
         )
+        for line in target_filter_evidence_lines(target_filter):
+            print(f"    selected_target_{line}")
     print(f"  session_root: {doc['session_root']}")
     manager = doc.get("service_manager") or {}
     print(
@@ -12066,6 +12095,8 @@ def print_workbench(cfg, include_api_summary=True):
             f"target_cmds={counts.get('target_command_records', 0)} "
             f"label={label} confidence={confidence}"
         )
+        for line in target_filter_evidence_lines(target_filter):
+            print(f"  selected_target_{line}")
     print(f"Workbench refresh: count={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}")
     print(
         "Service summary: "

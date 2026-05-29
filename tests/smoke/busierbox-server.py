@@ -5886,6 +5886,32 @@ def main():
             print("target capability report upload did not update observed capabilities", file=sys.stderr)
             print(json.dumps(capability_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        capability_text_status = run(
+            "scripts/busierbox-server",
+            "--config", str(capability_cfg),
+            "--target-id", "target-capability",
+            "--status",
+        )
+        if (capability_text_status.returncode != 0 or
+                "target_filter: target-capability targets=1 uploads=1" not in capability_text_status.stdout or
+                "selected_target_capability=reality-test checks=3 pass=1 fail=1" not in capability_text_status.stdout or
+                "selected_target_compatibility=reality-test label=unsafe baseline=exact release=operator-smoke payload=survey-core reasons=1" not in capability_text_status.stdout):
+            print("target-filtered text status did not show selected target evidence", file=sys.stderr)
+            print(capability_text_status.stdout, file=sys.stderr)
+            return 1
+        capability_workbench = run(
+            "scripts/busierbox-server",
+            "--config", str(capability_cfg),
+            "--target-id", "target-capability",
+            "--tui",
+        )
+        if (capability_workbench.returncode != 0 or
+                "Target filter: target-capability targets=1 uploads=1" not in capability_workbench.stdout or
+                "selected_target_capability=reality-test checks=3 pass=1 fail=1" not in capability_workbench.stdout or
+                "selected_target_compatibility=reality-test label=unsafe baseline=exact release=operator-smoke payload=survey-core reasons=1" not in capability_workbench.stdout):
+            print("target-filtered workbench did not show selected target evidence", file=sys.stderr)
+            print(capability_workbench.stdout, file=sys.stderr)
+            return 1
 
         tui_sigint_state = Path(tmp) / "operator-session" / "tui-sigint-state.json"
         tui_master, tui_slave = pty.openpty()
