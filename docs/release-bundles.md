@@ -808,6 +808,9 @@ generated command uses a direct listener or a selected bridge profile. Each
 record also carries a 1-based `ordinal`, `copy_selector`, `copy_command`,
 `copy_supported`, and `command_sha256`, letting operator UIs copy or
 de-duplicate generated commands without relying on array position alone. The
+line-oriented survey bootstrap action prints and records the same
+`--transport survey-bootstrap` command, including any selected bridge profile,
+on both the workbench action event and the underlying service-start event. The
 generated `rshell` command record
 also carries `metadata.session_policy`, validity, errors, and
 `session_semantics`, plus `metadata.retry` and `metadata.retry_timing`, so

@@ -783,11 +783,18 @@ def main():
             "scripts/busierbox-server",
             "--config", str(survey_cfg),
             "--bridge-profile", "survey-route",
+            "--event-limit", "32",
             "--json-status",
         ).stdout)
         survey_tui_service = (survey_tui_status.get("services_by_name") or {}).get("survey-bootstrap") or {}
         if (survey_tui_service.get("actual") == "listening" or
                 not (survey_tui_status.get("events_by_event") or {}).get("workbench_survey_bootstrap_started") or
+                not any(
+                    event.get("service") == "survey-bootstrap" and
+                    "--transport survey-bootstrap" in event.get("details", {}).get("headless_command", "") and
+                    "--bridge-profile survey-route" in event.get("details", {}).get("headless_command", "")
+                    for event in (survey_tui_status.get("events_by_event") or {}).get("service_start_requested", [])
+                ) or
                 not (survey_tui_status.get("events_by_event") or {}).get("service_stop")):
             print("line TUI survey bootstrap listener was not workbench-owned/stopped", file=sys.stderr)
             print(json.dumps(survey_tui_status, indent=2, sort_keys=True), file=sys.stderr)

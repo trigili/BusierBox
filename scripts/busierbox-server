@@ -15407,8 +15407,10 @@ def run_line_tui(cfg):
             rec = commands[0] if commands else {}
             config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
             headless_parts = ["scripts/busierbox-server", "--config", config_path, "--transport", "survey-bootstrap"]
+            argv_extra = []
             if cfg.get("bridge_profile"):
                 headless_parts.extend(["--bridge-profile", str(cfg.get("bridge_profile"))])
+                argv_extra.extend(["--bridge-profile", str(cfg.get("bridge_profile"))])
             headless = " ".join(shquote(str(item)) for item in headless_parts)
             print("Survey bootstrap:")
             if rec:
@@ -15427,7 +15429,12 @@ def run_line_tui(cfg):
                     "route_kind": rec.get("route_kind", "") if rec else "",
                     "bridge_profile": rec.get("bridge_profile", "") if rec else "",
                 })
-                start_service_process(cfg, "survey-bootstrap")
+                start_service_process(
+                    cfg,
+                    "survey-bootstrap",
+                    argv_extra=argv_extra,
+                    headless_command=headless,
+                )
         elif choice == "20":
             headless = (
                 "scripts/busierbox-server --config "
