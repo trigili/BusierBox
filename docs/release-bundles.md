@@ -826,7 +826,11 @@ line-oriented survey bootstrap action prints and records the same
 on both the workbench action event and the underlying service-start event. The
 target workflow action `queue-survey-bootstrap` records the generated
 `wget -O- ... | /bin/sh` survey command as target-scoped mailbox work, giving
-offline targets the same headless/TUI queue path as generic queued commands. The
+offline targets the same headless/TUI queue path as generic queued commands.
+Likewise, `queue-staged-fetch` records the generated `busierbox fetch` command
+for an existing staged request as mailbox work, so file-transfer requests can be
+prepared, inspected, delivered, and result-tracked through the same offline
+target queue. The
 generated `rshell` command record
 also carries `metadata.session_policy`, validity, errors, and
 `session_semantics`, plus `metadata.retry` and `metadata.retry_timing`, so

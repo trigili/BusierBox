@@ -3592,6 +3592,17 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
         )
         add(
             target,
+            "queue-staged-fetch",
+            "file-transfer",
+            "Queue a staged file fetch command for this target mailbox",
+            base + target_arg + " --run-target-workflow-action queue-staged-fetch --target-workflow-request-name REQUEST_NAME",
+            "file-service",
+            requires_input=True,
+            queues_offline_work=True,
+            target_phone_home_required=True,
+        )
+        add(
+            target,
             "start-file-service",
             "file-transfer",
             "Start file service for target uploads/downloads",
@@ -15278,6 +15289,43 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             "request_name": staged.get("request_name", ""),
             "source_path": staged.get("source_path", ""),
             "sha256": staged.get("sha256", ""),
+        })
+        return 0
+    if action_id == "queue-staged-fetch":
+        request = str(request_name or "")
+        if not request and input_func:
+            value = input_func("staged request name> ")
+            request = value if value is not None else ""
+        request = request.strip()
+        if not request:
+            raise ValueError("queue-staged-fetch target workflow action requires a staged request name")
+        staged = (load_staged(cfg).get("staged") or {}).get(request) or {}
+        if not isinstance(staged, dict) or not staged:
+            raise ValueError(f"staged request not found: {request}")
+        staged_target = str(staged.get("target_id") or "")
+        if staged_target and staged_target != target_id:
+            raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
+        command = render_fetch_command(request, scoped)
+        queued = queue_command(scoped, command)
+        print(f"queued {queued['id']}: {queued['command']}")
+        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        append_event(cfg, "workbench", "target_workflow_action_completed", details={
+            "id": rec.get("id", ""),
+            "action_id": action_id,
+            "target_id": target_id,
+            "target_label": target_label,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "offline_supported": bool(rec.get("offline_supported")),
+            "requires_target_online": bool(rec.get("requires_target_online")),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+            "result": "queued-staged-fetch",
+            "command_id": queued.get("id", ""),
+            "command_sha256": queued.get("command_sha256", ""),
+            "request_name": request,
+            "queued_command": queued.get("command", ""),
         })
         return 0
     if action_id == "start-file-service":
