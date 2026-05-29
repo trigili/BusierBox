@@ -4690,6 +4690,12 @@ def main():
                 "events_by_service_detail_filename" not in (upload_events_api.get("indexes") or []) or
                 "events_by_event_detail_sha256" not in (upload_events_api.get("indexes") or []) or
                 "events_by_service_detail_sha256" not in (upload_events_api.get("indexes") or []) or
+                "events_by_detail_target_id" not in (upload_events_api.get("indexes") or []) or
+                "events_by_detail_target_label" not in (upload_events_api.get("indexes") or []) or
+                "events_by_event_detail_target_id" not in (upload_events_api.get("indexes") or []) or
+                "events_by_service_detail_target_id" not in (upload_events_api.get("indexes") or []) or
+                "events_by_event_detail_target_label" not in (upload_events_api.get("indexes") or []) or
+                "events_by_service_detail_target_label" not in (upload_events_api.get("indexes") or []) or
                 not upload_remote or
                 sessions_by_remote.get(upload_remote, [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_service_state.get(session_service_state_key, [{}])[0].get("session_id") != uploaded_session_id or
@@ -4734,24 +4740,36 @@ def main():
                 upload_event_stats.get("by_detail_http_status", {}).get("200", 0) < 1 or
                 upload_event_stats.get("by_detail_filename", {}).get("evidence.txt", 0) < 1 or
                 upload_event_stats.get("by_detail_sha256", {}).get(upload_sha256, 0) < 1 or
+                upload_event_stats.get("by_detail_target_id", {}).get("target-alpha", 0) < 1 or
+                upload_event_stats.get("by_detail_target_label", {}).get("Alpha Router", 0) < 1 or
                 upload_event_stats.get("by_event_detail_status", {}).get("upload_complete:ok", 0) < 1 or
                 upload_event_stats.get("by_service_detail_status", {}).get("file-service:ok", 0) < 1 or
                 upload_event_stats.get("by_event_detail_sha256", {}).get(f"upload_complete:{upload_sha256}", 0) < 1 or
                 upload_event_stats.get("by_service_detail_sha256", {}).get(f"file-service:{upload_sha256}", 0) < 1 or
                 upload_event_stats.get("by_event_detail_filename", {}).get("upload_complete:evidence.txt", 0) < 1 or
                 upload_event_stats.get("by_service_detail_filename", {}).get("file-service:evidence.txt", 0) < 1 or
+                upload_event_stats.get("by_event_detail_target_id", {}).get("upload_complete:target-alpha", 0) < 1 or
+                upload_event_stats.get("by_service_detail_target_id", {}).get("file-service:target-alpha", 0) < 1 or
+                upload_event_stats.get("by_event_detail_target_label", {}).get("upload_complete:Alpha Router", 0) < 1 or
+                upload_event_stats.get("by_service_detail_target_label", {}).get("file-service:Alpha Router", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_remote_counts", {}).get(upload_remote, 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_status_counts", {}).get("ok", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_operation_counts", {}).get("upload", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_http_status_counts", {}).get("200", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_filename_counts", {}).get("evidence.txt", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_detail_sha256_counts", {}).get(upload_sha256, 0) < 1 or
+                upload_doc.get("summary", {}).get("event_detail_target_id_counts", {}).get("target-alpha", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_detail_target_label_counts", {}).get("Alpha Router", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_type_detail_status_counts", {}).get("upload_complete:ok", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_service_detail_status_counts", {}).get("file-service:ok", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_type_detail_sha256_counts", {}).get(f"upload_complete:{upload_sha256}", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_service_detail_sha256_counts", {}).get(f"file-service:{upload_sha256}", 0) < 1 or
                 upload_doc.get("summary", {}).get("event_type_detail_filename_counts", {}).get("upload_complete:evidence.txt", 0) < 1 or
-                upload_doc.get("summary", {}).get("event_service_detail_filename_counts", {}).get("file-service:evidence.txt", 0) < 1):
+                upload_doc.get("summary", {}).get("event_service_detail_filename_counts", {}).get("file-service:evidence.txt", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_type_detail_target_id_counts", {}).get("upload_complete:target-alpha", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_service_detail_target_id_counts", {}).get("file-service:target-alpha", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_type_detail_target_label_counts", {}).get("upload_complete:Alpha Router", 0) < 1 or
+                upload_doc.get("summary", {}).get("event_service_detail_target_label_counts", {}).get("file-service:Alpha Router", 0) < 1):
             print("server json status missing upload event log stats", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
@@ -5151,6 +5169,23 @@ def main():
                 rejected_target_fetches[-1].get("expected_target_id") != "target-bravo"):
             print("target-scoped staged fetch session metadata missing target enforcement details", file=sys.stderr)
             print(json.dumps(target_fetch_docs, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        all_fetch_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--json-status",
+        ).stdout)
+        all_fetch_events_api = (all_fetch_status.get("api_collections") or {}).get("events") or {}
+        if (all_fetch_status.get("summary", {}).get("event_detail_expected_target_id_counts", {}).get("target-bravo", 0) < 1 or
+                all_fetch_status.get("event_log_stats", {}).get("by_detail_expected_target_id", {}).get("target-bravo", 0) < 1 or
+                (all_fetch_status.get("events_by_detail_expected_target_id") or {}).get("target-bravo", [{}])[-1].get("details", {}).get("status") != "rejected" or
+                (all_fetch_status.get("events_by_event_detail_expected_target_id") or {}).get("fetch_complete:target-bravo", [{}])[-1].get("details", {}).get("target_id") != "target-alpha" or
+                (all_fetch_status.get("events_by_service_detail_expected_target_id") or {}).get("file-service:target-bravo", [{}])[-1].get("details", {}).get("reason") != "target mismatch" or
+                "events_by_detail_expected_target_id" not in (all_fetch_events_api.get("indexes") or []) or
+                "events_by_event_detail_expected_target_id" not in (all_fetch_events_api.get("indexes") or []) or
+                "events_by_service_detail_expected_target_id" not in (all_fetch_events_api.get("indexes") or [])):
+            print("target-scoped staged fetch missing expected-target event indexes", file=sys.stderr)
+            print(json.dumps(all_fetch_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         scoped_fetch_status = json.loads(run(
             "scripts/busierbox-server",

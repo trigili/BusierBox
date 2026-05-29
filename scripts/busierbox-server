@@ -136,6 +136,9 @@ class EventLog:
         by_detail_action_id = {}
         by_detail_key = {}
         by_detail_config_path = {}
+        by_detail_target_id = {}
+        by_detail_target_label = {}
+        by_detail_expected_target_id = {}
         by_event_detail_status = {}
         by_service_detail_status = {}
         by_event_detail_operation = {}
@@ -162,6 +165,12 @@ class EventLog:
         by_service_detail_key = {}
         by_event_detail_config_path = {}
         by_service_detail_config_path = {}
+        by_event_detail_target_id = {}
+        by_service_detail_target_id = {}
+        by_event_detail_target_label = {}
+        by_service_detail_target_label = {}
+        by_event_detail_expected_target_id = {}
+        by_service_detail_expected_target_id = {}
         first_ts = ""
         latest_ts = ""
         for rec in records:
@@ -185,6 +194,9 @@ class EventLog:
             detail_action_id = str(details.get("action_id") or "")
             detail_key = str(details.get("key") or "")
             detail_config_path = str(details.get("config_path") or "")
+            detail_target_id = str(details.get("target_id") or "")
+            detail_target_label = str(details.get("target_label") or "")
+            detail_expected_target_id = str(details.get("expected_target_id") or "")
             if ts and (not first_ts or ts < first_ts):
                 first_ts = ts
             if ts > latest_ts:
@@ -244,6 +256,12 @@ class EventLog:
                 by_detail_key[detail_key] = by_detail_key.get(detail_key, 0) + 1
             if detail_config_path:
                 by_detail_config_path[detail_config_path] = by_detail_config_path.get(detail_config_path, 0) + 1
+            if detail_target_id:
+                by_detail_target_id[detail_target_id] = by_detail_target_id.get(detail_target_id, 0) + 1
+            if detail_target_label:
+                by_detail_target_label[detail_target_label] = by_detail_target_label.get(detail_target_label, 0) + 1
+            if detail_expected_target_id:
+                by_detail_expected_target_id[detail_expected_target_id] = by_detail_expected_target_id.get(detail_expected_target_id, 0) + 1
             if event and detail_status:
                 key = f"{event}:{detail_status}"
                 by_event_detail_status[key] = by_event_detail_status.get(key, 0) + 1
@@ -322,6 +340,24 @@ class EventLog:
             if service and detail_config_path:
                 key = f"{service}:{detail_config_path}"
                 by_service_detail_config_path[key] = by_service_detail_config_path.get(key, 0) + 1
+            if event and detail_target_id:
+                key = f"{event}:{detail_target_id}"
+                by_event_detail_target_id[key] = by_event_detail_target_id.get(key, 0) + 1
+            if service and detail_target_id:
+                key = f"{service}:{detail_target_id}"
+                by_service_detail_target_id[key] = by_service_detail_target_id.get(key, 0) + 1
+            if event and detail_target_label:
+                key = f"{event}:{detail_target_label}"
+                by_event_detail_target_label[key] = by_event_detail_target_label.get(key, 0) + 1
+            if service and detail_target_label:
+                key = f"{service}:{detail_target_label}"
+                by_service_detail_target_label[key] = by_service_detail_target_label.get(key, 0) + 1
+            if event and detail_expected_target_id:
+                key = f"{event}:{detail_expected_target_id}"
+                by_event_detail_expected_target_id[key] = by_event_detail_expected_target_id.get(key, 0) + 1
+            if service and detail_expected_target_id:
+                key = f"{service}:{detail_expected_target_id}"
+                by_service_detail_expected_target_id[key] = by_service_detail_expected_target_id.get(key, 0) + 1
         return {
             "path": str(self.path),
             "total_count": len(records),
@@ -356,6 +392,9 @@ class EventLog:
             "by_detail_action_id": by_detail_action_id,
             "by_detail_key": by_detail_key,
             "by_detail_config_path": by_detail_config_path,
+            "by_detail_target_id": by_detail_target_id,
+            "by_detail_target_label": by_detail_target_label,
+            "by_detail_expected_target_id": by_detail_expected_target_id,
             "by_event_detail_status": by_event_detail_status,
             "by_service_detail_status": by_service_detail_status,
             "by_event_detail_operation": by_event_detail_operation,
@@ -382,6 +421,12 @@ class EventLog:
             "by_service_detail_key": by_service_detail_key,
             "by_event_detail_config_path": by_event_detail_config_path,
             "by_service_detail_config_path": by_service_detail_config_path,
+            "by_event_detail_target_id": by_event_detail_target_id,
+            "by_service_detail_target_id": by_service_detail_target_id,
+            "by_event_detail_target_label": by_event_detail_target_label,
+            "by_service_detail_target_label": by_service_detail_target_label,
+            "by_event_detail_expected_target_id": by_event_detail_expected_target_id,
+            "by_service_detail_expected_target_id": by_service_detail_expected_target_id,
             "tail": tail,
         }
 
@@ -3534,6 +3579,9 @@ def event_record_indexes(records):
     by_detail_action_id = {}
     by_detail_key = {}
     by_detail_config_path = {}
+    by_detail_target_id = {}
+    by_detail_target_label = {}
+    by_detail_expected_target_id = {}
     by_event_detail_status = {}
     by_service_detail_status = {}
     by_event_detail_operation = {}
@@ -3560,6 +3608,12 @@ def event_record_indexes(records):
     by_service_detail_key = {}
     by_event_detail_config_path = {}
     by_service_detail_config_path = {}
+    by_event_detail_target_id = {}
+    by_service_detail_target_id = {}
+    by_event_detail_target_label = {}
+    by_service_detail_target_label = {}
+    by_event_detail_expected_target_id = {}
+    by_service_detail_expected_target_id = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -3583,6 +3637,9 @@ def event_record_indexes(records):
         detail_action_id = str(details.get("action_id") or "")
         detail_key = str(details.get("key") or "")
         detail_config_path = str(details.get("config_path") or "")
+        detail_target_id = str(details.get("target_id") or "")
+        detail_target_label = str(details.get("target_label") or "")
+        detail_expected_target_id = str(details.get("expected_target_id") or "")
         if event_id:
             by_id[event_id] = rec
         if session_id:
@@ -3635,6 +3692,12 @@ def event_record_indexes(records):
             by_detail_key.setdefault(detail_key, []).append(rec)
         if detail_config_path:
             by_detail_config_path.setdefault(detail_config_path, []).append(rec)
+        if detail_target_id:
+            by_detail_target_id.setdefault(detail_target_id, []).append(rec)
+        if detail_target_label:
+            by_detail_target_label.setdefault(detail_target_label, []).append(rec)
+        if detail_expected_target_id:
+            by_detail_expected_target_id.setdefault(detail_expected_target_id, []).append(rec)
         if event and detail_status:
             by_event_detail_status.setdefault(f"{event}:{detail_status}", []).append(rec)
         if service and detail_status:
@@ -3687,6 +3750,18 @@ def event_record_indexes(records):
             by_event_detail_config_path.setdefault(f"{event}:{detail_config_path}", []).append(rec)
         if service and detail_config_path:
             by_service_detail_config_path.setdefault(f"{service}:{detail_config_path}", []).append(rec)
+        if event and detail_target_id:
+            by_event_detail_target_id.setdefault(f"{event}:{detail_target_id}", []).append(rec)
+        if service and detail_target_id:
+            by_service_detail_target_id.setdefault(f"{service}:{detail_target_id}", []).append(rec)
+        if event and detail_target_label:
+            by_event_detail_target_label.setdefault(f"{event}:{detail_target_label}", []).append(rec)
+        if service and detail_target_label:
+            by_service_detail_target_label.setdefault(f"{service}:{detail_target_label}", []).append(rec)
+        if event and detail_expected_target_id:
+            by_event_detail_expected_target_id.setdefault(f"{event}:{detail_expected_target_id}", []).append(rec)
+        if service and detail_expected_target_id:
+            by_service_detail_expected_target_id.setdefault(f"{service}:{detail_expected_target_id}", []).append(rec)
     return (
         by_id, by_session, by_service, by_event, by_level, by_remote,
         by_service_event, by_session_event, by_service_level, by_event_level,
@@ -3696,6 +3771,7 @@ def event_record_indexes(records):
         by_detail_sha256, by_detail_command_id, by_detail_command_sha256,
         by_detail_job_id, by_detail_action_id,
         by_detail_key, by_detail_config_path,
+        by_detail_target_id, by_detail_target_label, by_detail_expected_target_id,
         by_event_detail_status, by_service_detail_status,
         by_event_detail_operation, by_service_detail_operation,
         by_event_detail_http_status, by_service_detail_http_status,
@@ -3709,6 +3785,9 @@ def event_record_indexes(records):
         by_event_detail_action_id, by_service_detail_action_id,
         by_event_detail_key, by_service_detail_key,
         by_event_detail_config_path, by_service_detail_config_path,
+        by_event_detail_target_id, by_service_detail_target_id,
+        by_event_detail_target_label, by_service_detail_target_label,
+        by_event_detail_expected_target_id, by_service_detail_expected_target_id,
     )
 
 
@@ -8343,6 +8422,9 @@ def status_document(cfg):
      events_by_detail_action_id,
      events_by_detail_key,
      events_by_detail_config_path,
+     events_by_detail_target_id,
+     events_by_detail_target_label,
+     events_by_detail_expected_target_id,
      events_by_event_detail_status,
      events_by_service_detail_status,
      events_by_event_detail_operation,
@@ -8368,7 +8450,13 @@ def status_document(cfg):
      events_by_event_detail_key,
      events_by_service_detail_key,
      events_by_event_detail_config_path,
-     events_by_service_detail_config_path) = event_record_indexes(events)
+     events_by_service_detail_config_path,
+     events_by_event_detail_target_id,
+     events_by_service_detail_target_id,
+     events_by_event_detail_target_label,
+     events_by_service_detail_target_label,
+     events_by_event_detail_expected_target_id,
+     events_by_service_detail_expected_target_id) = event_record_indexes(events)
     command_queue = command_queue_summary(cfg)
     release = release_context(cfg)
     release_state = release_state_record(release)
@@ -8875,6 +8963,9 @@ def status_document(cfg):
         "event_detail_action_id_counts": event_stats.get("by_detail_action_id") or {},
         "event_detail_key_counts": event_stats.get("by_detail_key") or {},
         "event_detail_config_path_counts": event_stats.get("by_detail_config_path") or {},
+        "event_detail_target_id_counts": event_stats.get("by_detail_target_id") or {},
+        "event_detail_target_label_counts": event_stats.get("by_detail_target_label") or {},
+        "event_detail_expected_target_id_counts": event_stats.get("by_detail_expected_target_id") or {},
         "event_type_detail_status_counts": event_stats.get("by_event_detail_status") or {},
         "event_service_detail_status_counts": event_stats.get("by_service_detail_status") or {},
         "event_type_detail_operation_counts": event_stats.get("by_event_detail_operation") or {},
@@ -8901,6 +8992,12 @@ def status_document(cfg):
         "event_service_detail_key_counts": event_stats.get("by_service_detail_key") or {},
         "event_type_detail_config_path_counts": event_stats.get("by_event_detail_config_path") or {},
         "event_service_detail_config_path_counts": event_stats.get("by_service_detail_config_path") or {},
+        "event_type_detail_target_id_counts": event_stats.get("by_event_detail_target_id") or {},
+        "event_service_detail_target_id_counts": event_stats.get("by_service_detail_target_id") or {},
+        "event_type_detail_target_label_counts": event_stats.get("by_event_detail_target_label") or {},
+        "event_service_detail_target_label_counts": event_stats.get("by_service_detail_target_label") or {},
+        "event_type_detail_expected_target_id_counts": event_stats.get("by_event_detail_expected_target_id") or {},
+        "event_service_detail_expected_target_id_counts": event_stats.get("by_service_detail_expected_target_id") or {},
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_delivered_count": command_queue.get("delivered_count", 0),
@@ -9215,6 +9312,12 @@ def status_document(cfg):
                 "events_by_detail_key", "events_by_event_detail_key",
                 "events_by_service_detail_key", "events_by_detail_config_path",
                 "events_by_event_detail_config_path", "events_by_service_detail_config_path",
+                "events_by_detail_target_id", "events_by_detail_target_label",
+                "events_by_detail_expected_target_id",
+                "events_by_event_detail_target_id", "events_by_service_detail_target_id",
+                "events_by_event_detail_target_label", "events_by_service_detail_target_label",
+                "events_by_event_detail_expected_target_id",
+                "events_by_service_detail_expected_target_id",
             ), "event_tail_count",
         ),
         "release_artifacts": api_collection_record(
@@ -9581,6 +9684,9 @@ def status_document(cfg):
         "events_by_detail_action_id": events_by_detail_action_id,
         "events_by_detail_key": events_by_detail_key,
         "events_by_detail_config_path": events_by_detail_config_path,
+        "events_by_detail_target_id": events_by_detail_target_id,
+        "events_by_detail_target_label": events_by_detail_target_label,
+        "events_by_detail_expected_target_id": events_by_detail_expected_target_id,
         "events_by_event_detail_status": events_by_event_detail_status,
         "events_by_service_detail_status": events_by_service_detail_status,
         "events_by_event_detail_operation": events_by_event_detail_operation,
@@ -9607,6 +9713,12 @@ def status_document(cfg):
         "events_by_service_detail_key": events_by_service_detail_key,
         "events_by_event_detail_config_path": events_by_event_detail_config_path,
         "events_by_service_detail_config_path": events_by_service_detail_config_path,
+        "events_by_event_detail_target_id": events_by_event_detail_target_id,
+        "events_by_service_detail_target_id": events_by_service_detail_target_id,
+        "events_by_event_detail_target_label": events_by_event_detail_target_label,
+        "events_by_service_detail_target_label": events_by_service_detail_target_label,
+        "events_by_event_detail_expected_target_id": events_by_event_detail_expected_target_id,
+        "events_by_service_detail_expected_target_id": events_by_service_detail_expected_target_id,
         "event_log_state": event_log_state,
         "event_log_stats": {
             key: value for key, value in event_stats.items() if key != "tail"
