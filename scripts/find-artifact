@@ -800,6 +800,8 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
             "release_license_records_by_component_count": len(index.get("release_license_records_by_component") or {}),
             "release_license_records_by_component_license_count": len(index.get("release_license_records_by_component_license") or {}),
             "release_license_records_by_notice_file_count": len(index.get("release_license_records_by_notice_file") or {}),
+            "release_license_records_by_evidence_source_count": len(index.get("release_license_records_by_evidence_source") or {}),
+            "release_license_records_by_evidence_source_license_count": len(index.get("release_license_records_by_evidence_source_license") or {}),
         },
     }
 

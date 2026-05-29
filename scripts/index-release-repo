@@ -164,6 +164,12 @@ def load_release_license(release_dir, release_self_test=None):
         "components": [],
         "component_names": [],
         "component_licenses": {},
+        "license_evidence_verified_at": "",
+        "license_evidence_source_count": 0,
+        "license_evidence_sources": [],
+        "license_evidence_source_names": [],
+        "license_evidence_source_licenses": {},
+        "license_evidence_source_urls": {},
         "notice_count": len(notice_files),
         "notice_files": notice_files,
         "required_notice_files": list(REQUIRED_LICENSE_FILES),
@@ -177,10 +183,15 @@ def load_release_license(release_dir, release_self_test=None):
         return record
     project = policy.get("project") if isinstance(policy.get("project"), dict) else {}
     compatibility = policy.get("compatibility") if isinstance(policy.get("compatibility"), dict) else {}
+    license_evidence = policy.get("license_evidence") if isinstance(policy.get("license_evidence"), dict) else {}
     artifact_distribution = policy.get("artifact_distribution") if isinstance(policy.get("artifact_distribution"), dict) else {}
     corresponding_source = artifact_distribution.get("corresponding_source_strategy") if isinstance(artifact_distribution.get("corresponding_source_strategy"), dict) else {}
     components = [
         item for item in (policy.get("components") or [])
+        if isinstance(item, dict) and item.get("name")
+    ]
+    evidence_sources = [
+        item for item in (license_evidence.get("sources") or [])
         if isinstance(item, dict) and item.get("name")
     ]
     component_licenses = {
@@ -211,6 +222,18 @@ def load_release_license(release_dir, release_self_test=None):
         "components": components,
         "component_names": [str(item.get("name")) for item in components],
         "component_licenses": component_licenses,
+        "license_evidence_verified_at": str(license_evidence.get("verified_at") or ""),
+        "license_evidence_source_count": len(evidence_sources),
+        "license_evidence_sources": evidence_sources,
+        "license_evidence_source_names": [str(item.get("name")) for item in evidence_sources],
+        "license_evidence_source_licenses": {
+            str(item.get("name")): str(item.get("license") or "")
+            for item in evidence_sources
+        },
+        "license_evidence_source_urls": {
+            str(item.get("name")): str(item.get("url") or "")
+            for item in evidence_sources
+        },
     })
     return record
 
@@ -475,6 +498,8 @@ def build_repo_index(paths):
     release_license_records_by_component = {}
     release_license_records_by_component_license = {}
     release_license_records_by_notice_file = {}
+    release_license_records_by_evidence_source = {}
+    release_license_records_by_evidence_source_license = {}
 
     for release_dir in release_dirs:
         index = load_release_index(release_dir)
@@ -523,6 +548,11 @@ def build_repo_index(paths):
                 release_license_records_by_component_license.setdefault(f"{component}:{license_id}", []).append(release_license)
         for notice_file in release_license.get("notice_files") or []:
             release_license_records_by_notice_file.setdefault(notice_file, []).append(release_license)
+        for source_name in release_license.get("license_evidence_source_names") or []:
+            release_license_records_by_evidence_source.setdefault(source_name, []).append(release_license)
+        for source_name, license_id in (release_license.get("license_evidence_source_licenses") or {}).items():
+            if source_name and license_id:
+                release_license_records_by_evidence_source_license.setdefault(f"{source_name}:{license_id}", []).append(release_license)
         for alias, meta in (index.get("devices") or {}).items():
             devices.setdefault(alias, []).append({
                 "release_name": release_name,
@@ -792,6 +822,8 @@ def build_repo_index(paths):
         "release_license_records_by_component",
         "release_license_records_by_component_license",
         "release_license_records_by_notice_file",
+        "release_license_records_by_evidence_source",
+        "release_license_records_by_evidence_source_license",
     ]
     dedupe_record_index_names = [
         "dedupe_records_by_sha256",
@@ -886,6 +918,7 @@ def build_repo_index(paths):
         "release_gplv2_compatible_count": sum(1 for rec in release_license_records if rec.get("combined_gplv2_compatible")),
         "release_corresponding_source_required_count": sum(1 for rec in release_license_records if rec.get("corresponding_source_required")),
         "release_package_license_audit_required_count": sum(1 for rec in release_license_records if rec.get("corresponding_source_requires_package_license_audit")),
+        "release_license_evidence_source_count": sum(int(rec.get("license_evidence_source_count") or 0) for rec in release_license_records),
         "release_self_test_command_queue_token_required_count": release_self_test_command_queue_token_required_count,
         "release_self_test_command_queue_token_configured_count": release_self_test_command_queue_token_configured_count,
         "release_self_test_command_queue_execution_supported_count": release_self_test_command_queue_execution_supported_count,
@@ -911,6 +944,8 @@ def build_repo_index(paths):
         "release_license_records_by_component": {key: release_license_records_by_component[key] for key in sorted(release_license_records_by_component)},
         "release_license_records_by_component_license": {key: release_license_records_by_component_license[key] for key in sorted(release_license_records_by_component_license)},
         "release_license_records_by_notice_file": {key: release_license_records_by_notice_file[key] for key in sorted(release_license_records_by_notice_file)},
+        "release_license_records_by_evidence_source": {key: release_license_records_by_evidence_source[key] for key in sorted(release_license_records_by_evidence_source)},
+        "release_license_records_by_evidence_source_license": {key: release_license_records_by_evidence_source_license[key] for key in sorted(release_license_records_by_evidence_source_license)},
         "artifacts": artifacts,
         "artifacts_by_sha": {key: artifacts_by_sha[key] for key in sorted(artifacts_by_sha)},
         "artifacts_by_release": {key: artifacts_by_release[key] for key in sorted(artifacts_by_release)},

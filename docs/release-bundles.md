@@ -274,9 +274,12 @@ each bundle and attached to artifact rows as `release_license`,
 `release_license_records_by_package_license_audit`,
 `release_license_records_by_component`,
 `release_license_records_by_component_license`, and
-`release_license_records_by_notice_file` so offline browsers can audit GPL
-compatibility, corresponding-source posture, package audit requirements, and
-notice coverage without opening every release directory.
+`release_license_records_by_notice_file`,
+`release_license_records_by_evidence_source`, and
+`release_license_records_by_evidence_source_license` so offline browsers can
+audit GPL compatibility, corresponding-source posture, package audit
+requirements, notice coverage, and upstream evidence references without opening
+every release directory.
 `scripts/find-artifact` can also filter by that metadata with
 `--project-license`, `--gplv2-compatible yes|no`,
 `--corresponding-source-required yes|no`, `--corresponding-source-status`,

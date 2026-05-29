@@ -6220,6 +6220,13 @@ def main():
                 "preferred_combined_terms_with_busybox": "GPL-2.0",
                 "source_availability_required_for_distribution": True,
             },
+            "license_evidence": {
+                "verified_at": "2026-05-29",
+                "sources": [
+                    {"name": "BusyBox", "url": "https://busybox.net/license.html", "license": "GPL-2.0", "note": "official BusyBox license page"},
+                    {"name": "Buildroot", "url": "https://buildroot.org/downloads/manual/manual.html", "license": "GPL-2.0-or-later with package exceptions", "note": "official Buildroot manual"},
+                ],
+            },
             "artifact_distribution": {
                 "corresponding_source_strategy": {
                     "status": "required_for_distribution",
@@ -6318,6 +6325,7 @@ def main():
                 "release_name: operator-smoke" not in release_view.stdout or
                 "license: project=GPL-2.0-or-later gplv2_compatible=yes valid=yes notices=11 missing_notices=0" not in release_view.stdout or
                 "corresponding_source: required=yes status=required_for_distribution release_inputs=7 reconstruction_inputs=4 package_license_audit=yes" not in release_view.stdout or
+                "license_evidence: verified_at=2026-05-29 sources=2" not in release_view.stdout or
                 "busierbox-test" not in release_view.stdout or
                 "compatibility=exact" not in release_view.stdout or
                 "compatibility_reason: fixture" not in release_view.stdout or
@@ -6351,6 +6359,7 @@ def main():
                 "detection_source=auto detection_reason=release.json,release-index.json,bin+scripts explicit_release_dir=no markers=3" not in release_text_status.stdout or
                 "artifacts=1 devices=1 tuples=1 total_size=9" not in release_text_status.stdout or
                 "corresponding_source: required=yes status=required_for_distribution release_inputs=7 reconstruction_inputs=4 package_license_audit=yes" not in release_text_status.stdout or
+                "license_evidence: verified_at=2026-05-29 sources=2" not in release_text_status.stdout or
                 "recommendations:" not in release_text_status.stdout or
                 "by_device:lab-router -> bin/busierbox-test" not in release_text_status.stdout):
             print("text --status missing release summary", file=sys.stderr)
@@ -6423,6 +6432,8 @@ def main():
         release_licenses_by_component = rel.get("release_license_records_by_component") or {}
         release_licenses_by_component_license = rel.get("release_license_records_by_component_license") or {}
         release_licenses_by_notice = rel.get("release_license_records_by_notice_file") or {}
+        release_licenses_by_evidence = rel.get("release_license_records_by_evidence_source") or {}
+        release_licenses_by_evidence_license = rel.get("release_license_records_by_evidence_source_license") or {}
         release_artifact_size = len("artifact\n")
         release_layout_artifact = "by-tuple/native/host/host/host/bin/busierbox-test"
         doom_wad_sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -6487,6 +6498,10 @@ def main():
                 release_licenses_by_gplv2.get("True", [{}])[0].get("project_license") != "GPL-2.0-or-later" or
                 release_licenses_by_component.get("BusyBox", [{}])[0].get("combined_gplv2_compatible") is not True or
                 release_licenses_by_component_license.get("BusyBox:GPL-2.0", [{}])[0].get("project_license") != "GPL-2.0-or-later" or
+                release_license.get("license_evidence_source_count") != 2 or
+                release_license.get("license_evidence_verified_at") != "2026-05-29" or
+                release_licenses_by_evidence.get("BusyBox", [{}])[0].get("license_evidence_source_urls", {}).get("BusyBox") != "https://busybox.net/license.html" or
+                release_licenses_by_evidence_license.get("Buildroot:GPL-2.0-or-later with package exceptions", [{}])[0].get("license_evidence_source_licenses", {}).get("Buildroot") != "GPL-2.0-or-later with package exceptions" or
                 release_licenses_by_notice.get("LICENSE.busierbox", [{}])[0].get("notice_count") != 11):
             print("json status missing release browser lookup maps", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
@@ -6601,6 +6616,8 @@ def main():
                 release_summary.get("release_license_valid_count") != 1 or
                 release_summary.get("release_license_notice_count") != 11 or
                 release_summary.get("release_license_missing_notice_count") != 0 or
+                release_summary.get("release_license_evidence_source_count") != 2 or
+                release_summary.get("release_license_evidence_verified_at") != "2026-05-29" or
                 release_summary.get("release_project_license_counts", {}).get("GPL-2.0-or-later") != 1 or
                 release_summary.get("release_combined_gplv2_compatible_counts", {}).get("True") != 1 or
                 release_summary.get("release_corresponding_source_required_counts", {}).get("True") != 1 or
@@ -6637,6 +6654,8 @@ def main():
                 "release_license_records_by_corresponding_source_required" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
                 "release_license_records_by_corresponding_source_status" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
                 "release_license_records_by_package_license_audit" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
+                "release_license_records_by_evidence_source" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
+                "release_license_records_by_evidence_source_license" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
                 "artifacts_by_command_queue_enabled" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
                 "artifacts_by_command_queue_execution_supported" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
                 "artifacts_by_command_queue_operator_supplied_command_execution" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or

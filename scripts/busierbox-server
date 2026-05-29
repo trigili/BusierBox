@@ -5529,6 +5529,12 @@ def release_license_record(release_dir):
         "components": [],
         "component_names": [],
         "component_licenses": {},
+        "license_evidence_verified_at": "",
+        "license_evidence_source_count": 0,
+        "license_evidence_sources": [],
+        "license_evidence_source_names": [],
+        "license_evidence_source_licenses": {},
+        "license_evidence_source_urls": {},
         "notice_count": len(notice_files),
         "notice_files": notice_files,
         "required_notice_files": list(RELEASE_LICENSE_NOTICE_FILES),
@@ -5542,10 +5548,15 @@ def release_license_record(release_dir):
         return rec
     project = policy.get("project") if isinstance(policy.get("project"), dict) else {}
     compatibility = policy.get("compatibility") if isinstance(policy.get("compatibility"), dict) else {}
+    license_evidence = policy.get("license_evidence") if isinstance(policy.get("license_evidence"), dict) else {}
     artifact_distribution = policy.get("artifact_distribution") if isinstance(policy.get("artifact_distribution"), dict) else {}
     corresponding_source = artifact_distribution.get("corresponding_source_strategy") if isinstance(artifact_distribution.get("corresponding_source_strategy"), dict) else {}
     components = [
         item for item in (policy.get("components") or [])
+        if isinstance(item, dict) and item.get("name")
+    ]
+    evidence_sources = [
+        item for item in (license_evidence.get("sources") or [])
         if isinstance(item, dict) and item.get("name")
     ]
     corresponding_source_release_inputs = [
@@ -5574,6 +5585,18 @@ def release_license_record(release_dir):
         "component_licenses": {
             str(item.get("name")): str(item.get("license") or "")
             for item in components
+        },
+        "license_evidence_verified_at": str(license_evidence.get("verified_at") or ""),
+        "license_evidence_source_count": len(evidence_sources),
+        "license_evidence_sources": evidence_sources,
+        "license_evidence_source_names": [str(item.get("name")) for item in evidence_sources],
+        "license_evidence_source_licenses": {
+            str(item.get("name")): str(item.get("license") or "")
+            for item in evidence_sources
+        },
+        "license_evidence_source_urls": {
+            str(item.get("name")): str(item.get("url") or "")
+            for item in evidence_sources
         },
     })
     return rec
@@ -5827,6 +5850,8 @@ def release_context(cfg=None):
         license_records_by_component = {}
         license_records_by_component_license = {}
         license_records_by_notice_file = {}
+        license_records_by_evidence_source = {}
+        license_records_by_evidence_source_license = {}
         license_records_by_corresponding_source_required = records_by_key(license_records, "corresponding_source_required")
         license_records_by_corresponding_source_status = records_by_key(license_records, "corresponding_source_status")
         license_records_by_package_license_audit = records_by_key(license_records, "corresponding_source_requires_package_license_audit")
@@ -5837,6 +5862,11 @@ def release_context(cfg=None):
                 license_records_by_component_license.setdefault(f"{component}:{license_id}", []).append(license_record)
         for notice_file in license_record.get("notice_files") or []:
             license_records_by_notice_file.setdefault(str(notice_file), []).append(license_record)
+        for source_name in license_record.get("license_evidence_source_names") or []:
+            license_records_by_evidence_source.setdefault(str(source_name), []).append(license_record)
+        for source_name, license_id in (license_record.get("license_evidence_source_licenses") or {}).items():
+            if source_name and license_id:
+                license_records_by_evidence_source_license.setdefault(f"{source_name}:{license_id}", []).append(license_record)
         return {
             "release_dir": str(here),
             "release_json": str(release_json),
@@ -5852,6 +5882,8 @@ def release_context(cfg=None):
             "release_license_records_by_component": license_records_by_component,
             "release_license_records_by_component_license": license_records_by_component_license,
             "release_license_records_by_notice_file": license_records_by_notice_file,
+            "release_license_records_by_evidence_source": license_records_by_evidence_source,
+            "release_license_records_by_evidence_source_license": license_records_by_evidence_source_license,
             "artifacts": artifacts,
             "artifacts_by_release_path": artifacts_by_release_path,
             "artifacts_by_name": artifacts_by_name,
@@ -10191,6 +10223,8 @@ def status_document(cfg):
         "release_license_valid_count": sum(1 for rec in (release.get("release_license_records") or []) if rec.get("valid")),
         "release_license_notice_count": (release.get("release_license") or {}).get("notice_count", 0),
         "release_license_missing_notice_count": (release.get("release_license") or {}).get("missing_notice_count", 0),
+        "release_license_evidence_source_count": (release.get("release_license") or {}).get("license_evidence_source_count", 0),
+        "release_license_evidence_verified_at": (release.get("release_license") or {}).get("license_evidence_verified_at", ""),
         "release_project_license_counts": record_count_by_key(release.get("release_license_records") or [], "project_license"),
         "release_combined_gplv2_compatible_counts": record_count_by_key(release.get("release_license_records") or [], "combined_gplv2_compatible"),
         "release_corresponding_source_required_counts": record_count_by_key(release.get("release_license_records") or [], "corresponding_source_required"),
@@ -10649,6 +10683,8 @@ def status_document(cfg):
                 "release_license_records_by_component",
                 "release_license_records_by_component_license",
                 "release_license_records_by_notice_file",
+                "release_license_records_by_evidence_source",
+                "release_license_records_by_evidence_source_license",
             ), "release_license_count",
         ),
         "release_devices": api_collection_record(
@@ -11146,6 +11182,8 @@ def status_document(cfg):
         "release_license_records_by_component": release.get("release_license_records_by_component") or {},
         "release_license_records_by_component_license": release.get("release_license_records_by_component_license") or {},
         "release_license_records_by_notice_file": release.get("release_license_records_by_notice_file") or {},
+        "release_license_records_by_evidence_source": release.get("release_license_records_by_evidence_source") or {},
+        "release_license_records_by_evidence_source_license": release.get("release_license_records_by_evidence_source_license") or {},
         "command_queue": command_queue,
         "command_queue_policy_records": command_queue_policy_records,
         **command_queue_policy_index_maps,
@@ -11587,6 +11625,11 @@ def print_release_summary(doc):
             f"release_inputs={release_license.get('corresponding_source_release_input_count', 0)} "
             f"reconstruction_inputs={release_license.get('corresponding_source_reconstruction_input_count', 0)} "
             f"package_license_audit={'yes' if release_license.get('corresponding_source_requires_package_license_audit') else 'no'}"
+        )
+        print(
+            "  license_evidence: "
+            f"verified_at={release_license.get('license_evidence_verified_at', '') or '-'} "
+            f"sources={release_license.get('license_evidence_source_count', 0)}"
         )
     for error in release_state.get("errors") or []:
         print(f"  error: {error}")
