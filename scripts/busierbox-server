@@ -929,6 +929,8 @@ DEFAULTS = {
     "bridge_listen_port": 22206,
     "bridge_dest_host": "127.0.0.1",
     "bridge_dest_port": 0,
+    "survey_bootstrap_port": 22207,
+    "survey_bootstrap_name": "survey.sh",
     "operator_session_dir": str(DEFAULT_OPERATOR_SESSION_DIR),
     "server_state": str(DEFAULT_STATE_FILE),
     "staged_files": str(DEFAULT_STAGED_FILE),
@@ -6856,7 +6858,7 @@ def load_config(path):
     elif t == "builtin-tls":
         cfg["transport"] = "builtin"
         cfg.setdefault("encryption", "tls")
-    for key in ("ssh_listen_port", "shell_listen_port", "forward_port", "file_service_port", "bridge_listen_port", "bridge_dest_port"):
+    for key in ("ssh_listen_port", "shell_listen_port", "forward_port", "file_service_port", "bridge_listen_port", "bridge_dest_port", "survey_bootstrap_port"):
         cfg[key] = int(cfg[key])
     return cfg
 
@@ -8629,6 +8631,181 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
     return 0
 
 
+def survey_bootstrap_script(cfg, host, port):
+    name = str(cfg.get("survey_bootstrap_name", "survey.sh")).lstrip("/") or "survey.sh"
+    url = f"http://{host}:{port}/survey-bootstrap/result"
+    return f"""#!/bin/sh
+bb_sanitize() {{
+    printf '%s' "$1" | tr ' /:&?=%' '_______'
+}}
+bb_uname_s=$(uname -s 2>/dev/null || printf unknown)
+bb_uname_m=$(uname -m 2>/dev/null || printf unknown)
+bb_uname_r=$(uname -r 2>/dev/null || printf unknown)
+bb_word_bits=$(getconf LONG_BIT 2>/dev/null || printf unknown)
+bb_endian=unknown
+if command -v od >/dev/null 2>&1 && command -v awk >/dev/null 2>&1; then
+    bb_endian=$(printf '\\001\\000' | od -An -tx1 2>/dev/null | awk '{{ if ($1 == "01") print "little"; else if ($1 == "00") print "big"; else print "unknown"; exit }}')
+fi
+bb_payload="schema=1&script={name}&uname_s=$(bb_sanitize "$bb_uname_s")&uname_m=$(bb_sanitize "$bb_uname_m")&uname_r=$(bb_sanitize "$bb_uname_r")&word_bits=$(bb_sanitize "$bb_word_bits")&endian=$(bb_sanitize "$bb_endian")"
+printf '%s\\n' "busierbox survey bootstrap"
+printf '%s\\n' "uname_s=$bb_uname_s"
+printf '%s\\n' "uname_m=$bb_uname_m"
+printf '%s\\n' "uname_r=$bb_uname_r"
+printf '%s\\n' "word_bits=$bb_word_bits"
+printf '%s\\n' "endian=$bb_endian"
+if command -v wget >/dev/null 2>&1; then
+    wget -qO- --post-data "$bb_payload" "{url}" >/dev/null 2>&1 && exit 0
+fi
+if command -v curl >/dev/null 2>&1; then
+    curl -fsS -X POST -d "$bb_payload" "{url}" >/dev/null 2>&1 && exit 0
+fi
+printf '%s\\n' "survey upload failed: wget or curl not available" >&2
+exit 1
+"""
+
+
+def survey_bootstrap_results_path(cfg):
+    return Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "survey-bootstrap-results.json"
+
+
+def append_survey_bootstrap_result(cfg, result):
+    path = survey_bootstrap_results_path(cfg)
+    data = read_json_file(path, {"schema": 1, "results": []})
+    if not isinstance(data.get("results"), list):
+        data["results"] = []
+    data["results"].append(result)
+    atomic_write_json(path, data)
+    return path
+
+
+def handle_survey_bootstrap_http(cfg, conn, method, target, headers, body, addr, script_text):
+    parsed = urllib.parse.urlparse(target)
+    remote = f"{addr[0]}:{addr[1]}"
+    script_name = "/" + (str(cfg.get("survey_bootstrap_name", "survey.sh")).lstrip("/") or "survey.sh")
+    if method in {"GET", "HEAD"} and parsed.path in {script_name, "/survey.sh", "/survey-bootstrap/survey.sh"}:
+        payload = script_text.encode("utf-8")
+        send_http_response(conn, 200, b"" if method == "HEAD" else payload, "text/x-shellscript", headers={
+            "X-BusierBox-Survey-Bootstrap": "yes",
+        })
+        return {
+            "operation": "survey_bootstrap_script",
+            "status": "served",
+            "http_status": 200,
+            "method": method,
+            "remote_addr": remote,
+            "script_name": script_name,
+            "size": len(payload),
+        }
+    if method == "POST" and parsed.path in {"/survey-bootstrap/result", "/survey-bootstrap/result/"}:
+        payload_body = read_http_body(conn, headers, body)
+        form = urllib.parse.parse_qs(payload_body.decode("utf-8", errors="replace"), keep_blank_values=True)
+        result = {
+            "schema": 1,
+            "operation": "survey_bootstrap_result",
+            "status": "received",
+            "remote_addr": remote,
+            "received_at": utc_now(),
+        }
+        for key in ("script", "uname_s", "uname_m", "uname_r", "word_bits", "endian"):
+            result[key] = str((form.get(key) or [""])[0])
+        result["architecture"] = result.get("uname_m", "")
+        result["kernel"] = result.get("uname_r", "")
+        path = append_survey_bootstrap_result(cfg, result)
+        result["results_path"] = str(path)
+        send_json_response(conn, 200, result)
+        return result
+    payload = {"schema": 1, "status": "rejected", "reason": "unknown survey bootstrap endpoint"}
+    send_json_response(conn, 404, payload)
+    return {
+        "operation": "survey_bootstrap",
+        "status": "rejected",
+        "http_status": 404,
+        "method": method,
+        "remote_addr": remote,
+        "reason": payload["reason"],
+    }
+
+
+def serve_survey_bootstrap(cfg, timeout, max_sessions=0):
+    service = "survey-bootstrap"
+    port = int(cfg.get("survey_bootstrap_port", 22207))
+    host = str(cfg.get("operator_server_host") or cfg.get("listen_host") or "127.0.0.1")
+    if host in ("0.0.0.0", "::"):
+        host = "127.0.0.1"
+    script_name = str(cfg.get("survey_bootstrap_name", "survey.sh")).lstrip("/") or "survey.sh"
+    script_text = survey_bootstrap_script(cfg, host, port)
+    log_dir = session_log_dir(cfg, service)
+    start_session_record(cfg, service, log_dir, details={"port": port, "script_name": script_name})
+    (log_dir / script_name).write_text(script_text, encoding="utf-8")
+    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    print(f"Survey bootstrap listener. Listening on http://{host}:{port}/{script_name}")
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "script_name": script_name, "url": f"http://{host}:{port}/{script_name}"})
+    sessions = 0
+    sock = None
+    bound = False
+    try:
+        sock = bind_listen_socket(cfg, service, port, 20)
+        bound = True
+        sock.settimeout(timeout)
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "script_name": script_name, "url": f"http://{host}:{port}/{script_name}"})
+        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "script_name": script_name, "url": f"http://{host}:{port}/{script_name}"})
+        print_candidates(cfg, port)
+        while not SHUTDOWN.is_set():
+            print("Waiting for survey bootstrap request...")
+            try:
+                conn, addr = sock.accept()
+            except socket.timeout:
+                print("timeout waiting for survey bootstrap request", file=sys.stderr)
+                return 1 if sessions == 0 else 0
+            except OSError:
+                if SHUTDOWN.is_set():
+                    return 0
+                raise
+            metadata = {}
+            try:
+                with conn:
+                    method, target, _version, headers, body = read_http_headers(conn)
+                    metadata = handle_survey_bootstrap_http(cfg, conn, method, target, headers, body, addr, script_text)
+                    event = "survey_bootstrap_result" if metadata.get("operation") == "survey_bootstrap_result" else "survey_bootstrap_request"
+                    append_event(cfg, service, event, session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
+                    print(f"survey-bootstrap {metadata.get('status')}: {metadata.get('operation', '')}")
+            except Exception as exc:
+                metadata = {"operation": "survey_bootstrap", "status": "error", "reason": str(exc)}
+                try:
+                    send_json_response(conn, 500, {"schema": 1, "status": "error", "reason": str(exc)})
+                except Exception:
+                    pass
+                append_event(cfg, service, "survey_bootstrap_error", "error", session=str(log_dir), details=metadata)
+                print(f"survey bootstrap failed: {exc}", file=sys.stderr)
+            finally:
+                sessions += 1
+            if max_sessions > 0 and sessions >= max_sessions:
+                break
+    finally:
+        if sock:
+            unregister_socket(sock)
+            try:
+                sock.close()
+            except OSError:
+                pass
+        if bound:
+            stop_reason = current_stop_reason("complete")
+            update_server_state(cfg, service, "stopped", {
+                "session_log": str(log_dir),
+                "script_name": script_name,
+                "url": f"http://{host}:{port}/{script_name}",
+                "pid": "",
+                "managed_by": "",
+                "stopped_at": utc_now(),
+                "stopped_reason": stop_reason,
+            })
+            update_session_record(log_dir, state="ended", exit_reason=stop_reason)
+            upsert_state_session(cfg, log_dir, service, "ended", exit_reason=stop_reason)
+            record_shutdown_event(cfg, service, session=log_dir)
+            append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
+    return 0
+
+
 def service_port(cfg, service):
     if service == "ssh":
         return int(cfg.get("ssh_listen_port", 22202))
@@ -8640,6 +8817,8 @@ def service_port(cfg, service):
         return int(cfg.get("command_queue_port", 22205))
     if service == "bridge":
         return int(cfg.get("bridge_listen_port", 22206))
+    if service == "survey-bootstrap":
+        return int(cfg.get("survey_bootstrap_port", 22207))
     return 0
 
 
@@ -8713,7 +8892,7 @@ def port_listening(host, port):
 def raw_service_snapshot(cfg):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     services = {}
-    for name in ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge"):
+    for name in ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "survey-bootstrap"):
         port = service_port(cfg, name)
         bind_address = str(cfg.get("listen_host", ""))
         endpoints = listener_endpoints(port)
@@ -13508,6 +13687,7 @@ Transport modes:
   file-service — Receive-only TLS upload service for target-initiated files/evidence
   command-queue — Explicit command queue poll listener
   bridge      — Explicit TCP bridge from a local listener to a configured host:port
+  survey-bootstrap — Serve a /bin/sh survey script and receive its result
 
 File staging:
   --transport file-service --serve-file ./tool --as /tmp/tool
@@ -13535,7 +13715,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="BusierBox shell build config used by scripts/menuconfig and make package")
     parser.add_argument("--transport",
                         choices=("ssh", "ssh-reverse", "tls-shell", "socat-tls",
-                                 "builtin-tls", "plain-shell", "file-service", "command-queue", "bridge"),
+                                 "builtin-tls", "plain-shell", "file-service", "command-queue", "bridge", "survey-bootstrap"),
                         help="transport to listen for (overrides config)")
     parser.add_argument("--file-service", action="store_true",
                         help="receive target-initiated file uploads and store them under local/sessions")
@@ -13630,6 +13810,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="TCP bridge destination host")
     parser.add_argument("--bridge-dest-port", type=int,
                         help="TCP bridge destination port")
+    parser.add_argument("--survey-bootstrap-port", type=int,
+                        help="survey bootstrap HTTP listener port")
+    parser.add_argument("--survey-bootstrap-name",
+                        help="survey bootstrap script filename, default survey.sh")
     parser.add_argument("--file-service-tls", choices=("yes", "no"),
                         help="use TLS for file-service uploads (default yes)")
     parser.add_argument("--timeout", type=float, default=0,
@@ -13670,6 +13854,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["bridge_dest_host"] = args.bridge_dest_host
     if args.bridge_dest_port:
         cfg["bridge_dest_port"] = args.bridge_dest_port
+    if args.survey_bootstrap_port:
+        cfg["survey_bootstrap_port"] = args.survey_bootstrap_port
+    if args.survey_bootstrap_name:
+        cfg["survey_bootstrap_name"] = args.survey_bootstrap_name
     if args.file_service_tls:
         cfg["file_service_tls"] = args.file_service_tls
     if args.state_file:
@@ -13846,6 +14034,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         if action == "bridge":
             return serve_bridge(cfg, timeout, max_sessions=1 if args.one_shot else 0,
                                 session_timeout=session_timeout)
+        if action == "survey-bootstrap":
+            return serve_survey_bootstrap(cfg, timeout, max_sessions=1 if args.one_shot else 0)
     except KeyboardInterrupt:
         print("busierbox-server: interrupted, shutting down", file=sys.stderr)
         request_shutdown("keyboard_interrupt")

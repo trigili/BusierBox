@@ -122,6 +122,9 @@ def main():
     if "bridge" not in combined or "--bridge-dest-host" not in combined or "--bridge-dest-port" not in combined:
         print("busierbox-server help missing explicit bridge mode", file=sys.stderr)
         return 1
+    if "survey-bootstrap" not in combined or "--survey-bootstrap-port" not in combined:
+        print("busierbox-server help missing survey bootstrap mode", file=sys.stderr)
+        return 1
     for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--json-status", "--api-status", "--event-limit",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
@@ -329,6 +332,77 @@ def main():
                 bridge_events["bridge_closed"][0].get("details", {}).get("bytes_from_upstream", 0) < len(b"bridge:hello")):
             print("json status missing bridge relay evidence", file=sys.stderr)
             print(json.dumps(bridge_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
+        survey_port = free_port()
+        survey_cfg = Path(tmp) / "survey-bootstrap-config.json"
+        survey_state = Path(tmp) / "survey-bootstrap-state.json"
+        survey_operator_dir = Path(tmp) / "operator-session-survey-bootstrap"
+        survey_cfg.write_text(json.dumps({
+            "transport": "survey-bootstrap",
+            "listen_host": "127.0.0.1",
+            "operator_server_host": "127.0.0.1",
+            "survey_bootstrap_port": survey_port,
+            "survey_bootstrap_name": "yourfile.sh",
+            "operator_session_dir": str(survey_operator_dir),
+            "server_state": str(survey_state),
+            "session_root": str(Path(tmp) / "survey-bootstrap-sessions"),
+        }), encoding="utf-8")
+        survey_proc = subprocess.Popen(
+            [
+                "scripts/busierbox-server",
+                "--config", str(survey_cfg),
+                "--transport", "survey-bootstrap",
+                "--timeout", "1",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        survey_get = connect_with_retry(
+            survey_port,
+            b"GET /yourfile.sh HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+        )
+        if b"#!/bin/sh" not in survey_get or b"/survey-bootstrap/result" not in survey_get:
+            print("survey bootstrap script response missing shell script content", file=sys.stderr)
+            return 1
+        survey_body = b"schema=1&script=yourfile.sh&uname_s=Linux&uname_m=mipsel&uname_r=4.14&word_bits=32&endian=little"
+        survey_post = connect_with_retry(
+            survey_port,
+            b"POST /survey-bootstrap/result HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/x-www-form-urlencoded\r\n"
+            + f"Content-Length: {len(survey_body)}\r\n".encode("ascii")
+            + b"Connection: close\r\n\r\n"
+            + survey_body,
+        )
+        if b'"status": "received"' not in survey_post or b'"architecture": "mipsel"' not in survey_post:
+            print("survey bootstrap result response missing received metadata", file=sys.stderr)
+            print(survey_post.decode("utf-8", errors="replace"), file=sys.stderr)
+            return 1
+        out, err = survey_proc.communicate(timeout=5)
+        if survey_proc.returncode != 0 or "Listening on http://127.0.0.1" not in out:
+            print("survey bootstrap listener did not exit cleanly", file=sys.stderr)
+            print(out, file=sys.stderr)
+            print(err, file=sys.stderr)
+            return 1
+        survey_results = json.loads((survey_operator_dir / "survey-bootstrap-results.json").read_text(encoding="utf-8"))
+        if survey_results.get("results", [{}])[0].get("architecture") != "mipsel":
+            print("survey bootstrap result ledger missing target architecture", file=sys.stderr)
+            print(json.dumps(survey_results, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        survey_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(survey_cfg),
+            "--json-status",
+        ).stdout)
+        survey_service = (survey_status.get("services_by_name") or {}).get("survey-bootstrap") or {}
+        if (survey_service.get("port") != survey_port or
+                survey_service.get("actual") != "stopped" or
+                not (survey_status.get("events_by_event") or {}).get("survey_bootstrap_result")):
+            print("json status missing survey bootstrap evidence", file=sys.stderr)
+            print(json.dumps(survey_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         command_copy_file = queue_operator_dir / "last-command.txt"
@@ -2353,16 +2427,16 @@ def main():
             return 1
         service_session_log_counts = queue_status_json["summary"].get("service_session_log_exists_counts", {})
         service_process_log_counts = queue_status_json["summary"].get("service_process_log_exists_counts", {})
-        if (queue_status_json["summary"].get("service_count") != 6 or
-                queue_status_json["summary"].get("service_actual_counts", {}).get("stopped") != 6 or
+        if (queue_status_json["summary"].get("service_count") != 7 or
+                queue_status_json["summary"].get("service_actual_counts", {}).get("stopped") != 7 or
                 queue_status_json["summary"].get("service_configured_counts", {}).get("unknown", 0) < 3 or
-                sum(service_session_log_counts.values()) != 6 or
-                sum(service_process_log_counts.values()) != 6):
+                sum(service_session_log_counts.values()) != 7 or
+                sum(service_process_log_counts.values()) != 7):
             print("server json status service summary is wrong", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         services_by_name = queue_status_json.get("services_by_name") or {}
-        if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge"}:
+        if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "survey-bootstrap"}:
             print("server json status missing stable services_by_name map", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -2376,20 +2450,20 @@ def main():
         ports_by_service = queue_status_json.get("ports_by_service") or {}
         ports_by_actual = queue_status_json.get("ports_by_actual") or {}
         file_service_port = str(services_by_name.get("file-service", {}).get("port", ""))
-        if (len(services_by_actual.get("stopped", [])) != 6 or
+        if (len(services_by_actual.get("stopped", [])) != 7 or
                 len(services_by_configured.get("unknown", [])) < 3 or
                 not any(row.get("name") == "file-service" for row in services_by_port.get(file_service_port, [])) or
-                sum(len(value) for value in services_by_session_log_exists.values()) != 6 or
-                sum(len(value) for value in services_by_process_log_exists.values()) != 6):
+                sum(len(value) for value in services_by_session_log_exists.values()) != 7 or
+                sum(len(value) for value in services_by_process_log_exists.values()) != 7):
             print("server json status missing grouped service lookup maps", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
-        if (queue_status_json["summary"].get("port_count") != 6 or
-                queue_status_json["summary"].get("port_actual_counts", {}).get("stopped") != 6 or
-                len(ports) != 6 or
+        if (queue_status_json["summary"].get("port_count") != 7 or
+                queue_status_json["summary"].get("port_actual_counts", {}).get("stopped") != 7 or
+                len(ports) != 7 or
                 not any(row.get("service") == "file-service" for row in ports_by_number.get(file_service_port, [])) or
                 ports_by_service.get("file-service", [{}])[0].get("port") != int(file_service_port) or
-                len(ports_by_actual.get("stopped", [])) != 6):
+                len(ports_by_actual.get("stopped", [])) != 7):
             print("server json status missing explicit port API records", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -2998,14 +3072,14 @@ def main():
                 rows["file-service"].get("process_log_exists") is not False or
                 (status_doc.get("services_by_name") or {}).get("file-service", {}).get("session_log_exists") is not True or
                 (status_doc.get("services_by_name") or {}).get("file-service", {}).get("process_log_exists") is not False or
-                len((status_doc.get("services_by_has_error") or {}).get("no", [])) != 6 or
-                lifecycle_summary.get("service_bind_address_counts", {}).get("127.0.0.1") != 6 or
+                len((status_doc.get("services_by_has_error") or {}).get("no", [])) != 7 or
+                lifecycle_summary.get("service_bind_address_counts", {}).get("127.0.0.1") != 7 or
                 lifecycle_summary.get("service_tls_counts", {}).get("yes") != 2 or
-                lifecycle_summary.get("service_tls_counts", {}).get("no") != 4 or
+                lifecycle_summary.get("service_tls_counts", {}).get("no") != 5 or
                 lifecycle_summary.get("service_pid_alive_counts", {}).get("yes") != 1 or
                 lifecycle_summary.get("service_pid_managed_counts", {}).get("yes") != 1 or
                 lifecycle_summary.get("service_session_log_exists_counts", {}).get("yes") != 1 or
-                lifecycle_summary.get("service_process_log_exists_counts", {}).get("no") != 6):
+                lifecycle_summary.get("service_process_log_exists_counts", {}).get("no") != 7):
             print("status missing service lifecycle/filter indexes", file=sys.stderr)
             print(status.stdout, file=sys.stderr)
             lifecycle_proc.terminate()
