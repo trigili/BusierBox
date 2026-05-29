@@ -322,6 +322,51 @@ def main():
             print(save_bridge_chain.stdout, file=sys.stderr)
             print(save_bridge_chain.stderr, file=sys.stderr)
             return 1
+        save_delete_bridge = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--save-bridge-profile", "delete-me",
+            "--bridge-profile-purpose", "temporary",
+        )
+        if save_delete_bridge.returncode != 0 or "saved bridge profile delete-me" not in save_delete_bridge.stdout:
+            print("temporary bridge profile save failed", file=sys.stderr)
+            print(save_delete_bridge.stdout, file=sys.stderr)
+            print(save_delete_bridge.stderr, file=sys.stderr)
+            return 1
+        inspect_bridge_profile = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--inspect-bridge-profile", "chain-http",
+        )
+        if ("Bridge profile chain-http" not in inspect_bridge_profile.stdout or
+                expected_chain_path not in inspect_bridge_profile.stdout or
+                "start_command:" not in inspect_bridge_profile.stdout or
+                "hop 2: rack-host:9001 -> target-lan-device:80" not in inspect_bridge_profile.stdout):
+            print("bridge profile inspect missing route details", file=sys.stderr)
+            print(inspect_bridge_profile.stdout, file=sys.stderr)
+            print(inspect_bridge_profile.stderr, file=sys.stderr)
+            return 1
+        inspect_bridge_json = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--inspect-bridge-profile", "chain-http",
+            "--json-bridge-profiles",
+        ).stdout)
+        if ((inspect_bridge_json.get("profile") or {}).get("name") != "chain-http" or
+                (inspect_bridge_json.get("profile") or {}).get("route_path") != expected_chain_path):
+            print("bridge profile JSON inspect missing profile", file=sys.stderr)
+            print(json.dumps(inspect_bridge_json, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        delete_bridge_profile = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--delete-bridge-profile", "delete-me",
+        )
+        if delete_bridge_profile.returncode != 0 or "deleted bridge profile delete-me" not in delete_bridge_profile.stdout:
+            print("bridge profile delete failed", file=sys.stderr)
+            print(delete_bridge_profile.stdout, file=sys.stderr)
+            print(delete_bridge_profile.stderr, file=sys.stderr)
+            return 1
         list_bridge_profiles = run(
             "scripts/busierbox-server",
             "--config", str(bridge_cfg),
@@ -329,6 +374,7 @@ def main():
         )
         if ("lab-http" not in list_bridge_profiles.stdout or
                 "chain-http" not in list_bridge_profiles.stdout or
+                "delete-me" in list_bridge_profiles.stdout or
                 expected_chain_path not in list_bridge_profiles.stdout or
                 "target=target-bridge" not in list_bridge_profiles.stdout or
                 "path: operator:" not in list_bridge_profiles.stdout):

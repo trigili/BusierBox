@@ -2522,6 +2522,22 @@ def save_bridge_profile(cfg, name, purpose="", notes="", hop_args=None):
     return bridge_profile_record(cfg, name, rec)
 
 
+def delete_bridge_profile(cfg, name):
+    name = str(name or "").strip()
+    if not name:
+        raise ValueError("bridge profile name is required")
+    data = load_bridge_profiles(cfg)
+    profiles = data.setdefault("profiles", {})
+    rec = profiles.get(name)
+    if not isinstance(rec, dict):
+        raise ValueError(f"bridge profile not found: {name}")
+    out = bridge_profile_record(cfg, name, rec)
+    del profiles[name]
+    atomic_write_json(bridge_profiles_path(cfg), data)
+    append_event(cfg, "bridge", "bridge_profile_deleted", details=out)
+    return out
+
+
 def apply_bridge_profile(cfg, name):
     name = str(name or "").strip()
     profiles = load_bridge_profiles(cfg).get("profiles") or {}
@@ -2538,6 +2554,35 @@ def apply_bridge_profile(cfg, name):
         if rec.get("target_label"):
             cfg["_target_label_filter"] = str(rec.get("target_label") or "")
     return bridge_profile_record(cfg, name, rec)
+
+
+def print_bridge_profile(cfg, name, json_output=False):
+    name = str(name or "").strip()
+    profiles = load_bridge_profiles(cfg).get("profiles") or {}
+    rec = profiles.get(name)
+    if not isinstance(rec, dict):
+        raise ValueError(f"bridge profile not found: {name}")
+    out = bridge_profile_record(cfg, name, rec)
+    if json_output:
+        print(json.dumps({
+            "schema": 1,
+            "path": str(bridge_profiles_path(cfg)),
+            "profile": out,
+        }, indent=2, sort_keys=True))
+        return 0
+    print(f"Bridge profile {out.get('name', '')}")
+    print(f"  listen: {out.get('listen_host', '')}:{out.get('listen_port', '')}")
+    print(f"  destination: {out.get('dest_host', '')}:{out.get('dest_port', '')}")
+    print(f"  route_path: {out.get('route_path', '')}")
+    print(f"  state: {out.get('current_state', '')} active={'yes' if out.get('active') else 'no'} pid={out.get('pid', '') or '-'}")
+    print(f"  target: {out.get('target_id', '') or '-'} label={out.get('target_label', '') or '-'}")
+    print(f"  purpose: {out.get('purpose', '') or '-'}")
+    print(f"  notes: {out.get('notes', '') or '-'}")
+    print(f"  start_command: {out.get('start_command', '')}")
+    print(f"  stop_command: {out.get('stop_command', '')}")
+    for idx, hop in enumerate(out.get("hops") or [], 1):
+        print(f"  hop {idx}: {hop.get('from', '')} -> {hop.get('to', '')}")
+    return 0
 
 
 def print_bridge_profiles(cfg, json_output=False):
@@ -15392,6 +15437,8 @@ File staging:
   --release-dir dist/releases/lab --stage-release-artifact bin/busierbox-target-full
   --transport file-service --list-staged
   --save-bridge-profile lab-http --bridge-port 22206 --bridge-dest-host 10.0.0.8 --bridge-dest-port 80
+  --inspect-bridge-profile lab-http
+  --delete-bridge-profile lab-http
   --transport bridge --bridge-profile lab-http
 
 Command queue:
@@ -15550,6 +15597,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="operator notes stored with --save-bridge-profile")
     parser.add_argument("--bridge-hop", action="append", default=[],
                         help="explicit bridge profile hop FROM=TO; may be repeated for multi-hop chains")
+    parser.add_argument("--inspect-bridge-profile",
+                        help="inspect one named bridge profile")
+    parser.add_argument("--delete-bridge-profile",
+                        help="delete one named bridge profile")
     parser.add_argument("--list-bridge-profiles", action="store_true",
                         help="list named bridge profiles")
     parser.add_argument("--json-bridge-profiles", action="store_true",
@@ -15646,8 +15697,16 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             rec = save_bridge_profile(cfg, args.save_bridge_profile, purpose=args.bridge_profile_purpose or "", notes=args.bridge_profile_notes or "", hop_args=args.bridge_hop)
             print(f"saved bridge profile {rec.get('name', '')}: {rec.get('route_path', '')}")
             print(f"bridge_profiles_file={bridge_profiles_path(cfg)}")
-            if not (args.list_bridge_profiles or args.json_bridge_profiles):
+            if not (args.inspect_bridge_profile or args.delete_bridge_profile or args.list_bridge_profiles or args.json_bridge_profiles):
                 return 0
+        if args.delete_bridge_profile:
+            rec = delete_bridge_profile(cfg, args.delete_bridge_profile)
+            print(f"deleted bridge profile {rec.get('name', '')}: {rec.get('route_path', '')}")
+            print(f"bridge_profiles_file={bridge_profiles_path(cfg)}")
+            if not (args.inspect_bridge_profile or args.list_bridge_profiles or args.json_bridge_profiles):
+                return 0
+        if args.inspect_bridge_profile:
+            return print_bridge_profile(cfg, args.inspect_bridge_profile, json_output=args.json_bridge_profiles)
         if args.list_bridge_profiles or args.json_bridge_profiles:
             return print_bridge_profiles(cfg, json_output=args.json_bridge_profiles)
         if args.start_workbench_job:

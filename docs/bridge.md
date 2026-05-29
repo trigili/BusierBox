@@ -51,6 +51,7 @@ scripts/busierbox-server \
 
 scripts/busierbox-server --list-bridge-profiles
 scripts/busierbox-server --json-bridge-profiles
+scripts/busierbox-server --inspect-bridge-profile lab-http
 scripts/busierbox-server --transport bridge --bridge-profile lab-http
 ```
 
@@ -72,6 +73,10 @@ The stored path is rendered as:
 ```text
 operator:22206 -> rack-host:9001 -> target-lan-device:80
 ```
+
+Use `--delete-bridge-profile NAME` to remove a stored profile. Deletion records
+a `bridge_profile_deleted` event and does not kill an already-running bridge
+listener; stop listeners explicitly with `--stop --transport bridge`.
 
 Profiles live in `bridge-profiles.json` under the operator session directory by
 default. Each record includes the listen endpoint, destination endpoint,
