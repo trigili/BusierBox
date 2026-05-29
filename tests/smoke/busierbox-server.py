@@ -4987,6 +4987,11 @@ def main():
                 filtered_alpha.get("summary", {}).get("upload_count") != 1 or
                 filtered_alpha.get("summary", {}).get("target_filter_unfiltered_upload_count") != 2 or
                 filtered_alpha.get("summary", {}).get("upload_target_counts", {}).get("target-alpha") != 1 or
+                filtered_alpha.get("summary", {}).get("event_detail_target_id_counts", {}).get("target-alpha", 0) < 1 or
+                "target-bravo" in filtered_alpha.get("summary", {}).get("event_detail_target_id_counts", {}) or
+                filtered_alpha.get("summary", {}).get("event_count") != len(filtered_alpha.get("events") or []) or
+                filtered_alpha.get("target_filter", {}).get("filtered_counts", {}).get("events") != len(filtered_alpha.get("events") or []) or
+                (filtered_alpha.get("events_by_detail_target_id") or {}).get("target-bravo") or
                 "target-bravo" in (filtered_alpha.get("targets_by_id") or {}) or
                 (filtered_alpha.get("targets_by_id") or {}).get("target-alpha", {}).get("label") != "Alpha Router Renamed" or
                 (filtered_alpha.get("targets_by_id") or {}).get("target-alpha", {}).get("notes") != "primary lab router" or
