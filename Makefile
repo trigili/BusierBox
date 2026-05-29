@@ -126,6 +126,7 @@ smoke-test:
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/recovery.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 recovery smoke unavailable"; fi
 	@tests/smoke/rshell-lifecycle.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/busierbox-server.py; else printf '%s\n' "skip: python3 server smoke unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/flaky-network-harness.sh; else printf '%s\n' "skip: python3 flaky network harness smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then python3 tests/smoke/operator-upload.py dist/busierbox-native-full; else printf '%s\n' "skip: python3 operator upload smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/command-queue.sh dist/busierbox-native-full; else printf '%s\n' "skip: python3 command queue smoke unavailable"; fi
 	@tests/smoke/zero-arg-autorun.sh dist/busierbox-native-full
