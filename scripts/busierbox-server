@@ -1612,18 +1612,42 @@ def record_target_activity(cfg, metadata, service, session_id=""):
     rec["latest_activity_service"] = str(service or "")
     rec["latest_activity_operation"] = operation
     rec["latest_activity_remote_addr"] = str(metadata.get("remote_addr") or "")
+    rec["latest_activity_status"] = str(metadata.get("status") or "")
     if operation == "command_queue_poll":
         rec["latest_command_queue_poll_at"] = now
         for key in ("poll_mode", "poll_interval_sec", "poll_jitter_pct", "poll_backoff", "poll_max_interval_sec", "max_polls"):
             value = str((metadata or {}).get(key) or "")
             if value:
                 rec[f"latest_command_queue_{key}"] = value
+    if operation == "command_queue_result":
+        rec["latest_command_result_activity_at"] = now
+        rec["latest_command_result_status"] = str(metadata.get("result_status") or metadata.get("status") or "")
     if session_id:
         rec["latest_session_id"] = str(session_id)
+    if operation in {"upload", "fetch"}:
+        rec["latest_file_transfer_at"] = now
+        rec["latest_file_transfer_operation"] = operation
+        rec["latest_file_transfer_status"] = str(metadata.get("transfer_status") or metadata.get("status") or "")
+        rec["latest_file_transfer_service"] = str(service or "")
+        rec["latest_file_transfer_id"] = str(
+            metadata.get("metadata_path") or
+            metadata.get("stored_path") or
+            metadata.get("request_name") or
+            metadata.get("source_path") or
+            metadata.get("filename") or ""
+        )
+        rec["latest_file_transfer_path"] = str(metadata.get("stored_path") or metadata.get("source_path") or "")
+        rec["latest_file_transfer_sha256"] = str(metadata.get("sha256") or "")
     if operation == "upload":
         rec["upload_count"] = int(rec.get("upload_count", 0) or 0) + 1
         rec["latest_upload_id"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or metadata.get("filename") or "")
+        rec["latest_upload_at"] = now
+        rec["latest_upload_status"] = str(metadata.get("transfer_status") or metadata.get("status") or "")
         if str(metadata.get("upload_kind") or "") in {"reality-test", "capability-report", "survey"}:
+            rec["latest_survey_result_at"] = now
+            rec["latest_survey_result_id"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or "")
+            rec["latest_survey_result_status"] = str(metadata.get("transfer_status") or metadata.get("status") or "")
+            rec["latest_survey_result_kind"] = str(metadata.get("upload_kind") or "")
             rec["latest_capability_report"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or "")
             rec["latest_capability_report_path"] = str(metadata.get("stored_path") or "")
             rec["latest_capability_report_metadata_path"] = str(metadata.get("metadata_path") or "")
@@ -1650,6 +1674,27 @@ def record_target_activity(cfg, metadata, service, session_id=""):
     elif operation == "fetch":
         rec["fetch_count"] = int(rec.get("fetch_count", 0) or 0) + 1
         rec["latest_fetch_id"] = str(metadata.get("request_name") or metadata.get("source_path") or "")
+        rec["latest_fetch_at"] = now
+        rec["latest_fetch_status"] = str(metadata.get("status") or "")
+    elif operation == "survey_bootstrap_result":
+        rec["latest_survey_result_at"] = now
+        rec["latest_survey_result_id"] = str(metadata.get("results_path") or "")
+        rec["latest_survey_result_status"] = str(metadata.get("status") or "")
+        rec["latest_survey_result_kind"] = "survey-bootstrap"
+    elif operation == "survey_bootstrap_script":
+        rec["latest_survey_bootstrap_script_at"] = now
+        rec["latest_survey_bootstrap_script_status"] = str(metadata.get("status") or "")
+    elif operation in {"bridge_listener", "bridge_relay", "bridge_error"}:
+        rec["latest_bridge_activity_at"] = now
+        rec["latest_bridge_operation"] = operation
+        rec["latest_bridge_status"] = str(metadata.get("status") or "")
+        rec["latest_bridge_profile"] = str(metadata.get("bridge_profile") or "")
+        rec["latest_bridge_route_path"] = str(metadata.get("bridge_route_path") or "")
+        rec["latest_bridge_dest_host"] = str(metadata.get("bridge_dest_host") or "")
+        rec["latest_bridge_dest_port"] = str(metadata.get("bridge_dest_port") or "")
+        rec["latest_bridge_failure_reason"] = str(metadata.get("reason") or "") if operation == "bridge_error" or metadata.get("status") == "error" else ""
+        if metadata.get("status") in {"closed", "connected", "listening"}:
+            rec["latest_bridge_success_at"] = now
     targets[target_id] = rec
     atomic_write_json(targets_path(cfg), data)
     append_event(cfg, "targets", "target_seen", details={
@@ -1848,6 +1893,13 @@ def target_record_indexes(records):
     by_last_seen_via = {}
     by_has_next_expected_poll = {}
     by_mailbox_pending_work = {}
+    by_latest_file_transfer_operation = {}
+    by_latest_file_transfer_status = {}
+    by_latest_survey_result_kind = {}
+    by_latest_survey_result_status = {}
+    by_latest_bridge_profile = {}
+    by_latest_bridge_status = {}
+    by_has_latest_bridge_activity = {}
     by_has_notes = {}
     by_capability_report_kind = {}
     by_compatibility_report_kind = {}
@@ -1889,6 +1941,25 @@ def target_record_indexes(records):
             by_last_seen_via.setdefault(last_seen_via, []).append(rec)
         by_has_next_expected_poll.setdefault("yes" if str(rec.get("next_expected_poll") or "") else "no", []).append(rec)
         by_mailbox_pending_work.setdefault("yes" if int(rec.get("mailbox_pending_work_count") or 0) > 0 else "no", []).append(rec)
+        by_has_latest_bridge_activity.setdefault("yes" if str(rec.get("latest_bridge_activity_at") or "") else "no", []).append(rec)
+        file_op = str(rec.get("latest_file_transfer_operation") or "")
+        if file_op:
+            by_latest_file_transfer_operation.setdefault(file_op, []).append(rec)
+        file_status = str(rec.get("latest_file_transfer_status") or "")
+        if file_status:
+            by_latest_file_transfer_status.setdefault(file_status, []).append(rec)
+        survey_kind = str(rec.get("latest_survey_result_kind") or "")
+        if survey_kind:
+            by_latest_survey_result_kind.setdefault(survey_kind, []).append(rec)
+        survey_status = str(rec.get("latest_survey_result_status") or "")
+        if survey_status:
+            by_latest_survey_result_status.setdefault(survey_status, []).append(rec)
+        bridge_profile = str(rec.get("latest_bridge_profile") or "")
+        if bridge_profile:
+            by_latest_bridge_profile.setdefault(bridge_profile, []).append(rec)
+        bridge_status = str(rec.get("latest_bridge_status") or "")
+        if bridge_status:
+            by_latest_bridge_status.setdefault(bridge_status, []).append(rec)
         for alias in rec.get("aliases") or []:
             alias = str(alias or "")
             if alias:
@@ -1938,6 +2009,10 @@ def target_record_indexes(records):
         by_latest_activity_service, by_latest_activity_operation,
         by_connectivity_state, by_last_seen_via,
         by_has_next_expected_poll, by_mailbox_pending_work,
+        by_latest_file_transfer_operation, by_latest_file_transfer_status,
+        by_latest_survey_result_kind, by_latest_survey_result_status,
+        by_latest_bridge_profile, by_latest_bridge_status,
+        by_has_latest_bridge_activity,
         by_has_notes, by_capability_report_kind,
         by_compatibility_report_kind, by_compatibility_label,
         by_compatibility_baseline_label, by_compatibility_release,
@@ -1954,6 +2029,12 @@ def target_record_summary(records):
     latest_activity_operation_counts = {}
     connectivity_state_counts = {}
     last_seen_via_counts = {}
+    latest_file_transfer_operation_counts = {}
+    latest_file_transfer_status_counts = {}
+    latest_survey_result_kind_counts = {}
+    latest_survey_result_status_counts = {}
+    latest_bridge_profile_counts = {}
+    latest_bridge_status_counts = {}
     report_kind_counts = {}
     compatibility_report_kind_counts = {}
     compatibility_label_counts = {}
@@ -1969,6 +2050,9 @@ def target_record_summary(records):
     next_expected_poll_count = 0
     mailbox_pending_target_count = 0
     mailbox_pending_work_count = 0
+    latest_file_transfer_count = 0
+    latest_survey_result_count = 0
+    latest_bridge_activity_count = 0
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -2001,6 +2085,30 @@ def target_record_summary(records):
         mailbox_pending_work_count += pending_work
         if pending_work > 0:
             mailbox_pending_target_count += 1
+        if str(rec.get("latest_file_transfer_at") or ""):
+            latest_file_transfer_count += 1
+            file_operation = str(rec.get("latest_file_transfer_operation") or "")
+            if file_operation:
+                latest_file_transfer_operation_counts[file_operation] = latest_file_transfer_operation_counts.get(file_operation, 0) + 1
+            file_status = str(rec.get("latest_file_transfer_status") or "")
+            if file_status:
+                latest_file_transfer_status_counts[file_status] = latest_file_transfer_status_counts.get(file_status, 0) + 1
+        if str(rec.get("latest_survey_result_at") or ""):
+            latest_survey_result_count += 1
+            survey_kind = str(rec.get("latest_survey_result_kind") or "")
+            if survey_kind:
+                latest_survey_result_kind_counts[survey_kind] = latest_survey_result_kind_counts.get(survey_kind, 0) + 1
+            survey_status = str(rec.get("latest_survey_result_status") or "")
+            if survey_status:
+                latest_survey_result_status_counts[survey_status] = latest_survey_result_status_counts.get(survey_status, 0) + 1
+        if str(rec.get("latest_bridge_activity_at") or ""):
+            latest_bridge_activity_count += 1
+            bridge_profile = str(rec.get("latest_bridge_profile") or "")
+            if bridge_profile:
+                latest_bridge_profile_counts[bridge_profile] = latest_bridge_profile_counts.get(bridge_profile, 0) + 1
+            bridge_status = str(rec.get("latest_bridge_status") or "")
+            if bridge_status:
+                latest_bridge_status_counts[bridge_status] = latest_bridge_status_counts.get(bridge_status, 0) + 1
         report_kind = str(rec.get("latest_capability_report_kind") or "")
         if report_kind:
             report_kind_counts[report_kind] = report_kind_counts.get(report_kind, 0) + 1
@@ -2054,6 +2162,15 @@ def target_record_summary(records):
         "target_next_expected_poll_count": next_expected_poll_count,
         "target_mailbox_pending_target_count": mailbox_pending_target_count,
         "target_mailbox_pending_work_count": mailbox_pending_work_count,
+        "target_latest_file_transfer_count": latest_file_transfer_count,
+        "target_latest_file_transfer_operation_counts": latest_file_transfer_operation_counts,
+        "target_latest_file_transfer_status_counts": latest_file_transfer_status_counts,
+        "target_latest_survey_result_count": latest_survey_result_count,
+        "target_latest_survey_result_kind_counts": latest_survey_result_kind_counts,
+        "target_latest_survey_result_status_counts": latest_survey_result_status_counts,
+        "target_latest_bridge_activity_count": latest_bridge_activity_count,
+        "target_latest_bridge_profile_counts": latest_bridge_profile_counts,
+        "target_latest_bridge_status_counts": latest_bridge_status_counts,
         "target_capability_report_count": report_count,
         "target_capability_report_kind_counts": report_kind_counts,
         "target_compatibility_report_count": sum(compatibility_report_kind_counts.values()),
@@ -2397,11 +2514,12 @@ def details_with_target(cfg, details=None, target_context=None):
     return out
 
 
-def record_selected_target_activity(cfg, service, log_dir, operation, remote=""):
+def record_selected_target_activity(cfg, service, log_dir, operation, remote="", details=None):
     ctx = selected_target_context(cfg)
     if not ctx:
         return {}
     metadata = details_with_target(cfg, {
+        **(details or {}),
         "operation": operation,
         "remote_addr": remote or "",
     }, ctx)
@@ -9089,6 +9207,13 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
     dest_host = str(cfg.get("bridge_dest_host", "127.0.0.1"))
     dest_port = int(cfg.get("bridge_dest_port", 0))
     profile_name = str(cfg.get("bridge_profile") or "")
+    bridge_route_path = ""
+    if profile_name:
+        try:
+            profile = (load_bridge_profiles(cfg).get("profiles") or {}).get(profile_name) or {}
+            bridge_route_path = str(bridge_profile_record(cfg, profile_name, profile).get("route_path") or "")
+        except Exception:
+            bridge_route_path = ""
     if dest_port <= 0:
         print("bridge: --bridge-dest-port is required", file=sys.stderr)
         mark_service_error(cfg, service, ValueError("missing bridge destination port"), {
@@ -9099,10 +9224,17 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
         })
         return 2
     log_dir = session_log_dir(cfg, service)
-    start_session_record(cfg, service, log_dir, details={"port": port, "bridge_dest_host": dest_host, "bridge_dest_port": dest_port, "bridge_profile": profile_name})
+    bridge_details = {
+        "port": port,
+        "bridge_dest_host": dest_host,
+        "bridge_dest_port": dest_port,
+        "bridge_profile": profile_name,
+        "bridge_route_path": bridge_route_path,
+    }
+    start_session_record(cfg, service, log_dir, details=bridge_details)
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     print(f"TCP bridge listener. Relaying {cfg['listen_host']}:{port} -> {dest_host}:{dest_port}")
-    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "bridge_dest_host": dest_host, "bridge_dest_port": dest_port, "bridge_profile": profile_name})
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), **bridge_details})
     sessions = 0
     sock = None
     bound = False
@@ -9110,8 +9242,9 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
         sock = bind_listen_socket(cfg, service, port, 20)
         bound = True
         sock.settimeout(timeout)
-        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "bridge_dest_host": dest_host, "bridge_dest_port": dest_port, "bridge_profile": profile_name})
-        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "bridge_dest_host": dest_host, "bridge_dest_port": dest_port, "bridge_profile": profile_name})
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **bridge_details})
+        append_event(cfg, service, "service_start", session=str(log_dir), details=bridge_details)
+        record_selected_target_activity(cfg, service, log_dir, "bridge_listener", details={**bridge_details, "status": "listening"})
         print_candidates(cfg, port)
         while not SHUTDOWN.is_set():
             print("Waiting for bridge client...")
@@ -9148,8 +9281,10 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
                     "reason": reason,
                     "bytes_from_client": from_client,
                     "bytes_from_upstream": from_upstream,
+                    "bridge_route_path": bridge_route_path,
                 })
                 append_event(cfg, service, "bridge_closed", session=str(log_dir), remote=remote, details=metadata)
+                record_selected_target_activity(cfg, service, log_dir, "bridge_relay", remote=remote, details=metadata)
                 if profile_name:
                     data = load_bridge_profiles(cfg)
                     profile = data.get("profiles", {}).get(profile_name)
@@ -9162,8 +9297,9 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
                         atomic_write_json(bridge_profiles_path(cfg), data)
                 print(f"bridge closed: reason={reason} client_bytes={from_client} upstream_bytes={from_upstream}")
             except OSError as exc:
-                metadata.update({"status": "error", "reason": str(exc)})
+                metadata.update({"status": "error", "reason": str(exc), "bridge_route_path": bridge_route_path})
                 append_event(cfg, service, "bridge_error", "error", session=str(log_dir), remote=remote, details=metadata)
+                record_selected_target_activity(cfg, service, log_dir, "bridge_error", remote=remote, details=metadata)
                 print(f"bridge failed: {exc}", file=sys.stderr)
             finally:
                 for s in (client, upstream):
@@ -9261,7 +9397,7 @@ def handle_survey_bootstrap_http(cfg, conn, method, target, headers, body, addr,
         send_http_response(conn, 200, b"" if method == "HEAD" else payload, "text/x-shellscript", headers={
             "X-BusierBox-Survey-Bootstrap": "yes",
         })
-        return {
+        return attach_target_identity({
             "operation": "survey_bootstrap_script",
             "status": "served",
             "http_status": 200,
@@ -9269,7 +9405,7 @@ def handle_survey_bootstrap_http(cfg, conn, method, target, headers, body, addr,
             "remote_addr": remote,
             "script_name": script_name,
             "size": len(payload),
-        }
+        }, headers)
     if method == "POST" and parsed.path in {"/survey-bootstrap/result", "/survey-bootstrap/result/"}:
         payload_body = read_http_body(conn, headers, body)
         form = urllib.parse.parse_qs(payload_body.decode("utf-8", errors="replace"), keep_blank_values=True)
@@ -9287,17 +9423,17 @@ def handle_survey_bootstrap_http(cfg, conn, method, target, headers, body, addr,
         path = append_survey_bootstrap_result(cfg, result)
         result["results_path"] = str(path)
         send_json_response(conn, 200, result)
-        return result
+        return attach_target_identity(result, headers)
     payload = {"schema": 1, "status": "rejected", "reason": "unknown survey bootstrap endpoint"}
     send_json_response(conn, 404, payload)
-    return {
+    return attach_target_identity({
         "operation": "survey_bootstrap",
         "status": "rejected",
         "http_status": 404,
         "method": method,
         "remote_addr": remote,
         "reason": payload["reason"],
-    }
+    }, headers)
 
 
 def serve_survey_bootstrap(cfg, timeout, max_sessions=0):
@@ -9360,6 +9496,10 @@ def serve_survey_bootstrap(cfg, timeout, max_sessions=0):
                 with conn:
                     method, target, _version, headers, body = read_http_headers(conn)
                     metadata = handle_survey_bootstrap_http(cfg, conn, method, target, headers, body, addr, script_text)
+                    target_rec = record_target_activity(cfg, metadata, service, session_id=log_dir.name)
+                    if metadata.get("target_id"):
+                        update_session_record(log_dir, target_id=metadata.get("target_id", ""), target_label=target_rec.get("label", metadata.get("target_label", "")))
+                        upsert_state_session(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}", target_id=metadata.get("target_id", ""), target_label=target_rec.get("label", metadata.get("target_label", "")))
                     event = "survey_bootstrap_result" if metadata.get("operation") == "survey_bootstrap_result" else "survey_bootstrap_request"
                     append_event(cfg, service, event, session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
                     print(f"survey-bootstrap {metadata.get('status')}: {metadata.get('operation', '')}")
@@ -10048,6 +10188,13 @@ def status_document(cfg):
      targets_by_last_seen_via,
      targets_by_has_next_expected_poll,
      targets_by_mailbox_pending_work,
+     targets_by_latest_file_transfer_operation,
+     targets_by_latest_file_transfer_status,
+     targets_by_latest_survey_result_kind,
+     targets_by_latest_survey_result_status,
+     targets_by_latest_bridge_profile,
+     targets_by_latest_bridge_status,
+     targets_by_has_latest_bridge_activity,
      targets_by_has_notes,
      targets_by_capability_report_kind,
      targets_by_compatibility_report_kind,
@@ -10105,6 +10252,9 @@ def status_document(cfg):
         "next_expected_poll_count": int_value(target_summary.get("target_next_expected_poll_count", 0)),
         "mailbox_pending_target_count": int_value(target_summary.get("target_mailbox_pending_target_count", 0)),
         "mailbox_pending_work_count": int_value(target_summary.get("target_mailbox_pending_work_count", 0)),
+        "latest_file_transfer_count": int_value(target_summary.get("target_latest_file_transfer_count", 0)),
+        "latest_survey_result_count": int_value(target_summary.get("target_latest_survey_result_count", 0)),
+        "latest_bridge_activity_count": int_value(target_summary.get("target_latest_bridge_activity_count", 0)),
         "capability_report_count": int_value(target_summary.get("target_capability_report_count", 0)),
         "compatibility_report_count": int_value(target_summary.get("target_compatibility_report_count", 0)),
         "compatibility_label_counts": target_summary.get("target_compatibility_label_counts") or {},
@@ -10122,6 +10272,9 @@ def status_document(cfg):
         ),
         "has_next_expected_polls": target_registry_state_record.get("next_expected_poll_count", 0) > 0,
         "has_mailbox_pending_work": target_registry_state_record.get("mailbox_pending_work_count", 0) > 0,
+        "has_latest_file_transfer": target_registry_state_record.get("latest_file_transfer_count", 0) > 0,
+        "has_latest_survey_result": target_registry_state_record.get("latest_survey_result_count", 0) > 0,
+        "has_latest_bridge_activity": target_registry_state_record.get("latest_bridge_activity_count", 0) > 0,
         "has_identity_sources": bool(target_registry_state_record.get("identity_source_counts")),
         "has_capability_reports": target_registry_state_record.get("capability_report_count", 0) > 0,
         "has_compatibility_reports": target_registry_state_record.get("compatibility_report_count", 0) > 0,
@@ -10141,6 +10294,9 @@ def status_document(cfg):
         "target_registry_state_records_by_has_latest_activity": records_by_key(target_registry_state_records, "has_latest_activity"),
         "target_registry_state_records_by_has_next_expected_polls": records_by_key(target_registry_state_records, "has_next_expected_polls"),
         "target_registry_state_records_by_has_mailbox_pending_work": records_by_key(target_registry_state_records, "has_mailbox_pending_work"),
+        "target_registry_state_records_by_has_latest_file_transfer": records_by_key(target_registry_state_records, "has_latest_file_transfer"),
+        "target_registry_state_records_by_has_latest_survey_result": records_by_key(target_registry_state_records, "has_latest_survey_result"),
+        "target_registry_state_records_by_has_latest_bridge_activity": records_by_key(target_registry_state_records, "has_latest_bridge_activity"),
         "target_registry_state_records_by_has_identity_sources": records_by_key(target_registry_state_records, "has_identity_sources"),
         "target_registry_state_records_by_has_capability_reports": records_by_key(target_registry_state_records, "has_capability_reports"),
         "target_registry_state_records_by_has_compatibility_reports": records_by_key(target_registry_state_records, "has_compatibility_reports"),
@@ -11750,6 +11906,13 @@ def status_document(cfg):
                 "targets_by_last_seen_via",
                 "targets_by_has_next_expected_poll",
                 "targets_by_mailbox_pending_work",
+                "targets_by_latest_file_transfer_operation",
+                "targets_by_latest_file_transfer_status",
+                "targets_by_latest_survey_result_kind",
+                "targets_by_latest_survey_result_status",
+                "targets_by_latest_bridge_profile",
+                "targets_by_latest_bridge_status",
+                "targets_by_has_latest_bridge_activity",
                 "targets_by_has_notes",
                 "targets_by_capability_report_kind",
                 "targets_by_compatibility_report_kind",
@@ -11777,6 +11940,9 @@ def status_document(cfg):
                 "target_registry_state_records_by_has_latest_activity",
                 "target_registry_state_records_by_has_next_expected_polls",
                 "target_registry_state_records_by_has_mailbox_pending_work",
+                "target_registry_state_records_by_has_latest_file_transfer",
+                "target_registry_state_records_by_has_latest_survey_result",
+                "target_registry_state_records_by_has_latest_bridge_activity",
                 "target_registry_state_records_by_has_identity_sources",
                 "target_registry_state_records_by_has_capability_reports",
                 "target_registry_state_records_by_has_compatibility_reports",
@@ -12361,6 +12527,13 @@ def status_document(cfg):
         "targets_by_last_seen_via": targets_by_last_seen_via,
         "targets_by_has_next_expected_poll": targets_by_has_next_expected_poll,
         "targets_by_mailbox_pending_work": targets_by_mailbox_pending_work,
+        "targets_by_latest_file_transfer_operation": targets_by_latest_file_transfer_operation,
+        "targets_by_latest_file_transfer_status": targets_by_latest_file_transfer_status,
+        "targets_by_latest_survey_result_kind": targets_by_latest_survey_result_kind,
+        "targets_by_latest_survey_result_status": targets_by_latest_survey_result_status,
+        "targets_by_latest_bridge_profile": targets_by_latest_bridge_profile,
+        "targets_by_latest_bridge_status": targets_by_latest_bridge_status,
+        "targets_by_has_latest_bridge_activity": targets_by_has_latest_bridge_activity,
         "targets_by_has_notes": targets_by_has_notes,
         "targets_by_capability_report_kind": targets_by_capability_report_kind,
         "targets_by_compatibility_report_kind": targets_by_compatibility_report_kind,
@@ -12831,6 +13004,29 @@ def print_target_summary(doc, limit=8):
                 f"    latest_session={rec.get('latest_session_id', '') or '-'} "
                 f"latest_upload={rec.get('latest_upload_id', '') or '-'} "
                 f"latest_fetch={rec.get('latest_fetch_id', '') or '-'}"
+            )
+        if rec.get("latest_file_transfer_at"):
+            print(
+                f"    latest_file_transfer={rec.get('latest_file_transfer_operation', '') or '-'} "
+                f"status={rec.get('latest_file_transfer_status', '') or '-'} "
+                f"at={rec.get('latest_file_transfer_at', '') or '-'} "
+                f"id={rec.get('latest_file_transfer_id', '') or '-'}"
+            )
+        if rec.get("latest_survey_result_at"):
+            print(
+                f"    latest_survey_result={rec.get('latest_survey_result_kind', '') or '-'} "
+                f"status={rec.get('latest_survey_result_status', '') or '-'} "
+                f"at={rec.get('latest_survey_result_at', '') or '-'} "
+                f"id={rec.get('latest_survey_result_id', '') or '-'}"
+            )
+        if rec.get("latest_bridge_activity_at"):
+            print(
+                f"    latest_bridge={rec.get('latest_bridge_profile', '') or '-'} "
+                f"operation={rec.get('latest_bridge_operation', '') or '-'} "
+                f"status={rec.get('latest_bridge_status', '') or '-'} "
+                f"at={rec.get('latest_bridge_activity_at', '') or '-'} "
+                f"route={rec.get('latest_bridge_route_path', '') or '-'} "
+                f"failure={rec.get('latest_bridge_failure_reason', '') or '-'}"
             )
         if rec.get("latest_capability_report_kind") or rec.get("observed_capabilities") or rec.get("observed_missing_capabilities"):
             available = ",".join(str(item) for item in rec.get("observed_capabilities") or []) or "-"

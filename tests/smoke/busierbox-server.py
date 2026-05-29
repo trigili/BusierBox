@@ -393,12 +393,23 @@ def main():
         bridge_service = (bridge_status.get("services_by_name") or {}).get("bridge") or {}
         bridge_events = bridge_status.get("events_by_event", {})
         bridge_profile = (bridge_status.get("bridge_profiles_by_name") or {}).get("lab-http") or {}
+        bridge_target = (bridge_status.get("targets_by_id") or {}).get("target-bridge") or {}
         if (bridge_service.get("port") != bridge_port or
                 bridge_service.get("actual") != "stopped" or
                 bridge_status.get("summary", {}).get("bridge_profile_count") != 2 or
+                bridge_status.get("summary", {}).get("target_latest_bridge_activity_count") != 1 or
+                bridge_status.get("summary", {}).get("target_latest_bridge_profile_counts", {}).get("lab-http") != 1 or
+                bridge_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("closed") != 1 or
                 bridge_profile.get("target_id") != "target-bridge" or
                 bridge_profile.get("purpose") != "web-admin" or
                 bridge_profile.get("route_path") != f"operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" or
+                bridge_target.get("latest_bridge_profile") != "lab-http" or
+                bridge_target.get("latest_bridge_operation") != "bridge_relay" or
+                bridge_target.get("latest_bridge_status") != "closed" or
+                bridge_target.get("latest_bridge_route_path") != f"operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" or
+                ((bridge_status.get("targets_by_latest_bridge_profile") or {}).get("lab-http") or [{}])[0].get("target_id") != "target-bridge" or
+                ((bridge_status.get("targets_by_latest_bridge_status") or {}).get("closed") or [{}])[0].get("target_id") != "target-bridge" or
+                ((bridge_status.get("targets_by_has_latest_bridge_activity") or {}).get("yes") or [{}])[0].get("target_id") != "target-bridge" or
                 ((bridge_status.get("bridge_profiles_by_name") or {}).get("chain-http") or {}).get("route_path") != expected_chain_path or
                 bridge_status.get("summary", {}).get("bridge_profile_hop_count_counts", {}).get("2") != 1 or
                 bridge_profile.get("last_bytes_from_client", 0) < len(b"hello") or
@@ -443,7 +454,11 @@ def main():
         )
         survey_get = connect_with_retry(
             survey_port,
-            b"GET /yourfile.sh HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+            b"GET /yourfile.sh HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"X-BusierBox-Target-Id: target-survey\r\n"
+            b"X-BusierBox-Target-Label: Survey Target\r\n"
+            b"Connection: close\r\n\r\n",
         )
         if b"#!/bin/sh" not in survey_get or b"/survey-bootstrap/result" not in survey_get:
             print("survey bootstrap script response missing shell script content", file=sys.stderr)
@@ -453,6 +468,8 @@ def main():
             survey_port,
             b"POST /survey-bootstrap/result HTTP/1.1\r\n"
             b"Host: 127.0.0.1\r\n"
+            b"X-BusierBox-Target-Id: target-survey\r\n"
+            b"X-BusierBox-Target-Label: Survey Target\r\n"
             b"Content-Type: application/x-www-form-urlencoded\r\n"
             + f"Content-Length: {len(survey_body)}\r\n".encode("ascii")
             + b"Connection: close\r\n\r\n"
@@ -479,9 +496,18 @@ def main():
             "--json-status",
         ).stdout)
         survey_service = (survey_status.get("services_by_name") or {}).get("survey-bootstrap") or {}
+        survey_target = (survey_status.get("targets_by_id") or {}).get("target-survey") or {}
         if (survey_service.get("port") != survey_port or
                 survey_service.get("actual") != "stopped" or
-                not (survey_status.get("events_by_event") or {}).get("survey_bootstrap_result")):
+                not (survey_status.get("events_by_event") or {}).get("survey_bootstrap_result") or
+                survey_status.get("summary", {}).get("target_latest_survey_result_count") != 1 or
+                survey_status.get("summary", {}).get("target_latest_survey_result_kind_counts", {}).get("survey-bootstrap") != 1 or
+                survey_target.get("latest_survey_result_kind") != "survey-bootstrap" or
+                survey_target.get("latest_survey_result_status") != "received" or
+                survey_target.get("latest_activity_service") != "survey-bootstrap" or
+                survey_target.get("latest_activity_operation") != "survey_bootstrap_result" or
+                ((survey_status.get("targets_by_latest_survey_result_kind") or {}).get("survey-bootstrap") or [{}])[0].get("target_id") != "target-survey" or
+                ((survey_status.get("targets_by_latest_survey_result_status") or {}).get("received") or [{}])[0].get("target_id") != "target-survey"):
             print("json status missing survey bootstrap evidence", file=sys.stderr)
             print(json.dumps(survey_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
@@ -5247,12 +5273,18 @@ def main():
                 upload_summary.get("target_service_counts", {}).get("file-service") != 1 or
                 upload_summary.get("target_latest_activity_service_counts", {}).get("file-service") != 1 or
                 upload_summary.get("target_latest_activity_operation_counts", {}).get("upload") != 1 or
+                upload_summary.get("target_latest_file_transfer_count") != 1 or
+                upload_summary.get("target_latest_file_transfer_operation_counts", {}).get("upload") != 1 or
+                upload_summary.get("target_latest_file_transfer_status_counts", {}).get("ok") != 1 or
                 len(targets) != 1 or
                 target_alpha.get("label") != "Alpha Router" or
                 "lab-alpha" not in (target_alpha.get("aliases") or []) or
                 target_alpha.get("upload_count") != 1 or
                 target_alpha.get("latest_activity_operation") != "upload" or
                 target_alpha.get("latest_activity_service") != "file-service" or
+                target_alpha.get("latest_file_transfer_operation") != "upload" or
+                target_alpha.get("latest_file_transfer_status") != "ok" or
+                target_alpha.get("latest_file_transfer_sha256") != upload_sha256 or
                 target_alpha.get("latest_session_id") != session_json_paths[0].parent.name or
                 "file-service" not in (target_alpha.get("services_seen") or []) or
                 "http-header" not in (target_alpha.get("identity_sources") or [])):
@@ -5265,9 +5297,13 @@ def main():
                 "targets_by_identity_source" not in (target_api.get("indexes") or []) or
                 "targets_by_latest_activity_service" not in (target_api.get("indexes") or []) or
                 "targets_by_latest_activity_operation" not in (target_api.get("indexes") or []) or
+                "targets_by_latest_file_transfer_operation" not in (target_api.get("indexes") or []) or
+                "targets_by_latest_file_transfer_status" not in (target_api.get("indexes") or []) or
                 ((upload_doc.get("targets_by_identity_source") or {}).get("http-header") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("targets_by_latest_activity_service") or {}).get("file-service") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("targets_by_latest_activity_operation") or {}).get("upload") or [{}])[0].get("target_id") != "target-alpha" or
+                ((upload_doc.get("targets_by_latest_file_transfer_operation") or {}).get("upload") or [{}])[0].get("target_id") != "target-alpha" or
+                ((upload_doc.get("targets_by_latest_file_transfer_status") or {}).get("ok") or [{}])[0].get("target_id") != "target-alpha" or
                 "targets" not in (upload_doc.get("api_resources_by_name") or {})):
             print("server api status missing target collection", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
