@@ -125,7 +125,7 @@ def main():
     if "survey-bootstrap" not in combined or "--survey-bootstrap-port" not in combined:
         print("busierbox-server help missing survey bootstrap mode", file=sys.stderr)
         return 1
-    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--json-status", "--api-status", "--event-limit",
+    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--stop-service", "--json-status", "--api-status", "--event-limit",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
                  "--build-config", "--list-build-config", "--set-build-config"):
@@ -1002,6 +1002,83 @@ def main():
                 for event in refresh_tui_events):
             print("line TUI refresh did not record headless command event", file=sys.stderr)
             print(json.dumps(refresh_tui_events[-8:], indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
+        stop_service = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--stop-service", "file-service",
+        )
+        if stop_service.returncode != 0 or "file-service: no recorded pid" not in stop_service.stdout:
+            print("headless stop-service did not handle a single service", file=sys.stderr)
+            print(stop_service.stdout, file=sys.stderr)
+            print(stop_service.stderr, file=sys.stderr)
+            return 1
+        stop_tui_master, stop_tui_slave = pty.openpty()
+        try:
+            stop_tui_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(cfg),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=stop_tui_slave,
+                stdout=stop_tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(stop_tui_slave)
+            stop_tui_slave = -1
+            time.sleep(0.3)
+            os.write(stop_tui_master, b"5\nfile-service\nq\n")
+            _stop_tui_stdout, stop_tui_stderr = stop_tui_proc.communicate(timeout=8)
+            stop_tui_output = b""
+            while True:
+                try:
+                    chunk = os.read(stop_tui_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                stop_tui_output += chunk
+        finally:
+            if stop_tui_slave != -1:
+                os.close(stop_tui_slave)
+            try:
+                os.close(stop_tui_master)
+            except OSError:
+                pass
+        stop_tui_text = stop_tui_output.decode("utf-8", errors="replace")
+        if (stop_tui_proc.returncode != 0 or
+                "Traceback" in (stop_tui_stderr or "") or
+                "headless_command: scripts/busierbox-server --config" not in stop_tui_text or
+                "--stop-service file-service" not in stop_tui_text or
+                "file-service: no recorded pid" not in stop_tui_text):
+            print("line TUI service stop did not expose stop-service command", file=sys.stderr)
+            print(stop_tui_text, file=sys.stderr)
+            print(stop_tui_stderr or "", file=sys.stderr)
+            return 1
+        stop_events = [
+            json.loads(line)
+            for line in (queue_operator_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if (not any(
+                    event.get("service") == "file-service" and
+                    event.get("event") == "service_stop" and
+                    event.get("details", {}).get("via") == "server-stop-service" and
+                    "--stop-service file-service" in event.get("details", {}).get("headless_command", "")
+                    for event in stop_events) or
+                not any(
+                    event.get("service") == "file-service" and
+                    event.get("event") == "service_stop" and
+                    event.get("details", {}).get("via") == "workbench-stop" and
+                    "--stop-service file-service" in event.get("details", {}).get("headless_command", "")
+                    for event in stop_events)):
+            print("service stop events did not record headless stop-service commands", file=sys.stderr)
+            print(json.dumps(stop_events[-12:], indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         guided_build_config = Path(tmp) / "guided-busierbox.conf"

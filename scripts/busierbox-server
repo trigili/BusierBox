@@ -14581,16 +14581,28 @@ def stop_workbench_started_services(cfg):
     cfg["_workbench_started_services"] = []
 
 
-def stop_recorded_service(cfg, service):
+def service_stop_headless_command(cfg, service):
+    return (
+        "scripts/busierbox-server --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --stop-service "
+        + shquote(str(service or ""))
+    )
+
+
+def stop_recorded_service(cfg, service, via="workbench-stop", headless_command=""):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     rec = (state.get("services") or {}).get(service, {})
     pid = rec.get("pid")
     managed_by_current_workbench = str(rec.get("managed_by", "")) == str(os.getpid())
+    details_base = {"via": via}
+    if headless_command:
+        details_base["headless_command"] = headless_command
     if not pid:
         print(f"{service}: no recorded pid")
         reason = SHUTDOWN_REASON if SHUTDOWN_REASON else "no-pid"
-        stopped_reason = f"workbench-stop:{reason}" if SHUTDOWN_REASON else "workbench-stop:no-pid"
-        details = {"reason": reason, "via": "workbench-stop"}
+        stopped_reason = f"{via}:{reason}" if SHUTDOWN_REASON else f"{via}:no-pid"
+        details = {**details_base, "reason": reason}
         if SHUTDOWN_REASON:
             details["port_released"] = wait_service_port_released(cfg, service, pid=pid, timeout=0.1)
         mark_service_stopped(cfg, service, stopped_reason)
@@ -14599,11 +14611,11 @@ def stop_recorded_service(cfg, service):
     if not pid_alive(pid):
         print(f"{service}: stale pid {pid}; marked stopped")
         reason = "stale-pid"
-        stopped_reason = "workbench-stop:stale-pid"
-        details = {"pid": pid, "reason": reason, "via": "workbench-stop"}
+        stopped_reason = f"{via}:stale-pid"
+        details = {**details_base, "pid": pid, "reason": reason}
         if SHUTDOWN_REASON and managed_by_current_workbench:
             reason = SHUTDOWN_REASON
-            stopped_reason = f"workbench-stop:{SHUTDOWN_REASON}"
+            stopped_reason = f"{via}:{SHUTDOWN_REASON}"
             details.update({"reason": reason, "port_released": wait_service_port_released(cfg, service, pid=pid, timeout=0.1)})
         mark_service_stopped(cfg, service, stopped_reason)
         append_event(cfg, service, "service_stop", details=details)
@@ -14611,15 +14623,15 @@ def stop_recorded_service(cfg, service):
     ownership_evidence = managed_server_evidence(pid, cfg=cfg, rec=rec)
     if not ownership_evidence:
         print(f"{service}: skipped pid {pid}; not clearly a managed busierbox-server process")
-        append_event(cfg, service, "service_stop_skipped", details={"pid": pid, "reason": "unmanaged-pid", "via": "workbench-stop"})
+        append_event(cfg, service, "service_stop_skipped", details={**details_base, "pid": pid, "reason": "unmanaged-pid"})
         return
     try:
-        append_event(cfg, service, "shutdown", details={"pid": pid, "reason": "SIGTERM", "via": "workbench-stop", "ownership_evidence": ownership_evidence})
+        append_event(cfg, service, "shutdown", details={**details_base, "pid": pid, "reason": "SIGTERM", "ownership_evidence": ownership_evidence})
         os.kill(int(pid), signal.SIGTERM)
         if wait_service_port_released(cfg, service, pid=pid):
             print(f"stopped {service}: pid={pid}; port released")
-            mark_service_stopped(cfg, service, "workbench-stop:SIGTERM")
-            append_event(cfg, service, "service_stop", details={"pid": pid, "via": "workbench-stop", "ownership_evidence": ownership_evidence, "port_released": True})
+            mark_service_stopped(cfg, service, f"{via}:SIGTERM")
+            append_event(cfg, service, "service_stop", details={**details_base, "pid": pid, "ownership_evidence": ownership_evidence, "port_released": True})
         else:
             raise TimeoutError(f"listener port {service_port(cfg, service)} still appears bound after SIGTERM")
     except OSError as exc:
@@ -14627,7 +14639,7 @@ def stop_recorded_service(cfg, service):
         print(f"{service}: unable to stop pid {pid}: {exc}", file=sys.stderr)
     except TimeoutError as exc:
         mark_service_error(cfg, service, exc)
-        append_event(cfg, service, "service_stop_failed", "error", details={"pid": pid, "reason": "port-still-bound", "via": "workbench-stop", "error": str(exc)})
+        append_event(cfg, service, "service_stop_failed", "error", details={**details_base, "pid": pid, "reason": "port-still-bound", "error": str(exc)})
         print(f"{service}: unable to stop pid {pid}: {exc}", file=sys.stderr)
 
 
@@ -14930,7 +14942,10 @@ def run_line_tui(cfg):
         elif choice == "5":
             service = line_input("service> ")
             if service is not None:
-                stop_recorded_service(cfg, service.strip())
+                selected_service = service.strip()
+                headless = service_stop_headless_command(cfg, selected_service)
+                print(f"headless_command: {headless}")
+                stop_recorded_service(cfg, selected_service, headless_command=headless)
         elif choice == "6":
             path_line = line_input("local file> ")
             name_line = line_input("target request name> ")
@@ -15967,6 +15982,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="number of recent structured events to include in --status/--json-status output")
     parser.add_argument("--stop", action="store_true",
                         help="stop known managed listeners from server-state PID records")
+    parser.add_argument("--stop-service",
+                        help="stop one named managed service from server-state PID records")
     parser.add_argument("--daemon", action="store_true",
                         help="run a foreground operator daemon that owns selected listener child processes")
     parser.add_argument("--daemon-service", action="append", default=[],
@@ -16277,6 +16294,14 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
 
     if args.status or args.json_status or args.api_status:
         return print_status(cfg, json_output=args.json_status or args.api_status)
+    if args.stop_service:
+        stop_recorded_service(
+            cfg,
+            args.stop_service,
+            via="server-stop-service",
+            headless_command=service_stop_headless_command(cfg, args.stop_service),
+        )
+        return 0
     if args.stop:
         return stop_managed_services(cfg)
     if args.systemd_user_action:
