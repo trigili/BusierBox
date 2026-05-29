@@ -5469,6 +5469,11 @@ def main():
                 filtered_alpha_record.get("has_filtered_observed_activity") is not True or
                 filtered_alpha_record.get("filter_reduced_observed_activity") is not True or
                 filtered_alpha.get("target_filter", {}).get("observed_activity_counts", {}).get("filtered") != filtered_alpha_record.get("filtered_observed_activity_count") or
+                filtered_alpha.get("summary", {}).get("target_filter_unfiltered_observed_activity_count") != filtered_alpha_record.get("unfiltered_observed_activity_count") or
+                filtered_alpha.get("summary", {}).get("target_filter_observed_activity_count") != filtered_alpha_record.get("filtered_observed_activity_count") or
+                filtered_alpha.get("summary", {}).get("target_filter_has_unfiltered_observed_activity") is not True or
+                filtered_alpha.get("summary", {}).get("target_filter_has_observed_activity") is not True or
+                filtered_alpha.get("summary", {}).get("target_filter_reduced_observed_activity") is not True or
                 (filtered_alpha.get("target_filter_records_by_selected_target_found") or {}).get("True", [{}])[0].get("target_id") != "target-alpha" or
                 "target_filter_records_by_selected_target_identity_confidence" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
                 "target_filter_records_by_filter_reduced_activity" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
@@ -5525,6 +5530,11 @@ def main():
                 filtered_unknown_record.get("filtered_observed_activity_count") != 0 or
                 filtered_unknown_record.get("filter_reduced_observed_activity") is not True or
                 filtered_unknown.get("target_filter", {}).get("observed_activity_counts", {}).get("has_filtered") is not False or
+                filtered_unknown.get("summary", {}).get("target_filter_unfiltered_observed_activity_count") != filtered_unknown_record.get("unfiltered_observed_activity_count") or
+                filtered_unknown.get("summary", {}).get("target_filter_observed_activity_count") != 0 or
+                filtered_unknown.get("summary", {}).get("target_filter_has_unfiltered_observed_activity") is not True or
+                filtered_unknown.get("summary", {}).get("target_filter_has_observed_activity") is not False or
+                filtered_unknown.get("summary", {}).get("target_filter_reduced_observed_activity") is not True or
                 (filtered_unknown.get("target_filter_records_by_active") or {}).get("True", [{}])[0].get("target_id") != "target-missing" or
                 (filtered_unknown.get("target_filter_records_by_has_filtered_activity") or {}).get("True", [{}])[0].get("target_id") != "target-missing" or
                 (filtered_unknown.get("target_filter_records_by_has_filtered_observed_activity") or {}).get("False", [{}])[0].get("target_id") != "target-missing" or
@@ -5629,6 +5639,8 @@ def main():
                 scoped_filter_record.get("filtered_observed_activity_count", 0) < 1 or
                 scoped_filter_record.get("has_filtered_observed_activity") is not True or
                 scoped_doc.get("target_filter", {}).get("observed_activity_counts", {}).get("filtered") != scoped_filter_record.get("filtered_observed_activity_count") or
+                scoped_doc.get("summary", {}).get("target_filter_observed_activity_count") != scoped_filter_record.get("filtered_observed_activity_count") or
+                scoped_doc.get("summary", {}).get("target_filter_has_observed_activity") is not True or
                 not any("--target-id target-bravo" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or
                 not any("--target-label 'Bravo Router'" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or
                 not any("--target-alias lab-bravo" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or

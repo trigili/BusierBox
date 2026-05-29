@@ -483,7 +483,12 @@ activity from observed activity: generated target commands count toward total
 activity, while observed activity covers stored records such as uploads, fetches,
 sessions, events, staged files, and command queue records. That lets an unknown
 target filter still show generated commands without implying that the target has
-actually been seen.
+actually been seen. The compact summary mirrors the same distinction with
+`target_filter_observed_activity_count`,
+`target_filter_unfiltered_observed_activity_count`,
+`target_filter_has_observed_activity`,
+`target_filter_has_unfiltered_observed_activity`, and
+`target_filter_reduced_observed_activity`.
 The top-level `api` catalog mirrors the selected target label/confidence and
 whether the target was found, so future TUI/web clients can render filter
 context without joining `targets_by_id` first. If the filter does not match a
