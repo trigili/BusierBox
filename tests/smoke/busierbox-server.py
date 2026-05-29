@@ -508,19 +508,19 @@ def main():
         if (bridge_service.get("port") != bridge_port or
                 bridge_service.get("actual") != "stopped" or
                 bridge_status.get("summary", {}).get("bridge_profile_count") != 2 or
-                bridge_status.get("summary", {}).get("target_workflow_action_count") != 12 or
+                bridge_status.get("summary", {}).get("target_workflow_action_count") != 13 or
                 bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("lab-http") != 2 or
                 bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("chain-http") != 2 or
                 bridge_status.get("summary", {}).get("target_workflow_action_requires_target_online_count") != 2 or
-                bridge_status.get("summary", {}).get("target_workflow_action_offline_supported_count") != 10 or
+                bridge_status.get("summary", {}).get("target_workflow_action_offline_supported_count") != 11 or
                 bridge_status.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 6 or
-                bridge_status.get("summary", {}).get("target_workflow_action_target_phone_home_required_count") != 7 or
+                bridge_status.get("summary", {}).get("target_workflow_action_target_phone_home_required_count") != 8 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_activity_count") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_profile_counts", {}).get("lab-http") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("closed") != 1 or
                 bridge_status.get("summary", {}).get("bridge_profile_has_last_successful_relay_counts", {}).get("True") != 1 or
                 bridge_status.get("summary", {}).get("bridge_profile_has_last_failure_counts", {}).get("False") != 2 or
-                len(bridge_workflow_actions) != 12 or
+                len(bridge_workflow_actions) != 13 or
                 bridge_action.get("target_id") != "target-bridge" or
                 bridge_action.get("workflow") != "bridge" or
                 bridge_action.get("requires_target_online") is not True or
@@ -711,7 +711,7 @@ def main():
         bridge_failure_target = (bridge_failure_status.get("targets_by_id") or {}).get("target-bridge") or {}
         bridge_failure_events = bridge_failure_status.get("events_by_event") or {}
         if (bridge_failure_status.get("summary", {}).get("bridge_profile_count") != 3 or
-                bridge_failure_status.get("summary", {}).get("target_workflow_action_count") != 14 or
+                bridge_failure_status.get("summary", {}).get("target_workflow_action_count") != 15 or
                 bridge_failure_status.get("summary", {}).get("target_workflow_action_requires_target_online_count") != 3 or
                 bridge_failure_status.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 7 or
                 bridge_failure_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("error") != 1 or
@@ -6567,16 +6567,16 @@ def main():
                 upload_summary.get("target_latest_file_transfer_operation_counts", {}).get("upload") != 1 or
                 upload_summary.get("target_latest_file_transfer_status_counts", {}).get("ok") != 1 or
                 upload_summary.get("target_latest_file_transfer_route_kind_counts", {}).get("direct") != 1 or
-                upload_summary.get("target_workflow_action_count") != 8 or
-                upload_summary.get("target_workflow_action_target_counts", {}).get("target-alpha") != 8 or
+                upload_summary.get("target_workflow_action_count") != 9 or
+                upload_summary.get("target_workflow_action_target_counts", {}).get("target-alpha") != 9 or
                 upload_summary.get("target_workflow_action_workflow_counts", {}).get("command-queue") != 1 or
-                upload_summary.get("target_workflow_action_workflow_counts", {}).get("file-service") != 3 or
+                upload_summary.get("target_workflow_action_workflow_counts", {}).get("file-service") != 4 or
                 upload_summary.get("target_workflow_action_workflow_counts", {}).get("survey-bootstrap") != 2 or
-                upload_summary.get("target_workflow_action_requires_input_count") != 3 or
-                upload_summary.get("target_workflow_action_offline_supported_count") != 8 or
+                upload_summary.get("target_workflow_action_requires_input_count") != 4 or
+                upload_summary.get("target_workflow_action_offline_supported_count") != 9 or
                 upload_summary.get("target_workflow_action_requires_target_online_count") != 0 or
                 upload_summary.get("target_workflow_action_queues_offline_work_count") != 4 or
-                upload_summary.get("target_workflow_action_target_phone_home_required_count") != 5 or
+                upload_summary.get("target_workflow_action_target_phone_home_required_count") != 6 or
                 len(targets) != 1 or
                 target_alpha.get("label") != "Alpha Router" or
                 "lab-alpha" not in (target_alpha.get("aliases") or []) or
@@ -6588,7 +6588,7 @@ def main():
                 target_alpha.get("latest_file_transfer_route_kind") != "direct" or
                 target_alpha.get("latest_file_transfer_sha256") != upload_sha256 or
                 target_alpha.get("latest_session_id") != session_json_paths[0].parent.name or
-                len(alpha_workflow_actions) != 8 or
+                len(alpha_workflow_actions) != 9 or
                 alpha_actions_by_action.get("queue-command", {}).get("headless_command") != f"scripts/busierbox-server --config {str(upload_cfg)} --target-id target-alpha --queue-command COMMAND" or
                 alpha_actions_by_action.get("queue-command", {}).get("queues_offline_work") is not True or
                 alpha_actions_by_action.get("queue-command", {}).get("target_phone_home_required") is not True or
@@ -6598,6 +6598,10 @@ def main():
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("requires_input") is not True or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("queues_offline_work") is not True or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("offline_supported") is not True or
+                alpha_actions_by_action.get("show-upload-command", {}).get("requires_input") is not True or
+                alpha_actions_by_action.get("show-upload-command", {}).get("queues_offline_work") is not False or
+                alpha_actions_by_action.get("show-upload-command", {}).get("target_phone_home_required") is not True or
+                alpha_actions_by_action.get("show-upload-command", {}).get("headless_command") != f"scripts/busierbox-server --config {str(upload_cfg)} --run-target-workflow-action target-alpha:show-upload-command --target-workflow-command TARGET_PATH" or
                 alpha_actions_by_action.get("queue-staged-fetch", {}).get("requires_input") is not True or
                 alpha_actions_by_action.get("queue-staged-fetch", {}).get("queues_offline_work") is not True or
                 alpha_actions_by_action.get("queue-staged-fetch", {}).get("target_phone_home_required") is not True or
@@ -6761,6 +6765,22 @@ def main():
             print(action_fetch.stdout, file=sys.stderr)
             print(action_fetch.stderr, file=sys.stderr)
             return 1
+        action_upload = run(
+            "scripts/busierbox-server",
+            "--config", str(action_cfg),
+            "--run-target-workflow-action", "target-action:show-upload-command",
+            "--target-workflow-command", "/etc/passwd",
+        )
+        if (action_upload.returncode != 0 or
+                "target workflow action: target-action:show-upload-command" not in action_upload.stdout or
+                "target_upload_path=/etc/passwd" not in action_upload.stdout or
+                "./busierbox put /etc/passwd" not in action_upload.stdout or
+                "--target-id target-action" not in action_upload.stdout or
+                "--target-label 'Action Router'" not in action_upload.stdout):
+            print("headless target workflow upload command action failed", file=sys.stderr)
+            print(action_upload.stdout, file=sys.stderr)
+            print(action_upload.stderr, file=sys.stderr)
+            return 1
         action_doc = json.loads(run(
             "scripts/busierbox-server",
             "--config", str(action_cfg),
@@ -6821,6 +6841,13 @@ def main():
                 completed_by_action.get("queue-staged-fetch", {}).get("queues_offline_work") is not True or
                 completed_by_action.get("queue-staged-fetch", {}).get("target_phone_home_required") is not True or
                 "busierbox fetch action-staged.txt" not in completed_by_action.get("queue-staged-fetch", {}).get("queued_command", "") or
+                completed_by_action.get("show-upload-command", {}).get("target_id") != "target-action" or
+                completed_by_action.get("show-upload-command", {}).get("result") != "shown-upload-command" or
+                completed_by_action.get("show-upload-command", {}).get("target_upload_path") != "/etc/passwd" or
+                completed_by_action.get("show-upload-command", {}).get("queues_offline_work") is not False or
+                completed_by_action.get("show-upload-command", {}).get("target_phone_home_required") is not True or
+                "./busierbox put /etc/passwd" not in completed_by_action.get("show-upload-command", {}).get("target_command", "") or
+                not completed_by_action.get("show-upload-command", {}).get("target_command_sha256") or
                 "headless_command" not in completed_by_action.get("queue-command", {}) or
                 not any(
                     (event.get("details") or {}).get("target_id") == "target-action" and
@@ -6836,6 +6863,7 @@ def main():
                 line_workbench_state.get("selected_target_label") != "Action Router" or
                 action_doc.get("summary", {}).get("command_queue_target_counts", {}).get("target-action") != 3 or
                 action_doc.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 4 or
+                action_doc.get("summary", {}).get("target_workflow_action_target_phone_home_required_count") != 6 or
                 action_doc.get("summary", {}).get("staged_target_counts", {}).get("target-action") != 1):
             print("target workflow actions did not mutate target-scoped queue/staged state", file=sys.stderr)
             print(json.dumps(action_doc, indent=2, sort_keys=True), file=sys.stderr)

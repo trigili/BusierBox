@@ -3694,6 +3694,17 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
         )
         add(
             target,
+            "show-upload-command",
+            "file-transfer",
+            "Show target upload command for this target",
+            base + " --run-target-workflow-action " + shquote(f"{target_id}:show-upload-command") + " --target-workflow-command TARGET_PATH",
+            "file-service",
+            requires_input=True,
+            queues_offline_work=False,
+            target_phone_home_required=True,
+        )
+        add(
+            target,
             "queue-staged-fetch",
             "file-transfer",
             "Queue a staged file fetch command for this target mailbox",
@@ -15462,6 +15473,33 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             "request_name": staged.get("request_name", ""),
             "source_path": staged.get("source_path", ""),
             "sha256": staged.get("sha256", ""),
+        })
+        return 0
+    if action_id == "show-upload-command":
+        target_path = str(command_input or "")
+        if not target_path and input_func:
+            value = input_func("target file to upload> ")
+            target_path = value if value is not None else ""
+        target_path = target_path.strip() or "/etc/config/network"
+        command = render_file_service_command(["put", target_path], scoped)
+        print(f"target_upload_path={target_path}")
+        print(f"target_command={command}")
+        append_event(cfg, "workbench", "target_workflow_action_completed", details={
+            "id": rec.get("id", ""),
+            "action_id": action_id,
+            "target_id": target_id,
+            "target_label": target_label,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "offline_supported": bool(rec.get("offline_supported")),
+            "requires_target_online": bool(rec.get("requires_target_online")),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+            "result": "shown-upload-command",
+            "target_upload_path": target_path,
+            "target_command": command,
+            "target_command_sha256": hashlib.sha256(command.encode("utf-8")).hexdigest() if command else "",
         })
         return 0
     if action_id == "queue-staged-fetch":
