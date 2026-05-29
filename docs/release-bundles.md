@@ -1014,10 +1014,13 @@ bounded `command_copy` record plus `command_copy_records_by_has_command` and
 related lookup maps, so clients can show the last copied target command without
 opening the file separately. The `r` refresh action updates
 workbench refresh counters and records a structured `workbench_refreshed` event
-instead of being only an incidental redraw. The curses workbench top bar also
-badges normalized operator-state health as `operator_state_unhealthy=N`, and
-the generic details view lists missing, invalid, or error state records when no
-selected pane item has more specific details. Status JSON and both workbench views
+instead of being only an incidental redraw. The curses workbench top area also
+badges normalized operator-state health as `operator_state_unhealthy=N` and
+prints a compact target line with `count`, `with_id`, `legacy_without_id`, and
+`legacy_single_target` so multi-target and legacy no-target activity are visible
+without opening JSON status. The generic details view lists missing, invalid, or
+error state records when no selected pane item has more specific details. Status
+JSON and both workbench views
 also expose `workbench_actions` records for operator-side configuration and
 build workflows such as `scripts/menuconfig`, `make package`,
 `scripts/busierbox-bringup --recommend-only --json`,

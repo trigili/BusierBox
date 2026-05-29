@@ -11849,6 +11849,24 @@ def run_curses_tui(cfg):
             workbench = snap.get("workbench") or {}
             refresh_suffix = f"refresh={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}"
             safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} warnings={warning_count} operator_state_unhealthy={operator_state_unhealthy} | ip={snap['selected_local_ip']} | {utc_now()} | {refresh_suffix} | tab panes j/k move enter start/stop s stage d unstage v view c copy ? help q quit", curses.A_REVERSE)
+            target_filter = snap.get("target_filter") or {}
+            target_filter_text = ""
+            if target_filter.get("active"):
+                label = target_filter.get("selected_target_label") or "-"
+                confidence = target_filter.get("selected_target_identity_confidence") or "-"
+                target_filter_text = f" | selected_target={target_filter.get('target_id', '')} label={label} confidence={confidence}"
+            safe_add(
+                stdscr,
+                1,
+                0,
+                "Targets: "
+                f"count={summary.get('target_count', 0)} "
+                f"with_id={summary.get('target_attribution_with_target_count', 0)} "
+                f"legacy_without_id={summary.get('target_attribution_without_target_count', 0)} "
+                f"legacy_single_target={'yes' if summary.get('target_legacy_single_target_activity_present') else 'no'}"
+                f"{target_filter_text}",
+                curses.A_BOLD,
+            )
             left_w = max(34, width // 3)
             right_w = max(20, width - left_w - 1)
             lower_y = max(12, height // 2)
