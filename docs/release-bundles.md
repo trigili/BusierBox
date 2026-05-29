@@ -902,7 +902,12 @@ automation client show actionable cleanup guidance without scraping the
 human-readable `--status` output. Actual service state is bind-address aware:
 a listener on the same port but a different address is reported as listener
 evidence with `listener_bind_mismatch`, not as proof that the configured service
-is listening.
+is listening. Status JSON also includes a `service_manager` runtime snapshot
+with shutdown state and currently registered sockets, Paramiko transports,
+service threads, and child processes for the current server process; `summary`
+mirrors the manager counts so clients can show lifecycle cleanup state without
+parsing implementation internals. Human `--status` prints the same manager
+counts as a compact `runtime_manager` line.
 
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it accepts an artifact basename, release path,

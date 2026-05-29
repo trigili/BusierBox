@@ -528,6 +528,12 @@ def main():
                 quick_status.get("summary", {}).get("workbench_job_finished_at_known_count", 0) < 1 or
                 quick_status.get("summary", {}).get("workbench_job_duration_known_count", 0) < 1 or
                 quick_status.get("summary", {}).get("workbench_job_elapsed_known_count", 0) < 2 or
+                (quick_status.get("service_manager") or {}).get("shutdown_requested") is not False or
+                (quick_status.get("service_manager") or {}).get("socket_count") != quick_status.get("summary", {}).get("service_manager_socket_count") or
+                (quick_status.get("service_manager") or {}).get("open_socket_count") != quick_status.get("summary", {}).get("service_manager_open_socket_count") or
+                (quick_status.get("service_manager") or {}).get("transport_count") != quick_status.get("summary", {}).get("service_manager_transport_count") or
+                (quick_status.get("service_manager") or {}).get("thread_count") != quick_status.get("summary", {}).get("service_manager_thread_count") or
+                (quick_status.get("service_manager") or {}).get("child_process_count") != quick_status.get("summary", {}).get("service_manager_child_process_count") or
                 quick_status.get("summary", {}).get("workbench_job_outcome_counts", {}).get("failed", 0) < 1 or
                 quick_status.get("summary", {}).get("workbench_job_exit_status_counts", {}).get("7", 0) < 1 or
                 quick_status.get("summary", {}).get("event_detail_job_id_counts", {}).get(quick_job_id, 0) < 1 or
@@ -571,6 +577,7 @@ def main():
                 "managed=" not in quick_text.stdout or
                 "background=" not in quick_text.stdout or
                 "long_running=" not in quick_text.stdout or
+                "runtime_manager: shutdown=no reason=-" not in quick_text.stdout or
                 "cancel: disabled; process is not alive" not in quick_text.stdout or
                 "outcomes:" not in quick_text.stdout):
             print("text status missing completed workbench job exit metadata", file=sys.stderr)
