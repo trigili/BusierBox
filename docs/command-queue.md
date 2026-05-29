@@ -327,7 +327,10 @@ queue records:
   the latest received command result for that target.
 - `targets[].latest_file_transfer_*`, `latest_survey_result_*`, and
   `latest_bridge_*` fields show the latest per-target file workflow, survey
-  evidence, and bridge activity alongside the command mailbox.
+  evidence, and bridge activity alongside the command mailbox. File-transfer
+  and survey-result fields include route fields such as `*_route_kind`,
+  `*_bridge_profile`, and `*_bridge_route_path` when available, so target detail
+  views can distinguish direct workflows from bridged routes.
 
 The status API also exposes a `target_mailbox_records` collection with one
 record per target-scoped queued command. Each record includes the command id,

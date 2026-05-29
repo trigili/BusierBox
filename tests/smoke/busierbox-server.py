@@ -729,6 +729,8 @@ def main():
                 survey_status.get("summary", {}).get("target_latest_survey_result_kind_counts", {}).get("survey-bootstrap") != 1 or
                 survey_target.get("latest_survey_result_kind") != "survey-bootstrap" or
                 survey_target.get("latest_survey_result_status") != "received" or
+                survey_target.get("latest_survey_result_route_kind") != "direct" or
+                survey_target.get("latest_survey_bootstrap_script_route_kind") != "direct" or
                 survey_target.get("latest_activity_service") != "survey-bootstrap" or
                 survey_target.get("latest_activity_operation") != "survey_bootstrap_result" or
                 ((survey_status.get("targets_by_latest_survey_result_kind") or {}).get("survey-bootstrap") or [{}])[0].get("target_id") != "target-survey" or
@@ -6199,6 +6201,7 @@ def main():
                 target_alpha.get("latest_activity_service") != "file-service" or
                 target_alpha.get("latest_file_transfer_operation") != "upload" or
                 target_alpha.get("latest_file_transfer_status") != "ok" or
+                target_alpha.get("latest_file_transfer_route_kind") != "direct" or
                 target_alpha.get("latest_file_transfer_sha256") != upload_sha256 or
                 target_alpha.get("latest_session_id") != session_json_paths[0].parent.name or
                 len(alpha_workflow_actions) != 6 or
