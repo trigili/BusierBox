@@ -40,9 +40,9 @@ Current behavior is intentionally non-executing:
   token-required/token-configured booleans, `policy_summary`,
   `mode_semantics`, `mode_summary`, and non-execution safety boundary.
 - Human `--status`, `--list-command-queue`, and the line-oriented workbench
-  print the same token posture, mode lifecycle, and non-execution flags so
-  operators do not need JSON tooling to distinguish default dry-run planning
-  from explicit `--live` metadata polling.
+  mirror the structured `policy_summary` token posture, mode lifecycle,
+  transport support, and non-execution flags so operators do not need JSON
+  tooling to distinguish default dry-run planning from explicit `--live` metadata polling.
 - `busierbox plan command-queue --json` and `manifest --json` expose the same
   policy validity fields and normalized mode records so release tooling and
   frontends do not treat an inconsistent policy as ready to poll.

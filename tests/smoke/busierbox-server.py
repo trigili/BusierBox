@@ -4228,6 +4228,11 @@ def main():
                 f"operation=upload status=ok filename=evidence.txt sha256={upload_sha256}" not in upload_status_text.stdout or
                 "operation=upload status=ok http=200 filename=evidence.txt" not in upload_status_text.stdout or
                 "Command queue:" not in upload_status_text.stdout or
+                "active_control_channel=no" not in upload_status_text.stdout or
+                "arbitrary_execution_allowed=no" not in upload_status_text.stdout or
+                "policy_flags: operator_queue_records_only=yes metadata_only_default=yes safe_disabled_default=yes" not in upload_status_text.stdout or
+                "transport_support: poll=yes live_polling=yes" not in upload_status_text.stdout or
+                "execution_supported=no delivery_supported=no result_upload_supported=yes" not in upload_status_text.stdout or
                 "Generated target commands:" not in upload_status_text.stdout or
                 "Target command summary:" not in upload_status_text.stdout or
                 "operator_supplied_execution=0" not in upload_status_text.stdout or
@@ -4276,6 +4281,11 @@ def main():
                 "detail_operations: upload=" not in uploads_view.stdout or
                 "detail_http_statuses: 200=" not in uploads_view.stdout or
                 "uploads=1" not in uploads_view.stdout or
+                "active_control_channel=no" not in uploads_view.stdout or
+                "arbitrary_execution_allowed=no" not in uploads_view.stdout or
+                "policy_flags: operator_queue_records_only=yes metadata_only_default=yes safe_disabled_default=yes" not in uploads_view.stdout or
+                "transport_support: poll=yes live_polling=yes" not in uploads_view.stdout or
+                "execution_supported=no delivery_supported=no result_upload_supported=yes" not in uploads_view.stdout or
                 "Target command summary:" not in uploads_view.stdout or
                 "operator_supplied_execution=0" not in uploads_view.stdout or
                 "executes_operator_supplied_commands=no" not in uploads_view.stdout or
@@ -4479,6 +4489,11 @@ def main():
                 "Workbench refresh: count=" not in tui.stdout or
                 "API resources: schema=1 resources=" not in tui.stdout or
                 "collections_key=api_collections resources_key=api_resources" not in tui.stdout or
+                "active_control_channel=no" not in tui.stdout or
+                "arbitrary_execution_allowed=no" not in tui.stdout or
+                "policy_flags: operator_queue_records_only=yes metadata_only_default=yes safe_disabled_default=yes" not in tui.stdout or
+                "transport_support: poll=yes live_polling=yes" not in tui.stdout or
+                "execution_supported=no delivery_supported=no result_upload_supported=yes" not in tui.stdout or
                 "session_root:" not in tui.stdout or
                 "Operator workflow actions:" not in tui.stdout or
                 "make package" not in tui.stdout or
