@@ -1626,11 +1626,12 @@ def target_context_fields(cfg, target_id):
     rec = (load_targets(cfg).get("targets") or {}).get(target_id)
     if not isinstance(rec, dict):
         rec = {}
+    aliases = list_merge_unique(rec.get("aliases") or [], cfg.get("_target_alias_filter") or [])
     return {
         "target_id": target_id,
-        "target_label": str(rec.get("label") or ""),
+        "target_label": str(cfg.get("_target_label_filter") or rec.get("label") or ""),
         "target_aliases": [
-            str(item) for item in rec.get("aliases") or []
+            str(item) for item in aliases
             if str(item or "")
         ],
         "target_identity_source": "operator-selection",
@@ -11672,6 +11673,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["targets_file"] = args.targets_file
     if args.target_id:
         cfg["_target_id_filter"] = args.target_id
+    if args.target_label:
+        cfg["_target_label_filter"] = args.target_label
+    if args.target_alias:
+        cfg["_target_alias_filter"] = args.target_alias
     if args.release_dir:
         cfg["release_dir"] = args.release_dir
     if args.managed_by:

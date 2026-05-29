@@ -28,6 +28,9 @@ What it does not do:
 
 Options:
   --operator-host HOST|auto   operator address for generated reverse-access config
+  --target-id ID              target id to attach to generated target-side commands
+  --target-label LABEL        friendly label for generated target-side commands
+  --target-alias ALIAS        target alias for generated commands; may be repeated
   --survey-only               stop after survey and recommendation
   --recommend-only            use --survey-json or captured survey; do not build final artifact
   --survey-json PATH          use an existing survey JSON instead of touching target
@@ -60,6 +63,9 @@ EOF
 
 host=
 operator_host=auto
+target_id=
+target_label=
+target_aliases=
 survey_only=no
 recommend_only=no
 payload_preset=survey-core
@@ -99,6 +105,20 @@ while [ "$#" -gt 0 ]; do
         --host=*) host=${1#--host=}; shift ;;
         --operator-host) operator_host=$2; shift 2 ;;
         --operator-host=*) operator_host=${1#--operator-host=}; shift ;;
+        --target-id) target_id=$2; shift 2 ;;
+        --target-id=*) target_id=${1#--target-id=}; shift ;;
+        --target-label) target_label=$2; shift 2 ;;
+        --target-label=*) target_label=${1#--target-label=}; shift ;;
+        --target-alias)
+            target_aliases=${target_aliases}${target_aliases:+'
+'}$2
+            shift 2
+            ;;
+        --target-alias=*)
+            target_aliases=${target_aliases}${target_aliases:+'
+'}${1#--target-alias=}
+            shift
+            ;;
         --survey-only) survey_only=yes; shift ;;
         --recommend-only) recommend_only=yes; shift ;;
         --survey-json) survey_input=$2; shift 2 ;;
@@ -172,6 +192,9 @@ write_summary() {
     HOST="$host" \
     RUN_DIR="$run_dir" \
     REMOTE_DIR="$remote_dir" \
+    TARGET_ID="$target_id" \
+    TARGET_LABEL="$target_label" \
+    TARGET_ALIASES="$target_aliases" \
     PAYLOAD_PRESET="$payload_preset" \
     TARGET_PRESET="$target_preset" \
     OPERATOR_HOST="$operator_host" \
@@ -286,6 +309,27 @@ except Exception:
 
 host = env("HOST")
 operator_host = env("OPERATOR_HOST")
+target_id = env("TARGET_ID").strip()
+target_label = env("TARGET_LABEL").strip()
+target_aliases = [line.strip() for line in env("TARGET_ALIASES").splitlines() if line.strip()]
+target_context = {}
+if target_id:
+    target_context = {
+        "target_id": target_id,
+        "target_label": target_label,
+        "target_aliases": target_aliases,
+        "target_identity_source": "operator-selection",
+        "target_identity_confidence": "operator-assigned",
+    }
+
+def with_target_context(record):
+    rec = dict(record)
+    if target_context:
+        for key, value in target_context.items():
+            if value not in (None, "", []):
+                rec[key] = value
+    return rec
+
 next_operator = [
     "scripts/busierbox-server --transport file-service",
 ]
@@ -322,7 +366,7 @@ if env("TRAILER_COMMAND"):
     })
 
 next_target_records = [
-    {
+    with_target_context({
         "command": "./busierbox survey --json",
         "purpose": "collect passive target facts",
         "side": "target",
@@ -330,8 +374,8 @@ next_target_records = [
         "requires_explicit_target_action": True,
         "network": False,
         "executes_operator_supplied_commands": False,
-    },
-    {
+    }),
+    with_target_context({
         "command": "./busierbox reality-test --json",
         "purpose": "run active local capability probes",
         "side": "target",
@@ -339,7 +383,7 @@ next_target_records = [
         "requires_explicit_target_action": True,
         "network": False,
         "executes_operator_supplied_commands": False,
-    },
+    }),
 ]
 staged_stage_kind = ""
 staged_source_path = ""
@@ -354,7 +398,7 @@ if env("STAGED_FETCH_COMMAND"):
         staged_stage_kind = "config"
         staged_source_path = env("RECOMMENDED_CONFIG")
 if env("STAGED_FETCH_COMMAND"):
-    next_target_records.append({
+    next_target_records.append(with_target_context({
         "command": env("STAGED_FETCH_COMMAND"),
         "purpose": "explicitly fetch operator-staged artifact or config",
         "side": "target",
@@ -367,7 +411,7 @@ if env("STAGED_FETCH_COMMAND"):
         "stage_kind": staged_stage_kind,
         "selected_artifact": env("SELECTED_ARTIFACT"),
         "compatibility": selected_compatibility,
-    })
+    }))
 
 next_command_records = next_operator_records + next_target_records
 
@@ -415,6 +459,8 @@ command_record_summary = {
     "compatibility_label_counts": summary_count_by_nested_key(next_command_records, "compatibility", "label"),
     "compatibility_baseline_label_counts": summary_count_by_nested_key(next_command_records, "compatibility", "baseline_label"),
     "compatibility_source_counts": summary_count_by_nested_key(next_command_records, "compatibility", "source"),
+    "target_id_counts": summary_count_by_key(next_command_records, "target_id"),
+    "target_label_counts": summary_count_by_key(next_command_records, "target_label"),
     "target_network_count": sum(1 for item in next_target_records if item.get("network") is True),
     "operator_listener_count": sum(1 for item in next_operator_records if item.get("starts_listener") is True),
     "target_requires_explicit_action_count": sum(1 for item in next_target_records if item.get("requires_explicit_target_action") is True),
@@ -445,6 +491,9 @@ next_command_records_by_executes_on_target = {}
 next_command_records_by_compatibility_label = {}
 next_command_records_by_compatibility_baseline_label = {}
 next_command_records_by_compatibility_source = {}
+next_command_records_by_target_id = {}
+next_command_records_by_target_label = {}
+next_command_records_by_target_alias = {}
 for item in next_command_records:
     service = item.get("service") or ""
     purpose = item.get("purpose") or ""
@@ -452,6 +501,8 @@ for item in next_command_records:
     request_name = item.get("request_name") or ""
     stage_kind = item.get("stage_kind") or ""
     source_path = item.get("source_path") or ""
+    item_target_id = item.get("target_id") or ""
+    item_target_label = item.get("target_label") or ""
     if service:
         next_command_records_by_service.setdefault(service, []).append(item)
     if purpose:
@@ -462,6 +513,14 @@ for item in next_command_records:
         next_command_records_by_stage_kind.setdefault(stage_kind, []).append(item)
     if source_path:
         next_command_records_by_source_path.setdefault(source_path, []).append(item)
+    if item_target_id:
+        next_command_records_by_target_id.setdefault(item_target_id, []).append(item)
+    if item_target_label:
+        next_command_records_by_target_label.setdefault(item_target_label, []).append(item)
+    for alias in item.get("target_aliases") or []:
+        alias = str(alias or "")
+        if alias:
+            next_command_records_by_target_alias.setdefault(alias, []).append(item)
     if side and service:
         next_command_records_by_side_service.setdefault(f"{side}:{service}", []).append(item)
     if service and purpose:
@@ -718,6 +777,7 @@ doc = {
     "payload_preset": env("PAYLOAD_PRESET"),
     "target_preset": env("TARGET_PRESET"),
     "operator_host": operator_host,
+    "target_context": target_context,
     "survey_json": env("SURVEY_JSON"),
     "reality_json": maybe_file(env("REALITY_JSON")),
     "recommendation_json": env("RECOMMENDATION_JSON"),
@@ -769,6 +829,9 @@ doc = {
     "next_command_records_by_compatibility_label": next_command_records_by_compatibility_label,
     "next_command_records_by_compatibility_baseline_label": next_command_records_by_compatibility_baseline_label,
     "next_command_records_by_compatibility_source": next_command_records_by_compatibility_source,
+    "next_command_records_by_target_id": next_command_records_by_target_id,
+    "next_command_records_by_target_label": next_command_records_by_target_label,
+    "next_command_records_by_target_alias": next_command_records_by_target_alias,
     "command_record_summary": command_record_summary,
     "safety_boundary": {
         "network_autorun": False,
@@ -862,6 +925,9 @@ doc["api_collections"] = {
             "next_command_records_by_compatibility_label",
             "next_command_records_by_compatibility_baseline_label",
             "next_command_records_by_compatibility_source",
+            "next_command_records_by_target_id",
+            "next_command_records_by_target_label",
+            "next_command_records_by_target_alias",
         ),
         "command_record_summary.total_count",
         "command",
@@ -951,6 +1017,26 @@ command_string() {
         fi
     done
     printf '%s\n' "$out"
+}
+
+append_target_args() {
+    if [ -n "$target_id" ]; then
+        set -- "$@" --target-id "$target_id"
+    fi
+    if [ -n "$target_label" ]; then
+        set -- "$@" --target-label "$target_label"
+    fi
+    if [ -n "$target_aliases" ]; then
+        old_ifs=$IFS
+        IFS='
+'
+        for alias in $target_aliases; do
+            [ -n "$alias" ] || continue
+            set -- "$@" --target-alias "$alias"
+        done
+        IFS=$old_ifs
+    fi
+    command_string "$@"
 }
 
 remote_quote() {
@@ -1129,20 +1215,48 @@ stage_artifact_for_fetch() {
     }
     staged_request_name=$(basename "$artifact_to_stage")
     if [ -n "$selected_artifact" ] && [ -n "$release_dir" ] && [ -f "$release_dir/release.json" ]; then
-        scripts/busierbox-server --release-dir "$release_dir" --stage-release-artifact "$selected_artifact" --list-staged >"$run_dir/staged-artifact.out" 2>"$run_dir/staged-artifact.err" || {
+        set -- scripts/busierbox-server --release-dir "$release_dir"
+        [ -z "$target_id" ] || set -- "$@" --target-id "$target_id"
+        [ -z "$target_label" ] || set -- "$@" --target-label "$target_label"
+        if [ -n "$target_aliases" ]; then
+            old_ifs=$IFS
+            IFS='
+'
+            for alias in $target_aliases; do
+                [ -n "$alias" ] || continue
+                set -- "$@" --target-alias "$alias"
+            done
+            IFS=$old_ifs
+        fi
+        set -- "$@" --stage-release-artifact "$selected_artifact" --list-staged
+        "$@" >"$run_dir/staged-artifact.out" 2>"$run_dir/staged-artifact.err" || {
             write_summary fail "release artifact staging failed"
             printf '%s\n' "bringup: release artifact staging failed; see $run_dir/staged-artifact.err" >&2
             exit 1
         }
     else
-        scripts/busierbox-server --serve-file "$artifact_to_stage" --as "$staged_request_name" --list-staged >"$run_dir/staged-artifact.out" 2>"$run_dir/staged-artifact.err" || {
+        set -- scripts/busierbox-server
+        [ -z "$target_id" ] || set -- "$@" --target-id "$target_id"
+        [ -z "$target_label" ] || set -- "$@" --target-label "$target_label"
+        if [ -n "$target_aliases" ]; then
+            old_ifs=$IFS
+            IFS='
+'
+            for alias in $target_aliases; do
+                [ -n "$alias" ] || continue
+                set -- "$@" --target-alias "$alias"
+            done
+            IFS=$old_ifs
+        fi
+        set -- "$@" --serve-file "$artifact_to_stage" --as "$staged_request_name" --list-staged
+        "$@" >"$run_dir/staged-artifact.out" 2>"$run_dir/staged-artifact.err" || {
             write_summary fail "artifact staging failed"
             printf '%s\n' "bringup: artifact staging failed; see $run_dir/staged-artifact.err" >&2
             exit 1
         }
     fi
     staged_fetch_command=$(sed -n 's/^  //p; /^busierbox fetch /p' "$run_dir/staged-artifact.out" | sed -n '1p')
-    [ -n "$staged_fetch_command" ] || staged_fetch_command="busierbox fetch $staged_request_name --host OPERATOR_IP --port 22204"
+    [ -n "$staged_fetch_command" ] || staged_fetch_command=$(append_target_args busierbox fetch "$staged_request_name" --host OPERATOR_IP --port 22204)
 }
 
 cat "presets/payload/$payload_preset.conf" >"$config"
