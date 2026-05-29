@@ -235,12 +235,15 @@ tuple_rows = index["artifacts_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2
 assert len(tuple_rows) == 3
 assert index["artifacts_by_tool"]["tcpdump"][0]["release_name"] == "one"
 assert index["artifacts_by_tool"]["tcpdump"][0]["doom_wads"][0]["filename"] == "doom.wad"
+assert index["artifacts_by_device_alias"]["lab-router"][0]["release_name"] in {"two", "three"}
+assert index["artifacts_by_device_alias"]["glinet-mt1300"][0]["device_aliases"] == ["glinet-mt1300"]
 assert index["artifacts_by_payload_preset"]["ssh-operator"][0]["release_name"] == "two"
 assert index["artifacts_by_feature"]["reverse-ssh"][0]["release_name"] in {"one", "two", "three"}
 assert len(index["artifacts_by_compatibility"]["exact"]) == 2
 assert index["artifacts_by_compatibility"]["unsafe"][0]["release_name"] == "three"
 assert index["compatibility_counts"] == {"exact": 2, "unsafe": 1}
 assert index["artifacts_by_tool_payload_preset"]["tcpdump:survey-core"][0]["release_name"] == "one"
+assert index["artifacts_by_device_payload_preset"]["lab-router:ssh-operator"][0]["release_name"] == "two"
 assert index["artifacts_by_feature_payload_preset"]["reverse-ssh:ssh-operator"][0]["release_name"] == "two"
 assert len(index["artifacts_by_tuple_payload_preset"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug"]) == 1
 assert index["artifacts_by_provider_tool"]["gdbserver"][0]["release_name"] == "three"
@@ -269,6 +272,7 @@ assert recs["by_tool"]["strace"]["release_name"] == "two"
 assert recs["by_payload_preset"]["ssh-operator"]["release_name"] == "two"
 assert recs["by_feature"]["reverse-ssh"]["release_name"] in {"one", "two"}
 assert recs["by_tool_payload_preset"]["tcpdump:survey-core"]["release_name"] == "one"
+assert recs["by_device_payload_preset"]["lab-router:ssh-operator"]["release_name"] == "two"
 assert recs["by_feature_payload_preset"]["reverse-ssh:ssh-operator"]["release_name"] == "two"
 assert recs["by_tuple_payload_preset"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug"]["release_name"] == "three"
 assert index["recommendation_count"] == len(rec_records)
@@ -280,11 +284,13 @@ assert index["recommendation_count"] == sum(
         "by_payload_preset",
         "by_feature",
         "by_tool_payload_preset",
+        "by_device_payload_preset",
         "by_feature_payload_preset",
         "by_tuple_payload_preset",
     )
 )
 assert index["recommendation_records_by_category_key"]["by_device:lab-router"]["release_name"] == "two"
+assert index["recommendation_records_by_category_key"]["by_device_payload_preset:lab-router:ssh-operator"]["release_name"] == "two"
 assert index["recommendation_records_by_id"]["by_tool:gdbserver"]["compatibility_label"] == "unsafe"
 assert index["recommendation_records_by_key"]["reverse-ssh"][0]["category"] == "by_feature"
 assert index["recommendation_records_by_tuple_path"]["by-tuple/mipsel/musl/4.x/mips32r2-24kc"]
@@ -308,6 +314,7 @@ assert api["artifacts"]["summary_key"] == "artifact_count"
 assert api["artifacts"]["count_summary_key"] == "artifact_count"
 assert api["artifacts"]["primary_key"] == "artifact_path"
 assert "artifacts_by_tool" in api["artifacts"]["indexes"]
+assert "artifacts_by_device_alias" in api["artifacts"]["indexes"]
 assert "artifacts_by_compatibility" in api["artifacts"]["indexes"]
 assert "artifacts_by_provider_status" in api["artifacts"]["indexes"]
 assert "artifacts_by_doom_wad_filename" in api["artifacts"]["indexes"]
@@ -353,6 +360,7 @@ assert api["recommendations"]["count_summary_key"] == "recommendation_count"
 assert api["recommendations"]["primary_key"] == "id"
 assert "by_device" in api["recommendations"]["indexes"]
 assert "by_tool_payload_preset" in api["recommendations"]["indexes"]
+assert "by_device_payload_preset" in api["recommendations"]["indexes"]
 assert "recommendation_records_by_category_key" in api["recommendations"]["indexes"]
 assert "recommendation_records_by_compatibility" in api["recommendations"]["indexes"]
 assert resources_by_name["artifacts"]["records_key"] == "artifacts"
@@ -472,6 +480,7 @@ assert doc["api_resources_by_name"]["matches"]["collection_key"] == "api_collect
 assert doc["api_resources_by_name"]["matches"]["summary_key"] == "visible_match_count"
 assert doc["api_resources_by_name"]["matches"]["primary_key"] == "artifact_path"
 assert "matches_by_provider_status" in doc["api_resources_by_name"]["matches"]["indexes"]
+assert "matches_by_device_alias" in doc["api_resources_by_name"]["matches"]["indexes"]
 assert doc["api_resources_by_records_key"]["filter_records"][0]["summary_key"] == "filter_count"
 assert doc["api_resources_by_summary_key"]["dedupe_count"][0]["name"] == "dedupe_alternatives"
 assert doc["api_resources_by_primary_key"]["artifact_path"][0]["name"] in {"matches", "dedupe_alternatives"}
@@ -494,12 +503,14 @@ assert "filters_by_source" in doc["api_collections"]["filter_records"]["indexes"
 assert doc["filters_by_name"]["device"]["source"] == "explicit"
 assert doc["filters_by_source"]["explicit"][0]["name"] == "device"
 assert "matches_by_payload_preset" in doc["api_collections"]["matches"]["indexes"]
+assert "matches_by_device_alias" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_provider_status" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_project_license" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_combined_gplv2_compatible" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_license_component" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_component_license" in doc["api_collections"]["matches"]["indexes"]
 assert doc["matches_by_release"]["two"][0]["release_name"] == "two"
+assert doc["matches_by_device_alias"]["lab-router"][0]["release_name"] == "two"
 assert doc["matches_by_payload_preset"]["ssh-operator"][0]["release_name"] == "two"
 assert doc["matches_by_compatibility"]["exact"][0]["release_name"] == "two"
 assert doc["matches_by_provider_tool"]["strace"][0]["release_name"] == "two"
@@ -536,11 +547,13 @@ assert doc["index"]["dedupe_records_by_compatibility"] == 2
 assert doc["index"]["artifacts_by_release_count"] == 3
 assert doc["index"]["artifacts_by_tuple_path_count"] == 1
 assert doc["index"]["artifacts_by_tool_count"] == 4
+assert doc["index"]["artifacts_by_device_alias_count"] == 2
 assert doc["index"]["artifacts_by_payload_preset_count"] == 3
 assert doc["index"]["artifacts_by_feature_count"] >= 4
 assert doc["index"]["artifacts_by_compatibility_count"] == 2
 assert doc["index"]["compatibility_counts"] == {"exact": 2, "unsafe": 1}
 assert doc["index"]["artifacts_by_tool_payload_preset_count"] >= 4
+assert doc["index"]["artifacts_by_device_payload_preset_count"] == 3
 assert doc["index"]["artifacts_by_feature_payload_preset_count"] >= 6
 assert doc["index"]["artifacts_by_tuple_payload_preset_count"] == 3
 assert doc["index"]["artifacts_by_provider_tool_count"] == 3

@@ -450,6 +450,7 @@ def match_indexes(rows):
     indexes = {
         "matches_by_release": {},
         "matches_by_tuple_path": {},
+        "matches_by_device_alias": {},
         "matches_by_payload_preset": {},
         "matches_by_compatibility": {},
         "matches_by_effective_compatibility": {},
@@ -470,6 +471,8 @@ def match_indexes(rows):
     for row in rows:
         add_index(indexes, "matches_by_release", row.get("release_name"), row)
         add_index(indexes, "matches_by_tuple_path", row.get("tuple_path"), row)
+        for alias in row.get("device_aliases") or []:
+            add_index(indexes, "matches_by_device_alias", alias, row)
         add_index(indexes, "matches_by_payload_preset", row.get("payload_preset"), row)
         add_index(indexes, "matches_by_compatibility", (row.get("compatibility") or {}).get("label") or "exact", row)
         add_index(
@@ -619,6 +622,7 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
             [
                 "matches_by_release",
                 "matches_by_tuple_path",
+                "matches_by_device_alias",
                 "matches_by_payload_preset",
                 "matches_by_compatibility",
                 "matches_by_effective_compatibility",
@@ -722,11 +726,13 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
             "artifacts_by_release_count": len(index.get("artifacts_by_release") or {}),
             "artifacts_by_tuple_path_count": len(index.get("artifacts_by_tuple_path") or {}),
             "artifacts_by_tool_count": len(index.get("artifacts_by_tool") or {}),
+            "artifacts_by_device_alias_count": len(index.get("artifacts_by_device_alias") or {}),
             "artifacts_by_payload_preset_count": len(index.get("artifacts_by_payload_preset") or {}),
             "artifacts_by_feature_count": len(index.get("artifacts_by_feature") or {}),
             "artifacts_by_compatibility_count": len(index.get("artifacts_by_compatibility") or {}),
             "compatibility_counts": index.get("compatibility_counts") or {},
             "artifacts_by_tool_payload_preset_count": len(index.get("artifacts_by_tool_payload_preset") or {}),
+            "artifacts_by_device_payload_preset_count": len(index.get("artifacts_by_device_payload_preset") or {}),
             "artifacts_by_feature_payload_preset_count": len(index.get("artifacts_by_feature_payload_preset") or {}),
             "artifacts_by_tuple_payload_preset_count": len(index.get("artifacts_by_tuple_payload_preset") or {}),
             "artifacts_by_provider_tool_count": len(index.get("artifacts_by_provider_tool") or {}),

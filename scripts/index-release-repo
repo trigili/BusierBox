@@ -279,6 +279,10 @@ def recommendations_from_indexes(devices, indexes):
             key: best_record(indexes["artifacts_by_tool_payload_preset"][key])
             for key in sorted(indexes["artifacts_by_tool_payload_preset"])
         },
+        "by_device_payload_preset": {
+            key: best_record(indexes["artifacts_by_device_payload_preset"][key])
+            for key in sorted(indexes["artifacts_by_device_payload_preset"])
+        },
         "by_feature_payload_preset": {
             key: best_record(indexes["artifacts_by_feature_payload_preset"][key])
             for key in sorted(indexes["artifacts_by_feature_payload_preset"])
@@ -299,6 +303,7 @@ def recommendation_records_from_recommendations(recommendations):
         "by_payload_preset",
         "by_feature",
         "by_tool_payload_preset",
+        "by_device_payload_preset",
         "by_feature_payload_preset",
         "by_tuple_payload_preset",
     ):
@@ -605,10 +610,12 @@ def build_repo_index(paths):
     artifacts_by_release = {}
     artifacts_by_tuple_path = {}
     artifacts_by_tool = {}
+    artifacts_by_device_alias = {}
     artifacts_by_payload_preset = {}
     artifacts_by_feature = {}
     artifacts_by_compatibility = {}
     artifacts_by_tool_payload_preset = {}
+    artifacts_by_device_payload_preset = {}
     artifacts_by_feature_payload_preset = {}
     artifacts_by_tuple_payload_preset = {}
     artifacts_by_provider_tool = {}
@@ -649,6 +656,16 @@ def build_repo_index(paths):
             artifacts_by_tool.setdefault(tool, []).append(record)
             if payload_preset:
                 artifacts_by_tool_payload_preset.setdefault(f"{tool}:{payload_preset}", []).append(record)
+        for alias, metas in devices.items():
+            allowed = {(meta.get("release_dir"), meta.get("tuple_path")) for meta in metas}
+            if (record.get("release_dir"), tuple_path) not in allowed:
+                continue
+            record.setdefault("device_aliases", [])
+            if alias not in record["device_aliases"]:
+                record["device_aliases"].append(alias)
+            artifacts_by_device_alias.setdefault(alias, []).append(record)
+            if payload_preset:
+                artifacts_by_device_payload_preset.setdefault(f"{alias}:{payload_preset}", []).append(record)
         for feature in record.get("features") or []:
             artifacts_by_feature.setdefault(feature, []).append(record)
             if payload_preset:
@@ -672,9 +689,11 @@ def build_repo_index(paths):
         "artifacts": artifacts,
         "artifacts_by_tuple_path": artifacts_by_tuple_path,
         "artifacts_by_tool": artifacts_by_tool,
+        "artifacts_by_device_alias": artifacts_by_device_alias,
         "artifacts_by_payload_preset": artifacts_by_payload_preset,
         "artifacts_by_feature": artifacts_by_feature,
         "artifacts_by_tool_payload_preset": artifacts_by_tool_payload_preset,
+        "artifacts_by_device_payload_preset": artifacts_by_device_payload_preset,
         "artifacts_by_feature_payload_preset": artifacts_by_feature_payload_preset,
         "artifacts_by_tuple_payload_preset": artifacts_by_tuple_payload_preset,
     }
@@ -683,10 +702,12 @@ def build_repo_index(paths):
         "artifacts_by_release",
         "artifacts_by_tuple_path",
         "artifacts_by_tool",
+        "artifacts_by_device_alias",
         "artifacts_by_payload_preset",
         "artifacts_by_feature",
         "artifacts_by_compatibility",
         "artifacts_by_tool_payload_preset",
+        "artifacts_by_device_payload_preset",
         "artifacts_by_feature_payload_preset",
         "artifacts_by_tuple_payload_preset",
         "artifacts_by_provider_tool",
@@ -704,6 +725,7 @@ def build_repo_index(paths):
         "by_payload_preset",
         "by_feature",
         "by_tool_payload_preset",
+        "by_device_payload_preset",
         "by_feature_payload_preset",
         "by_tuple_payload_preset",
     ]
@@ -846,10 +868,12 @@ def build_repo_index(paths):
         "artifacts_by_release": {key: artifacts_by_release[key] for key in sorted(artifacts_by_release)},
         "artifacts_by_tuple_path": {key: artifacts_by_tuple_path[key] for key in sorted(artifacts_by_tuple_path)},
         "artifacts_by_tool": {key: artifacts_by_tool[key] for key in sorted(artifacts_by_tool)},
+        "artifacts_by_device_alias": {key: artifacts_by_device_alias[key] for key in sorted(artifacts_by_device_alias)},
         "artifacts_by_payload_preset": {key: artifacts_by_payload_preset[key] for key in sorted(artifacts_by_payload_preset)},
         "artifacts_by_feature": {key: artifacts_by_feature[key] for key in sorted(artifacts_by_feature)},
         "artifacts_by_compatibility": {key: artifacts_by_compatibility[key] for key in sorted(artifacts_by_compatibility)},
         "artifacts_by_tool_payload_preset": {key: artifacts_by_tool_payload_preset[key] for key in sorted(artifacts_by_tool_payload_preset)},
+        "artifacts_by_device_payload_preset": {key: artifacts_by_device_payload_preset[key] for key in sorted(artifacts_by_device_payload_preset)},
         "artifacts_by_feature_payload_preset": {key: artifacts_by_feature_payload_preset[key] for key in sorted(artifacts_by_feature_payload_preset)},
         "artifacts_by_tuple_payload_preset": {key: artifacts_by_tuple_payload_preset[key] for key in sorted(artifacts_by_tuple_payload_preset)},
         "artifacts_by_provider_tool": {key: artifacts_by_provider_tool[key] for key in sorted(artifacts_by_provider_tool)},

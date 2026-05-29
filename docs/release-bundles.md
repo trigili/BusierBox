@@ -199,7 +199,8 @@ and indexes tuple, device, tool, payload preset, feature, artifact sha256,
 release name, and tuple-path keys. The index preserves compatibility path maps
 such as `tools_present`, `payload_presets`, and `features`, and also provides
 full artifact-record maps named `artifacts_by_tool`,
-`artifacts_by_payload_preset`, `artifacts_by_feature`, and
+`artifacts_by_device_alias`, `artifacts_by_payload_preset`,
+`artifacts_by_feature`, and
 `artifacts_by_compatibility` for TUI/web clients that need to render details
 without rescanning every artifact. `compatibility_counts` gives compact badge
 counts for exact/likely/heuristic/unsafe/incompatible buckets. The `dedupe`
@@ -214,9 +215,11 @@ artifact paths, duplicate flags, and lookup maps named
 `dedupe_alternatives` with indexes named `dedupe_alternatives_by_release`,
 `dedupe_alternatives_by_tuple_path`, `dedupe_alternatives_by_payload_preset`,
 and `dedupe_alternatives_by_compatibility`. Composite maps
-`artifacts_by_tool_payload_preset`, `artifacts_by_feature_payload_preset`, and
+`artifacts_by_tool_payload_preset`, `artifacts_by_device_payload_preset`,
+`artifacts_by_feature_payload_preset`, and
 `artifacts_by_tuple_payload_preset` let clients jump directly to combinations
-such as `tcpdump:survey-core`, `reverse-ssh:ssh-operator`, or
+such as `tcpdump:survey-core`, `glinet-mt1300:survey-core`,
+`reverse-ssh:ssh-operator`, or
 `by-tuple/mipsel/musl/4.x/mips32r2-24kc:full-debug` without intersecting
 separate indexes. Provider audit maps `artifacts_by_provider_tool` and
 `artifacts_by_provider_status` expose payload-manifest provider checks such as
@@ -282,7 +285,8 @@ count/primary-key fields, index counts, and the selection policy.
 `filter_records`, `filters_by_name`,
 `filters_by_source`, and `filters_by_name_source` distinguish explicit
 operator filters from filters derived from survey evidence. Lookup maps include
-`matches_by_release`, `matches_by_tuple_path`, `matches_by_payload_preset`,
+`matches_by_release`, `matches_by_tuple_path`, `matches_by_device_alias`,
+`matches_by_payload_preset`,
 `matches_by_compatibility`, `matches_by_tool`, `matches_by_feature`,
 `matches_by_effective_compatibility`, `matches_by_provider_tool`, `matches_by_provider_status`,
 `matches_by_doom_wad_filename`, `matches_by_doom_wad_sha256`,
@@ -307,9 +311,11 @@ The repository index also includes a `recommendations` object for offline
 clients that want one best current artifact without shelling out to
 `scripts/find-artifact`. It records the same selection policy and precomputes
 recommendations by device alias, tuple path, tool, payload preset, feature, and
-common tuple/tool/feature plus preset combinations. The same selections are
+common tuple/device/tool/feature plus preset combinations. The same selections are
 also flattened into `recommendation_records` with stable ids such as
-`by_device:glinet-mt1300` or `by_tool_payload_preset:tcpdump:survey-core`, plus
+`by_device:glinet-mt1300`,
+`by_device_payload_preset:glinet-mt1300:survey-core`, or
+`by_tool_payload_preset:tcpdump:survey-core`, plus
 lookup maps by id, category, key, category/key, tuple path, payload preset,
 compatibility label, and release. `api_collections.recommendations` lists both
 the nested recommendation maps and the normalized record indexes so future
