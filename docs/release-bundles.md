@@ -942,9 +942,12 @@ parsing each event detail payload.
 valid event count, invalid JSONL line count, tail count, tail limit, and
 first/latest event timestamps. It also reports whether the recent tail is
 truncated and how many older valid events are omitted from the bounded status
-response. `event_log_stats` reports the event log path, total valid event count,
-tail count, invalid JSONL line count, tail limit, truncation state, omitted
-count, first/latest event timestamps, and
+response. It separately flags `tail_has_records`, `tail_has_omitted_records`,
+and `tail_empty_due_to_limit`, so clients can distinguish an empty event stream
+from an intentionally suppressed tail such as `--event-limit 0`. `event_log_stats`
+reports the event log path, total valid event count, tail count, invalid JSONL
+line count, tail limit, truncation state, omitted count, first/latest event
+timestamps, and
 aggregate counters by service, event, level, remote endpoint, service/event,
 session/event, service/level, event/level, session/level, remote/event,
 remote/level, detail status, detail operation,

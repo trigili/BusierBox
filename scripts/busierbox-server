@@ -1023,6 +1023,9 @@ def event_log_state_record(cfg, stats=None):
         "latest_event_at": stats.get("latest_event_at", ""),
         "error": "",
     }
+    rec["tail_has_records"] = rec["tail_count"] > 0
+    rec["tail_has_omitted_records"] = rec["tail_omitted_count"] > 0
+    rec["tail_empty_due_to_limit"] = total_count > 0 and rec["tail_count"] == 0 and rec["tail_limit"] == 0
     if exists:
         try:
             rec["size"] = path.stat().st_size
@@ -8905,6 +8908,9 @@ def status_document(cfg):
         "event_log_state_records_by_valid": records_by_key(event_log_state_records, "valid"),
         "event_log_state_records_by_tail_truncated": records_by_key(event_log_state_records, "tail_truncated"),
         "event_log_state_records_by_has_invalid_records": records_by_key(event_log_state_records, "has_invalid_records"),
+        "event_log_state_records_by_tail_has_records": records_by_key(event_log_state_records, "tail_has_records"),
+        "event_log_state_records_by_tail_has_omitted_records": records_by_key(event_log_state_records, "tail_has_omitted_records"),
+        "event_log_state_records_by_tail_empty_due_to_limit": records_by_key(event_log_state_records, "tail_empty_due_to_limit"),
     }
     events = event_stats["tail"]
     unfiltered_counts["event_tail"] = len(events)
@@ -9991,6 +9997,9 @@ def status_document(cfg):
         "event_log_size": event_log_state.get("size", 0),
         "event_log_state_record_count": len(event_log_state_records),
         "event_log_has_invalid_records": bool(event_log_state.get("has_invalid_records", False)),
+        "event_tail_has_records": bool(event_log_state.get("tail_has_records", False)),
+        "event_tail_has_omitted_records": bool(event_log_state.get("tail_has_omitted_records", False)),
+        "event_tail_empty_due_to_limit": bool(event_log_state.get("tail_empty_due_to_limit", False)),
         "event_tail_count": len(events),
         "event_tail_truncated": bool(event_summary_stats.get("tail_truncated", False)),
         "event_tail_omitted_count": event_summary_stats.get("tail_omitted_count", 0),
@@ -10599,6 +10608,9 @@ def status_document(cfg):
                 "event_log_state_records_by_valid",
                 "event_log_state_records_by_tail_truncated",
                 "event_log_state_records_by_has_invalid_records",
+                "event_log_state_records_by_tail_has_records",
+                "event_log_state_records_by_tail_has_omitted_records",
+                "event_log_state_records_by_tail_empty_due_to_limit",
             ), "event_log_state_record_count",
         ),
         "release_artifacts": api_collection_record(

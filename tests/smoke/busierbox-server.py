@@ -2528,9 +2528,16 @@ def main():
                 truncated_stats.get("by_remote_level", {}).get("198.51.100.7:1234:info") != 15 or
                 truncated_state.get("tail_truncated") is not True or
                 truncated_state.get("tail_omitted_count") != 3 or
+                truncated_state.get("tail_has_records") is not True or
+                truncated_state.get("tail_has_omitted_records") is not True or
+                truncated_state.get("tail_empty_due_to_limit") is not False or
                 truncated_event_doc.get("summary", {}).get("event_tail_truncated") is not True or
                 truncated_event_doc.get("summary", {}).get("event_tail_omitted_count") != 3 or
+                truncated_event_doc.get("summary", {}).get("event_tail_has_records") is not True or
+                truncated_event_doc.get("summary", {}).get("event_tail_has_omitted_records") is not True or
+                truncated_event_doc.get("summary", {}).get("event_tail_empty_due_to_limit") is not False or
                 truncated_event_doc.get("event_log_state_records_by_tail_truncated", {}).get("True", [{}])[0].get("tail_omitted_count") != 3 or
+                truncated_event_doc.get("event_log_state_records_by_tail_has_omitted_records", {}).get("True", [{}])[0].get("tail_omitted_count") != 3 or
                 truncated_event_doc.get("summary", {}).get("event_session_level_counts", {}).get("sess-trunc:info") != 15 or
                 truncated_event_doc.get("summary", {}).get("event_remote_event_counts", {}).get("198.51.100.7:1234:truncated_tail_probe") != 15 or
                 truncated_event_doc.get("summary", {}).get("event_remote_level_counts", {}).get("198.51.100.7:1234:info") != 15 or
@@ -2553,6 +2560,7 @@ def main():
         if (limited_stats.get("tail_limit") != 5 or
                 limited_stats.get("tail_count") != 5 or
                 limited_stats.get("tail_omitted_count") != 10 or
+                limited_event_doc.get("event_log_state", {}).get("tail_has_omitted_records") is not True or
                 limited_event_doc.get("summary", {}).get("event_tail_count") != 5 or
                 (limited_event_doc.get("events") or [{}])[0].get("id") != "evt-trunc-10"):
             print("server json status did not honor --event-limit", file=sys.stderr)
@@ -2569,6 +2577,9 @@ def main():
         if (zero_stats.get("tail_limit") != 0 or
                 zero_stats.get("tail_count") != 0 or
                 zero_stats.get("tail_omitted_count") != 15 or
+                zero_event_doc.get("event_log_state", {}).get("tail_empty_due_to_limit") is not True or
+                zero_event_doc.get("summary", {}).get("event_tail_empty_due_to_limit") is not True or
+                zero_event_doc.get("event_log_state_records_by_tail_empty_due_to_limit", {}).get("True", [{}])[0].get("tail_omitted_count") != 15 or
                 zero_event_doc.get("events") != []):
             print("server json status did not honor --event-limit 0", file=sys.stderr)
             print(zero_event_status.stdout, file=sys.stderr)
