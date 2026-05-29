@@ -5994,6 +5994,10 @@ def main():
         if (release_state.get("release_dir") != str(release_dir) or
                 release_state.get("release_json") != str(release_dir / "release.json") or
                 release_state.get("release_index") != str(release_dir / "release-index.json") or
+                release_state.get("detection_source") != "auto" or
+                release_state.get("detection_reason") != "release.json,release-index.json,bin+scripts" or
+                release_state.get("explicit_release_dir") is not False or
+                release_state.get("release_marker_count") != 3 or
                 release_state.get("present") is not True or
                 release_state.get("valid") is not True or
                 release_state.get("release_json_valid") is not True or
@@ -6116,12 +6120,46 @@ def main():
             capture_output=True,
         )
         non_release_doc = json.loads(non_release_status.stdout)
-        if (non_release_doc.get("release_state", {}).get("present") is not False or
+        non_release_state = non_release_doc.get("release_state") or {}
+        if (non_release_state.get("present") is not False or
+                non_release_state.get("detection_source") != "auto" or
+                non_release_state.get("detection_reason") != "no-release-markers" or
+                non_release_state.get("explicit_release_dir") is not False or
+                non_release_state.get("release_marker_count") != 0 or
                 non_release_doc.get("release") or
                 non_release_doc.get("summary", {}).get("release_present") is not False or
                 non_release_doc.get("summary", {}).get("warning_type_counts", {}).get("invalid_release_state", 0) != 0):
             print("json status treated a normal scripts directory as an invalid release bundle", file=sys.stderr)
             print(non_release_status.stdout, file=sys.stderr)
+            return 1
+        explicit_non_release_status = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--release-dir", str(non_release_dir),
+                "--json-status",
+            ],
+            cwd=tmp,
+            text=True,
+            capture_output=True,
+        )
+        explicit_non_release_doc = json.loads(explicit_non_release_status.stdout)
+        explicit_non_release_state = explicit_non_release_doc.get("release_state") or {}
+        explicit_non_release_warnings = [
+            item for item in explicit_non_release_doc.get("warnings", [])
+            if item.get("type") == "invalid_release_state"
+        ]
+        if (explicit_non_release_state.get("present") is not True or
+                explicit_non_release_state.get("valid") is not False or
+                explicit_non_release_state.get("detection_source") != "explicit" or
+                explicit_non_release_state.get("detection_reason") != "explicit-release-dir" or
+                explicit_non_release_state.get("explicit_release_dir") is not True or
+                explicit_non_release_state.get("release_marker_count") != 0 or
+                not explicit_non_release_warnings):
+            print("json status did not honor explicit invalid --release-dir metadata", file=sys.stderr)
+            print(explicit_non_release_status.stdout, file=sys.stderr)
             return 1
         invalid_release_dir = Path(tmp) / "invalid-release"
         (invalid_release_dir / "bin").mkdir(parents=True)
@@ -6147,6 +6185,10 @@ def main():
         ]
         if (invalid_release_state.get("present") is not True or
                 invalid_release_state.get("valid") is not False or
+                invalid_release_state.get("detection_source") != "auto" or
+                invalid_release_state.get("detection_reason") != "release.json,bin+scripts" or
+                invalid_release_state.get("explicit_release_dir") is not False or
+                invalid_release_state.get("release_marker_count") != 2 or
                 invalid_release_state.get("release_json_valid") is not False or
                 not invalid_release_state.get("errors") or
                 invalid_release_doc.get("release") or

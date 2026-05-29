@@ -5780,6 +5780,10 @@ def release_state_record(cfg=None, release=None):
         "release_dir": str(here),
         "release_json": str(release_json),
         "release_index": str(release_index),
+        "detection_source": "explicit" if explicit_release_dir else "auto",
+        "detection_reason": "",
+        "explicit_release_dir": explicit_release_dir,
+        "release_marker_count": 0,
         "present": False,
         "valid": False,
         "release_json_exists": False,
@@ -5799,12 +5803,24 @@ def release_state_record(cfg=None, release=None):
     rec["release_index_exists"] = release_index.is_file()
     rec["bin_dir_exists"] = bin_dir.is_dir()
     rec["scripts_dir_exists"] = scripts_dir.is_dir()
+    release_markers = []
+    if rec["release_json_exists"]:
+        release_markers.append("release.json")
+    if rec["release_index_exists"]:
+        release_markers.append("release-index.json")
+    if rec["bin_dir_exists"] and rec["scripts_dir_exists"]:
+        release_markers.append("bin+scripts")
+    rec["release_marker_count"] = len(release_markers)
     rec["present"] = bool(
         explicit_release_dir or
-        rec["release_json_exists"] or
-        rec["release_index_exists"] or
-        (rec["bin_dir_exists"] and rec["scripts_dir_exists"])
+        release_markers
     )
+    if explicit_release_dir:
+        rec["detection_reason"] = "explicit-release-dir"
+    elif release_markers:
+        rec["detection_reason"] = ",".join(release_markers)
+    else:
+        rec["detection_reason"] = "no-release-markers"
     if not rec["present"]:
         return rec
     release_doc = {}
