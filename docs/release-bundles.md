@@ -906,8 +906,14 @@ is listening. Status JSON also includes a `service_manager` runtime snapshot
 with shutdown state and currently registered sockets, Paramiko transports,
 service threads, and child processes for the current server process; `summary`
 mirrors the manager counts so clients can show lifecycle cleanup state without
-parsing implementation internals. Human `--status` prints the same manager
-counts as a compact `runtime_manager` line.
+parsing implementation internals. The same resources are flattened into
+`service_manager_resources` with lookup maps such as
+`service_manager_resources_by_kind`, `service_manager_resources_by_state`,
+`service_manager_resources_by_active`, `service_manager_resources_by_pid`,
+`service_manager_resources_by_kind_state`, and
+`service_manager_resources_by_kind_active` so API clients can filter sockets,
+transports, threads, and child processes like other status collections. Human
+`--status` prints the same manager counts as a compact `runtime_manager` line.
 
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `busierbox fetch`; it accepts an artifact basename, release path,

@@ -534,6 +534,9 @@ def main():
                 (quick_status.get("service_manager") or {}).get("transport_count") != quick_status.get("summary", {}).get("service_manager_transport_count") or
                 (quick_status.get("service_manager") or {}).get("thread_count") != quick_status.get("summary", {}).get("service_manager_thread_count") or
                 (quick_status.get("service_manager") or {}).get("child_process_count") != quick_status.get("summary", {}).get("service_manager_child_process_count") or
+                len(quick_status.get("service_manager_resources") or []) != quick_status.get("summary", {}).get("service_manager_resource_count") or
+                (quick_status.get("api_collections") or {}).get("service_manager_resources", {}).get("count") != quick_status.get("summary", {}).get("service_manager_resource_count") or
+                "service_manager_resources_by_kind_state" not in (((quick_status.get("api_collections") or {}).get("service_manager_resources") or {}).get("indexes") or []) or
                 quick_status.get("summary", {}).get("workbench_job_outcome_counts", {}).get("failed", 0) < 1 or
                 quick_status.get("summary", {}).get("workbench_job_exit_status_counts", {}).get("7", 0) < 1 or
                 quick_status.get("summary", {}).get("event_detail_job_id_counts", {}).get(quick_job_id, 0) < 1 or
@@ -578,6 +581,7 @@ def main():
                 "background=" not in quick_text.stdout or
                 "long_running=" not in quick_text.stdout or
                 "runtime_manager: shutdown=no reason=-" not in quick_text.stdout or
+                "resources=" not in quick_text.stdout or
                 "cancel: disabled; process is not alive" not in quick_text.stdout or
                 "outcomes:" not in quick_text.stdout):
             print("text status missing completed workbench job exit metadata", file=sys.stderr)
