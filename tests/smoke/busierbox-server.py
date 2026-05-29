@@ -6101,6 +6101,28 @@ def main():
             print("json status missing release device/tuple api collection indexes", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
+        non_release_dir = Path(tmp) / "non-release"
+        (non_release_dir / "scripts").mkdir(parents=True)
+        non_release_status = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--json-status",
+            ],
+            cwd=non_release_dir,
+            text=True,
+            capture_output=True,
+        )
+        non_release_doc = json.loads(non_release_status.stdout)
+        if (non_release_doc.get("release_state", {}).get("present") is not False or
+                non_release_doc.get("release") or
+                non_release_doc.get("summary", {}).get("release_present") is not False or
+                non_release_doc.get("summary", {}).get("warning_type_counts", {}).get("invalid_release_state", 0) != 0):
+            print("json status treated a normal scripts directory as an invalid release bundle", file=sys.stderr)
+            print(non_release_status.stdout, file=sys.stderr)
+            return 1
         invalid_release_dir = Path(tmp) / "invalid-release"
         (invalid_release_dir / "bin").mkdir(parents=True)
         (invalid_release_dir / "scripts").mkdir()

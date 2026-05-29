@@ -5768,8 +5768,10 @@ def release_context(cfg=None):
     return {}
 
 
-def release_state_record(release=None):
-    here = Path.cwd()
+def release_state_record(cfg=None, release=None):
+    cfg = cfg or {}
+    explicit_release_dir = bool(cfg.get("release_dir"))
+    here = Path(str(cfg.get("release_dir") or Path.cwd()))
     release_json = here / "release.json"
     release_index = here / "release-index.json"
     bin_dir = here / "bin"
@@ -5797,7 +5799,12 @@ def release_state_record(release=None):
     rec["release_index_exists"] = release_index.is_file()
     rec["bin_dir_exists"] = bin_dir.is_dir()
     rec["scripts_dir_exists"] = scripts_dir.is_dir()
-    rec["present"] = bool(rec["release_json_exists"] or rec["release_index_exists"] or rec["bin_dir_exists"] or rec["scripts_dir_exists"])
+    rec["present"] = bool(
+        explicit_release_dir or
+        rec["release_json_exists"] or
+        rec["release_index_exists"] or
+        (rec["bin_dir_exists"] and rec["scripts_dir_exists"])
+    )
     if not rec["present"]:
         return rec
     release_doc = {}
@@ -8733,7 +8740,7 @@ def status_document(cfg):
         "unfiltered_total_count", len(command_queue.get("commands") or [])
     )
     release = release_context(cfg)
-    release_state = release_state_record(release)
+    release_state = release_state_record(cfg, release)
     workbench_config_fields = workbench_config_field_records(cfg)
     workbench_config_field_index_maps = workbench_config_field_indexes(workbench_config_fields)
     workbench_config_field_stats = workbench_config_field_summary(workbench_config_fields)
