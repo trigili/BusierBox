@@ -3694,6 +3694,9 @@ def main():
             return 1
         session_doc["exit_reason"] = "clean shutdown"
         session_json_paths[0].write_text(json.dumps(session_doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        session_log_path = session_json_paths[0].parent / "session.log"
+        session_log_text = "remote banner\nremote prompt\n"
+        session_log_path.write_text(session_log_text, encoding="utf-8")
         session_events = [json.loads(line) for line in (session_json_paths[0].parent / "events.jsonl").read_text(encoding="utf-8").splitlines()]
         event_names = {event.get("event") for event in session_events}
         for expected_event in ("service_start", "connection_open", "upload_start", "upload_complete", "connection_close", "service_stop"):
@@ -4009,8 +4012,13 @@ def main():
                 upload_session.get("has_uploads") is not True or
                 upload_session.get("has_fetches") is not False or
                 upload_session.get("has_events") is not True or
+                upload_session.get("has_session_log") is not True or
                 upload_session.get("metadata_exists") is not True or
                 upload_session.get("event_log_exists") is not True or
+                upload_session.get("session_log_exists") is not True or
+                upload_session.get("session_log") != str(session_log_path) or
+                upload_session.get("session_log_size") != len(session_log_text.encode("utf-8")) or
+                upload_session.get("session_log_line_count") != 2 or
                 not isinstance(upload_session.get("duration_sec"), int) or
                 upload_session.get("metadata_path") != str(session_json_paths[0]) or
                 upload_session.get("event_log") != str(session_json_paths[0].parent / "events.jsonl")):
@@ -4025,12 +4033,15 @@ def main():
                 session_root_state.get("total_upload_count") != 1 or
                 session_root_state.get("total_fetch_count") != 0 or
                 session_root_state.get("total_event_count", 0) < 1 or
+                session_root_state.get("total_session_log_size") != len(session_log_text.encode("utf-8")) or
+                session_root_state.get("total_session_log_line_count") != 2 or
                 session_root_state.get("duration_known_count") != 1 or
                 session_root_state.get("total_duration_sec", -1) < 0 or
                 session_root_state.get("max_duration_sec", -1) < 0 or
                 session_root_state.get("sessions_with_uploads_count") != 1 or
                 session_root_state.get("sessions_with_fetches_count") != 0 or
                 session_root_state.get("sessions_with_events_count") != 1 or
+                session_root_state.get("sessions_with_session_logs_count") != 1 or
                 session_root_state.get("sessions_with_metadata_count") != 1 or
                 session_root_state.get("sessions_with_event_logs_count") != 1 or
                 upload_summary.get("session_root_exists") is not True or
@@ -4038,6 +4049,8 @@ def main():
                 upload_summary.get("session_total_upload_count") != 1 or
                 upload_summary.get("session_total_fetch_count") != 0 or
                 upload_summary.get("session_total_event_count", 0) < 1 or
+                upload_summary.get("session_total_log_size") != len(session_log_text.encode("utf-8")) or
+                upload_summary.get("session_total_log_line_count") != 2 or
                 upload_summary.get("session_duration_known_count") != 1 or
                 upload_summary.get("session_total_duration_sec", -1) < 0 or
                 upload_summary.get("session_average_duration_sec", -1) < 0 or
@@ -4045,6 +4058,7 @@ def main():
                 upload_summary.get("sessions_with_uploads_count") != 1 or
                 upload_summary.get("sessions_with_fetches_count") != 0 or
                 upload_summary.get("sessions_with_events_count") != 1 or
+                upload_summary.get("sessions_with_session_logs_count") != 1 or
                 upload_summary.get("sessions_with_metadata_count") != 1 or
                 upload_summary.get("sessions_with_event_logs_count") != 1):
             print("server json status missing session root browser state", file=sys.stderr)
@@ -4062,8 +4076,10 @@ def main():
         sessions_by_has_fetches = upload_doc.get("sessions_by_has_fetches") or {}
         sessions_by_has_events = upload_doc.get("sessions_by_has_events") or {}
         sessions_by_duration_known = upload_doc.get("sessions_by_duration_known") or {}
+        sessions_by_has_session_log = upload_doc.get("sessions_by_has_session_log") or {}
         sessions_by_metadata_exists = upload_doc.get("sessions_by_metadata_exists") or {}
         sessions_by_event_log_exists = upload_doc.get("sessions_by_event_log_exists") or {}
+        sessions_by_session_log_exists = upload_doc.get("sessions_by_session_log_exists") or {}
         events_by_session = upload_doc.get("events_by_session") or {}
         events_by_session_event = upload_doc.get("events_by_session_event") or {}
         upload_events_by_service_event = upload_doc.get("events_by_service_event") or {}
@@ -4136,20 +4152,26 @@ def main():
                 sessions_by_has_uploads.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_has_fetches.get("no", [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_has_events.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
+                sessions_by_has_session_log.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_duration_known.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_metadata_exists.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
                 sessions_by_event_log_exists.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
+                sessions_by_session_log_exists.get("yes", [{}])[0].get("session_id") != uploaded_session_id or
                 upload_summary.get("session_service_state_counts", {}).get(session_service_state_key) != 1 or
                 upload_summary.get("session_service_exit_reason_counts", {}).get(session_service_exit_key) != 1 or
                 upload_summary.get("session_service_remote_counts", {}).get(session_service_remote_key) != 1 or
                 upload_summary.get("session_has_uploads_counts", {}).get("yes") != 1 or
                 upload_summary.get("session_has_fetches_counts", {}).get("no") != 1 or
                 upload_summary.get("session_has_events_counts", {}).get("yes") != 1 or
+                upload_summary.get("session_has_session_log_counts", {}).get("yes") != 1 or
                 upload_summary.get("session_duration_known_counts", {}).get("yes") != 1 or
                 upload_summary.get("session_metadata_exists_counts", {}).get("yes") != 1 or
                 upload_summary.get("session_event_log_exists_counts", {}).get("yes") != 1 or
+                upload_summary.get("session_log_exists_counts", {}).get("yes") != 1 or
                 "sessions_by_metadata_exists" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", []) or
-                "sessions_by_event_log_exists" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", [])):
+                "sessions_by_event_log_exists" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", []) or
+                "sessions_by_has_session_log" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", []) or
+                "sessions_by_session_log_exists" not in ((upload_doc.get("api_collections") or {}).get("sessions") or {}).get("indexes", [])):
             print("server json status missing session/event lookup indexes", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
