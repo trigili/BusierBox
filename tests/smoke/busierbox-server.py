@@ -518,6 +518,8 @@ def main():
                 bridge_status.get("summary", {}).get("target_latest_bridge_activity_count") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_profile_counts", {}).get("lab-http") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("closed") != 1 or
+                bridge_status.get("summary", {}).get("bridge_profile_has_last_successful_relay_counts", {}).get("True") != 1 or
+                bridge_status.get("summary", {}).get("bridge_profile_has_last_failure_counts", {}).get("False") != 2 or
                 len(bridge_workflow_actions) != 12 or
                 bridge_action.get("target_id") != "target-bridge" or
                 bridge_action.get("workflow") != "bridge" or
@@ -542,13 +544,20 @@ def main():
                 ((bridge_status.get("targets_by_has_latest_bridge_activity") or {}).get("yes") or [{}])[0].get("target_id") != "target-bridge" or
                 ((bridge_status.get("bridge_profiles_by_name") or {}).get("chain-http") or {}).get("route_path") != expected_chain_path or
                 bridge_status.get("summary", {}).get("bridge_profile_hop_count_counts", {}).get("2") != 1 or
+                bridge_profile.get("has_last_successful_relay") is not True or
+                not bridge_profile.get("last_successful_relay_at") or
+                bridge_profile.get("has_last_failure") is not False or
                 bridge_profile.get("last_bytes_from_client", 0) < len(b"hello") or
                 bridge_profile.get("last_bytes_from_upstream", 0) < len(b"bridge:hello") or
                 "lab-http" not in [rec.get("name") for rec in ((bridge_status.get("bridge_profiles_by_target_id") or {}).get("target-bridge") or [])] or
+                ((bridge_status.get("bridge_profiles_by_has_last_successful_relay") or {}).get("True") or [{}])[0].get("name") != "lab-http" or
+                len((bridge_status.get("bridge_profiles_by_has_last_failure") or {}).get("False") or []) != 2 or
                 ((bridge_status.get("target_workflow_actions_by_requires_target_online") or {}).get("True") or [{}])[0].get("workflow") != "bridge" or
                 ((bridge_status.get("target_workflow_actions_by_queues_offline_work") or {}).get("True") or [{}])[0].get("target_id") != "target-bridge" or
                 "bridge_profiles_by_current_state" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 "bridge_profiles_by_hop_count" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
+                "bridge_profiles_by_has_last_successful_relay" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
+                "bridge_profiles_by_has_last_failure" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 not bridge_events.get("workbench_bridge_profile_inspected") or
                 not bridge_events.get("workbench_bridge_profile_saved") or
                 not bridge_events.get("workbench_bridge_profile_deleted") or
@@ -564,6 +573,19 @@ def main():
                 bridge_events["bridge_closed"][0].get("details", {}).get("bytes_from_upstream", 0) < len(b"bridge:hello")):
             print("json status missing bridge relay evidence", file=sys.stderr)
             print(json.dumps(bridge_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        inspect_relay_profile = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--inspect-bridge-profile", "lab-http",
+        )
+        if (inspect_relay_profile.returncode != 0 or
+                "relay: last_success=-" in inspect_relay_profile.stdout or
+                "client_bytes=" not in inspect_relay_profile.stdout or
+                "failure: last=- reason=-" not in inspect_relay_profile.stdout):
+            print("bridge profile inspect missing relay lifecycle fields", file=sys.stderr)
+            print(inspect_relay_profile.stdout, file=sys.stderr)
+            print(inspect_relay_profile.stderr, file=sys.stderr)
             return 1
 
         queue_bridge_action = run(
@@ -693,14 +715,18 @@ def main():
                 bridge_failure_status.get("summary", {}).get("target_workflow_action_requires_target_online_count") != 3 or
                 bridge_failure_status.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 7 or
                 bridge_failure_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("error") != 1 or
+                bridge_failure_status.get("summary", {}).get("bridge_profile_has_last_successful_relay_counts", {}).get("True") != 1 or
+                bridge_failure_status.get("summary", {}).get("bridge_profile_has_last_failure_counts", {}).get("True") != 1 or
                 bridge_failure_target.get("latest_bridge_profile") != "bad-http" or
                 bridge_failure_target.get("latest_bridge_operation") != "bridge_error" or
                 bridge_failure_target.get("latest_bridge_status") != "error" or
                 not bridge_failure_target.get("latest_bridge_failure_reason") or
                 bad_bridge_profile.get("last_failure_reason") != bridge_failure_target.get("latest_bridge_failure_reason") or
+                bad_bridge_profile.get("has_last_failure") is not True or
                 not bad_bridge_profile.get("last_failure_at") or
                 bad_bridge_profile.get("last_failure_dest_port") != bad_bridge_dest_port or
                 ((bridge_failure_status.get("bridge_profiles_by_requires_target_online") or {}).get("True") or [{}])[0].get("target_id") != "target-bridge" or
+                ((bridge_failure_status.get("bridge_profiles_by_has_last_failure") or {}).get("True") or [{}])[0].get("name") != "bad-http" or
                 ((bridge_failure_status.get("targets_by_latest_bridge_status") or {}).get("error") or [{}])[0].get("target_id") != "target-bridge" or
                 not bridge_failure_events.get("bridge_error") or
                 bridge_failure_events["bridge_error"][0].get("details", {}).get("bridge_profile") != "bad-http"):

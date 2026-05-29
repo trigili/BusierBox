@@ -2618,11 +2618,17 @@ def bridge_profile_record(cfg, name, rec, service_state=None):
     out["active"] = active_profile == out["name"] and out["current_state"] in ("starting", "listening")
     out["pid"] = state.get("pid", "") if active_profile == out["name"] else ""
     out["last_error"] = str(state.get("error") or "") if active_profile == out["name"] else ""
-    state_failure = str(state.get("stopped_reason") or state.get("error") or "") if active_profile == out["name"] else ""
+    state_failure = ""
+    if active_profile == out["name"]:
+        state_failure = str(state.get("error") or "")
+        if not state_failure and out["current_state"] == "error":
+            state_failure = str(state.get("stopped_reason") or "")
     out["last_failure_reason"] = str(out.get("last_failure_reason") or state_failure)
     out["last_failure_at"] = str(out.get("last_failure_at") or "")
     out["last_failure_remote_addr"] = str(out.get("last_failure_remote_addr") or "")
     out["last_successful_relay_at"] = str(out.get("last_successful_relay_at") or "")
+    out["has_last_successful_relay"] = bool(out["last_successful_relay_at"])
+    out["has_last_failure"] = bool(out["last_failure_at"] or out["last_failure_reason"])
     return out
 
 
@@ -2650,6 +2656,8 @@ def bridge_profile_indexes(records):
         "bridge_profiles_by_multi_hop": records_by_key(records, "multi_hop"),
         "bridge_profiles_by_hop_count": records_by_key(records, "hop_count"),
         "bridge_profiles_by_route_path": records_by_key(records, "route_path"),
+        "bridge_profiles_by_has_last_successful_relay": records_by_key(records, "has_last_successful_relay"),
+        "bridge_profiles_by_has_last_failure": records_by_key(records, "has_last_failure"),
     }
 
 
@@ -2739,6 +2747,8 @@ def print_bridge_profile(cfg, name, json_output=False):
     print(f"  destination: {out.get('dest_host', '')}:{out.get('dest_port', '')}")
     print(f"  route_path: {out.get('route_path', '')}")
     print(f"  state: {out.get('current_state', '')} active={'yes' if out.get('active') else 'no'} pid={out.get('pid', '') or '-'}")
+    print(f"  relay: last_success={out.get('last_successful_relay_at', '') or '-'} client_bytes={out.get('last_bytes_from_client', '') or 0} upstream_bytes={out.get('last_bytes_from_upstream', '') or 0}")
+    print(f"  failure: last={out.get('last_failure_at', '') or '-'} reason={out.get('last_failure_reason', '') or '-'}")
     print(f"  target: {out.get('target_id', '') or '-'} label={out.get('target_label', '') or '-'}")
     print(f"  purpose: {out.get('purpose', '') or '-'}")
     print(f"  notes: {out.get('notes', '') or '-'}")
@@ -2769,6 +2779,8 @@ def print_bridge_profiles(cfg, json_output=False):
             f"\t{rec.get('dest_host', '')}:{rec.get('dest_port', '')}"
             f"\tstate={rec.get('current_state', '')}"
             f"\ttarget={rec.get('target_id', '') or '-'}"
+            f"\tlast_success={rec.get('last_successful_relay_at', '') or '-'}"
+            f"\tlast_failure={rec.get('last_failure_reason', '') or '-'}"
         )
         print(f"  path: {rec.get('route_path', '')}")
         if rec.get("purpose") or rec.get("notes"):
@@ -11757,6 +11769,8 @@ def status_document(cfg):
         "bridge_profile_requires_target_online_counts": record_count_by_key(bridge_profiles, "requires_target_online"),
         "bridge_profile_multi_hop_counts": record_count_by_key(bridge_profiles, "multi_hop"),
         "bridge_profile_hop_count_counts": record_count_by_key(bridge_profiles, "hop_count"),
+        "bridge_profile_has_last_successful_relay_counts": record_count_by_key(bridge_profiles, "has_last_successful_relay"),
+        "bridge_profile_has_last_failure_counts": record_count_by_key(bridge_profiles, "has_last_failure"),
     })
     (services_by_actual,
      services_by_configured,
@@ -12694,6 +12708,8 @@ def status_document(cfg):
                 "bridge_profiles_by_current_state", "bridge_profiles_by_active",
                 "bridge_profiles_by_requires_target_online", "bridge_profiles_by_multi_hop",
                 "bridge_profiles_by_hop_count", "bridge_profiles_by_route_path",
+                "bridge_profiles_by_has_last_successful_relay",
+                "bridge_profiles_by_has_last_failure",
             ), "bridge_profile_count",
         ),
         "ports": api_collection_record(

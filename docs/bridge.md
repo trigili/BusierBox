@@ -96,8 +96,12 @@ a target to be online. `--json-status` exposes `bridge_profiles` plus indexes
 such as `bridge_profiles_by_name`, `bridge_profiles_by_target_id`,
 `bridge_profiles_by_current_state`, `bridge_profiles_by_active`,
 `bridge_profiles_by_multi_hop`, `bridge_profiles_by_hop_count`, and
-`bridge_profiles_by_route_path` for TUI and automation clients. The simple
-direct `--bridge-*` flags remain the easy one-hop path.
+`bridge_profiles_by_route_path` for TUI and automation clients. Successful and
+failed relay lifecycle is indexed with
+`bridge_profiles_by_has_last_successful_relay` and
+`bridge_profiles_by_has_last_failure`, and the text list/inspect commands show
+the latest success/failure fields directly. The simple direct `--bridge-*`
+flags remain the easy one-hop path.
 
 When `--bridge-profile` is selected for other operator workflows, generated
 target commands are route-aware. File fetch/upload commands and survey bootstrap
