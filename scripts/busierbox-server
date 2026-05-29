@@ -11768,6 +11768,7 @@ def print_status(cfg, json_output=False):
     if (doc.get("target_filter") or {}).get("active"):
         target_filter = doc.get("target_filter") or {}
         counts = target_filter.get("filtered_counts") or {}
+        observed_counts = target_filter.get("observed_activity_counts") or {}
         label = target_filter.get("selected_target_label") or "-"
         confidence = target_filter.get("selected_target_identity_confidence") or "-"
         print(
@@ -11776,6 +11777,8 @@ def print_status(cfg, json_output=False):
             f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)} "
             f"commands={counts.get('command_queue_commands', 0)} "
             f"target_cmds={counts.get('target_command_records', 0)} "
+            f"observed={observed_counts.get('filtered', 0)}/{observed_counts.get('unfiltered', 0)} "
+            f"observed_seen={'yes' if observed_counts.get('has_filtered') else 'no'} "
             f"label={label} confidence={confidence}"
         )
         for line in target_filter_evidence_lines(target_filter):
@@ -12120,6 +12123,7 @@ def print_workbench(cfg, include_api_summary=True):
     if (snap.get("target_filter") or {}).get("active"):
         target_filter = snap.get("target_filter") or {}
         counts = target_filter.get("filtered_counts") or {}
+        observed_counts = target_filter.get("observed_activity_counts") or {}
         label = target_filter.get("selected_target_label") or "-"
         confidence = target_filter.get("selected_target_identity_confidence") or "-"
         print(
@@ -12128,6 +12132,8 @@ def print_workbench(cfg, include_api_summary=True):
             f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)} "
             f"commands={counts.get('command_queue_commands', 0)} "
             f"target_cmds={counts.get('target_command_records', 0)} "
+            f"observed={observed_counts.get('filtered', 0)}/{observed_counts.get('unfiltered', 0)} "
+            f"observed_seen={'yes' if observed_counts.get('has_filtered') else 'no'} "
             f"label={label} confidence={confidence}"
         )
         for line in target_filter_evidence_lines(target_filter):

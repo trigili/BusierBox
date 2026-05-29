@@ -5505,6 +5505,8 @@ def main():
         )
         if (filtered_status.returncode != 0 or
                 "target_filter: target-bravo targets=1 uploads=1" not in filtered_status.stdout or
+                "observed=" not in filtered_status.stdout or
+                "observed_seen=yes" not in filtered_status.stdout or
                 "label=Bravo Router confidence=explicit" not in filtered_status.stdout or
                 "target-bravo label=Bravo Router confidence=explicit" not in filtered_status.stdout or
                 "notes=primary lab router" in filtered_status.stdout or
@@ -5520,6 +5522,8 @@ def main():
         )
         if (filtered_workbench.returncode != 0 or
                 "Target filter: target-bravo targets=1 uploads=1" not in filtered_workbench.stdout or
+                "observed=" not in filtered_workbench.stdout or
+                "observed_seen=yes" not in filtered_workbench.stdout or
                 "label=Bravo Router confidence=explicit" not in filtered_workbench.stdout or
                 "target-bravo label=Bravo Router confidence=explicit" not in filtered_workbench.stdout or
                 "target-alpha label=Alpha Router Renamed" in filtered_workbench.stdout):
