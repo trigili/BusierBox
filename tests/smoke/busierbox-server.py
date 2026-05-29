@@ -2854,11 +2854,39 @@ def main():
             stopped_services = stopped_doc.get("services_by_name") or {}
             daemon_state_after = json.loads(daemon_state.read_text(encoding="utf-8"))
             stopped_daemon_state = daemon_state_after.get("services") or {}
+            daemon_events = [
+                json.loads(line)
+                for line in (Path(tmp) / "operator-session" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
             if (stopped_services.get("file-service", {}).get("actual") != "stopped" or
                     stopped_daemon_state.get("operator-daemon", {}).get("status") != "stopped"):
                 print("operator daemon stop did not release child listeners", file=sys.stderr)
                 print(json.dumps(stopped_doc, indent=2, sort_keys=True), file=sys.stderr)
                 print(json.dumps(daemon_state_after, indent=2, sort_keys=True), file=sys.stderr)
+                return 1
+            if (not any(
+                        event.get("event") == "daemon_starting" and
+                        "--daemon --daemon-service file-service" in event.get("details", {}).get("headless_command", "")
+                        for event in daemon_events) or
+                    not any(
+                        event.get("event") == "daemon_child_start" and
+                        event.get("details", {}).get("service") == "file-service" and
+                        "--transport file-service" in event.get("details", {}).get("headless_command", "") and
+                        "--daemon --daemon-service file-service" in event.get("details", {}).get("daemon_headless_command", "")
+                        for event in daemon_events) or
+                    not any(
+                        event.get("event") == "service_stop" and
+                        event.get("service") == "file-service" and
+                        event.get("details", {}).get("via") == "server-stop" and
+                        "--stop" in event.get("details", {}).get("headless_command", "")
+                        for event in daemon_events) or
+                    not any(
+                        event.get("event") == "daemon_stopped" and
+                        "--daemon --daemon-service file-service" in event.get("details", {}).get("headless_command", "")
+                        for event in daemon_events)):
+                print("operator daemon lifecycle events missing headless command metadata", file=sys.stderr)
+                print(json.dumps(daemon_events[-16:], indent=2, sort_keys=True), file=sys.stderr)
                 return 1
         finally:
             if daemon_proc.poll() is None:

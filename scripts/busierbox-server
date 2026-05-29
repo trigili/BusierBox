@@ -10031,32 +10031,65 @@ def daemon_child_command(cfg, service):
     return command
 
 
+def operator_daemon_headless_command(cfg, services, timeout=None):
+    parts = [
+        "scripts/busierbox-server",
+        "--config",
+        str(cfg.get("_config_path", DEFAULT_CONFIG)),
+        "--daemon",
+    ]
+    for service in configured_daemon_services(cfg, services):
+        parts.extend(["--daemon-service", service])
+    if timeout is not None:
+        parts.extend(["--timeout", str(timeout)])
+    return " ".join(shquote(part) for part in parts)
+
+
+def operator_stop_headless_command(cfg):
+    return (
+        "scripts/busierbox-server --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --stop"
+    )
+
+
 def run_operator_daemon(cfg, services, timeout=None):
     services = configured_daemon_services(cfg, services)
     if not services:
         raise ValueError("operator daemon has no services selected; set *_enable=yes or pass --daemon-service")
+    headless = operator_daemon_headless_command(cfg, services, timeout=timeout)
     daemon_log_root = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "daemon-logs"
     daemon_log_root.mkdir(parents=True, exist_ok=True)
     update_server_state(cfg, "operator-daemon", "starting", {
         "daemon_services": services,
         "child_count": 0,
+        "headless_command": headless,
     })
-    append_event(cfg, "operator-daemon", "daemon_starting", details={"services": services})
+    append_event(cfg, "operator-daemon", "daemon_starting", details={"services": services, "headless_command": headless})
     children = []
     for service in services:
         command = daemon_child_command(cfg, service)
+        child_headless = " ".join(shquote(str(part)) for part in command)
         log_path = daemon_log_root / f"{service}.log"
         log_fh = log_path.open("ab")
         child_env = dict(os.environ)
         child_env["BB_OPERATOR_DAEMON"] = "1"
         proc = start_child_process(command + ["--process-log", str(log_path)], cwd=Path.cwd(), stdout=log_fh, stderr=subprocess.STDOUT, env=child_env)
-        children.append({"service": service, "process": proc, "log_fh": log_fh, "log_path": str(log_path), "command": command})
-        append_event(cfg, "operator-daemon", "daemon_child_start", details={"service": service, "pid": proc.pid, "process_log": str(log_path), "command": command})
+        children.append({"service": service, "process": proc, "log_fh": log_fh, "log_path": str(log_path), "command": command, "headless_command": child_headless})
+        append_event(cfg, "operator-daemon", "daemon_child_start", details={
+            "service": service,
+            "pid": proc.pid,
+            "process_log": str(log_path),
+            "command": command,
+            "headless_command": child_headless,
+            "daemon_headless_command": headless,
+        })
     update_server_state(cfg, "operator-daemon", "listening", {
         "daemon_services": services,
         "child_count": len(children),
         "child_pids": [item["process"].pid for item in children],
         "child_process_logs": {item["service"]: item["log_path"] for item in children},
+        "headless_command": headless,
     })
     print("BusierBox operator daemon")
     for item in children:
@@ -10109,9 +10142,11 @@ def run_operator_daemon(cfg, services, timeout=None):
                 "service": item["service"],
                 "pid": proc.pid,
                 "returncode": proc.returncode,
+                "headless_command": item.get("headless_command", ""),
+                "daemon_headless_command": headless,
             })
         mark_service_stopped(cfg, "operator-daemon", SHUTDOWN_REASON or "daemon-stop")
-        append_event(cfg, "operator-daemon", "daemon_stopped", details={"services": services, "exit_code": exit_code})
+        append_event(cfg, "operator-daemon", "daemon_stopped", details={"services": services, "exit_code": exit_code, "headless_command": headless})
     return exit_code
 
 
@@ -14225,6 +14260,7 @@ def print_status(cfg, json_output=False):
 
 
 def stop_managed_services(cfg):
+    headless = operator_stop_headless_command(cfg)
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     services = state.get("services") if isinstance(state, dict) else {}
     if not isinstance(services, dict):
@@ -14240,29 +14276,29 @@ def stop_managed_services(cfg):
             continue
         if not pid:
             mark_service_stopped(cfg, name, "server-stop:no-pid")
-            append_event(cfg, name, "service_stop", details={"reason": "no-pid", "via": "server-stop"})
+            append_event(cfg, name, "service_stop", details={"reason": "no-pid", "via": "server-stop", "headless_command": headless})
             print(f"{name}: no pid recorded; marked stopped")
             skipped += 1
             continue
         if not pid_alive(pid):
             mark_service_stopped(cfg, name, "server-stop:stale-pid")
-            append_event(cfg, name, "service_stop", details={"pid": pid, "reason": "stale-pid", "via": "server-stop"})
+            append_event(cfg, name, "service_stop", details={"pid": pid, "reason": "stale-pid", "via": "server-stop", "headless_command": headless})
             print(f"{name}: stale pid {pid}; marked stopped")
             skipped += 1
             continue
         ownership_evidence = managed_server_evidence(pid, cfg=cfg, rec=rec)
         if not ownership_evidence:
             print(f"{name}: skipped pid {pid}; not clearly a managed busierbox-server process")
-            append_event(cfg, name, "service_stop_skipped", details={"pid": pid, "reason": "unmanaged-pid", "via": "server-stop"})
+            append_event(cfg, name, "service_stop_skipped", details={"pid": pid, "reason": "unmanaged-pid", "via": "server-stop", "headless_command": headless})
             skipped += 1
             continue
         try:
-            append_event(cfg, name, "shutdown", details={"pid": pid, "reason": "SIGTERM", "via": "server-stop", "ownership_evidence": ownership_evidence})
+            append_event(cfg, name, "shutdown", details={"pid": pid, "reason": "SIGTERM", "via": "server-stop", "ownership_evidence": ownership_evidence, "headless_command": headless})
             os.kill(int(pid), signal.SIGTERM)
             if wait_service_port_released(cfg, name, pid=pid):
                 stopped += 1
                 mark_service_stopped(cfg, name, "server-stop:SIGTERM")
-                append_event(cfg, name, "service_stop", details={"pid": pid, "via": "server-stop", "ownership_evidence": ownership_evidence, "port_released": True})
+                append_event(cfg, name, "service_stop", details={"pid": pid, "via": "server-stop", "ownership_evidence": ownership_evidence, "port_released": True, "headless_command": headless})
                 print(f"{name}: stopped pid {pid}; port released")
             else:
                 raise TimeoutError(f"listener port {service_port(cfg, name)} still appears bound after SIGTERM")
@@ -14272,7 +14308,7 @@ def stop_managed_services(cfg):
             failed += 1
         except TimeoutError as exc:
             mark_service_error(cfg, name, exc)
-            append_event(cfg, name, "service_stop_failed", "error", details={"pid": pid, "reason": "port-still-bound", "via": "server-stop", "error": str(exc)})
+            append_event(cfg, name, "service_stop_failed", "error", details={"pid": pid, "reason": "port-still-bound", "via": "server-stop", "error": str(exc), "headless_command": headless})
             print(f"{name}: failed to stop pid {pid}: {exc}", file=sys.stderr)
             failed += 1
     if stopped == 0 and skipped == 0 and failed == 0:
