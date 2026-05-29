@@ -87,6 +87,12 @@ struct stop_result {
 };
 
 static volatile sig_atomic_t stop_daemon;
+static int event_poll_interval_sec;
+static int event_poll_jitter_pct;
+static int event_poll_max_interval_sec;
+static int event_max_polls;
+static char event_poll_backoff[64];
+static char event_state_file[PATH_MAX];
 
 static void utc_timestamp(char *out, size_t outsz);
 
@@ -477,6 +483,16 @@ static void append_poll_event(const char *path, const char *event, const char *m
     bb_json_string(fh, endpoint ? endpoint : "");
     fprintf(fh, ",\"attempt\":%d,\"executes_commands\":false,\"execution_mode\":", attempt);
     bb_json_string(fh, BB_COMMAND_QUEUE_EXECUTION);
+    fprintf(fh, ",\"poll_interval_sec\":%d,\"poll_jitter_pct\":%d",
+            event_poll_interval_sec, event_poll_jitter_pct);
+    fputs(",\"poll_backoff\":", fh);
+    bb_json_string(fh, event_poll_backoff);
+    fprintf(fh, ",\"poll_max_interval_sec\":%d,\"max_polls\":%d",
+            event_poll_max_interval_sec, event_max_polls);
+    fputs(",\"state_file\":", fh);
+    bb_json_string(fh, event_state_file);
+    fputs(",\"event_log\":", fh);
+    bb_json_string(fh, path ? path : "");
     fprintf(fh, ",\"delivery_supported\":%s,\"result_upload_supported\":%s",
             live_poll_supported ? "true" : "false", live_poll_supported ? "true" : "false");
     fputs(",\"status\":", fh);
@@ -884,6 +900,12 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
         limit = 1;
     signal(SIGINT, handle_stop);
     signal(SIGTERM, handle_stop);
+    event_poll_interval_sec = interval_sec;
+    event_poll_jitter_pct = jitter_pct;
+    event_poll_max_interval_sec = backoff_max_interval_sec;
+    event_max_polls = max_polls;
+    snprintf(event_poll_backoff, sizeof(event_poll_backoff), "%s", backoff ? backoff : "");
+    snprintf(event_state_file, sizeof(event_state_file), "%s", state_file ? state_file : "");
     if (!strcmp(mode, "daemon") &&
         write_daemon_state(state_file, mode, endpoint, interval_sec, jitter_pct, backoff,
                            backoff_max_interval_sec, max_polls, event_log,
@@ -954,7 +976,16 @@ static void stop_daemon_from_state(const char *state_file, const char *event_log
 
     memset(stop, 0, sizeof(*stop));
     snprintf(stop->status, sizeof(stop->status), "missing");
+    snprintf(event_state_file, sizeof(event_state_file), "%s", state_file ? state_file : "");
     read_daemon_state(state_file, state);
+    if (state->present) {
+        event_poll_interval_sec = state->poll_interval_sec;
+        event_poll_jitter_pct = state->poll_jitter_pct;
+        event_poll_max_interval_sec = state->poll_max_interval_sec;
+        event_max_polls = state->max_polls;
+        snprintf(event_poll_backoff, sizeof(event_poll_backoff), "%s", state->poll_backoff);
+        snprintf(event_state_file, sizeof(event_state_file), "%s", state_file ? state_file : "");
+    }
     if (!state->present) {
         stop->missing = 1;
         append_poll_event(event_log, "command_queue_daemon_stop", "stop", state_file, 0, "missing", "",
