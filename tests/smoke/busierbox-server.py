@@ -1846,6 +1846,7 @@ def main():
                 ("release_state_records", len(queue_status_json.get("release_state_records") or []), "release_state_records_by_detection_source"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
                 ("workbench_config_fields", len(queue_status_json.get("workbench_config_fields") or []), "workbench_config_fields_by_key"),
+                ("workbench_jobs_state_records", len(queue_status_json.get("workbench_jobs_state_records") or []), "workbench_jobs_state_records_by_valid"),
                 ("workbench_jobs", len(queue_status_json.get("workbench_jobs") or []), "workbench_jobs_by_id"),
                 ("sessions", len(queue_status_json.get("sessions") or []), "sessions_by_has_uploads"),
                 ("events", len(queue_status_json.get("events") or []), "events_by_id"),
@@ -1896,6 +1897,9 @@ def main():
                 api_resources_by_summary_key.get("workbench_action_count", [{}])[0].get("name") != "workbench_actions" or
                 api_resources_by_name.get("workbench_config_fields", {}).get("records_key") != "workbench_config_fields" or
                 api_resources_by_summary_key.get("workbench_config_field_count", [{}])[0].get("name") != "workbench_config_fields" or
+                api_resources_by_name.get("workbench_jobs_state_records", {}).get("records_key") != "workbench_jobs_state_records" or
+                api_resources_by_summary_key.get("workbench_jobs_state_record_count", [{}])[0].get("name") != "workbench_jobs_state_records" or
+                not any(rec.get("name") == "workbench_jobs_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
                 api_resources_by_name.get("workbench_jobs", {}).get("records_key") != "workbench_jobs" or
                 api_resources_by_summary_key.get("workbench_job_count", [{}])[0].get("name") != "workbench_jobs" or
                 api_resources_by_summary_key.get("event_tail_count", [{}])[0].get("name") != "events" or
@@ -1973,6 +1977,7 @@ def main():
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         workbench_jobs = queue_status_json.get("workbench_jobs") or []
+        workbench_jobs_state = queue_status_json.get("workbench_jobs_state") or {}
         jobs_by_id = queue_status_json.get("workbench_jobs_by_id") or {}
         jobs_by_action = queue_status_json.get("workbench_jobs_by_action") or {}
         jobs_by_state = queue_status_json.get("workbench_jobs_by_effective_state") or {}
@@ -2000,6 +2005,14 @@ def main():
                 queue_status_json.get("summary", {}).get("workbench_job_elapsed_known_count") != 1 or
                 queue_status_json.get("summary", {}).get("workbench_job_background_supported_count") != 1 or
                 queue_status_json.get("summary", {}).get("workbench_job_long_running_count") != 1 or
+                workbench_jobs_state.get("path") != str(workbench_jobs_file) or
+                workbench_jobs_state.get("valid") is not True or
+                workbench_jobs_state.get("job_count") != 1 or
+                workbench_jobs_state.get("has_jobs") is not True or
+                queue_status_json.get("workbench_jobs_state_records_by_path", {}).get(str(workbench_jobs_file), {}).get("job_count") != 1 or
+                queue_status_json.get("workbench_jobs_state_records_by_has_jobs", {}).get("True", [{}])[0].get("path") != str(workbench_jobs_file) or
+                queue_status_json.get("summary", {}).get("workbench_jobs_state_record_count") != 1 or
+                queue_status_json.get("summary", {}).get("workbench_jobs_state_has_jobs") is not True or
                 job.get("effective_state") != "exited" or
                 job.get("pid_alive") is not False or
                 job.get("pid_managed") is not False or
@@ -2031,6 +2044,7 @@ def main():
                 jobs_by_background_supported.get("True", [{}])[0].get("id") != "job-smoke" or
                 jobs_by_long_running.get("True", [{}])[0].get("id") != "job-smoke" or
                 (queue_status_json.get("workbench_jobs_by_last_output_tail_truncated") or {}).get("True", [{}])[0].get("id") != "job-smoke" or
+                "workbench_jobs_state_records_by_has_jobs" not in ((queue_status_json.get("api_collections") or {}).get("workbench_jobs_state_records") or {}).get("indexes", []) or
                 "workbench_jobs_by_pid_managed" not in (jobs_api.get("indexes") or []) or
                 "workbench_jobs_by_log_exists" not in (jobs_api.get("indexes") or []) or
                 "workbench_jobs_by_exit_status_known" not in (jobs_api.get("indexes") or []) or

@@ -8990,6 +8990,14 @@ def status_document(cfg):
     command_copy_records = [command_copy]
     command_copy_record_indexes = command_copy_indexes(command_copy_records)
     workbench_jobs_state = workbench_jobs_state_record(cfg)
+    workbench_jobs_state["has_jobs"] = int(workbench_jobs_state.get("job_count") or 0) > 0
+    workbench_jobs_state_records = [workbench_jobs_state]
+    workbench_jobs_state_index_maps = {
+        "workbench_jobs_state_records_by_path": {rec.get("path", ""): rec for rec in workbench_jobs_state_records if rec.get("path")},
+        "workbench_jobs_state_records_by_exists": records_by_key(workbench_jobs_state_records, "exists"),
+        "workbench_jobs_state_records_by_valid": records_by_key(workbench_jobs_state_records, "valid"),
+        "workbench_jobs_state_records_by_has_jobs": records_by_key(workbench_jobs_state_records, "has_jobs"),
+    }
     operator_state_records_list = operator_state_records(
         cfg, server_state, staged_files_state, command_queue_state,
         command_copy, workbench_jobs_state, event_log_state, session_root_state,
@@ -9196,6 +9204,8 @@ def status_document(cfg):
         "workbench_jobs_file_exists": bool(workbench_jobs_state.get("exists", False)),
         "workbench_jobs_file_valid": bool(workbench_jobs_state.get("valid", False)),
         "workbench_jobs_file_job_count": workbench_jobs_state.get("job_count", 0),
+        "workbench_jobs_state_record_count": len(workbench_jobs_state_records),
+        "workbench_jobs_state_has_jobs": bool(workbench_jobs_state.get("has_jobs", False)),
         "operator_state_count": len(operator_state_records_list),
         "operator_state_status_counts": operator_state_health.get("status_counts") or {},
         "operator_state_ok_count": operator_state_health.get("ok", 0),
@@ -9777,6 +9787,14 @@ def status_document(cfg):
                 "command_queue_state_records_by_has_commands",
             ), "command_queue_state_record_count",
         ),
+        "workbench_jobs_state_records": api_collection_record(
+            "workbench_jobs_state_records", workbench_jobs_state_records, "path", (
+                "workbench_jobs_state_records_by_path",
+                "workbench_jobs_state_records_by_exists",
+                "workbench_jobs_state_records_by_valid",
+                "workbench_jobs_state_records_by_has_jobs",
+            ), "workbench_jobs_state_record_count",
+        ),
         "uploads": api_collection_record(
             "uploads", uploads, "metadata_path", (
                 "uploads_by_session", "uploads_by_filename", "uploads_by_kind", "uploads_by_sha256",
@@ -10052,6 +10070,8 @@ def status_document(cfg):
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
         "targets_file": str(targets_path(cfg)),
         "workbench_jobs_state": workbench_jobs_state,
+        "workbench_jobs_state_records": workbench_jobs_state_records,
+        **workbench_jobs_state_index_maps,
         "operator_state_records": operator_state_records_list,
         **operator_state_index_maps,
         "build_config": str(build_config_path(cfg)),
