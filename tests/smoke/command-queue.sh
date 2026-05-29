@@ -698,6 +698,80 @@ grep -q '^  delivery_policy_counts: .*delivery_supported=true=1.*result_upload_s
 grep -q '^  delivery_policy: enabled=yes valid=yes execution_mode=metadata-only delivery_supported=yes result_upload_supported=yes active_control_channel=yes$' "$queued_text_file"
 rm -f "$queued_text_file"
 rm -f "$queued_cfg" "$queued_out" "$queued_err" "$queued_events"
+exec_port=$(python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+exec_cfg="${TMPDIR:-/tmp}/busierbox-command-queue-exec.$$.json"
+exec_out="${TMPDIR:-/tmp}/busierbox-command-queue-exec.$$.out"
+exec_err="${TMPDIR:-/tmp}/busierbox-command-queue-exec.$$.err"
+exec_events="${TMPDIR:-/tmp}/busierbox-command-queue-exec-events.$$.jsonl"
+python3 - "$exec_cfg" "$exec_port" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+cfg = {
+    "listen_host": "127.0.0.1",
+    "operator_session_dir": str(Path(sys.argv[1]).with_suffix(".session")),
+    "server_state": str(Path(sys.argv[1]).with_suffix(".state.json")),
+    "command_queue_file": str(Path(sys.argv[1]).with_suffix(".queue.json")),
+    "command_queue_enable": "yes",
+    "command_queue_port": sys.argv[2],
+    "command_queue_tls": "no",
+    "command_queue_require_token": "no",
+    "command_queue_allowed_commands": "custom",
+    "command_queue_execution": "execute",
+    "command_queue_allow_arbitrary": "yes",
+}
+Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
+PY
+scripts/busierbox-server --config "$exec_cfg" --queue-command 'printf cq-executed' >/dev/null
+scripts/busierbox-server --config "$exec_cfg" --transport command-queue --timeout 2 >"$exec_out" 2>"$exec_err" &
+exec_pid=$!
+sleep 0.5
+BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_REQUIRE_TOKEN=no BB_COMMAND_QUEUE_ALLOWED_COMMANDS=custom BB_COMMAND_QUEUE_ALLOW_ARBITRARY=yes BB_COMMAND_QUEUE_EXECUTION=execute BB_COMMAND_QUEUE_TLS=no BB_COMMAND_QUEUE_PORT="$exec_port" BB_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --event-log "$exec_events" --json | python3 -c 'import hashlib,json,sys; d=json.load(sys.stdin); expected=hashlib.sha256(b"printf cq-executed").hexdigest(); r=d["poll_run"]; p=d["poll_plan"]; q=d["queued_command"]; assert d["dry_run"] is False; assert d["status"] == "polling"; assert d["execution_supported"] is True; assert d["executes_commands"] is True; assert d["arbitrary_execution_allowed"] is True; assert p["operator_supplied_command_execution"] is True; assert q["command"] == "printf cq-executed"; assert q["command_sha256"] == expected; assert q["execution_supported"] is True; assert q["executes_commands"] is True; assert q["execution_decision"] == "executed"; assert r["queued_command_available"] is True; assert r["execution_decision"] == "executed"; assert r["attempted"] is True; assert r["attempts"] == 1; assert r["successes"] == 1; assert r["failures"] == 0; assert r["delivered_commands"] == 1; assert r["executed_commands"] == 1; assert r["rejected_commands"] == 0; assert r["result_uploads"] == 1; assert r["result_upload_failures"] == 0; assert r["last_status"] == "delivered-executed"; assert r["last_error"] == ""; assert r["last_command_id"] == q["id"]; assert r["last_command_sha256"] == expected; assert r["last_command"] == q["command"]; assert r["event_count"] == 5; assert r["event_info_count"] == 5; assert r["event_warning_count"] == 0; assert r["event_counts_by_event"]["command_queue_execution_decision"] == 1; assert r["event_counts_by_event"]["command_queue_result_upload"] == 1'
+wait "$exec_pid"
+grep -q 'command-queue poll delivered' "$exec_out"
+python3 - "$exec_events" "$exec_cfg" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+events = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
+cfg = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+queue = json.loads(Path(cfg["command_queue_file"]).read_text(encoding="utf-8"))
+command = queue["commands"][0]
+assert any(event["event"] == "command_queue_execution_decision" and event["details"]["status"] == "executed" for event in events)
+assert all(event["details"]["executes_commands"] is True for event in events)
+assert command["status"] == "result-received"
+assert command["execution_supported"] is True
+assert command["executes_commands"] is True
+assert command["execution_decision"] == "executed"
+assert command["result"]["status"] == "success"
+assert command["result"]["exit_code"] == 0
+assert command["result"]["output_preview"] == "cq-executed"
+assert command["result_output_bytes"] == len("cq-executed")
+assert command["result_output_exceeded_limit"] is False
+queue_policy = command["queue_policy_snapshot"]
+delivery_policy = command["delivery_policy_snapshot"]
+assert queue_policy["execution_supported"] is True
+assert queue_policy["executes_commands"] is True
+assert queue_policy["arbitrary_execution_allowed"] is True
+assert delivery_policy["execution_supported"] is True
+assert delivery_policy["executes_commands"] is True
+assert delivery_policy["arbitrary_execution_allowed"] is True
+operator_events = Path(cfg["operator_session_dir"]) / "events.jsonl"
+operator = [json.loads(line) for line in operator_events.open(encoding="utf-8")]
+assert any(event["service"] == "command-queue" and event["event"] == "command_delivered" and event["details"]["execution_supported"] is True and event["details"]["execution_decision"] == "pending" for event in operator)
+assert any(event["service"] == "command-queue" and event["event"] == "command_result_received" and event["details"].get("execution_decision") == "executed" for event in operator)
+PY
+scripts/busierbox-server --config "$exec_cfg" --json-command-queue | python3 -c 'import json,sys; q=json.load(sys.stdin)["command_queue"]; commands=q["commands"]; assert len(commands) == 1; command_id=commands[0]["id"]; assert q["execution_supported"] is True; assert q["executes_commands"] is True; assert q["arbitrary_execution_allowed"] is True; assert q["execution_decision_counts"]["executed"] == 1; assert q["result_status_counts"]["success"] == 1; assert q["commands_by_execution_decision"]["executed"][0]["id"] == command_id'
+rm -f "$exec_cfg" "$exec_out" "$exec_err" "$exec_events"
 term_port=$(python3 - <<'PY'
 import socket
 s = socket.socket()

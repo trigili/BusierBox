@@ -4,12 +4,19 @@ The command queue is an explicit advanced mode where a target can poll an
 operator service for queued work. It is separate from file upload, fetch,
 evidence push, and reverse shells.
 
-Current behavior is intentionally non-executing:
+Current behavior is disabled and metadata-only by default, with explicit
+target-side execution available only when both the target and operator policies
+opt in:
 
 - `BB_COMMAND_QUEUE_ENABLE` defaults to `no`.
 - `BB_COMMAND_QUEUE_EXECUTION` defaults to `metadata-only`. Queued command
   metadata may be delivered only during explicit live polling, and the target
   still rejects the execution decision instead of running the command.
+- `BB_COMMAND_QUEUE_EXECUTION=execute` permits target-side execution only with
+  a valid non-`none` command policy. `busierbox-only` accepts commands whose
+  first word is `busierbox` or `./busierbox`; `custom` additionally requires
+  `BB_COMMAND_QUEUE_ALLOW_ARBITRARY=yes`. These settings are the only supported
+  way to execute queued commands.
 - `busierbox command-queue status --json` reports the compiled/effective policy
   and a compact `policy_summary` for frontend/operator tooling.
 - Invalid effective policy is reported as `policy_valid=false` with explicit
@@ -21,10 +28,11 @@ Current behavior is intentionally non-executing:
   command-queue polling is reported as unsupported instead of silently falling
   back to plaintext. Live polls can receive queued command metadata, and
   target-side JSON reports the delivered command id, command text, timeout, and
-  maximum-output metadata. The target still records an explicit rejected
-  execution decision and never executes queued commands in this build. It can
-  upload the rejected-result metadata so the operator ledger has a complete
-  decision record.
+  maximum-output metadata. Metadata-only policy records an explicit rejected
+  execution decision. Execute policy runs the command through `/bin/sh -c`,
+  captures merged stdout/stderr output up to the configured maximum and preview
+  cap, records exit status or timeout, and uploads the result metadata so the
+  operator ledger has a complete decision record.
 - Operator status mirrors the same transport boundary:
   `poll_transport_supported=false`, `live_polling_supported=false`, and
   `poll_transport_unsupported_reason` explain the TLS constraint when the
@@ -36,16 +44,17 @@ Current behavior is intentionally non-executing:
 - `scripts/busierbox-server --queue-command ...` records explicit operator
   queue entries in `local/operator-session/command-queue.json` for inspection
   and tooling. The command-queue listener can mark a queued entry delivered to
-  a polling target, but execution remains unsupported.
+  a polling target; the target decides whether to execute based on its effective
+  command-queue policy.
 - `scripts/busierbox-server --json-status` or `--api-status` includes the
   command queue path, counts, entries, `commands_by_id`,
   `commands_by_status`, result lookup maps, queue-time and delivery-time
   policy snapshot lookup maps, latest queue/result timestamps,
   token-required/token-configured booleans, `policy_summary`,
-  `mode_semantics`, `mode_summary`, and non-execution safety boundary.
+  `mode_semantics`, `mode_summary`, and explicit execution safety boundary.
 - Human `--status`, `--list-command-queue`, and the line-oriented workbench
   mirror the structured `policy_summary` token posture, mode lifecycle,
-  transport support, and non-execution flags so operators do not need JSON
+  transport support, and execution flags so operators do not need JSON
   tooling to distinguish default dry-run planning from explicit `--live` metadata polling.
 - `busierbox plan command-queue --json` and `manifest --json` expose the same
   policy validity fields and normalized mode records so release tooling and
@@ -100,8 +109,9 @@ delay. Each live attempt sends a plain HTTP
 `command_queue_poll_attempt`, then `command_queue_poll_no_command`,
 `command_queue_poll_complete`, or `command_queue_poll_error`. Delivered command
 metadata also records `command_queue_execution_decision` with status
-`rejected`, and the daemon records `command_queue_poll_shutdown` when the loop
-exits. Target-side JSONL events use the same structured event-bus envelope as
+`executed` or `rejected`, and the daemon records
+`command_queue_poll_shutdown` when the loop exits. Target-side JSONL events use
+the same structured event-bus envelope as
 operator events: `schema`, `id`, `ts`, `service`, `session`, `event`, `level`,
 `remote`, and `details`. In target-side event `details`,
 `delivery_supported` and `result_upload_supported` describe whether the live
@@ -131,8 +141,9 @@ Policy values for `BB_COMMAND_QUEUE_ALLOWED_COMMANDS` are `none`,
 `busierbox-only`, `allowlist`, and `custom`. `BB_COMMAND_QUEUE_ALLOW_ARBITRARY`
 is only valid with `custom`; disabled queues must keep `allowed_commands=none`
 `execution=metadata-only`, and `allow_arbitrary=no`. `BB_COMMAND_QUEUE_EXECUTION`
-may be `metadata-only` or `execute`; `execute` is an explicit future-mode
-request and still reports `execution_supported=false` in this build.
+may be `metadata-only` or `execute`; `execute` reports
+`execution_supported=true` only for valid `busierbox-only` or explicit
+`custom`/`allow_arbitrary=yes` policy.
 
 Safety boundary:
 
@@ -144,17 +155,18 @@ Safety boundary:
 - `config-info` and `runtime-config --json` expose token posture and policy
   validity alongside the raw effective settings so operators do not need to
   infer safety state.
-- Trailer overrides alone are not an execution capability; this build does not
-  execute queued commands.
+- Trailer overrides alone are not an execution capability; execution requires
+  explicit live polling plus valid execute policy on the target.
 - Target-side `poll`, `once`, and `daemon` expose `would_poll`,
   live-mode `poll_transport_supported`, `delivery_supported`,
-  `result_upload_supported`, `execution_supported=false`, and a
+  `result_upload_supported`, `execution_supported`, and a
   `policy_summary` so frontend and integration tooling can distinguish
   policy/planning from explicit live polling. Live `delivery_supported=true`
-  means the target can receive queued metadata; it does not imply command
-  execution. Live `result_upload_supported=true` means the target can upload
-  structured rejection/result metadata to the operator endpoint; it still does
-  not imply command execution. Disabled or invalid policy keeps `would_contact_operator=false`
+  means the target can receive queued metadata; command execution is separate
+  and reflected by `execution_supported=true` plus an executed decision in the
+  poll result. Live `result_upload_supported=true` means the target can upload
+  structured rejection/result metadata to the operator endpoint. Disabled or
+  invalid policy keeps `would_contact_operator=false`
   and `active_control_channel=false` even when a user passes `--live`. They
   also expose a compact `poll_plan` object with mode, status, endpoint,
   explicit-target-action, dry-run-only, would-contact-operator, queued-command
@@ -170,7 +182,7 @@ operator-supplied-command execution posture.
   `once`, `daemon`, and `stop`. Each entry declares whether the mode is selected,
   whether it needs an operator host, its lifecycle label (`inspect`,
   `single-poll`, `single-cycle`, `long-running`, or `stop`), and the same
-  non-execution safety booleans so UIs do not infer mode behavior from strings.
+  execution safety booleans so UIs do not infer mode behavior from strings.
 - The same mode data is exposed as flat `mode_records`, with lookup maps by
   mode, lifecycle, polling behavior, live-support status, delivery support,
   result-upload support, execution support, active-control-channel state, and
@@ -201,9 +213,10 @@ operator-supplied-command execution posture.
 - Operator JSON queue/status output also indexes delivered commands by
   `execution_decision` and mirrors `execution_decision_counts`, so dashboards
   can audit rejected delivery decisions without scanning every command record.
-- `allow_arbitrary=yes` is reported as an explicit policy request, not an
-  execution grant; `arbitrary_execution_allowed=false` remains false while this
-  build has `execution_supported=false`.
+- `allow_arbitrary=yes` is reported as an explicit policy request.
+  `arbitrary_execution_allowed=true` only when the queue is enabled, execution
+  mode is `execute`, policy is `custom`, and arbitrary execution is explicitly
+  allowed.
 
 Operator queue inspection:
 
@@ -218,7 +231,7 @@ scripts/busierbox-server --clear-command-queue
 
 Queue entries include an id, timestamp, literal command text, command SHA-256,
 timeout metadata, maximum output metadata, status, and explicit
-`execution_supported=false` / `delivery_supported=false` fields at queue time.
+`execution_supported` / `delivery_supported=false` fields at queue time.
 Each entry also stores a `queue_policy_snapshot` so old queue records remain
 auditable if the operator configuration changes later. The
 `command_queue_queued` operator event records the command id, command SHA-256,
@@ -226,8 +239,10 @@ timeout, maximum output limit, delivery/execution support flags, and the queue
 policy snapshot. Live target polling responses and operator poll metadata include
 the same command SHA-256. A poll can mark a queued entry `delivered`, attach a
 `delivery_policy_snapshot`, return its command metadata to the target, and record
-`execution_decision=rejected`; the target does not execute it. The operator event
-log keeps the stable `command_queue_poll` event and also emits outcome-specific
+`execution_decision=pending` when policy permits execution, or `rejected` when
+policy does not. The target later uploads the final `executed` or `rejected`
+decision with result metadata. The operator event log keeps the stable
+`command_queue_poll` event and also emits outcome-specific
 `command_queue_poll_delivered`, `command_queue_poll_no_command`,
 `command_queue_poll_rejected`, or `command_queue_poll_error` records for direct
 timeline filtering. The `command_delivered` operator event includes the command

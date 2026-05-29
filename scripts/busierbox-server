@@ -4545,6 +4545,22 @@ def save_command_queue(cfg, data):
     atomic_write_json(command_queue_path(cfg), data)
 
 
+def command_queue_execution_supported(cfg):
+    if command_queue_policy_errors(cfg):
+        return False
+    enabled = str(cfg.get("command_queue_enable", "no"))
+    allowed = str(cfg.get("command_queue_allowed_commands", "none"))
+    execution = str(cfg.get("command_queue_execution", "metadata-only"))
+    allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
+    if enabled != "yes" or execution != "execute":
+        return False
+    if allowed == "busierbox-only":
+        return True
+    if allowed == "custom" and allow_arbitrary == "yes":
+        return True
+    return False
+
+
 def command_queue_policy_snapshot(cfg):
     errors = command_queue_policy_errors(cfg)
     enabled = str(cfg.get("command_queue_enable", "no"))
@@ -4553,6 +4569,8 @@ def command_queue_policy_snapshot(cfg):
     allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
     token_required = str(cfg.get("command_queue_require_token", "yes")) == "yes"
     token_configured = bool(str(cfg.get("command_queue_token", "")))
+    execution_supported = command_queue_execution_supported(cfg)
+    arbitrary_execution_allowed = execution_supported and allowed_commands == "custom" and allow_arbitrary == "yes"
     return {
         "enabled": enabled == "yes",
         "valid": not errors,
@@ -4563,14 +4581,14 @@ def command_queue_policy_snapshot(cfg):
         "allow_arbitrary": allow_arbitrary == "yes",
         "token_required": token_required,
         "token_configured": token_configured,
-        "execution_supported": False,
-        "executes_commands": False,
+        "execution_supported": execution_supported,
+        "executes_commands": execution_supported,
         "delivery_supported": False,
         "result_upload_supported": True,
         "active_control_channel": False,
-        "arbitrary_execution_allowed": False,
+        "arbitrary_execution_allowed": arbitrary_execution_allowed,
         "operator_queue_records_only": True,
-        "safety_boundary": "explicit operator queue record; target execution is unsupported in this build",
+        "safety_boundary": "explicit operator queue record; target execution requires an explicit target poll and execute policy",
     }
 
 
@@ -4579,10 +4597,10 @@ def command_queue_delivery_policy_snapshot(cfg):
     policy.update({
         "delivery_supported": True,
         "result_upload_supported": True,
-        "delivery_mode": "metadata-only",
+        "delivery_mode": str(cfg.get("command_queue_execution", "metadata-only")),
         "active_control_channel": True,
         "operator_queue_records_only": False,
-        "safety_boundary": "explicit opt-in metadata delivery on target poll; target command execution remains unsupported",
+        "safety_boundary": "explicit opt-in delivery on target poll; target execution depends on target-side command queue policy",
     })
     return policy
 
@@ -4606,9 +4624,10 @@ def mark_command_delivered(cfg, command_id, remote_addr="", target_identity=None
             rec["delivered_to"] = remote_addr
             rec["delivery_supported"] = True
             rec["result_upload_supported"] = True
-            rec["execution_supported"] = False
-            rec["execution_decision"] = "rejected"
-            rec["execution_decision_reason"] = "target command execution is not implemented"
+            rec["execution_supported"] = bool(policy.get("execution_supported"))
+            rec["executes_commands"] = bool(policy.get("executes_commands"))
+            rec["execution_decision"] = "pending" if policy.get("execution_supported") else "rejected"
+            rec["execution_decision_reason"] = "" if policy.get("execution_supported") else command_queue_execution_rejection_reason(cfg)
             rec["delivery_policy_snapshot"] = policy
             save_command_queue(cfg, data)
             append_event(
@@ -4624,8 +4643,9 @@ def mark_command_delivered(cfg, command_id, remote_addr="", target_identity=None
                     "max_output_bytes": rec.get("max_output_bytes", 0),
                     "delivery_supported": True,
                     "result_upload_supported": True,
-                    "execution_supported": False,
-                    "execution_decision": "rejected",
+                    "execution_supported": rec["execution_supported"],
+                    "executes_commands": rec["executes_commands"],
+                    "execution_decision": rec["execution_decision"],
                     "target_id": rec.get("target_id", ""),
                     "target_label": rec.get("target_label", ""),
                     "target_identity_source": rec.get("target_identity_source", ""),
@@ -4650,6 +4670,7 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
     data = load_command_queue(cfg)
     now = utc_now()
     digest = hashlib.sha256(f"{now}\0{time.time_ns()}\0{text}\0{os.getpid()}".encode("utf-8")).hexdigest()[:16]
+    queue_policy = command_queue_policy_snapshot(cfg)
     rec = {
         "id": f"cq-{digest}",
         "created_at": now,
@@ -4658,10 +4679,11 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
         "command_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "timeout_sec": timeout_value,
         "max_output_bytes": max_output_value,
-        "execution_supported": False,
+        "execution_supported": bool(queue_policy.get("execution_supported")),
+        "executes_commands": False,
         "delivery_supported": False,
-        "queue_policy_snapshot": command_queue_policy_snapshot(cfg),
-        "safety_boundary": "operator queue record only; target execution is disabled unless future explicit command-queue execution is implemented and enabled",
+        "queue_policy_snapshot": queue_policy,
+        "safety_boundary": "operator queue record only; execution requires explicit target poll and execute policy",
     }
     if configured_target_filter(cfg):
         rec.update(target_context_fields(cfg, configured_target_filter(cfg)))
@@ -4680,6 +4702,7 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
             "max_output_bytes": rec["max_output_bytes"],
             "delivery_supported": rec["delivery_supported"],
             "execution_supported": rec["execution_supported"],
+            "executes_commands": rec["executes_commands"],
             "target_id": rec.get("target_id", ""),
             "target_label": rec.get("target_label", ""),
             "policy_snapshot": rec["queue_policy_snapshot"],
@@ -4718,14 +4741,20 @@ def record_command_result_payload(cfg, command_id, result, result_source_path=""
                 rec.update(target_identity)
             stdout_bytes = int(result.get("stdout_bytes", 0) or 0)
             stderr_bytes = int(result.get("stderr_bytes", 0) or 0)
-            output_bytes = stdout_bytes + stderr_bytes
+            output_bytes = int(result.get("output_bytes", stdout_bytes + stderr_bytes) or 0)
             max_output_bytes = int(rec.get("max_output_bytes", 0) or 0)
-            output_exceeded = bool(max_output_bytes and output_bytes > max_output_bytes)
+            output_exceeded = bool(result.get("output_exceeded_limit")) or bool(max_output_bytes and output_bytes > max_output_bytes)
             rec["status"] = "result-received"
             rec["result_received_at"] = utc_now()
             rec["result"] = result
             rec["result_command_id"] = str(command_id)
             rec["result_source_path"] = str(result_source_path)
+            rec["execution_supported"] = bool(result.get("execution_supported", rec.get("execution_supported", False)))
+            rec["executes_commands"] = bool(result.get("executes_commands", False))
+            rec["execution_decision"] = str(result.get("execution_decision") or ("executed" if rec["executes_commands"] else "rejected"))
+            rec["execution_decision_reason"] = str(result.get("reason") or "")
+            rec["result_status"] = str(result.get("status") or "")
+            rec["result_exit_code"] = result.get("exit_code", "")
             rec["result_stdout_bytes"] = stdout_bytes
             rec["result_stderr_bytes"] = stderr_bytes
             rec["result_output_bytes"] = output_bytes
@@ -4743,6 +4772,9 @@ def record_command_result_payload(cfg, command_id, result, result_source_path=""
                     "result_source_path": str(result_source_path),
                     "status": result.get("status", ""),
                     "exit_code": result.get("exit_code", ""),
+                    "execution_supported": rec["execution_supported"],
+                    "executes_commands": rec["executes_commands"],
+                    "execution_decision": rec["execution_decision"],
                     "stdout_bytes": stdout_bytes,
                     "stderr_bytes": stderr_bytes,
                     "output_bytes": output_bytes,
@@ -4833,7 +4865,7 @@ def command_queue_policy_errors(cfg):
     return errors
 
 
-def command_queue_mode_semantics(live_transport_supported=True):
+def command_queue_mode_semantics(live_transport_supported=True, execution_supported=False):
     modes = {
         "status": {
             "lifecycle": "inspect",
@@ -4863,6 +4895,7 @@ def command_queue_mode_semantics(live_transport_supported=True):
     }
     for rec in modes.values():
         live_supported = bool(rec.get("would_poll_if_configured")) and bool(live_transport_supported)
+        live_execution_supported = live_supported and bool(execution_supported)
         rec.update({
             "dry_run_default": True,
             "dry_run_only": False if live_supported else True,
@@ -4874,10 +4907,10 @@ def command_queue_mode_semantics(live_transport_supported=True):
             "live_transport_unsupported_reason": "" if live_transport_supported else "live command queue polling requires BB_COMMAND_QUEUE_TLS=no in this build",
             "delivery_supported": False,
             "result_upload_supported": True,
-            "execution_supported": False,
-            "executes_commands": False,
+            "execution_supported": live_execution_supported,
+            "executes_commands": live_execution_supported,
             "active_control_channel": False,
-            "operator_supplied_command_execution": False,
+            "operator_supplied_command_execution": live_execution_supported,
         })
     return modes
 
@@ -5075,8 +5108,10 @@ def command_queue_summary(cfg):
     token_required = str(cfg.get("command_queue_require_token", "yes")) == "yes"
     token_configured = bool(str(cfg.get("command_queue_token", "")))
     arbitrary_policy_requested = policy_valid and enabled == "yes" and allowed_commands == "custom" and allow_arbitrary == "yes"
+    execution_supported = command_queue_execution_supported(cfg)
+    arbitrary_execution_allowed = arbitrary_policy_requested and execution_supported
     configured_for_polling = policy_valid and enabled == "yes"
-    mode_semantics = command_queue_mode_semantics(poll_transport_supported)
+    mode_semantics = command_queue_mode_semantics(poll_transport_supported, execution_supported)
     mode_records = command_queue_mode_records(mode_semantics)
     mode_indexes = command_queue_mode_record_indexes(mode_records)
     mode_summary = command_queue_mode_summary(mode_semantics)
@@ -5089,8 +5124,8 @@ def command_queue_summary(cfg):
         "operator_queue_records_only": True,
         "execution_mode": execution_mode,
         "metadata_only_default": execution_mode == "metadata-only",
-        "execution_supported": False,
-        "executes_commands": False,
+        "execution_supported": execution_supported,
+        "executes_commands": execution_supported,
         "delivery_supported": False,
         "result_upload_supported": True,
         "poll_transport_supported": poll_transport_supported,
@@ -5105,7 +5140,7 @@ def command_queue_summary(cfg):
         "poll_max_interval_sec": poll_max_interval_sec,
         "max_polls": max_polls,
         "arbitrary_policy_requested": arbitrary_policy_requested,
-        "arbitrary_execution_allowed": False,
+        "arbitrary_execution_allowed": arbitrary_execution_allowed,
         "safe_disabled_default": enabled == "no" and policy_valid and allowed_commands == "none" and execution_mode == "metadata-only" and allow_arbitrary == "no",
     }
     return {
@@ -5190,19 +5225,19 @@ def command_queue_summary(cfg):
         "target_filter_active": bool(target_filter_id),
         "target_filter_id": target_filter_id,
         "unfiltered_total_count": unfiltered_command_count,
-        "execution_supported": False,
+        "execution_supported": execution_supported,
         "delivery_supported": False,
         "result_upload_supported": True,
         "poll_transport_supported": poll_transport_supported,
         "live_polling_supported": poll_transport_supported,
         "poll_transport_unsupported_reason": poll_transport_unsupported_reason,
-        "executes_commands": False,
+        "executes_commands": execution_supported,
         "operator_queue_records_only": True,
         "active_control_channel": False,
         "configured_for_polling": configured_for_polling,
         "arbitrary_policy_requested": arbitrary_policy_requested,
-        "arbitrary_execution_allowed": False,
-        "safety_boundary": "explicit operator queue records only; no default target execution or hidden control channel",
+        "arbitrary_execution_allowed": arbitrary_execution_allowed,
+        "safety_boundary": "explicit operator queue records only; execution requires explicit target poll and execute policy",
     }
 
 
@@ -7779,8 +7814,9 @@ def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
         "result_output_limit_bytes": rec.get("result_output_limit_bytes", 0),
         "result_output_exceeded_limit": bool(rec.get("result_output_exceeded_limit")),
         "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
-        "execution_supported": False,
-        "executes_commands": False,
+        "execution_supported": bool(rec.get("execution_supported", False)),
+        "executes_commands": bool(rec.get("executes_commands", False)),
+        "execution_decision": rec.get("execution_decision", ""),
         "result_upload_supported": True,
     }
     send_json_response(conn, 200, response)
@@ -7798,8 +7834,9 @@ def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
         "result_output_limit_bytes": response["result_output_limit_bytes"],
         "result_output_exceeded_limit": response["result_output_exceeded_limit"],
         "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
-        "execution_supported": False,
-        "executes_commands": False,
+        "execution_supported": response["execution_supported"],
+        "executes_commands": response["executes_commands"],
+        "execution_decision": response["execution_decision"],
         "result_upload_supported": True,
     }, target_identity)
 
@@ -7857,7 +7894,17 @@ def command_queue_token_valid(cfg, headers):
 def command_queue_execution_rejection_reason(cfg):
     if str(cfg.get("command_queue_execution", "metadata-only")) == "metadata-only":
         return "command queue execution mode is metadata-only"
-    return "command queue execution mode execute requested, but target command execution is not implemented"
+    allowed = str(cfg.get("command_queue_allowed_commands", "none"))
+    allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
+    if allowed == "none":
+        return "command queue execution mode execute requires a non-none allowed commands policy"
+    if allowed == "allowlist":
+        return "command queue allowlist execution is not configured in this build"
+    if allowed == "custom" and allow_arbitrary != "yes":
+        return "custom command queue execution requires command_queue_allow_arbitrary=yes"
+    if command_queue_policy_errors(cfg):
+        return "command queue execution policy is invalid"
+    return "command queue execution policy does not permit this command"
 
 
 def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
@@ -7886,6 +7933,9 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 403, "method": method, "remote_addr": remote, "reason": "invalid token", **poll_context}, target_identity)
     queue = command_queue_summary(cfg)
     queued_count = int(queue.get("queued_count", 0) or 0)
+    execution_supported = bool(queue.get("execution_supported"))
+    execution_decision = "pending" if execution_supported else "rejected"
+    execution_decision_reason = "" if execution_supported else command_queue_execution_rejection_reason(cfg)
     target_id = str(target_identity.get("target_id") or "")
     queued = [
         rec for rec in queue.get("commands", [])
@@ -7906,11 +7956,11 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
             "max_output_bytes": command.get("max_output_bytes", 0),
             "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
             "delivery_supported": True,
-            "execution_supported": False,
-            "executes_commands": False,
+            "execution_supported": execution_supported,
+            "executes_commands": execution_supported,
             "result_upload_supported": True,
-            "execution_decision": "rejected",
-            "execution_decision_reason": command_queue_execution_rejection_reason(cfg),
+            "execution_decision": execution_decision,
+            "execution_decision_reason": execution_decision_reason,
         }
         payload.update({key: value for key, value in target_identity.items() if value not in (None, "")})
         body = json.dumps(payload, sort_keys=True).encode("utf-8") + b"\n"
@@ -7920,8 +7970,8 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
             "X-BusierBox-Command-Sha256": str(command.get("command_sha256", "")),
             "X-BusierBox-Delivery-Supported": "yes",
             "X-BusierBox-Result-Upload-Supported": "yes",
-            "X-BusierBox-Execution-Supported": "no",
-            "X-BusierBox-Executes-Commands": "no",
+            "X-BusierBox-Execution-Supported": "yes" if execution_supported else "no",
+            "X-BusierBox-Executes-Commands": "yes" if execution_supported else "no",
         }
         if target_id:
             headers["X-BusierBox-Target-Id"] = target_id
@@ -7940,11 +7990,11 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
             "delivered_count": 1 if delivered else 0,
             "delivery_supported": True,
             "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
-            "execution_supported": False,
-            "executes_commands": False,
+            "execution_supported": execution_supported,
+            "executes_commands": execution_supported,
             "result_upload_supported": True,
-            "execution_decision": "rejected",
-            "execution_decision_reason": command_queue_execution_rejection_reason(cfg),
+            "execution_decision": execution_decision,
+            "execution_decision_reason": execution_decision_reason,
             **poll_context,
         }, target_identity)
     payload = {
@@ -7953,8 +8003,8 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "queued_count": queued_count,
         "delivery_supported": False,
         "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
-        "execution_supported": False,
-        "executes_commands": False,
+        "execution_supported": execution_supported,
+        "executes_commands": execution_supported,
         "result_upload_supported": True,
         "message": "no queued command available; target poll recorded only",
     }
@@ -7964,7 +8014,8 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "X-BusierBox-Queued-Count": str(queued_count),
         "X-BusierBox-Delivery-Supported": "no",
         "X-BusierBox-Result-Upload-Supported": "yes",
-        "X-BusierBox-Execution-Supported": "no",
+        "X-BusierBox-Execution-Supported": "yes" if execution_supported else "no",
+        "X-BusierBox-Executes-Commands": "yes" if execution_supported else "no",
     }
     if method == "HEAD":
         body = b""
@@ -7978,8 +8029,8 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "queued_count": queued_count,
         "delivery_supported": False,
         "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
-        "execution_supported": False,
-        "executes_commands": False,
+        "execution_supported": execution_supported,
+        "executes_commands": execution_supported,
         "result_upload_supported": True,
         **poll_context,
     }, target_identity)
@@ -8016,7 +8067,7 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
     log_dir = session_log_dir(cfg, service)
     start_session_record(cfg, service, log_dir, details={"port": port, "tls": False})
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-    print("Command queue poll listener. Delivers queued metadata only; command execution is not implemented.")
+    print("Command queue poll listener. Delivers queued commands; target execution depends on explicit command queue policy.")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "command_queue_file": str(command_queue_path(cfg))})
     sessions = 0
     sock = None
@@ -13527,7 +13578,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             print(f"queued {rec['id']}: {rec['command']}")
             if rec.get("target_id"):
                 print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
-            print("execution_supported=no delivery_supported=no")
+            print(f"execution_supported={'yes' if rec.get('execution_supported') else 'no'} delivery_supported=no")
             if not (args.list_command_queue or args.json_command_queue):
                 return 0
         if args.record_command_result:
