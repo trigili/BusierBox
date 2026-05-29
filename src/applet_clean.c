@@ -48,6 +48,7 @@ struct ledger_json_record {
 };
 
 static int json_get_string_field(const char *line, const char *key, char *out, size_t outsz);
+static int count_external_entries(void);
 
 static int is_help(int argc, char **argv)
 {
@@ -67,10 +68,21 @@ static void print_ledger_human(void)
     fclose(fp);
 }
 
+static void print_clean_result_text(const struct clean_result *result)
+{
+    printf("cleanup_writes_attempted=%d\n", result ? result->writes_attempted : 0);
+    printf("cleanup_writes_blocked=%d\n", result ? result->writes_blocked : 0);
+    printf("cleanup_paths_cleaned=%d\n", result ? result->paths_cleaned : 0);
+    printf("cleanup_paths_failed=%d\n", result ? result->paths_failed : 0);
+    printf("cleanup_complete=%s\n", result && result->cleanup_complete ? "yes" : "no");
+    printf("cleanup_warning=%s\n", result && result->cleanup_warning ? result->cleanup_warning : "");
+}
+
 static int print_clean_dry_run(int include_external)
 {
     char path[PATH_MAX], line[1024];
     FILE *fp = fopen(bb_ledger_path(path, sizeof(path)), "r");
+    struct clean_result result = {0, include_external ? 0 : count_external_entries(), 0, 0, 0, "dry-run only"};
 
     printf("Would remove:\n");
     printf("  %s\n", BB_RUNTIME_ROOT);
@@ -80,6 +92,7 @@ static int print_clean_dry_run(int include_external)
         printf("  %s (fallback root, if BusierBox used it)\n", BB_RUNTIME_FALLBACK_ROOT);
     if (!fp) {
         printf("Ledger: no ledger at %s\n", path);
+        print_clean_result_text(&result);
         return 0;
     }
     while (fgets(line, sizeof(line), fp)) {
@@ -91,6 +104,7 @@ static int print_clean_dry_run(int include_external)
         }
     }
     fclose(fp);
+    print_clean_result_text(&result);
     return 0;
 }
 
@@ -1090,5 +1104,6 @@ int applet_clean_main(int argc, char **argv)
     if (result.writes_blocked > 0)
         printf("clean: external cleanup blocked entries=%d; use --external --apply\n", result.writes_blocked);
     printf("clean: removed %s\n", BB_RUNTIME_ROOT);
+    print_clean_result_text(&result);
     return 0;
 }

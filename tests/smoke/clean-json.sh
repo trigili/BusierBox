@@ -72,6 +72,13 @@ if plan.get("forensic_no_trace") is not False:
 if not isinstance(doc.get("external_entries"), list):
     raise SystemExit("clean dry-run external_entries must be a list")
 PY
+    ./busierbox clean --dry-run >dry-run.txt
+    grep -q '^cleanup_writes_attempted=0$' dry-run.txt
+    grep -q '^cleanup_writes_blocked=0$' dry-run.txt
+    grep -q '^cleanup_paths_cleaned=0$' dry-run.txt
+    grep -q '^cleanup_paths_failed=0$' dry-run.txt
+    grep -q '^cleanup_complete=no$' dry-run.txt
+    grep -q '^cleanup_warning=dry-run only$' dry-run.txt
 
     BB_TARGET_ID=target-clean BB_TARGET_LABEL="Clean Router" ./busierbox extract >/dev/null
     test -d .busierbox/payload
@@ -196,6 +203,14 @@ if doc.get("paths_failed") != 0:
 if doc.get("cleanup_complete") is not True:
     raise SystemExit("clean json did not report complete cleanup")
 PY
+    BB_TARGET_ID=target-clean BB_TARGET_LABEL="Clean Router" ./busierbox extract >/dev/null
+    ./busierbox clean --ledger >clean.txt
+    grep -q '^cleanup_writes_attempted=1$' clean.txt
+    grep -q '^cleanup_writes_blocked=0$' clean.txt
+    grep -q '^cleanup_paths_cleaned=1$' clean.txt
+    grep -q '^cleanup_paths_failed=0$' clean.txt
+    grep -q '^cleanup_complete=yes$' clean.txt
+    grep -q '^cleanup_warning=$' clean.txt
     test ! -d .busierbox
 
     mkdir -p .busierbox/run
@@ -224,6 +239,13 @@ if plan.get("external_blocked_count") != 1:
 if plan.get("ledgered_cleanup_path_count") != 0:
     raise SystemExit("external-only ledger should not create runtime cleanup paths")
 PY
+    ./busierbox clean --dry-run >external-blocked.txt
+    grep -q '^cleanup_writes_attempted=0$' external-blocked.txt
+    grep -q '^cleanup_writes_blocked=1$' external-blocked.txt
+    grep -q '^cleanup_paths_cleaned=0$' external-blocked.txt
+    grep -q '^cleanup_paths_failed=0$' external-blocked.txt
+    grep -q '^cleanup_complete=no$' external-blocked.txt
+    grep -q '^cleanup_warning=dry-run only$' external-blocked.txt
     ./busierbox clean --dry-run --external --json >external-included.json
     python3 -m json.tool external-included.json >/dev/null
     python3 - external-included.json <<'PY'
