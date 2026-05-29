@@ -794,6 +794,11 @@ def main():
                 invalid_state_doc.get("summary", {}).get("command_queue_file_valid") is not False or
                 invalid_state_doc.get("summary", {}).get("operator_state_count") != len(invalid_state_doc.get("operator_state_records") or []) or
                 invalid_state_doc.get("summary", {}).get("operator_state_status_counts", {}).get("invalid") != 3 or
+                invalid_state_doc.get("summary", {}).get("operator_state_invalid_count") != 3 or
+                invalid_state_doc.get("summary", {}).get("operator_state_missing_count") != 4 or
+                invalid_state_doc.get("summary", {}).get("operator_state_unhealthy_count") != 7 or
+                invalid_state_doc.get("summary", {}).get("operator_state_ok_count") != 0 or
+                invalid_state_doc.get("summary", {}).get("operator_state_error_count") != 0 or
                 invalid_state_doc.get("summary", {}).get("operator_state_kind_status_counts", {}).get("json-state:invalid") != 3 or
                 invalid_warning_types.get("invalid_server_state") != 1 or
                 invalid_warning_types.get("invalid_staged_files_state") != 1 or
@@ -4282,6 +4287,23 @@ def main():
                 "scripts/busierbox-bringup --recommend-only --json" not in tui.stdout):
             print("noninteractive TUI/workbench missing operator path details", file=sys.stderr)
             print(tui.stdout, file=sys.stderr)
+            return 1
+        tui_status = run(
+            "scripts/busierbox-server",
+            "--config", str(fetch_cfg),
+            "--state-file", str(state_file),
+            "--staged-file", str(staged_file),
+            "--json-status",
+        )
+        tui_doc = json.loads(tui_status.stdout)
+        tui_operator_counts = tui_doc.get("summary", {})
+        if (tui_operator_counts.get("operator_state_unhealthy_count") != (
+                tui_operator_counts.get("operator_state_missing_count", 0) +
+                tui_operator_counts.get("operator_state_invalid_count", 0) +
+                tui_operator_counts.get("operator_state_error_count", 0)) or
+                tui_operator_counts.get("operator_state_count") != len(tui_doc.get("operator_state_records") or [])):
+            print("noninteractive TUI/workbench missing operator state summary counters", file=sys.stderr)
+            print(tui_status.stdout, file=sys.stderr)
             return 1
 
         release_dir = Path(tmp) / "release"

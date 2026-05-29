@@ -478,8 +478,11 @@ event log, and session root. Those records carry `status=ok|missing|invalid|erro
 `operator_state_records_by_status`, `operator_state_records_by_exists`,
 `operator_state_records_by_valid`, `operator_state_records_by_path`, and
 `operator_state_records_by_kind_status`. Summary mirrors the state status,
-kind, existence, validity, and kind/status counts so clients can show corrupt
-or missing operator ledgers without re-reading JSON files. Human `--status`
+kind, existence, validity, and kind/status counts, plus direct
+`operator_state_ok_count`, `operator_state_missing_count`,
+`operator_state_invalid_count`, `operator_state_error_count`, and
+`operator_state_unhealthy_count` fields, so clients can show corrupt or missing
+operator ledgers without re-reading JSON files. Human `--status`
 prints the same normalized operator state records as an `Operator state:`
 section, including status, kind, existence, validity, record count, path, and
 any parse/read error. `browser_paths`

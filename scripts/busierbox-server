@@ -1378,6 +1378,19 @@ def operator_state_indexes(records):
     }
 
 
+def operator_state_health_counts(records):
+    counts = record_count_by_key(records, "status")
+    unhealthy = sum(int(counts.get(key, 0) or 0) for key in ("missing", "invalid", "error"))
+    return {
+        "ok": int(counts.get("ok", 0) or 0),
+        "missing": int(counts.get("missing", 0) or 0),
+        "invalid": int(counts.get("invalid", 0) or 0),
+        "error": int(counts.get("error", 0) or 0),
+        "unhealthy": unhealthy,
+        "status_counts": counts,
+    }
+
+
 def nested_index_key(value):
     if value is True:
         return "true"
@@ -7677,6 +7690,7 @@ def status_document(cfg):
         command_copy, workbench_jobs_state, event_log_state, session_root_state,
     )
     operator_state_index_maps = operator_state_indexes(operator_state_records_list)
+    operator_state_health = operator_state_health_counts(operator_state_records_list)
     path_status = status_path_records(paths)
     path_status_records = status_path_record_list(path_status)
     path_status_indexes = status_path_record_indexes(path_status_records)
@@ -7865,7 +7879,12 @@ def status_document(cfg):
         "workbench_jobs_file_valid": bool(workbench_jobs_state.get("valid", False)),
         "workbench_jobs_file_job_count": workbench_jobs_state.get("job_count", 0),
         "operator_state_count": len(operator_state_records_list),
-        "operator_state_status_counts": record_count_by_key(operator_state_records_list, "status"),
+        "operator_state_status_counts": operator_state_health.get("status_counts") or {},
+        "operator_state_ok_count": operator_state_health.get("ok", 0),
+        "operator_state_missing_count": operator_state_health.get("missing", 0),
+        "operator_state_invalid_count": operator_state_health.get("invalid", 0),
+        "operator_state_error_count": operator_state_health.get("error", 0),
+        "operator_state_unhealthy_count": operator_state_health.get("unhealthy", 0),
         "operator_state_kind_counts": record_count_by_key(operator_state_records_list, "kind"),
         "operator_state_exists_counts": record_count_by_key(operator_state_records_list, "exists"),
         "operator_state_valid_counts": record_count_by_key(operator_state_records_list, "valid"),
@@ -10295,8 +10314,7 @@ def run_curses_tui(cfg):
             active = sum(1 for row in services if row["actual"] == "listening")
             warning_count = len(snap.get("warnings") or [])
             summary = snap.get("summary") or {}
-            operator_state_counts = summary.get("operator_state_status_counts") or {}
-            operator_state_unhealthy = sum(int(operator_state_counts.get(key, 0) or 0) for key in ("missing", "invalid", "error"))
+            operator_state_unhealthy = summary.get("operator_state_unhealthy_count", 0)
             workbench = snap.get("workbench") or {}
             refresh_suffix = f"refresh={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}"
             safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} warnings={warning_count} operator_state_unhealthy={operator_state_unhealthy} | ip={snap['selected_local_ip']} | {utc_now()} | {refresh_suffix} | tab panes j/k move enter start/stop s stage d unstage v view c copy ? help q quit", curses.A_REVERSE)
