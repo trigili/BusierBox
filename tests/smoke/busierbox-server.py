@@ -4315,6 +4315,84 @@ def main():
             print("server api status missing target collection", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+        if (upload_doc.get("target_attribution", {}).get("upload_with_target_count") != 1 or
+                upload_doc.get("target_attribution", {}).get("upload_without_target_count") != 0 or
+                upload_doc.get("summary", {}).get("upload_with_target_count") != 1 or
+                upload_doc.get("summary", {}).get("target_legacy_single_target_activity_present") is not False):
+            print("server json status missing attributed target activity counts", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
+        legacy_operator_dir = Path(tmp) / "operator-session-legacy-target"
+        legacy_session_root = Path(tmp) / "sessions-legacy-target"
+        legacy_session = legacy_session_root / "20260529-legacy-file-service"
+        legacy_files = legacy_session / "files"
+        legacy_files.mkdir(parents=True)
+        legacy_payload = b"legacy single target upload\n"
+        legacy_file = legacy_files / "legacy-evidence.txt"
+        legacy_file.write_bytes(legacy_payload)
+        legacy_sha = hashlib.sha256(legacy_payload).hexdigest()
+        legacy_metadata = {
+            "schema": 1,
+            "operation": "upload",
+            "status": "ok",
+            "transfer_status": "ok",
+            "upload_kind": "evidence",
+            "source_path": "/tmp/legacy-evidence.txt",
+            "stored_path": str(legacy_file),
+            "filename": legacy_file.name,
+            "size": len(legacy_payload),
+            "expected_size": len(legacy_payload),
+            "sha256": legacy_sha,
+            "timestamp": "2026-05-29T00:00:00Z",
+            "remote_addr": "127.0.0.1:44444",
+        }
+        (legacy_files / "legacy-evidence.txt.metadata.json").write_text(json.dumps(legacy_metadata), encoding="utf-8")
+        (legacy_session / "session.json").write_text(json.dumps({
+            "schema": 1,
+            "session_id": legacy_session.name,
+            "service": "file-service",
+            "path": str(legacy_session),
+            "state": "stopped",
+            "exit_reason": "complete",
+            "uploads": [legacy_metadata],
+            "fetches": [],
+            "artifacts": [],
+        }), encoding="utf-8")
+        legacy_cfg = Path(tmp) / "server-config-legacy-target.json"
+        legacy_cfg.write_text(json.dumps({
+            "operator_session_dir": str(legacy_operator_dir),
+            "session_root": str(legacy_session_root),
+            "listen_host": "127.0.0.1",
+            "file_service_port": upload_port,
+        }), encoding="utf-8")
+        legacy_status = run(
+            "scripts/busierbox-server",
+            "--config", str(legacy_cfg),
+            "--json-status",
+        )
+        legacy_doc = json.loads(legacy_status.stdout)
+        if (legacy_doc.get("summary", {}).get("target_count") != 0 or
+                legacy_doc.get("target_attribution", {}).get("upload_without_target_count") != 1 or
+                legacy_doc.get("target_attribution", {}).get("session_without_target_count") != 1 or
+                legacy_doc.get("target_attribution", {}).get("without_target_count") != 2 or
+                legacy_doc.get("target_attribution", {}).get("legacy_single_target_activity_present") is not True or
+                legacy_doc.get("summary", {}).get("upload_without_target_count") != 1 or
+                legacy_doc.get("summary", {}).get("session_without_target_count") != 1 or
+                legacy_doc.get("summary", {}).get("target_attribution_without_target_count") != 2 or
+                legacy_doc.get("summary", {}).get("target_legacy_single_target_activity_present") is not True):
+            print("legacy no-target activity was not summarized without creating a target", file=sys.stderr)
+            print(legacy_status.stdout, file=sys.stderr)
+            return 1
+        legacy_text = run(
+            "scripts/busierbox-server",
+            "--config", str(legacy_cfg),
+            "--status",
+        )
+        if ("target attribution: with=0 without=2 uploads_without=1" not in legacy_text.stdout or
+                "legacy_single_target=yes" not in legacy_text.stdout):
+            print("text status missing legacy no-target attribution summary", file=sys.stderr)
+            print(legacy_text.stdout, file=sys.stderr)
+            return 1
         session_close_key = f"{session_doc.get('session_id')}:connection_close"
         if (upload_event_stats.get("by_session_event", {}).get(session_close_key) != 1 or
                 upload_summary.get("event_session_event_counts", {}).get(session_close_key) != 1 or

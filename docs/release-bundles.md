@@ -457,6 +457,10 @@ context without joining `targets_by_id` first. If the filter does not match a
 known target, status output keeps the empty filtered collections visible and
 adds an `unknown_target_filter` warning with the requested target id and
 `targets.json` path.
+The same status payload includes `target_attribution` plus mirrored summary
+counts for uploads, fetches, and sessions with and without `target_id`, so
+legacy single-target traffic remains valid but visible instead of being
+silently confused with an identified target.
 Service rows remain available in `services`,
 and the same records are indexed by service name, actual state, configured
 state, and port in `services_by_name`, `services_by_actual`,

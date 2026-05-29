@@ -1344,6 +1344,13 @@ def record_count_by_key(records, key):
     return counts
 
 
+def count_records_with_key(records, key):
+    return len([
+        rec for rec in records or []
+        if isinstance(rec, dict) and rec.get(key) not in (None, "")
+    ])
+
+
 def records_by_key(records, key):
     grouped = {}
     for rec in records or []:
@@ -8815,6 +8822,28 @@ def status_document(cfg):
      services_by_stopped_reason) = service_record_indexes(services)
     ports = port_records_from_services(services)
     ports_by_number, ports_by_service, ports_by_actual = port_record_indexes(ports)
+    upload_with_target_count = count_records_with_key(uploads, "target_id")
+    fetch_with_target_count = count_records_with_key(fetches, "target_id")
+    session_with_target_count = count_records_with_key(sessions, "target_id")
+    target_attribution = {
+        "upload_with_target_count": upload_with_target_count,
+        "upload_without_target_count": max(len(uploads) - upload_with_target_count, 0),
+        "fetch_with_target_count": fetch_with_target_count,
+        "fetch_without_target_count": max(len(fetches) - fetch_with_target_count, 0),
+        "session_with_target_count": session_with_target_count,
+        "session_without_target_count": max(len(sessions) - session_with_target_count, 0),
+    }
+    target_attribution["with_target_count"] = (
+        target_attribution["upload_with_target_count"] +
+        target_attribution["fetch_with_target_count"] +
+        target_attribution["session_with_target_count"]
+    )
+    target_attribution["without_target_count"] = (
+        target_attribution["upload_without_target_count"] +
+        target_attribution["fetch_without_target_count"] +
+        target_attribution["session_without_target_count"]
+    )
+    target_attribution["legacy_single_target_activity_present"] = target_attribution["without_target_count"] > 0
     paths = {
         "operator_session_dir": str(operator_dir),
         "state_file": str(state_file_path(cfg)),
@@ -9124,6 +9153,8 @@ def status_document(cfg):
         "upload_status_counts": record_count_by_key(uploads, "status"),
         "upload_remote_counts": record_count_by_key(uploads, "remote_addr"),
         "upload_target_counts": record_count_by_key(uploads, "target_id"),
+        "upload_with_target_count": target_attribution["upload_with_target_count"],
+        "upload_without_target_count": target_attribution["upload_without_target_count"],
         "upload_kind_status_counts": {key: len(value) for key, value in uploads_by_kind_status.items()},
         "upload_filename_status_counts": {key: len(value) for key, value in uploads_by_filename_status.items()},
         "upload_status_stored_exists_counts": {key: len(value) for key, value in uploads_by_status_stored_exists.items()},
@@ -9139,6 +9170,8 @@ def status_document(cfg):
         "fetch_http_status_counts": record_count_by_key(fetches, "http_status"),
         "fetch_remote_counts": record_count_by_key(fetches, "remote_addr"),
         "fetch_target_counts": record_count_by_key(fetches, "target_id"),
+        "fetch_with_target_count": target_attribution["fetch_with_target_count"],
+        "fetch_without_target_count": target_attribution["fetch_without_target_count"],
         "fetch_request_status_counts": {key: len(value) for key, value in fetches_by_request_status.items()},
         "fetch_status_source_exists_counts": {key: len(value) for key, value in fetches_by_status_source_exists.items()},
         "fetch_status_remote_counts": {key: len(value) for key, value in fetches_by_status_remote_addr.items()},
@@ -9166,6 +9199,11 @@ def status_document(cfg):
         "session_exit_reason_counts": record_count_by_key(sessions, "exit_reason"),
         "session_remote_counts": record_count_by_key(sessions, "remote"),
         "session_target_counts": record_count_by_key(sessions, "target_id"),
+        "session_with_target_count": target_attribution["session_with_target_count"],
+        "session_without_target_count": target_attribution["session_without_target_count"],
+        "target_attribution_with_target_count": target_attribution["with_target_count"],
+        "target_attribution_without_target_count": target_attribution["without_target_count"],
+        "target_legacy_single_target_activity_present": target_attribution["legacy_single_target_activity_present"],
         "session_service_state_counts": {key: len(value) for key, value in sessions_by_service_state.items()},
         "session_service_exit_reason_counts": {key: len(value) for key, value in sessions_by_service_exit_reason.items()},
         "session_service_remote_counts": {key: len(value) for key, value in sessions_by_service_remote.items()},
@@ -9785,6 +9823,7 @@ def status_document(cfg):
                 "target_command_records": len(target_command_records),
             },
         },
+        "target_attribution": target_attribution,
         "api_resources": api_resources,
         **api_resource_indexes,
         "api_collections": api_collections,
@@ -10168,6 +10207,15 @@ def print_activity_summary(summary):
         f"latest={summary.get('latest_target_id') or '-'} "
         f"confidence={format_counts(summary.get('target_identity_confidence_counts') or {})} "
         f"services={format_counts(summary.get('target_service_counts') or {})}"
+    )
+    print(
+        "  target attribution: "
+        f"with={summary.get('target_attribution_with_target_count', 0)} "
+        f"without={summary.get('target_attribution_without_target_count', 0)} "
+        f"uploads_without={summary.get('upload_without_target_count', 0)} "
+        f"fetches_without={summary.get('fetch_without_target_count', 0)} "
+        f"sessions_without={summary.get('session_without_target_count', 0)} "
+        f"legacy_single_target={'yes' if summary.get('target_legacy_single_target_activity_present') else 'no'}"
     )
     print(
         "  service lifecycle: "
