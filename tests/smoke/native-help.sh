@@ -27,12 +27,24 @@ if ! "$bb" fetch --help 2>&1 | grep -q -- '--target-id ID'; then
     printf '%s\n' "native-help: fetch help missing target identity options" >&2
     exit 1
 fi
+if ! "$bb" fetch --help 2>&1 | grep -q -- '--target-alias ALIAS'; then
+    printf '%s\n' "native-help: fetch help missing target alias option" >&2
+    exit 1
+fi
 if ! "$bb" put --help 2>&1 | grep -q -- '--target-id ID'; then
     printf '%s\n' "native-help: put help missing target identity options" >&2
     exit 1
 fi
+if ! "$bb" put --help 2>&1 | grep -q -- '--target-alias ALIAS'; then
+    printf '%s\n' "native-help: put help missing target alias option" >&2
+    exit 1
+fi
 if ! "$bb" config-push --help 2>&1 | grep -q -- '--target-id ID'; then
     printf '%s\n' "native-help: config-push help missing target identity options" >&2
+    exit 1
+fi
+if ! "$bb" config-push --help 2>&1 | grep -q -- '--target-alias ALIAS'; then
+    printf '%s\n' "native-help: config-push help missing target alias option" >&2
     exit 1
 fi
 

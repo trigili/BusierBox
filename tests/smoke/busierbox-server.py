@@ -4819,6 +4819,7 @@ def main():
             "X-BusierBox-Upload-Kind: evidence\r\n"
             "X-BusierBox-Target-Id: target-bravo\r\n"
             "X-BusierBox-Target-Label: Bravo Router\r\n"
+            "X-BusierBox-Target-Alias: lab-bravo\r\n"
             f"Content-Length: {len(payload2)}\r\n"
             "\r\n"
         ).encode("ascii") + payload2
@@ -4854,6 +4855,7 @@ def main():
                 multi_target_doc.get("summary", {}).get("upload_target_counts", {}).get("target-bravo") != 1 or
                 (multi_target_doc.get("targets_by_id") or {}).get("target-alpha", {}).get("label") != "Alpha Router Renamed" or
                 (multi_target_doc.get("targets_by_id") or {}).get("target-bravo", {}).get("label") != "Bravo Router" or
+                "lab-bravo" not in ((multi_target_doc.get("targets_by_id") or {}).get("target-bravo", {}).get("aliases") or []) or
                 len((multi_target_doc.get("uploads_by_target_id") or {}).get("target-alpha") or []) != 1 or
                 len((multi_target_doc.get("uploads_by_target_id") or {}).get("target-bravo") or []) != 1):
             print("two uploads from distinct target ids did not remain separate", file=sys.stderr)
@@ -4950,6 +4952,7 @@ def main():
                 scoped_doc.get("summary", {}).get("target_command_target_counts", {}).get("target-bravo", 0) < 1 or
                 not any("--target-id target-bravo" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or
                 not any("--target-label 'Bravo Router'" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or
+                not any("--target-alias lab-bravo" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or
                 not any("--target-id target-bravo --copy-target-command" in str(rec.get("copy_command", "")) for rec in scoped_doc.get("target_command_records") or []) or
                 "target_commands_by_target_id" not in ((scoped_doc.get("api_collections") or {}).get("target_command_records") or {}).get("indexes", []) or
                 "staged_by_target_id" not in ((scoped_doc.get("api_collections") or {}).get("staged_records") or {}).get("indexes", []) or

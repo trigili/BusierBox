@@ -1622,6 +1622,10 @@ def target_context_fields(cfg, target_id):
     return {
         "target_id": target_id,
         "target_label": str(rec.get("label") or ""),
+        "target_aliases": [
+            str(item) for item in rec.get("aliases") or []
+            if str(item or "")
+        ],
         "target_identity_source": "operator-selection",
         "target_identity_confidence": "operator-assigned",
     }
@@ -5785,6 +5789,8 @@ def render_fetch_command(request_name, cfg, host=None, force=False):
         cmd.extend(["--target-id", target_ctx.get("target_id", "")])
     if target_ctx.get("target_label"):
         cmd.extend(["--target-label", target_ctx.get("target_label", "")])
+    for alias in target_ctx.get("target_aliases") or []:
+        cmd.extend(["--target-alias", alias])
     return " ".join(shquote(part) for part in cmd)
 
 
@@ -5806,6 +5812,8 @@ def render_file_service_command(parts, cfg, host=None):
         cmd.extend(["--target-id", target_ctx.get("target_id", "")])
     if target_ctx.get("target_label"):
         cmd.extend(["--target-label", target_ctx.get("target_label", "")])
+    for alias in target_ctx.get("target_aliases") or []:
+        cmd.extend(["--target-alias", alias])
     return " ".join(shquote(part) for part in cmd)
 
 

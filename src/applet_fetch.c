@@ -44,51 +44,87 @@ static void clean_header_value(const char *in, char *out, size_t outsz)
 }
 
 static int run_downloader(const char *tool, const char *url, const char *out, int tls,
-                          const char *target_id, const char *target_label)
+                          const char *target_id, const char *target_label,
+                          const char *target_aliases)
 {
     pid_t pid = fork();
     if (pid < 0)
         return -1;
     if (pid == 0) {
-        char id_header[320], label_header[320];
+        char id_header[320], label_header[320], alias_header[1152];
         int have_id = target_id && target_id[0];
         int have_label = target_label && target_label[0];
+        int have_alias = target_aliases && target_aliases[0];
         if (have_id)
             snprintf(id_header, sizeof(id_header), "X-BusierBox-Target-Id: %s", target_id);
         if (have_label)
             snprintf(label_header, sizeof(label_header), "X-BusierBox-Target-Label: %s", target_label);
+        if (have_alias)
+            snprintf(alias_header, sizeof(alias_header), "X-BusierBox-Target-Alias: %s", target_aliases);
         if (!strcmp(tool, "wget")) {
-            if (tls && have_id && have_label)
+            if (tls && have_id && have_label && have_alias)
+                execlp("wget", "wget", "--no-check-certificate", "--header", id_header, "--header", label_header, "--header", alias_header, "-O", out, url, (char *)NULL);
+            else if (tls && have_id && have_label)
                 execlp("wget", "wget", "--no-check-certificate", "--header", id_header, "--header", label_header, "-O", out, url, (char *)NULL);
+            else if (tls && have_id && have_alias)
+                execlp("wget", "wget", "--no-check-certificate", "--header", id_header, "--header", alias_header, "-O", out, url, (char *)NULL);
+            else if (tls && have_label && have_alias)
+                execlp("wget", "wget", "--no-check-certificate", "--header", label_header, "--header", alias_header, "-O", out, url, (char *)NULL);
             else if (tls && have_id)
                 execlp("wget", "wget", "--no-check-certificate", "--header", id_header, "-O", out, url, (char *)NULL);
             else if (tls && have_label)
                 execlp("wget", "wget", "--no-check-certificate", "--header", label_header, "-O", out, url, (char *)NULL);
+            else if (tls && have_alias)
+                execlp("wget", "wget", "--no-check-certificate", "--header", alias_header, "-O", out, url, (char *)NULL);
             else if (tls)
                 execlp("wget", "wget", "--no-check-certificate", "-O", out, url, (char *)NULL);
+            else if (have_id && have_label && have_alias)
+                execlp("wget", "wget", "--header", id_header, "--header", label_header, "--header", alias_header, "-O", out, url, (char *)NULL);
             else if (have_id && have_label)
                 execlp("wget", "wget", "--header", id_header, "--header", label_header, "-O", out, url, (char *)NULL);
+            else if (have_id && have_alias)
+                execlp("wget", "wget", "--header", id_header, "--header", alias_header, "-O", out, url, (char *)NULL);
+            else if (have_label && have_alias)
+                execlp("wget", "wget", "--header", label_header, "--header", alias_header, "-O", out, url, (char *)NULL);
             else if (have_id)
                 execlp("wget", "wget", "--header", id_header, "-O", out, url, (char *)NULL);
             else if (have_label)
                 execlp("wget", "wget", "--header", label_header, "-O", out, url, (char *)NULL);
+            else if (have_alias)
+                execlp("wget", "wget", "--header", alias_header, "-O", out, url, (char *)NULL);
             else
                 execlp("wget", "wget", "-O", out, url, (char *)NULL);
         } else {
-            if (tls && have_id && have_label)
+            if (tls && have_id && have_label && have_alias)
+                execlp("curl", "curl", "-fkL", "-H", id_header, "-H", label_header, "-H", alias_header, "-o", out, url, (char *)NULL);
+            else if (tls && have_id && have_label)
                 execlp("curl", "curl", "-fkL", "-H", id_header, "-H", label_header, "-o", out, url, (char *)NULL);
+            else if (tls && have_id && have_alias)
+                execlp("curl", "curl", "-fkL", "-H", id_header, "-H", alias_header, "-o", out, url, (char *)NULL);
+            else if (tls && have_label && have_alias)
+                execlp("curl", "curl", "-fkL", "-H", label_header, "-H", alias_header, "-o", out, url, (char *)NULL);
             else if (tls && have_id)
                 execlp("curl", "curl", "-fkL", "-H", id_header, "-o", out, url, (char *)NULL);
             else if (tls && have_label)
                 execlp("curl", "curl", "-fkL", "-H", label_header, "-o", out, url, (char *)NULL);
+            else if (tls && have_alias)
+                execlp("curl", "curl", "-fkL", "-H", alias_header, "-o", out, url, (char *)NULL);
             else if (tls)
                 execlp("curl", "curl", "-fkL", "-o", out, url, (char *)NULL);
+            else if (have_id && have_label && have_alias)
+                execlp("curl", "curl", "-fL", "-H", id_header, "-H", label_header, "-H", alias_header, "-o", out, url, (char *)NULL);
             else if (have_id && have_label)
                 execlp("curl", "curl", "-fL", "-H", id_header, "-H", label_header, "-o", out, url, (char *)NULL);
+            else if (have_id && have_alias)
+                execlp("curl", "curl", "-fL", "-H", id_header, "-H", alias_header, "-o", out, url, (char *)NULL);
+            else if (have_label && have_alias)
+                execlp("curl", "curl", "-fL", "-H", label_header, "-H", alias_header, "-o", out, url, (char *)NULL);
             else if (have_id)
                 execlp("curl", "curl", "-fL", "-H", id_header, "-o", out, url, (char *)NULL);
             else if (have_label)
                 execlp("curl", "curl", "-fL", "-H", label_header, "-o", out, url, (char *)NULL);
+            else if (have_alias)
+                execlp("curl", "curl", "-fL", "-H", alias_header, "-o", out, url, (char *)NULL);
             else
                 execlp("curl", "curl", "-fL", "-o", out, url, (char *)NULL);
         }
@@ -149,18 +185,19 @@ int applet_fetch_main(int argc, char **argv)
     const char *out = NULL;
     const char *target_id_arg = NULL;
     const char *target_label_arg = NULL;
+    const char *target_alias_args[16];
+    int target_alias_arg_count = 0;
     int port = 22204;
     int tls = 1;
     int force = 0;
     char encoded[PATH_MAX * 3];
     char url[PATH_MAX * 4];
     char tmp[PATH_MAX];
-    char target_id[256];
-    char target_label[256];
+    char target_id[256], target_label[256], target_alias[256], target_aliases[1024];
     int i;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox fetch REQUEST --host HOST [--port PORT] [--output PATH] [--force] [--no-tls] [--target-id ID] [--target-label LABEL]");
+        puts("usage: busierbox fetch REQUEST --host HOST [--port PORT] [--output PATH] [--force] [--no-tls] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS]");
         puts("Fetches an operator-staged file from busierbox-server only when explicitly run on the target.");
         puts("Refuses path traversal and refuses to overwrite an existing output unless --force is present.");
         return 0;
@@ -199,6 +236,16 @@ int applet_fetch_main(int argc, char **argv)
                 return 2;
             }
             target_label_arg = argv[i];
+        } else if (!strcmp(argv[i], "--target-alias")) {
+            if (++i >= argc) {
+                fputs("fetch: --target-alias requires a value\n", stderr);
+                return 2;
+            }
+            if (target_alias_arg_count >= (int)(sizeof(target_alias_args) / sizeof(target_alias_args[0]))) {
+                fputs("fetch: too many --target-alias values\n", stderr);
+                return 2;
+            }
+            target_alias_args[target_alias_arg_count++] = argv[i];
         } else if (!strcmp(argv[i], "--no-tls")) {
             tls = 0;
         } else if (!strcmp(argv[i], "--tls")) {
@@ -241,10 +288,21 @@ int applet_fetch_main(int argc, char **argv)
     snprintf(tmp, sizeof(tmp), "%s.tmp.%ld", out, (long)getpid());
     clean_header_value(target_id_arg, target_id, sizeof(target_id));
     clean_header_value(target_label_arg, target_label, sizeof(target_label));
+    target_aliases[0] = '\0';
+    for (i = 0; i < target_alias_arg_count; i++) {
+        clean_header_value(target_alias_args[i], target_alias, sizeof(target_alias));
+        if (!target_alias[0])
+            continue;
+        if (target_aliases[0])
+            snprintf(target_aliases + strlen(target_aliases), sizeof(target_aliases) - strlen(target_aliases),
+                     ",%s", target_alias);
+        else
+            snprintf(target_aliases, sizeof(target_aliases), "%s", target_alias);
+    }
     unlink(tmp);
     printf("fetch: downloading %s -> %s\n", request, out);
-    if (run_downloader("wget", url, tmp, tls, target_id, target_label) != 0 &&
-            run_downloader("curl", url, tmp, tls, target_id, target_label) != 0) {
+    if (run_downloader("wget", url, tmp, tls, target_id, target_label, target_aliases) != 0 &&
+            run_downloader("curl", url, tmp, tls, target_id, target_label, target_aliases) != 0) {
         unlink(tmp);
         fputs("fetch: download failed; need wget or curl in PATH\n", stderr);
         return 1;
@@ -313,8 +371,8 @@ int applet_fetch_full_main(int argc, char **argv)
         return 2;
     }
     printf("fetch-full: downloading %s -> %s\n", url, out);
-    if (run_downloader("wget", url, out, !strncmp(url, "https:", 6), "", "") != 0 &&
-        run_downloader("curl", url, out, !strncmp(url, "https:", 6), "", "") != 0) {
+    if (run_downloader("wget", url, out, !strncmp(url, "https:", 6), "", "", "") != 0 &&
+        run_downloader("curl", url, out, !strncmp(url, "https:", 6), "", "", "") != 0) {
         fprintf(stderr, "fetch-full: download failed; need wget or curl in PATH\n");
         return 1;
     }
