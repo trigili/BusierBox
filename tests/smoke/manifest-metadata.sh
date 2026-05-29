@@ -296,6 +296,10 @@ if command_queue.get("mode_records_by_would_poll_if_configured", {}).get("true")
     raise SystemExit("manifest-metadata: command queue polling index missing")
 if command_queue.get("mode_records_by_target_polling_supported", {}).get("true") != [1, 2, 3]:
     raise SystemExit("manifest-metadata: command queue target polling index missing")
+if command_queue.get("mode_records_by_delivery_supported", {}).get("false") != [0, 1, 2, 3, 4]:
+    raise SystemExit("manifest-metadata: command queue delivery-support index missing")
+if command_queue.get("mode_records_by_result_upload_supported", {}).get("true") != [0, 1, 2, 3, 4]:
+    raise SystemExit("manifest-metadata: command queue result-upload-support index missing")
 if command_queue.get("mode_records_by_execution_supported", {}).get("false") != [0, 1, 2, 3, 4]:
     raise SystemExit("manifest-metadata: command queue execution-support index missing")
 if command_queue.get("mode_records_by_active_control_channel", {}).get("false") != [0, 1, 2, 3, 4]:
@@ -304,6 +308,8 @@ if command_queue.get("mode_records_by_operator_supplied_command_execution", {}).
     raise SystemExit("manifest-metadata: command queue operator-supplied execution index missing")
 if (mode_summary.get("mode_count") != 5 or
         mode_summary.get("target_polling_supported_mode_count") != 3 or
+        mode_summary.get("delivery_supported_mode_count") != 0 or
+        mode_summary.get("result_upload_supported_mode_count") != 5 or
         mode_summary.get("execution_supported_mode_count") != 0 or
         mode_summary.get("active_control_channel_mode_count") != 0 or
         mode_summary.get("operator_supplied_command_execution_mode_count") != 0):
@@ -313,6 +319,8 @@ if (mode_api.get("count") != 5 or
         mode_api.get("count_summary_key") != "mode_summary.mode_count" or
         mode_api.get("primary_key") != "mode" or
         "mode_records_by_target_polling_supported" not in mode_api.get("indexes", []) or
+        "mode_records_by_delivery_supported" not in mode_api.get("indexes", []) or
+        "mode_records_by_result_upload_supported" not in mode_api.get("indexes", []) or
         "mode_records_by_operator_supplied_command_execution" not in mode_api.get("indexes", [])):
     raise SystemExit("manifest-metadata: command queue mode api collection missing")
 

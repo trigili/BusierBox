@@ -1747,6 +1747,8 @@ def artifact_summary(release_dir, rec, include_missing=False):
             "mode_records_by_lifecycle": command_queue.get("mode_records_by_lifecycle", {}),
             "mode_records_by_would_poll_if_configured": command_queue.get("mode_records_by_would_poll_if_configured", {}),
             "mode_records_by_target_polling_supported": command_queue.get("mode_records_by_target_polling_supported", {}),
+            "mode_records_by_delivery_supported": command_queue.get("mode_records_by_delivery_supported", {}),
+            "mode_records_by_result_upload_supported": command_queue.get("mode_records_by_result_upload_supported", {}),
             "mode_records_by_execution_supported": command_queue.get("mode_records_by_execution_supported", {}),
             "mode_records_by_active_control_channel": command_queue.get("mode_records_by_active_control_channel", {}),
             "mode_records_by_operator_supplied_command_execution": command_queue.get("mode_records_by_operator_supplied_command_execution", {}),
