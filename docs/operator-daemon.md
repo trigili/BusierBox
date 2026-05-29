@@ -43,6 +43,8 @@ actions, with the same headless commands shown in status JSON and TUI output:
 - `operator-daemon-stop` stops managed daemon-owned services.
 - `systemd-user-print` renders the user service unit.
 - `systemd-user-install` installs the user service unit.
+- `systemd-user-start`, `systemd-user-stop`, `systemd-user-restart`, and
+  `systemd-user-status` mirror the `systemctl --user` lifecycle controls.
 
 These are metadata-backed workflow actions, so automated clients can discover
 them from `workbench_actions`, group them through

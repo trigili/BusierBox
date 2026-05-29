@@ -4025,9 +4025,17 @@ def main():
                 actions_by_id.get("operator-daemon-stop", {}).get("command") != f"scripts/busierbox-server --config {str(cfg)} --stop" or
                 actions_by_id.get("systemd-user-print", {}).get("command", "").endswith("--systemd-user-action print") is not True or
                 actions_by_id.get("systemd-user-install", {}).get("writes_config") is not True or
+                actions_by_id.get("systemd-user-start", {}).get("requires_confirmation") is not True or
+                actions_by_id.get("systemd-user-start", {}).get("command", "").endswith("--systemd-user-action start") is not True or
+                actions_by_id.get("systemd-user-stop", {}).get("requires_confirmation") is not True or
+                actions_by_id.get("systemd-user-stop", {}).get("command", "").endswith("--systemd-user-action stop") is not True or
+                actions_by_id.get("systemd-user-restart", {}).get("requires_confirmation") is not True or
+                actions_by_id.get("systemd-user-restart", {}).get("command", "").endswith("--systemd-user-action restart") is not True or
+                actions_by_id.get("systemd-user-status", {}).get("requires_confirmation") is not False or
+                actions_by_id.get("systemd-user-status", {}).get("command", "").endswith("--systemd-user-action status") is not True or
                 actions_by_id.get("configure-trailer", {}).get("script") != "scripts/artifact-config" or
                 not actions_by_category.get("configuration") or
-                len(actions_by_category.get("daemon", [])) < 5 or
+                len(actions_by_category.get("daemon", [])) < 9 or
                 not actions_by_script.get("scripts/busierbox-bringup") or
                 not actions_by_script.get("scripts/busierbox-server") or
                 not actions_by_background.get("True") or
