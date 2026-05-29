@@ -94,6 +94,8 @@ grep -q 'doom-ascii' docs/licensing.md
 grep -q 'miniz' docs/licensing.md
 grep -q 'BB_DOOM_WAD_PATH' docs/licensing.md
 grep -q 'GPLv2-compatible combined distributions' docs/licensing.md
+grep -q 'GPL is OK for the whole current default stack' docs/licensing.md
+grep -q 'not a blanket relicensing' docs/licensing.md
 grep -q 'Buildroot-selected package keeps its own upstream' docs/licensing.md
 grep -q "not part of BusierBox's license grant" docs/licensing.md
 grep -q 'release bundles include it as both `sources.lock.json` and' docs/licensing.md
@@ -132,6 +134,21 @@ for name, item in components.items():
     if not item.get("distribution_obligations"):
         raise SystemExit(f"{name}: missing distribution obligations")
 artifact_distribution = policy.get("artifact_distribution") or {}
+whole_project = policy.get("whole_project_assessment") or {}
+if whole_project.get("status") != "ok_for_current_default_stack":
+    raise SystemExit("whole-project assessment status missing")
+if whole_project.get("current_stack_ok") is not True:
+    raise SystemExit("whole-project current-stack flag missing")
+if whole_project.get("future_buildroot_packages_require_review") is not True:
+    raise SystemExit("whole-project Buildroot review caveat missing")
+if whole_project.get("not_blanket_relicense") is not True:
+    raise SystemExit("whole-project blanket-relicense caveat missing")
+for key, needle in {
+    "summary": "GPL-2.0-or-later",
+    "caveat": "Buildroot",
+}.items():
+    if needle not in str(whole_project.get(key, "")):
+        raise SystemExit(f"whole-project assessment {key} missing {needle}")
 if artifact_distribution.get("busierbox_project_terms") != "GPL-2.0-or-later":
     raise SystemExit("artifact distribution project terms missing")
 if artifact_distribution.get("ok_for_current_default_stack") is not True:

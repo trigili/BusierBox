@@ -55,6 +55,12 @@ posture:
   `BB_DOOM_WAD_PATH`, are not downloaded or bundled by BusierBox and must be
   supplied under terms the user is allowed to use.
 
+So the repository can say "BusierBox is GPL-licensed" for BusierBox-maintained
+code, and GPL is OK for the whole current default stack as a GPLv2-compatible
+combined distribution. That is not a blanket relicensing of every possible
+future payload: every newly selected Buildroot package still needs its own
+license/source/notice review before it is bundled or distributed.
+
 In practical distribution terms, the BusierBox-maintained repository content is
 GPL-2.0-or-later. Release artifacts that include BusyBox should be treated as
 GPLv2-compatible combined distributions, with source availability and notices

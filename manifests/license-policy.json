@@ -16,6 +16,14 @@
     "summary": "The default integrated stack is GPLv2-compatible: BusierBox is GPL-2.0-or-later, BusyBox is GPL-2.0, Buildroot is GPL-2.0-or-later with package exceptions, doom-ascii is GPL-2.0-or-later, and miniz is permissive.",
     "source_availability_required_for_distribution": true
   },
+  "whole_project_assessment": {
+    "status": "ok_for_current_default_stack",
+    "summary": "GPL-2.0-or-later is appropriate for BusierBox-maintained repository content and GPLv2-compatible combined artifacts using the current default stack.",
+    "current_stack_ok": true,
+    "future_buildroot_packages_require_review": true,
+    "not_blanket_relicense": true,
+    "caveat": "Buildroot can select packages under many upstream licenses; each newly bundled payload package must be reviewed, pinned, and represented in this policy before distribution."
+  },
   "artifact_distribution": {
     "busierbox_project_terms": "GPL-2.0-or-later",
     "combined_release_terms_when_busybox_included": "GPL-2.0-compatible distribution terms",
