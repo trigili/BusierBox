@@ -8580,6 +8580,19 @@ def status_document(cfg):
         if isinstance(rec, dict) and (rec.get("session_id") or rec.get("path"))
     }
     session_root_state = session_root_record(cfg, sessions)
+    session_root_state["has_recent_sessions"] = int(session_root_state.get("recent_session_count") or 0) > 0
+    session_root_state["has_uploads"] = int(session_root_state.get("total_upload_count") or 0) > 0
+    session_root_state["has_fetches"] = int(session_root_state.get("total_fetch_count") or 0) > 0
+    session_root_state["has_events"] = int(session_root_state.get("total_event_count") or 0) > 0
+    session_root_state_records = [session_root_state]
+    session_root_state_index_maps = {
+        "session_root_state_records_by_path": {rec.get("path", ""): rec for rec in session_root_state_records if rec.get("path")},
+        "session_root_state_records_by_exists": records_by_key(session_root_state_records, "exists"),
+        "session_root_state_records_by_has_recent_sessions": records_by_key(session_root_state_records, "has_recent_sessions"),
+        "session_root_state_records_by_has_uploads": records_by_key(session_root_state_records, "has_uploads"),
+        "session_root_state_records_by_has_fetches": records_by_key(session_root_state_records, "has_fetches"),
+        "session_root_state_records_by_has_events": records_by_key(session_root_state_records, "has_events"),
+    }
     reconcile_workbench_job_completion_events(cfg)
     (sessions_by_id,
      sessions_by_service,
@@ -9340,6 +9353,8 @@ def status_document(cfg):
         "session_count": len(sessions),
         "session_root_exists": bool(session_root_state.get("exists", False)),
         "session_root_recent_count": session_root_state.get("recent_session_count", 0),
+        "session_root_state_record_count": len(session_root_state_records),
+        "session_root_has_recent_sessions": bool(session_root_state.get("has_recent_sessions", False)),
         "session_service_counts": record_count_by_key(sessions, "service"),
         "session_state_counts": record_count_by_key(sessions, "state"),
         "session_exit_reason_counts": record_count_by_key(sessions, "exit_reason"),
@@ -9815,6 +9830,16 @@ def status_document(cfg):
                 "fetches_by_status_remote_addr", "fetches_by_http_status_remote_addr",
             ), "fetch_count",
         ),
+        "session_root_state_records": api_collection_record(
+            "session_root_state_records", session_root_state_records, "path", (
+                "session_root_state_records_by_path",
+                "session_root_state_records_by_exists",
+                "session_root_state_records_by_has_recent_sessions",
+                "session_root_state_records_by_has_uploads",
+                "session_root_state_records_by_has_fetches",
+                "session_root_state_records_by_has_events",
+            ), "session_root_state_record_count",
+        ),
         "sessions": api_collection_record(
             "sessions", sessions, "session_id", (
                 "sessions_by_id", "sessions_by_service", "sessions_by_state",
@@ -10237,6 +10262,8 @@ def status_document(cfg):
         "fetches_by_http_status_remote_addr": fetches_by_http_status_remote_addr,
         "sessions": sessions,
         "session_root_state": session_root_state,
+        "session_root_state_records": session_root_state_records,
+        **session_root_state_index_maps,
         "sessions_by_id": sessions_by_id,
         "sessions_by_service": sessions_by_service,
         "sessions_by_state": sessions_by_state,

@@ -1848,6 +1848,7 @@ def main():
                 ("workbench_config_fields", len(queue_status_json.get("workbench_config_fields") or []), "workbench_config_fields_by_key"),
                 ("workbench_jobs_state_records", len(queue_status_json.get("workbench_jobs_state_records") or []), "workbench_jobs_state_records_by_valid"),
                 ("workbench_jobs", len(queue_status_json.get("workbench_jobs") or []), "workbench_jobs_by_id"),
+                ("session_root_state_records", len(queue_status_json.get("session_root_state_records") or []), "session_root_state_records_by_exists"),
                 ("sessions", len(queue_status_json.get("sessions") or []), "sessions_by_has_uploads"),
                 ("events", len(queue_status_json.get("events") or []), "events_by_id"),
                 ("event_log_state_records", len(queue_status_json.get("event_log_state_records") or []), "event_log_state_records_by_valid"),
@@ -1902,6 +1903,9 @@ def main():
                 not any(rec.get("name") == "workbench_jobs_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
                 api_resources_by_name.get("workbench_jobs", {}).get("records_key") != "workbench_jobs" or
                 api_resources_by_summary_key.get("workbench_job_count", [{}])[0].get("name") != "workbench_jobs" or
+                api_resources_by_name.get("session_root_state_records", {}).get("records_key") != "session_root_state_records" or
+                api_resources_by_summary_key.get("session_root_state_record_count", [{}])[0].get("name") != "session_root_state_records" or
+                not any(rec.get("name") == "session_root_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
                 api_resources_by_summary_key.get("event_tail_count", [{}])[0].get("name") != "events" or
                 api_resources_by_name.get("event_log_state_records", {}).get("records_key") != "event_log_state_records" or
                 api_resources_by_summary_key.get("event_log_state_record_count", [{}])[0].get("name") != "event_log_state_records" or
@@ -4744,6 +4748,10 @@ def main():
         if (session_root_state.get("path") != str(session_root) or
                 session_root_state.get("exists") is not True or
                 session_root_state.get("recent_session_count") != 1 or
+                session_root_state.get("has_recent_sessions") is not True or
+                session_root_state.get("has_uploads") is not True or
+                session_root_state.get("has_fetches") is not False or
+                session_root_state.get("has_events") is not True or
                 session_root_state.get("recent_session_ids") != [session_json_paths[0].parent.name] or
                 session_root_state.get("service_counts", {}).get("file-service") != 1 or
                 session_root_state.get("total_upload_count") != 1 or
@@ -4760,8 +4768,15 @@ def main():
                 session_root_state.get("sessions_with_session_logs_count") != 1 or
                 session_root_state.get("sessions_with_metadata_count") != 1 or
                 session_root_state.get("sessions_with_event_logs_count") != 1 or
+                upload_doc.get("session_root_state_records_by_path", {}).get(str(session_root), {}).get("recent_session_count") != 1 or
+                upload_doc.get("session_root_state_records_by_has_recent_sessions", {}).get("True", [{}])[0].get("path") != str(session_root) or
+                upload_doc.get("session_root_state_records_by_has_uploads", {}).get("True", [{}])[0].get("path") != str(session_root) or
+                upload_doc.get("session_root_state_records_by_has_fetches", {}).get("False", [{}])[0].get("path") != str(session_root) or
+                "session_root_state_records_by_has_events" not in ((upload_doc.get("api_collections") or {}).get("session_root_state_records") or {}).get("indexes", []) or
                 upload_summary.get("session_root_exists") is not True or
                 upload_summary.get("session_root_recent_count") != 1 or
+                upload_summary.get("session_root_state_record_count") != 1 or
+                upload_summary.get("session_root_has_recent_sessions") is not True or
                 upload_summary.get("session_total_upload_count") != 1 or
                 upload_summary.get("session_total_fetch_count") != 0 or
                 upload_summary.get("session_total_event_count", 0) < 1 or
