@@ -14531,7 +14531,27 @@ def print_workbench(cfg, include_api_summary=True):
                 print(f"    artifact_path: {path}")
 
 
-def start_service_process(cfg, service, argv_extra=None):
+def service_start_headless_command(cfg, service, argv_extra=None):
+    parts = [
+        "scripts/busierbox-server",
+        "--config",
+        str(cfg.get("_config_path", DEFAULT_CONFIG)),
+        "--transport",
+        str(service or ""),
+        "--state-file",
+        str(state_file_path(cfg)),
+        "--staged-file",
+        str(staged_file_path(cfg)),
+    ]
+    if service == "file-service":
+        parts.extend(["--file-service-tls", str(cfg.get("file_service_tls", "yes"))])
+    if argv_extra:
+        parts.extend(str(item) for item in argv_extra)
+    return " ".join(shquote(part) for part in parts)
+
+
+def start_service_process(cfg, service, argv_extra=None, headless_command=""):
+    headless_command = headless_command or service_start_headless_command(cfg, service, argv_extra)
     current = {row["name"]: row for row in service_status_rows(cfg)}.get(service)
     if current and current.get("actual") == "listening":
         append_event(
@@ -14543,6 +14563,7 @@ def start_service_process(cfg, service, argv_extra=None):
                 "port": current.get("port", 0),
                 "listener_pids": current.get("listener_pids") or [],
                 "pid": current.get("pid", ""),
+                "headless_command": headless_command,
             },
         )
         print(f"{service}: already listening on port {current.get('port', '')}; not starting duplicate")
@@ -14567,7 +14588,17 @@ def start_service_process(cfg, service, argv_extra=None):
     with log_path.open("ab") as log:
         proc = start_child_process(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     update_server_state(cfg, service, "starting", {"pid": proc.pid, "managed_by": os.getpid(), "process_log": str(log_path)})
-    append_event(cfg, service, "service_start_requested", details={"pid": proc.pid, "process_log": str(log_path), "managed_by": os.getpid()})
+    append_event(
+        cfg,
+        service,
+        "service_start_requested",
+        details={
+            "pid": proc.pid,
+            "process_log": str(log_path),
+            "managed_by": os.getpid(),
+            "headless_command": headless_command,
+        },
+    )
     started = cfg.setdefault("_workbench_started_services", [])
     if service not in started:
         started.append(service)
@@ -14938,7 +14969,9 @@ def run_line_tui(cfg):
             return 0
         if choice in {"1", "2", "3", "4"}:
             service = {"1": "ssh", "2": "tls-shell", "3": "plain-shell", "4": "file-service"}[choice]
-            start_service_process(cfg, service)
+            headless = service_start_headless_command(cfg, service)
+            print(f"headless_command: {headless}")
+            start_service_process(cfg, service, headless_command=headless)
         elif choice == "5":
             service = line_input("service> ")
             if service is not None:

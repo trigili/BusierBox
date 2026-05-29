@@ -4553,6 +4553,12 @@ def main():
             print("line TUI summary did not report populated event counts", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
             return 1
+        if ("headless_command: scripts/busierbox-server --config" not in tui_owned_text or
+                "--transport file-service" not in tui_owned_text or
+                "--file-service-tls no" not in tui_owned_text):
+            print("line TUI service start did not expose transport command", file=sys.stderr)
+            print(tui_owned_text, file=sys.stderr)
+            return 1
         tui_after = run(
             "scripts/busierbox-server", "--config", str(tui_owned_cfg),
             "--state-file", str(tui_owned_state),
@@ -4574,6 +4580,15 @@ def main():
         except (ConnectionRefusedError, TimeoutError, OSError):
             pass
         tui_owned_events = [json.loads(line) for line in lifecycle_events_path.read_text(encoding="utf-8").splitlines()]
+        if not any(
+            event.get("service") == "file-service" and
+            event.get("event") == "service_start_requested" and
+            "--transport file-service" in event.get("details", {}).get("headless_command", "") and
+            "--file-service-tls no" in event.get("details", {}).get("headless_command", "")
+            for event in tui_owned_events
+        ):
+            print("line TUI service start did not log headless transport command", file=sys.stderr)
+            return 1
         if not any(event.get("service") == "file-service" and event.get("event") == "service_stop" and event.get("details", {}).get("via") == "workbench-stop" for event in tui_owned_events):
             print("line TUI quit did not log workbench-owned service stop", file=sys.stderr)
             return 1

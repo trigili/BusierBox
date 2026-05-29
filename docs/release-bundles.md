@@ -536,9 +536,12 @@ the filesystem. `services_by_stopped_reason` and
 `summary.service_stopped_reason_counts` let clients summarize clean exits,
 signals, and operator stop actions without rescanning every service row.
 Human `--status` mirrors the same stopped-reason counts in its service
-lifecycle summary. The line-oriented workbench stop-service action prints the
+lifecycle summary. The line-oriented workbench service-start actions print the
+equivalent `--transport SERVICE` command and service-start events record the
+same command. The line-oriented workbench stop-service action prints the
 equivalent `--stop-service SERVICE` command and records it on the resulting
-service stop event, so targeted service cleanup can be repeated headlessly.
+service stop event, so targeted service lifecycle work can be repeated
+headlessly.
 Listener ports are exposed as `ports`,
 `ports_by_number`, `ports_by_service`, and `ports_by_actual`. Service and port
 records carry `warning_count` and `warning_types` fields, and are grouped in
