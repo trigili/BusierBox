@@ -6031,6 +6031,15 @@ def main():
                 "preferred_combined_terms_with_busybox": "GPL-2.0",
                 "source_availability_required_for_distribution": True,
             },
+            "artifact_distribution": {
+                "corresponding_source_strategy": {
+                    "status": "required_for_distribution",
+                    "summary": "Redistributed binaries should include corresponding source for BusierBox and BusyBox.",
+                    "release_bundle_inputs": ["LICENSE", "LICENSE.busierbox", "NOTICE", "LICENSES/", "manifests/license-policy.json", "manifests/sources.lock.json", "sources.lock.json"],
+                    "source_reconstruction_inputs": ["this repository at the recorded release commit", "pinned downloadable sources in manifests/sources.lock.json", "Buildroot-generated package source manifests", "vendored third-party notices under third_party/"],
+                    "requires_package_license_audit": True,
+                },
+            },
             "components": [
                 {"name": "BusierBox", "license": "GPL-2.0-or-later"},
                 {"name": "BusyBox", "license": "GPL-2.0"},
@@ -6403,6 +6412,9 @@ def main():
                 release_summary.get("release_license_missing_notice_count") != 0 or
                 release_summary.get("release_project_license_counts", {}).get("GPL-2.0-or-later") != 1 or
                 release_summary.get("release_combined_gplv2_compatible_counts", {}).get("True") != 1 or
+                release_summary.get("release_corresponding_source_required_counts", {}).get("True") != 1 or
+                release_summary.get("release_corresponding_source_status_counts", {}).get("required_for_distribution") != 1 or
+                release_summary.get("release_package_license_audit_counts", {}).get("True") != 1 or
                 release_summary.get("release_recommendation_count", 0) < 1 or
                 release_summary.get("release_recommendation_scope_counts", {}).get("by_device") != 1 or
                 release_summary.get("release_recommendation_scope_counts", {}).get("by_device_payload_preset") != 1 or
@@ -6411,12 +6423,29 @@ def main():
             print("json status missing release aggregate counts", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
+        release_license = (release_doc.get("release") or {}).get("release_license") or {}
+        if (release_license.get("corresponding_source_required") is not True or
+                release_license.get("corresponding_source_status") != "required_for_distribution" or
+                release_license.get("corresponding_source_release_input_count") != 7 or
+                release_license.get("corresponding_source_reconstruction_input_count") != 4 or
+                release_license.get("corresponding_source_requires_package_license_audit") is not True or
+                "LICENSE.busierbox" not in (release_license.get("corresponding_source_release_inputs") or []) or
+                not any("recorded release commit" in item for item in (release_license.get("corresponding_source_reconstruction_inputs") or [])) or
+                release_doc.get("release_license_records_by_corresponding_source_required", {}).get("True", [{}])[0].get("project_license") != "GPL-2.0-or-later" or
+                release_doc.get("release_license_records_by_corresponding_source_status", {}).get("required_for_distribution", [{}])[0].get("valid") is not True or
+                release_doc.get("release_license_records_by_package_license_audit", {}).get("True", [{}])[0].get("combined_gplv2_compatible") is not True):
+            print("json status missing release corresponding-source metadata", file=sys.stderr)
+            print(release_status.stdout, file=sys.stderr)
+            return 1
         release_api = release_doc.get("api_collections") or {}
         if ("devices_by_tuple_path" not in (release_api.get("release_devices", {}).get("indexes") or []) or
                 "devices_by_artifact" not in (release_api.get("release_devices", {}).get("indexes") or []) or
                 "tuples_by_artifact" not in (release_api.get("release_tuples", {}).get("indexes") or []) or
                 "release_license_records_by_component_license" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
                 "release_license_records_by_notice_file" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
+                "release_license_records_by_corresponding_source_required" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
+                "release_license_records_by_corresponding_source_status" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
+                "release_license_records_by_package_license_audit" not in (release_api.get("release_licenses", {}).get("indexes") or []) or
                 "artifacts_by_command_queue_enabled" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
                 "artifacts_by_command_queue_execution_supported" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
                 "artifacts_by_command_queue_operator_supplied_command_execution" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or

@@ -5406,6 +5406,14 @@ def release_license_record(release_dir):
         "combined_gplv2_compatible": False,
         "preferred_combined_terms_with_busybox": "",
         "source_availability_required_for_distribution": False,
+        "corresponding_source_required": False,
+        "corresponding_source_status": "",
+        "corresponding_source_summary": "",
+        "corresponding_source_release_input_count": 0,
+        "corresponding_source_reconstruction_input_count": 0,
+        "corresponding_source_requires_package_license_audit": False,
+        "corresponding_source_release_inputs": [],
+        "corresponding_source_reconstruction_inputs": [],
         "component_count": 0,
         "components": [],
         "component_names": [],
@@ -5423,9 +5431,17 @@ def release_license_record(release_dir):
         return rec
     project = policy.get("project") if isinstance(policy.get("project"), dict) else {}
     compatibility = policy.get("compatibility") if isinstance(policy.get("compatibility"), dict) else {}
+    artifact_distribution = policy.get("artifact_distribution") if isinstance(policy.get("artifact_distribution"), dict) else {}
+    corresponding_source = artifact_distribution.get("corresponding_source_strategy") if isinstance(artifact_distribution.get("corresponding_source_strategy"), dict) else {}
     components = [
         item for item in (policy.get("components") or [])
         if isinstance(item, dict) and item.get("name")
+    ]
+    corresponding_source_release_inputs = [
+        str(item) for item in (corresponding_source.get("release_bundle_inputs") or [])
+    ]
+    corresponding_source_reconstruction_inputs = [
+        str(item) for item in (corresponding_source.get("source_reconstruction_inputs") or [])
     ]
     rec.update({
         "valid": True,
@@ -5433,6 +5449,14 @@ def release_license_record(release_dir):
         "combined_gplv2_compatible": compatibility.get("combined_gplv2_compatible") is True,
         "preferred_combined_terms_with_busybox": compatibility.get("preferred_combined_terms_with_busybox", ""),
         "source_availability_required_for_distribution": compatibility.get("source_availability_required_for_distribution") is True,
+        "corresponding_source_required": corresponding_source.get("status") == "required_for_distribution",
+        "corresponding_source_status": str(corresponding_source.get("status") or ""),
+        "corresponding_source_summary": str(corresponding_source.get("summary") or ""),
+        "corresponding_source_release_input_count": len(corresponding_source_release_inputs),
+        "corresponding_source_reconstruction_input_count": len(corresponding_source_reconstruction_inputs),
+        "corresponding_source_requires_package_license_audit": corresponding_source.get("requires_package_license_audit") is True,
+        "corresponding_source_release_inputs": corresponding_source_release_inputs,
+        "corresponding_source_reconstruction_inputs": corresponding_source_reconstruction_inputs,
         "component_count": len(components),
         "components": components,
         "component_names": [str(item.get("name")) for item in components],
@@ -5692,6 +5716,9 @@ def release_context(cfg=None):
         license_records_by_component = {}
         license_records_by_component_license = {}
         license_records_by_notice_file = {}
+        license_records_by_corresponding_source_required = records_by_key(license_records, "corresponding_source_required")
+        license_records_by_corresponding_source_status = records_by_key(license_records, "corresponding_source_status")
+        license_records_by_package_license_audit = records_by_key(license_records, "corresponding_source_requires_package_license_audit")
         for component in license_record.get("component_names") or []:
             license_records_by_component.setdefault(component, []).append(license_record)
         for component, license_id in (license_record.get("component_licenses") or {}).items():
@@ -5708,6 +5735,9 @@ def release_context(cfg=None):
             "release_license_records": license_records,
             "release_license_records_by_project_license": records_by_key(license_records, "project_license"),
             "release_license_records_by_combined_gplv2_compatible": records_by_key(license_records, "combined_gplv2_compatible"),
+            "release_license_records_by_corresponding_source_required": license_records_by_corresponding_source_required,
+            "release_license_records_by_corresponding_source_status": license_records_by_corresponding_source_status,
+            "release_license_records_by_package_license_audit": license_records_by_package_license_audit,
             "release_license_records_by_component": license_records_by_component,
             "release_license_records_by_component_license": license_records_by_component_license,
             "release_license_records_by_notice_file": license_records_by_notice_file,
@@ -9924,6 +9954,9 @@ def status_document(cfg):
         "release_license_missing_notice_count": (release.get("release_license") or {}).get("missing_notice_count", 0),
         "release_project_license_counts": record_count_by_key(release.get("release_license_records") or [], "project_license"),
         "release_combined_gplv2_compatible_counts": record_count_by_key(release.get("release_license_records") or [], "combined_gplv2_compatible"),
+        "release_corresponding_source_required_counts": record_count_by_key(release.get("release_license_records") or [], "corresponding_source_required"),
+        "release_corresponding_source_status_counts": record_count_by_key(release.get("release_license_records") or [], "corresponding_source_status"),
+        "release_package_license_audit_counts": record_count_by_key(release.get("release_license_records") or [], "corresponding_source_requires_package_license_audit"),
         "release_recommendation_count": len(release.get("recommendation_records") or []),
         "release_recommendation_scope_counts": record_count_by_key(release.get("recommendation_records") or [], "scope"),
         "release_recommendation_payload_preset_counts": record_count_by_key(release.get("recommendation_records") or [], "payload_preset"),
@@ -10348,6 +10381,9 @@ def status_document(cfg):
             "release_licenses", release.get("release_license_records") or [], "project_license", (
                 "release_license_records_by_project_license",
                 "release_license_records_by_combined_gplv2_compatible",
+                "release_license_records_by_corresponding_source_required",
+                "release_license_records_by_corresponding_source_status",
+                "release_license_records_by_package_license_audit",
                 "release_license_records_by_component",
                 "release_license_records_by_component_license",
                 "release_license_records_by_notice_file",
@@ -10814,6 +10850,15 @@ def status_document(cfg):
         "release_state_records": release_state_records,
         **release_state_index_maps,
         "release": release,
+        "release_license_records": release.get("release_license_records") or [],
+        "release_license_records_by_project_license": release.get("release_license_records_by_project_license") or {},
+        "release_license_records_by_combined_gplv2_compatible": release.get("release_license_records_by_combined_gplv2_compatible") or {},
+        "release_license_records_by_corresponding_source_required": release.get("release_license_records_by_corresponding_source_required") or {},
+        "release_license_records_by_corresponding_source_status": release.get("release_license_records_by_corresponding_source_status") or {},
+        "release_license_records_by_package_license_audit": release.get("release_license_records_by_package_license_audit") or {},
+        "release_license_records_by_component": release.get("release_license_records_by_component") or {},
+        "release_license_records_by_component_license": release.get("release_license_records_by_component_license") or {},
+        "release_license_records_by_notice_file": release.get("release_license_records_by_notice_file") or {},
         "command_queue": command_queue,
         "command_queue_policy_records": command_queue_policy_records,
         **command_queue_policy_index_maps,
