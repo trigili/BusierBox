@@ -5084,8 +5084,16 @@ def main():
                 (scoped_doc.get("staged_by_target_id") or {}).get("target-bravo", [{}])[0].get("request_name") != "/tmp/bravo-staged.txt" or
                 scoped_doc.get("summary", {}).get("command_queue_total_count") != 1 or
                 scoped_doc.get("summary", {}).get("command_queue_target_counts", {}).get("target-bravo") != 1 or
+                scoped_doc.get("target_filter", {}).get("unfiltered_counts", {}).get("command_queue_commands") != 1 or
+                scoped_doc.get("target_filter", {}).get("filtered_counts", {}).get("command_queue_commands") != 1 or
+                scoped_doc.get("summary", {}).get("target_filter_unfiltered_command_queue_command_count") != 1 or
+                scoped_doc.get("summary", {}).get("target_filter_command_queue_command_count") != 1 or
                 (scoped_doc.get("command_queue") or {}).get("commands_by_target_id", {}).get("target-bravo", [{}])[0].get("command") != "busierbox survey" or
                 scoped_doc.get("summary", {}).get("target_command_target_counts", {}).get("target-bravo", 0) < 1 or
+                scoped_doc.get("target_filter", {}).get("unfiltered_counts", {}).get("target_command_records", 0) < scoped_doc.get("target_filter", {}).get("filtered_counts", {}).get("target_command_records", 0) or
+                scoped_doc.get("target_filter", {}).get("filtered_counts", {}).get("target_command_records", 0) < 1 or
+                scoped_doc.get("summary", {}).get("target_filter_unfiltered_target_command_record_count") != scoped_doc.get("target_filter", {}).get("unfiltered_counts", {}).get("target_command_records") or
+                scoped_doc.get("summary", {}).get("target_filter_target_command_record_count") != scoped_doc.get("target_filter", {}).get("filtered_counts", {}).get("target_command_records") or
                 not any("--target-id target-bravo" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or
                 not any("--target-label 'Bravo Router'" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or
                 not any("--target-alias lab-bravo" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or

@@ -8304,10 +8304,11 @@ def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = configured_target_filter(cfg)
     staged_raw = load_staged(cfg).get("staged", {})
-    unfiltered_staged_count = len(staged_raw if isinstance(staged_raw, dict) else {})
+    unfiltered_staged_raw = staged_raw if isinstance(staged_raw, dict) else {}
+    unfiltered_staged_count = len(unfiltered_staged_raw)
     if target_filter_id and isinstance(staged_raw, dict):
         staged_raw = {
-            name: rec for name, rec in staged_raw.items()
+            name: rec for name, rec in unfiltered_staged_raw.items()
             if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_filter_id
         }
     staged = enriched_staged_records(cfg, staged_raw)
@@ -8539,6 +8540,9 @@ def status_document(cfg):
             "by_service_detail_expected_target_id": count_index(events_by_service_detail_expected_target_id),
         }
     command_queue = command_queue_summary(cfg)
+    unfiltered_counts["command_queue_commands"] = command_queue.get(
+        "unfiltered_total_count", len(command_queue.get("commands") or [])
+    )
     release = release_context(cfg)
     release_state = release_state_record(release)
     workbench_config_fields = workbench_config_field_records(cfg)
@@ -8550,6 +8554,10 @@ def status_document(cfg):
     workbench_jobs = workbench_job_records(cfg, workbench_actions)
     workbench_job_index_maps = workbench_job_indexes(workbench_jobs)
     workbench_job_stats = workbench_job_summary(workbench_jobs)
+    unfiltered_target_command_records = generated_target_command_records(cfg, unfiltered_staged_raw)
+    unfiltered_counts["target_command_records"] = len([
+        rec for rec in unfiltered_target_command_records if isinstance(rec, dict)
+    ])
     target_command_records = generated_target_command_records(cfg, staged_raw)
     if target_filter_id:
         for rec in target_command_records:
@@ -8954,7 +8962,11 @@ def status_document(cfg):
         "target_filter_unfiltered_staged_count": unfiltered_counts.get("staged", 0),
         "target_filter_unfiltered_session_count": unfiltered_counts.get("sessions", 0),
         "target_filter_unfiltered_event_tail_count": unfiltered_counts.get("event_tail", 0),
+        "target_filter_unfiltered_command_queue_command_count": unfiltered_counts.get("command_queue_commands", 0),
+        "target_filter_unfiltered_target_command_record_count": unfiltered_counts.get("target_command_records", 0),
         "target_filter_event_tail_count": len(events),
+        "target_filter_command_queue_command_count": len(command_queue.get("commands") or []),
+        "target_filter_target_command_record_count": target_command_summary.get("total_count", 0),
         "session_count": len(sessions),
         "session_root_exists": bool(session_root_state.get("exists", False)),
         "session_root_recent_count": session_root_state.get("recent_session_count", 0),
@@ -10387,7 +10399,9 @@ def print_status(cfg, json_output=False):
         print(
             f"  target_filter: {doc.get('target_filter', {}).get('target_id', '')} "
             f"targets={counts.get('targets', 0)} uploads={counts.get('uploads', 0)} "
-            f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)}"
+            f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)} "
+            f"commands={counts.get('command_queue_commands', 0)} "
+            f"target_cmds={counts.get('target_command_records', 0)}"
         )
     print(f"  session_root: {doc['session_root']}")
     manager = doc.get("service_manager") or {}
@@ -10731,7 +10745,9 @@ def print_workbench(cfg, include_api_summary=True):
         print(
             f"Target filter: {snap.get('target_filter', {}).get('target_id', '')} "
             f"targets={counts.get('targets', 0)} uploads={counts.get('uploads', 0)} "
-            f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)}"
+            f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)} "
+            f"commands={counts.get('command_queue_commands', 0)} "
+            f"target_cmds={counts.get('target_command_records', 0)}"
         )
     print(f"Workbench refresh: count={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}")
     print(
