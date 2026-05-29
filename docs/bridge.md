@@ -83,3 +83,10 @@ such as `bridge_profiles_by_name`, `bridge_profiles_by_target_id`,
 `bridge_profiles_by_multi_hop`, `bridge_profiles_by_hop_count`, and
 `bridge_profiles_by_route_path` for TUI and automation clients. The simple
 direct `--bridge-*` flags remain the easy one-hop path.
+
+When `--bridge-profile` is selected for other operator workflows, generated
+target commands are route-aware. File fetch/upload commands and survey bootstrap
+commands use the profile's target-visible first hop, while their status records
+carry `route_kind`, `bridge_profile`, `bridge_route_path`, and `target_route`
+metadata so a TUI can show whether the operator is using a direct or bridged
+route.

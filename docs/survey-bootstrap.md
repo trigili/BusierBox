@@ -27,6 +27,21 @@ On the target, download and run it with whatever basic tool is available:
 wget -O- http://OPERATOR:22207/yourfile.sh | /bin/sh
 ```
 
+When a bridge profile is selected, generated target commands use the bridge's
+target-visible route instead of the direct survey listener:
+
+```sh
+scripts/busierbox-server \
+  --transport survey-bootstrap \
+  --survey-bootstrap-port 22207 \
+  --bridge-profile rack-chain
+```
+
+If `rack-chain` starts at `operator:22206`, the served script posts results
+back through `http://OPERATOR:22206/survey-bootstrap/result`, and status JSON
+marks the generated survey command with `route_kind=bridge`,
+`bridge_profile=rack-chain`, and the profile's `bridge_route_path`.
+
 The script collects `uname -s`, `uname -m`, `uname -r`, word size from
 `getconf LONG_BIT` when available, and a simple endian probe using `od` and
 `awk` when available. It posts those values back to
