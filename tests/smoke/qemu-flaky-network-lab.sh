@@ -19,11 +19,12 @@ summary = json.loads(summary_path.read_text(encoding="utf-8"))
 assert summary["schema"] == 1
 assert summary["kind"] == "qemu-flaky-network-lab"
 assert summary["status"] == "planned"
-assert summary["phase_count"] == 8
+assert summary["phase_count"] == 9
 for required in (
     "offline-queue",
     "short-phone-home-window",
     "duplicate-poll",
+    "dropped-result-upload",
     "result-upload",
     "survey-window",
     "partial-transfer",
@@ -47,6 +48,7 @@ assert plan["kind"] == "qemu-flaky-network-lab-plan"
 assert topology["kind"] == "qemu-flaky-network-topology"
 assert len(topology["target_nodes"]) >= 2
 assert "offline-status.json" in plan["required_artifacts"]
+assert "dropped-command-result.http" in plan["required_artifacts"]
 assert "bridge-events.jsonl" in plan["required_artifacts"]
 PY
 

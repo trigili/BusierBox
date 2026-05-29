@@ -9,6 +9,7 @@ virtual network boundaries:
 - anonymous polls do not drain target-scoped mailboxes
 - a short phone-home window delivers only the reconnecting target's work
 - duplicate polls do not redeliver already delivered commands
+- dropped/truncated result uploads are rejected without mutating delivered work
 - target result upload updates `last_seen`, mailbox, and latest-result state
 - survey bootstrap script/result flows refresh target survey state
 - interrupted file uploads are recorded as truncated target file activity
@@ -21,7 +22,7 @@ tests/integration/flaky-network-harness.py --artifact-dir local/flaky-network/la
 ```
 
 The artifact directory contains HTTP transcripts, per-phase operator status
-JSON, bridge response data, and `summary.json`. The smoke wrapper
+JSON, dropped-result evidence, bridge response data, and `summary.json`. The smoke wrapper
 `tests/smoke/flaky-network-harness.sh` runs the same scenario from
 `make smoke-test` with a temporary artifact directory.
 

@@ -209,6 +209,26 @@ def result_request(command_id, target_id, label):
     ).encode("ascii") + body
 
 
+def dropped_result_request(command_id, target_id, label):
+    body = json.dumps({
+        "schema": 1,
+        "command_id": command_id,
+        "status": "completed",
+        "exit_code": 0,
+    }).encode("utf-8")
+    body = body[:max(len(body) // 2, 1)]
+    expected = len(body) + 128
+    return (
+        "POST /command-queue/result HTTP/1.1\r\n"
+        "Host: 127.0.0.1\r\n"
+        "Content-Type: application/json\r\n"
+        f"X-BusierBox-Target-Id: {target_id}\r\n"
+        f"X-BusierBox-Target-Label: {label}\r\n"
+        f"Content-Length: {expected}\r\n"
+        "Connection: close\r\n\r\n"
+    ).encode("ascii") + body
+
+
 def survey_get_request(target_id, label):
     return (
         "GET /survey.sh HTTP/1.1\r\n"
@@ -336,6 +356,27 @@ def run_harness(artifact_dir):
     assert_condition(b"HTTP/1.1 204 No Content" in duplicate_response, "duplicate poll should not redeliver work")
     assert_condition(after_duplicate["targets_by_id"]["target-alpha"]["mailbox_pending_work_count"] == 0, "duplicate poll changed alpha mailbox")
     phases.append({"name": "duplicate-poll", "status": "pass", "artifact": "after-duplicate-alpha-poll.json"})
+
+    proc = start_one_shot(cfg, "command-queue")
+    dropped_result = connect_with_retry(
+        queue_port,
+        dropped_result_request(alpha_id, "target-alpha", "Alpha Router"),
+        close_after_send=True,
+    )
+    wait_proc(proc, "dropped alpha result")
+    save_response(artifact_dir, "dropped-alpha-result", dropped_result)
+    after_dropped_result = status(cfg, artifact_dir, "after-dropped-alpha-result")
+    alpha_command = after_dropped_result["target_mailbox_records_by_command_id"][alpha_id]
+    assert_condition(b"HTTP/1.1 400 Bad Request" in dropped_result, "dropped result upload should return HTTP 400")
+    assert_condition(alpha_command["status"] == "delivered", "dropped result mutated command status", alpha_command)
+    assert_condition(alpha_command["delivered_without_result"] is True, "dropped result should leave command awaiting result", alpha_command)
+    assert_condition(after_dropped_result["targets_by_id"]["target-alpha"]["mailbox_result_received_command_count"] == 0, "dropped result should not count as received")
+    assert_condition(
+        after_dropped_result["summary"]["event_type_detail_status_counts"].get("command_queue_result_upload:rejected") == 1,
+        "dropped result rejection event missing",
+        after_dropped_result["summary"]["event_type_detail_status_counts"],
+    )
+    phases.append({"name": "dropped-result-upload", "status": "pass", "artifact": "after-dropped-alpha-result.json"})
 
     proc = start_one_shot(cfg, "command-queue")
     result_response = connect_with_retry(queue_port, result_request(alpha_id, "target-alpha", "Alpha Router"))

@@ -388,8 +388,9 @@ The smoke suite includes a deterministic intermittent-connectivity harness for
 this path. It queues target-scoped work while targets are offline, proves an
 anonymous poll cannot drain target mailboxes, simulates a stale/offline
 heartbeat, delivers the selected target's work on a later poll, rejects missing
-or mismatched target result uploads without mutating the command, accepts the
-matching target result, and verifies status JSON plus text status show
+or mismatched target result uploads without mutating the command, rejects a
+dropped/truncated result upload while leaving the delivered command awaiting a
+valid result, accepts the matching target result, and verifies status JSON plus text status show
 `last_seen`, `last_seen_via`, `offline_for_sec`, `connectivity_state`,
 `next_expected_poll`, mailbox pending counts, and latest command result
 metadata.
