@@ -5806,6 +5806,9 @@ def main():
                 capability_status_summary.get("target_compatibility_baseline_label_counts", {}).get("exact") != 1 or
                 capability_status_summary.get("target_compatibility_release_counts", {}).get("operator-smoke") != 1 or
                 capability_status_summary.get("target_compatibility_payload_preset_counts", {}).get("survey-core") != 1 or
+                ((capability_status.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}).get("compatibility_report_count") != 1 or
+                ((capability_status.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}).get("compatibility_label_counts", {}).get("unsafe") != 1 or
+                ((capability_status.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}).get("compatibility_release_counts", {}).get("operator-smoke") != 1 or
                 capability_status_summary.get("target_observed_capability_counts", {}).get("runtime_root_writable") != 1 or
                 capability_status_summary.get("target_missing_capability_counts", {}).get("pty") != 1 or
                 capability_status_summary.get("target_observed_constraint_counts", {}).get("rootfs_read_only:true") != 1 or

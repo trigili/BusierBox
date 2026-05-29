@@ -8803,6 +8803,10 @@ def status_document(cfg):
         "latest_activity_operation_counts": target_summary.get("target_latest_activity_operation_counts") or {},
         "capability_report_count": int_value(target_summary.get("target_capability_report_count", 0)),
         "compatibility_report_count": int_value(target_summary.get("target_compatibility_report_count", 0)),
+        "compatibility_label_counts": target_summary.get("target_compatibility_label_counts") or {},
+        "compatibility_baseline_label_counts": target_summary.get("target_compatibility_baseline_label_counts") or {},
+        "compatibility_release_counts": target_summary.get("target_compatibility_release_counts") or {},
+        "compatibility_payload_preset_counts": target_summary.get("target_compatibility_payload_preset_counts") or {},
     }
     target_registry_state_record.update({
         "has_targets": target_registry_state_record.get("target_count", 0) > 0,
