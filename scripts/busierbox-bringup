@@ -220,6 +220,7 @@ write_summary() {
     STAGED_FETCH_COMMAND="$staged_fetch_command" \
     STAGED_REQUEST_NAME="$staged_request_name" \
     RECOMMENDED_ARTIFACT="$recommended_artifact" \
+    RUN_INTEGRATION="$run_integration" \
     python3 - <<'PY'
 import json
 import os
@@ -602,6 +603,99 @@ def records_by_key(records, key):
         grouped.setdefault(str(value), []).append(rec)
     return grouped
 
+def step_record(ordinal, key, title, status, evidence_path="", command="", optional=False, details=None):
+    rec = {
+        "ordinal": ordinal,
+        "key": key,
+        "title": title,
+        "status": status,
+        "optional": bool(optional),
+        "evidence_path": evidence_path,
+        "evidence_exists": bool(evidence_path and os.path.exists(evidence_path)),
+        "command": command,
+    }
+    if details:
+        rec["details"] = details
+    if target_context:
+        rec["target_context"] = target_context
+    return rec
+
+survey_path = env("SURVEY_JSON")
+reality_path = env("REALITY_JSON")
+recommended_config_path = env("RECOMMENDED_CONFIG")
+target_preset_path_env = env("TARGET_PRESET_PATH")
+release_find_path = env("RELEASE_FIND_JSON")
+selected_artifact_path = env("SELECTED_ARTIFACT")
+trailer_cmd = env("TRAILER_COMMAND")
+staged_fetch_cmd = env("STAGED_FETCH_COMMAND")
+integration_case = env("RUN_INTEGRATION")
+status_value = env("STATUS")
+dry_run = status_value == "dry-run"
+
+bringup_flow_steps = [
+    step_record(1, "transfer_survey_artifact", "transfer survey/core artifact",
+                "planned" if dry_run else ("complete" if survey_path and os.path.exists(survey_path) else "pending"),
+                survey_path, "make package; scp busierbox to target",
+                details={"remote_dir": env("REMOTE_DIR"), "payload_preset": env("PAYLOAD_PRESET")}),
+    step_record(2, "run_survey", "run survey",
+                "planned" if dry_run else ("complete" if survey_path and os.path.exists(survey_path) else "pending"),
+                survey_path, "./busierbox survey --json"),
+    step_record(3, "run_reality_test", "run reality-test if available",
+                "complete" if reality_path and os.path.exists(reality_path) else ("planned" if dry_run else "skipped"),
+                reality_path, "./busierbox reality-test --json", optional=True),
+    step_record(4, "generate_recommended_config", "generate recommended config",
+                "planned" if dry_run else ("complete" if recommended_config_path and os.path.exists(recommended_config_path) else "pending"),
+                recommended_config_path, "scripts/config-from-survey --format shell --write-config"),
+    step_record(5, "generate_target_preset", "generate local target preset",
+                "complete" if target_preset_path_env and os.path.exists(target_preset_path_env) else ("planned" if dry_run and target_preset_path_env else "skipped"),
+                target_preset_path_env, "scripts/preset-from-survey --write-local", optional=True),
+    step_record(6, "choose_release_artifact", "choose compatible release artifact",
+                "complete" if selected_artifact_path else ("planned" if dry_run and env("RELEASE_DIR") else "skipped"),
+                release_find_path, env("RELEASE_SELECTION_COMMAND") or "scripts/find-artifact or release-find",
+                optional=True, details={"release_dir": env("RELEASE_DIR"), "compatibility_label": env("COMPATIBILITY_LABEL")}),
+    step_record(7, "configure_trailer", "configure trailer with operator host/ports",
+                "complete" if trailer_cmd else ("planned" if dry_run and env("OPERATOR_HOST") else "skipped"),
+                selected_artifact_path or env("RECOMMENDED_ARTIFACT"), trailer_cmd,
+                optional=True, details={"operator_host": env("OPERATOR_HOST")}),
+    step_record(8, "stage_artifact_or_config", "stage selected artifact or config for fetch",
+                "complete" if staged_fetch_cmd else ("planned" if dry_run else "skipped"),
+                selected_artifact_path or env("RECOMMENDED_ARTIFACT") or recommended_config_path, staged_fetch_cmd,
+                optional=True, details={"request_name": env("STAGED_REQUEST_NAME")}),
+    step_record(9, "print_next_commands", "print exact next target commands",
+                "complete" if status_value in ("pass", "dry-run") else "pending",
+                env("SUMMARY_PATH"), "summary.next_operator_commands and summary.next_target_commands"),
+    step_record(10, "run_integration_safe_checks", "optionally run integration-safe checks",
+                "complete" if integration_case and status_value == "pass" else ("planned" if dry_run and integration_case else "skipped"),
+                os.path.join(env("RUN_DIR"), "integration.log") if integration_case else "",
+                f"scripts/integration-glinet --case {integration_case}" if integration_case else "",
+                optional=True),
+]
+bringup_flow_steps_by_key = {item["key"]: item for item in bringup_flow_steps}
+bringup_flow_steps_by_status = records_by_key(bringup_flow_steps, "status")
+bringup_flow_steps_by_optional = records_by_key(
+    [dict(item, optional_key="yes" if item.get("optional") else "no") for item in bringup_flow_steps],
+    "optional_key",
+)
+bringup_flow_steps_by_evidence_exists = records_by_key(
+    [dict(item, evidence_exists_key="yes" if item.get("evidence_exists") else "no") for item in bringup_flow_steps],
+    "evidence_exists_key",
+)
+required_bringup_flow_steps = [item for item in bringup_flow_steps if not item.get("optional")]
+bringup_flow_summary = {
+    "step_count": len(bringup_flow_steps),
+    "required_step_count": len(required_bringup_flow_steps),
+    "optional_step_count": len(bringup_flow_steps) - len(required_bringup_flow_steps),
+    "complete_count": sum(1 for item in bringup_flow_steps if item.get("status") == "complete"),
+    "planned_count": sum(1 for item in bringup_flow_steps if item.get("status") == "planned"),
+    "skipped_count": sum(1 for item in bringup_flow_steps if item.get("status") == "skipped"),
+    "pending_count": sum(1 for item in bringup_flow_steps if item.get("status") == "pending"),
+    "required_complete_count": sum(1 for item in required_bringup_flow_steps if item.get("status") == "complete"),
+    "required_pending_count": sum(1 for item in required_bringup_flow_steps if item.get("status") == "pending"),
+    "status_counts": {key: len(value) for key, value in bringup_flow_steps_by_status.items()},
+    "optional_counts": {key: len(value) for key, value in bringup_flow_steps_by_optional.items()},
+    "evidence_exists_counts": {key: len(value) for key, value in bringup_flow_steps_by_evidence_exists.items()},
+}
+
 selected_tool_provider_status_records = []
 for tool, status in sorted(selected_tool_provider_status.items()):
     record = {
@@ -805,6 +899,12 @@ doc = {
     "selected_doom_wads_by_filename": selected_doom_wads_by_filename,
     "selected_doom_wads_by_sha256": selected_doom_wads_by_sha256,
     "compatibility": selected_compatibility,
+    "bringup_flow_steps": bringup_flow_steps,
+    "bringup_flow_steps_by_key": bringup_flow_steps_by_key,
+    "bringup_flow_steps_by_status": bringup_flow_steps_by_status,
+    "bringup_flow_steps_by_optional": bringup_flow_steps_by_optional,
+    "bringup_flow_steps_by_evidence_exists": bringup_flow_steps_by_evidence_exists,
+    "bringup_flow_summary": bringup_flow_summary,
     "generated_trailer_override_command": env("TRAILER_COMMAND"),
     "staged_request_name": env("STAGED_REQUEST_NAME"),
     "staged_fetch_command": env("STAGED_FETCH_COMMAND"),
@@ -905,6 +1005,18 @@ doc["run_file_summary"] = {
     "total_size": sum(int(item.get("size") or 0) for item in run_files.values()),
 }
 doc["api_collections"] = {
+    "bringup_flow_steps": api_collection_record(
+        "bringup_flow_steps",
+        bringup_flow_steps,
+        (
+            "bringup_flow_steps_by_key",
+            "bringup_flow_steps_by_status",
+            "bringup_flow_steps_by_optional",
+            "bringup_flow_steps_by_evidence_exists",
+        ),
+        "bringup_flow_summary.step_count",
+        "key",
+    ),
     "next_command_records": api_collection_record(
         "next_command_records",
         next_command_records,
