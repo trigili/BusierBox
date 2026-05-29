@@ -1845,6 +1845,7 @@ def main():
                 ("workbench_jobs", len(queue_status_json.get("workbench_jobs") or []), "workbench_jobs_by_id"),
                 ("sessions", len(queue_status_json.get("sessions") or []), "sessions_by_has_uploads"),
                 ("events", len(queue_status_json.get("events") or []), "events_by_id"),
+                ("event_log_state_records", len(queue_status_json.get("event_log_state_records") or []), "event_log_state_records_by_valid"),
         ):
             collection = api_collections.get(collection_name) or {}
             if (collection.get("count") != expected_count or
@@ -1891,6 +1892,9 @@ def main():
                 api_resources_by_name.get("workbench_jobs", {}).get("records_key") != "workbench_jobs" or
                 api_resources_by_summary_key.get("workbench_job_count", [{}])[0].get("name") != "workbench_jobs" or
                 api_resources_by_summary_key.get("event_tail_count", [{}])[0].get("name") != "events" or
+                api_resources_by_name.get("event_log_state_records", {}).get("records_key") != "event_log_state_records" or
+                api_resources_by_summary_key.get("event_log_state_record_count", [{}])[0].get("name") != "event_log_state_records" or
+                not any(rec.get("name") == "event_log_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
                 not any(rec.get("name") == "services" for rec in api_resources_by_primary_key.get("name", []))):
             print("server json status missing API resource catalog lookup maps", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
@@ -2219,6 +2223,11 @@ def main():
                 event_log_state.get("invalid_count") != event_stats.get("invalid_count") or
                 event_log_state.get("tail_truncated") is not False or
                 event_log_state.get("tail_omitted_count") != 0 or
+                event_log_state.get("has_invalid_records") is not False or
+                queue_status_json.get("event_log_state_records_by_path", {}).get(event_log_state.get("path"), {}).get("event_count") != event_stats.get("total_count") or
+                queue_status_json.get("event_log_state_records_by_valid", {}).get("True", [{}])[0].get("path") != event_log_state.get("path") or
+                "event_log_state_records_by_has_invalid_records" not in ((queue_status_json.get("api_collections") or {}).get("event_log_state_records") or {}).get("indexes", []) or
+                queue_status_json["summary"].get("event_log_state_record_count") != 1 or
                 queue_status_json["summary"].get("event_log_exists") is not True or
                 queue_status_json["summary"].get("event_log_valid") is not True or
                 queue_status_json["summary"].get("event_log_size", 0) <= 0):
@@ -2351,6 +2360,7 @@ def main():
                 truncated_state.get("tail_omitted_count") != 3 or
                 truncated_event_doc.get("summary", {}).get("event_tail_truncated") is not True or
                 truncated_event_doc.get("summary", {}).get("event_tail_omitted_count") != 3 or
+                truncated_event_doc.get("event_log_state_records_by_tail_truncated", {}).get("True", [{}])[0].get("tail_omitted_count") != 3 or
                 truncated_event_doc.get("summary", {}).get("event_session_level_counts", {}).get("sess-trunc:info") != 15 or
                 truncated_event_doc.get("summary", {}).get("event_remote_event_counts", {}).get("198.51.100.7:1234:truncated_tail_probe") != 15 or
                 truncated_event_doc.get("summary", {}).get("event_remote_level_counts", {}).get("198.51.100.7:1234:info") != 15 or
@@ -2424,6 +2434,8 @@ def main():
                 invalid_event_doc.get("summary", {}).get("event_log_valid") is not False or
                 (invalid_event_doc.get("event_log_state") or {}).get("valid") is not False or
                 (invalid_event_doc.get("event_log_state") or {}).get("invalid_count") != expected_invalid or
+                (invalid_event_doc.get("event_log_state") or {}).get("has_invalid_records") is not True or
+                invalid_event_doc.get("event_log_state_records_by_has_invalid_records", {}).get("True", [{}])[0].get("invalid_count") != expected_invalid or
                 not invalid_event_warnings or
                 invalid_event_warnings[-1].get("path") != str(event_log_path) or
                 invalid_event_warnings[-1].get("invalid_count") != expected_invalid):
