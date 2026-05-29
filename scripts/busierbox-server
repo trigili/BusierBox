@@ -7521,6 +7521,15 @@ def open_path_in_pager(path):
     return f"viewed {target}"
 
 
+def view_path_headless_command(cfg, path):
+    return (
+        "scripts/busierbox-server --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --view-path "
+        + shquote(str(path or ""))
+    )
+
+
 def clipboard_command():
     for cmd in (["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"], ["pbcopy"]):
         if shutil.which(cmd[0]):
@@ -15046,7 +15055,16 @@ def run_line_tui(cfg):
             path_line = line_input("local path> ")
             path = path_line.strip() if path_line is not None else ""
             if path:
-                print(open_path_in_pager(path))
+                headless = view_path_headless_command(cfg, path)
+                print(f"headless_command: {headless}")
+                result = open_path_in_pager(path)
+                print(result)
+                append_event(cfg, "workbench", "workbench_path_viewed", details={
+                    "headless_command": headless,
+                    "path": path,
+                    "result": result,
+                    "viewable": viewable_path(path) is not None,
+                })
         elif choice == "10":
             rel = release_context(cfg)
             if not rel:
@@ -16089,6 +16107,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="operator notes to store with --set-target-label")
     parser.add_argument("--copy-target-command", type=int,
                         help="copy/export generated target command N to clipboard when available and to the command copy file")
+    parser.add_argument("--view-path",
+                        help="open a local operator path in the configured pager when viewable")
     parser.add_argument("--start-workbench-job",
                         help="start a background-capable operator workflow action by id")
     parser.add_argument("--cancel-workbench-job",
@@ -16300,6 +16320,18 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             print(f"copied target command {args.copy_target_command} to {rec['path']}")
             print(f"clipboard={'yes' if rec['clipboard'] else 'no'}")
             print(rec["text"])
+            return 0
+        if args.view_path:
+            headless = view_path_headless_command(cfg, args.view_path)
+            result = open_path_in_pager(args.view_path)
+            print(result)
+            append_event(cfg, "workbench", "workbench_path_viewed", details={
+                "headless_command": headless,
+                "path": args.view_path,
+                "result": result,
+                "viewable": viewable_path(args.view_path) is not None,
+                "via": "server-view-path",
+            })
             return 0
         if args.set_target_label:
             if args.target_label is None:

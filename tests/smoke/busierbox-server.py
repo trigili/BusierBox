@@ -125,7 +125,7 @@ def main():
     if "survey-bootstrap" not in combined or "--survey-bootstrap-port" not in combined:
         print("busierbox-server help missing survey bootstrap mode", file=sys.stderr)
         return 1
-    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--stop-service", "--json-status", "--api-status", "--event-limit",
+    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--stop-service", "--view-path", "--json-status", "--api-status", "--event-limit",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
                  "--build-config", "--list-build-config", "--set-build-config"):
@@ -158,7 +158,7 @@ def main():
     if "sys.stdin.isatty()" not in src or "--no-stdin" not in src or "--log-only" not in src:
         print("busierbox-server: stdin EOF/log-only handling not found", file=sys.stderr)
         return 1
-    for word in ("open_path_in_pager", "pager_command", 'ord("v")', "v opens", "copy_generated_command", "clipboard_command",
+    for word in ("open_path_in_pager", "view_path_headless_command", "workbench_path_viewed", "pager_command", 'ord("v")', "v opens", "copy_generated_command", "clipboard_command",
                  "event_id:", "details_json:", "v opens operator event log in pager", "record_workbench_refresh",
                  "workbench_refreshed", 'ord("r")', 'ord("R")', "operator_state_unhealthy",
                  "operator state health:", "legacy_without_id=", "legacy_single_target=",
@@ -1017,6 +1017,82 @@ def main():
                 for event in refresh_tui_events):
             print("line TUI refresh did not record headless command event", file=sys.stderr)
             print(json.dumps(refresh_tui_events[-8:], indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
+        missing_view_path = str(Path(tmp) / "missing-view-path.txt")
+        view_path = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--view-path", missing_view_path,
+        )
+        if view_path.returncode != 0 or f"no viewable local file: {missing_view_path}" not in view_path.stdout:
+            print("headless view-path did not report missing local file", file=sys.stderr)
+            print(view_path.stdout, file=sys.stderr)
+            print(view_path.stderr, file=sys.stderr)
+            return 1
+        view_tui_master, view_tui_slave = pty.openpty()
+        try:
+            view_tui_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(cfg),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=view_tui_slave,
+                stdout=view_tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(view_tui_slave)
+            view_tui_slave = -1
+            time.sleep(0.3)
+            os.write(view_tui_master, f"9\n{missing_view_path}\nq\n".encode("utf-8"))
+            _view_tui_stdout, view_tui_stderr = view_tui_proc.communicate(timeout=8)
+            view_tui_output = b""
+            while True:
+                try:
+                    chunk = os.read(view_tui_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                view_tui_output += chunk
+        finally:
+            if view_tui_slave != -1:
+                os.close(view_tui_slave)
+            try:
+                os.close(view_tui_master)
+            except OSError:
+                pass
+        view_tui_text = view_tui_output.decode("utf-8", errors="replace")
+        if (view_tui_proc.returncode != 0 or
+                "Traceback" in (view_tui_stderr or "") or
+                "headless_command: scripts/busierbox-server --config" not in view_tui_text or
+                "--view-path " not in view_tui_text or
+                f"no viewable local file: {missing_view_path}" not in view_tui_text):
+            print("line TUI path view did not expose headless view-path command", file=sys.stderr)
+            print(view_tui_text, file=sys.stderr)
+            print(view_tui_stderr or "", file=sys.stderr)
+            return 1
+        view_tui_events = [
+            json.loads(line)
+            for line in (queue_operator_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if (not any(
+                event.get("event") == "workbench_path_viewed" and
+                event.get("details", {}).get("via") == "server-view-path" and
+                "--view-path " in event.get("details", {}).get("headless_command", "")
+                for event in view_tui_events) or
+                not any(
+                    event.get("event") == "workbench_path_viewed" and
+                    event.get("details", {}).get("via", "") == "" and
+                    "--view-path " in event.get("details", {}).get("headless_command", "")
+                    for event in view_tui_events)):
+            print("path view events did not record headless view-path commands", file=sys.stderr)
+            print(json.dumps(view_tui_events[-12:], indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         stop_service = run(

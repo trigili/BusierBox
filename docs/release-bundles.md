@@ -1109,8 +1109,10 @@ the line-oriented fallback workbench. The fallback workbench's compact refresh
 summary also repeats event-tail availability and active target-filter context,
 so a non-curses operator does not lose those cues after refreshes. `v` opens the
 selected local metadata/log/artifact/event-log path in the operator's pager when
-one is available, and `c` copies the selected generated target command to the
-local clipboard when possible plus
+one is available. The line-oriented fallback and `--view-path PATH` share the
+same local-path viewer behavior and record `workbench_path_viewed` with the
+equivalent headless command, path, result, and viewability state. `c` copies the
+selected generated target command to the local clipboard when possible plus
 `local/operator-session/last-command.txt`. The line-oriented fallback prints the
 equivalent `--copy-target-command N` command after copying, and
 `target_command_copied` events include that headless command, ordinal, and
