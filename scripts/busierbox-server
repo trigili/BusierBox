@@ -4099,11 +4099,18 @@ def command_queue_delivery_policy_snapshot(cfg):
     return policy
 
 
-def mark_command_delivered(cfg, command_id, remote_addr=""):
+def mark_command_delivered(cfg, command_id, remote_addr="", target_identity=None):
     data = load_command_queue(cfg)
     for rec in data.get("commands", []):
         if isinstance(rec, dict) and rec.get("id") == command_id:
             policy = command_queue_delivery_policy_snapshot(cfg)
+            target_identity = dict(target_identity or {})
+            rec_target_id = str(rec.get("target_id") or "").strip()
+            poll_target_id = str(target_identity.get("target_id") or "").strip()
+            if poll_target_id and rec_target_id and poll_target_id != rec_target_id:
+                raise ValueError(f"command target mismatch: expected {rec_target_id}, got {poll_target_id}")
+            if poll_target_id and not rec_target_id:
+                rec.update(target_identity)
             rec["status"] = "delivered"
             rec["delivered_at"] = utc_now()
             rec["delivered_to"] = remote_addr
@@ -4129,6 +4136,10 @@ def mark_command_delivered(cfg, command_id, remote_addr=""):
                     "result_upload_supported": True,
                     "execution_supported": False,
                     "execution_decision": "rejected",
+                    "target_id": rec.get("target_id", ""),
+                    "target_label": rec.get("target_label", ""),
+                    "target_identity_source": rec.get("target_identity_source", ""),
+                    "target_identity_confidence": rec.get("target_identity_confidence", ""),
                     "policy_snapshot": policy,
                 },
             )
@@ -4196,7 +4207,7 @@ def clear_command_queue(cfg):
     return count
 
 
-def record_command_result_payload(cfg, command_id, result, result_source_path=""):
+def record_command_result_payload(cfg, command_id, result, result_source_path="", target_identity=None):
     data = load_command_queue(cfg)
     if not isinstance(result, dict):
         raise ValueError("command result JSON must be an object")
@@ -4206,6 +4217,13 @@ def record_command_result_payload(cfg, command_id, result, result_source_path=""
     commands = data.get("commands", [])
     for rec in commands:
         if isinstance(rec, dict) and rec.get("id") == command_id:
+            target_identity = dict(target_identity or {})
+            rec_target_id = str(rec.get("target_id") or "").strip()
+            result_target_id = str(target_identity.get("target_id") or "").strip()
+            if result_target_id and rec_target_id and result_target_id != rec_target_id:
+                raise ValueError(f"command result target mismatch: expected {rec_target_id}, got {result_target_id}")
+            if result_target_id and not rec_target_id:
+                rec.update(target_identity)
             stdout_bytes = int(result.get("stdout_bytes", 0) or 0)
             stderr_bytes = int(result.get("stderr_bytes", 0) or 0)
             output_bytes = stdout_bytes + stderr_bytes
@@ -4238,6 +4256,10 @@ def record_command_result_payload(cfg, command_id, result, result_source_path=""
                     "output_bytes": output_bytes,
                     "output_limit_bytes": max_output_bytes,
                     "output_exceeded_limit": output_exceeded,
+                    "target_id": rec.get("target_id", ""),
+                    "target_label": rec.get("target_label", ""),
+                    "target_identity_source": rec.get("target_identity_source", ""),
+                    "target_identity_confidence": rec.get("target_identity_confidence", ""),
                 },
             )
             return rec
@@ -7048,19 +7070,20 @@ def handle_file_service_http(cfg, conn, files_dir, addr):
 
 def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
     remote = f"{addr[0]}:{addr[1]}"
+    target_identity = target_identity_from_headers(headers)
     if method not in {"PUT", "POST"}:
         payload = {"schema": 1, "status": "rejected", "reason": "command queue result accepts only PUT or POST"}
         send_json_response(conn, 405, payload)
-        return {"operation": "command_queue_result", "status": "rejected", "http_status": 405, "method": method, "remote_addr": remote}
+        return details_with_target(cfg, {"operation": "command_queue_result", "status": "rejected", "http_status": 405, "method": method, "remote_addr": remote}, target_identity)
     parsed = urllib.parse.urlparse(target)
     if parsed.path not in {"/command-queue/result", "/command-queue/result/"}:
         payload = {"schema": 1, "status": "rejected", "reason": "unknown command queue result endpoint"}
         send_json_response(conn, 404, payload)
-        return {"operation": "command_queue_result", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint"}
+        return details_with_target(cfg, {"operation": "command_queue_result", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint"}, target_identity)
     if not command_queue_token_valid(cfg, headers):
         payload = {"schema": 1, "status": "rejected", "reason": "missing or invalid command queue token"}
         send_json_response(conn, 403, payload)
-        return {"operation": "command_queue_result", "status": "rejected", "http_status": 403, "method": method, "remote_addr": remote, "reason": "invalid token"}
+        return details_with_target(cfg, {"operation": "command_queue_result", "status": "rejected", "http_status": 403, "method": method, "remote_addr": remote, "reason": "invalid token"}, target_identity)
     try:
         payload_body = read_http_body(conn, headers, body)
         result = json.loads(payload_body.decode("utf-8"))
@@ -7069,15 +7092,15 @@ def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
         command_id = str(result.get("command_id", "") or "").strip()
         if not command_id:
             raise ValueError("command result JSON must include command_id")
-        rec = record_command_result_payload(cfg, command_id, result, f"http:{remote}{parsed.path}")
+        rec = record_command_result_payload(cfg, command_id, result, f"http:{remote}{parsed.path}", target_identity=target_identity)
     except json.JSONDecodeError as exc:
         payload = {"schema": 1, "status": "rejected", "reason": f"invalid command result JSON: {exc}"}
         send_json_response(conn, 400, payload)
-        return {"operation": "command_queue_result", "status": "rejected", "http_status": 400, "method": method, "remote_addr": remote, "reason": payload["reason"]}
+        return details_with_target(cfg, {"operation": "command_queue_result", "status": "rejected", "http_status": 400, "method": method, "remote_addr": remote, "reason": payload["reason"]}, target_identity)
     except ValueError as exc:
         payload = {"schema": 1, "status": "rejected", "reason": str(exc)}
         send_json_response(conn, 400, payload)
-        return {"operation": "command_queue_result", "status": "rejected", "http_status": 400, "method": method, "remote_addr": remote, "reason": str(exc)}
+        return details_with_target(cfg, {"operation": "command_queue_result", "status": "rejected", "http_status": 400, "method": method, "remote_addr": remote, "reason": str(exc)}, target_identity)
     response = {
         "schema": 1,
         "status": "result-received",
@@ -7095,7 +7118,7 @@ def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
         "result_upload_supported": True,
     }
     send_json_response(conn, 200, response)
-    return {
+    return details_with_target(cfg, {
         "operation": "command_queue_result",
         "status": "result-received",
         "http_status": 200,
@@ -7112,7 +7135,7 @@ def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
         "execution_supported": False,
         "executes_commands": False,
         "result_upload_supported": True,
-    }
+    }, target_identity)
 
 
 def handle_command_queue_http(cfg, conn, method, target, headers, body, addr):
@@ -7173,28 +7196,31 @@ def command_queue_execution_rejection_reason(cfg):
 
 def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
     remote = f"{addr[0]}:{addr[1]}"
+    target_identity = target_identity_from_headers(headers)
     if method not in {"GET", "HEAD"}:
         payload = {"schema": 1, "status": "rejected", "reason": "command queue poll accepts only GET or HEAD"}
         send_json_response(conn, 405, payload)
-        return {"operation": "command_queue_poll", "status": "rejected", "http_status": 405, "method": method, "remote_addr": remote}
+        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 405, "method": method, "remote_addr": remote}, target_identity)
     parsed = urllib.parse.urlparse(target)
     if parsed.path not in {"/command-queue/poll", "/command-queue/poll/"}:
         payload = {"schema": 1, "status": "rejected", "reason": "unknown command queue endpoint"}
         send_json_response(conn, 404, payload)
-        return {"operation": "command_queue_poll", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint"}
+        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint"}, target_identity)
     if not command_queue_token_valid(cfg, headers):
         payload = {"schema": 1, "status": "rejected", "reason": "missing or invalid command queue token"}
         send_json_response(conn, 403, payload)
-        return {"operation": "command_queue_poll", "status": "rejected", "http_status": 403, "method": method, "remote_addr": remote, "reason": "invalid token"}
+        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 403, "method": method, "remote_addr": remote, "reason": "invalid token"}, target_identity)
     queue = command_queue_summary(cfg)
     queued_count = int(queue.get("queued_count", 0) or 0)
+    target_id = str(target_identity.get("target_id") or "")
     queued = [
         rec for rec in queue.get("commands", [])
         if isinstance(rec, dict) and rec.get("status") == "queued" and rec.get("id")
+        and (not target_id or str(rec.get("target_id") or "") in ("", target_id))
     ]
     if queued:
         command = queued[0]
-        delivered = mark_command_delivered(cfg, command.get("id"), remote)
+        delivered = mark_command_delivered(cfg, command.get("id"), remote, target_identity=target_identity)
         payload = {
             "schema": 1,
             "status": "delivered",
@@ -7212,6 +7238,7 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
             "execution_decision": "rejected",
             "execution_decision_reason": command_queue_execution_rejection_reason(cfg),
         }
+        payload.update({key: value for key, value in target_identity.items() if value not in (None, "")})
         body = json.dumps(payload, sort_keys=True).encode("utf-8") + b"\n"
         headers = {
             "X-BusierBox-Command-Queue-Status": "delivered",
@@ -7222,10 +7249,12 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
             "X-BusierBox-Execution-Supported": "no",
             "X-BusierBox-Executes-Commands": "no",
         }
+        if target_id:
+            headers["X-BusierBox-Target-Id"] = target_id
         if method == "HEAD":
             body = b""
         send_http_response(conn, 200, body, "application/json", headers=headers)
-        return {
+        return details_with_target(cfg, {
             "operation": "command_queue_poll",
             "status": "delivered",
             "http_status": 200,
@@ -7242,7 +7271,7 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
             "result_upload_supported": True,
             "execution_decision": "rejected",
             "execution_decision_reason": command_queue_execution_rejection_reason(cfg),
-        }
+        }, target_identity)
     payload = {
         "schema": 1,
         "status": "no-command",
@@ -7265,7 +7294,7 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
     if method == "HEAD":
         body = b""
     send_http_response(conn, 204, body, "application/json", headers=headers)
-    return {
+    return details_with_target(cfg, {
         "operation": "command_queue_poll",
         "status": "no-command",
         "http_status": 204,
@@ -7277,7 +7306,7 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "execution_supported": False,
         "executes_commands": False,
         "result_upload_supported": True,
-    }
+    }, target_identity)
 
 
 def send_json_response(conn, status_code, payload):
@@ -7342,6 +7371,10 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
                     upsert_state_session(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}")
                     method, target, _version, headers, body = read_http_headers(conn)
                     metadata = handle_command_queue_http(cfg, conn, method, target, headers, body, addr)
+                    target_rec = record_target_activity(cfg, metadata, service, session_id=log_dir.name)
+                    if metadata.get("target_id"):
+                        update_session_record(log_dir, target_id=metadata.get("target_id", ""), target_label=target_rec.get("label", metadata.get("target_label", "")))
+                        upsert_state_session(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}", target_id=metadata.get("target_id", ""), target_label=target_rec.get("label", metadata.get("target_label", "")))
                     if metadata.get("operation") == "command_queue_result":
                         append_command_queue_result_events(cfg, service, log_dir, f"{addr[0]}:{addr[1]}", metadata)
                         print(f"command-queue result {metadata.get('status')}: id={metadata.get('command_id', '')}")

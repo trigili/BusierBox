@@ -1284,6 +1284,91 @@ def main():
             print("command queue HTTP result events missing", file=sys.stderr)
             return 1
 
+        poll_target_port = free_port()
+        poll_target_dir = Path(tmp) / "operator-session-command-poll-target"
+        poll_target_queue_file = poll_target_dir / "command-queue.json"
+        poll_target_cfg = Path(tmp) / "server-config-command-poll-target.json"
+        poll_target_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(poll_target_dir),
+            "command_queue_file": str(poll_target_queue_file),
+            "command_queue_enable": "yes",
+            "command_queue_tls": "no",
+            "command_queue_port": str(poll_target_port),
+            "command_queue_require_token": "no",
+            "command_queue_allowed_commands": "busierbox-only",
+            "command_queue_allow_arbitrary": "no",
+        }), encoding="utf-8")
+        for target_id, label in (("target-bravo", "Bravo Router"), ("target-alpha", "Alpha Router")):
+            labeled = run(
+                "scripts/busierbox-server", "--config", str(poll_target_cfg),
+                "--set-target-label", target_id,
+                "--target-label", label,
+            )
+            if labeled.returncode != 0:
+                print("command queue target label setup failed", file=sys.stderr)
+                print(labeled.stderr, file=sys.stderr)
+                return 1
+            queued_target = run(
+                "scripts/busierbox-server", "--config", str(poll_target_cfg),
+                "--target-id", target_id,
+                "--queue-command", f"busierbox survey --target {target_id}",
+            )
+            if queued_target.returncode != 0:
+                print("target-scoped command queue setup failed", file=sys.stderr)
+                print(queued_target.stdout, file=sys.stderr)
+                print(queued_target.stderr, file=sys.stderr)
+                return 1
+        poll_before = json.loads(poll_target_queue_file.read_text(encoding="utf-8"))
+        alpha_id = next(rec["id"] for rec in poll_before["commands"] if rec.get("target_id") == "target-alpha")
+        bravo_id = next(rec["id"] for rec in poll_before["commands"] if rec.get("target_id") == "target-bravo")
+        poll_target_server = subprocess.Popen(
+            ["scripts/busierbox-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        poll_request = (
+            b"GET /command-queue/poll HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"X-BusierBox-Target-Id: target-alpha\r\n"
+            b"X-BusierBox-Target-Label: Alpha Router\r\n"
+            b"Connection: close\r\n\r\n"
+        )
+        poll_response = connect_with_retry(poll_target_port, poll_request)
+        poll_stdout, poll_stderr = poll_target_server.communicate(timeout=15)
+        if (poll_target_server.returncode != 0 or
+                b"HTTP/1.1 200 OK" not in poll_response or
+                alpha_id.encode("ascii") not in poll_response or
+                bravo_id.encode("ascii") in poll_response):
+            print("target-scoped command queue poll did not deliver the selected target command only", file=sys.stderr)
+            print(poll_response.decode("utf-8", errors="replace"), file=sys.stderr)
+            print(poll_stdout, file=sys.stderr)
+            print(poll_stderr, file=sys.stderr)
+            return 1
+        poll_after = json.loads(poll_target_queue_file.read_text(encoding="utf-8"))
+        alpha_command = next(rec for rec in poll_after["commands"] if rec.get("id") == alpha_id)
+        bravo_command = next(rec for rec in poll_after["commands"] if rec.get("id") == bravo_id)
+        if (alpha_command.get("status") != "delivered" or
+                alpha_command.get("target_id") != "target-alpha" or
+                bravo_command.get("status") != "queued"):
+            print("target-scoped command queue poll mutated the wrong records", file=sys.stderr)
+            print(json.dumps(poll_after, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        poll_target_status = json.loads(run(
+            "scripts/busierbox-server", "--config", str(poll_target_cfg),
+            "--target-id", "target-alpha",
+            "--json-status",
+        ).stdout)
+        if (poll_target_status.get("summary", {}).get("command_queue_target_counts", {}).get("target-alpha") != 1 or
+                poll_target_status.get("summary", {}).get("target_count") != 1 or
+                (poll_target_status.get("targets_by_id") or {}).get("target-alpha", {}).get("services_seen") != ["command-queue"] or
+                not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_poll_delivered" for event in poll_target_status.get("events") or [])):
+            print("target-scoped command queue poll missing from filtered status", file=sys.stderr)
+            print(json.dumps(poll_target_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
         workbench_jobs_file = queue_operator_dir / "workbench-jobs.json"
         workbench_job_log = queue_operator_dir / "package-job.log"
         workbench_job_log.write_text(
