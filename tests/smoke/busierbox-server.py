@@ -852,7 +852,11 @@ def main():
         )
         if ("server-state ledger is invalid" not in invalid_state_text.stdout or
                 "staged-files ledger is invalid" not in invalid_state_text.stdout or
-                "command queue ledger is invalid" not in invalid_state_text.stdout):
+                "command queue ledger is invalid" not in invalid_state_text.stdout or
+                "Operator state:" not in invalid_state_text.stdout or
+                "server_state: status=invalid kind=json-state" not in invalid_state_text.stdout or
+                "staged_files: status=invalid kind=json-state" not in invalid_state_text.stdout or
+                "command_queue: status=invalid kind=json-state" not in invalid_state_text.stdout):
             print("text --status missing invalid operator state warnings", file=sys.stderr)
             print(invalid_state_text.stdout, file=sys.stderr)
             return 1
@@ -2208,6 +2212,10 @@ def main():
         )
         if ("Command queue:" not in queue_status_text.stdout or
                 "Path health:" not in queue_status_text.stdout or
+                "Operator state:" not in queue_status_text.stdout or
+                "command_queue: status=ok kind=json-state" not in queue_status_text.stdout or
+                "event_log: status=invalid kind=jsonl-log" not in queue_status_text.stdout or
+                "session_root: status=ok kind=directory" not in queue_status_text.stdout or
                 "state_file: exists=" not in queue_status_text.stdout or
                 "API resources: schema=1 resources=" not in queue_status_text.stdout or
                 "collections_key=api_collections resources_key=api_resources" not in queue_status_text.stdout or

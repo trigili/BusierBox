@@ -479,7 +479,10 @@ event log, and session root. Those records carry `status=ok|missing|invalid|erro
 `operator_state_records_by_valid`, `operator_state_records_by_path`, and
 `operator_state_records_by_kind_status`. Summary mirrors the state status,
 kind, existence, validity, and kind/status counts so clients can show corrupt
-or missing operator ledgers without re-reading JSON files. `browser_paths`
+or missing operator ledgers without re-reading JSON files. Human `--status`
+prints the same normalized operator state records as an `Operator state:`
+section, including status, kind, existence, validity, record count, path, and
+any parse/read error. `browser_paths`
 provides a normalized operator file
 browser list for future TUI/web clients, covering operator ledgers, session
 directories, upload/fetch metadata, staged sources, event logs, TLS files,

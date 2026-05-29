@@ -9208,6 +9208,23 @@ def print_status(cfg, json_output=False):
         writable = "yes" if rec.get("writable") else "no"
         print(f"  {name}: exists={exists} parent_exists={parent_exists} writable={writable} kind={rec.get('expected_kind', '')} path={rec.get('path', '')}")
     print("")
+    print("Operator state:")
+    operator_state_records = sorted(doc.get("operator_state_records") or [], key=lambda rec: rec.get("name", ""))
+    if operator_state_records:
+        for rec in operator_state_records:
+            exists = "yes" if rec.get("exists") else "no"
+            valid = "yes" if rec.get("valid") else "no"
+            line = (
+                f"  {rec.get('name', '')}: status={rec.get('status', '')} "
+                f"kind={rec.get('kind', '')} exists={exists} valid={valid} "
+                f"records={rec.get('record_count', 0)} path={rec.get('path', '')}"
+            )
+            if rec.get("error"):
+                line = f"{line} error={rec.get('error', '')}"
+            print(line)
+    else:
+        print("  none")
+    print("")
     print("Services:")
     for row in doc["services"]:
         stale = " stale-state" if row["stale"] else ""
