@@ -5377,6 +5377,7 @@ def main():
             "--json-status",
         ).stdout)
         filtered_alpha_registry = (filtered_alpha.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}
+        filtered_alpha_record = (filtered_alpha.get("target_filter_records_by_target_id") or {}).get("target-alpha", [{}])[0]
         if (filtered_alpha.get("target_filter", {}).get("target_id") != "target-alpha" or
                 filtered_alpha.get("target_filter", {}).get("active") is not True or
                 filtered_alpha_registry.get("target_count") != 1 or
@@ -5417,9 +5418,18 @@ def main():
                 filtered_alpha.get("summary", {}).get("target_filter_record_count") != 1 or
                 filtered_alpha.get("summary", {}).get("target_filter_selected_target_found") is not True or
                 filtered_alpha.get("summary", {}).get("target_filter_selected_target_identity_source_count") < 1 or
-                (filtered_alpha.get("target_filter_records_by_target_id") or {}).get("target-alpha", [{}])[0].get("selected_target_label") != "Alpha Router Renamed" or
+                filtered_alpha_record.get("selected_target_label") != "Alpha Router Renamed" or
+                filtered_alpha_record.get("unfiltered_target_count") != 2 or
+                filtered_alpha_record.get("filtered_target_count") != 1 or
+                filtered_alpha_record.get("unfiltered_upload_count") != 2 or
+                filtered_alpha_record.get("filtered_upload_count") != 1 or
+                filtered_alpha_record.get("has_unfiltered_activity") is not True or
+                filtered_alpha_record.get("has_filtered_activity") is not True or
+                filtered_alpha_record.get("filter_reduced_activity") is not True or
                 (filtered_alpha.get("target_filter_records_by_selected_target_found") or {}).get("True", [{}])[0].get("target_id") != "target-alpha" or
                 "target_filter_records_by_selected_target_identity_confidence" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
+                "target_filter_records_by_filter_reduced_activity" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
+                (filtered_alpha.get("target_filter_records_by_filter_reduced_activity") or {}).get("True", [{}])[0].get("target_id") != "target-alpha" or
                 ((filtered_alpha.get("targets_by_has_notes") or {}).get("yes") or [{}])[0].get("target_id") != "target-alpha" or
                 len((filtered_alpha.get("uploads_by_target_id") or {}).get("target-alpha") or []) != 1 or
                 (filtered_alpha.get("uploads_by_target_id") or {}).get("target-bravo")):
@@ -5437,6 +5447,7 @@ def main():
             if item.get("type") == "unknown_target_filter"
         ]
         filtered_unknown_registry = (filtered_unknown.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}
+        filtered_unknown_record = (filtered_unknown.get("target_filter_records_by_target_id") or {}).get("target-missing", [{}])[0]
         if (filtered_unknown.get("target_filter", {}).get("target_id") != "target-missing" or
                 filtered_unknown.get("target_filter", {}).get("active") is not True or
                 filtered_unknown_registry.get("target_count") != 0 or
@@ -5456,8 +5467,16 @@ def main():
                 filtered_unknown.get("summary", {}).get("target_count") != 0 or
                 filtered_unknown.get("summary", {}).get("target_filter_record_count") != 1 or
                 filtered_unknown.get("summary", {}).get("target_filter_selected_target_found") is not False or
-                (filtered_unknown.get("target_filter_records_by_target_id") or {}).get("target-missing", [{}])[0].get("selected_target_found") is not False or
+                filtered_unknown_record.get("selected_target_found") is not False or
+                filtered_unknown_record.get("unfiltered_target_count") != 2 or
+                filtered_unknown_record.get("filtered_target_count") != 0 or
+                filtered_unknown_record.get("filtered_upload_count") != 0 or
+                filtered_unknown_record.get("filtered_session_count") != 0 or
+                filtered_unknown_record.get("has_unfiltered_activity") is not True or
+                filtered_unknown_record.get("has_filtered_activity") is not True or
+                filtered_unknown_record.get("filter_reduced_activity") is not True or
                 (filtered_unknown.get("target_filter_records_by_active") or {}).get("True", [{}])[0].get("target_id") != "target-missing" or
+                (filtered_unknown.get("target_filter_records_by_has_filtered_activity") or {}).get("True", [{}])[0].get("target_id") != "target-missing" or
                 not unknown_target_warnings or
                 unknown_target_warnings[-1].get("target_id") != "target-missing" or
                 filtered_unknown.get("summary", {}).get("warning_type_counts", {}).get("unknown_target_filter") != 1 or
@@ -5530,6 +5549,7 @@ def main():
             "--target-id", "target-bravo",
             "--json-status",
         ).stdout)
+        scoped_filter_record = (scoped_doc.get("target_filter_records_by_target_id") or {}).get("target-bravo", [{}])[0]
         if (scoped_doc.get("summary", {}).get("staged_count") != 1 or
                 scoped_doc.get("summary", {}).get("staged_target_counts", {}).get("target-bravo") != 1 or
                 (scoped_doc.get("staged_by_target_id") or {}).get("target-bravo", [{}])[0].get("request_name") != "/tmp/bravo-staged.txt" or
@@ -5545,6 +5565,12 @@ def main():
                 scoped_doc.get("target_filter", {}).get("filtered_counts", {}).get("target_command_records", 0) < 1 or
                 scoped_doc.get("summary", {}).get("target_filter_unfiltered_target_command_record_count") != scoped_doc.get("target_filter", {}).get("unfiltered_counts", {}).get("target_command_records") or
                 scoped_doc.get("summary", {}).get("target_filter_target_command_record_count") != scoped_doc.get("target_filter", {}).get("filtered_counts", {}).get("target_command_records") or
+                scoped_filter_record.get("filtered_staged_count") != 1 or
+                scoped_filter_record.get("filtered_command_queue_command_count") != 1 or
+                scoped_filter_record.get("filtered_target_command_record_count") != scoped_doc.get("target_filter", {}).get("filtered_counts", {}).get("target_command_records") or
+                scoped_filter_record.get("unfiltered_command_queue_command_count") != 1 or
+                scoped_filter_record.get("unfiltered_target_command_record_count") != scoped_doc.get("target_filter", {}).get("unfiltered_counts", {}).get("target_command_records") or
+                scoped_filter_record.get("has_filtered_activity") is not True or
                 not any("--target-id target-bravo" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or
                 not any("--target-label 'Bravo Router'" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or
                 not any("--target-alias lab-bravo" in str(rec.get("command", "")) for rec in scoped_doc.get("target_command_records") or []) or

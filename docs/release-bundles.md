@@ -468,6 +468,13 @@ When `--target-id ID` is active, the status document includes a `target_filter`
 record with unfiltered and filtered collection counts, the selected target
 record when known, and direct selected-target fields such as label, aliases,
 identity sources, identity confidence, latest activity, and notes presence.
+The normalized `target_filter_records` API collection carries the same counts,
+including staged files, event tail records, queued command metadata, generated
+target commands, and booleans for whether the filter reduced or retained
+activity. Clients can use indexes such as
+`target_filter_records_by_filter_reduced_activity` and
+`target_filter_records_by_has_filtered_activity` without special-casing the
+top-level filter object.
 The top-level `api` catalog mirrors the selected target label/confidence and
 whether the target was found, so future TUI/web clients can render filter
 context without joining `targets_by_id` first. If the filter does not match a

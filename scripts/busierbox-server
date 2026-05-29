@@ -9180,17 +9180,6 @@ def status_document(cfg):
         "selected_target_latest_activity_operation": str(selected_target.get("latest_activity_operation") or ""),
     }
     target_filter_records = [target_filter_record]
-    target_filter_index_maps = {
-        "target_filter_records_by_id": {rec["id"]: rec for rec in target_filter_records},
-        "target_filter_records_by_active": records_by_key(target_filter_records, "active"),
-        "target_filter_records_by_target_id": records_by_key(target_filter_records, "target_id"),
-        "target_filter_records_by_selected_target_found": records_by_key(target_filter_records, "selected_target_found"),
-        "target_filter_records_by_selected_target_label": records_by_key(target_filter_records, "selected_target_label"),
-        "target_filter_records_by_selected_target_identity_confidence": records_by_key(target_filter_records, "selected_target_identity_confidence"),
-        "target_filter_records_by_selected_target_notes_present": records_by_key(target_filter_records, "selected_target_notes_present"),
-        "target_filter_records_by_selected_target_latest_activity_service": records_by_key(target_filter_records, "selected_target_latest_activity_service"),
-        "target_filter_records_by_selected_target_latest_activity_operation": records_by_key(target_filter_records, "selected_target_latest_activity_operation"),
-    }
     unfiltered_target_command_records = generated_target_command_records(cfg, unfiltered_staged_raw)
     unfiltered_counts["target_command_records"] = len([
         rec for rec in unfiltered_target_command_records if isinstance(rec, dict)
@@ -9223,6 +9212,62 @@ def status_document(cfg):
      target_commands_by_retry_interval_sec,
      target_commands_by_retry_post_disconnect_count) = target_command_record_indexes(target_command_records)
     target_command_summary = target_command_record_summary(target_command_records)
+    target_filter_record.update({
+        "unfiltered_target_count": unfiltered_counts.get("targets", 0),
+        "unfiltered_upload_count": unfiltered_counts.get("uploads", 0),
+        "unfiltered_fetch_count": unfiltered_counts.get("fetches", 0),
+        "unfiltered_staged_count": unfiltered_counts.get("staged", 0),
+        "unfiltered_session_count": unfiltered_counts.get("sessions", 0),
+        "unfiltered_event_tail_count": unfiltered_counts.get("event_tail", 0),
+        "unfiltered_command_queue_command_count": unfiltered_counts.get("command_queue_commands", 0),
+        "unfiltered_target_command_record_count": unfiltered_counts.get("target_command_records", 0),
+        "filtered_target_count": len(targets),
+        "filtered_upload_count": len(uploads),
+        "filtered_fetch_count": len(fetches),
+        "filtered_staged_count": len(staged_records),
+        "filtered_session_count": len(sessions),
+        "filtered_event_tail_count": len(events),
+        "filtered_command_queue_command_count": len(command_queue.get("commands") or []),
+        "filtered_target_command_record_count": target_command_summary.get("total_count", 0),
+    })
+    target_filter_record["unfiltered_activity_count"] = (
+        target_filter_record["unfiltered_upload_count"] +
+        target_filter_record["unfiltered_fetch_count"] +
+        target_filter_record["unfiltered_staged_count"] +
+        target_filter_record["unfiltered_session_count"] +
+        target_filter_record["unfiltered_event_tail_count"] +
+        target_filter_record["unfiltered_command_queue_command_count"] +
+        target_filter_record["unfiltered_target_command_record_count"]
+    )
+    target_filter_record["filtered_activity_count"] = (
+        target_filter_record["filtered_upload_count"] +
+        target_filter_record["filtered_fetch_count"] +
+        target_filter_record["filtered_staged_count"] +
+        target_filter_record["filtered_session_count"] +
+        target_filter_record["filtered_event_tail_count"] +
+        target_filter_record["filtered_command_queue_command_count"] +
+        target_filter_record["filtered_target_command_record_count"]
+    )
+    target_filter_record["has_unfiltered_activity"] = target_filter_record["unfiltered_activity_count"] > 0
+    target_filter_record["has_filtered_activity"] = target_filter_record["filtered_activity_count"] > 0
+    target_filter_record["filter_reduced_activity"] = (
+        bool(target_filter_id) and
+        target_filter_record["filtered_activity_count"] < target_filter_record["unfiltered_activity_count"]
+    )
+    target_filter_index_maps = {
+        "target_filter_records_by_id": {rec["id"]: rec for rec in target_filter_records},
+        "target_filter_records_by_active": records_by_key(target_filter_records, "active"),
+        "target_filter_records_by_target_id": records_by_key(target_filter_records, "target_id"),
+        "target_filter_records_by_selected_target_found": records_by_key(target_filter_records, "selected_target_found"),
+        "target_filter_records_by_selected_target_label": records_by_key(target_filter_records, "selected_target_label"),
+        "target_filter_records_by_selected_target_identity_confidence": records_by_key(target_filter_records, "selected_target_identity_confidence"),
+        "target_filter_records_by_selected_target_notes_present": records_by_key(target_filter_records, "selected_target_notes_present"),
+        "target_filter_records_by_selected_target_latest_activity_service": records_by_key(target_filter_records, "selected_target_latest_activity_service"),
+        "target_filter_records_by_selected_target_latest_activity_operation": records_by_key(target_filter_records, "selected_target_latest_activity_operation"),
+        "target_filter_records_by_has_unfiltered_activity": records_by_key(target_filter_records, "has_unfiltered_activity"),
+        "target_filter_records_by_has_filtered_activity": records_by_key(target_filter_records, "has_filtered_activity"),
+        "target_filter_records_by_filter_reduced_activity": records_by_key(target_filter_records, "filter_reduced_activity"),
+    }
     target_command_state_record = {
         "id": "target-commands",
         "command_count": int_value(target_command_summary.get("total_count", 0)),
@@ -10322,6 +10367,9 @@ def status_document(cfg):
                 "target_filter_records_by_selected_target_notes_present",
                 "target_filter_records_by_selected_target_latest_activity_service",
                 "target_filter_records_by_selected_target_latest_activity_operation",
+                "target_filter_records_by_has_unfiltered_activity",
+                "target_filter_records_by_has_filtered_activity",
+                "target_filter_records_by_filter_reduced_activity",
             ), "target_filter_record_count",
         ),
         "target_attribution_records": api_collection_record(
