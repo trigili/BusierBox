@@ -239,13 +239,23 @@ def main():
             "--json-status",
         ).stdout)
         copied_record = copied_status.get("command_copy") or {}
+        copied_state = (copied_status.get("command_copy_state_records_by_id") or {}).get("command-copy") or {}
         if (copied_record.get("path") != str(command_copy_file) or
                 copied_record.get("has_command") is not True or
                 "busierbox put /etc/config/network" not in copied_record.get("command", "") or
+                copied_state.get("path") != str(command_copy_file) or
+                copied_state.get("exists") is not True or
+                copied_state.get("readable") is not True or
+                copied_state.get("has_command") is not True or
+                copied_state.get("empty_or_missing") is not False or
+                copied_state.get("has_readable_command") is not True or
                 (copied_status.get("target_commands_by_ordinal") or {}).get("1", {}).get("copy_command") != "scripts/busierbox-server --copy-target-command 1" or
                 (copied_status.get("target_commands_by_copy_supported") or {}).get("True", [{}])[0].get("ordinal") != 1 or
                 copied_status.get("command_copy_records_by_has_command", {}).get("True", [{}])[0].get("path") != str(command_copy_file) or
+                copied_status.get("command_copy_state_records_by_has_readable_command", {}).get("True", [{}])[0].get("id") != "command-copy" or
                 copied_status.get("summary", {}).get("command_copy_has_command_count") != 1 or
+                copied_status.get("summary", {}).get("command_copy_state_record_count") != 1 or
+                copied_status.get("summary", {}).get("command_copy_state_has_readable_command") is not True or
                 copied_status.get("summary", {}).get("target_command_copy_supported_count") != copied_status.get("summary", {}).get("target_command_count")):
             print("json status missing last copied command record", file=sys.stderr)
             print(json.dumps(copied_status, indent=2, sort_keys=True), file=sys.stderr)
@@ -1873,6 +1883,7 @@ def main():
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
                 ("staged_files_state_records", len(queue_status_json.get("staged_files_state_records") or []), "staged_files_state_records_by_valid"),
                 ("command_copy_records", len(queue_status_json.get("command_copy_records") or []), "command_copy_records_by_has_command"),
+                ("command_copy_state_records", len(queue_status_json.get("command_copy_state_records") or []), "command_copy_state_records_by_empty_or_missing"),
                 ("command_queue_state_records", len(queue_status_json.get("command_queue_state_records") or []), "command_queue_state_records_by_valid"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
                 ("command_queue_policy_records", len(queue_status_json.get("command_queue_policy_records") or []), "command_queue_policy_records_by_valid"),
@@ -1946,6 +1957,9 @@ def main():
                 api_resources_by_name.get("staged_files_state_records", {}).get("records_key") != "staged_files_state_records" or
                 api_resources_by_summary_key.get("staged_files_state_record_count", [{}])[0].get("name") != "staged_files_state_records" or
                 not any(rec.get("name") == "staged_files_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
+                api_resources_by_name.get("command_copy_state_records", {}).get("records_key") != "command_copy_state_records" or
+                api_resources_by_summary_key.get("command_copy_state_record_count", [{}])[0].get("name") != "command_copy_state_records" or
+                not any(rec.get("name") == "command_copy_state_records" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("release_state_records", {}).get("records_key") != "release_state_records" or
                 api_resources_by_summary_key.get("release_state_record_count", [{}])[0].get("name") != "release_state_records" or
                 api_resources_by_primary_key.get("release_dir", [{}])[0].get("name") != "release_state_records" or

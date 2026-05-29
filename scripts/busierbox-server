@@ -9217,6 +9217,36 @@ def status_document(cfg):
     command_copy = command_copy_record(cfg)
     command_copy_records = [command_copy]
     command_copy_record_indexes = command_copy_indexes(command_copy_records)
+    command_copy_state_record = {
+        "id": "command-copy",
+        "path": command_copy.get("path", ""),
+        "exists": bool(command_copy.get("exists", False)),
+        "readable": bool(command_copy.get("readable", False)),
+        "size": int_value(command_copy.get("size", 0)),
+        "line_count": int_value(command_copy.get("line_count", 0)),
+        "has_command": bool(command_copy.get("has_command", False)),
+        "command_sha256": command_copy.get("command_sha256", ""),
+    }
+    command_copy_state_record.update({
+        "empty_or_missing": not command_copy_state_record.get("has_command", False),
+        "has_readable_command": (
+            command_copy_state_record.get("readable") is True and
+            command_copy_state_record.get("has_command") is True
+        ),
+    })
+    if command_copy.get("error"):
+        command_copy_state_record["error"] = command_copy.get("error")
+    command_copy_state_records = [command_copy_state_record]
+    command_copy_state_index_maps = {
+        "command_copy_state_records_by_id": {rec.get("id", ""): rec for rec in command_copy_state_records if rec.get("id")},
+        "command_copy_state_records_by_path": {rec.get("path", ""): rec for rec in command_copy_state_records if rec.get("path")},
+        "command_copy_state_records_by_exists": records_by_key(command_copy_state_records, "exists"),
+        "command_copy_state_records_by_readable": records_by_key(command_copy_state_records, "readable"),
+        "command_copy_state_records_by_has_command": records_by_key(command_copy_state_records, "has_command"),
+        "command_copy_state_records_by_empty_or_missing": records_by_key(command_copy_state_records, "empty_or_missing"),
+        "command_copy_state_records_by_has_readable_command": records_by_key(command_copy_state_records, "has_readable_command"),
+        "command_copy_state_records_by_command_sha256": records_by_key(command_copy_state_records, "command_sha256"),
+    }
     workbench_jobs_state = workbench_jobs_state_record(cfg)
     workbench_jobs_state["has_jobs"] = int(workbench_jobs_state.get("job_count") or 0) > 0
     workbench_jobs_state_records = [workbench_jobs_state]
@@ -9434,6 +9464,12 @@ def status_document(cfg):
         "command_queue_state_has_commands": bool(command_queue_state.get("has_commands", False)),
         "command_copy_exists_count": 1 if command_copy.get("exists") is True else 0,
         "command_copy_has_command_count": 1 if command_copy.get("has_command") is True else 0,
+        "command_copy_state_record_count": len(command_copy_state_records),
+        "command_copy_state_exists": bool(command_copy_state_record.get("exists", False)),
+        "command_copy_state_readable": bool(command_copy_state_record.get("readable", False)),
+        "command_copy_state_has_command": bool(command_copy_state_record.get("has_command", False)),
+        "command_copy_state_empty_or_missing": bool(command_copy_state_record.get("empty_or_missing", False)),
+        "command_copy_state_has_readable_command": bool(command_copy_state_record.get("has_readable_command", False)),
         "workbench_jobs_file_exists": bool(workbench_jobs_state.get("exists", False)),
         "workbench_jobs_file_valid": bool(workbench_jobs_state.get("valid", False)),
         "workbench_jobs_file_job_count": workbench_jobs_state.get("job_count", 0),
@@ -10109,6 +10145,18 @@ def status_document(cfg):
                 "command_copy_records_by_command_sha256",
             ), "command_copy_exists_count",
         ),
+        "command_copy_state_records": api_collection_record(
+            "command_copy_state_records", command_copy_state_records, "id", (
+                "command_copy_state_records_by_id",
+                "command_copy_state_records_by_path",
+                "command_copy_state_records_by_exists",
+                "command_copy_state_records_by_readable",
+                "command_copy_state_records_by_has_command",
+                "command_copy_state_records_by_empty_or_missing",
+                "command_copy_state_records_by_has_readable_command",
+                "command_copy_state_records_by_command_sha256",
+            ), "command_copy_state_record_count",
+        ),
         "command_queue_state_records": api_collection_record(
             "command_queue_state_records", command_queue_state_records, "path", (
                 "command_queue_state_records_by_path",
@@ -10425,6 +10473,8 @@ def status_document(cfg):
         "command_copy": command_copy,
         "command_copy_records": command_copy_records,
         **command_copy_record_indexes,
+        "command_copy_state_records": command_copy_state_records,
+        **command_copy_state_index_maps,
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
         "targets_file": str(targets_path(cfg)),
         "workbench_jobs_state": workbench_jobs_state,
