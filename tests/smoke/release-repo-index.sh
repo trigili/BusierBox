@@ -68,6 +68,15 @@ JSON
     "source_availability_required_for_distribution": true,
     "not_legal_advice": true
   },
+  "artifact_distribution": {
+    "corresponding_source_strategy": {
+      "status": "required_for_distribution",
+      "summary": "Redistributed binaries should include corresponding source for BusierBox and BusyBox.",
+      "release_bundle_inputs": ["LICENSE", "LICENSE.busierbox", "NOTICE", "LICENSES/", "manifests/license-policy.json", "manifests/sources.lock.json", "sources.lock.json"],
+      "source_reconstruction_inputs": ["this repository at the recorded release commit", "pinned downloadable sources in manifests/sources.lock.json", "Buildroot-generated package source manifests", "vendored third-party notices under third_party/"],
+      "requires_package_license_audit": true
+    }
+  },
   "components": [
     {"name": "BusierBox", "kind": "project", "license": "GPL-2.0-or-later", "source": "this repository"},
     {"name": "BusyBox", "kind": "payload", "license": "GPL-2.0", "source": "third_party/busybox"},
@@ -223,8 +232,14 @@ assert len(index["release_self_tests_by_status"]["pass"]) == 3
 assert index["release_license_records_by_release"]["one"][0]["project_license"] == "GPL-2.0-or-later"
 assert len(index["release_license_records_by_project_license"]["GPL-2.0-or-later"]) == 3
 assert len(index["release_license_records_by_combined_gplv2_compatible"]["true"]) == 3
+assert len(index["release_license_records_by_corresponding_source_required"]["true"]) == 3
+assert len(index["release_license_records_by_corresponding_source_status"]["required_for_distribution"]) == 3
+assert len(index["release_license_records_by_package_license_audit"]["true"]) == 3
 assert len(index["release_license_records_by_component"]["BusyBox"]) == 3
 assert index["release_license_records_by_component_license"]["BusyBox:GPL-2.0"][0]["combined_gplv2_compatible"] is True
+assert index["release_license_records_by_release"]["one"][0]["corresponding_source_release_input_count"] == 7
+assert index["release_license_records_by_release"]["one"][0]["corresponding_source_reconstruction_input_count"] == 4
+assert "LICENSE.busierbox" in index["release_license_records_by_release"]["one"][0]["corresponding_source_release_inputs"]
 assert index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["notice_count"] == 11
 assert index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["missing_notice_count"] == 0
 assert "manifests/sources.lock.json" in index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["required_notice_files"]
@@ -335,6 +350,9 @@ assert api["release_licenses"]["primary_key"] == "release_name"
 assert "release_license_records_by_release" in api["release_licenses"]["indexes"]
 assert "release_license_records_by_project_license" in api["release_licenses"]["indexes"]
 assert "release_license_records_by_combined_gplv2_compatible" in api["release_licenses"]["indexes"]
+assert "release_license_records_by_corresponding_source_required" in api["release_licenses"]["indexes"]
+assert "release_license_records_by_corresponding_source_status" in api["release_licenses"]["indexes"]
+assert "release_license_records_by_package_license_audit" in api["release_licenses"]["indexes"]
 assert "release_license_records_by_component" in api["release_licenses"]["indexes"]
 assert "release_license_records_by_component_license" in api["release_licenses"]["indexes"]
 assert "release_license_records_by_notice_file" in api["release_licenses"]["indexes"]
@@ -571,6 +589,9 @@ assert doc["index"]["release_self_tests_by_status_count"] == 1
 assert doc["index"]["release_license_records_by_release_count"] == 3
 assert doc["index"]["release_license_records_by_project_license_count"] == 1
 assert doc["index"]["release_license_records_by_combined_gplv2_compatible_count"] == 1
+assert doc["index"]["release_license_records_by_corresponding_source_required_count"] == 1
+assert doc["index"]["release_license_records_by_corresponding_source_status_count"] == 1
+assert doc["index"]["release_license_records_by_package_license_audit_count"] == 1
 assert doc["index"]["release_license_records_by_component_count"] == 5
 assert doc["index"]["release_license_records_by_component_license_count"] == 5
 assert doc["index"]["release_license_records_by_notice_file_count"] == 11
@@ -705,6 +726,8 @@ grep -q 'policy used to prefer lower-risk compatibility labels' docs/release-bun
 grep -q 'recommendations' docs/release-bundles.md
 grep -q 'artifacts_by_command_queue_operator_supplied_command_execution' docs/release-bundles.md
 grep -q 'release_license_records_by_component_license' docs/release-bundles.md
+grep -q 'release_license_records_by_corresponding_source_required' docs/release-bundles.md
+grep -q 'release_license_records_by_package_license_audit' docs/release-bundles.md
 grep -q 'combined_gplv2_compatible' docs/release-bundles.md
 grep -q -- '--gplv2-compatible yes|no' docs/release-bundles.md
 grep -q 'matches_by_component_license' docs/release-bundles.md

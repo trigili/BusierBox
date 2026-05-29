@@ -265,10 +265,14 @@ each bundle and attached to artifact rows as `release_license`,
 `release_license_records_by_release`,
 `release_license_records_by_project_license`,
 `release_license_records_by_combined_gplv2_compatible`,
+`release_license_records_by_corresponding_source_required`,
+`release_license_records_by_corresponding_source_status`,
+`release_license_records_by_package_license_audit`,
 `release_license_records_by_component`,
 `release_license_records_by_component_license`, and
 `release_license_records_by_notice_file` so offline browsers can audit GPL
-compatibility and notice coverage without opening every release directory.
+compatibility, corresponding-source posture, package audit requirements, and
+notice coverage without opening every release directory.
 `scripts/find-artifact` can also filter by that metadata with
 `--project-license`, `--gplv2-compatible yes|no`, `--license-component`, and
 `--component-license COMPONENT:LICENSE`, and recommendation JSON exposes
@@ -278,7 +282,8 @@ When `scripts/busierbox-server` is launched from a release bundle, `--status`,
 `--json-status`, and the workbench release browser expose the same compact
 release license record as `release.release_license`, `release_licenses`, and
 `api_collections.release_licenses`, plus summary counters for project license,
-GPLv2 compatibility, notice count, and missing notices.
+GPLv2 compatibility, corresponding-source requirements, package audit
+requirements, notice count, and missing notices.
 `--recommendation-json` returns the selected artifact plus active filters,
 filter provenance records, match count, visible match count, match lookup maps,
 an `api` catalog, `api_resources`, `api_resources_by_name`,
