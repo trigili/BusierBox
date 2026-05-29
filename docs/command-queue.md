@@ -348,6 +348,14 @@ below the heartbeat and mailbox counts, so an operator can queue work while a
 target is gone, see the last successful phone-home path, inspect pending work,
 and confirm delivery when the target reconnects.
 
+For target-centered operator UX, status JSON also includes
+`target_workflow_actions`. These records are generated per target and expose the
+same workflows a TUI should offer: inspect scoped status, open a scoped
+workbench, queue mailbox work, serve survey bootstrap, stage a file for target
+fetch, start the file service, and start any bridge profile tied to that target.
+Each action carries a `headless_command` so the TUI can show the exact CLI path
+instead of hiding automation behind an interactive-only flow.
+
 The smoke suite includes a deterministic intermittent-connectivity harness for
 this path. It queues target-scoped work while targets are offline, proves an
 anonymous poll cannot drain target mailboxes, simulates a stale/offline

@@ -3143,6 +3143,142 @@ def workbench_action_summary(records):
     }
 
 
+def target_workflow_action_records(cfg, targets, bridge_profiles=None):
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    base = "scripts/busierbox-server --config " + shquote(config_path)
+    bridge_by_target = {}
+    for profile in bridge_profiles or []:
+        if not isinstance(profile, dict):
+            continue
+        target_id = str(profile.get("target_id") or "")
+        if target_id:
+            bridge_by_target.setdefault(target_id, []).append(profile)
+    records = []
+
+    def add(target, action_id, category, label, command, workflow, requires_input=False, available=True, bridge_profile=""):
+        target_id = str(target.get("target_id") or "")
+        if not target_id:
+            return
+        records.append({
+            "id": f"{target_id}:{action_id}",
+            "action_id": action_id,
+            "target_id": target_id,
+            "target_label": str(target.get("label") or ""),
+            "target_connectivity_state": str(target.get("connectivity_state") or ""),
+            "category": category,
+            "workflow": workflow,
+            "label": label,
+            "command": command,
+            "headless_command": command,
+            "requires_input": bool(requires_input),
+            "available": bool(available),
+            "bridge_profile": str(bridge_profile or ""),
+            "execution_default": "show-command",
+            "target_execution": False,
+            "tui_visible": True,
+            "safety_boundary": "operator-side target workflow; target execution still requires explicit target-side command or poll",
+        })
+
+    for target in targets or []:
+        if not isinstance(target, dict):
+            continue
+        target_id = str(target.get("target_id") or "")
+        if not target_id:
+            continue
+        target_arg = " --target-id " + shquote(target_id)
+        add(
+            target,
+            "inspect-status",
+            "inspect",
+            "Inspect this target's status and activity",
+            base + target_arg + " --status",
+            "status",
+        )
+        add(
+            target,
+            "open-workbench",
+            "inspect",
+            "Open the workbench scoped to this target",
+            base + target_arg + " --tui",
+            "workbench",
+        )
+        add(
+            target,
+            "queue-command",
+            "mailbox",
+            "Queue command for this target mailbox",
+            base + target_arg + " --queue-command COMMAND",
+            "command-queue",
+            requires_input=True,
+        )
+        add(
+            target,
+            "serve-survey-bootstrap",
+            "survey",
+            "Serve survey bootstrap for this target",
+            base + target_arg + " --transport survey-bootstrap",
+            "survey-bootstrap",
+        )
+        add(
+            target,
+            "stage-file-fetch",
+            "file-transfer",
+            "Stage a local file for this target to fetch",
+            base + target_arg + " --serve-file LOCAL_PATH --serve-as REQUEST_NAME",
+            "file-service",
+            requires_input=True,
+        )
+        add(
+            target,
+            "start-file-service",
+            "file-transfer",
+            "Start file service for target uploads/downloads",
+            base + target_arg + " --file-service",
+            "file-service",
+        )
+        for profile in bridge_by_target.get(target_id) or []:
+            profile_name = str(profile.get("name") or "")
+            add(
+                target,
+                f"start-bridge:{profile_name}",
+                "bridge",
+                f"Start bridge profile {profile_name}",
+                base + " --transport bridge --bridge-profile " + shquote(profile_name),
+                "bridge",
+                available=bool(profile_name),
+                bridge_profile=profile_name,
+            )
+    records.sort(key=lambda rec: (rec.get("target_id", ""), rec.get("category", ""), rec.get("action_id", "")))
+    return records
+
+
+def target_workflow_action_indexes(records):
+    return {
+        "target_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "target_workflow_actions_by_action_id": records_by_key(records, "action_id"),
+        "target_workflow_actions_by_target_id": records_by_key(records, "target_id"),
+        "target_workflow_actions_by_category": records_by_key(records, "category"),
+        "target_workflow_actions_by_workflow": records_by_key(records, "workflow"),
+        "target_workflow_actions_by_available": records_by_key(records, "available"),
+        "target_workflow_actions_by_requires_input": records_by_key(records, "requires_input"),
+        "target_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
+        "target_workflow_actions_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
+    }
+
+
+def target_workflow_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "target_counts": record_count_by_key(records, "target_id"),
+        "category_counts": record_count_by_key(records, "category"),
+        "workflow_counts": record_count_by_key(records, "workflow"),
+        "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
+        "requires_input_count": len([rec for rec in records or [] if rec.get("requires_input") is True]),
+        "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
+        "target_connectivity_state_counts": record_count_by_key(records, "target_connectivity_state"),
+    }
+
+
 def tail_text_file(path_text, line_limit=20, byte_limit=8192):
     path = Path(str(path_text or ""))
     if not path.is_file():
@@ -10641,6 +10777,9 @@ def status_document(cfg):
     workbench_actions = workbench_action_records(cfg)
     workbench_action_index_maps = workbench_action_indexes(workbench_actions)
     workbench_action_stats = workbench_action_summary(workbench_actions)
+    target_workflow_actions = target_workflow_action_records(cfg, targets, bridge_profiles)
+    target_workflow_action_index_maps = target_workflow_action_indexes(target_workflow_actions)
+    target_workflow_action_stats = target_workflow_action_summary(target_workflow_actions)
     workbench_jobs = workbench_job_records(cfg, workbench_actions)
     workbench_job_index_maps = workbench_job_indexes(workbench_jobs)
     workbench_job_stats = workbench_job_summary(workbench_jobs)
@@ -11474,6 +11613,14 @@ def status_document(cfg):
         "rshell_session_policy_reconnects_after_disconnect": bool(rshell_session_policy_record_item.get("reconnects_after_disconnect", False)),
         "rshell_session_policy_persistent_lifecycle": bool(rshell_session_policy_record_item.get("persistent_lifecycle", False)),
         "target_command_retry_backoff_counts": target_command_summary.get("by_retry_backoff") or {},
+        "target_workflow_action_count": target_workflow_action_stats.get("total_count", 0),
+        "target_workflow_action_available_count": target_workflow_action_stats.get("available_count", 0),
+        "target_workflow_action_requires_input_count": target_workflow_action_stats.get("requires_input_count", 0),
+        "target_workflow_action_target_counts": target_workflow_action_stats.get("target_counts") or {},
+        "target_workflow_action_category_counts": target_workflow_action_stats.get("category_counts") or {},
+        "target_workflow_action_workflow_counts": target_workflow_action_stats.get("workflow_counts") or {},
+        "target_workflow_action_bridge_profile_counts": target_workflow_action_stats.get("bridge_profile_counts") or {},
+        "target_workflow_action_connectivity_state_counts": target_workflow_action_stats.get("target_connectivity_state_counts") or {},
         "event_count": event_summary_stats["total_count"],
         "event_log_total_count": event_stats["total_count"],
         "event_log_exists": bool(event_log_state.get("exists", False)),
@@ -11871,6 +12018,19 @@ def status_document(cfg):
                 "target_commands_by_retry_backoff", "target_commands_by_retry_interval_sec",
                 "target_commands_by_retry_post_disconnect_count",
             ), "target_command_count",
+        ),
+        "target_workflow_actions": api_collection_record(
+            "target_workflow_actions", target_workflow_actions, "id", (
+                "target_workflow_actions_by_id",
+                "target_workflow_actions_by_action_id",
+                "target_workflow_actions_by_target_id",
+                "target_workflow_actions_by_category",
+                "target_workflow_actions_by_workflow",
+                "target_workflow_actions_by_available",
+                "target_workflow_actions_by_requires_input",
+                "target_workflow_actions_by_bridge_profile",
+                "target_workflow_actions_by_target_connectivity_state",
+            ), "target_workflow_action_count",
         ),
         "target_command_state_records": api_collection_record(
             "target_command_state_records", target_command_state_records, "id", (
@@ -12487,6 +12647,8 @@ def status_document(cfg):
         "target_command_summary": target_command_summary,
         "target_command_state_records": target_command_state_records,
         **target_command_state_index_maps,
+        "target_workflow_actions": target_workflow_actions,
+        **target_workflow_action_index_maps,
         "target_commands_by_service": target_commands_by_service,
         "target_commands_by_target_id": target_commands_by_target_id,
         "target_commands_by_request": target_commands_by_request,
@@ -13147,6 +13309,14 @@ def print_workbench_action_summary(doc):
     print(f"  categories: {format_counts(summary.get('workbench_action_category_counts') or {})}")
     print(f"  execution defaults: {format_counts(summary.get('workbench_action_execution_default_counts') or {})}")
     print(f"  events: {format_counts(summary.get('workbench_action_event_counts') or {})}")
+    print(
+        "Target workflow action summary: "
+        f"total={summary.get('target_workflow_action_count', 0)} "
+        f"available={summary.get('target_workflow_action_available_count', 0)} "
+        f"requires_input={summary.get('target_workflow_action_requires_input_count', 0)}"
+    )
+    print(f"  target workflow categories: {format_counts(summary.get('target_workflow_action_category_counts') or {})}")
+    print(f"  target workflows: {format_counts(summary.get('target_workflow_action_workflow_counts') or {})}")
 
 
 def print_workbench_job_summary(doc):
@@ -13653,6 +13823,18 @@ def print_status(cfg, json_output=False):
         confirm = "yes" if rec.get("requires_confirmation") else "no"
         print(f"  {rec.get('id', '')} category={rec.get('category', '')} script={rec.get('script', '')} background={bg} confirm={confirm}")
         print(f"    {rec.get('command', '')}")
+    if doc.get("target_workflow_actions"):
+        print("Target workflow actions:")
+        for rec in doc.get("target_workflow_actions") or []:
+            requires_input = "yes" if rec.get("requires_input") else "no"
+            available = "yes" if rec.get("available") else "no"
+            bridge = f" bridge_profile={rec.get('bridge_profile', '')}" if rec.get("bridge_profile") else ""
+            print(
+                f"  {rec.get('id', '')} target={rec.get('target_id', '')} "
+                f"category={rec.get('category', '')} workflow={rec.get('workflow', '')} "
+                f"available={available} input={requires_input}{bridge}"
+            )
+            print(f"    {rec.get('headless_command', rec.get('command', ''))}")
     print_workbench_job_summary(doc)
     for rec in doc.get("workbench_jobs") or []:
         cancel = "yes" if rec.get("cancel_supported") else "no"
@@ -13979,6 +14161,21 @@ def print_workbench(cfg, include_api_summary=True):
         confirm = "yes" if rec.get("requires_confirmation") else "no"
         print(f"  {rec.get('id', '')} category={rec.get('category', '')} script={rec.get('script', '')} background={bg} confirm={confirm}")
         print(f"    {rec.get('command', '')}")
+    if snap.get("target_workflow_actions"):
+        print("Target workflow actions:")
+        actions = snap.get("target_workflow_actions") or []
+        for rec in actions[:3]:
+            requires_input = "yes" if rec.get("requires_input") else "no"
+            available = "yes" if rec.get("available") else "no"
+            bridge = f" bridge_profile={rec.get('bridge_profile', '')}" if rec.get("bridge_profile") else ""
+            print(
+                f"  {rec.get('id', '')} target={rec.get('target_id', '')} "
+                f"category={rec.get('category', '')} workflow={rec.get('workflow', '')} "
+                f"available={available} input={requires_input}{bridge}"
+            )
+            print(f"    {rec.get('headless_command', rec.get('command', ''))}")
+        if len(actions) > 3:
+            print(f"  ... {len(actions) - 3} more target workflow action(s); choose action 11 in line mode for the full list")
     print_workbench_job_summary(snap)
     for rec in snap.get("workbench_jobs") or []:
         cancel = "yes" if rec.get("cancel_supported") else "no"
@@ -14309,7 +14506,14 @@ def run_line_tui(cfg):
                 print(f"{idx}: {rec.get('id', '')} {rec.get('label', '')}")
                 print(f"   command: {rec.get('command', '')}")
                 print(f"   category={rec.get('category', '')} background_supported={'yes' if rec.get('background_supported') else 'no'} confirm={'yes' if rec.get('requires_confirmation') else 'no'}")
-            append_event(cfg, "workbench", "workbench_actions_viewed", details={"action_count": len(snap.get("workbench_actions") or [])})
+            for idx, rec in enumerate(snap.get("target_workflow_actions") or [], 1):
+                print(f"target {idx}: {rec.get('id', '')} {rec.get('label', '')}")
+                print(f"   command: {rec.get('headless_command', rec.get('command', ''))}")
+                print(f"   target={rec.get('target_id', '')} category={rec.get('category', '')} workflow={rec.get('workflow', '')} input={'yes' if rec.get('requires_input') else 'no'}")
+            append_event(cfg, "workbench", "workbench_actions_viewed", details={
+                "action_count": len(snap.get("workbench_actions") or []),
+                "target_workflow_action_count": len(snap.get("target_workflow_actions") or []),
+            })
         elif choice == "12":
             snap = workbench_snapshot(cfg)
             runnable = [rec for rec in snap.get("workbench_actions") or [] if rec.get("background_supported")]

@@ -394,12 +394,21 @@ def main():
         bridge_events = bridge_status.get("events_by_event", {})
         bridge_profile = (bridge_status.get("bridge_profiles_by_name") or {}).get("lab-http") or {}
         bridge_target = (bridge_status.get("targets_by_id") or {}).get("target-bridge") or {}
+        bridge_workflow_actions = (bridge_status.get("target_workflow_actions_by_target_id") or {}).get("target-bridge") or []
+        bridge_action = (bridge_status.get("target_workflow_actions_by_bridge_profile") or {}).get("lab-http", [{}])[0]
         if (bridge_service.get("port") != bridge_port or
                 bridge_service.get("actual") != "stopped" or
                 bridge_status.get("summary", {}).get("bridge_profile_count") != 2 or
+                bridge_status.get("summary", {}).get("target_workflow_action_count") != 8 or
+                bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("lab-http") != 1 or
+                bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("chain-http") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_activity_count") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_profile_counts", {}).get("lab-http") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("closed") != 1 or
+                len(bridge_workflow_actions) != 8 or
+                bridge_action.get("target_id") != "target-bridge" or
+                bridge_action.get("workflow") != "bridge" or
+                bridge_action.get("headless_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --transport bridge --bridge-profile lab-http" or
                 bridge_profile.get("target_id") != "target-bridge" or
                 bridge_profile.get("purpose") != "web-admin" or
                 bridge_profile.get("route_path") != f"operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" or
@@ -2621,6 +2630,7 @@ def main():
                 ("target_filter_records", len(queue_status_json.get("target_filter_records") or []), "target_filter_records_by_active"),
                 ("target_attribution_records", len(queue_status_json.get("target_attribution_records") or []), "target_attribution_records_by_scope"),
                 ("target_command_state_records", len(queue_status_json.get("target_command_state_records") or []), "target_command_state_records_by_safe_explicit_target_action_boundary"),
+                ("target_workflow_actions", len(queue_status_json.get("target_workflow_actions") or []), "target_workflow_actions_by_target_id"),
                 ("rshell_session_policy_records", len(queue_status_json.get("rshell_session_policy_records") or []), "rshell_session_policy_records_by_session_policy_valid"),
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
                 ("staged_files_state_records", len(queue_status_json.get("staged_files_state_records") or []), "staged_files_state_records_by_valid"),
@@ -2696,6 +2706,9 @@ def main():
                 api_resources_by_name.get("target_command_state_records", {}).get("records_key") != "target_command_state_records" or
                 api_resources_by_summary_key.get("target_command_state_record_count", [{}])[0].get("name") != "target_command_state_records" or
                 not any(rec.get("name") == "target_command_state_records" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("target_workflow_actions", {}).get("records_key") != "target_workflow_actions" or
+                api_resources_by_summary_key.get("target_workflow_action_count", [{}])[0].get("name") != "target_workflow_actions" or
+                not any(rec.get("name") == "target_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("rshell_session_policy_records", {}).get("records_key") != "rshell_session_policy_records" or
                 api_resources_by_summary_key.get("rshell_session_policy_record_count", [{}])[0].get("name") != "rshell_session_policy_records" or
                 not any(rec.get("name") == "rshell_session_policy_records" for rec in api_resources_by_primary_key.get("id", [])) or
@@ -2746,6 +2759,7 @@ def main():
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         workbench_actions = queue_status_json.get("workbench_actions") or []
+        target_workflow_actions = queue_status_json.get("target_workflow_actions") or []
         workbench_config_fields = queue_status_json.get("workbench_config_fields") or []
         config_fields_by_key = queue_status_json.get("workbench_config_fields_by_key") or {}
         config_fields_by_category = queue_status_json.get("workbench_config_fields_by_category") or {}
@@ -2762,6 +2776,13 @@ def main():
         actions_by_event = queue_status_json.get("workbench_actions_by_event") or {}
         actions_by_config_path = queue_status_json.get("workbench_actions_by_config_path") or {}
         workbench_summary = queue_status_json.get("summary") or {}
+        if (target_workflow_actions != [] or
+                workbench_summary.get("target_workflow_action_count") != 0 or
+                workbench_summary.get("target_workflow_action_available_count") != 0 or
+                "target_workflow_actions_by_workflow" not in ((queue_status_json.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", [])):
+            print("server json status missing empty target workflow action collection", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
         if (len(workbench_config_fields) < 12 or
                 workbench_summary.get("workbench_config_field_count") != len(workbench_config_fields) or
                 workbench_summary.get("workbench_config_field_fixed_option_count", 0) < 10 or
@@ -5265,6 +5286,11 @@ def main():
         targets = upload_doc.get("targets") or []
         targets_by_id = upload_doc.get("targets_by_id") or {}
         target_alpha = targets_by_id.get("target-alpha") or {}
+        alpha_workflow_actions = (upload_doc.get("target_workflow_actions_by_target_id") or {}).get("target-alpha") or []
+        alpha_actions_by_action = {
+            rec.get("action_id"): rec for rec in alpha_workflow_actions
+            if isinstance(rec, dict)
+        }
         if (upload_doc.get("targets_file") != str(upload_operator_dir / "targets.json") or
                 upload_summary.get("target_count") != 1 or
                 upload_summary.get("latest_target_id") != "target-alpha" or
@@ -5276,6 +5302,11 @@ def main():
                 upload_summary.get("target_latest_file_transfer_count") != 1 or
                 upload_summary.get("target_latest_file_transfer_operation_counts", {}).get("upload") != 1 or
                 upload_summary.get("target_latest_file_transfer_status_counts", {}).get("ok") != 1 or
+                upload_summary.get("target_workflow_action_count") != 6 or
+                upload_summary.get("target_workflow_action_target_counts", {}).get("target-alpha") != 6 or
+                upload_summary.get("target_workflow_action_workflow_counts", {}).get("command-queue") != 1 or
+                upload_summary.get("target_workflow_action_workflow_counts", {}).get("file-service") != 2 or
+                upload_summary.get("target_workflow_action_requires_input_count") != 2 or
                 len(targets) != 1 or
                 target_alpha.get("label") != "Alpha Router" or
                 "lab-alpha" not in (target_alpha.get("aliases") or []) or
@@ -5286,6 +5317,12 @@ def main():
                 target_alpha.get("latest_file_transfer_status") != "ok" or
                 target_alpha.get("latest_file_transfer_sha256") != upload_sha256 or
                 target_alpha.get("latest_session_id") != session_json_paths[0].parent.name or
+                len(alpha_workflow_actions) != 6 or
+                alpha_actions_by_action.get("queue-command", {}).get("headless_command") != f"scripts/busierbox-server --config {str(upload_cfg)} --target-id target-alpha --queue-command COMMAND" or
+                alpha_actions_by_action.get("stage-file-fetch", {}).get("requires_input") is not True or
+                alpha_actions_by_action.get("inspect-status", {}).get("workflow") != "status" or
+                ((upload_doc.get("target_workflow_actions_by_workflow") or {}).get("command-queue") or [{}])[0].get("target_id") != "target-alpha" or
+                ((upload_doc.get("target_workflow_actions_by_requires_input") or {}).get("True") or [{}])[0].get("target_id") != "target-alpha" or
                 "file-service" not in (target_alpha.get("services_seen") or []) or
                 "http-header" not in (target_alpha.get("identity_sources") or [])):
             print("server json status missing target ledger records", file=sys.stderr)
@@ -5299,6 +5336,7 @@ def main():
                 "targets_by_latest_activity_operation" not in (target_api.get("indexes") or []) or
                 "targets_by_latest_file_transfer_operation" not in (target_api.get("indexes") or []) or
                 "targets_by_latest_file_transfer_status" not in (target_api.get("indexes") or []) or
+                "target_workflow_actions_by_target_id" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
                 ((upload_doc.get("targets_by_identity_source") or {}).get("http-header") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("targets_by_latest_activity_service") or {}).get("file-service") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("targets_by_latest_activity_operation") or {}).get("upload") or [{}])[0].get("target_id") != "target-alpha" or
