@@ -5738,8 +5738,10 @@ def main():
         release_artifacts_by_source = rel.get("artifacts_by_source") or {}
         release_artifacts_by_tuple_path = rel.get("artifacts_by_tuple_path") or {}
         release_artifacts_by_tool = rel.get("artifacts_by_tool") or {}
+        release_artifacts_by_device_alias = rel.get("artifacts_by_device_alias") or {}
         release_artifacts_by_feature = rel.get("artifacts_by_feature") or {}
         release_artifacts_by_tool_preset = rel.get("artifacts_by_tool_payload_preset") or {}
+        release_artifacts_by_device_preset = rel.get("artifacts_by_device_payload_preset") or {}
         release_artifacts_by_feature_preset = rel.get("artifacts_by_feature_payload_preset") or {}
         release_artifacts_by_tuple_preset = rel.get("artifacts_by_tuple_payload_preset") or {}
         release_artifacts_by_provider_tool = rel.get("artifacts_by_provider_tool") or {}
@@ -5778,8 +5780,10 @@ def main():
                 release_artifacts_by_source.get("release-index", [{}])[0].get("release_path") != "bin/busierbox-test" or
                 release_artifacts_by_tuple_path.get("by-tuple/native/host/host/host", [{}])[0].get("name") != "busierbox-test" or
                 release_artifacts_by_tool.get("sh", [{}])[0].get("payload_preset") != "default" or
+                release_artifacts_by_device_alias.get("lab-router", [{}])[0].get("device_aliases") != ["lab-router"] or
                 release_artifacts_by_feature.get("reverse-ssh", [{}])[0].get("release_path") != "bin/busierbox-test" or
                 release_artifacts_by_tool_preset.get("sh:default", [{}])[0].get("release_path") != "bin/busierbox-test" or
+                release_artifacts_by_device_preset.get("lab-router:default", [{}])[0].get("name") != "busierbox-test" or
                 release_artifacts_by_feature_preset.get("reverse-ssh:default", [{}])[0].get("name") != "busierbox-test" or
                 release_artifacts_by_tuple_preset.get("by-tuple/native/host/host/host:default", [{}])[0].get("sha256") != "abc123" or
                 release_artifacts_by_provider_tool.get("gdbserver", [{}])[0].get("payload_preset") != "default" or
@@ -5795,6 +5799,7 @@ def main():
                 rel.get("artifact_stats", {}).get("by_payload_preset", {}).get("default") != 1 or
                 rel.get("artifact_stats", {}).get("by_source", {}).get("release-index") != 1 or
                 rel.get("artifact_stats", {}).get("by_tool", {}).get("sh") != 1 or
+                rel.get("artifact_stats", {}).get("by_device_alias", {}).get("lab-router") != 1 or
                 rel.get("artifact_stats", {}).get("by_feature", {}).get("reverse-ssh") != 1 or
                 rel.get("artifact_stats", {}).get("by_provider_tool", {}).get("gdbserver") != 1 or
                 rel.get("artifact_stats", {}).get("by_provider_status", {}).get("gdbserver:found") != 1 or
@@ -5814,6 +5819,7 @@ def main():
                 release_recommendations.get("by_tool", {}).get("sh", {}).get("payload_preset") != "default" or
                 release_recommendations.get("by_payload_preset", {}).get("default", {}).get("name") != "busierbox-test" or
                 release_recommendations.get("by_feature", {}).get("reverse-ssh", {}).get("name") != "busierbox-test" or
+                release_recommendations.get("by_device_payload_preset", {}).get("lab-router:default", {}).get("name") != "busierbox-test" or
                 not release_recommendation_records or
                 release_recommendations_by_scope.get("by_device", [{}])[0].get("key") != "lab-router" or
                 release_recommendations_by_artifact.get("bin/busierbox-test", [{}])[0].get("artifact_name") != "busierbox-test" or
@@ -5898,8 +5904,10 @@ def main():
                 release_summary.get("release_artifact_source_counts", {}).get("release-index") != 1 or
                 release_summary.get("release_artifact_tuple_path_counts", {}).get("by-tuple/native/host/host/host") != 1 or
                 release_summary.get("release_artifact_tool_counts", {}).get("sh") != 1 or
+                release_summary.get("release_artifact_device_alias_counts", {}).get("lab-router") != 1 or
                 release_summary.get("release_artifact_feature_counts", {}).get("reverse-ssh") != 1 or
                 release_summary.get("release_artifact_tool_payload_preset_combo_count") != 1 or
+                release_summary.get("release_artifact_device_payload_preset_combo_count") != 1 or
                 release_summary.get("release_artifact_feature_payload_preset_combo_count") != 3 or
                 release_summary.get("release_artifact_tuple_payload_preset_combo_count") != 1 or
                 release_summary.get("release_artifact_provider_tool_counts", {}).get("gdbserver") != 1 or
@@ -5918,6 +5926,7 @@ def main():
                 release_summary.get("release_combined_gplv2_compatible_counts", {}).get("True") != 1 or
                 release_summary.get("release_recommendation_count", 0) < 1 or
                 release_summary.get("release_recommendation_scope_counts", {}).get("by_device") != 1 or
+                release_summary.get("release_recommendation_scope_counts", {}).get("by_device_payload_preset") != 1 or
                 release_summary.get("release_recommendation_payload_preset_counts", {}).get("default", 0) < 1 or
                 release_summary.get("release_recommendation_compatibility_counts", {}).get("exact", 0) < 1):
             print("json status missing release aggregate counts", file=sys.stderr)
@@ -5932,6 +5941,8 @@ def main():
                 "artifacts_by_command_queue_enabled" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
                 "artifacts_by_command_queue_execution_supported" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
                 "artifacts_by_command_queue_operator_supplied_command_execution" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
+                "artifacts_by_device_alias" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
+                "artifacts_by_device_payload_preset" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
                 "recommendations_by_payload_preset" not in (release_api.get("release_recommendations", {}).get("indexes") or []) or
                 "recommendations_by_compatibility" not in (release_api.get("release_recommendations", {}).get("indexes") or [])):
             print("json status missing release device/tuple api collection indexes", file=sys.stderr)

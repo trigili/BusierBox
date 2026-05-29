@@ -5221,6 +5221,10 @@ def release_recommendations(devices, artifact_indexes):
             key: best_release_artifact(artifact_indexes["artifacts_by_tool_payload_preset"][key])
             for key in sorted(artifact_indexes.get("artifacts_by_tool_payload_preset") or {})
         },
+        "by_device_payload_preset": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_device_payload_preset"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_device_payload_preset") or {})
+        },
         "by_feature_payload_preset": {
             key: best_release_artifact(artifact_indexes["artifacts_by_feature_payload_preset"][key])
             for key in sorted(artifact_indexes.get("artifacts_by_feature_payload_preset") or {})
@@ -5236,7 +5240,8 @@ def release_recommendation_records(recommendations):
     records = []
     for scope in (
         "by_device", "by_tuple_path", "by_tool", "by_payload_preset", "by_feature",
-        "by_tool_payload_preset", "by_feature_payload_preset", "by_tuple_payload_preset",
+        "by_tool_payload_preset", "by_device_payload_preset",
+        "by_feature_payload_preset", "by_tuple_payload_preset",
     ):
         for key, artifact in sorted((recommendations.get(scope) or {}).items()):
             if not isinstance(artifact, dict):
@@ -5418,8 +5423,10 @@ def release_context(cfg=None):
         artifacts_by_source = {}
         artifacts_by_tuple_path = {}
         artifacts_by_tool = {}
+        artifacts_by_device_alias = {}
         artifacts_by_feature = {}
         artifacts_by_tool_payload_preset = {}
+        artifacts_by_device_payload_preset = {}
         artifacts_by_feature_payload_preset = {}
         artifacts_by_tuple_payload_preset = {}
         artifacts_by_provider_tool = {}
@@ -5433,6 +5440,7 @@ def release_context(cfg=None):
         artifact_payload_preset_counts = {}
         artifact_source_counts = {}
         artifact_tool_counts = {}
+        artifact_device_alias_counts = {}
         artifact_feature_counts = {}
         artifact_provider_tool_counts = {}
         artifact_provider_status_counts = {}
@@ -5475,6 +5483,29 @@ def release_context(cfg=None):
                 artifacts_by_tuple_path.setdefault(tuple_path, []).append(rec)
             if tuple_path and payload_preset:
                 artifacts_by_tuple_payload_preset.setdefault(f"{tuple_path}:{payload_preset}", []).append(rec)
+            for device in devices or []:
+                if not isinstance(device, dict):
+                    continue
+                alias = str(device.get("name") or "")
+                if not alias:
+                    continue
+                refs = {str(item) for item in (device.get("artifacts") or []) if str(item)}
+                ref_names = {Path(item).name for item in refs}
+                device_tuple_path = str(device.get("tuple_path") or "")
+                release_path = str(rec.get("release_path") or "")
+                if not (
+                    release_path in refs or
+                    name in ref_names or
+                    (device_tuple_path and tuple_path == device_tuple_path)
+                ):
+                    continue
+                rec.setdefault("device_aliases", [])
+                if alias not in rec["device_aliases"]:
+                    rec["device_aliases"].append(alias)
+                    artifact_device_alias_counts[alias] = artifact_device_alias_counts.get(alias, 0) + 1
+                artifacts_by_device_alias.setdefault(alias, []).append(rec)
+                if payload_preset:
+                    artifacts_by_device_payload_preset.setdefault(f"{alias}:{payload_preset}", []).append(rec)
             if source:
                 artifacts_by_source.setdefault(source, []).append(rec)
                 artifact_source_counts[source] = artifact_source_counts.get(source, 0) + 1
@@ -5531,8 +5562,10 @@ def release_context(cfg=None):
             "artifacts_by_tuple_path": artifacts_by_tuple_path,
             "artifacts_by_payload_preset": artifacts_by_payload_preset,
             "artifacts_by_tool": artifacts_by_tool,
+            "artifacts_by_device_alias": artifacts_by_device_alias,
             "artifacts_by_feature": artifacts_by_feature,
             "artifacts_by_tool_payload_preset": artifacts_by_tool_payload_preset,
+            "artifacts_by_device_payload_preset": artifacts_by_device_payload_preset,
             "artifacts_by_feature_payload_preset": artifacts_by_feature_payload_preset,
             "artifacts_by_tuple_payload_preset": artifacts_by_tuple_payload_preset,
         }
@@ -5570,8 +5603,10 @@ def release_context(cfg=None):
             "artifacts_by_source": artifacts_by_source,
             "artifacts_by_tuple_path": artifacts_by_tuple_path,
             "artifacts_by_tool": artifacts_by_tool,
+            "artifacts_by_device_alias": artifacts_by_device_alias,
             "artifacts_by_feature": artifacts_by_feature,
             "artifacts_by_tool_payload_preset": artifacts_by_tool_payload_preset,
+            "artifacts_by_device_payload_preset": artifacts_by_device_payload_preset,
             "artifacts_by_feature_payload_preset": artifacts_by_feature_payload_preset,
             "artifacts_by_tuple_payload_preset": artifacts_by_tuple_payload_preset,
             "artifacts_by_provider_tool": artifacts_by_provider_tool,
@@ -5587,6 +5622,7 @@ def release_context(cfg=None):
                 "by_payload_preset": artifact_payload_preset_counts,
                 "by_source": artifact_source_counts,
                 "by_tool": artifact_tool_counts,
+                "by_device_alias": artifact_device_alias_counts,
                 "by_feature": artifact_feature_counts,
                 "by_provider_tool": artifact_provider_tool_counts,
                 "by_provider_status": artifact_provider_status_counts,
@@ -9165,8 +9201,10 @@ def status_document(cfg):
         "release_artifact_source_counts": (release.get("artifact_stats") or {}).get("by_source") or {},
         "release_artifact_tuple_path_counts": record_count_by_key(release.get("artifacts") or [], "tuple_path"),
         "release_artifact_tool_counts": (release.get("artifact_stats") or {}).get("by_tool") or {},
+        "release_artifact_device_alias_counts": (release.get("artifact_stats") or {}).get("by_device_alias") or {},
         "release_artifact_feature_counts": (release.get("artifact_stats") or {}).get("by_feature") or {},
         "release_artifact_tool_payload_preset_combo_count": len(release.get("artifacts_by_tool_payload_preset") or {}),
+        "release_artifact_device_payload_preset_combo_count": len(release.get("artifacts_by_device_payload_preset") or {}),
         "release_artifact_feature_payload_preset_combo_count": len(release.get("artifacts_by_feature_payload_preset") or {}),
         "release_artifact_tuple_payload_preset_combo_count": len(release.get("artifacts_by_tuple_payload_preset") or {}),
         "release_artifact_provider_tool_counts": (release.get("artifact_stats") or {}).get("by_provider_tool") or {},
@@ -9419,7 +9457,9 @@ def status_document(cfg):
                 "artifacts_by_payload_preset", "artifacts_by_tool", "artifacts_by_feature",
                 "artifacts_by_compatibility", "artifacts_by_source", "artifacts_by_tuple_path",
                 "artifacts_by_tuple_payload_preset",
-                "artifacts_by_tool_payload_preset", "artifacts_by_feature_payload_preset",
+                "artifacts_by_device_alias",
+                "artifacts_by_tool_payload_preset", "artifacts_by_device_payload_preset",
+                "artifacts_by_feature_payload_preset",
                 "artifacts_by_provider_tool", "artifacts_by_provider_status",
                 "artifacts_by_doom_wad_filename", "artifacts_by_doom_wad_sha256",
                 "artifacts_by_command_queue_enabled", "artifacts_by_command_queue_execution_supported",
