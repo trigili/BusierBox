@@ -99,6 +99,10 @@ how strongly BusierBox tries to minimize its own runtime residue:
   fallback runtime root; use `best-effort` when fallback extraction is an
   acceptable operator tradeoff. Generated upload scratch files use the
   configured runtime root only, and are removed after the upload attempt.
+  Policy JSON and text also make the log boundary explicit: aggressive mode
+  does not create persistent target logs by default, and `BB_ZERO_ARG_LOG_MODE=none`
+  is the supported stdout/stderr suppression path for zero-arg autorun where
+  practical.
 
 Both levels remove only BusierBox-owned runtime roots after foreground payload
 commands, forward common interrupt signals to the child process, and still

@@ -113,12 +113,18 @@ mkdir "$run"
     grep -q '^noresidue_policy_active=yes$' config-info.out
     grep -q '^noresidue_policy_level=aggressive$' config-info.out
     grep -q '^noresidue_policy_aggressive_minimizes_runtime_residue=yes$' config-info.out
+    grep -q '^noresidue_policy_persistent_target_logs_default=no$' config-info.out
+    grep -q '^noresidue_policy_stdout_stderr_log_suppression=BB_ZERO_ARG_LOG_MODE=none$' config-info.out
+    grep -q '^noresidue_policy_in_memory_log_guarantee=no$' config-info.out
     grep -q '^noresidue_policy_forensic_no_trace=no$' config-info.out
     grep -q '^noresidue_policy_external_writes_require_explicit_apply=yes$' config-info.out
     ../busierbox-no-residue-aggressive doctor >doctor.out
     grep -q '^noresidue_active=yes$' doctor.out
     grep -q '^noresidue_level=aggressive$' doctor.out
     grep -q '^noresidue_aggressive_minimizes_runtime_residue=yes$' doctor.out
+    grep -q '^noresidue_persistent_target_logs_default=no$' doctor.out
+    grep -q '^noresidue_stdout_stderr_log_suppression=BB_ZERO_ARG_LOG_MODE=none$' doctor.out
+    grep -q '^noresidue_in_memory_log_guarantee=no$' doctor.out
     grep -q '^noresidue_forensic_no_trace=no$' doctor.out
     grep -q '^noresidue_external_writes_require_explicit_apply=yes$' doctor.out
     ../busierbox-no-residue-aggressive doctor --json | python3 -m json.tool >doctor.json
@@ -131,13 +137,36 @@ policy = doc["noresidue_policy"]
 assert policy["active"] is True
 assert policy["level"] == "aggressive"
 assert policy["aggressive_minimizes_runtime_residue"] is True
+assert policy["persistent_target_logs_default"] == "no"
+assert policy["stdout_stderr_log_suppression"] == "BB_ZERO_ARG_LOG_MODE=none"
+assert policy["in_memory_log_guarantee"] is False
 assert policy["forensic_no_trace"] is False
 assert policy["external_writes_require_explicit_apply"] is True
 PY
     ../busierbox-no-residue-aggressive manifest --json | python3 -m json.tool >manifest.json
     grep -q '"noresidue_level": "aggressive"' manifest.json
+    python3 - manifest.json <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+policy = doc["runtime"]["noresidue_policy"]
+assert policy["persistent_target_logs_default"] == "no"
+assert policy["stdout_stderr_log_suppression"] == "BB_ZERO_ARG_LOG_MODE=none"
+assert policy["in_memory_log_guarantee"] is False
+PY
     ../busierbox-no-residue-aggressive plan extract --json | python3 -m json.tool >plan.json
     grep -q '"noresidue_level": "aggressive"' plan.json
+    python3 - plan.json <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+policy = doc["noresidue_policy"]
+assert policy["persistent_target_logs_default"] == "no"
+assert policy["stdout_stderr_log_suppression"] == "BB_ZERO_ARG_LOG_MODE=none"
+assert policy["in_memory_log_guarantee"] is False
+PY
     ../busierbox-no-residue-aggressive clean --dry-run --json | python3 -m json.tool >clean-plan.json
     python3 - clean-plan.json <<'PY'
 import json

@@ -690,6 +690,11 @@ static void print_noresidue_policy_json(FILE *out)
     fprintf(out, ",\"cleanup_scope\":\"BusierBox-owned runtime roots and ledgered files only\"");
     fprintf(out, ",\"best_effort\":true");
     fprintf(out, ",\"aggressive_minimizes_runtime_residue\":%s", aggressive ? "true" : "false");
+    fprintf(out, ",\"persistent_target_logs_default\":");
+    bb_json_string(out, aggressive ? "no" : "configured");
+    fprintf(out, ",\"stdout_stderr_log_suppression\":");
+    bb_json_string(out, aggressive ? "BB_ZERO_ARG_LOG_MODE=none" : "available via BB_ZERO_ARG_LOG_MODE=none");
+    fprintf(out, ",\"in_memory_log_guarantee\":false");
     fprintf(out, ",\"forensic_no_trace\":false");
     fprintf(out, ",\"external_writes_require_explicit_apply\":true");
     fprintf(out, ",\"guarantee\":");

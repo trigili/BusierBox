@@ -67,6 +67,9 @@ assert extract_policy["active"] is True
 assert extract_policy["level"] == "aggressive"
 assert extract_policy["best_effort"] is True
 assert extract_policy["aggressive_minimizes_runtime_residue"] is True
+assert extract_policy["persistent_target_logs_default"] == "no"
+assert extract_policy["stdout_stderr_log_suppression"] == "BB_ZERO_ARG_LOG_MODE=none"
+assert extract_policy["in_memory_log_guarantee"] is False
 assert extract_policy["forensic_no_trace"] is False
 assert extract_policy["external_writes_require_explicit_apply"] is True
 assert "BusierBox-owned runtime roots" in extract_policy["cleanup_scope"]
@@ -112,6 +115,9 @@ assert rshell_policy["active"] is True
 assert rshell_policy["level"] == "aggressive"
 assert rshell_policy["best_effort"] is True
 assert rshell_policy["aggressive_minimizes_runtime_residue"] is True
+assert rshell_policy["persistent_target_logs_default"] == "no"
+assert rshell_policy["stdout_stderr_log_suppression"] == "BB_ZERO_ARG_LOG_MODE=none"
+assert rshell_policy["in_memory_log_guarantee"] is False
 assert rshell_policy["forensic_no_trace"] is False
 assert rshell_policy["external_writes_require_explicit_apply"] is True
 
@@ -124,6 +130,9 @@ assert clean_policy["active"] is True
 assert clean_policy["level"] == "aggressive"
 assert clean_policy["best_effort"] is True
 assert clean_policy["aggressive_minimizes_runtime_residue"] is True
+assert clean_policy["persistent_target_logs_default"] == "no"
+assert clean_policy["stdout_stderr_log_suppression"] == "BB_ZERO_ARG_LOG_MODE=none"
+assert clean_policy["in_memory_log_guarantee"] is False
 assert clean_policy["forensic_no_trace"] is False
 assert clean_policy["external_writes_require_explicit_apply"] is True
 assert any(path.endswith("/runtime") for path in clean["would_remove"])
@@ -244,6 +253,9 @@ grep -q '^runtime_mode=no-residue$' "$work/extract.txt"
 grep -q '^noresidue_level=aggressive$' "$work/extract.txt"
 grep -q '^noresidue_policy_active=yes$' "$work/extract.txt"
 grep -q '^noresidue_policy_aggressive_minimizes_runtime_residue=yes$' "$work/extract.txt"
+grep -q '^noresidue_policy_persistent_target_logs_default=no$' "$work/extract.txt"
+grep -q '^noresidue_policy_stdout_stderr_log_suppression=BB_ZERO_ARG_LOG_MODE=none$' "$work/extract.txt"
+grep -q '^noresidue_policy_in_memory_log_guarantee=no$' "$work/extract.txt"
 grep -q '^noresidue_policy_forensic_no_trace=no$' "$work/extract.txt"
 grep -q '^noresidue_policy_external_writes_require_explicit_apply=yes$' "$work/extract.txt"
 "$work/busierbox" plan clean >"$work/clean.txt"
@@ -251,6 +263,9 @@ grep -q '^runtime_mode=no-residue$' "$work/clean.txt"
 grep -q '^noresidue_level=aggressive$' "$work/clean.txt"
 grep -q '^noresidue_policy_active=yes$' "$work/clean.txt"
 grep -q '^noresidue_policy_aggressive_minimizes_runtime_residue=yes$' "$work/clean.txt"
+grep -q '^noresidue_policy_persistent_target_logs_default=no$' "$work/clean.txt"
+grep -q '^noresidue_policy_stdout_stderr_log_suppression=BB_ZERO_ARG_LOG_MODE=none$' "$work/clean.txt"
+grep -q '^noresidue_policy_in_memory_log_guarantee=no$' "$work/clean.txt"
 grep -q '^noresidue_policy_forensic_no_trace=no$' "$work/clean.txt"
 grep -q '^noresidue_policy_external_writes_require_explicit_apply=yes$' "$work/clean.txt"
 "$work/busierbox" plan rshell >"$work/rshell.txt"

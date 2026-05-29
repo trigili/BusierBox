@@ -55,6 +55,10 @@ static void print_noresidue_policy_info(void)
     puts("noresidue_policy_cleanup_scope=BusierBox-owned runtime roots and ledgered files only");
     puts("noresidue_policy_best_effort=yes");
     printf("noresidue_policy_aggressive_minimizes_runtime_residue=%s\n", aggressive ? "yes" : "no");
+    printf("noresidue_policy_persistent_target_logs_default=%s\n", aggressive ? "no" : "configured");
+    printf("noresidue_policy_stdout_stderr_log_suppression=%s\n",
+           aggressive ? "BB_ZERO_ARG_LOG_MODE=none" : "available via BB_ZERO_ARG_LOG_MODE=none");
+    puts("noresidue_policy_in_memory_log_guarantee=no");
     puts("noresidue_policy_forensic_no_trace=no");
     puts("noresidue_policy_external_writes_require_explicit_apply=yes");
     printf("noresidue_policy_guarantee=%s\n", aggressive ?

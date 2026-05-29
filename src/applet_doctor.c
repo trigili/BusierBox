@@ -153,6 +153,11 @@ static void print_noresidue_policy_json(FILE *out)
     fprintf(out, ",\"cleanup_scope\":\"BusierBox-owned runtime roots and ledgered files only\"");
     fprintf(out, ",\"best_effort\":true");
     fprintf(out, ",\"aggressive_minimizes_runtime_residue\":%s", aggressive ? "true" : "false");
+    fprintf(out, ",\"persistent_target_logs_default\":");
+    json_string_payload(out, aggressive ? "no" : "configured");
+    fprintf(out, ",\"stdout_stderr_log_suppression\":");
+    json_string_payload(out, aggressive ? "BB_ZERO_ARG_LOG_MODE=none" : "available via BB_ZERO_ARG_LOG_MODE=none");
+    fprintf(out, ",\"in_memory_log_guarantee\":false");
     fprintf(out, ",\"forensic_no_trace\":false");
     fprintf(out, ",\"external_writes_require_explicit_apply\":true");
     fprintf(out, ",\"guarantee\":");
@@ -172,6 +177,10 @@ static void print_noresidue_policy_text(void)
     puts("noresidue_cleanup_scope=BusierBox-owned runtime roots and ledgered files only");
     puts("noresidue_best_effort=yes");
     printf("noresidue_aggressive_minimizes_runtime_residue=%s\n", aggressive ? "yes" : "no");
+    printf("noresidue_persistent_target_logs_default=%s\n", aggressive ? "no" : "configured");
+    printf("noresidue_stdout_stderr_log_suppression=%s\n",
+           aggressive ? "BB_ZERO_ARG_LOG_MODE=none" : "available via BB_ZERO_ARG_LOG_MODE=none");
+    puts("noresidue_in_memory_log_guarantee=no");
     puts("noresidue_forensic_no_trace=no");
     puts("noresidue_external_writes_require_explicit_apply=yes");
 }
