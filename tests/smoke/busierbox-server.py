@@ -10,6 +10,7 @@ import ssl
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -54,6 +55,49 @@ def connect_with_retry(port, payload, tls_context=None):
     raise RuntimeError(f"server did not open port {port}: {last}")
 
 
+def request_with_retry(port, payload):
+    deadline = time.time() + 5
+    last = None
+    while time.time() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5) as raw:
+                raw.sendall(payload)
+                return raw.recv(65536)
+        except (ConnectionRefusedError, TimeoutError, OSError) as exc:
+            last = exc
+            time.sleep(0.05)
+    raise RuntimeError(f"server did not open port {port}: {last}")
+
+
+def start_one_shot_echo_server():
+    ready = threading.Event()
+    done = threading.Event()
+    result = {"port": 0, "error": ""}
+
+    def run_echo():
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind(("127.0.0.1", 0))
+                sock.listen(1)
+                result["port"] = sock.getsockname()[1]
+                ready.set()
+                conn, _addr = sock.accept()
+                with conn:
+                    data = conn.recv(65536)
+                    conn.sendall(b"bridge:" + data)
+        except OSError as exc:
+            result["error"] = str(exc)
+        finally:
+            done.set()
+
+    thread = threading.Thread(target=run_echo, name="busierbox-bridge-echo")
+    thread.start()
+    if not ready.wait(5):
+        raise RuntimeError("echo server did not start")
+    return result, done, thread
+
+
 def main():
     server = ROOT / "scripts" / "busierbox-server"
 
@@ -74,6 +118,9 @@ def main():
         return 1
     if "file-service" not in combined or "--file-service" not in combined:
         print("busierbox-server help missing receive-only file service", file=sys.stderr)
+        return 1
+    if "bridge" not in combined or "--bridge-dest-host" not in combined or "--bridge-dest-port" not in combined:
+        print("busierbox-server help missing explicit bridge mode", file=sys.stderr)
         return 1
     for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--json-status", "--api-status", "--event-limit",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
@@ -217,6 +264,71 @@ def main():
         if "Generating" not in combined and "Generated" not in combined and "generating" not in combined:
             print("Server did not report TLS cert generation:", file=sys.stderr)
             print(combined, file=sys.stderr)
+            return 1
+
+        echo_result, echo_done, echo_thread = start_one_shot_echo_server()
+        bridge_port = free_port()
+        bridge_cfg = Path(tmp) / "bridge-config.json"
+        bridge_state = Path(tmp) / "bridge-state.json"
+        bridge_operator_dir = Path(tmp) / "operator-session-bridge"
+        bridge_cfg.write_text(json.dumps({
+            "transport": "bridge",
+            "listen_host": "127.0.0.1",
+            "bridge_listen_port": bridge_port,
+            "bridge_dest_host": "127.0.0.1",
+            "bridge_dest_port": echo_result["port"],
+            "operator_session_dir": str(bridge_operator_dir),
+            "server_state": str(bridge_state),
+            "session_root": str(Path(tmp) / "bridge-sessions"),
+        }), encoding="utf-8")
+        bridge_proc = subprocess.Popen(
+            [
+                "scripts/busierbox-server",
+                "--config", str(bridge_cfg),
+                "--transport", "bridge",
+                "--timeout", "10",
+                "--one-shot",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            bridge_reply = request_with_retry(bridge_port, b"hello")
+            if bridge_reply != b"bridge:hello":
+                print(f"bridge relay returned wrong payload: {bridge_reply!r}", file=sys.stderr)
+                return 1
+            out, err = bridge_proc.communicate(timeout=5)
+        finally:
+            if bridge_proc.poll() is None:
+                bridge_proc.terminate()
+                bridge_proc.wait(timeout=5)
+        echo_done.wait(5)
+        echo_thread.join(timeout=5)
+        if echo_result.get("error"):
+            print(f"bridge echo server failed: {echo_result['error']}", file=sys.stderr)
+            return 1
+        if bridge_proc.returncode != 0 or "bridge closed" not in out:
+            print("bridge listener did not relay cleanly", file=sys.stderr)
+            print(out, file=sys.stderr)
+            print(err, file=sys.stderr)
+            return 1
+        bridge_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--json-status",
+        ).stdout)
+        bridge_service = (bridge_status.get("services_by_name") or {}).get("bridge") or {}
+        bridge_events = bridge_status.get("events_by_event", {})
+        if (bridge_service.get("port") != bridge_port or
+                bridge_service.get("actual") != "stopped" or
+                not bridge_events.get("bridge_connected") or
+                not bridge_events.get("bridge_closed") or
+                bridge_events["bridge_closed"][0].get("details", {}).get("bytes_from_client", 0) < len(b"hello") or
+                bridge_events["bridge_closed"][0].get("details", {}).get("bytes_from_upstream", 0) < len(b"bridge:hello")):
+            print("json status missing bridge relay evidence", file=sys.stderr)
+            print(json.dumps(bridge_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         command_copy_file = queue_operator_dir / "last-command.txt"
@@ -2241,16 +2353,16 @@ def main():
             return 1
         service_session_log_counts = queue_status_json["summary"].get("service_session_log_exists_counts", {})
         service_process_log_counts = queue_status_json["summary"].get("service_process_log_exists_counts", {})
-        if (queue_status_json["summary"].get("service_count") != 5 or
-                queue_status_json["summary"].get("service_actual_counts", {}).get("stopped") != 5 or
+        if (queue_status_json["summary"].get("service_count") != 6 or
+                queue_status_json["summary"].get("service_actual_counts", {}).get("stopped") != 6 or
                 queue_status_json["summary"].get("service_configured_counts", {}).get("unknown", 0) < 3 or
-                sum(service_session_log_counts.values()) != 5 or
-                sum(service_process_log_counts.values()) != 5):
+                sum(service_session_log_counts.values()) != 6 or
+                sum(service_process_log_counts.values()) != 6):
             print("server json status service summary is wrong", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         services_by_name = queue_status_json.get("services_by_name") or {}
-        if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service", "command-queue"}:
+        if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge"}:
             print("server json status missing stable services_by_name map", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -2264,20 +2376,20 @@ def main():
         ports_by_service = queue_status_json.get("ports_by_service") or {}
         ports_by_actual = queue_status_json.get("ports_by_actual") or {}
         file_service_port = str(services_by_name.get("file-service", {}).get("port", ""))
-        if (len(services_by_actual.get("stopped", [])) != 5 or
+        if (len(services_by_actual.get("stopped", [])) != 6 or
                 len(services_by_configured.get("unknown", [])) < 3 or
                 not any(row.get("name") == "file-service" for row in services_by_port.get(file_service_port, [])) or
-                sum(len(value) for value in services_by_session_log_exists.values()) != 5 or
-                sum(len(value) for value in services_by_process_log_exists.values()) != 5):
+                sum(len(value) for value in services_by_session_log_exists.values()) != 6 or
+                sum(len(value) for value in services_by_process_log_exists.values()) != 6):
             print("server json status missing grouped service lookup maps", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
-        if (queue_status_json["summary"].get("port_count") != 5 or
-                queue_status_json["summary"].get("port_actual_counts", {}).get("stopped") != 5 or
-                len(ports) != 5 or
+        if (queue_status_json["summary"].get("port_count") != 6 or
+                queue_status_json["summary"].get("port_actual_counts", {}).get("stopped") != 6 or
+                len(ports) != 6 or
                 not any(row.get("service") == "file-service" for row in ports_by_number.get(file_service_port, [])) or
                 ports_by_service.get("file-service", [{}])[0].get("port") != int(file_service_port) or
-                len(ports_by_actual.get("stopped", [])) != 5):
+                len(ports_by_actual.get("stopped", [])) != 6):
             print("server json status missing explicit port API records", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -2886,14 +2998,14 @@ def main():
                 rows["file-service"].get("process_log_exists") is not False or
                 (status_doc.get("services_by_name") or {}).get("file-service", {}).get("session_log_exists") is not True or
                 (status_doc.get("services_by_name") or {}).get("file-service", {}).get("process_log_exists") is not False or
-                len((status_doc.get("services_by_has_error") or {}).get("no", [])) != 5 or
-                lifecycle_summary.get("service_bind_address_counts", {}).get("127.0.0.1") != 5 or
+                len((status_doc.get("services_by_has_error") or {}).get("no", [])) != 6 or
+                lifecycle_summary.get("service_bind_address_counts", {}).get("127.0.0.1") != 6 or
                 lifecycle_summary.get("service_tls_counts", {}).get("yes") != 2 or
-                lifecycle_summary.get("service_tls_counts", {}).get("no") != 3 or
+                lifecycle_summary.get("service_tls_counts", {}).get("no") != 4 or
                 lifecycle_summary.get("service_pid_alive_counts", {}).get("yes") != 1 or
                 lifecycle_summary.get("service_pid_managed_counts", {}).get("yes") != 1 or
                 lifecycle_summary.get("service_session_log_exists_counts", {}).get("yes") != 1 or
-                lifecycle_summary.get("service_process_log_exists_counts", {}).get("no") != 5):
+                lifecycle_summary.get("service_process_log_exists_counts", {}).get("no") != 6):
             print("status missing service lifecycle/filter indexes", file=sys.stderr)
             print(status.stdout, file=sys.stderr)
             lifecycle_proc.terminate()

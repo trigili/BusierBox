@@ -926,6 +926,9 @@ DEFAULTS = {
     "file_service_enable": "no",
     "file_service_port": 22204,
     "file_service_tls": "yes",
+    "bridge_listen_port": 22206,
+    "bridge_dest_host": "127.0.0.1",
+    "bridge_dest_port": 0,
     "operator_session_dir": str(DEFAULT_OPERATOR_SESSION_DIR),
     "server_state": str(DEFAULT_STATE_FILE),
     "staged_files": str(DEFAULT_STAGED_FILE),
@@ -6853,7 +6856,7 @@ def load_config(path):
     elif t == "builtin-tls":
         cfg["transport"] = "builtin"
         cfg.setdefault("encryption", "tls")
-    for key in ("ssh_listen_port", "shell_listen_port", "forward_port", "file_service_port"):
+    for key in ("ssh_listen_port", "shell_listen_port", "forward_port", "file_service_port", "bridge_listen_port", "bridge_dest_port"):
         cfg[key] = int(cfg[key])
     return cfg
 
@@ -8464,6 +8467,168 @@ def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes
     return 0
 
 
+def bridge_relay(client, upstream, log_dir, session_timeout=0):
+    sockets = [client, upstream]
+    names = {client: "client", upstream: "upstream"}
+    peers = {client: upstream, upstream: client}
+    bytes_from_client = 0
+    bytes_from_upstream = 0
+    started = time.monotonic()
+    reason = "complete"
+    for sock in sockets:
+        sock.setblocking(False)
+    try:
+        while sockets and not SHUTDOWN.is_set():
+            if session_timeout and time.monotonic() - started >= session_timeout:
+                reason = "timeout"
+                break
+            readable, _, _ = select.select(sockets, [], [], 0.25)
+            if not readable:
+                continue
+            for sock in readable:
+                try:
+                    data = sock.recv(65536)
+                except BlockingIOError:
+                    continue
+                except OSError:
+                    reason = f"{names.get(sock, 'socket')}_error"
+                    sockets = []
+                    break
+                if not data:
+                    reason = f"{names.get(sock, 'socket')}_eof"
+                    sockets = []
+                    break
+                if sock is client:
+                    bytes_from_client += len(data)
+                else:
+                    bytes_from_upstream += len(data)
+                try:
+                    peers[sock].sendall(data)
+                except OSError:
+                    reason = f"{names.get(peers[sock], 'peer')}_error"
+                    sockets = []
+                    break
+        if SHUTDOWN.is_set():
+            reason = SHUTDOWN_REASON or "shutdown"
+    finally:
+        (Path(log_dir) / "bridge-result.json").write_text(json.dumps({
+            "schema": 1,
+            "reason": reason,
+            "bytes_from_client": bytes_from_client,
+            "bytes_from_upstream": bytes_from_upstream,
+        }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return reason, bytes_from_client, bytes_from_upstream
+
+
+def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
+    service = "bridge"
+    port = int(cfg.get("bridge_listen_port", 22206))
+    dest_host = str(cfg.get("bridge_dest_host", "127.0.0.1"))
+    dest_port = int(cfg.get("bridge_dest_port", 0))
+    if dest_port <= 0:
+        print("bridge: --bridge-dest-port is required", file=sys.stderr)
+        mark_service_error(cfg, service, ValueError("missing bridge destination port"), {
+            "listen_host": str(cfg.get("listen_host", "")),
+            "port": port,
+            "bridge_dest_host": dest_host,
+            "bridge_dest_port": dest_port,
+        })
+        return 2
+    log_dir = session_log_dir(cfg, service)
+    start_session_record(cfg, service, log_dir, details={"port": port, "bridge_dest_host": dest_host, "bridge_dest_port": dest_port})
+    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    print(f"TCP bridge listener. Relaying {cfg['listen_host']}:{port} -> {dest_host}:{dest_port}")
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "bridge_dest_host": dest_host, "bridge_dest_port": dest_port})
+    sessions = 0
+    sock = None
+    bound = False
+    try:
+        sock = bind_listen_socket(cfg, service, port, 20)
+        bound = True
+        sock.settimeout(timeout)
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "bridge_dest_host": dest_host, "bridge_dest_port": dest_port})
+        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "bridge_dest_host": dest_host, "bridge_dest_port": dest_port})
+        print_candidates(cfg, port)
+        while not SHUTDOWN.is_set():
+            print("Waiting for bridge client...")
+            try:
+                client, addr = sock.accept()
+            except socket.timeout:
+                print("timeout waiting for bridge client", file=sys.stderr)
+                return 1 if sessions == 0 else 0
+            except OSError:
+                if SHUTDOWN.is_set():
+                    return 0
+                raise
+            remote = f"{addr[0]}:{addr[1]}"
+            upstream = None
+            metadata = {
+                "operation": "bridge",
+                "status": "error",
+                "remote_addr": remote,
+                "bridge_dest_host": dest_host,
+                "bridge_dest_port": dest_port,
+            }
+            register_socket(client)
+            try:
+                upstream = socket.create_connection((dest_host, dest_port), timeout=10)
+                register_socket(upstream)
+                metadata["status"] = "connected"
+                append_event(cfg, service, "bridge_connected", session=str(log_dir), remote=remote, details=metadata)
+                update_session_record(log_dir, state="active", remote=remote)
+                upsert_state_session(cfg, log_dir, service, "active", remote=remote)
+                reason, from_client, from_upstream = bridge_relay(client, upstream, log_dir, session_timeout=session_timeout or 0)
+                metadata.update({
+                    "status": "closed",
+                    "reason": reason,
+                    "bytes_from_client": from_client,
+                    "bytes_from_upstream": from_upstream,
+                })
+                append_event(cfg, service, "bridge_closed", session=str(log_dir), remote=remote, details=metadata)
+                print(f"bridge closed: reason={reason} client_bytes={from_client} upstream_bytes={from_upstream}")
+            except OSError as exc:
+                metadata.update({"status": "error", "reason": str(exc)})
+                append_event(cfg, service, "bridge_error", "error", session=str(log_dir), remote=remote, details=metadata)
+                print(f"bridge failed: {exc}", file=sys.stderr)
+            finally:
+                for s in (client, upstream):
+                    if s is None:
+                        continue
+                    unregister_socket(s)
+                    try:
+                        s.close()
+                    except OSError:
+                        pass
+                update_session_record(log_dir, state="listening", exit_reason=metadata.get("reason", metadata.get("status", "")))
+                upsert_state_session(cfg, log_dir, service, "listening", remote=remote, exit_reason=metadata.get("reason", metadata.get("status", "")))
+                sessions += 1
+            if max_sessions > 0 and sessions >= max_sessions:
+                break
+    finally:
+        if sock:
+            unregister_socket(sock)
+            try:
+                sock.close()
+            except OSError:
+                pass
+        if bound:
+            stop_reason = current_stop_reason("complete")
+            update_server_state(cfg, service, "stopped", {
+                "session_log": str(log_dir),
+                "bridge_dest_host": dest_host,
+                "bridge_dest_port": dest_port,
+                "pid": "",
+                "managed_by": "",
+                "stopped_at": utc_now(),
+                "stopped_reason": stop_reason,
+            })
+            update_session_record(log_dir, state="ended", exit_reason=stop_reason)
+            upsert_state_session(cfg, log_dir, service, "ended", exit_reason=stop_reason)
+            record_shutdown_event(cfg, service, session=log_dir)
+            append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
+    return 0
+
+
 def service_port(cfg, service):
     if service == "ssh":
         return int(cfg.get("ssh_listen_port", 22202))
@@ -8473,6 +8638,8 @@ def service_port(cfg, service):
         return int(cfg.get("file_service_port", 22204))
     if service == "command-queue":
         return int(cfg.get("command_queue_port", 22205))
+    if service == "bridge":
+        return int(cfg.get("bridge_listen_port", 22206))
     return 0
 
 
@@ -8546,7 +8713,7 @@ def port_listening(host, port):
 def raw_service_snapshot(cfg):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     services = {}
-    for name in ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue"):
+    for name in ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge"):
         port = service_port(cfg, name)
         bind_address = str(cfg.get("listen_host", ""))
         endpoints = listener_endpoints(port)
@@ -13339,7 +13506,8 @@ Transport modes:
   tls-shell   — TLS shell listener accepting builtin+tls AND socat+tls transports
   plain-shell — Plaintext shell listener (debug/insecure; socat+none or builtin+none)
   file-service — Receive-only TLS upload service for target-initiated files/evidence
-  command-queue — Explicit command queue poll listener; records polls only
+  command-queue — Explicit command queue poll listener
+  bridge      — Explicit TCP bridge from a local listener to a configured host:port
 
 File staging:
   --transport file-service --serve-file ./tool --as /tmp/tool
@@ -13367,7 +13535,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="BusierBox shell build config used by scripts/menuconfig and make package")
     parser.add_argument("--transport",
                         choices=("ssh", "ssh-reverse", "tls-shell", "socat-tls",
-                                 "builtin-tls", "plain-shell", "file-service", "command-queue"),
+                                 "builtin-tls", "plain-shell", "file-service", "command-queue", "bridge"),
                         help="transport to listen for (overrides config)")
     parser.add_argument("--file-service", action="store_true",
                         help="receive target-initiated file uploads and store them under local/sessions")
@@ -13456,6 +13624,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="remote forward port exposed on the operator workstation")
     parser.add_argument("--file-port", type=int,
                         help="receive-only file service listener port")
+    parser.add_argument("--bridge-port", type=int,
+                        help="TCP bridge listener port")
+    parser.add_argument("--bridge-dest-host",
+                        help="TCP bridge destination host")
+    parser.add_argument("--bridge-dest-port", type=int,
+                        help="TCP bridge destination port")
     parser.add_argument("--file-service-tls", choices=("yes", "no"),
                         help="use TLS for file-service uploads (default yes)")
     parser.add_argument("--timeout", type=float, default=0,
@@ -13490,6 +13664,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["forward_port"] = args.forward_port
     if args.file_port:
         cfg["file_service_port"] = args.file_port
+    if args.bridge_port:
+        cfg["bridge_listen_port"] = args.bridge_port
+    if args.bridge_dest_host:
+        cfg["bridge_dest_host"] = args.bridge_dest_host
+    if args.bridge_dest_port:
+        cfg["bridge_dest_port"] = args.bridge_dest_port
     if args.file_service_tls:
         cfg["file_service_tls"] = args.file_service_tls
     if args.state_file:
@@ -13663,6 +13843,9 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             return serve_file_service(cfg, timeout, max_sessions=1 if args.one_shot else 0)
         if action == "command-queue":
             return serve_command_queue(cfg, timeout, max_sessions=1 if args.one_shot else 0)
+        if action == "bridge":
+            return serve_bridge(cfg, timeout, max_sessions=1 if args.one_shot else 0,
+                                session_timeout=session_timeout)
     except KeyboardInterrupt:
         print("busierbox-server: interrupted, shutting down", file=sys.stderr)
         request_shutdown("keyboard_interrupt")
