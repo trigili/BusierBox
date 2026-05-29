@@ -3638,6 +3638,8 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
         for profile in bridge_by_target.get(target_id) or []:
             profile_name = str(profile.get("name") or "")
             requires_target_online = bool(profile.get("requires_target_online"))
+            route_path = str(profile.get("route_path") or "")
+            bridge_label_suffix = f" ({route_path})" if route_path else ""
             add(
                 target,
                 f"start-bridge:{profile_name}",
@@ -3649,6 +3651,20 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
                 bridge_profile=profile_name,
                 offline_supported=not requires_target_online,
                 requires_target_online=requires_target_online,
+            )
+            add(
+                target,
+                f"queue-bridge-start:{profile_name}",
+                "bridge",
+                f"Queue bridge/reverse-access start for profile {profile_name}{bridge_label_suffix}",
+                base + " --run-target-workflow-action " + shquote(f"{target_id}:queue-bridge-start:{profile_name}"),
+                "bridge",
+                available=bool(profile_name),
+                bridge_profile=profile_name,
+                offline_supported=True,
+                requires_target_online=False,
+                queues_offline_work=True,
+                target_phone_home_required=True,
             )
     records.sort(key=lambda rec: (rec.get("target_id", ""), rec.get("category", ""), rec.get("action_id", "")))
     return records
@@ -15461,6 +15477,41 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             "result": "started-service",
             "service": "bridge",
             "bridge_profile": profile,
+        })
+        return 0
+    if action_id.startswith("queue-bridge-start:"):
+        profile = str(rec.get("bridge_profile") or action_id.split(":", 1)[1])
+        if not profile:
+            raise ValueError("queue-bridge-start target workflow action is missing a bridge profile")
+        bridge_profiles = load_bridge_profiles(cfg).get("profiles") or {}
+        profile_rec = bridge_profiles.get(profile) if isinstance(bridge_profiles, dict) else {}
+        if not isinstance(profile_rec, dict) or not profile_rec:
+            raise ValueError(f"bridge profile not found: {profile}")
+        profile_info = bridge_profile_record(cfg, profile, profile_rec)
+        command = "busierbox rshell start"
+        queued = queue_command(scoped, command)
+        print(f"queued {queued['id']}: {queued['command']}")
+        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        print(f"bridge_profile={profile} route={profile_info.get('route_path', '')}")
+        append_event(cfg, "workbench", "target_workflow_action_completed", details={
+            "id": rec.get("id", ""),
+            "action_id": action_id,
+            "target_id": target_id,
+            "target_label": target_label,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "offline_supported": bool(rec.get("offline_supported")),
+            "requires_target_online": bool(rec.get("requires_target_online")),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+            "result": "queued-bridge-start",
+            "command_id": queued.get("id", ""),
+            "command_sha256": queued.get("command_sha256", ""),
+            "queued_command": queued.get("command", ""),
+            "bridge_profile": profile,
+            "bridge_route_path": profile_info.get("route_path", ""),
+            "bridge_requires_target_online": bool(profile_info.get("requires_target_online")),
         })
         return 0
     raise ValueError(f"unsupported target workflow action: {action_id}")

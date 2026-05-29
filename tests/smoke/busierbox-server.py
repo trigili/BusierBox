@@ -499,25 +499,37 @@ def main():
         bridge_profile = (bridge_status.get("bridge_profiles_by_name") or {}).get("lab-http") or {}
         bridge_target = (bridge_status.get("targets_by_id") or {}).get("target-bridge") or {}
         bridge_workflow_actions = (bridge_status.get("target_workflow_actions_by_target_id") or {}).get("target-bridge") or []
-        bridge_action = (bridge_status.get("target_workflow_actions_by_bridge_profile") or {}).get("lab-http", [{}])[0]
+        bridge_actions_by_action = {
+            rec.get("action_id"): rec
+            for rec in (bridge_status.get("target_workflow_actions_by_bridge_profile") or {}).get("lab-http", [])
+        }
+        bridge_action = bridge_actions_by_action.get("start-bridge:lab-http") or {}
+        bridge_queue_action = bridge_actions_by_action.get("queue-bridge-start:lab-http") or {}
         if (bridge_service.get("port") != bridge_port or
                 bridge_service.get("actual") != "stopped" or
                 bridge_status.get("summary", {}).get("bridge_profile_count") != 2 or
-                bridge_status.get("summary", {}).get("target_workflow_action_count") != 10 or
-                bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("lab-http") != 1 or
-                bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("chain-http") != 1 or
+                bridge_status.get("summary", {}).get("target_workflow_action_count") != 12 or
+                bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("lab-http") != 2 or
+                bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("chain-http") != 2 or
                 bridge_status.get("summary", {}).get("target_workflow_action_requires_target_online_count") != 2 or
-                bridge_status.get("summary", {}).get("target_workflow_action_offline_supported_count") != 8 or
-                bridge_status.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 4 or
+                bridge_status.get("summary", {}).get("target_workflow_action_offline_supported_count") != 10 or
+                bridge_status.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 6 or
+                bridge_status.get("summary", {}).get("target_workflow_action_target_phone_home_required_count") != 7 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_activity_count") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_profile_counts", {}).get("lab-http") != 1 or
                 bridge_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("closed") != 1 or
-                len(bridge_workflow_actions) != 10 or
+                len(bridge_workflow_actions) != 12 or
                 bridge_action.get("target_id") != "target-bridge" or
                 bridge_action.get("workflow") != "bridge" or
                 bridge_action.get("requires_target_online") is not True or
                 bridge_action.get("offline_supported") is not False or
                 bridge_action.get("headless_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --transport bridge --bridge-profile lab-http" or
+                bridge_queue_action.get("target_id") != "target-bridge" or
+                bridge_queue_action.get("workflow") != "bridge" or
+                bridge_queue_action.get("requires_target_online") is not False or
+                bridge_queue_action.get("queues_offline_work") is not True or
+                bridge_queue_action.get("target_phone_home_required") is not True or
+                bridge_queue_action.get("headless_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --run-target-workflow-action target-bridge:queue-bridge-start:lab-http" or
                 bridge_profile.get("target_id") != "target-bridge" or
                 bridge_profile.get("purpose") != "web-admin" or
                 bridge_profile.get("route_path") != f"operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" or
@@ -534,6 +546,7 @@ def main():
                 bridge_profile.get("last_bytes_from_upstream", 0) < len(b"bridge:hello") or
                 "lab-http" not in [rec.get("name") for rec in ((bridge_status.get("bridge_profiles_by_target_id") or {}).get("target-bridge") or [])] or
                 ((bridge_status.get("target_workflow_actions_by_requires_target_online") or {}).get("True") or [{}])[0].get("workflow") != "bridge" or
+                ((bridge_status.get("target_workflow_actions_by_queues_offline_work") or {}).get("True") or [{}])[0].get("target_id") != "target-bridge" or
                 "bridge_profiles_by_current_state" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 "bridge_profiles_by_hop_count" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 not bridge_events.get("workbench_bridge_profile_inspected") or
@@ -551,6 +564,49 @@ def main():
                 bridge_events["bridge_closed"][0].get("details", {}).get("bytes_from_upstream", 0) < len(b"bridge:hello")):
             print("json status missing bridge relay evidence", file=sys.stderr)
             print(json.dumps(bridge_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
+        queue_bridge_action = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--run-target-workflow-action", "target-bridge:queue-bridge-start:lab-http",
+        )
+        if (queue_bridge_action.returncode != 0 or
+                "target workflow action: target-bridge:queue-bridge-start:lab-http" not in queue_bridge_action.stdout or
+                "queued " not in queue_bridge_action.stdout or
+                "busierbox rshell start" not in queue_bridge_action.stdout or
+                "bridge_profile=lab-http" not in queue_bridge_action.stdout or
+                f"route=operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" not in queue_bridge_action.stdout):
+            print("bridge target workflow queue action failed", file=sys.stderr)
+            print(queue_bridge_action.stdout, file=sys.stderr)
+            print(queue_bridge_action.stderr, file=sys.stderr)
+            return 1
+        bridge_queue_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--event-limit", "48",
+            "--json-status",
+        ).stdout)
+        bridge_queue_records = ((bridge_queue_status.get("command_queue") or {}).get("commands_by_target_id") or {}).get("target-bridge") or []
+        bridge_queue_events = bridge_queue_status.get("events_by_event") or {}
+        bridge_completed = [
+            event.get("details") or {}
+            for event in bridge_queue_events.get("target_workflow_action_completed", [])
+            if (event.get("details") or {}).get("action_id") == "queue-bridge-start:lab-http"
+        ]
+        if (len(bridge_queue_records) != 1 or
+                bridge_queue_records[0].get("command") != "busierbox rshell start" or
+                bridge_queue_status.get("summary", {}).get("target_mailbox_pending_work_count") != 1 or
+                bridge_queue_status.get("summary", {}).get("target_mailbox_status_counts", {}).get("queued") != 1 or
+                ((bridge_queue_status.get("target_mailbox_records_by_target_id") or {}).get("target-bridge") or [{}])[0].get("waiting_for") != "target-poll" or
+                not bridge_completed or
+                bridge_completed[-1].get("result") != "queued-bridge-start" or
+                bridge_completed[-1].get("bridge_profile") != "lab-http" or
+                bridge_completed[-1].get("queues_offline_work") is not True or
+                bridge_completed[-1].get("target_phone_home_required") is not True or
+                "operator:" not in bridge_completed[-1].get("bridge_route_path", "")):
+            print("bridge queued mailbox action missing status/event evidence", file=sys.stderr)
+            print(json.dumps(bridge_queue_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         bad_bridge_port = free_port()
@@ -633,8 +689,9 @@ def main():
         bridge_failure_target = (bridge_failure_status.get("targets_by_id") or {}).get("target-bridge") or {}
         bridge_failure_events = bridge_failure_status.get("events_by_event") or {}
         if (bridge_failure_status.get("summary", {}).get("bridge_profile_count") != 3 or
-                bridge_failure_status.get("summary", {}).get("target_workflow_action_count") != 11 or
+                bridge_failure_status.get("summary", {}).get("target_workflow_action_count") != 14 or
                 bridge_failure_status.get("summary", {}).get("target_workflow_action_requires_target_online_count") != 3 or
+                bridge_failure_status.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 7 or
                 bridge_failure_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("error") != 1 or
                 bridge_failure_target.get("latest_bridge_profile") != "bad-http" or
                 bridge_failure_target.get("latest_bridge_operation") != "bridge_error" or
