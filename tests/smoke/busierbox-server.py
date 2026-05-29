@@ -5029,6 +5029,17 @@ def main():
         ).stdout)
         if (filtered_alpha.get("target_filter", {}).get("target_id") != "target-alpha" or
                 filtered_alpha.get("target_filter", {}).get("active") is not True or
+                filtered_alpha.get("target_filter", {}).get("selected_target_found") is not True or
+                filtered_alpha.get("target_filter", {}).get("selected_target_label") != "Alpha Router Renamed" or
+                filtered_alpha.get("target_filter", {}).get("selected_target_identity_confidence") != "explicit" or
+                "http-header" not in (filtered_alpha.get("target_filter", {}).get("selected_target_identity_sources") or []) or
+                "lab-alpha" not in (filtered_alpha.get("target_filter", {}).get("selected_target_aliases") or []) or
+                "rack-1" not in (filtered_alpha.get("target_filter", {}).get("selected_target_aliases") or []) or
+                filtered_alpha.get("target_filter", {}).get("selected_target_notes_present") is not True or
+                filtered_alpha.get("target_filter", {}).get("selected_target", {}).get("notes") != "primary lab router" or
+                filtered_alpha.get("api", {}).get("target_filter_selected_target_found") is not True or
+                filtered_alpha.get("api", {}).get("target_filter_selected_target_label") != "Alpha Router Renamed" or
+                filtered_alpha.get("api", {}).get("target_filter_selected_target_identity_confidence") != "explicit" or
                 filtered_alpha.get("target_filter", {}).get("unfiltered_counts", {}).get("targets") != 2 or
                 filtered_alpha.get("summary", {}).get("target_count") != 1 or
                 filtered_alpha.get("summary", {}).get("upload_count") != 1 or
@@ -5057,6 +5068,7 @@ def main():
         )
         if (filtered_status.returncode != 0 or
                 "target_filter: target-bravo targets=1 uploads=1" not in filtered_status.stdout or
+                "label=Bravo Router confidence=explicit" not in filtered_status.stdout or
                 "target-bravo label=Bravo Router confidence=explicit" not in filtered_status.stdout or
                 "notes=primary lab router" in filtered_status.stdout or
                 "target-alpha label=Alpha Router Renamed" in filtered_status.stdout):
@@ -5071,6 +5083,7 @@ def main():
         )
         if (filtered_workbench.returncode != 0 or
                 "Target filter: target-bravo targets=1 uploads=1" not in filtered_workbench.stdout or
+                "label=Bravo Router confidence=explicit" not in filtered_workbench.stdout or
                 "target-bravo label=Bravo Router confidence=explicit" not in filtered_workbench.stdout or
                 "target-alpha label=Alpha Router Renamed" in filtered_workbench.stdout):
             print("target-filtered workbench did not show selected target only", file=sys.stderr)

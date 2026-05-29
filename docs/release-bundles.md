@@ -447,6 +447,13 @@ hard-coding every top-level key. Warning-aware collections also publish
 badged directly. Use `--event-limit N` to tune the structured event tail
 included in the status document; `0` keeps aggregate event counts and indexes
 but omits event records.
+When `--target-id ID` is active, the status document includes a `target_filter`
+record with unfiltered and filtered collection counts, the selected target
+record when known, and direct selected-target fields such as label, aliases,
+identity sources, identity confidence, latest activity, and notes presence.
+The top-level `api` catalog mirrors the selected target label/confidence and
+whether the target was found, so future TUI/web clients can render filter
+context without joining `targets_by_id` first.
 Service rows remain available in `services`,
 and the same records are indexed by service name, actual state, configured
 state, and port in `services_by_name`, `services_by_actual`,

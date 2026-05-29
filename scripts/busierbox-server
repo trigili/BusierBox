@@ -9728,6 +9728,8 @@ def status_document(cfg):
     }
     api_resources = api_resource_records(api_collections)
     api_resource_indexes = api_resource_record_indexes(api_resources)
+    selected_target = dict(targets_by_id.get(target_filter_id) or {}) if target_filter_id else {}
+    selected_target_sources = selected_target.get("identity_sources") or []
     return {
         "schema": 1,
         "generated_at": utc_now(),
@@ -9738,6 +9740,9 @@ def status_document(cfg):
             "event_limit": int(cfg.get("_event_limit", 0) or 0),
             "target_filter_active": bool(target_filter_id),
             "target_filter_id": target_filter_id,
+            "target_filter_selected_target_found": bool(selected_target),
+            "target_filter_selected_target_label": str(selected_target.get("label") or ""),
+            "target_filter_selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
             "resource_count": len(api_resources),
             "resources_key": "api_resources",
             "collections_key": "api_collections",
@@ -9745,6 +9750,15 @@ def status_document(cfg):
         "target_filter": {
             "active": bool(target_filter_id),
             "target_id": target_filter_id,
+            "selected_target_found": bool(selected_target),
+            "selected_target": selected_target,
+            "selected_target_label": str(selected_target.get("label") or ""),
+            "selected_target_aliases": selected_target.get("aliases") or [],
+            "selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
+            "selected_target_identity_sources": selected_target_sources,
+            "selected_target_latest_activity_service": str(selected_target.get("latest_activity_service") or ""),
+            "selected_target_latest_activity_operation": str(selected_target.get("latest_activity_operation") or ""),
+            "selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
             "applied_to": [
                 "targets", "uploads", "fetches", "sessions", "events",
                 "command_queue.commands", "staged_records",
@@ -10612,13 +10626,17 @@ def print_status(cfg, json_output=False):
     print(f"  workbench_jobs_file: {doc['workbench_jobs_file']}")
     print(f"  targets_file: {doc['targets_file']}")
     if (doc.get("target_filter") or {}).get("active"):
-        counts = (doc.get("target_filter") or {}).get("filtered_counts") or {}
+        target_filter = doc.get("target_filter") or {}
+        counts = target_filter.get("filtered_counts") or {}
+        label = target_filter.get("selected_target_label") or "-"
+        confidence = target_filter.get("selected_target_identity_confidence") or "-"
         print(
-            f"  target_filter: {doc.get('target_filter', {}).get('target_id', '')} "
+            f"  target_filter: {target_filter.get('target_id', '')} "
             f"targets={counts.get('targets', 0)} uploads={counts.get('uploads', 0)} "
             f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)} "
             f"commands={counts.get('command_queue_commands', 0)} "
-            f"target_cmds={counts.get('target_command_records', 0)}"
+            f"target_cmds={counts.get('target_command_records', 0)} "
+            f"label={label} confidence={confidence}"
         )
     print(f"  session_root: {doc['session_root']}")
     manager = doc.get("service_manager") or {}
@@ -10958,13 +10976,17 @@ def print_workbench(cfg, include_api_summary=True):
     if workbench.get("mode"):
         print(f"Workbench mode: {workbench.get('mode', '')}")
     if (snap.get("target_filter") or {}).get("active"):
-        counts = (snap.get("target_filter") or {}).get("filtered_counts") or {}
+        target_filter = snap.get("target_filter") or {}
+        counts = target_filter.get("filtered_counts") or {}
+        label = target_filter.get("selected_target_label") or "-"
+        confidence = target_filter.get("selected_target_identity_confidence") or "-"
         print(
-            f"Target filter: {snap.get('target_filter', {}).get('target_id', '')} "
+            f"Target filter: {target_filter.get('target_id', '')} "
             f"targets={counts.get('targets', 0)} uploads={counts.get('uploads', 0)} "
             f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)} "
             f"commands={counts.get('command_queue_commands', 0)} "
-            f"target_cmds={counts.get('target_command_records', 0)}"
+            f"target_cmds={counts.get('target_command_records', 0)} "
+            f"label={label} confidence={confidence}"
         )
     print(f"Workbench refresh: count={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}")
     print(
