@@ -52,10 +52,13 @@ The plan also publishes frontend-oriented lookup maps:
 `ledgered_cleanup_paths_by_cleanup_action`, plus `api_collections` and
 `api_resources` metadata for the `intended_write_path_records` and
 `ledgered_cleanup_paths` collections.
-Both dry-run and applied JSON include `writes_attempted`,
-`writes_blocked`, `paths_cleaned`, `paths_failed`, `cleanup_complete`, and
+Both dry-run and applied JSON include `writes_attempted`, `writes_blocked`,
+`paths_cleaned`, `paths_failed`, `cleanup_complete`, and `cleanup_warning`.
+The human text output mirrors those result fields as
+`cleanup_writes_attempted`, `cleanup_writes_blocked`,
+`cleanup_paths_cleaned`, `cleanup_paths_failed`, `cleanup_complete`, and
 `cleanup_warning` so operators and release tooling can distinguish a preview
-from a completed cleanup.
+from a completed cleanup without parsing JSON.
 
 Apply runtime cleanup:
 
