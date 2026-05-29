@@ -1769,7 +1769,31 @@ def target_mailbox_counts(cfg):
     return counts, latest_result
 
 
-def target_mailbox_record_from_command(rec, targets_by_id=None):
+def mailbox_wait_bucket(seconds):
+    if seconds in ("", None):
+        return ""
+    try:
+        value = int(seconds)
+    except (TypeError, ValueError):
+        return ""
+    if value < 60:
+        return "under-minute"
+    if value < 3600:
+        return "under-hour"
+    if value < 86400:
+        return "under-day"
+    return "day-plus"
+
+
+def mailbox_elapsed_seconds(start, end):
+    start_epoch = parse_utc_timestamp(str(start or ""))
+    end_epoch = parse_utc_timestamp(str(end or ""))
+    if start_epoch is None or end_epoch is None:
+        return ""
+    return max(int(end_epoch - start_epoch), 0)
+
+
+def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
     if not isinstance(rec, dict):
         return None
     target_id = str(rec.get("target_id") or "")
@@ -1787,6 +1811,29 @@ def target_mailbox_record_from_command(rec, targets_by_id=None):
         command_sha256 = hashlib.sha256(command_text.encode("utf-8")).hexdigest()
     has_result = bool(str(rec.get("result_received_at") or "") or status == "result-received")
     pending_work = status == "queued"
+    created_at = str(rec.get("created_at") or "")
+    delivered_at = str(rec.get("delivered_at") or "")
+    result_received_at = str(rec.get("result_received_at") or "")
+    age_sec = ""
+    created_epoch = parse_utc_timestamp(created_at)
+    if created_epoch is not None and now_epoch is not None:
+        age_sec = max(int(now_epoch - created_epoch), 0)
+    pending_delivery_for_sec = age_sec if pending_work else ""
+    delivered_without_result = status == "delivered" and not has_result
+    delivered_without_result_for_sec = ""
+    if delivered_without_result and now_epoch is not None:
+        delivered_epoch = parse_utc_timestamp(delivered_at)
+        if delivered_epoch is not None:
+            delivered_without_result_for_sec = max(int(now_epoch - delivered_epoch), 0)
+    result_latency_sec = mailbox_elapsed_seconds(delivered_at, result_received_at)
+    if pending_work:
+        waiting_for = "target-poll"
+    elif delivered_without_result:
+        waiting_for = "result-upload"
+    elif has_result:
+        waiting_for = "none"
+    else:
+        waiting_for = "unknown"
     output_bytes = rec.get("result_output_bytes")
     output_bucket = command_result_output_size_bucket(output_bytes) if has_result else ""
     return {
@@ -1801,11 +1848,20 @@ def target_mailbox_record_from_command(rec, targets_by_id=None):
         "target_next_expected_poll": str(target_rec.get("next_expected_poll") or ""),
         "has_target_next_expected_poll": bool(str(target_rec.get("next_expected_poll") or "")),
         "status": status,
+        "waiting_for": waiting_for,
         "command": command_text,
         "command_sha256": command_sha256,
-        "created_at": str(rec.get("created_at") or ""),
-        "delivered_at": str(rec.get("delivered_at") or ""),
-        "result_received_at": str(rec.get("result_received_at") or ""),
+        "created_at": created_at,
+        "delivered_at": delivered_at,
+        "result_received_at": result_received_at,
+        "age_sec": age_sec,
+        "age_bucket": mailbox_wait_bucket(age_sec),
+        "pending_delivery_for_sec": pending_delivery_for_sec,
+        "pending_delivery_age_bucket": mailbox_wait_bucket(pending_delivery_for_sec),
+        "delivered_without_result_for_sec": delivered_without_result_for_sec,
+        "delivered_without_result_age_bucket": mailbox_wait_bucket(delivered_without_result_for_sec),
+        "result_latency_sec": result_latency_sec,
+        "result_latency_bucket": mailbox_wait_bucket(result_latency_sec),
         "result_status": result_status,
         "result_exit_code": result_exit_code if result_exit_code not in (None, "") else "",
         "result_source_path": str(rec.get("result_source_path") or ""),
@@ -1816,15 +1872,15 @@ def target_mailbox_record_from_command(rec, targets_by_id=None):
         "timeout_sec": rec.get("timeout_sec", ""),
         "pending_work": pending_work,
         "pending_delivery": pending_work,
-        "delivered_without_result": status == "delivered" and not has_result,
+        "delivered_without_result": delivered_without_result,
         "has_result": has_result,
     }
 
 
-def target_mailbox_records_from_commands(commands, targets_by_id=None):
+def target_mailbox_records_from_commands(commands, targets_by_id=None, now_epoch=None):
     records = []
     for rec in commands or []:
-        item = target_mailbox_record_from_command(rec, targets_by_id)
+        item = target_mailbox_record_from_command(rec, targets_by_id, now_epoch=now_epoch)
         if item:
             records.append(item)
     records.sort(
@@ -1851,6 +1907,11 @@ def target_mailbox_record_indexes(records):
         "target_mailbox_records_by_target_last_seen_via": records_by_key(records, "target_last_seen_via"),
         "target_mailbox_records_by_has_target_next_expected_poll": records_by_key(records, "has_target_next_expected_poll"),
         "target_mailbox_records_by_status": records_by_key(records, "status"),
+        "target_mailbox_records_by_waiting_for": records_by_key(records, "waiting_for"),
+        "target_mailbox_records_by_age_bucket": records_by_key(records, "age_bucket"),
+        "target_mailbox_records_by_pending_delivery_age_bucket": records_by_key(records, "pending_delivery_age_bucket"),
+        "target_mailbox_records_by_delivered_without_result_age_bucket": records_by_key(records, "delivered_without_result_age_bucket"),
+        "target_mailbox_records_by_result_latency_bucket": records_by_key(records, "result_latency_bucket"),
         "target_mailbox_records_by_pending_work": records_by_key(records, "pending_work"),
         "target_mailbox_records_by_pending_delivery": records_by_key(records, "pending_delivery"),
         "target_mailbox_records_by_delivered_without_result": records_by_key(records, "delivered_without_result"),
@@ -11176,9 +11237,11 @@ def status_document(cfg):
             "by_service_detail_target_identity_confidence": count_index(events_by_service_detail_target_identity_confidence),
         }
     command_queue = command_queue_summary(cfg)
+    target_mailbox_now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
     target_mailbox_records = target_mailbox_records_from_commands(
         command_queue.get("commands") or [],
         targets_by_id,
+        now_epoch=target_mailbox_now_epoch,
     )
     target_mailbox_index_maps = target_mailbox_record_indexes(target_mailbox_records)
     command_queue_policy_summary_record = command_queue.get("policy_summary") or {}
@@ -12281,6 +12344,11 @@ def status_document(cfg):
         "command_queue_latest_result_received_at": command_queue.get("latest_result_received_at", ""),
         "target_mailbox_record_count": len(target_mailbox_records),
         "target_mailbox_status_counts": record_count_by_key(target_mailbox_records, "status"),
+        "target_mailbox_waiting_for_counts": record_count_by_key(target_mailbox_records, "waiting_for"),
+        "target_mailbox_age_bucket_counts": record_count_by_key(target_mailbox_records, "age_bucket"),
+        "target_mailbox_pending_delivery_age_bucket_counts": record_count_by_key(target_mailbox_records, "pending_delivery_age_bucket"),
+        "target_mailbox_delivered_without_result_age_bucket_counts": record_count_by_key(target_mailbox_records, "delivered_without_result_age_bucket"),
+        "target_mailbox_result_latency_bucket_counts": record_count_by_key(target_mailbox_records, "result_latency_bucket"),
         "target_mailbox_pending_work_counts": record_count_by_key(target_mailbox_records, "pending_work"),
         "target_mailbox_has_result_counts": record_count_by_key(target_mailbox_records, "has_result"),
         "target_mailbox_result_status_counts": record_count_by_key(target_mailbox_records, "result_status"),
@@ -12754,6 +12822,11 @@ def status_document(cfg):
                 "target_mailbox_records_by_target_last_seen_via",
                 "target_mailbox_records_by_has_target_next_expected_poll",
                 "target_mailbox_records_by_status",
+                "target_mailbox_records_by_waiting_for",
+                "target_mailbox_records_by_age_bucket",
+                "target_mailbox_records_by_pending_delivery_age_bucket",
+                "target_mailbox_records_by_delivered_without_result_age_bucket",
+                "target_mailbox_records_by_result_latency_bucket",
                 "target_mailbox_records_by_pending_work",
                 "target_mailbox_records_by_pending_delivery",
                 "target_mailbox_records_by_delivered_without_result",
@@ -13754,8 +13827,10 @@ def print_target_summary(doc, limit=8):
                 print(
                     f"      mailbox_command {item.get('command_id', '')} "
                     f"status={item.get('status', '') or '-'} "
+                    f"waiting_for={item.get('waiting_for', '') or '-'} "
                     f"result={item.get('result_status', '') or '-'} "
                     f"exit={item.get('result_exit_code', '') if item.get('result_exit_code') != '' else '-'} "
+                    f"age_sec={item.get('age_sec', '') if item.get('age_sec') != '' else '-'} "
                     f"created={item.get('created_at', '') or '-'} "
                     f"delivered={item.get('delivered_at', '') or '-'} "
                     f"result_at={item.get('result_received_at', '') or '-'} "
@@ -15882,6 +15957,7 @@ def run_line_tui(cfg):
                         f"target={rec.get('target_id', '') or '-'} "
                         f"state={rec.get('target_connectivity_state', '') or '-'} "
                         f"status={rec.get('status', '') or '-'} "
+                        f"waiting_for={rec.get('waiting_for', '') or '-'} "
                         f"pending={'yes' if rec.get('pending_work') else 'no'} "
                         f"result={rec.get('result_status', '') or '-'} "
                         f"exit={rec.get('result_exit_code', '') if rec.get('result_exit_code') != '' else '-'}"
@@ -15895,7 +15971,11 @@ def run_line_tui(cfg):
                     print(
                         f"    created={rec.get('created_at', '') or '-'} "
                         f"delivered={rec.get('delivered_at', '') or '-'} "
-                        f"result_at={rec.get('result_received_at', '') or '-'}"
+                        f"result_at={rec.get('result_received_at', '') or '-'} "
+                        f"age_sec={rec.get('age_sec', '') if rec.get('age_sec') != '' else '-'} "
+                        f"pending_delivery_for_sec={rec.get('pending_delivery_for_sec', '') if rec.get('pending_delivery_for_sec') != '' else '-'} "
+                        f"delivered_without_result_for_sec={rec.get('delivered_without_result_for_sec', '') if rec.get('delivered_without_result_for_sec') != '' else '-'} "
+                        f"result_latency_sec={rec.get('result_latency_sec', '') if rec.get('result_latency_sec') != '' else '-'}"
                     )
                     if rec.get("result_received_at"):
                         print(f"    result_source={rec.get('result_source_path', '') or '-'}")

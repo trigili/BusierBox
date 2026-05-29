@@ -2536,10 +2536,16 @@ def main():
             "--json-status",
         ).stdout)
         offline_bravo = (offline_status.get("targets_by_id") or {}).get("target-bravo") or {}
+        offline_bravo_mailbox = (offline_status.get("target_mailbox_records_by_command_id") or {}).get(bravo_id) or {}
         if (offline_bravo.get("connectivity_state") != "offline" or
                 offline_bravo.get("mailbox_pending_work_count") != 1 or
                 offline_bravo.get("last_seen") != old_seen or
                 offline_bravo.get("last_seen_via") != "command-queue:command_queue_poll" or
+                offline_bravo_mailbox.get("waiting_for") != "target-poll" or
+                not isinstance(offline_bravo_mailbox.get("age_sec"), int) or
+                not isinstance(offline_bravo_mailbox.get("pending_delivery_for_sec"), int) or
+                offline_status.get("summary", {}).get("target_mailbox_waiting_for_counts", {}).get("target-poll") != 2 or
+                ((offline_status.get("target_mailbox_records_by_waiting_for") or {}).get("target-poll") or [{}])[0].get("target_id") not in {"target-alpha", "target-bravo"} or
                 offline_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("offline") != 1 or
                 offline_status.get("summary", {}).get("target_mailbox_pending_work_count") != 2 or
                 ((offline_status.get("targets_by_mailbox_pending_work") or {}).get("yes") or [{}])[0].get("target_id") not in {"target-alpha", "target-bravo"}):
@@ -2600,6 +2606,7 @@ def main():
             "--json-status",
         ).stdout)
         target_alpha_status = (poll_target_status.get("targets_by_id") or {}).get("target-alpha", {})
+        target_alpha_mailbox = (poll_target_status.get("target_mailbox_records_by_command_id") or {}).get(alpha_id) or {}
         if (poll_target_status.get("summary", {}).get("command_queue_target_counts", {}).get("target-alpha") != 1 or
                 poll_target_status.get("summary", {}).get("target_count") != 1 or
                 poll_target_status.get("summary", {}).get("target_latest_activity_service_counts", {}).get("command-queue") != 1 or
@@ -2620,6 +2627,11 @@ def main():
                 target_alpha_status.get("mailbox_delivered_command_count") != 1 or
                 target_alpha_status.get("mailbox_pending_work_count") != 0 or
                 target_alpha_status.get("latest_command_queue_poll_interval_sec") != "11" or
+                target_alpha_mailbox.get("waiting_for") != "result-upload" or
+                target_alpha_mailbox.get("delivered_without_result") is not True or
+                not isinstance(target_alpha_mailbox.get("delivered_without_result_for_sec"), int) or
+                poll_target_status.get("summary", {}).get("target_mailbox_waiting_for_counts", {}).get("result-upload") != 1 or
+                ((poll_target_status.get("target_mailbox_records_by_waiting_for") or {}).get("result-upload") or [{}])[0].get("command_id") != alpha_id or
                 ((poll_target_status.get("targets_by_latest_activity_service") or {}).get("command-queue") or [{}])[0].get("target_id") != "target-alpha" or
                 ((poll_target_status.get("targets_by_latest_activity_operation") or {}).get("command_queue_poll") or [{}])[0].get("target_id") != "target-alpha" or
                 ((poll_target_status.get("targets_by_connectivity_state") or {}).get("online") or [{}])[0].get("target_id") != "target-alpha" or
@@ -2636,7 +2648,8 @@ def main():
                 (poll_target_status.get("event_log_stats") or {}).get("by_detail_poll_backoff", {}).get("exponential", 0) < 1 or
                 ((poll_target_status.get("events_by_detail_poll_interval_sec") or {}).get("11") or [{}])[0].get("details", {}).get("poll_backoff") != "exponential" or
                 "events_by_detail_poll_interval_sec" not in (((poll_target_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
-                "targets_by_connectivity_state" not in (((poll_target_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or [])):
+                "targets_by_connectivity_state" not in (((poll_target_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or []) or
+                "target_mailbox_records_by_waiting_for" not in (((poll_target_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or [])):
             print("target-scoped command queue poll missing from filtered status", file=sys.stderr)
             print(json.dumps(poll_target_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
@@ -2753,6 +2766,8 @@ def main():
                 result_status.get("summary", {}).get("target_mailbox_record_count") != 2 or
                 result_status.get("summary", {}).get("target_mailbox_status_counts", {}).get("queued") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_status_counts", {}).get("result-received") != 1 or
+                result_status.get("summary", {}).get("target_mailbox_waiting_for_counts", {}).get("none") != 1 or
+                result_status.get("summary", {}).get("target_mailbox_waiting_for_counts", {}).get("target-poll") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_result_status_counts", {}).get("completed") != 1 or
                 (result_status.get("api_collections") or {}).get("target_mailbox_records", {}).get("count") != 2 or
                 result_alpha_command.get("id") != alpha_id or
@@ -2764,6 +2779,9 @@ def main():
                 result_alpha_mailbox.get("result_exit_code") != 0 or
                 result_alpha_mailbox.get("has_result") is not True or
                 result_alpha_mailbox.get("pending_work") is not False or
+                result_alpha_mailbox.get("waiting_for") != "none" or
+                not isinstance(result_alpha_mailbox.get("age_sec"), int) or
+                not isinstance(result_alpha_mailbox.get("result_latency_sec"), int) or
                 not result_alpha_mailbox.get("result_received_at") or
                 result_alpha_mailbox.get("target_connectivity_state") != "online" or
                 result_alpha_mailbox.get("target_last_seen_via") != "command-queue:command_queue_result" or
@@ -2771,6 +2789,7 @@ def main():
                 result_bravo_mailbox.get("target_id") != "target-bravo" or
                 result_bravo_mailbox.get("target_label") != "Bravo Router" or
                 result_bravo_mailbox.get("status") != "queued" or
+                result_bravo_mailbox.get("waiting_for") != "target-poll" or
                 result_bravo_mailbox.get("pending_work") is not True or
                 result_bravo_mailbox.get("has_result") is not False or
                 result_bravo_mailbox.get("target_connectivity_state") != "offline" or
@@ -2784,12 +2803,16 @@ def main():
                 ((result_status.get("target_mailbox_records_by_target_last_seen_via") or {}).get("command-queue:command_queue_poll") or [{}])[0].get("command_id") != bravo_id or
                 ((result_status.get("target_mailbox_records_by_has_target_next_expected_poll") or {}).get("True") or [{}])[0].get("command_id") != bravo_id or
                 ((result_status.get("target_mailbox_records_by_pending_work") or {}).get("True") or [{}])[0].get("command_id") != bravo_id or
+                ((result_status.get("target_mailbox_records_by_waiting_for") or {}).get("none") or [{}])[0].get("command_id") != alpha_id or
+                ((result_status.get("target_mailbox_records_by_waiting_for") or {}).get("target-poll") or [{}])[0].get("command_id") != bravo_id or
                 ((result_status.get("target_mailbox_records_by_has_result") or {}).get("True") or [{}])[0].get("command_id") != alpha_id or
                 ((result_status.get("targets_by_mailbox_pending_work") or {}).get("yes") or [{}])[0].get("target_id") != "target-bravo" or
                 ((result_status.get("targets_by_last_seen_via") or {}).get("command-queue:command_queue_result") or [{}])[0].get("target_id") != "target-alpha" or
                 result_status.get("summary", {}).get("target_mailbox_target_connectivity_state_counts", {}).get("offline") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_has_target_next_expected_poll_counts", {}).get("True") != 1 or
+                not result_status.get("summary", {}).get("target_mailbox_age_bucket_counts") or
                 "target_mailbox_records_by_target_connectivity_state" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
+                "target_mailbox_records_by_result_latency_bucket" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_result_upload_received" for event in result_status.get("events") or [])):
             print("target mailbox result upload did not update heartbeat and result status", file=sys.stderr)
             print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
@@ -2803,11 +2826,13 @@ def main():
                 "heartbeat_via=command-queue:command_queue_result" not in result_status_text.stdout or
                 "mailbox queued=0 delivered=0 results=1 pending=0" not in result_status_text.stdout or
                 f"mailbox_command {alpha_id} status=result-received" not in result_status_text.stdout or
+                "waiting_for=none" not in result_status_text.stdout or
                 "result=completed exit=0" not in result_status_text.stdout or
                 "target-bravo label=Bravo Router" not in result_status_text.stdout or
                 "state=offline" not in result_status_text.stdout or
                 "mailbox queued=1 delivered=0 results=0 pending=1" not in result_status_text.stdout or
-                f"mailbox_command {bravo_id} status=queued" not in result_status_text.stdout):
+                f"mailbox_command {bravo_id} status=queued" not in result_status_text.stdout or
+                "waiting_for=target-poll" not in result_status_text.stdout):
             print("text status missing intermittent mailbox heartbeat/result summary", file=sys.stderr)
             print(result_status_text.stdout, file=sys.stderr)
             return 1
@@ -2856,12 +2881,14 @@ def main():
                 f"{alpha_id}\tresult-received" not in queue_tui_text or
                 "result: " not in queue_tui_text or
                 "Target mailbox records:" not in queue_tui_text or
-                f"{alpha_id} target=target-alpha state=online status=result-received pending=no result=completed exit=0" not in queue_tui_text or
-                f"{bravo_id} target=target-bravo state=offline status=queued pending=yes result=- exit=-" not in queue_tui_text or
+                f"{alpha_id} target=target-alpha state=online status=result-received waiting_for=none pending=no result=completed exit=0" not in queue_tui_text or
+                f"{bravo_id} target=target-bravo state=offline status=queued waiting_for=target-poll pending=yes result=- exit=-" not in queue_tui_text or
                 f"last_seen={old_seen} via=command-queue:command_queue_poll" not in queue_tui_text or
                 "next_expected_poll=" not in queue_tui_text or
                 "created=" not in queue_tui_text or
-                "delivered=" not in queue_tui_text):
+                "delivered=" not in queue_tui_text or
+                "pending_delivery_for_sec=" not in queue_tui_text or
+                "result_latency_sec=" not in queue_tui_text):
             print("line TUI command queue inspection missing result/mailbox state", file=sys.stderr)
             print(queue_tui_text, file=sys.stderr)
             print(queue_tui_stderr or "", file=sys.stderr)

@@ -511,7 +511,10 @@ Target mailbox records also mirror target heartbeat fields such as connectivity
 state, last-seen time/source, offline age, and next expected poll; the line TUI
 command queue view prints those fields beside queued/delivered/result state, so
 operators can distinguish pending work for an offline target from work that was
-recently polled but not completed.
+recently polled but not completed. Mailbox records also expose `waiting_for`,
+age seconds, pending-delivery age, delivered-without-result age, result latency,
+and matching bucket indexes so frontends can group work waiting for the next
+target poll separately from work waiting for a result upload.
 The same status payload includes `target_attribution` plus mirrored summary
 counts for uploads, fetches, and sessions with and without `target_id`, so
 legacy single-target traffic remains valid but visible instead of being
