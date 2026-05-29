@@ -802,6 +802,12 @@ def main():
                 invalid_state_doc.get("summary", {}).get("operator_state_unhealthy_count") != 7 or
                 invalid_state_doc.get("summary", {}).get("operator_state_ok_count") != 0 or
                 invalid_state_doc.get("summary", {}).get("operator_state_error_count") != 0 or
+                invalid_state_doc.get("summary", {}).get("operator_state_severity_counts", {}).get("error") != 3 or
+                invalid_state_doc.get("summary", {}).get("operator_state_severity_counts", {}).get("warning") != 4 or
+                invalid_state_doc.get("summary", {}).get("operator_state_remediation_class_counts", {}).get("repair_operator_state") != 3 or
+                invalid_state_doc.get("summary", {}).get("operator_state_remediation_class_counts", {}).get("initialize_operator_state") != 4 or
+                invalid_state_doc.get("summary", {}).get("operator_state_requires_operator_action_counts", {}).get("True") != 3 or
+                invalid_state_doc.get("summary", {}).get("operator_state_requires_operator_action_counts", {}).get("False") != 4 or
                 invalid_state_doc.get("summary", {}).get("operator_state_kind_status_counts", {}).get("json-state:invalid") != 3 or
                 invalid_warning_types.get("invalid_server_state") != 1 or
                 invalid_warning_types.get("invalid_staged_files_state") != 1 or

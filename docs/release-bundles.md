@@ -487,7 +487,9 @@ with lookup maps such as
 kind, existence, validity, and kind/status counts, plus direct
 `operator_state_ok_count`, `operator_state_missing_count`,
 `operator_state_invalid_count`, `operator_state_error_count`, and
-`operator_state_unhealthy_count` fields, so clients can show corrupt or missing
+`operator_state_unhealthy_count` fields. It also mirrors
+`operator_state_severity_counts`, `operator_state_remediation_class_counts`,
+and `operator_state_requires_operator_action_counts`, so clients can show corrupt or missing
 operator ledgers without re-reading JSON files. Human `--status`
 prints the same normalized operator state records as an `Operator state:`
 section, including status, kind, existence, validity, record count, path, and

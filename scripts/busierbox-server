@@ -1407,6 +1407,9 @@ def operator_state_health_counts(records):
         "error": int(counts.get("error", 0) or 0),
         "unhealthy": unhealthy,
         "status_counts": counts,
+        "severity_counts": record_count_by_key(records, "severity"),
+        "remediation_class_counts": record_count_by_key(records, "remediation_class"),
+        "requires_operator_action_counts": record_count_by_key(records, "requires_operator_action"),
     }
 
 
@@ -7907,6 +7910,9 @@ def status_document(cfg):
         "operator_state_kind_counts": record_count_by_key(operator_state_records_list, "kind"),
         "operator_state_exists_counts": record_count_by_key(operator_state_records_list, "exists"),
         "operator_state_valid_counts": record_count_by_key(operator_state_records_list, "valid"),
+        "operator_state_severity_counts": operator_state_health.get("severity_counts") or {},
+        "operator_state_remediation_class_counts": operator_state_health.get("remediation_class_counts") or {},
+        "operator_state_requires_operator_action_counts": operator_state_health.get("requires_operator_action_counts") or {},
         "operator_state_kind_status_counts": {key: len(value) for key, value in operator_state_index_maps.get("operator_state_records_by_kind_status", {}).items()},
         "staged_count": len(staged),
         "staged_total_size": staged_summary.get("total_size", 0),
