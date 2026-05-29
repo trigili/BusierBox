@@ -8989,6 +8989,17 @@ def status_document(cfg):
         "tls_key": str(cfg.get("tls_key", "")),
     }
     server_state = server_state_record(cfg)
+    server_state["has_services"] = int(server_state.get("service_count") or 0) > 0
+    server_state["has_sessions"] = int(server_state.get("session_count") or 0) > 0
+    server_state_records = [server_state]
+    server_state_index_maps = {
+        "server_state_records_by_path": {rec.get("path", ""): rec for rec in server_state_records if rec.get("path")},
+        "server_state_records_by_exists": records_by_key(server_state_records, "exists"),
+        "server_state_records_by_valid": records_by_key(server_state_records, "valid"),
+        "server_state_records_by_has_services": records_by_key(server_state_records, "has_services"),
+        "server_state_records_by_has_sessions": records_by_key(server_state_records, "has_sessions"),
+        "server_state_records_by_schema": records_by_key(server_state_records, "schema"),
+    }
     staged_files_state = staged_files_state_record(cfg)
     command_queue_state = command_queue_state_record(cfg)
     command_queue_state["has_commands"] = int(command_queue_state.get("command_count") or 0) > 0
@@ -9204,6 +9215,9 @@ def status_document(cfg):
         "server_state_valid": bool(server_state.get("valid", False)),
         "server_state_service_count": server_state.get("service_count", 0),
         "server_state_session_count": server_state.get("session_count", 0),
+        "server_state_record_count": len(server_state_records),
+        "server_state_has_services": bool(server_state.get("has_services", False)),
+        "server_state_has_sessions": bool(server_state.get("has_sessions", False)),
         "staged_files_exists": bool(staged_files_state.get("exists", False)),
         "staged_files_valid": bool(staged_files_state.get("valid", False)),
         "staged_files_state_count": staged_files_state.get("staged_count", 0),
@@ -9683,6 +9697,16 @@ def status_document(cfg):
                 "path_status_by_has_warnings", "path_status_by_warning_type",
             ), "path_status_count",
         ),
+        "server_state_records": api_collection_record(
+            "server_state_records", server_state_records, "path", (
+                "server_state_records_by_path",
+                "server_state_records_by_exists",
+                "server_state_records_by_valid",
+                "server_state_records_by_has_services",
+                "server_state_records_by_has_sessions",
+                "server_state_records_by_schema",
+            ), "server_state_record_count",
+        ),
         "operator_state_records": api_collection_record(
             "operator_state_records", operator_state_records_list, "name", (
                 "operator_state_records_by_name", "operator_state_records_by_kind",
@@ -10125,6 +10149,8 @@ def status_document(cfg):
         "browser_paths_by_warning_type": browser_paths_by_warning_type,
         "browser_path_summary": browser_summary,
         "server_state": server_state,
+        "server_state_records": server_state_records,
+        **server_state_index_maps,
         "staged_files_state": staged_files_state,
         "command_queue_state": command_queue_state,
         "command_queue_state_records": command_queue_state_records,

@@ -1833,6 +1833,7 @@ def main():
                 ("services", len(queue_status_json.get("services") or []), "services_by_has_error"),
                 ("ports", len(queue_status_json.get("ports") or []), "ports_by_number"),
                 ("path_status_records", len(path_status_records), "path_status_by_name"),
+                ("server_state_records", len(queue_status_json.get("server_state_records") or []), "server_state_records_by_valid"),
                 ("operator_network_records", len(queue_status_json.get("operator_network_records") or []), "operator_network_records_by_selected"),
                 ("browser_paths", len(browser_paths), "browser_paths_by_expected_kind_mismatch"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
@@ -1882,6 +1883,9 @@ def main():
                 not any(rec.get("name") == "command_queue_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
                 api_resources_by_name.get("command_queue_commands", {}).get("records_key") != "command_queue.commands" or
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
+                api_resources_by_name.get("server_state_records", {}).get("records_key") != "server_state_records" or
+                api_resources_by_summary_key.get("server_state_record_count", [{}])[0].get("name") != "server_state_records" or
+                not any(rec.get("name") == "server_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
                 api_resources_by_name.get("operator_network_records", {}).get("records_key") != "operator_network_records" or
                 api_resources_by_summary_key.get("operator_network_record_count", [{}])[0].get("name") != "operator_network_records" or
                 not any(rec.get("name") == "operator_network_records" for rec in api_resources_by_primary_key.get("id", [])) or
@@ -2089,8 +2093,17 @@ def main():
             return 1
         if (server_state.get("path") != queue_status_json.get("state_file") or
                 server_state.get("exists") != state_path_status.get("exists") or
+                server_state.get("has_services") != (server_state.get("service_count", 0) > 0) or
+                server_state.get("has_sessions") != (server_state.get("session_count", 0) > 0) or
+                queue_status_json.get("server_state_records_by_path", {}).get(server_state.get("path"), {}).get("service_count") != server_state.get("service_count") or
+                queue_status_json.get("server_state_records_by_has_services", {}).get(str(bool(server_state.get("has_services"))), [{}])[0].get("path") != server_state.get("path") or
+                queue_status_json.get("server_state_records_by_has_sessions", {}).get(str(bool(server_state.get("has_sessions"))), [{}])[0].get("path") != server_state.get("path") or
                 queue_status_json["summary"].get("server_state_exists") != bool(server_state.get("exists")) or
                 queue_status_json["summary"].get("server_state_valid") != bool(server_state.get("valid")) or
+                queue_status_json["summary"].get("server_state_record_count") != 1 or
+                queue_status_json["summary"].get("server_state_has_services") != bool(server_state.get("has_services")) or
+                queue_status_json["summary"].get("server_state_has_sessions") != bool(server_state.get("has_sessions")) or
+                "server_state_records_by_has_services" not in ((queue_status_json.get("api_collections") or {}).get("server_state_records") or {}).get("indexes", []) or
                 not isinstance(server_state.get("services"), dict) or
                 not isinstance(server_state.get("sessions"), list)):
             print("server json status missing reusable server-state record", file=sys.stderr)
