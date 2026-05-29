@@ -723,6 +723,67 @@ def main():
             print("workbench missing bridged survey target command route", file=sys.stderr)
             print(bridged_survey_tui.stdout, file=sys.stderr)
             return 1
+        survey_tui_master, survey_tui_slave = pty.openpty()
+        try:
+            survey_tui_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(survey_cfg),
+                    "--bridge-profile", "survey-route",
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=survey_tui_slave,
+                stdout=survey_tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(survey_tui_slave)
+            survey_tui_slave = -1
+            time.sleep(0.5)
+            os.write(survey_tui_master, b"19\ny\nq\n")
+            _survey_line_stdout, survey_line_stderr = survey_tui_proc.communicate(timeout=8)
+            survey_line_output = b""
+            while True:
+                try:
+                    chunk = os.read(survey_tui_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                survey_line_output += chunk
+        finally:
+            if survey_tui_slave != -1:
+                os.close(survey_tui_slave)
+            try:
+                os.close(survey_tui_master)
+            except OSError:
+                pass
+        survey_line_text = survey_line_output.decode("utf-8", errors="replace")
+        if (survey_tui_proc.returncode != 0 or
+                "Traceback" in (survey_line_stderr or "") or
+                "Survey bootstrap:" not in survey_line_text or
+                f"target_command: {expected_survey_command}" not in survey_line_text or
+                "--transport survey-bootstrap" not in survey_line_text or
+                "bridge_profile=survey-route" not in survey_line_text):
+            print("line TUI survey bootstrap action did not show bridged command", file=sys.stderr)
+            print(survey_line_text, file=sys.stderr)
+            print(survey_line_stderr or "", file=sys.stderr)
+            return 1
+        survey_tui_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(survey_cfg),
+            "--bridge-profile", "survey-route",
+            "--json-status",
+        ).stdout)
+        survey_tui_service = (survey_tui_status.get("services_by_name") or {}).get("survey-bootstrap") or {}
+        if (survey_tui_service.get("actual") == "listening" or
+                not (survey_tui_status.get("events_by_event") or {}).get("workbench_survey_bootstrap_started") or
+                not (survey_tui_status.get("events_by_event") or {}).get("service_stop")):
+            print("line TUI survey bootstrap listener was not workbench-owned/stopped", file=sys.stderr)
+            print(json.dumps(survey_tui_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
 
         command_copy_file = queue_operator_dir / "last-command.txt"
         copied = run(

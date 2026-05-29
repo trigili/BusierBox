@@ -14799,6 +14799,7 @@ def run_line_tui(cfg):
         print("  16 select target filter")
         print("  17 manage bridge profiles")
         print("  18 inspect target mailbox/activity")
+        print("  19 serve survey bootstrap")
         print("  c show/copy generated commands")
         print("  r refresh")
         print("  ? help")
@@ -15133,8 +15134,37 @@ def run_line_tui(cfg):
                 })
             except ValueError as exc:
                 print(exc)
+        elif choice == "19":
+            commands = [
+                rec for rec in generated_target_command_records(cfg)
+                if rec.get("service") == "survey-bootstrap"
+            ]
+            rec = commands[0] if commands else {}
+            config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+            headless_parts = ["scripts/busierbox-server", "--config", config_path, "--transport", "survey-bootstrap"]
+            if cfg.get("bridge_profile"):
+                headless_parts.extend(["--bridge-profile", str(cfg.get("bridge_profile"))])
+            headless = " ".join(shquote(str(item)) for item in headless_parts)
+            print("Survey bootstrap:")
+            if rec:
+                print(f"  target_command: {rec.get('command', '')}")
+                print(f"  route={rec.get('route_kind', '')} bridge_profile={rec.get('bridge_profile', '') or '-'}")
+                if rec.get("bridge_route_path"):
+                    print(f"  path={rec.get('bridge_route_path', '')}")
+            else:
+                print("  target_command: unavailable")
+            print(f"  headless_command: {headless}")
+            start_line = line_input("start survey bootstrap listener now? [y/N]> ")
+            if start_line is not None and start_line.strip().lower() in ("y", "yes"):
+                append_event(cfg, "workbench", "workbench_survey_bootstrap_started", details={
+                    "headless_command": headless,
+                    "target_command": rec.get("command", "") if rec else "",
+                    "route_kind": rec.get("route_kind", "") if rec else "",
+                    "bridge_profile": rec.get("bridge_profile", "") if rec else "",
+                })
+                start_service_process(cfg, "survey-bootstrap")
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 18 target detail, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 18 target detail, 19 survey bootstrap, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 

@@ -42,6 +42,11 @@ back through `http://OPERATOR:22206/survey-bootstrap/result`, and status JSON
 marks the generated survey command with `route_kind=bridge`,
 `bridge_profile=rack-chain`, and the profile's `bridge_route_path`.
 
+In line-mode TUI, action `19` previews the exact target command and the
+equivalent headless `--transport survey-bootstrap` command. It can also start
+the survey bootstrap listener as a workbench-owned service, so quitting the
+workbench stops the listener it started.
+
 The script collects `uname -s`, `uname -m`, `uname -r`, word size from
 `getconf LONG_BIT` when available, and a simple endian probe using `od` and
 `awk` when available. It posts those values back to
