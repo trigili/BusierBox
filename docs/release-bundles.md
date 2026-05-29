@@ -453,7 +453,10 @@ record when known, and direct selected-target fields such as label, aliases,
 identity sources, identity confidence, latest activity, and notes presence.
 The top-level `api` catalog mirrors the selected target label/confidence and
 whether the target was found, so future TUI/web clients can render filter
-context without joining `targets_by_id` first.
+context without joining `targets_by_id` first. If the filter does not match a
+known target, status output keeps the empty filtered collections visible and
+adds an `unknown_target_filter` warning with the requested target id and
+`targets.json` path.
 Service rows remain available in `services`,
 and the same records are indexed by service name, actual state, configured
 state, and port in `services_by_name`, `services_by_actual`,

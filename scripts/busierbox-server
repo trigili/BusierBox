@@ -8515,6 +8515,8 @@ def status_document(cfg):
      targets_by_missing_capability,
      targets_by_observed_constraint) = target_record_indexes(targets)
     target_summary = target_record_summary(targets)
+    selected_target = dict(targets_by_id.get(target_filter_id) or {}) if target_filter_id else {}
+    selected_target_sources = selected_target.get("identity_sources") or []
     sessions = recent_session_records(cfg)
     unfiltered_counts["sessions"] = len(sessions)
     if target_filter_id:
@@ -8920,6 +8922,15 @@ def status_document(cfg):
             "errors": release_state.get("errors") or [],
             "message": "release bundle state is invalid",
             "suggested_action": "inspect release.json, release-index.json, bin/, and scripts/ before using release browser results",
+        })
+    if target_filter_id and not selected_target:
+        warnings.append({
+            "type": "unknown_target_filter",
+            "target_id": target_filter_id,
+            "targets_file": str(targets_path(cfg)),
+            "unfiltered_target_count": unfiltered_counts.get("targets", 0),
+            "message": "target filter did not match any known target record",
+            "suggested_action": "inspect targets.json, remove the filter, or set a label for the target id",
         })
     if event_stats["invalid_count"]:
         warnings.append({
@@ -9728,8 +9739,6 @@ def status_document(cfg):
     }
     api_resources = api_resource_records(api_collections)
     api_resource_indexes = api_resource_record_indexes(api_resources)
-    selected_target = dict(targets_by_id.get(target_filter_id) or {}) if target_filter_id else {}
-    selected_target_sources = selected_target.get("identity_sources") or []
     return {
         "schema": 1,
         "generated_at": utc_now(),

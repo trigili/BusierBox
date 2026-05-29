@@ -5060,6 +5060,32 @@ def main():
             print("target-filtered JSON status did not narrow target records", file=sys.stderr)
             print(json.dumps(filtered_alpha, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        filtered_unknown = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--target-id", "target-missing",
+            "--json-status",
+        ).stdout)
+        unknown_target_warnings = [
+            item for item in filtered_unknown.get("warnings", [])
+            if item.get("type") == "unknown_target_filter"
+        ]
+        if (filtered_unknown.get("target_filter", {}).get("target_id") != "target-missing" or
+                filtered_unknown.get("target_filter", {}).get("active") is not True or
+                filtered_unknown.get("target_filter", {}).get("selected_target_found") is not False or
+                filtered_unknown.get("target_filter", {}).get("selected_target") != {} or
+                filtered_unknown.get("target_filter", {}).get("selected_target_label") != "" or
+                filtered_unknown.get("api", {}).get("target_filter_selected_target_found") is not False or
+                filtered_unknown.get("target_filter", {}).get("unfiltered_counts", {}).get("targets") != 2 or
+                filtered_unknown.get("target_filter", {}).get("filtered_counts", {}).get("targets") != 0 or
+                filtered_unknown.get("summary", {}).get("target_count") != 0 or
+                not unknown_target_warnings or
+                unknown_target_warnings[-1].get("target_id") != "target-missing" or
+                filtered_unknown.get("summary", {}).get("warning_type_counts", {}).get("unknown_target_filter") != 1 or
+                "unknown_target_filter" not in ((filtered_unknown.get("warnings_by_type") or {}).keys())):
+            print("unknown target-filter status did not expose warning and empty selection", file=sys.stderr)
+            print(json.dumps(filtered_unknown, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
         filtered_status = run(
             "scripts/busierbox-server",
             "--config", str(upload_cfg),
