@@ -22,9 +22,13 @@ tests/integration/flaky-network-harness.py --artifact-dir local/flaky-network/la
 ```
 
 The artifact directory contains HTTP transcripts, per-phase operator status
-JSON, dropped-result evidence, bridge response data, and `summary.json`. The smoke wrapper
+JSON, dropped-result evidence, bridge response data, and `summary.json`. It also
+writes focused debug artifacts that mirror the QEMU lab contract:
+`target-mailbox.json`, `command-result.json`, `transfer.log`,
+`bridge-events.jsonl`, and `artifact-manifest.json`. The smoke wrapper
 `tests/smoke/flaky-network-harness.sh` runs the same scenario from
-`make smoke-test` with a temporary artifact directory.
+`make smoke-test` with a temporary artifact directory and validates those
+focused artifacts.
 
 The harness intentionally uses only Python stdlib and loopback sockets so it can
 run in CI without QEMU, tap devices, root privileges, or network downloads. A

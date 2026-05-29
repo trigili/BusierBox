@@ -90,6 +90,13 @@ def write_json(path, data):
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def write_jsonl(path, records):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        for rec in records:
+            fh.write(json.dumps(rec, sort_keys=True) + "\n")
+
+
 def status(cfg, artifact_dir, name, *extra):
     result = run(str(SERVER), "--config", str(cfg), "--json-status", *extra)
     if result.returncode != 0:
@@ -273,6 +280,88 @@ def save_response(artifact_dir, name, response):
     return path
 
 
+def http_status_line(response):
+    line = response.split(b"\r\n", 1)[0] if response else b""
+    return line.decode("ascii", errors="replace")
+
+
+def write_target_mailbox_artifact(artifact_dir, doc):
+    write_json(artifact_dir / "target-mailbox.json", {
+        "schema": 1,
+        "kind": "target-mailbox-artifact",
+        "summary": {
+            "target_mailbox_record_count": doc.get("summary", {}).get("target_mailbox_record_count", 0),
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_mailbox_status_counts": doc.get("summary", {}).get("target_mailbox_status_counts", {}),
+            "target_mailbox_target_connectivity_state_counts": doc.get("summary", {}).get("target_mailbox_target_connectivity_state_counts", {}),
+        },
+        "targets": doc.get("targets") or [],
+        "target_mailbox_records": doc.get("target_mailbox_records") or [],
+    })
+
+
+def write_command_result_artifact(artifact_dir, doc, command_id, response):
+    mailbox = (doc.get("target_mailbox_records_by_command_id") or {}).get(command_id) or {}
+    write_json(artifact_dir / "command-result.json", {
+        "schema": 1,
+        "kind": "command-result-artifact",
+        "http_status": http_status_line(response),
+        "command_id": command_id,
+        "target_id": mailbox.get("target_id", ""),
+        "target_label": mailbox.get("target_label", ""),
+        "status": mailbox.get("status", ""),
+        "result_status": mailbox.get("result_status", ""),
+        "result_exit_code": mailbox.get("result_exit_code", ""),
+        "result_received_at": mailbox.get("result_received_at", ""),
+        "target_last_seen": mailbox.get("target_last_seen", ""),
+        "target_last_seen_via": mailbox.get("target_last_seen_via", ""),
+        "mailbox_record": mailbox,
+    })
+
+
+def write_transfer_log_artifact(artifact_dir, doc, response):
+    alpha = (doc.get("targets_by_id") or {}).get("target-alpha") or {}
+    uploads = doc.get("uploads") or []
+    write_json(artifact_dir / "transfer.log", {
+        "schema": 1,
+        "kind": "transfer-log-artifact",
+        "http_status": http_status_line(response),
+        "target_id": "target-alpha",
+        "target_label": alpha.get("label", ""),
+        "latest_file_transfer_status": alpha.get("latest_file_transfer_status", ""),
+        "latest_file_transfer_operation": alpha.get("latest_file_transfer_operation", ""),
+        "latest_file_transfer_at": alpha.get("latest_file_transfer_at", ""),
+        "latest_file_transfer_id": alpha.get("latest_file_transfer_id", ""),
+        "uploads": uploads,
+    })
+
+
+def write_bridge_events_artifact(artifact_dir, doc):
+    records = [
+        rec for rec in (doc.get("events") or [])
+        if str(rec.get("service") or "") == "bridge" or str(rec.get("event") or "").startswith("bridge_")
+    ]
+    write_jsonl(artifact_dir / "bridge-events.jsonl", records)
+
+
+def write_artifact_manifest(artifact_dir, phases):
+    records = []
+    for path in sorted(artifact_dir.iterdir()):
+        if not path.is_file():
+            continue
+        records.append({
+            "name": path.name,
+            "size": path.stat().st_size,
+        })
+    write_json(artifact_dir / "artifact-manifest.json", {
+        "schema": 1,
+        "kind": "flaky-network-artifact-manifest",
+        "artifact_count": len(records),
+        "artifacts": records,
+        "phases": phases,
+    })
+
+
 def assert_condition(condition, message, detail=None):
     if not condition:
         if detail is not None:
@@ -323,6 +412,7 @@ def run_harness(artifact_dir):
     bravo_id = ids["target-bravo"]
     offline = status(cfg, artifact_dir, "offline-status")
     assert_condition(offline["summary"]["target_mailbox_pending_work_count"] == 2, "offline mailbox count mismatch")
+    write_target_mailbox_artifact(artifact_dir, offline)
     phases.append({"name": "offline-queue", "status": "pass", "artifact": "offline-status.json"})
 
     proc = start_one_shot(cfg, "command-queue")
@@ -386,6 +476,7 @@ def run_harness(artifact_dir):
     assert_condition(b"HTTP/1.1 200 OK" in result_response, "target result upload failed")
     assert_condition(after_result["targets_by_id"]["target-alpha"]["mailbox_result_received_command_count"] == 1, "alpha result was not recorded")
     assert_condition(after_result["targets_by_id"]["target-bravo"]["mailbox_pending_work_count"] == 1, "bravo offline mailbox was not preserved")
+    write_command_result_artifact(artifact_dir, after_result, alpha_id, result_response)
     phases.append({"name": "result-upload", "status": "pass", "artifact": "after-alpha-result.json"})
 
     proc = start_one_shot(cfg, "survey-bootstrap")
@@ -410,6 +501,7 @@ def run_harness(artifact_dir):
     partial_status = status(cfg, artifact_dir, "after-partial-upload")
     assert_condition(b"HTTP/1.1 400 Bad Request" in partial_response, "partial upload should return HTTP 400")
     assert_condition(partial_status["targets_by_id"]["target-alpha"]["latest_file_transfer_status"] == "truncated", "partial transfer not tracked")
+    write_transfer_log_artifact(artifact_dir, partial_status, partial_response)
     phases.append({"name": "partial-transfer", "status": "pass", "artifact": "after-partial-upload.json"})
 
     echo, done, thread = start_echo_server()
@@ -437,6 +529,7 @@ def run_harness(artifact_dir):
     bridge_status = status(cfg, artifact_dir, "after-bridge-relay")
     assert_condition(bridge_response == b"bridge:hello", "bridge relay returned wrong payload", bridge_response)
     assert_condition(bridge_status["targets_by_id"]["target-alpha"]["latest_bridge_status"] == "closed", "bridge activity not tracked")
+    write_bridge_events_artifact(artifact_dir, bridge_status)
     phases.append({"name": "bridge-reconnect", "status": "pass", "artifact": "after-bridge-relay.json"})
 
     summary = {
@@ -451,6 +544,7 @@ def run_harness(artifact_dir):
         },
     }
     write_json(artifact_dir / "summary.json", summary)
+    write_artifact_manifest(artifact_dir, phases)
     return summary
 
 
