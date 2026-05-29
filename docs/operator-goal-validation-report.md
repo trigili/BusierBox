@@ -32,8 +32,8 @@ complete.
   incompatible selections across survey recommendations, release search, release
   indexes, and bringup output.
 - No-residue behavior exposes `BB_NORESIDUE_LEVEL=best-effort|aggressive`, dry
-  run residue plans, cleanup counters, and non-forensic caveats in user-facing
-  status and docs.
+  run residue plans, cleanup counters, aggressive-mode log policy boundaries,
+  and non-forensic caveats in user-facing status and docs.
 - Recovery workflows include visible evidence push, evidence-then-rshell, and
   dmesg-push actions behind explicit apply and external-write gates.
 - `scripts/busierbox-bringup` now summarizes the requested ten-step onboarding
@@ -140,22 +140,34 @@ Licensing:
 Commands run for the most recent committed slice:
 
 ```sh
-python3 -m py_compile scripts/busierbox-server tests/smoke/busierbox-server.py
-tests/smoke/stale-ux-text.sh
+make
+tests/smoke/plan-json.sh dist/busierbox.core
+tests/smoke/runtime-modes.sh
+tests/smoke/clean-json.sh dist/busierbox-native-full
 git diff --check
-tests/smoke/busierbox-server.py
 make smoke-test
 ```
 
 Result:
 
-- `make smoke-test` passed after the latest workbench target-identity changes.
-- `tests/smoke/busierbox-server.py` passed, including target-attribution
-  status coverage, target-scoped staged/fetch/queue records, label updates that
-  do not rewrite event history, capability-report uploads, and static checks
-  for curses target identity detail fields.
-- `tests/smoke/stale-ux-text.sh` passed after the latest workbench/status
-  documentation update.
+- `make smoke-test` passed after the latest no-residue policy surface update.
+- `tests/smoke/plan-json.sh dist/busierbox.core` passed, covering no-residue
+  policy JSON/text output from plan surfaces.
+- `tests/smoke/runtime-modes.sh` passed, covering aggressive no-residue
+  `config-info`, `doctor`, manifest, plan, residue-plan, fallback fail-closed,
+  and signal cleanup behavior.
+- `tests/smoke/clean-json.sh dist/busierbox-native-full` passed, covering dry
+  run residue plans, cleanup counters, ledgered paths, external cleanup gating,
+  and invalid ledger handling.
+
+The latest no-residue policy surfaces now explicitly report:
+
+- `persistent_target_logs_default`
+- `stdout_stderr_log_suppression`
+- `in_memory_log_guarantee=false`
+
+These fields are exposed in policy JSON/text without claiming forensic
+in-memory execution or guaranteed no-trace behavior.
 
 Recent branch cleanup evidence:
 
@@ -209,6 +221,7 @@ Recent full smoke coverage included:
 - compatibility scoring fixtures, including old uClibc MIPS, big-endian MIPS,
   non-OpenWrt, low storage, noexec, read-only rootfs, and broken procfs inputs
 - no-residue level config, dry-run residue plans, and cleanup counters
+- no-residue aggressive log-policy boundaries
 - recovery evidence-push fake-root behavior
 - bringup recommend-only and release-selection paths
 - command queue disabled-by-default, schema/status, polling, result upload, and
