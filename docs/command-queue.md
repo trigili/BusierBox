@@ -25,6 +25,10 @@ Current behavior is intentionally non-executing:
   execution decision and never executes queued commands in this build. It can
   upload the rejected-result metadata so the operator ledger has a complete
   decision record.
+- Operator status mirrors the same transport boundary:
+  `poll_transport_supported=false`, `live_polling_supported=false`, and
+  `poll_transport_unsupported_reason` explain the TLS constraint when the
+  effective queue config keeps `BB_COMMAND_QUEUE_TLS=yes`.
 - When `BB_COMMAND_QUEUE_REQUIRE_TOKEN=yes`, enabled queues require
   `BB_COMMAND_QUEUE_TOKEN` on the target and `command_queue_token` on the
   operator server config. Poll and result requests send/check
@@ -185,8 +189,9 @@ operator-supplied-command execution posture.
   polling; result-upload support is advertised so frontends can prepare the
   rejection/result metadata workflow.
 - `mode_summary` mirrors those mode records into compact counts for polling
-  modes, operator-host-required modes, delivery-capable live modes, active
-  control-channel modes, result-upload modes, and execution-capable modes.
+  modes, operator-host-required modes, transport-supported live modes,
+  delivery-capable live modes, active control-channel modes, result-upload
+  modes, and execution-capable modes.
 - `command-queue --json` includes `daemon_state` and `stop_result` objects so
   operator tooling can show whether a live polling loop is visible, stale,
   stopped, or skipped because ownership could not be verified.

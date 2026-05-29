@@ -1072,8 +1072,9 @@ def main():
                 queue_summary.get("poll_backoff") != "none" or
                 queue_summary.get("poll_max_interval_sec") != "300" or
                 queue_summary.get("max_polls") != "0" or
-                queue_summary.get("poll_transport_supported") is not True or
-                queue_summary.get("live_polling_supported") is not True or
+                queue_summary.get("poll_transport_supported") is not False or
+                queue_summary.get("live_polling_supported") is not False or
+                "requires BB_COMMAND_QUEUE_TLS=no" not in queue_summary.get("poll_transport_unsupported_reason", "") or
                 queue_summary.get("delivery_supported") is not False or
                 queue_summary.get("result_upload_supported") is not True or
                 queue_summary.get("executes_commands") is not False or
@@ -1089,8 +1090,9 @@ def main():
                 queue_policy_summary.get("metadata_only_default") is not True or
                 queue_policy_summary.get("execution_supported") is not False or
                 queue_policy_summary.get("result_upload_supported") is not True or
-                queue_policy_summary.get("poll_transport_supported") is not True or
-                queue_policy_summary.get("live_polling_supported") is not True or
+                queue_policy_summary.get("poll_transport_supported") is not False or
+                queue_policy_summary.get("live_polling_supported") is not False or
+                "requires BB_COMMAND_QUEUE_TLS=no" not in queue_policy_summary.get("poll_transport_unsupported_reason", "") or
                 queue_policy_summary.get("poll_interval_sec") != "5" or
                 queue_policy_summary.get("poll_jitter_pct") != "0" or
                 queue_policy_summary.get("poll_backoff") != "none" or
@@ -1111,14 +1113,16 @@ def main():
                 queue_modes.get("stop", {}).get("requires_operator_host") is not False or
                 queue_modes.get("stop", {}).get("would_poll_if_configured") is not False or
                 queue_modes.get("daemon", {}).get("dry_run_default") is not True or
-                queue_modes.get("daemon", {}).get("dry_run_only") is not False or
-                queue_modes.get("daemon", {}).get("live_supported") is not True or
-                queue_modes.get("daemon", {}).get("live_would_contact_operator") is not True or
+                queue_modes.get("daemon", {}).get("dry_run_only") is not True or
+                queue_modes.get("daemon", {}).get("live_supported") is not False or
+                queue_modes.get("daemon", {}).get("live_transport_supported") is not False or
+                "requires BB_COMMAND_QUEUE_TLS=no" not in queue_modes.get("daemon", {}).get("live_transport_unsupported_reason", "") or
+                queue_modes.get("daemon", {}).get("live_would_contact_operator") is not False or
                 queue_modes.get("daemon", {}).get("execution_supported") is not False or
                 queue_modes.get("daemon", {}).get("active_control_channel") is not False or
                 queue_mode_summary.get("mode_count") != 5 or
                 queue_mode_summary.get("polling_mode_count") != 3 or
-                queue_mode_summary.get("live_supported_mode_count") != 3 or
+                queue_mode_summary.get("live_supported_mode_count") != 0 or
                 queue_mode_summary.get("result_upload_supported_mode_count") != 5 or
                 queue_mode_summary.get("execution_supported_mode_count") != 0):
             print("json command queue listing missing mode semantics", file=sys.stderr)
@@ -2323,11 +2327,16 @@ def main():
                 command_queue_policy_record.get("execution_mode") != "metadata-only" or
                 command_queue_policy_record.get("active_control_channel") is not False or
                 command_queue_policy_record.get("arbitrary_execution_allowed") is not False or
+                command_queue_policy_record.get("poll_transport_supported") is not False or
+                command_queue_policy_record.get("live_polling_supported") is not False or
+                "requires BB_COMMAND_QUEUE_TLS=no" not in command_queue_policy_record.get("poll_transport_unsupported_reason", "") or
                 queue_status_json.get("command_queue_policy_records_by_safe_disabled_default", {}).get("True", [{}])[0].get("id") != "command-queue" or
+                queue_status_json.get("command_queue_policy_records_by_poll_transport_supported", {}).get("False", [{}])[0].get("id") != "command-queue" or
                 queue_status_json.get("command_queue_policy_records_by_active_control_channel", {}).get("False", [{}])[0].get("id") != "command-queue" or
                 "command_queue_policy_records_by_token_configured" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_policy_records") or {}).get("indexes", []) or
-                queue_status_json["summary"].get("command_queue_poll_transport_supported") is not True or
-                queue_status_json["summary"].get("command_queue_live_polling_supported") is not True or
+                "command_queue_policy_records_by_poll_transport_supported" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_policy_records") or {}).get("indexes", []) or
+                queue_status_json["summary"].get("command_queue_poll_transport_supported") is not False or
+                queue_status_json["summary"].get("command_queue_live_polling_supported") is not False or
                 queue_status_json["summary"].get("command_queue_poll_interval_sec") != "5" or
                 queue_status_json["summary"].get("command_queue_poll_jitter_pct") != "0" or
                 queue_status_json["summary"].get("command_queue_poll_backoff") != "none" or
@@ -2345,9 +2354,11 @@ def main():
                 command_queue_modes.get("stop", {}).get("requires_operator_host") is not False or
                 command_queue_modes.get("stop", {}).get("would_poll_if_configured") is not False or
                 command_queue_modes.get("daemon", {}).get("dry_run_default") is not True or
-                command_queue_modes.get("daemon", {}).get("dry_run_only") is not False or
-                command_queue_modes.get("daemon", {}).get("live_supported") is not True or
-                command_queue_modes.get("daemon", {}).get("live_would_contact_operator") is not True or
+                command_queue_modes.get("daemon", {}).get("dry_run_only") is not True or
+                command_queue_modes.get("daemon", {}).get("live_supported") is not False or
+                command_queue_modes.get("daemon", {}).get("live_transport_supported") is not False or
+                "requires BB_COMMAND_QUEUE_TLS=no" not in command_queue_modes.get("daemon", {}).get("live_transport_unsupported_reason", "") or
+                command_queue_modes.get("daemon", {}).get("live_would_contact_operator") is not False or
                 command_queue_modes.get("daemon", {}).get("execution_supported") is not False or
                 command_queue_modes.get("daemon", {}).get("active_control_channel") is not False or
                 len(command_queue_mode_records) != 5 or
@@ -2355,7 +2366,8 @@ def main():
                 len(command_queue_modes_by_lifecycle.get("long-running", [])) != 1 or
                 len(command_queue_modes_by_polling.get("True", [])) != 3 or
                 len(command_queue_modes_by_polling.get("False", [])) != 2 or
-                len(command_queue_modes_by_live.get("True", [])) != 3 or
+                len(command_queue_modes_by_live.get("True", [])) != 0 or
+                len((queue_status_json.get("command_queue_modes_by_live_transport_supported") or {}).get("False", [])) != 5 or
                 len(command_queue_modes_by_delivery.get("False", [])) != 5 or
                 len(command_queue_modes_by_result_upload.get("True", [])) != 5 or
                 len(command_queue_modes_by_execution.get("False", [])) != 5 or
@@ -2364,14 +2376,14 @@ def main():
                 command_queue_mode_summary.get("mode_count") != 5 or
                 command_queue_mode_summary.get("polling_mode_count") != 3 or
                 command_queue_mode_summary.get("operator_host_required_mode_count") != 3 or
-                command_queue_mode_summary.get("live_supported_mode_count") != 3 or
+                command_queue_mode_summary.get("live_supported_mode_count") != 0 or
                 command_queue_mode_summary.get("delivery_supported_mode_count") != 0 or
                 command_queue_mode_summary.get("result_upload_supported_mode_count") != 5 or
                 command_queue_mode_summary.get("execution_supported_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_mode_count") != 5 or
                 queue_status_json["summary"].get("command_queue_polling_mode_count") != 3 or
                 queue_status_json["summary"].get("command_queue_operator_host_required_mode_count") != 3 or
-                queue_status_json["summary"].get("command_queue_live_supported_mode_count") != 3 or
+                queue_status_json["summary"].get("command_queue_live_supported_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_delivery_supported_mode_count") != 0 or
                 queue_status_json["summary"].get("command_queue_result_upload_supported_mode_count") != 5 or
                 queue_status_json["summary"].get("command_queue_execution_supported_mode_count") != 0 or
@@ -2702,6 +2714,7 @@ def main():
                 "require_token=yes token_configured=no token_source=manual" not in queue_status_text.stdout or
                 "allowed_commands=none execution_mode=metadata-only allow_arbitrary=no active_control_channel=no" not in queue_status_text.stdout or
                 "policy_valid=yes configured_for_polling=no arbitrary_policy_requested=no arbitrary_execution_allowed=no" not in queue_status_text.stdout or
+                "transport_support: poll=no live_polling=no" not in queue_status_text.stdout or
                 "busierbox reality-test --json" not in queue_status_text.stdout or
                 "result-received" not in queue_status_text.stdout or
                 "result_output=12 limit=1234 exceeded_limit=no" not in queue_status_text.stdout or
@@ -5228,7 +5241,7 @@ def main():
                 "active_control_channel=no" not in upload_status_text.stdout or
                 "arbitrary_execution_allowed=no" not in upload_status_text.stdout or
                 "policy_flags: operator_queue_records_only=yes metadata_only_default=yes safe_disabled_default=yes" not in upload_status_text.stdout or
-                "transport_support: poll=yes live_polling=yes" not in upload_status_text.stdout or
+                "transport_support: poll=no live_polling=no" not in upload_status_text.stdout or
                 "execution_supported=no delivery_supported=no result_upload_supported=yes" not in upload_status_text.stdout or
                 "Generated target commands:" not in upload_status_text.stdout or
                 "Target command summary:" not in upload_status_text.stdout or
@@ -5289,7 +5302,7 @@ def main():
                 "active_control_channel=no" not in uploads_view.stdout or
                 "arbitrary_execution_allowed=no" not in uploads_view.stdout or
                 "policy_flags: operator_queue_records_only=yes metadata_only_default=yes safe_disabled_default=yes" not in uploads_view.stdout or
-                "transport_support: poll=yes live_polling=yes" not in uploads_view.stdout or
+                "transport_support: poll=no live_polling=no" not in uploads_view.stdout or
                 "execution_supported=no delivery_supported=no result_upload_supported=yes" not in uploads_view.stdout or
                 "Target command summary:" not in uploads_view.stdout or
                 "operator_supplied_execution=0" not in uploads_view.stdout or
@@ -6179,7 +6192,7 @@ def main():
                 "active_control_channel=no" not in tui.stdout or
                 "arbitrary_execution_allowed=no" not in tui.stdout or
                 "policy_flags: operator_queue_records_only=yes metadata_only_default=yes safe_disabled_default=yes" not in tui.stdout or
-                "transport_support: poll=yes live_polling=yes" not in tui.stdout or
+                "transport_support: poll=no live_polling=no" not in tui.stdout or
                 "execution_supported=no delivery_supported=no result_upload_supported=yes" not in tui.stdout or
                 "session_root:" not in tui.stdout or
                 "Operator workflow actions:" not in tui.stdout or

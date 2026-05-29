@@ -4833,7 +4833,7 @@ def command_queue_policy_errors(cfg):
     return errors
 
 
-def command_queue_mode_semantics():
+def command_queue_mode_semantics(live_transport_supported=True):
     modes = {
         "status": {
             "lifecycle": "inspect",
@@ -4862,7 +4862,7 @@ def command_queue_mode_semantics():
         },
     }
     for rec in modes.values():
-        live_supported = bool(rec.get("would_poll_if_configured"))
+        live_supported = bool(rec.get("would_poll_if_configured")) and bool(live_transport_supported)
         rec.update({
             "dry_run_default": True,
             "dry_run_only": False if live_supported else True,
@@ -4870,6 +4870,8 @@ def command_queue_mode_semantics():
             "requires_explicit_target_action": True,
             "would_contact_operator": False,
             "live_would_contact_operator": live_supported,
+            "live_transport_supported": bool(live_transport_supported),
+            "live_transport_unsupported_reason": "" if live_transport_supported else "live command queue polling requires BB_COMMAND_QUEUE_TLS=no in this build",
             "delivery_supported": False,
             "result_upload_supported": True,
             "execution_supported": False,
@@ -4913,6 +4915,7 @@ def command_queue_mode_record_indexes(records):
         "command_queue_modes_by_requires_operator_host": records_by_key(records, "requires_operator_host"),
         "command_queue_modes_by_would_poll_if_configured": records_by_key(records, "would_poll_if_configured"),
         "command_queue_modes_by_live_supported": records_by_key(records, "live_supported"),
+        "command_queue_modes_by_live_transport_supported": records_by_key(records, "live_transport_supported"),
         "command_queue_modes_by_delivery_supported": records_by_key(records, "delivery_supported"),
         "command_queue_modes_by_result_upload_supported": records_by_key(records, "result_upload_supported"),
         "command_queue_modes_by_execution_supported": records_by_key(records, "execution_supported"),
@@ -5064,13 +5067,16 @@ def command_queue_summary(cfg):
     poll_backoff = str(cfg.get("command_queue_poll_backoff", "none"))
     poll_max_interval_sec = str(cfg.get("command_queue_poll_max_interval_sec", "300"))
     max_polls = str(cfg.get("command_queue_max_polls", "0"))
+    tls = str(cfg.get("command_queue_tls", "yes"))
+    poll_transport_supported = tls == "no"
+    poll_transport_unsupported_reason = "" if poll_transport_supported else "live command queue polling requires BB_COMMAND_QUEUE_TLS=no in this build"
     policy_errors = command_queue_policy_errors(cfg)
     policy_valid = not policy_errors
     token_required = str(cfg.get("command_queue_require_token", "yes")) == "yes"
     token_configured = bool(str(cfg.get("command_queue_token", "")))
     arbitrary_policy_requested = policy_valid and enabled == "yes" and allowed_commands == "custom" and allow_arbitrary == "yes"
     configured_for_polling = policy_valid and enabled == "yes"
-    mode_semantics = command_queue_mode_semantics()
+    mode_semantics = command_queue_mode_semantics(poll_transport_supported)
     mode_records = command_queue_mode_records(mode_semantics)
     mode_indexes = command_queue_mode_record_indexes(mode_records)
     mode_summary = command_queue_mode_summary(mode_semantics)
@@ -5087,8 +5093,9 @@ def command_queue_summary(cfg):
         "executes_commands": False,
         "delivery_supported": False,
         "result_upload_supported": True,
-        "poll_transport_supported": True,
-        "live_polling_supported": True,
+        "poll_transport_supported": poll_transport_supported,
+        "live_polling_supported": poll_transport_supported,
+        "poll_transport_unsupported_reason": poll_transport_unsupported_reason,
         "active_control_channel": False,
         "token_required": token_required,
         "token_configured": token_configured,
@@ -5106,7 +5113,7 @@ def command_queue_summary(cfg):
         "enabled": enabled,
         "default_enabled": False,
         "port": str(cfg.get("command_queue_port", "22205")),
-        "tls": str(cfg.get("command_queue_tls", "yes")),
+        "tls": tls,
         "require_token": str(cfg.get("command_queue_require_token", "yes")),
         "token_source": str(cfg.get("command_queue_token_source", "manual")),
         "token_configured": token_configured,
@@ -5122,6 +5129,9 @@ def command_queue_summary(cfg):
         "policy_valid": policy_valid,
         "policy_errors": policy_errors,
         "policy_summary": policy_summary,
+        "poll_transport_supported": poll_transport_supported,
+        "live_polling_supported": poll_transport_supported,
+        "poll_transport_unsupported_reason": poll_transport_unsupported_reason,
         "mode_semantics": mode_semantics,
         "mode_records": mode_records,
         **mode_indexes,
@@ -5183,8 +5193,9 @@ def command_queue_summary(cfg):
         "execution_supported": False,
         "delivery_supported": False,
         "result_upload_supported": True,
-        "poll_transport_supported": True,
-        "live_polling_supported": True,
+        "poll_transport_supported": poll_transport_supported,
+        "live_polling_supported": poll_transport_supported,
+        "poll_transport_unsupported_reason": poll_transport_unsupported_reason,
         "executes_commands": False,
         "operator_queue_records_only": True,
         "active_control_channel": False,
@@ -9143,6 +9154,7 @@ def status_document(cfg):
         "result_upload_supported": bool(command_queue_policy_summary_record.get("result_upload_supported", False)),
         "poll_transport_supported": bool(command_queue_policy_summary_record.get("poll_transport_supported", False)),
         "live_polling_supported": bool(command_queue_policy_summary_record.get("live_polling_supported", False)),
+        "poll_transport_unsupported_reason": command_queue_policy_summary_record.get("poll_transport_unsupported_reason", ""),
         "active_control_channel": bool(command_queue_policy_summary_record.get("active_control_channel", False)),
         "token_required": bool(command_queue_policy_summary_record.get("token_required", False)),
         "token_configured": bool(command_queue_policy_summary_record.get("token_configured", False)),
@@ -9167,6 +9179,8 @@ def status_document(cfg):
         "command_queue_policy_records_by_token_required": records_by_key(command_queue_policy_records, "token_required"),
         "command_queue_policy_records_by_token_configured": records_by_key(command_queue_policy_records, "token_configured"),
         "command_queue_policy_records_by_safe_disabled_default": records_by_key(command_queue_policy_records, "safe_disabled_default"),
+        "command_queue_policy_records_by_poll_transport_supported": records_by_key(command_queue_policy_records, "poll_transport_supported"),
+        "command_queue_policy_records_by_live_polling_supported": records_by_key(command_queue_policy_records, "live_polling_supported"),
         "command_queue_policy_records_by_active_control_channel": records_by_key(command_queue_policy_records, "active_control_channel"),
         "command_queue_policy_records_by_arbitrary_execution_allowed": records_by_key(command_queue_policy_records, "arbitrary_execution_allowed"),
     }
@@ -10746,6 +10760,8 @@ def status_document(cfg):
                 "command_queue_policy_records_by_token_required",
                 "command_queue_policy_records_by_token_configured",
                 "command_queue_policy_records_by_safe_disabled_default",
+                "command_queue_policy_records_by_poll_transport_supported",
+                "command_queue_policy_records_by_live_polling_supported",
                 "command_queue_policy_records_by_active_control_channel",
                 "command_queue_policy_records_by_arbitrary_execution_allowed",
             ), "command_queue_policy_record_count",
@@ -10756,6 +10772,7 @@ def status_document(cfg):
                 "command_queue_modes_by_requires_operator_host",
                 "command_queue_modes_by_would_poll_if_configured",
                 "command_queue_modes_by_live_supported",
+                "command_queue_modes_by_live_transport_supported",
                 "command_queue_modes_by_delivery_supported",
                 "command_queue_modes_by_result_upload_supported",
                 "command_queue_modes_by_execution_supported",
@@ -11215,6 +11232,7 @@ def status_document(cfg):
         "command_queue_modes_by_requires_operator_host": command_queue.get("command_queue_modes_by_requires_operator_host") or {},
         "command_queue_modes_by_would_poll_if_configured": command_queue.get("command_queue_modes_by_would_poll_if_configured") or {},
         "command_queue_modes_by_live_supported": command_queue.get("command_queue_modes_by_live_supported") or {},
+        "command_queue_modes_by_live_transport_supported": command_queue.get("command_queue_modes_by_live_transport_supported") or {},
         "command_queue_modes_by_delivery_supported": command_queue.get("command_queue_modes_by_delivery_supported") or {},
         "command_queue_modes_by_result_upload_supported": command_queue.get("command_queue_modes_by_result_upload_supported") or {},
         "command_queue_modes_by_execution_supported": command_queue.get("command_queue_modes_by_execution_supported") or {},

@@ -850,7 +850,11 @@ result counts. Compact safety booleans such as
 `command_queue_arbitrary_policy_requested`,
 `command_queue_arbitrary_execution_allowed`, and
 `command_queue_safe_disabled_default` are also mirrored for UI badges that must
-not scan the full queue policy object. The configured
+not scan the full queue policy object. When the effective queue config keeps
+TLS enabled in this build, `command_queue_poll_transport_supported` and
+`command_queue_live_polling_supported` are false and
+`poll_transport_unsupported_reason` records that live polling requires
+`BB_COMMAND_QUEUE_TLS=no`. The configured
 `command_queue_poll_interval_sec`, `command_queue_poll_jitter_pct`,
 `command_queue_poll_backoff`, `command_queue_poll_max_interval_sec`, and
 `command_queue_max_polls` are mirrored for interval-polling controls.
@@ -870,6 +874,7 @@ applet. The top-level API view also includes lookup maps such as
 `command_queue_modes_by_mode`, `command_queue_modes_by_lifecycle`,
 `command_queue_modes_by_would_poll_if_configured`,
 `command_queue_modes_by_live_supported`, and
+`command_queue_modes_by_live_transport_supported`, and
 `command_queue_modes_by_execution_supported` for frontend mode badges; target
 manifest and plan JSON also expose `mode_records_by_operator_supplied_command_execution`
 so clients can verify the non-execution boundary directly. Compact
