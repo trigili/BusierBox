@@ -11724,6 +11724,8 @@ def run_curses_tui(cfg):
                     f"sha256: {rec.get('sha256', '')}",
                     f"staged: {rec.get('staged_at', '')}",
                     f"source_exists: {rec.get('source_exists', False)}",
+                    f"target_id: {rec.get('target_id', '') or '-'}",
+                    f"target_label: {rec.get('target_label', '') or '-'}",
                     rec.get("fetch_command") or render_fetch_command(name, cfg, host=snap["selected_local_ip"]),
                     rec.get("fetch_command_force") or render_fetch_command(name, cfg, host=snap["selected_local_ip"], force=True),
                     "v opens source in pager",
@@ -11741,6 +11743,9 @@ def run_curses_tui(cfg):
                     f"stored_exists: {rec.get('stored_exists', False)}",
                     f"sha256: {rec.get('sha256', '')}",
                     f"remote: {rec.get('remote_addr', '')}",
+                    f"target_id: {rec.get('target_id', '') or '-'}",
+                    f"target_label: {rec.get('target_label', '') or '-'}",
+                    f"target_confidence: {rec.get('target_identity_confidence', '') or '-'}",
                     "v opens metadata in pager",
                 ]
             elif pane == 3 and snap["sessions"]:
@@ -11758,6 +11763,8 @@ def run_curses_tui(cfg):
                     f"fetches: {rec.get('fetch_count', 0)}",
                     f"events: {rec.get('event_count', 0)}",
                     f"artifacts: {rec.get('artifact_count', 0)}",
+                    f"target_id: {rec.get('target_id', '') or '-'}",
+                    f"target_label: {rec.get('target_label', '') or '-'}",
                     f"log_size: {rec.get('session_log_size', 0)} lines={rec.get('session_log_line_count', 0)}",
                     "v opens session metadata in pager",
                 ]

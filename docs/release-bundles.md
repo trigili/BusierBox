@@ -1018,9 +1018,10 @@ instead of being only an incidental redraw. The curses workbench top area also
 badges normalized operator-state health as `operator_state_unhealthy=N` and
 prints a compact target line with `count`, `with_id`, `legacy_without_id`, and
 `legacy_single_target` so multi-target and legacy no-target activity are visible
-without opening JSON status. The generic details view lists missing, invalid, or
-error state records when no selected pane item has more specific details. Status
-JSON and both workbench views
+without opening JSON status. Curses details for staged files, uploads, and
+sessions include target id, label, and upload identity confidence when present.
+The generic details view lists missing, invalid, or error state records when no
+selected pane item has more specific details. Status JSON and both workbench views
 also expose `workbench_actions` records for operator-side configuration and
 build workflows such as `scripts/menuconfig`, `make package`,
 `scripts/busierbox-bringup --recommend-only --json`,
