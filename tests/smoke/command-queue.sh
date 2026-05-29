@@ -126,6 +126,13 @@ done
     exit 1
 }
 "$bb" command-queue status --state-file "$cq_state" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); st=d["daemon_state"]; assert st["present"] is True; assert st["valid"] is True; assert st["running"] is True; assert st["ownership_verified"] is True; assert st["pid"] > 1'
+"$bb" command-queue status --state-file "$cq_state" >"${TMPDIR:-/tmp}/busierbox-command-queue-daemon-status.$$"
+grep -q '^command_queue_daemon_state_present=yes$' "${TMPDIR:-/tmp}/busierbox-command-queue-daemon-status.$$"
+grep -q '^command_queue_daemon_running=yes$' "${TMPDIR:-/tmp}/busierbox-command-queue-daemon-status.$$"
+grep -q '^command_queue_daemon_ownership_verified=yes$' "${TMPDIR:-/tmp}/busierbox-command-queue-daemon-status.$$"
+grep -q '^command_queue_daemon_started_at=' "${TMPDIR:-/tmp}/busierbox-command-queue-daemon-status.$$"
+grep -q '^command_queue_daemon_endpoint=127.0.0.1:22205$' "${TMPDIR:-/tmp}/busierbox-command-queue-daemon-status.$$"
+rm -f "${TMPDIR:-/tmp}/busierbox-command-queue-daemon-status.$$"
 "$bb" command-queue stop --state-file "$cq_state" --event-log "$cq_stop_events" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); st=d["daemon_state"]; stop=d["stop_result"]; assert d["mode"] == "stop"; assert stop["attempted"] is True; assert stop["signaled"] is True; assert stop["skipped"] is False; assert st["valid"] is True; assert st["ownership_verified"] is True'
 wait "$cq_daemon_pid"
 python3 - "$cq_daemon_out" <<'PY'

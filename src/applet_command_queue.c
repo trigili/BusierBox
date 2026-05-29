@@ -1535,6 +1535,8 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_daemon_ownership_verified=%s\n", daemon_state && daemon_state->ownership_verified ? "yes" : "no");
     printf("command_queue_daemon_pid=%d\n", daemon_state ? daemon_state->pid : 0);
     printf("command_queue_daemon_status=%s\n", daemon_state ? daemon_state->status : "missing");
+    printf("command_queue_daemon_started_at=%s\n", daemon_state ? daemon_state->started_at : "");
+    printf("command_queue_daemon_endpoint=%s\n", daemon_state ? daemon_state->endpoint : "");
     printf("command_queue_daemon_error=%s\n", daemon_state ? daemon_state->error : "");
     printf("command_queue_stop_attempted=%s\n", stop && stop->attempted ? "yes" : "no");
     printf("command_queue_stop_signaled=%s\n", stop && stop->signaled ? "yes" : "no");
