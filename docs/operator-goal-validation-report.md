@@ -39,7 +39,8 @@ complete.
   collection metadata.
 - Command queue behavior is explicit and opt-in. The current build supports
   visible polling, queue records, delivery/rejection metadata, result upload
-  records, daemon status/stop state, and safety reporting. Target command
+  records, daemon status/stop state, target poll-setting headers, operator
+  event metadata, API/status indexes, and safety reporting. Target command
   execution remains intentionally unsupported.
 - Multi-target status tracks target ids, labels, aliases, identity source and
   confidence, target filters, target-scoped staged records, uploads, fetches,
@@ -47,6 +48,8 @@ complete.
 - Local/offline release indexes expose deduplicated artifacts, tuple/device/tool
   lookups, payload preset and feature lookups, provider status, Doom WAD
   metadata, command-queue safety metadata, and recommendation records.
+- Stale Doom/Dune feature branches have been pruned from the local and remote
+  branch lists; `main` is the only remaining branch.
 
 ## Evidence Map
 
@@ -95,6 +98,14 @@ Bringup:
 - `docs/survey-and-bringup.md`
 - `tests/smoke/integration-glinet-harness.sh`
 
+Command queue:
+- `src/applet_command_queue.c`
+- `scripts/busierbox-server`
+- `docs/command-queue.md`
+- `docs/release-bundles.md`
+- `tests/smoke/command-queue.sh`
+- `tests/smoke/busierbox-server.py`
+
 Release and offline artifact browsing:
 - `scripts/make-release`
 - `scripts/index-release-repo`
@@ -108,6 +119,31 @@ Release and offline artifact browsing:
 Commands run for the most recent committed slice:
 
 ```sh
+python3 -m py_compile scripts/busierbox-server tests/smoke/busierbox-server.py
+sh -n tests/smoke/command-queue.sh
+tests/smoke/command-queue.sh dist/busierbox-native-full
+tests/smoke/busierbox-server.py
+git diff --check
+make smoke-test
+tests/smoke/stale-ux-text.sh
+```
+
+Result:
+
+- `make smoke-test` passed after the latest applet and server changes.
+- `tests/smoke/command-queue.sh dist/busierbox-native-full` passed, including
+  daemon status, poll metadata, result upload, and no-execution safety checks.
+- `tests/smoke/busierbox-server.py` passed, including command-queue
+  poll-setting summary, event-stat, map, and API collection index checks.
+- `tests/smoke/stale-ux-text.sh` passed after the command-queue documentation
+  update.
+- `git branch -a --verbose --no-abbrev`, `git fetch --prune origin`,
+  `git remote prune origin --dry-run`, and `git ls-remote --heads origin`
+  showed only `main`/`origin/main` after stale feature branch cleanup.
+
+Earlier full-goal verification also included:
+
+```sh
 sh -n scripts/busierbox-bringup tests/smoke/integration-glinet-harness.sh
 tests/smoke/integration-glinet-harness.sh
 git diff --check
@@ -119,7 +155,7 @@ scripts/release-self-test --release-dir dist/releases/smoke-goal-20260529-051526
 scripts/release-self-test --release-dir dist/releases/smoke-goal-20260529-051526 --json
 ```
 
-Result:
+Earlier result:
 
 - `make smoke-test` passed.
 - `make test-qemu-user` passed for `native`; cross-target rows skipped because
@@ -147,14 +183,17 @@ Recent full smoke coverage included:
 - bringup recommend-only and release-selection paths
 - command queue disabled-by-default, schema/status, polling, result upload, and
   no-execution safety boundaries
+- command queue poll interval, jitter, backoff, max interval, and max poll
+  settings surfaced through target state, target events, live poll request
+  headers, server poll metadata, status maps, API indexes, and docs
 - release bundle generation, release self-test, and release repository indexes
 
 ## Caveats
 
 - `command-queue` execution is intentionally not implemented. Metadata delivery,
-  rejection decisions, result upload, daemon status, and server queue records are
-  present; executing target-side operator commands remains a later explicit
-  feature.
+  rejection decisions, result upload, daemon status, poll-setting state, and
+  server queue records are present; executing target-side operator commands
+  remains a later explicit feature.
 - Builtin TLS/plain shell transports do not claim PTY-backed interactive
   sessions where the implementation is pipe-backed.
 - No-residue mode is operational cleanup hygiene, not forensic erasure.
