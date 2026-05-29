@@ -4268,6 +4268,9 @@ def main():
         if ("Operator paths:" not in tui.stdout or
                 str(state_file) not in tui.stdout or
                 str(staged_file) not in tui.stdout or
+                "Operator state:" not in tui.stdout or
+                "command_queue: status=missing kind=json-state" not in tui.stdout or
+                "session_root: status=missing kind=directory" not in tui.stdout or
                 "Workbench mode: noninteractive" not in tui.stdout or
                 "Workbench refresh: count=" not in tui.stdout or
                 "API resources: schema=1 resources=" not in tui.stdout or

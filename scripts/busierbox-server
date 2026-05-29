@@ -8849,6 +8849,25 @@ def print_api_resource_summary(doc, limit=8):
         print(f"  ... {len(resources) - limit} more resource(s)")
 
 
+def print_operator_state_records(doc):
+    print("Operator state:")
+    operator_state_records = sorted(doc.get("operator_state_records") or [], key=lambda rec: rec.get("name", ""))
+    if operator_state_records:
+        for rec in operator_state_records:
+            exists = "yes" if rec.get("exists") else "no"
+            valid = "yes" if rec.get("valid") else "no"
+            line = (
+                f"  {rec.get('name', '')}: status={rec.get('status', '')} "
+                f"kind={rec.get('kind', '')} exists={exists} valid={valid} "
+                f"records={rec.get('record_count', 0)} path={rec.get('path', '')}"
+            )
+            if rec.get("error"):
+                line = f"{line} error={rec.get('error', '')}"
+            print(line)
+    else:
+        print("  none")
+
+
 def print_target_command_summary(doc):
     doc = doc or {}
     summary = doc.get("summary") or {}
@@ -9208,22 +9227,7 @@ def print_status(cfg, json_output=False):
         writable = "yes" if rec.get("writable") else "no"
         print(f"  {name}: exists={exists} parent_exists={parent_exists} writable={writable} kind={rec.get('expected_kind', '')} path={rec.get('path', '')}")
     print("")
-    print("Operator state:")
-    operator_state_records = sorted(doc.get("operator_state_records") or [], key=lambda rec: rec.get("name", ""))
-    if operator_state_records:
-        for rec in operator_state_records:
-            exists = "yes" if rec.get("exists") else "no"
-            valid = "yes" if rec.get("valid") else "no"
-            line = (
-                f"  {rec.get('name', '')}: status={rec.get('status', '')} "
-                f"kind={rec.get('kind', '')} exists={exists} valid={valid} "
-                f"records={rec.get('record_count', 0)} path={rec.get('path', '')}"
-            )
-            if rec.get("error"):
-                line = f"{line} error={rec.get('error', '')}"
-            print(line)
-    else:
-        print("  none")
+    print_operator_state_records(doc)
     print("")
     print("Services:")
     for row in doc["services"]:
@@ -9560,6 +9564,8 @@ def print_workbench(cfg, include_api_summary=True):
         writable = "yes" if rec.get("writable") else "no"
         print(f"  {name}: exists={exists} parent_exists={parent_exists} writable={writable} kind={rec.get('expected_kind', '')}")
     print("")
+    print_operator_state_records(snap)
+    print("")
     print("Local IP candidates:")
     candidates = snap["local_ips"]
     if candidates:
@@ -9871,9 +9877,25 @@ def run_line_tui(cfg):
             return line.rstrip("\n")
         return None
 
+    render_full = True
     while not SHUTDOWN.is_set():
         print("")
-        print_workbench(cfg, include_api_summary=False)
+        if render_full:
+            print_workbench(cfg, include_api_summary=False)
+            render_full = False
+        else:
+            snap = workbench_snapshot(cfg)
+            summary = snap.get("summary") or {}
+            print(
+                "Workbench summary: "
+                f"listening={summary.get('listening_count', 0)} "
+                f"warnings={len(snap.get('warnings') or [])} "
+                f"staged={summary.get('staged_count', 0)} "
+                f"uploads={summary.get('upload_count', 0)} "
+                f"fetches={summary.get('fetch_count', 0)} "
+                f"sessions={summary.get('session_count', 0)} "
+                f"events={summary.get('event_total_count', 0)}"
+            )
         print("")
         print("Actions:")
         print("  1 start ssh")
@@ -10011,6 +10033,7 @@ def run_line_tui(cfg):
         elif choice == "r":
             rec = record_workbench_refresh(cfg)
             print(f"refreshed workbench at {rec.get('last_refresh_at', '')}")
+            render_full = True
         elif choice == "c":
             commands = generated_target_commands(cfg)
             for idx, cmd in enumerate(commands, 1):

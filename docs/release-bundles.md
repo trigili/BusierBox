@@ -1002,11 +1002,14 @@ those process environment tokens still match the ledger entry; a forged or stale
 ledger record is visible in status but is not cancellable. Human status prints
 each job's managed/cancellable state and the ownership evidence or cancellation
 skip reason beside the command and log path. The line-oriented
-fallback exposes the same operator path health, compact service and activity
-summaries, recent upload/fetch activity, event aggregate counts, refresh state,
-and compact event outcome details so non-curses or non-TTY runs still show
-whether listener state, logs, staged files, session roots, transfer activity,
-and recent event outcomes are usable. It can also list the same operator
+fallback exposes the same operator path health, normalized operator state
+records, compact service and activity summaries, recent upload/fetch activity,
+event aggregate counts, refresh state, and compact event outcome details so
+non-curses or non-TTY runs still show whether listener state, logs, staged
+files, session roots, transfer activity, and recent event outcomes are usable.
+To keep interactive pty sessions responsive, the line menu prints that full
+dashboard on entry and explicit refresh, then uses a compact workbench summary
+between actions. It can also list the same operator
 workflow actions and their exact underlying commands, start background-capable
 jobs, and request cancellation for owned jobs. Its release staging action accepts
 a displayed release row number, recommendation id, artifact path,
