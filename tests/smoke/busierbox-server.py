@@ -1363,7 +1363,13 @@ def main():
         ).stdout)
         if (poll_target_status.get("summary", {}).get("command_queue_target_counts", {}).get("target-alpha") != 1 or
                 poll_target_status.get("summary", {}).get("target_count") != 1 or
+                poll_target_status.get("summary", {}).get("target_latest_activity_service_counts", {}).get("command-queue") != 1 or
+                poll_target_status.get("summary", {}).get("target_latest_activity_operation_counts", {}).get("command_queue_poll") != 1 or
                 (poll_target_status.get("targets_by_id") or {}).get("target-alpha", {}).get("services_seen") != ["command-queue"] or
+                (poll_target_status.get("targets_by_id") or {}).get("target-alpha", {}).get("latest_activity_service") != "command-queue" or
+                (poll_target_status.get("targets_by_id") or {}).get("target-alpha", {}).get("latest_activity_operation") != "command_queue_poll" or
+                ((poll_target_status.get("targets_by_latest_activity_service") or {}).get("command-queue") or [{}])[0].get("target_id") != "target-alpha" or
+                ((poll_target_status.get("targets_by_latest_activity_operation") or {}).get("command_queue_poll") or [{}])[0].get("target_id") != "target-alpha" or
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_poll_delivered" for event in poll_target_status.get("events") or [])):
             print("target-scoped command queue poll missing from filtered status", file=sys.stderr)
             print(json.dumps(poll_target_status, indent=2, sort_keys=True), file=sys.stderr)
@@ -4168,11 +4174,16 @@ def main():
                 upload_summary.get("target_count") != 1 or
                 upload_summary.get("latest_target_id") != "target-alpha" or
                 upload_summary.get("target_identity_confidence_counts", {}).get("explicit") != 1 or
+                upload_summary.get("target_identity_source_counts", {}).get("http-header") != 1 or
                 upload_summary.get("target_service_counts", {}).get("file-service") != 1 or
+                upload_summary.get("target_latest_activity_service_counts", {}).get("file-service") != 1 or
+                upload_summary.get("target_latest_activity_operation_counts", {}).get("upload") != 1 or
                 len(targets) != 1 or
                 target_alpha.get("label") != "Alpha Router" or
                 "lab-alpha" not in (target_alpha.get("aliases") or []) or
                 target_alpha.get("upload_count") != 1 or
+                target_alpha.get("latest_activity_operation") != "upload" or
+                target_alpha.get("latest_activity_service") != "file-service" or
                 target_alpha.get("latest_session_id") != session_json_paths[0].parent.name or
                 "file-service" not in (target_alpha.get("services_seen") or []) or
                 "http-header" not in (target_alpha.get("identity_sources") or [])):
@@ -4182,6 +4193,12 @@ def main():
         target_api = (upload_doc.get("api_collections") or {}).get("targets") or {}
         if ("targets_by_id" not in (target_api.get("indexes") or []) or
                 "targets_by_identity_confidence" not in (target_api.get("indexes") or []) or
+                "targets_by_identity_source" not in (target_api.get("indexes") or []) or
+                "targets_by_latest_activity_service" not in (target_api.get("indexes") or []) or
+                "targets_by_latest_activity_operation" not in (target_api.get("indexes") or []) or
+                ((upload_doc.get("targets_by_identity_source") or {}).get("http-header") or [{}])[0].get("target_id") != "target-alpha" or
+                ((upload_doc.get("targets_by_latest_activity_service") or {}).get("file-service") or [{}])[0].get("target_id") != "target-alpha" or
+                ((upload_doc.get("targets_by_latest_activity_operation") or {}).get("upload") or [{}])[0].get("target_id") != "target-alpha" or
                 "targets" not in (upload_doc.get("api_resources_by_name") or {})):
             print("server api status missing target collection", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)

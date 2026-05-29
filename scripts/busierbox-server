@@ -1378,9 +1378,13 @@ def record_target_activity(cfg, metadata, service, session_id=""):
     rec["identity_sources"] = list_merge_unique(rec.get("identity_sources") or [], [metadata.get("target_identity_source", "")])
     confidence = str((metadata or {}).get("target_identity_confidence") or "best-effort")
     rec["identity_confidence"] = confidence
+    operation = str((metadata or {}).get("operation") or "seen")
+    rec["latest_activity_at"] = now
+    rec["latest_activity_service"] = str(service or "")
+    rec["latest_activity_operation"] = operation
+    rec["latest_activity_remote_addr"] = str(metadata.get("remote_addr") or "")
     if session_id:
         rec["latest_session_id"] = str(session_id)
-    operation = str((metadata or {}).get("operation") or "")
     if operation == "upload":
         rec["upload_count"] = int(rec.get("upload_count", 0) or 0) + 1
         rec["latest_upload_id"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or metadata.get("filename") or "")
@@ -1451,6 +1455,9 @@ def target_record_indexes(records):
     by_remote_addr = {}
     by_service = {}
     by_identity_confidence = {}
+    by_identity_source = {}
+    by_latest_activity_service = {}
+    by_latest_activity_operation = {}
     by_capability_report_kind = {}
     by_observed_capability = {}
     by_missing_capability = {}
@@ -1467,6 +1474,16 @@ def target_record_indexes(records):
         confidence = str(rec.get("identity_confidence") or "")
         if confidence:
             by_identity_confidence.setdefault(confidence, []).append(rec)
+        for source in rec.get("identity_sources") or []:
+            source = str(source or "")
+            if source:
+                by_identity_source.setdefault(source, []).append(rec)
+        activity_service = str(rec.get("latest_activity_service") or "")
+        if activity_service:
+            by_latest_activity_service.setdefault(activity_service, []).append(rec)
+        activity_operation = str(rec.get("latest_activity_operation") or "")
+        if activity_operation:
+            by_latest_activity_operation.setdefault(activity_operation, []).append(rec)
         for alias in rec.get("aliases") or []:
             alias = str(alias or "")
             if alias:
@@ -1497,15 +1514,19 @@ def target_record_indexes(records):
                 by_observed_constraint.setdefault(f"{name}:{str(bool(value)).lower()}", []).append(rec)
     return (
         by_id, by_label, by_alias, by_remote_addr, by_service,
-        by_identity_confidence, by_capability_report_kind,
-        by_observed_capability, by_missing_capability,
-        by_observed_constraint,
+        by_identity_confidence, by_identity_source,
+        by_latest_activity_service, by_latest_activity_operation,
+        by_capability_report_kind, by_observed_capability,
+        by_missing_capability, by_observed_constraint,
     )
 
 
 def target_record_summary(records):
     latest = (records or [{}])[0] if records else {}
     service_counts = {}
+    identity_source_counts = {}
+    latest_activity_service_counts = {}
+    latest_activity_operation_counts = {}
     report_kind_counts = {}
     observed_capability_counts = {}
     missing_capability_counts = {}
@@ -1520,6 +1541,16 @@ def target_record_summary(records):
             service = str(service or "")
             if service:
                 service_counts[service] = service_counts.get(service, 0) + 1
+        for source in rec.get("identity_sources") or []:
+            source = str(source or "")
+            if source:
+                identity_source_counts[source] = identity_source_counts.get(source, 0) + 1
+        activity_service = str(rec.get("latest_activity_service") or "")
+        if activity_service:
+            latest_activity_service_counts[activity_service] = latest_activity_service_counts.get(activity_service, 0) + 1
+        activity_operation = str(rec.get("latest_activity_operation") or "")
+        if activity_operation:
+            latest_activity_operation_counts[activity_operation] = latest_activity_operation_counts.get(activity_operation, 0) + 1
         report_kind = str(rec.get("latest_capability_report_kind") or "")
         if report_kind:
             report_kind_counts[report_kind] = report_kind_counts.get(report_kind, 0) + 1
@@ -1545,8 +1576,11 @@ def target_record_summary(records):
         "latest_target_label": latest.get("label", ""),
         "latest_target_seen_at": latest.get("last_seen_at", ""),
         "target_identity_confidence_counts": record_count_by_key(records, "identity_confidence"),
+        "target_identity_source_counts": identity_source_counts,
         "target_service_counts": service_counts,
         "target_remote_address_count": remote_count,
+        "target_latest_activity_service_counts": latest_activity_service_counts,
+        "target_latest_activity_operation_counts": latest_activity_operation_counts,
         "target_capability_report_count": report_count,
         "target_capability_report_kind_counts": report_kind_counts,
         "target_observed_capability_counts": observed_capability_counts,
@@ -8163,6 +8197,9 @@ def status_document(cfg):
      targets_by_remote_addr,
      targets_by_service,
      targets_by_identity_confidence,
+     targets_by_identity_source,
+     targets_by_latest_activity_service,
+     targets_by_latest_activity_operation,
      targets_by_capability_report_kind,
      targets_by_observed_capability,
      targets_by_missing_capability,
@@ -9016,7 +9053,9 @@ def status_document(cfg):
             "targets", targets, "target_id", (
                 "targets_by_id", "targets_by_label", "targets_by_alias",
                 "targets_by_remote_addr", "targets_by_service",
-                "targets_by_identity_confidence",
+                "targets_by_identity_confidence", "targets_by_identity_source",
+                "targets_by_latest_activity_service",
+                "targets_by_latest_activity_operation",
                 "targets_by_capability_report_kind",
                 "targets_by_observed_capability",
                 "targets_by_missing_capability",
@@ -9366,6 +9405,9 @@ def status_document(cfg):
         "targets_by_remote_addr": targets_by_remote_addr,
         "targets_by_service": targets_by_service,
         "targets_by_identity_confidence": targets_by_identity_confidence,
+        "targets_by_identity_source": targets_by_identity_source,
+        "targets_by_latest_activity_service": targets_by_latest_activity_service,
+        "targets_by_latest_activity_operation": targets_by_latest_activity_operation,
         "targets_by_capability_report_kind": targets_by_capability_report_kind,
         "targets_by_observed_capability": targets_by_observed_capability,
         "targets_by_missing_capability": targets_by_missing_capability,
@@ -9677,6 +9719,13 @@ def print_target_summary(doc, limit=8):
             f"confidence={rec.get('identity_confidence', '') or '-'} "
             f"last_seen={rec.get('last_seen_at', '') or '-'}"
         )
+        if rec.get("latest_activity_operation") or rec.get("latest_activity_service"):
+            print(
+                f"    latest_activity={rec.get('latest_activity_operation', '') or '-'} "
+                f"service={rec.get('latest_activity_service', '') or '-'} "
+                f"remote={rec.get('latest_activity_remote_addr', '') or '-'} "
+                f"at={rec.get('latest_activity_at', '') or '-'}"
+            )
         print(f"    aliases={aliases} services={services} remotes={remotes}")
         if rec.get("latest_upload_id") or rec.get("latest_fetch_id") or rec.get("latest_session_id"):
             print(
