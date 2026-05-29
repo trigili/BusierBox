@@ -474,7 +474,11 @@ target commands, and booleans for whether the filter reduced or retained
 activity. Clients can use indexes such as
 `target_filter_records_by_filter_reduced_activity` and
 `target_filter_records_by_has_filtered_activity` without special-casing the
-top-level filter object.
+top-level filter object. When the selected target has uploaded capability or
+compatibility evidence, the filter context also mirrors the latest report kind,
+capability check/pass/fail counts, compatibility label, baseline label, release,
+payload preset, and reason count so clients can render selected-target health
+without joining through `targets_by_id`.
 The top-level `api` catalog mirrors the selected target label/confidence and
 whether the target was found, so future TUI/web clients can render filter
 context without joining `targets_by_id` first. If the filter does not match a

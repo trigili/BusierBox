@@ -5810,6 +5810,9 @@ def main():
         target_compatibility = capability_target.get("latest_compatibility_summary") or {}
         capability_status_summary = capability_status.get("summary") or {}
         capability_api_indexes = (((capability_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or [])
+        capability_filter = capability_status.get("target_filter") or {}
+        capability_filter_record = (capability_status.get("target_filter_records_by_target_id") or {}).get("target-capability", [{}])[0]
+        capability_registry_record = (capability_status.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}
         if (capability_target.get("latest_capability_report_kind") != "reality-test" or
                 not capability_target.get("latest_capability_report_path", "").endswith("reality-test.json") or
                 capability_target.get("latest_compatibility_report_kind") != "reality-test" or
@@ -5832,9 +5835,31 @@ def main():
                 capability_status_summary.get("target_compatibility_baseline_label_counts", {}).get("exact") != 1 or
                 capability_status_summary.get("target_compatibility_release_counts", {}).get("operator-smoke") != 1 or
                 capability_status_summary.get("target_compatibility_payload_preset_counts", {}).get("survey-core") != 1 or
-                ((capability_status.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}).get("compatibility_report_count") != 1 or
-                ((capability_status.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}).get("compatibility_label_counts", {}).get("unsafe") != 1 or
-                ((capability_status.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}).get("compatibility_release_counts", {}).get("operator-smoke") != 1 or
+                capability_registry_record.get("compatibility_report_count") != 1 or
+                capability_registry_record.get("compatibility_label_counts", {}).get("unsafe") != 1 or
+                capability_registry_record.get("compatibility_release_counts", {}).get("operator-smoke") != 1 or
+                capability_registry_record.get("selected_target_latest_capability_report_kind") != "reality-test" or
+                capability_registry_record.get("selected_target_latest_capability_check_count") != 3 or
+                capability_registry_record.get("selected_target_latest_compatibility_label") != "unsafe" or
+                capability_registry_record.get("selected_target_latest_compatibility_release_name") != "operator-smoke" or
+                capability_filter.get("selected_target_latest_capability_report_kind") != "reality-test" or
+                capability_filter.get("selected_target_latest_capability_check_count") != 3 or
+                capability_filter.get("selected_target_latest_capability_pass_count") != 1 or
+                capability_filter.get("selected_target_latest_capability_fail_count") != 1 or
+                capability_filter.get("selected_target_latest_compatibility_report_kind") != "reality-test" or
+                capability_filter.get("selected_target_latest_compatibility_label") != "unsafe" or
+                capability_filter.get("selected_target_latest_compatibility_baseline_label") != "exact" or
+                capability_filter.get("selected_target_latest_compatibility_release_name") != "operator-smoke" or
+                capability_filter.get("selected_target_latest_compatibility_payload_preset") != "survey-core" or
+                capability_filter.get("selected_target_latest_compatibility_reason_count") != 1 or
+                capability_filter_record.get("selected_target_latest_capability_report_kind") != "reality-test" or
+                capability_filter_record.get("selected_target_latest_capability_check_count") != 3 or
+                capability_filter_record.get("selected_target_latest_compatibility_label") != "unsafe" or
+                capability_filter_record.get("selected_target_latest_compatibility_release_name") != "operator-smoke" or
+                capability_status.get("api", {}).get("target_filter_selected_target_latest_capability_report_kind") != "reality-test" or
+                capability_status.get("api", {}).get("target_filter_selected_target_latest_compatibility_label") != "unsafe" or
+                capability_status.get("target_filter_records_by_selected_target_latest_compatibility_label", {}).get("unsafe", [{}])[0].get("target_id") != "target-capability" or
+                capability_status.get("target_registry_state_records_by_selected_target_latest_compatibility_label", {}).get("unsafe", [{}])[0].get("id") != "target-registry" or
                 capability_status_summary.get("target_observed_capability_counts", {}).get("runtime_root_writable") != 1 or
                 capability_status_summary.get("target_missing_capability_counts", {}).get("pty") != 1 or
                 capability_status_summary.get("target_observed_constraint_counts", {}).get("rootfs_read_only:true") != 1 or
@@ -5855,7 +5880,9 @@ def main():
                 "targets_by_compatibility_payload_preset" not in capability_api_indexes or
                 "targets_by_observed_capability" not in capability_api_indexes or
                 "targets_by_missing_capability" not in capability_api_indexes or
-                "targets_by_observed_constraint" not in capability_api_indexes):
+                "targets_by_observed_constraint" not in capability_api_indexes or
+                "target_filter_records_by_selected_target_latest_compatibility_label" not in ((capability_status.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
+                "target_registry_state_records_by_selected_target_latest_compatibility_label" not in ((capability_status.get("api_collections") or {}).get("target_registry_state_records") or {}).get("indexes", [])):
             print("target capability report upload did not update observed capabilities", file=sys.stderr)
             print(json.dumps(capability_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
