@@ -33,6 +33,11 @@ complete.
 - Compatibility scoring now distinguishes exact, likely, heuristic, unsafe, and
   incompatible selections across survey recommendations, release search, release
   indexes, and bringup output.
+- Target-side `gdbserver` is tracked as a provider-based heavy payload tool.
+  Buildroot remains available where it works, but known static Buildroot GDB/BFD
+  failures are pre-excluded for affected MIPS tuples and local/user/overlay
+  providers carry auditable status into payload manifests, release indexes, and
+  generated operator workspaces.
 - No-residue behavior exposes `BB_NORESIDUE_LEVEL=best-effort|aggressive`, dry
   run residue plans, cleanup counters, aggressive-mode log policy boundaries,
   and non-forensic caveats in user-facing status and docs.
@@ -101,6 +106,15 @@ Reality test and compatibility:
 - `tests/smoke/reality-test.sh`
 - `tests/smoke/config-from-survey.sh`
 - `tests/smoke/release-repo-index.sh`
+
+gdbserver provider workflow:
+- `docs/gdbserver-workflow.md`
+- `scripts/check-buildroot-tool-mappings`
+- `scripts/gen-buildroot-defconfig`
+- `scripts/tools/check-dropin-tool`
+- `scripts/tools/install-dropin-gdbserver`
+- `scripts/busierbox-gdb-workspace`
+- `tests/smoke/gdbserver-workflow.sh`
 
 No-residue cleanup:
 - `src/applet_clean.c`
@@ -199,6 +213,24 @@ Result:
   alongside the existing release license summary.
 - JSON/API status already exposes the same fields in `release.release_license`,
   release license records, and release license indexes.
+
+Recent gdbserver provider verification also included:
+
+```sh
+tests/smoke/gdbserver-workflow.sh
+```
+
+Result:
+
+- Strict local drop-in checks reject target-incompatible binaries before staging.
+- Payload manifests and artifact inspection preserve `gdbserver` provider status,
+  provider paths, and check metadata for release/operator auditing.
+- Generated Buildroot defconfigs pre-exclude affected static MIPS GDB/BFD builds
+  and omit Buildroot `gdbserver` symbols when a local/user/overlay provider is
+  selected instead.
+- `scripts/busierbox-gdb-workspace` preserves selected target architecture,
+  endian, remote address, and provider status in generated `connect.gdb` and
+  workspace metadata.
 
 Recent release corresponding-source verification also included:
 
