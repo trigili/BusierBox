@@ -18,6 +18,13 @@ pinned source metadata, explicit GPLv2 compatibility flags, component
 distribution obligations, and bundled notice files. This document is an
 engineering license inventory, not legal advice.
 
+The policy also records the authoritative upstream license references checked on
+2026-05-29: the BusyBox license page, the Buildroot manual, the doom-ascii
+upstream project page, and the miniz upstream project page plus vendored
+license file. Those references are validation inputs for repository metadata;
+they do not replace the bundled license texts and notices shipped with source
+or release bundles.
+
 ## Third-party components
 
 BusierBox integrates upstream software instead of importing BusyBox code into

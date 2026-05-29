@@ -46,6 +46,7 @@ sources = json.loads(sources_path.read_text(encoding="utf-8"))
 
 project = policy.get("project") or {}
 compat = policy.get("compatibility") or {}
+license_evidence = policy.get("license_evidence") or {}
 whole_project = policy.get("whole_project_assessment") or {}
 artifact_distribution = policy.get("artifact_distribution") or {}
 corresponding_source = artifact_distribution.get("corresponding_source_strategy") or {}
@@ -87,6 +88,29 @@ if compat.get("combined_gplv2_compatible") is not True:
     raise SystemExit("check-licensing: GPLv2 compatibility flag must be true")
 if compat.get("not_legal_advice") is not True:
     raise SystemExit("check-licensing: policy must be marked as engineering guidance, not legal advice")
+evidence_sources = {
+    item.get("name"): item
+    for item in license_evidence.get("sources") or []
+    if isinstance(item, dict)
+}
+if not license_evidence.get("verified_at"):
+    raise SystemExit("check-licensing: license evidence must include verified_at")
+expected_evidence = {
+    "BusyBox": ("GPL-2.0", "https://busybox.net/license.html"),
+    "Buildroot": ("GPL-2.0-or-later with package exceptions", "https://buildroot.org/downloads/manual/manual.html"),
+    "doom-ascii": ("GPL-2.0-or-later", "https://github.com/wojciech-graj/doom-ascii"),
+    "miniz": ("MIT OR Unlicense", "https://github.com/richgel999/miniz"),
+}
+for name, (license_id, url) in expected_evidence.items():
+    item = evidence_sources.get(name)
+    if not item:
+        raise SystemExit(f"check-licensing: missing license evidence for {name}")
+    if item.get("license") != license_id:
+        raise SystemExit(f"check-licensing: {name} license evidence mismatch: {item.get('license')!r}")
+    if item.get("url") != url:
+        raise SystemExit(f"check-licensing: {name} license evidence URL mismatch: {item.get('url')!r}")
+    if not item.get("note"):
+        raise SystemExit(f"check-licensing: {name} license evidence note missing")
 if whole_project.get("status") != "ok_for_current_default_stack":
     raise SystemExit("check-licensing: whole-project assessment must approve the current default stack")
 if whole_project.get("current_stack_ok") is not True:

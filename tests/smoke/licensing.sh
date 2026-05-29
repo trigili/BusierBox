@@ -87,6 +87,7 @@ grep -q 'GPL compatibility summary' docs/licensing.md
 grep -q 'explicit GPLv2 compatibility flags' docs/licensing.md
 grep -q 'Every downloadable source lock entry must have' docs/licensing.md
 grep -q 'make check-licensing' docs/licensing.md
+grep -q 'authoritative upstream license references checked on' docs/licensing.md
 grep -q 'manifests/license-policy.json' docs/licensing.md
 grep -q 'BusyBox' docs/licensing.md
 grep -q 'Buildroot' docs/licensing.md
@@ -126,6 +127,29 @@ for name, license_id in expected.items():
         raise SystemExit(f"{name}: missing homepage")
 
 policy = json.load(open("manifests/license-policy.json", encoding="utf-8"))
+license_evidence = policy.get("license_evidence") or {}
+if not license_evidence.get("verified_at"):
+    raise SystemExit("licensing smoke: policy missing license evidence verification date")
+evidence = {
+    item.get("name"): item
+    for item in license_evidence.get("sources") or []
+    if isinstance(item, dict)
+}
+for name, license_id, url in (
+    ("BusyBox", "GPL-2.0", "https://busybox.net/license.html"),
+    ("Buildroot", "GPL-2.0-or-later with package exceptions", "https://buildroot.org/downloads/manual/manual.html"),
+    ("doom-ascii", "GPL-2.0-or-later", "https://github.com/wojciech-graj/doom-ascii"),
+    ("miniz", "MIT OR Unlicense", "https://github.com/richgel999/miniz"),
+):
+    item = evidence.get(name)
+    if not item:
+        raise SystemExit(f"licensing smoke: missing license evidence for {name}")
+    if item.get("license") != license_id:
+        raise SystemExit(f"licensing smoke: {name} evidence license mismatch")
+    if item.get("url") != url:
+        raise SystemExit(f"licensing smoke: {name} evidence URL mismatch")
+    if not item.get("note"):
+        raise SystemExit(f"licensing smoke: {name} evidence note missing")
 components = {item.get("name"): item for item in policy.get("components") or []}
 lock_components = {item.get("source_lock_name"): item for item in policy.get("components") or [] if item.get("source_lock_name")}
 for source_name in sources:

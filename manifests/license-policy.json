@@ -16,6 +16,35 @@
     "summary": "The default integrated stack is GPLv2-compatible: BusierBox is GPL-2.0-or-later, BusyBox is GPL-2.0, Buildroot is GPL-2.0-or-later with package exceptions, doom-ascii is GPL-2.0-or-later, and miniz is permissive.",
     "source_availability_required_for_distribution": true
   },
+  "license_evidence": {
+    "verified_at": "2026-05-29",
+    "sources": [
+      {
+        "name": "BusyBox",
+        "url": "https://busybox.net/license.html",
+        "license": "GPL-2.0",
+        "note": "Official BusyBox license page identifies BusyBox as GNU GPL version 2."
+      },
+      {
+        "name": "Buildroot",
+        "url": "https://buildroot.org/downloads/manual/manual.html",
+        "license": "GPL-2.0-or-later with package exceptions",
+        "note": "Official Buildroot manual describes Buildroot itself as GPL version 2 or later, with package patch exceptions."
+      },
+      {
+        "name": "doom-ascii",
+        "url": "https://github.com/wojciech-graj/doom-ascii",
+        "license": "GPL-2.0-or-later",
+        "note": "Upstream project metadata and pinned source lock identify doom-ascii as GPLv2-compatible."
+      },
+      {
+        "name": "miniz",
+        "url": "https://github.com/richgel999/miniz",
+        "license": "MIT OR Unlicense",
+        "note": "Vendored upstream license file records permissive MIT or Unlicense terms."
+      }
+    ]
+  },
   "whole_project_assessment": {
     "status": "ok_for_current_default_stack",
     "summary": "GPL-2.0-or-later is appropriate for BusierBox-maintained repository content and GPLv2-compatible combined artifacts using the current default stack.",
