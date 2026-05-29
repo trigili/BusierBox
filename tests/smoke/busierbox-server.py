@@ -367,6 +367,60 @@ def main():
             print(delete_bridge_profile.stdout, file=sys.stderr)
             print(delete_bridge_profile.stderr, file=sys.stderr)
             return 1
+        tui_bridge_port = free_port()
+        bridge_tui_master, bridge_tui_slave = pty.openpty()
+        try:
+            bridge_tui_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(bridge_cfg),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=bridge_tui_slave,
+                stdout=bridge_tui_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(bridge_tui_slave)
+            bridge_tui_slave = -1
+            time.sleep(0.5)
+            bridge_tui_input = (
+                f"17\nchain-http\ninspect\n"
+                f"17\nnew\ntui-http\n{tui_bridge_port}\n127.0.0.1\n{echo_result['port']}\n"
+                "tui-created\nline tui profile\n\n"
+                "17\ntui-http\ndelete\nq\n"
+            ).encode("utf-8")
+            os.write(bridge_tui_master, bridge_tui_input)
+            _bridge_tui_stdout, bridge_tui_stderr = bridge_tui_proc.communicate(timeout=8)
+            bridge_tui_output = b""
+            while True:
+                try:
+                    chunk = os.read(bridge_tui_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                bridge_tui_output += chunk
+        finally:
+            if bridge_tui_slave != -1:
+                os.close(bridge_tui_slave)
+            try:
+                os.close(bridge_tui_master)
+            except OSError:
+                pass
+        bridge_tui_text = bridge_tui_output.decode("utf-8", errors="replace")
+        if (bridge_tui_proc.returncode != 0 or
+                "Traceback" in (bridge_tui_stderr or "") or
+                "selected bridge profile chain-http" not in bridge_tui_text or
+                "headless_command:" not in bridge_tui_text or
+                "saved bridge profile tui-http" not in bridge_tui_text or
+                "deleted bridge profile tui-http" not in bridge_tui_text):
+            print("line TUI bridge profile management failed", file=sys.stderr)
+            print(bridge_tui_text, file=sys.stderr)
+            print(bridge_tui_stderr or "", file=sys.stderr)
+            return 1
         list_bridge_profiles = run(
             "scripts/busierbox-server",
             "--config", str(bridge_cfg),
@@ -375,6 +429,7 @@ def main():
         if ("lab-http" not in list_bridge_profiles.stdout or
                 "chain-http" not in list_bridge_profiles.stdout or
                 "delete-me" in list_bridge_profiles.stdout or
+                "tui-http" in list_bridge_profiles.stdout or
                 expected_chain_path not in list_bridge_profiles.stdout or
                 "target=target-bridge" not in list_bridge_profiles.stdout or
                 "path: operator:" not in list_bridge_profiles.stdout):
@@ -472,6 +527,9 @@ def main():
                 "lab-http" not in [rec.get("name") for rec in ((bridge_status.get("bridge_profiles_by_target_id") or {}).get("target-bridge") or [])] or
                 "bridge_profiles_by_current_state" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 "bridge_profiles_by_hop_count" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
+                not bridge_events.get("workbench_bridge_profile_inspected") or
+                not bridge_events.get("workbench_bridge_profile_saved") or
+                not bridge_events.get("workbench_bridge_profile_deleted") or
                 not bridge_events.get("bridge_connected") or
                 not bridge_events.get("bridge_closed") or
                 bridge_events["bridge_closed"][0].get("details", {}).get("bridge_profile") != "lab-http" or

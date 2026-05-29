@@ -78,6 +78,12 @@ Use `--delete-bridge-profile NAME` to remove a stored profile. Deletion records
 a `bridge_profile_deleted` event and does not kill an already-running bridge
 listener; stop listeners explicitly with `--stop --transport bridge`.
 
+In line-mode TUI, action `17` opens bridge profile management. It lists saved
+profiles, can create or update a profile from prompts, inspect a profile, start
+or stop the bridge listener, and delete a profile. Each TUI path prints the
+equivalent `scripts/busierbox-server ...` command before or after applying the
+action.
+
 Profiles live in `bridge-profiles.json` under the operator session directory by
 default. Each record includes the listen endpoint, destination endpoint,
 explicit hops, hop count, multi-hop flag, optional target id/label, purpose,

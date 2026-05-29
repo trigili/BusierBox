@@ -14688,6 +14688,73 @@ def run_line_tui(cfg):
             return line.rstrip("\n")
         return None
 
+    def bridge_profile_headless_command(action, name="", extra=None):
+        cmd = ["scripts/busierbox-server", "--config", str(cfg.get("_config_path", DEFAULT_CONFIG))]
+        if action == "inspect":
+            cmd.extend(["--inspect-bridge-profile", name])
+        elif action == "start":
+            cmd.extend(["--transport", "bridge", "--bridge-profile", name])
+        elif action == "stop":
+            cmd.extend(["--stop", "--transport", "bridge"])
+        elif action == "delete":
+            cmd.extend(["--delete-bridge-profile", name])
+        elif action == "save":
+            cmd.extend(extra or [])
+        return " ".join(shquote(str(item)) for item in cmd)
+
+    def prompt_bridge_profile_save():
+        name_line = line_input("bridge profile name> ")
+        name = name_line.strip() if name_line is not None else ""
+        if not name:
+            return
+        listen_default = str(cfg.get("bridge_listen_port", 22206))
+        dest_host_default = str(cfg.get("bridge_dest_host", "127.0.0.1"))
+        dest_port_default = str(cfg.get("bridge_dest_port", ""))
+        listen_line = line_input(f"listen port [{listen_default}]> ")
+        dest_host_line = line_input(f"destination host [{dest_host_default}]> ")
+        dest_port_line = line_input(f"destination port [{dest_port_default}]> ")
+        purpose_line = line_input("purpose> ")
+        notes_line = line_input("notes> ")
+        hops_line = line_input("hops separated by ;, or blank for one-hop default> ")
+        try:
+            listen_port = int((listen_line.strip() if listen_line is not None and listen_line.strip() else listen_default) or "0")
+            dest_port = int((dest_port_line.strip() if dest_port_line is not None and dest_port_line.strip() else dest_port_default) or "0")
+            save_cfg = dict(cfg)
+            save_cfg["bridge_listen_port"] = listen_port
+            save_cfg["bridge_dest_host"] = dest_host_line.strip() if dest_host_line is not None and dest_host_line.strip() else dest_host_default
+            save_cfg["bridge_dest_port"] = dest_port
+            hop_args = [
+                item.strip() for item in (hops_line or "").split(";")
+                if item.strip()
+            ]
+            extra = [
+                "--save-bridge-profile", name,
+                "--bridge-port", str(listen_port),
+                "--bridge-dest-host", str(save_cfg["bridge_dest_host"]),
+                "--bridge-dest-port", str(dest_port),
+            ]
+            if purpose_line is not None and purpose_line.strip():
+                extra.extend(["--bridge-profile-purpose", purpose_line.strip()])
+            if notes_line is not None and notes_line.strip():
+                extra.extend(["--bridge-profile-notes", notes_line.strip()])
+            for hop in hop_args:
+                extra.extend(["--bridge-hop", hop])
+            rec = save_bridge_profile(
+                save_cfg, name,
+                purpose=(purpose_line or "").strip(),
+                notes=(notes_line or "").strip(),
+                hop_args=hop_args,
+            )
+            print(f"saved bridge profile {rec.get('name', '')}: {rec.get('route_path', '')}")
+            print(f"headless_command: {bridge_profile_headless_command('save', extra=extra)}")
+            append_event(cfg, "workbench", "workbench_bridge_profile_saved", details={
+                "name": rec.get("name", ""),
+                "route_path": rec.get("route_path", ""),
+                "headless_command": bridge_profile_headless_command("save", extra=extra),
+            })
+        except (TypeError, ValueError) as exc:
+            print(exc)
+
     render_full = False
     while not SHUTDOWN.is_set():
         print("")
@@ -14730,6 +14797,7 @@ def run_line_tui(cfg):
         print("  14 configure BusierBox build field")
         print("  15 run target workflow action")
         print("  16 select target filter")
+        print("  17 manage bridge profiles")
         print("  c show/copy generated commands")
         print("  r refresh")
         print("  ? help")
@@ -14914,8 +14982,71 @@ def run_line_tui(cfg):
                     print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
                 except ValueError as exc:
                     print(exc)
+        elif choice == "17":
+            records = bridge_profile_records(cfg)
+            for idx, rec in enumerate(records, 1):
+                print(
+                    f"{idx}: {rec.get('name', '')} "
+                    f"state={rec.get('current_state', '')} "
+                    f"target={rec.get('target_id', '') or '-'} "
+                    f"path={rec.get('route_path', '')}"
+                )
+            print("new: create or update a bridge profile")
+            selected_line = line_input("bridge profile number/name, or new> ")
+            selected = selected_line.strip() if selected_line is not None else ""
+            if not selected:
+                continue
+            if selected.lower() in ("new", "create", "save"):
+                prompt_bridge_profile_save()
+                continue
+            try:
+                if selected.isdigit():
+                    idx = int(selected) - 1
+                    if idx < 0 or idx >= len(records):
+                        raise ValueError(f"bridge profile number out of range: {selected}")
+                    rec = records[idx]
+                else:
+                    matches = [item for item in records if str(item.get("name") or "") == selected]
+                    if not matches:
+                        raise ValueError(f"bridge profile not found: {selected}")
+                    rec = matches[0]
+                name = str(rec.get("name") or "")
+                print(f"selected bridge profile {name}")
+                print(f"  route_path: {rec.get('route_path', '')}")
+                print(f"  inspect: {bridge_profile_headless_command('inspect', name)}")
+                print(f"  start: {bridge_profile_headless_command('start', name)}")
+                print(f"  stop: {bridge_profile_headless_command('stop', name)}")
+                print(f"  delete: {bridge_profile_headless_command('delete', name)}")
+                action_line = line_input("bridge action inspect/start/stop/delete, or blank> ")
+                action = action_line.strip().lower() if action_line is not None else ""
+                if action == "inspect":
+                    print_bridge_profile(cfg, name)
+                    append_event(cfg, "workbench", "workbench_bridge_profile_inspected", details={
+                        "name": name,
+                        "route_path": rec.get("route_path", ""),
+                        "headless_command": bridge_profile_headless_command("inspect", name),
+                    })
+                elif action == "start":
+                    print(f"headless_command: {bridge_profile_headless_command('start', name)}")
+                    start_service_process(cfg, "bridge", argv_extra=["--bridge-profile", name])
+                elif action == "stop":
+                    print(f"headless_command: {bridge_profile_headless_command('stop', name)}")
+                    stop_recorded_service(cfg, "bridge")
+                elif action == "delete":
+                    deleted = delete_bridge_profile(cfg, name)
+                    print(f"deleted bridge profile {deleted.get('name', '')}: {deleted.get('route_path', '')}")
+                    print(f"headless_command: {bridge_profile_headless_command('delete', name)}")
+                    append_event(cfg, "workbench", "workbench_bridge_profile_deleted", details={
+                        "name": name,
+                        "route_path": deleted.get("route_path", ""),
+                        "headless_command": bridge_profile_headless_command("delete", name),
+                    })
+                elif action:
+                    print(f"unknown bridge action: {action}")
+            except ValueError as exc:
+                print(exc)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 
