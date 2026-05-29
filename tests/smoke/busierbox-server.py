@@ -6128,6 +6128,7 @@ def main():
                 f"release_dir: {release_dir}" not in release_view.stdout or
                 "release_name: operator-smoke" not in release_view.stdout or
                 "license: project=GPL-2.0-or-later gplv2_compatible=yes valid=yes notices=11 missing_notices=0" not in release_view.stdout or
+                "corresponding_source: required=yes status=required_for_distribution release_inputs=7 reconstruction_inputs=4 package_license_audit=yes" not in release_view.stdout or
                 "busierbox-test" not in release_view.stdout or
                 "compatibility=exact" not in release_view.stdout or
                 "compatibility_reason: fixture" not in release_view.stdout or
@@ -6160,6 +6161,7 @@ def main():
                 "present=yes valid=yes release_json_valid=yes release_index_valid=yes" not in release_text_status.stdout or
                 "detection_source=auto detection_reason=release.json,release-index.json,bin+scripts explicit_release_dir=no markers=3" not in release_text_status.stdout or
                 "artifacts=1 devices=1 tuples=1 total_size=9" not in release_text_status.stdout or
+                "corresponding_source: required=yes status=required_for_distribution release_inputs=7 reconstruction_inputs=4 package_license_audit=yes" not in release_text_status.stdout or
                 "recommendations:" not in release_text_status.stdout or
                 "by_device:lab-router -> bin/busierbox-test" not in release_text_status.stdout):
             print("text --status missing release summary", file=sys.stderr)

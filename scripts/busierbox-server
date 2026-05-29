@@ -11230,6 +11230,14 @@ def print_release_summary(doc):
             f"notices={release_license.get('notice_count', 0)} "
             f"missing_notices={release_license.get('missing_notice_count', 0)}"
         )
+        print(
+            "  corresponding_source: "
+            f"required={'yes' if release_license.get('corresponding_source_required') else 'no'} "
+            f"status={release_license.get('corresponding_source_status', '') or '-'} "
+            f"release_inputs={release_license.get('corresponding_source_release_input_count', 0)} "
+            f"reconstruction_inputs={release_license.get('corresponding_source_reconstruction_input_count', 0)} "
+            f"package_license_audit={'yes' if release_license.get('corresponding_source_requires_package_license_audit') else 'no'}"
+        )
     for error in release_state.get("errors") or []:
         print(f"  error: {error}")
 
