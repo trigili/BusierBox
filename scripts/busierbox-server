@@ -11362,6 +11362,15 @@ def target_filter_summary_text(target_filter, prefix="target_filter:"):
     )
 
 
+def event_tail_availability_text(doc):
+    state = (doc or {}).get("event_log_state") or {}
+    return (
+        f"tail_has_records={'yes' if state.get('tail_has_records') else 'no'} "
+        f"tail_has_omitted={'yes' if state.get('tail_has_omitted_records') else 'no'} "
+        f"tail_empty_due_to_limit={'yes' if state.get('tail_empty_due_to_limit') else 'no'}"
+    )
+
+
 def print_target_summary(doc, limit=8):
     print("Targets:")
     records = doc.get("targets") or []
@@ -12026,6 +12035,7 @@ def print_status(cfg, json_output=False):
     stats = doc.get("event_log_stats") or {}
     print(f"  path: {doc.get('event_log', '')}")
     print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)} truncated={'yes' if stats.get('tail_truncated') else 'no'} omitted={stats.get('tail_omitted_count', 0)}")
+    print(f"  {event_tail_availability_text(doc)}")
     print(f"  first={stats.get('first_event_at', '') or '-'} latest={stats.get('latest_event_at', '') or '-'}")
     print(f"  services: {format_counts(stats.get('by_service') or {})}")
     print(f"  events: {format_counts(stats.get('by_event') or {})}")
@@ -12345,6 +12355,7 @@ def print_workbench(cfg, include_api_summary=True):
     stats = snap.get("event_log_stats") or {}
     print(f"  path: {snap.get('event_log', '')}")
     print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)} truncated={'yes' if stats.get('tail_truncated') else 'no'} omitted={stats.get('tail_omitted_count', 0)}")
+    print(f"  {event_tail_availability_text(snap)}")
     print(f"  first={stats.get('first_event_at', '') or '-'} latest={stats.get('latest_event_at', '') or '-'}")
     print(f"  services: {format_counts(stats.get('by_service') or {})}")
     print(f"  events: {format_counts(stats.get('by_event') or {})}")

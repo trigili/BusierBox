@@ -2584,6 +2584,32 @@ def main():
             print("server json status did not honor --event-limit 0", file=sys.stderr)
             print(zero_event_status.stdout, file=sys.stderr)
             return 1
+        zero_event_text = run(
+            "scripts/busierbox-server",
+            "--config", str(truncated_event_cfg),
+            "--status",
+            "--event-limit", "0",
+        )
+        if (zero_event_text.returncode != 0 or
+                "tail_has_records=no" not in zero_event_text.stdout or
+                "tail_has_omitted=yes" not in zero_event_text.stdout or
+                "tail_empty_due_to_limit=yes" not in zero_event_text.stdout):
+            print("text --status missing event-tail availability state", file=sys.stderr)
+            print(zero_event_text.stdout, file=sys.stderr)
+            return 1
+        zero_event_workbench = run(
+            "scripts/busierbox-server",
+            "--config", str(truncated_event_cfg),
+            "--tui",
+            "--event-limit", "0",
+        )
+        if (zero_event_workbench.returncode != 0 or
+                "tail_has_records=no" not in zero_event_workbench.stdout or
+                "tail_has_omitted=yes" not in zero_event_workbench.stdout or
+                "tail_empty_due_to_limit=yes" not in zero_event_workbench.stdout):
+            print("workbench fallback missing event-tail availability state", file=sys.stderr)
+            print(zero_event_workbench.stdout, file=sys.stderr)
+            return 1
         negative_event_limit = run(
             "scripts/busierbox-server",
             "--config", str(truncated_event_cfg),
