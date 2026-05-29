@@ -1035,15 +1035,51 @@ def main():
             print("workbench background job status missing live managed job", file=sys.stderr)
             print(json.dumps(job_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
-        cancelled_job = run(
-            "scripts/busierbox-server",
-            "--config", str(workbench_job_cfg),
-            "--cancel-workbench-job", job_id,
-        )
-        if cancelled_job.returncode != 0 or "cancel requested" not in cancelled_job.stdout:
-            print("workbench background job did not cancel", file=sys.stderr)
-            print(cancelled_job.stdout, file=sys.stderr)
-            print(cancelled_job.stderr, file=sys.stderr)
+        job_cancel_master, job_cancel_slave = pty.openpty()
+        try:
+            job_cancel_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(workbench_job_cfg),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=job_cancel_slave,
+                stdout=job_cancel_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(job_cancel_slave)
+            job_cancel_slave = -1
+            time.sleep(0.3)
+            os.write(job_cancel_master, f"13\n{job_id}\nq\n".encode("utf-8"))
+            _job_cancel_stdout, job_cancel_stderr = job_cancel_proc.communicate(timeout=8)
+            job_cancel_output = b""
+            while True:
+                try:
+                    chunk = os.read(job_cancel_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                job_cancel_output += chunk
+        finally:
+            if job_cancel_slave != -1:
+                os.close(job_cancel_slave)
+            try:
+                os.close(job_cancel_master)
+            except OSError:
+                pass
+        job_cancel_text = job_cancel_output.decode("utf-8", errors="replace")
+        if (job_cancel_proc.returncode != 0 or
+                "Traceback" in (job_cancel_stderr or "") or
+                f"cancel requested for {job_id}" not in job_cancel_text or
+                "headless_command: scripts/busierbox-server --config" not in job_cancel_text or
+                f"--cancel-workbench-job {job_id}" not in job_cancel_text):
+            print("line TUI workbench background job did not cancel with headless command", file=sys.stderr)
+            print(job_cancel_text, file=sys.stderr)
+            print(job_cancel_stderr or "", file=sys.stderr)
             return 1
         for _ in range(20):
             cancelled_status_doc = run(

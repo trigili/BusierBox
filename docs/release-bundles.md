@@ -1164,7 +1164,10 @@ tokens. `--cancel-workbench-job JOB` only requests cancellation when
 those process environment tokens still match the ledger entry; a forged or stale
 ledger record is visible in status but is not cancellable. Human status prints
 each job's managed/cancellable state and the ownership evidence or cancellation
-skip reason beside the command and log path. The line-oriented
+skip reason beside the command and log path. The line-oriented workbench job
+start/cancel controls print the equivalent `--start-workbench-job` or
+`--cancel-workbench-job` command after the operator selects the action or job,
+so background job management remains teachable and scriptable. The line-oriented
 fallback exposes the same operator path health, normalized operator state
 records, compact service and activity summaries, recent upload/fetch activity,
 event aggregate counts, refresh state, and compact event outcome details so

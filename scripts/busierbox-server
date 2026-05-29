@@ -15037,8 +15037,15 @@ def run_line_tui(cfg):
             if selected:
                 try:
                     action = runnable[int(selected) - 1]["id"] if selected.isdigit() else selected
+                    headless = (
+                        "scripts/busierbox-server --config "
+                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                        + " --start-workbench-job "
+                        + shquote(action)
+                    )
                     rec = start_workbench_job(cfg, action)
                     print(f"started job {rec.get('id', '')}: pid={rec.get('pid', '')} log={rec.get('log_path', '')}")
+                    print(f"headless_command: {headless}")
                     print(f"command: {rec.get('command', '')}")
                 except (ValueError, IndexError) as exc:
                     print(exc)
@@ -15050,8 +15057,15 @@ def run_line_tui(cfg):
             job_id = job_line.strip() if job_line is not None else ""
             if job_id:
                 try:
+                    headless = (
+                        "scripts/busierbox-server --config "
+                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                        + " --cancel-workbench-job "
+                        + shquote(job_id)
+                    )
                     rec = cancel_workbench_job(cfg, job_id)
                     print(f"cancel requested for {rec.get('id', job_id)}")
+                    print(f"headless_command: {headless}")
                 except ValueError as exc:
                     print(exc)
         elif choice == "14":
