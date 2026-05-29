@@ -1063,7 +1063,10 @@ local path, or recommendation id such as `by_device:lab-router`, and does not
 push the artifact or run it. In the curses workbench, the Event Log pane can be
 selected like the other browser
 panes; the details pane shows the event id, session correlation fields, remote,
-and compact outcome details from the structured event record. `v` opens the
+compact outcome details from the structured event record, and event-tail
+availability flags matching `--status` output. When the event tail is empty
+because `--event-limit 0` was requested, the pane still exposes that as
+tail-status metadata instead of looking like an empty log. `v` opens the
 selected local metadata/log/artifact/event-log path in the operator's pager when
 one is available, and `c` copies the selected generated target command to the
 local clipboard when possible plus
