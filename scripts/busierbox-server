@@ -2235,6 +2235,7 @@ def selected_target_context(cfg):
 def set_workbench_target_filter(cfg, selector, targets=None):
     text = str(selector or "").strip()
     now = utc_now()
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     if text.lower() in ("", "all", "clear", "*"):
         cfg.pop("_target_id_filter", None)
         cfg.pop("_target_label_filter", None)
@@ -2243,8 +2244,12 @@ def set_workbench_target_filter(cfg, selector, targets=None):
             "selected_target_label": "",
             "selected_target_at": now,
         })
-        append_event(cfg, "workbench", "workbench_target_filter_cleared", details={"selected_at": now})
-        return {"target_id": "", "target_label": "", "selected": False}
+        headless = "scripts/busierbox-server --config " + shquote(config_path) + " --status"
+        append_event(cfg, "workbench", "workbench_target_filter_cleared", details={
+            "selected_at": now,
+            "headless_command": headless,
+        })
+        return {"target_id": "", "target_label": "", "selected": False, "headless_command": headless}
 
     records = []
     if targets is not None:
@@ -2286,12 +2291,25 @@ def set_workbench_target_filter(cfg, selector, targets=None):
         "selected_target_label": target_label,
         "selected_target_at": now,
     })
+    headless = (
+        "scripts/busierbox-server --config "
+        + shquote(config_path)
+        + " --target-id "
+        + shquote(target_id)
+        + " --status"
+    )
     append_event(cfg, "workbench", "workbench_target_selected", details={
         "target_id": target_id,
         "target_label": target_label,
         "selected_at": now,
+        "headless_command": headless,
     })
-    return {"target_id": target_id, "target_label": target_label, "selected": True}
+    return {
+        "target_id": target_id,
+        "target_label": target_label,
+        "selected": True,
+        "headless_command": headless,
+    }
 
 
 def valid_profile_name(name):
@@ -15052,6 +15070,7 @@ def run_line_tui(cfg):
                         print(f"selected target {rec.get('target_id', '')} label={rec.get('target_label', '') or '-'}")
                     else:
                         print("target filter cleared")
+                    print(f"headless_command: {rec.get('headless_command', '')}")
                 except ValueError as exc:
                     print(exc)
         elif choice == "12":

@@ -500,6 +500,10 @@ context without joining `targets_by_id` first. If the filter does not match a
 known target, status output keeps the empty filtered collections visible and
 adds an `unknown_target_filter` warning with the requested target id and
 `targets.json` path.
+The line-oriented workbench target selector prints and records the equivalent
+`--target-id ID --status` command when a target is selected, or plain `--status`
+when the filter is cleared, so manual target context changes remain reproducible
+from headless automation.
 The same status payload includes `target_attribution` plus mirrored summary
 counts for uploads, fetches, and sessions with and without `target_id`, so
 legacy single-target traffic remains valid but visible instead of being
