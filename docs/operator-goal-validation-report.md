@@ -68,7 +68,9 @@ complete.
   `GPL-2.0-or-later`, preserve third-party component license inventory, and
   document current GPLv2-compatible combined distribution posture and
   corresponding-source requirements for BusyBox, Buildroot, doom-ascii, and
-  miniz.
+  miniz. The policy records the upstream evidence sources used for that
+  assessment, and release status, release indexes, release self-tests, and
+  licensing checks expose or validate those evidence records.
 - Stale Doom/Dune feature branches have been pruned from the local and remote
   branch lists; `main` is the only remaining branch.
 
@@ -148,7 +150,15 @@ Licensing:
 - `NOTICE`
 - `docs/licensing.md`
 - `manifests/license-policy.json`
+- `scripts/check-licensing`
+- `scripts/release-self-test --json`
+- `scripts/index-release-repo`
+- `scripts/find-artifact`
+- `scripts/busierbox-server --status`
 - `tests/smoke/licensing.sh`
+- `tests/smoke/release-bundles.sh`
+- `tests/smoke/release-repo-index.sh`
+- `tests/smoke/busierbox-server.py`
 
 ## Verification Run
 
@@ -213,6 +223,39 @@ Result:
 - `scripts/find-artifact` can filter release artifacts by corresponding-source
   requirement/status and package-audit requirement, and recommendation JSON
   exposes matching lookup maps for future operator/UI clients.
+
+Recent GPL/license evidence verification also included:
+
+```sh
+python3 -m json.tool manifests/license-policy.json
+scripts/check-licensing
+make check-licensing
+tests/smoke/licensing.sh
+python3 -m py_compile scripts/find-artifact scripts/index-release-repo scripts/busierbox-server tests/smoke/busierbox-server.py
+tests/smoke/release-repo-index.sh
+python3 tests/smoke/busierbox-server.py
+python3 -m py_compile scripts/make-release
+sh -n tests/smoke/release-bundles.sh
+tests/smoke/release-bundles.sh
+```
+
+Result:
+
+- `manifests/license-policy.json` records checked evidence sources for BusyBox,
+  Buildroot, doom-ascii, and miniz, including URLs, license identifiers, and a
+  verification date.
+- `scripts/check-licensing`, `make check-licensing`, and
+  `tests/smoke/licensing.sh` validate that the repository declares
+  `GPL-2.0-or-later`, preserves the current GPLv2-compatible stack assessment,
+  and keeps the expected evidence references.
+- `scripts/busierbox-server --status`, `--json-status`, and API status expose
+  release license evidence counts, verification date, evidence-source lookup
+  maps, and evidence-source/license lookup maps.
+- `scripts/index-release-repo` and `scripts/find-artifact --recommendation-json`
+  surface evidence-source indexes and summary counts for offline release
+  browsers.
+- `scripts/release-self-test --json` includes license evidence fields in both
+  flat diagnostics and the normalized `license_inventory` diagnostic record.
 
 Recent no-residue verification also included:
 
