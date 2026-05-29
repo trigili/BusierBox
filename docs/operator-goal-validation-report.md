@@ -51,11 +51,13 @@ complete.
   sessions so old single-target traffic stays valid but auditable.
 - Local/offline release indexes expose deduplicated artifacts, tuple/device/tool
   lookups, payload preset and feature lookups, provider status, Doom WAD
-  metadata, command-queue safety metadata, and recommendation records.
+  metadata, command-queue safety metadata, corresponding-source filters, and
+  recommendation records.
 - Repository and release metadata now declare BusierBox-maintained code as
   `GPL-2.0-or-later`, preserve third-party component license inventory, and
-  document current GPLv2-compatible combined distribution posture for BusyBox,
-  Buildroot, doom-ascii, and miniz.
+  document current GPLv2-compatible combined distribution posture and
+  corresponding-source requirements for BusyBox, Buildroot, doom-ascii, and
+  miniz.
 - Stale Doom/Dune feature branches have been pruned from the local and remote
   branch lists; `main` is the only remaining branch.
 
@@ -124,8 +126,10 @@ Release and offline artifact browsing:
 - `scripts/index-release-repo`
 - `scripts/find-artifact`
 - `scripts/release-self-test`
+- `scripts/busierbox-server --status`
 - `tests/smoke/release-bundles.sh`
 - `tests/smoke/release-repo-index.sh`
+- `tests/smoke/busierbox-server.py`
 
 Licensing:
 - `LICENSE`
@@ -138,6 +142,45 @@ Licensing:
 ## Verification Run
 
 Commands run for the most recent committed slice:
+
+```sh
+python3 -m py_compile scripts/busierbox-server tests/smoke/busierbox-server.py
+git diff --check
+tests/smoke/busierbox-server.py
+```
+
+Result:
+
+- The server smoke test passed after the release summary text was extended to
+  expose corresponding-source posture.
+- `scripts/busierbox-server --status` and the TUI release browser now render
+  `corresponding_source` with required/status/input-count/package-audit fields
+  alongside the existing release license summary.
+- JSON/API status already exposes the same fields in `release.release_license`,
+  release license records, and release license indexes.
+
+Recent release corresponding-source verification also included:
+
+```sh
+python3 -m py_compile scripts/make-release scripts/index-release-repo scripts/find-artifact
+sh -n tests/smoke/release-bundles.sh
+sh -n tests/smoke/release-repo-index.sh
+git diff --check
+tests/smoke/release-bundles.sh
+tests/smoke/release-repo-index.sh
+```
+
+Result:
+
+- `scripts/release-self-test --json` now validates and reports
+  `corresponding_source_required`, `corresponding_source_status`,
+  corresponding-source input counts, and package license audit requirements in
+  both flat diagnostics and the normalized `license_inventory` record.
+- `scripts/find-artifact` can filter release artifacts by corresponding-source
+  requirement/status and package-audit requirement, and recommendation JSON
+  exposes matching lookup maps for future operator/UI clients.
+
+Recent no-residue verification also included:
 
 ```sh
 make
@@ -160,7 +203,7 @@ Result:
   run residue plans, cleanup counters, ledgered paths, external cleanup gating,
   and invalid ledger handling.
 
-The latest no-residue policy surfaces now explicitly report:
+The latest no-residue policy surfaces explicitly report:
 
 - `persistent_target_logs_default`
 - `stdout_stderr_log_suppression`
