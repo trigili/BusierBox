@@ -3831,6 +3831,102 @@ def main():
             print(reconnect_stderr, file=sys.stderr)
             return 1
 
+        persistent_shell_port = free_port()
+        persistent_shell_cfg = Path(tmp) / "server-config-persistent-shell.json"
+        persistent_shell_state = Path(tmp) / "operator-session" / "persistent-shell-state.json"
+        persistent_shell_staged = Path(tmp) / "operator-session" / "persistent-shell-staged.json"
+        persistent_operator_dir = Path(tmp) / "operator-session-persistent-shell"
+        persistent_shell_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "shell_listen_port": persistent_shell_port,
+            "rshell_session_policy": "persistent",
+            "session_root": str(Path(tmp) / "sessions-persistent-shell"),
+            "operator_session_dir": str(persistent_operator_dir),
+        }), encoding="utf-8")
+        persistent_shell_proc = subprocess.Popen(
+            [
+                str(server), "--config", str(persistent_shell_cfg),
+                "--state-file", str(persistent_shell_state),
+                "--staged-file", str(persistent_shell_staged),
+                "--transport", "plain-shell",
+                "--no-stdin",
+                "--timeout", "30",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            status = run(
+                "scripts/busierbox-server", "--config", str(persistent_shell_cfg),
+                "--state-file", str(persistent_shell_state),
+                "--staged-file", str(persistent_shell_staged),
+                "--json-status",
+            )
+            if status.returncode == 0:
+                rows = {row["name"]: row for row in json.loads(status.stdout)["services"]}
+                if rows["plain-shell"]["actual"] == "listening":
+                    break
+            time.sleep(0.05)
+        else:
+            print("persistent rshell policy listener did not reach listening state", file=sys.stderr)
+            persistent_shell_proc.terminate()
+            persistent_shell_proc.communicate(timeout=2)
+            return 1
+        for idx in (1, 2):
+            with socket.create_connection(("127.0.0.1", persistent_shell_port), timeout=5) as sock:
+                sock.sendall(f"persistent-policy-session-{idx}\n".encode("ascii"))
+            deadline = time.time() + 5
+            while time.time() < deadline:
+                persistent_status = run(
+                    "scripts/busierbox-server", "--config", str(persistent_shell_cfg),
+                    "--state-file", str(persistent_shell_state),
+                    "--staged-file", str(persistent_shell_staged),
+                    "--json-status",
+                )
+                if persistent_status.returncode == 0:
+                    persistent_doc = json.loads(persistent_status.stdout)
+                    rows = {row["name"]: row for row in persistent_doc["services"]}
+                    if rows["plain-shell"]["actual"] == "listening" and rows["plain-shell"]["configured"] == "listening":
+                        break
+                time.sleep(0.05)
+            else:
+                print(f"persistent rshell policy did not keep listener open after session {idx}", file=sys.stderr)
+                persistent_shell_proc.terminate()
+                persistent_shell_proc.communicate(timeout=2)
+                return 1
+        persistent_shell_proc.terminate()
+        persistent_stdout, persistent_stderr = persistent_shell_proc.communicate(timeout=5)
+        if ("persistent-policy-session-1" not in persistent_stdout or
+                "persistent-policy-session-2" not in persistent_stdout or
+                persistent_stdout.count("listener remains open for target retry/reconnect") < 2 or
+                "session_policy=persistent stops after first successful session" in persistent_stdout or
+                "Traceback" in (persistent_stdout + persistent_stderr)):
+            print("persistent rshell session policy did not preserve persistent listener behavior", file=sys.stderr)
+            print(persistent_stdout, file=sys.stderr)
+            print(persistent_stderr, file=sys.stderr)
+            return 1
+        persistent_after = json.loads(run(
+            "scripts/busierbox-server", "--config", str(persistent_shell_cfg),
+            "--state-file", str(persistent_shell_state),
+            "--staged-file", str(persistent_shell_staged),
+            "--json-status",
+        ).stdout)
+        persistent_session = next((rec for rec in persistent_after.get("sessions") or [] if rec.get("service") == "plain-shell"), {})
+        persistent_details = persistent_session.get("details") or {}
+        persistent_events = [
+            json.loads(line) for line in (persistent_operator_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        if (persistent_details.get("session_policy") != "persistent" or
+                sum(1 for event in persistent_events if event.get("event") == "shell_connected") < 2 or
+                sum(1 for event in persistent_events if event.get("event") == "shell_disconnected") < 2 or
+                any(event.get("event") == "shell_listener_policy_stop" for event in persistent_events)):
+            print("persistent rshell session metadata/events did not show repeated fresh sessions", file=sys.stderr)
+            print(json.dumps(persistent_after, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
         unmanaged_state = {
             "schema": 1,
             "services": {
