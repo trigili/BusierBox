@@ -9098,6 +9098,95 @@ def run_operator_daemon(cfg, services, timeout=None):
     return exit_code
 
 
+def systemd_unit_quote(value):
+    text = str(value)
+    if text and all(ch not in text for ch in " \t\n\"\\"):
+        return text
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def systemd_user_unit_name(name):
+    value = str(name or "busierbox-operator.service").strip()
+    if not value:
+        value = "busierbox-operator.service"
+    if "/" in value or value.startswith(".") or not value.endswith(".service"):
+        raise ValueError("systemd user unit name must be a simple .service filename")
+    return value
+
+
+def systemd_user_unit_dir(path=None):
+    return Path(str(path or Path.home() / ".config" / "systemd" / "user")).expanduser()
+
+
+def systemd_user_daemon_command(cfg, services):
+    command = [sys.executable, str(Path(sys.argv[0]).resolve())]
+    command.extend(["--config", str(Path(str(cfg.get("_config_path", DEFAULT_CONFIG))).expanduser().resolve(strict=False))])
+    command.append("--daemon")
+    for service in configured_daemon_services(cfg, services):
+        command.extend(["--daemon-service", service])
+    return command
+
+
+def render_systemd_user_unit(cfg, services, unit_name="busierbox-operator.service"):
+    unit_name = systemd_user_unit_name(unit_name)
+    command = systemd_user_daemon_command(cfg, services)
+    exec_start = " ".join(systemd_unit_quote(part) for part in command)
+    working_dir = str(Path.cwd().resolve())
+    return "\n".join([
+        "[Unit]",
+        "Description=BusierBox Operator Daemon",
+        "After=network-online.target",
+        "",
+        "[Service]",
+        "Type=simple",
+        f"WorkingDirectory={systemd_unit_quote(working_dir)}",
+        "Environment=PYTHONUNBUFFERED=1",
+        f"ExecStart={exec_start}",
+        "Restart=on-failure",
+        "RestartSec=2",
+        "",
+        "[Install]",
+        "WantedBy=default.target",
+        "",
+    ])
+
+
+def systemctl_user_command(action, unit_name):
+    if action == "status":
+        return ["systemctl", "--user", "status", unit_name]
+    return ["systemctl", "--user", action, unit_name]
+
+
+def handle_systemd_user_action(cfg, action, services, unit_name, unit_dir=None, dry_run=False):
+    unit_name = systemd_user_unit_name(unit_name)
+    unit_dir_path = systemd_user_unit_dir(unit_dir)
+    unit_path = unit_dir_path / unit_name
+    if action == "print":
+        print(render_systemd_user_unit(cfg, services, unit_name=unit_name), end="")
+        return 0
+    if action == "install":
+        unit_text = render_systemd_user_unit(cfg, services, unit_name=unit_name)
+        if dry_run:
+            print(f"would write {unit_path}")
+            print(unit_text, end="")
+            return 0
+        unit_dir_path.mkdir(parents=True, exist_ok=True)
+        unit_path.write_text(unit_text, encoding="utf-8")
+        print(f"installed {unit_path}")
+        print("run: systemctl --user daemon-reload")
+        print(f"run: systemctl --user enable --now {unit_name}")
+        append_event(cfg, "operator-daemon", "systemd_user_unit_installed", details={"unit_name": unit_name, "unit_path": str(unit_path)})
+        return 0
+    if action in ("start", "stop", "restart", "status"):
+        cmd = systemctl_user_command(action, unit_name)
+        if dry_run:
+            print(" ".join(shquote(part) for part in cmd))
+            return 0
+        result = subprocess.run(cmd, text=True)
+        return int(result.returncode)
+    raise ValueError(f"unsupported systemd user action: {action}")
+
+
 def service_tls_enabled(cfg, service):
     if service == "tls-shell":
         return True
@@ -14020,6 +14109,8 @@ Command queue:
 Operator daemon:
   --daemon --daemon-service file-service --daemon-service command-queue
   --daemon --timeout 60
+  --systemd-user-action print --daemon-service file-service
+  --systemd-user-action install --systemd-user-unit-dir ~/.config/systemd/user
 
 Build configuration:
   --build-config configs/busierbox.conf --list-build-config
@@ -14057,6 +14148,15 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     parser.add_argument("--daemon-service", action="append", default=[],
                         choices=DAEMON_SERVICE_CHOICES,
                         help="service for --daemon to own; may be repeated; default uses *_enable=yes config")
+    parser.add_argument("--systemd-user-action",
+                        choices=("print", "install", "start", "stop", "restart", "status"),
+                        help="render/install/control the operator daemon as a systemd user service")
+    parser.add_argument("--systemd-user-unit-name", default="busierbox-operator.service",
+                        help="systemd user service unit name for --systemd-user-action")
+    parser.add_argument("--systemd-user-unit-dir",
+                        help="systemd user unit directory, default ~/.config/systemd/user")
+    parser.add_argument("--systemd-user-dry-run", action="store_true",
+                        help="print planned systemd user-service changes/commands without running systemctl")
     parser.add_argument("--serve-file",
                         help="stage a local file for explicit target fetch")
     parser.add_argument("--as", dest="serve_as",
@@ -14295,6 +14395,19 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         return print_status(cfg, json_output=args.json_status or args.api_status)
     if args.stop:
         return stop_managed_services(cfg)
+    if args.systemd_user_action:
+        try:
+            return handle_systemd_user_action(
+                cfg,
+                args.systemd_user_action,
+                args.daemon_service,
+                args.systemd_user_unit_name,
+                unit_dir=args.systemd_user_unit_dir,
+                dry_run=args.systemd_user_dry_run,
+            )
+        except ValueError as exc:
+            print(f"busierbox-server: {exc}", file=sys.stderr)
+            return 2
 
     timeout = None if args.timeout == 0 else args.timeout
     if args.daemon:

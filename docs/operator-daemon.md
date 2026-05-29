@@ -32,3 +32,32 @@ scripts/busierbox-server --stop
 terminates daemon-owned child listeners through the recorded state. This keeps
 foreground/headless operation and daemon operation on the same status and event
 surface for future TUI and systemd-user integration.
+
+## Systemd User Service
+
+The same daemon command can be rendered or installed as a systemd user service:
+
+```sh
+scripts/busierbox-server --systemd-user-action print \
+  --daemon-service file-service \
+  --daemon-service command-queue
+
+scripts/busierbox-server --systemd-user-action install \
+  --daemon-service file-service \
+  --systemd-user-unit-name busierbox-operator.service
+```
+
+`install` writes the unit to `~/.config/systemd/user` by default and prints the
+follow-up `systemctl --user daemon-reload` / `enable --now` commands. Service
+control actions are also available:
+
+```sh
+scripts/busierbox-server --systemd-user-action start
+scripts/busierbox-server --systemd-user-action stop
+scripts/busierbox-server --systemd-user-action restart
+scripts/busierbox-server --systemd-user-action status
+```
+
+Use `--systemd-user-dry-run` to print the `systemctl --user ...` command without
+executing it. Root/system-wide units are intentionally not installed by this
+flow; keep those explicit and separate if needed.

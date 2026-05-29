@@ -1842,6 +1842,61 @@ def main():
                     daemon_proc.kill()
                     daemon_proc.communicate(timeout=5)
 
+        systemd_unit_dir = Path(tmp) / "systemd-user"
+        systemd_unit_name = "busierbox-smoke.service"
+        systemd_print = run(
+            "scripts/busierbox-server",
+            "--config", str(daemon_cfg),
+            "--daemon-service", "file-service",
+            "--systemd-user-action", "print",
+            "--systemd-user-unit-name", systemd_unit_name,
+        )
+        if (systemd_print.returncode != 0 or
+                "Description=BusierBox Operator Daemon" not in systemd_print.stdout or
+                "ExecStart=" not in systemd_print.stdout or
+                "--daemon --daemon-service file-service" not in systemd_print.stdout or
+                f"--config {daemon_cfg}" not in systemd_print.stdout):
+            print("systemd user unit print did not describe daemon command", file=sys.stderr)
+            print(systemd_print.stdout, file=sys.stderr)
+            print(systemd_print.stderr, file=sys.stderr)
+            return 1
+        systemd_install = run(
+            "scripts/busierbox-server",
+            "--config", str(daemon_cfg),
+            "--daemon-service", "file-service",
+            "--systemd-user-action", "install",
+            "--systemd-user-unit-name", systemd_unit_name,
+            "--systemd-user-unit-dir", str(systemd_unit_dir),
+        )
+        unit_path = systemd_unit_dir / systemd_unit_name
+        if (systemd_install.returncode != 0 or
+                not unit_path.is_file() or
+                "installed" not in systemd_install.stdout or
+                "systemctl --user enable --now busierbox-smoke.service" not in systemd_install.stdout):
+            print("systemd user unit install failed", file=sys.stderr)
+            print(systemd_install.stdout, file=sys.stderr)
+            print(systemd_install.stderr, file=sys.stderr)
+            return 1
+        unit_text = unit_path.read_text(encoding="utf-8")
+        if ("WorkingDirectory=" not in unit_text or
+                "Restart=on-failure" not in unit_text or
+                "--daemon --daemon-service file-service" not in unit_text):
+            print("installed systemd user unit missing daemon lifecycle fields", file=sys.stderr)
+            print(unit_text, file=sys.stderr)
+            return 1
+        systemd_status = run(
+            "scripts/busierbox-server",
+            "--config", str(daemon_cfg),
+            "--systemd-user-action", "status",
+            "--systemd-user-unit-name", systemd_unit_name,
+            "--systemd-user-dry-run",
+        )
+        if systemd_status.returncode != 0 or systemd_status.stdout.strip() != "systemctl --user status busierbox-smoke.service":
+            print("systemd user status dry-run did not print systemctl command", file=sys.stderr)
+            print(systemd_status.stdout, file=sys.stderr)
+            print(systemd_status.stderr, file=sys.stderr)
+            return 1
+
         workbench_jobs_file = queue_operator_dir / "workbench-jobs.json"
         workbench_job_log = queue_operator_dir / "package-job.log"
         workbench_job_log.write_text(
