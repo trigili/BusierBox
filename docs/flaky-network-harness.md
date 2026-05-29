@@ -9,9 +9,13 @@ virtual network boundaries:
 - queued survey bootstrap and staged-file fetch work can be prepared before any
   target reconnect
 - anonymous polls do not drain target-scoped mailboxes
+- anonymous polls are recorded as phone-home attempts with an explicit pending
+  reason when queued work requires target identity
 - a short phone-home window delivers only the reconnecting target's work
 - duplicate polls do not redeliver already delivered commands
 - dropped/truncated result uploads are rejected without mutating delivered work
+- rejected result uploads are exposed as failed phone-home attempts with the
+  rejection reason
 - failed command results and expired queued work remain visible in mailbox state
 - target result upload updates `last_seen`, mailbox, and latest-result state
 - survey bootstrap script/result flows refresh target survey state
@@ -28,8 +32,8 @@ The artifact directory contains HTTP transcripts, per-phase operator status
 JSON, dropped-result evidence, bridge response data, and `summary.json`. It also
 writes focused debug artifacts that mirror the QEMU lab contract:
 `target-mailbox.json`, `offline-workflow-mailbox.json`, `command-result.json`,
-`mailbox-lifecycle.json`, `transfer.log`, `bridge-events.jsonl`, and
-`artifact-manifest.json`. The smoke wrapper
+`phone-home-attempts.json`, `mailbox-lifecycle.json`, `transfer.log`,
+`bridge-events.jsonl`, and `artifact-manifest.json`. The smoke wrapper
 `tests/smoke/flaky-network-harness.sh` runs the same scenario from
 `make smoke-test` with a temporary artifact directory and validates those
 focused artifacts.

@@ -339,6 +339,22 @@ def write_command_result_artifact(artifact_dir, doc, command_id, response):
     })
 
 
+def write_phone_home_artifact(artifact_dir, doc):
+    write_json(artifact_dir / "phone-home-attempts.json", {
+        "schema": 1,
+        "kind": "phone-home-attempts-artifact",
+        "summary": {
+            "target_phone_home_record_count": doc.get("summary", {}).get("target_phone_home_record_count", 0),
+            "target_phone_home_kind_counts": doc.get("summary", {}).get("target_phone_home_kind_counts", {}),
+            "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+            "target_phone_home_failed_counts": doc.get("summary", {}).get("target_phone_home_failed_counts", {}),
+            "target_phone_home_anonymous_counts": doc.get("summary", {}).get("target_phone_home_anonymous_counts", {}),
+            "target_phone_home_pending_reason_counts": doc.get("summary", {}).get("target_phone_home_pending_reason_counts", {}),
+        },
+        "target_phone_home_records": doc.get("target_phone_home_records") or [],
+    })
+
+
 def write_transfer_log_artifact(artifact_dir, doc, response):
     alpha = (doc.get("targets_by_id") or {}).get("target-alpha") or {}
     uploads = doc.get("uploads") or []
@@ -646,6 +662,16 @@ def run_harness(artifact_dir):
     after_anon = status(cfg, artifact_dir, "after-anonymous-poll")
     assert_condition(b"HTTP/1.1 204 No Content" in anon_response, "anonymous poll should not drain target mailbox")
     assert_condition(after_anon["summary"]["target_mailbox_pending_work_count"] == 2, "anonymous poll changed mailbox")
+    anonymous_attempts = [
+        rec for rec in after_anon.get("target_phone_home_records") or []
+        if rec.get("kind") == "poll" and rec.get("anonymous") is True
+    ]
+    assert_condition(anonymous_attempts, "anonymous phone-home attempt was not recorded")
+    assert_condition(
+        anonymous_attempts[0].get("pending_reason") == "queued work requires a target identity",
+        "anonymous phone-home pending reason missing",
+        anonymous_attempts[0],
+    )
     phases.append({"name": "anonymous-poll", "status": "pass", "artifact": "after-anonymous-poll.json"})
 
     proc = start_one_shot(cfg, "command-queue")
@@ -690,6 +716,12 @@ def run_harness(artifact_dir):
         "dropped result rejection event missing",
         after_dropped_result["summary"]["event_type_detail_status_counts"],
     )
+    rejected_results = [
+        rec for rec in after_dropped_result.get("target_phone_home_records") or []
+        if rec.get("kind") == "result" and rec.get("target_id") == "target-alpha" and rec.get("failed") is True
+    ]
+    assert_condition(rejected_results, "dropped result phone-home rejection was not recorded")
+    assert_condition(rejected_results[0].get("reason"), "dropped result rejection reason missing", rejected_results[0])
     phases.append({"name": "dropped-result-upload", "status": "pass", "artifact": "after-dropped-alpha-result.json"})
 
     proc = start_one_shot(cfg, "command-queue")
@@ -700,7 +732,10 @@ def run_harness(artifact_dir):
     assert_condition(b"HTTP/1.1 200 OK" in result_response, "target result upload failed")
     assert_condition(after_result["targets_by_id"]["target-alpha"]["mailbox_result_received_command_count"] == 1, "alpha result was not recorded")
     assert_condition(after_result["targets_by_id"]["target-bravo"]["mailbox_pending_work_count"] == 1, "bravo offline mailbox was not preserved")
+    assert_condition(after_result["summary"]["target_phone_home_record_count"] >= 5, "phone-home attempts missing from status summary")
+    assert_condition(after_result["summary"]["target_phone_home_status_counts"].get("result-received", 0) >= 1, "result phone-home success missing")
     write_command_result_artifact(artifact_dir, after_result, alpha_id, result_response)
+    write_phone_home_artifact(artifact_dir, after_result)
     phases.append({"name": "result-upload", "status": "pass", "artifact": "after-alpha-result.json"})
 
     proc = start_one_shot(cfg, "survey-bootstrap")

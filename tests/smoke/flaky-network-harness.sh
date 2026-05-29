@@ -10,6 +10,7 @@ test -s "$tmp/flaky-network/target-mailbox.json"
 test -s "$tmp/flaky-network/offline-workflow-mailbox.json"
 test -s "$tmp/flaky-network/mailbox-lifecycle.json"
 test -s "$tmp/flaky-network/command-result.json"
+test -s "$tmp/flaky-network/phone-home-attempts.json"
 test -s "$tmp/flaky-network/transfer.log"
 test -s "$tmp/flaky-network/bridge-events.jsonl"
 test -s "$tmp/flaky-network/artifact-manifest.json"
@@ -24,6 +25,7 @@ mailbox = json.loads((artifact_dir / "target-mailbox.json").read_text(encoding="
 workflow = json.loads((artifact_dir / "offline-workflow-mailbox.json").read_text(encoding="utf-8"))
 lifecycle = json.loads((artifact_dir / "mailbox-lifecycle.json").read_text(encoding="utf-8"))
 result = json.loads((artifact_dir / "command-result.json").read_text(encoding="utf-8"))
+phone_home = json.loads((artifact_dir / "phone-home-attempts.json").read_text(encoding="utf-8"))
 transfer = json.loads((artifact_dir / "transfer.log").read_text(encoding="utf-8"))
 manifest = json.loads((artifact_dir / "artifact-manifest.json").read_text(encoding="utf-8"))
 bridge_events = [
@@ -54,6 +56,11 @@ assert result["kind"] == "command-result-artifact"
 assert result["status"] == "result-received"
 assert result["result_status"] == "completed"
 assert result["target_last_seen_via"] == "command-queue:command_queue_result"
+assert phone_home["kind"] == "phone-home-attempts-artifact"
+assert phone_home["summary"]["target_phone_home_status_counts"]["result-received"] >= 1
+assert phone_home["summary"]["target_phone_home_failed_counts"]["True"] >= 1
+assert phone_home["summary"]["target_phone_home_anonymous_counts"]["True"] >= 1
+assert any(rec["pending_reason"] == "queued work requires a target identity" for rec in phone_home["target_phone_home_records"])
 assert transfer["kind"] == "transfer-log-artifact"
 assert transfer["latest_file_transfer_status"] == "truncated"
 assert bridge_events
@@ -64,6 +71,7 @@ for name in (
     "offline-workflow-mailbox.json",
     "mailbox-lifecycle.json",
     "command-result.json",
+    "phone-home-attempts.json",
     "transfer.log",
     "bridge-events.jsonl",
     "summary.json",

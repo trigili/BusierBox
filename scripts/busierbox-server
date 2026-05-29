@@ -1949,6 +1949,132 @@ def target_mailbox_record_indexes(records):
     }
 
 
+def target_phone_home_pending_reason(kind, details):
+    status = str((details or {}).get("status") or "")
+    target_id = str((details or {}).get("target_id") or "")
+    reason = str((details or {}).get("reason") or "")
+    if reason:
+        return reason
+    if kind == "poll":
+        queued_count = int_value((details or {}).get("queued_count"))
+        queued_before = int_value((details or {}).get("queued_count_before"))
+        delivered_count = int_value((details or {}).get("delivered_count"))
+        if status == "delivered":
+            remaining = max(queued_before - delivered_count, 0)
+            return "more queued work remains" if remaining > 0 else ""
+        if status == "no-command" and queued_count > 0:
+            if target_id:
+                return "queued work remains for another target or this target has no matching pending command"
+            return "queued work requires a target identity"
+    if kind == "result" and status == "result-received":
+        return ""
+    if status:
+        return status
+    return ""
+
+
+def target_phone_home_record_from_event(event):
+    if not isinstance(event, dict):
+        return None
+    event_name = str(event.get("event") or "")
+    if event_name == "command_queue_poll":
+        kind = "poll"
+    elif event_name == "command_queue_result_upload":
+        kind = "result"
+    else:
+        return None
+    details = event.get("details") if isinstance(event.get("details"), dict) else {}
+    status = str(details.get("status") or "")
+    target_id = str(details.get("target_id") or "")
+    remote = str(event.get("remote") or details.get("remote_addr") or "")
+    success = status in ("delivered", "no-command", "result-received")
+    failed = status in ("rejected", "error")
+    pending_reason = target_phone_home_pending_reason(kind, details)
+    rec = {
+        "id": str(event.get("id") or ""),
+        "event_id": str(event.get("id") or ""),
+        "kind": kind,
+        "operation": str(details.get("operation") or ""),
+        "status": status,
+        "successful": success,
+        "failed": failed,
+        "timestamp": str(event.get("ts") or ""),
+        "service": str(event.get("service") or ""),
+        "event": event_name,
+        "level": str(event.get("level") or ""),
+        "session_id": str(event.get("session") or ""),
+        "session_path": str(event.get("session_path") or ""),
+        "remote_addr": remote,
+        "contact_path": f"{event.get('service', '')}:{remote}" if remote else str(event.get("service") or ""),
+        "target_id": target_id,
+        "target_label": str(details.get("target_label") or ""),
+        "has_target_identity": bool(target_id),
+        "target_identity_source": str(details.get("target_identity_source") or ""),
+        "target_identity_confidence": str(details.get("target_identity_confidence") or ""),
+        "http_status": str(details.get("http_status") or ""),
+        "method": str(details.get("method") or ""),
+        "reason": str(details.get("reason") or ""),
+        "pending_reason": pending_reason,
+        "has_pending_reason": bool(pending_reason),
+        "command_id": str(details.get("command_id") or ""),
+        "command_sha256": str(details.get("command_sha256") or ""),
+        "delivered_command": kind == "poll" and status == "delivered",
+        "delivered_count": int_value(details.get("delivered_count")),
+        "queued_count": int_value(details.get("queued_count")),
+        "queued_count_before": int_value(details.get("queued_count_before")),
+        "result_status": str(details.get("result_status") or ""),
+        "result_exit_code": str(details.get("result_exit_code") or ""),
+        "result_output_exceeded_limit": bool(details.get("result_output_exceeded_limit", False)),
+        "poll_mode": str(details.get("poll_mode") or ""),
+        "poll_interval_sec": str(details.get("poll_interval_sec") or ""),
+        "poll_jitter_pct": str(details.get("poll_jitter_pct") or ""),
+        "poll_backoff": str(details.get("poll_backoff") or ""),
+        "poll_max_interval_sec": str(details.get("poll_max_interval_sec") or ""),
+        "max_polls": str(details.get("max_polls") or ""),
+    }
+    rec["uploaded_result"] = kind == "result" and status == "result-received"
+    rec["anonymous"] = not rec["has_target_identity"]
+    return rec
+
+
+def target_phone_home_records_from_events(events):
+    records = []
+    for event in events or []:
+        rec = target_phone_home_record_from_event(event)
+        if rec:
+            records.append(rec)
+    records.sort(key=lambda rec: (str(rec.get("timestamp") or ""), str(rec.get("id") or "")), reverse=True)
+    return records
+
+
+def target_phone_home_record_indexes(records):
+    return {
+        "target_phone_home_records_by_id": {
+            rec.get("id", ""): rec for rec in records or [] if rec.get("id")
+        },
+        "target_phone_home_records_by_event_id": {
+            rec.get("event_id", ""): rec for rec in records or [] if rec.get("event_id")
+        },
+        "target_phone_home_records_by_kind": records_by_key(records, "kind"),
+        "target_phone_home_records_by_status": records_by_key(records, "status"),
+        "target_phone_home_records_by_successful": records_by_key(records, "successful"),
+        "target_phone_home_records_by_failed": records_by_key(records, "failed"),
+        "target_phone_home_records_by_target_id": records_by_key(records, "target_id"),
+        "target_phone_home_records_by_target_label": records_by_key(records, "target_label"),
+        "target_phone_home_records_by_has_target_identity": records_by_key(records, "has_target_identity"),
+        "target_phone_home_records_by_anonymous": records_by_key(records, "anonymous"),
+        "target_phone_home_records_by_contact_path": records_by_key(records, "contact_path"),
+        "target_phone_home_records_by_remote_addr": records_by_key(records, "remote_addr"),
+        "target_phone_home_records_by_http_status": records_by_key(records, "http_status"),
+        "target_phone_home_records_by_reason": records_by_key(records, "reason"),
+        "target_phone_home_records_by_pending_reason": records_by_key(records, "pending_reason"),
+        "target_phone_home_records_by_has_pending_reason": records_by_key(records, "has_pending_reason"),
+        "target_phone_home_records_by_command_id": records_by_key(records, "command_id"),
+        "target_phone_home_records_by_poll_mode": records_by_key(records, "poll_mode"),
+        "target_phone_home_records_by_poll_interval_sec": records_by_key(records, "poll_interval_sec"),
+    }
+
+
 def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
     last_seen = str(rec.get("last_seen_at") or rec.get("latest_activity_at") or "")
     last_seen_epoch = parse_utc_timestamp(last_seen)
@@ -11446,6 +11572,16 @@ def status_document(cfg):
         now_epoch=target_mailbox_now_epoch,
     )
     target_mailbox_index_maps = target_mailbox_record_indexes(target_mailbox_records)
+    all_event_records, _all_event_invalid = EventLog(cfg).records()
+    unfiltered_counts["target_phone_home_records"] = len(target_phone_home_records_from_events(all_event_records))
+    target_phone_home_source_events = all_event_records
+    if target_filter_id:
+        target_phone_home_source_events = [
+            event for event in target_phone_home_source_events
+            if event_for_target(event, target_filter_id, target_filter_session_ids)
+        ]
+    target_phone_home_records = target_phone_home_records_from_events(target_phone_home_source_events)
+    target_phone_home_index_maps = target_phone_home_record_indexes(target_phone_home_records)
     command_queue_policy_summary_record = command_queue.get("policy_summary") or {}
     command_queue_policy_record = {
         "id": "command-queue",
@@ -11637,6 +11773,7 @@ def status_document(cfg):
         "unfiltered_event_tail_count": unfiltered_counts.get("event_tail", 0),
         "unfiltered_command_queue_command_count": unfiltered_counts.get("command_queue_commands", 0),
         "unfiltered_target_command_record_count": unfiltered_counts.get("target_command_records", 0),
+        "unfiltered_target_phone_home_record_count": unfiltered_counts.get("target_phone_home_records", 0),
         "filtered_target_count": len(targets),
         "filtered_upload_count": len(uploads),
         "filtered_fetch_count": len(fetches),
@@ -11645,6 +11782,7 @@ def status_document(cfg):
         "filtered_event_tail_count": len(events),
         "filtered_command_queue_command_count": len(command_queue.get("commands") or []),
         "filtered_target_command_record_count": target_command_summary.get("total_count", 0),
+        "filtered_target_phone_home_record_count": len(target_phone_home_records),
     })
     target_filter_record["unfiltered_activity_count"] = (
         target_filter_record["unfiltered_upload_count"] +
@@ -11653,7 +11791,8 @@ def status_document(cfg):
         target_filter_record["unfiltered_session_count"] +
         target_filter_record["unfiltered_event_tail_count"] +
         target_filter_record["unfiltered_command_queue_command_count"] +
-        target_filter_record["unfiltered_target_command_record_count"]
+        target_filter_record["unfiltered_target_command_record_count"] +
+        target_filter_record["unfiltered_target_phone_home_record_count"]
     )
     target_filter_record["filtered_activity_count"] = (
         target_filter_record["filtered_upload_count"] +
@@ -11662,7 +11801,8 @@ def status_document(cfg):
         target_filter_record["filtered_session_count"] +
         target_filter_record["filtered_event_tail_count"] +
         target_filter_record["filtered_command_queue_command_count"] +
-        target_filter_record["filtered_target_command_record_count"]
+        target_filter_record["filtered_target_command_record_count"] +
+        target_filter_record["filtered_target_phone_home_record_count"]
     )
     target_filter_record["unfiltered_observed_activity_count"] = (
         target_filter_record["unfiltered_upload_count"] +
@@ -11670,7 +11810,8 @@ def status_document(cfg):
         target_filter_record["unfiltered_staged_count"] +
         target_filter_record["unfiltered_session_count"] +
         target_filter_record["unfiltered_event_tail_count"] +
-        target_filter_record["unfiltered_command_queue_command_count"]
+        target_filter_record["unfiltered_command_queue_command_count"] +
+        target_filter_record["unfiltered_target_phone_home_record_count"]
     )
     target_filter_record["filtered_observed_activity_count"] = (
         target_filter_record["filtered_upload_count"] +
@@ -11678,7 +11819,8 @@ def status_document(cfg):
         target_filter_record["filtered_staged_count"] +
         target_filter_record["filtered_session_count"] +
         target_filter_record["filtered_event_tail_count"] +
-        target_filter_record["filtered_command_queue_command_count"]
+        target_filter_record["filtered_command_queue_command_count"] +
+        target_filter_record["filtered_target_phone_home_record_count"]
     )
     target_filter_record["has_unfiltered_activity"] = target_filter_record["unfiltered_activity_count"] > 0
     target_filter_record["has_filtered_activity"] = target_filter_record["filtered_activity_count"] > 0
@@ -12312,6 +12454,7 @@ def status_document(cfg):
         "target_filter_unfiltered_event_tail_count": unfiltered_counts.get("event_tail", 0),
         "target_filter_unfiltered_command_queue_command_count": unfiltered_counts.get("command_queue_commands", 0),
         "target_filter_unfiltered_target_command_record_count": unfiltered_counts.get("target_command_records", 0),
+        "target_filter_unfiltered_target_phone_home_record_count": unfiltered_counts.get("target_phone_home_records", 0),
         "target_filter_unfiltered_observed_activity_count": target_filter_record.get("unfiltered_observed_activity_count", 0),
         "target_filter_observed_activity_count": target_filter_record.get("filtered_observed_activity_count", 0),
         "target_filter_has_unfiltered_observed_activity": bool(target_filter_record.get("has_unfiltered_observed_activity", False)),
@@ -12321,6 +12464,7 @@ def status_document(cfg):
         "target_filter_command_queue_command_count": len(command_queue.get("commands") or []),
         "target_filter_target_mailbox_record_count": len(target_mailbox_records),
         "target_filter_target_command_record_count": target_command_summary.get("total_count", 0),
+        "target_filter_target_phone_home_record_count": len(target_phone_home_records),
         "target_filter_record_count": len(target_filter_records),
         "target_filter_selected_target_found": bool(selected_target),
         "target_filter_selected_target_identity_source_count": len(selected_target_sources),
@@ -12563,6 +12707,16 @@ def status_document(cfg):
         "target_mailbox_target_connectivity_state_counts": record_count_by_key(target_mailbox_records, "target_connectivity_state"),
         "target_mailbox_target_last_seen_via_counts": record_count_by_key(target_mailbox_records, "target_last_seen_via"),
         "target_mailbox_has_target_next_expected_poll_counts": record_count_by_key(target_mailbox_records, "has_target_next_expected_poll"),
+        "target_phone_home_record_count": len(target_phone_home_records),
+        "target_phone_home_kind_counts": record_count_by_key(target_phone_home_records, "kind"),
+        "target_phone_home_status_counts": record_count_by_key(target_phone_home_records, "status"),
+        "target_phone_home_successful_counts": record_count_by_key(target_phone_home_records, "successful"),
+        "target_phone_home_failed_counts": record_count_by_key(target_phone_home_records, "failed"),
+        "target_phone_home_target_counts": record_count_by_key(target_phone_home_records, "target_id"),
+        "target_phone_home_anonymous_counts": record_count_by_key(target_phone_home_records, "anonymous"),
+        "target_phone_home_pending_reason_counts": record_count_by_key(target_phone_home_records, "pending_reason"),
+        "target_phone_home_http_status_counts": record_count_by_key(target_phone_home_records, "http_status"),
+        "target_phone_home_latest_at": latest_record_value(target_phone_home_records, ("timestamp",)),
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
         "command_queue_policy_error_count": len(command_queue.get("policy_errors") or []),
         "command_queue_policy_record_count": len(command_queue_policy_records),
@@ -13048,6 +13202,29 @@ def status_document(cfg):
                 "target_mailbox_records_by_command_sha256",
             ), "target_mailbox_record_count",
         ),
+        "target_phone_home_records": api_collection_record(
+            "target_phone_home_records", target_phone_home_records, "id", (
+                "target_phone_home_records_by_id",
+                "target_phone_home_records_by_event_id",
+                "target_phone_home_records_by_kind",
+                "target_phone_home_records_by_status",
+                "target_phone_home_records_by_successful",
+                "target_phone_home_records_by_failed",
+                "target_phone_home_records_by_target_id",
+                "target_phone_home_records_by_target_label",
+                "target_phone_home_records_by_has_target_identity",
+                "target_phone_home_records_by_anonymous",
+                "target_phone_home_records_by_contact_path",
+                "target_phone_home_records_by_remote_addr",
+                "target_phone_home_records_by_http_status",
+                "target_phone_home_records_by_reason",
+                "target_phone_home_records_by_pending_reason",
+                "target_phone_home_records_by_has_pending_reason",
+                "target_phone_home_records_by_command_id",
+                "target_phone_home_records_by_poll_mode",
+                "target_phone_home_records_by_poll_interval_sec",
+            ), "target_phone_home_record_count",
+        ),
         "workbench_jobs_state_records": api_collection_record(
             "workbench_jobs_state_records", workbench_jobs_state_records, "path", (
                 "workbench_jobs_state_records_by_path",
@@ -13368,7 +13545,7 @@ def status_document(cfg):
             "applied_to": [
                 "targets", "uploads", "fetches", "sessions", "events",
                 "command_queue.commands", "staged_records",
-                "target_command_records",
+                "target_command_records", "target_phone_home_records",
             ] if target_filter_id else [],
             "unfiltered_counts": unfiltered_counts,
             "filtered_counts": {
@@ -13380,6 +13557,7 @@ def status_document(cfg):
                 "command_queue_commands": len(command_queue.get("commands") or []),
                 "staged_records": len(staged_records),
                 "target_command_records": len(target_command_records),
+                "target_phone_home_records": len(target_phone_home_records),
             },
             "observed_activity_counts": {
                 "unfiltered": target_filter_record.get("unfiltered_observed_activity_count", 0),
@@ -13576,6 +13754,8 @@ def status_document(cfg):
         "targets_by_observed_constraint": targets_by_observed_constraint,
         "target_mailbox_records": target_mailbox_records,
         **target_mailbox_index_maps,
+        "target_phone_home_records": target_phone_home_records,
+        **target_phone_home_index_maps,
         "staged": staged,
         "staged_records": staged_records,
         "staged_by_request": staged_by_request,
@@ -14800,6 +14980,19 @@ def print_status(cfg, json_output=False):
             print(f"    result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
             print(f"    result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
     print("")
+    print("Target phone-home attempts:")
+    phone_home = doc.get("target_phone_home_records") or []
+    if phone_home:
+        print(f"  total={len(phone_home)} statuses={format_counts(doc.get('target_phone_home_records_by_status') or {})} failed={format_counts(doc.get('target_phone_home_records_by_failed') or {})}")
+        for rec in phone_home[:8]:
+            target = rec.get("target_id", "") or "anonymous"
+            reason = rec.get("pending_reason") or rec.get("reason") or ""
+            suffix = f" reason={reason}" if reason else ""
+            command = f" command={rec.get('command_id', '')}" if rec.get("command_id") else ""
+            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{command}{suffix}")
+    else:
+        print("  none")
+    print("")
     print("Event log:")
     stats = doc.get("event_log_stats") or {}
     print(f"  path: {doc.get('event_log', '')}")
@@ -15142,6 +15335,19 @@ def print_workbench(cfg, include_api_summary=True):
         if rec.get("result_received_at"):
             print(f"    result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
             print(f"    result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
+    print("")
+    print("Target phone-home attempts:")
+    phone_home = snap.get("target_phone_home_records") or []
+    if phone_home:
+        print(f"  total={len(phone_home)} statuses={format_counts(snap.get('target_phone_home_records_by_status') or {})} failed={format_counts(snap.get('target_phone_home_records_by_failed') or {})}")
+        for rec in phone_home[:5]:
+            target = rec.get("target_id", "") or "anonymous"
+            reason = rec.get("pending_reason") or rec.get("reason") or ""
+            suffix = f" reason={reason}" if reason else ""
+            command = f" command={rec.get('command_id', '')}" if rec.get("command_id") else ""
+            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{command}{suffix}")
+    else:
+        print("  none")
     print("")
     print("Event log:")
     stats = snap.get("event_log_stats") or {}
