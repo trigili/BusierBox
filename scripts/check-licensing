@@ -48,6 +48,7 @@ project = policy.get("project") or {}
 compat = policy.get("compatibility") or {}
 whole_project = policy.get("whole_project_assessment") or {}
 artifact_distribution = policy.get("artifact_distribution") or {}
+corresponding_source = artifact_distribution.get("corresponding_source_strategy") or {}
 components = {
     item.get("name"): item
     for item in policy.get("components") or []
@@ -114,6 +115,24 @@ for key, needle in {
 }.items():
     if needle not in str(artifact_distribution.get(key, "")):
         raise SystemExit(f"check-licensing: artifact distribution {key} missing {needle}")
+if corresponding_source.get("status") != "required_for_distribution":
+    raise SystemExit("check-licensing: corresponding source strategy must be required for distribution")
+if corresponding_source.get("requires_package_license_audit") is not True:
+    raise SystemExit("check-licensing: corresponding source strategy must require package license audits")
+for key, needle in (
+    ("summary", "corresponding source"),
+    ("summary", "BusyBox"),
+):
+    if needle not in str(corresponding_source.get(key, "")):
+        raise SystemExit(f"check-licensing: corresponding source strategy {key} missing {needle}")
+source_inputs = "\n".join(str(item) for item in corresponding_source.get("source_reconstruction_inputs") or [])
+for needle in ("recorded release commit", "manifests/sources.lock.json", "Buildroot-generated", "third_party/"):
+    if needle not in source_inputs:
+        raise SystemExit(f"check-licensing: corresponding source reconstruction inputs missing {needle}")
+bundle_inputs = set(str(item) for item in corresponding_source.get("release_bundle_inputs") or [])
+for needle in ("LICENSE", "LICENSE.busierbox", "NOTICE", "LICENSES/", "manifests/license-policy.json", "manifests/sources.lock.json", "sources.lock.json"):
+    if needle not in bundle_inputs:
+        raise SystemExit(f"check-licensing: corresponding source release inputs missing {needle}")
 guidance = "\n".join(str(item) for item in policy.get("distribution_guidance") or [])
 for needle in ("LICENSE.busierbox", "LICENSES/", "manifests/sources.lock.json", "sources.lock.json"):
     if needle not in guidance:

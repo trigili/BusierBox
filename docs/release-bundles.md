@@ -38,6 +38,9 @@ Each release contains:
   obligations.
 - `sources.lock.json` and `manifests/sources.lock.json`: pinned downloadable
   source metadata for GPL/source-availability review and offline rebuilds.
+  Together with the recorded release commit and Buildroot package source
+  manifests, these are the release's corresponding-source reconstruction inputs
+  for GPL/source-offer workflows.
 - `release.json`: build status, commit, safe build-host metadata, source-lock summary, selected matrix, artifact paths, canonical tuple paths, device aliases, checksums, and failures.
 - `release-index.json`: searchable index for artifacts, tuples, devices,
   payload presets, present tools, reverse-access capabilities, and trailer

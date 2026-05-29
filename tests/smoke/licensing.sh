@@ -98,8 +98,11 @@ grep -q 'GPL is OK for the whole current default stack' docs/licensing.md
 grep -q 'not a blanket relicensing' docs/licensing.md
 grep -q 'Buildroot-selected package keeps its own upstream' docs/licensing.md
 grep -q "not part of BusierBox's license grant" docs/licensing.md
+grep -q 'Corresponding source posture' docs/licensing.md
+grep -q 'corresponding_source_strategy' docs/licensing.md
 grep -q 'release bundles include it as both `sources.lock.json` and' docs/licensing.md
 grep -q 'Release bundles always copy' docs/release-bundles.md
+grep -q 'corresponding-source reconstruction inputs' docs/release-bundles.md
 
 python3 - <<'PY'
 import json
@@ -135,6 +138,7 @@ for name, item in components.items():
         raise SystemExit(f"{name}: missing distribution obligations")
 artifact_distribution = policy.get("artifact_distribution") or {}
 whole_project = policy.get("whole_project_assessment") or {}
+corresponding_source = artifact_distribution.get("corresponding_source_strategy") or {}
 if whole_project.get("status") != "ok_for_current_default_stack":
     raise SystemExit("whole-project assessment status missing")
 if whole_project.get("current_stack_ok") is not True:
@@ -161,6 +165,24 @@ for key, needle in {
 }.items():
     if needle not in str(artifact_distribution.get(key, "")):
         raise SystemExit(f"artifact distribution {key} missing {needle}")
+if corresponding_source.get("status") != "required_for_distribution":
+    raise SystemExit("corresponding source strategy status missing")
+if corresponding_source.get("requires_package_license_audit") is not True:
+    raise SystemExit("corresponding source strategy audit flag missing")
+for key, needle in (
+    ("summary", "corresponding source"),
+    ("summary", "BusyBox"),
+):
+    if needle not in str(corresponding_source.get(key, "")):
+        raise SystemExit(f"corresponding source strategy {key} missing {needle}")
+source_inputs = "\n".join(corresponding_source.get("source_reconstruction_inputs") or [])
+for expected_text in ("recorded release commit", "manifests/sources.lock.json", "Buildroot-generated", "third_party/"):
+    if expected_text not in source_inputs:
+        raise SystemExit(f"corresponding source reconstruction inputs missing {expected_text}")
+bundle_inputs = set(corresponding_source.get("release_bundle_inputs") or [])
+for expected_text in ("LICENSE", "LICENSE.busierbox", "NOTICE", "LICENSES/", "manifests/license-policy.json", "manifests/sources.lock.json", "sources.lock.json"):
+    if expected_text not in bundle_inputs:
+        raise SystemExit(f"corresponding source release inputs missing {expected_text}")
 guidance = "\n".join(policy.get("distribution_guidance") or [])
 for expected_text in ("LICENSE.busierbox", "LICENSES/", "manifests/sources.lock.json", "sources.lock.json"):
     if expected_text not in guidance:

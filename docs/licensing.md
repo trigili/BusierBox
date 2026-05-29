@@ -71,6 +71,26 @@ license and notice/source obligations. User-supplied data, including Doom WAD
 files, is not part of BusierBox's license grant and is not bundled by the
 project.
 
+## Corresponding source posture
+
+When distributing BusierBox binaries or release bundles, treat corresponding
+source as required for BusierBox-maintained code, BusyBox, and every bundled GPL
+payload component. The practical source reconstruction set is:
+
+- this repository at the recorded release commit;
+- `manifests/sources.lock.json` and the release copies at `sources.lock.json`
+  and `manifests/sources.lock.json`;
+- pinned downloadable source archives named by that lock file;
+- Buildroot-generated source/package manifests when optional payload packages
+  are selected;
+- vendored notices and license texts under `third_party/`, `LICENSES/`,
+  `LICENSE`, `LICENSE.busierbox`, and `NOTICE`.
+
+The license policy records this as `corresponding_source_strategy`. That record
+is intentionally conservative: it does not say every future Buildroot package is
+GPL-compatible, only that current releases must carry enough pinned source and
+notice metadata to audit and satisfy the obligations of whatever was bundled.
+
 ## Artifact guidance
 
 BusierBox release artifacts should preserve source availability and license

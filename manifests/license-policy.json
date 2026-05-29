@@ -30,7 +30,27 @@
     "buildroot_role": "build-system; selected packages keep their own licenses",
     "payload_license_rule": "release artifacts must preserve the license and source obligations of every bundled payload component",
     "user_supplied_data_rule": "user-provided data such as Doom WAD files is not bundled by BusierBox and is outside the BusierBox project license grant",
-    "ok_for_current_default_stack": true
+    "ok_for_current_default_stack": true,
+    "corresponding_source_strategy": {
+      "status": "required_for_distribution",
+      "summary": "Redistributed binaries should be accompanied by corresponding source or a compliant written offer for BusierBox-maintained code, BusyBox, and every bundled GPL payload component.",
+      "release_bundle_inputs": [
+        "LICENSE",
+        "LICENSE.busierbox",
+        "NOTICE",
+        "LICENSES/",
+        "manifests/license-policy.json",
+        "manifests/sources.lock.json",
+        "sources.lock.json"
+      ],
+      "source_reconstruction_inputs": [
+        "this repository at the recorded release commit",
+        "pinned downloadable sources in manifests/sources.lock.json",
+        "Buildroot-generated package source manifests when optional payload packages are selected",
+        "vendored third-party notices under third_party/"
+      ],
+      "requires_package_license_audit": true
+    }
   },
   "components": [
     {
