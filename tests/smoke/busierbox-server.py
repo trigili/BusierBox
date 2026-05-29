@@ -8039,8 +8039,12 @@ def main():
                 os.close(line_master)
             except OSError:
                 pass
-        if line_proc.returncode != 0 or "Traceback" in (line_stderr or ""):
+        if (line_proc.returncode != 0 or
+                "Traceback" in (line_stderr or "") or
+                "headless_command: scripts/busierbox-server --config" not in _line_stdout or
+                "--stage-release-artifact by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout):
             print("line-oriented TUI did not stage release tuple recommendation", file=sys.stderr)
+            print(_line_stdout, file=sys.stderr)
             print(line_stderr or "", file=sys.stderr)
             return 1
         line_staged = json.loads(line_release_staged_file.read_text(encoding="utf-8"))
@@ -8048,6 +8052,31 @@ def main():
                 "by-tuple/native/host/host/host"):
             print("line-oriented TUI staged release metadata incorrectly", file=sys.stderr)
             print(json.dumps(line_staged, indent=2), file=sys.stderr)
+            return 1
+        line_release_status = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(line_release_state_file),
+                "--staged-file", str(line_release_staged_file),
+                "--json-status",
+            ],
+            cwd=release_dir,
+            text=True,
+            capture_output=True,
+        )
+        if line_release_status.returncode != 0:
+            print("line-oriented TUI release status failed", file=sys.stderr)
+            print(line_release_status.stdout, file=sys.stderr)
+            print(line_release_status.stderr, file=sys.stderr)
+            return 1
+        line_release_doc = json.loads(line_release_status.stdout)
+        release_stage_events = (line_release_doc.get("events_by_event") or {}).get("workbench_release_artifact_staged") or []
+        if (not release_stage_events or
+                (release_stage_events[-1].get("details") or {}).get("selector") != "by_tuple_path:by-tuple/native/host/host/host" or
+                "--stage-release-artifact by_tuple_path:by-tuple/native/host/host/host" not in ((release_stage_events[-1].get("details") or {}).get("headless_command") or "")):
+            print("line-oriented TUI did not record release staging event", file=sys.stderr)
+            print(json.dumps(line_release_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         staged_status = subprocess.run(
             [

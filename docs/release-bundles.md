@@ -739,7 +739,10 @@ browser entries. They also print compact release recommendation rows such as
 `by_device:lab-router -> bin/busierbox-target-full`, keeping the same safety
 boundary: staging remains explicit through `--stage-release-artifact`, the
 curses action, or the line-oriented fallback release staging action, and
-nothing is pushed to or executed on the target automatically.
+nothing is pushed to or executed on the target automatically. The line-oriented
+release staging action prints the equivalent `--stage-release-artifact`
+headless command and records `workbench_release_artifact_staged` with the
+selector, staged request name, release path, tuple path, and payload preset.
 The curses workbench mirrors those rows in the release devices/tuples pane.
 Pressing `Enter` or `s` on a release artifact, recommendation, device alias, or
 tuple row stages the selected/recommended artifact for target-side

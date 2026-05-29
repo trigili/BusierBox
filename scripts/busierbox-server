@@ -14857,9 +14857,25 @@ def run_line_tui(cfg):
             selector = selector_line.strip() if selector_line is not None else ""
             if selector:
                 try:
+                    headless = (
+                        "scripts/busierbox-server --config "
+                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                        + " --stage-release-artifact "
+                        + shquote(selector)
+                    )
                     rec = stage_release_selection(cfg, selector)
                     print(f"staged {rec['request_name']}")
+                    print(f"headless_command: {headless}")
                     print(render_fetch_command(rec["request_name"], cfg))
+                    append_event(cfg, "workbench", "workbench_release_artifact_staged", details={
+                        "selector": selector,
+                        "headless_command": headless,
+                        "request_name": rec.get("request_name", ""),
+                        "release_artifact_name": rec.get("release_artifact_name", ""),
+                        "release_path": rec.get("release_path", ""),
+                        "tuple_path": rec.get("tuple_path", ""),
+                        "payload_preset": rec.get("payload_preset", ""),
+                    })
                 except ValueError as exc:
                     print(exc)
         elif choice == "11":
