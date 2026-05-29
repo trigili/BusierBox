@@ -515,6 +515,7 @@ def main():
                 break
             time.sleep(0.1)
         quick = (quick_status.get("workbench_jobs_by_id") or {}).get(quick_job_id) or {}
+        quick_service_manager_state = (quick_status.get("service_manager_state_records_by_id") or {}).get("service-manager") or {}
         if (quick.get("effective_state") != "exited" or
                 quick.get("exit_status") != 7 or
                 quick.get("outcome") != "failed" or
@@ -536,6 +537,13 @@ def main():
                 (quick_status.get("service_manager") or {}).get("transport_count") != quick_status.get("summary", {}).get("service_manager_transport_count") or
                 (quick_status.get("service_manager") or {}).get("thread_count") != quick_status.get("summary", {}).get("service_manager_thread_count") or
                 (quick_status.get("service_manager") or {}).get("child_process_count") != quick_status.get("summary", {}).get("service_manager_child_process_count") or
+                quick_service_manager_state.get("id") != "service-manager" or
+                quick_service_manager_state.get("shutdown_requested") is not False or
+                quick_service_manager_state.get("resource_count") != len(quick_status.get("service_manager_resources") or []) or
+                quick_status.get("summary", {}).get("service_manager_state_record_count") != 1 or
+                quick_status.get("summary", {}).get("service_manager_has_resources") != bool(quick_service_manager_state.get("has_resources")) or
+                (quick_status.get("api_collections") or {}).get("service_manager_state_records", {}).get("count") != 1 or
+                "service_manager_state_records_by_has_resources" not in (((quick_status.get("api_collections") or {}).get("service_manager_state_records") or {}).get("indexes") or []) or
                 len(quick_status.get("service_manager_resources") or []) != quick_status.get("summary", {}).get("service_manager_resource_count") or
                 (quick_status.get("api_collections") or {}).get("service_manager_resources", {}).get("count") != quick_status.get("summary", {}).get("service_manager_resource_count") or
                 "service_manager_resources_by_kind_state" not in (((quick_status.get("api_collections") or {}).get("service_manager_resources") or {}).get("indexes") or []) or
@@ -1770,6 +1778,7 @@ def main():
         server_state = queue_status_json.get("server_state") or {}
         staged_files_state = queue_status_json.get("staged_files_state") or {}
         command_queue_state = queue_status_json.get("command_queue_state") or {}
+        service_manager_state = (queue_status_json.get("service_manager_state_records_by_id") or {}).get("service-manager") or {}
         if (set(paths) - set(path_status) or
                 state_path_status.get("path") != queue_status_json.get("state_file") or
                 state_path_status.get("expected_kind") != "file" or
@@ -1849,6 +1858,7 @@ def main():
             return 1
         for collection_name, expected_count, expected_index in (
                 ("services", len(queue_status_json.get("services") or []), "services_by_has_error"),
+                ("service_manager_state_records", len(queue_status_json.get("service_manager_state_records") or []), "service_manager_state_records_by_shutdown_requested"),
                 ("ports", len(queue_status_json.get("ports") or []), "ports_by_number"),
                 ("path_status_records", len(path_status_records), "path_status_by_name"),
                 ("server_state_records", len(queue_status_json.get("server_state_records") or []), "server_state_records_by_valid"),
@@ -1902,6 +1912,9 @@ def main():
                 api_resources_by_name.get("command_queue_state_records", {}).get("records_key") != "command_queue_state_records" or
                 api_resources_by_summary_key.get("command_queue_state_record_count", [{}])[0].get("name") != "command_queue_state_records" or
                 not any(rec.get("name") == "command_queue_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
+                api_resources_by_name.get("service_manager_state_records", {}).get("records_key") != "service_manager_state_records" or
+                api_resources_by_summary_key.get("service_manager_state_record_count", [{}])[0].get("name") != "service_manager_state_records" or
+                not any(rec.get("name") == "service_manager_state_records" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("command_queue_commands", {}).get("records_key") != "command_queue.commands" or
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
                 api_resources_by_name.get("command_queue_policy_records", {}).get("records_key") != "command_queue_policy_records" or
@@ -2094,6 +2107,26 @@ def main():
                 "workbench_jobs_by_long_running" not in (jobs_api.get("indexes") or []) or
                 "workbench_jobs_by_last_output_tail_truncated" not in (jobs_api.get("indexes") or [])):
             print("server json status missing workbench background job records", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        if (service_manager_state.get("id") != "service-manager" or
+                service_manager_state.get("shutdown_requested") is not False or
+                service_manager_state.get("resource_count") != len(queue_status_json.get("service_manager_resources") or []) or
+                service_manager_state.get("has_open_sockets") != (service_manager_state.get("open_socket_count", 0) > 0) or
+                service_manager_state.get("has_active_transports") != (service_manager_state.get("active_transport_count", 0) > 0) or
+                service_manager_state.get("has_alive_threads") != (service_manager_state.get("alive_thread_count", 0) > 0) or
+                service_manager_state.get("has_running_children") != (service_manager_state.get("running_child_process_count", 0) > 0) or
+                service_manager_state.get("has_resources") != (service_manager_state.get("resource_count", 0) > 0) or
+                queue_status_json.get("service_manager_state_records_by_shutdown_requested", {}).get("False", [{}])[0].get("id") != "service-manager" or
+                queue_status_json.get("service_manager_state_records_by_has_resources", {}).get(str(bool(service_manager_state.get("has_resources"))), [{}])[0].get("id") != "service-manager" or
+                queue_status_json["summary"].get("service_manager_state_record_count") != 1 or
+                queue_status_json["summary"].get("service_manager_has_open_sockets") != bool(service_manager_state.get("has_open_sockets")) or
+                queue_status_json["summary"].get("service_manager_has_active_transports") != bool(service_manager_state.get("has_active_transports")) or
+                queue_status_json["summary"].get("service_manager_has_alive_threads") != bool(service_manager_state.get("has_alive_threads")) or
+                queue_status_json["summary"].get("service_manager_has_running_children") != bool(service_manager_state.get("has_running_children")) or
+                queue_status_json["summary"].get("service_manager_has_resources") != bool(service_manager_state.get("has_resources")) or
+                "service_manager_state_records_by_has_open_sockets" not in ((queue_status_json.get("api_collections") or {}).get("service_manager_state_records") or {}).get("indexes", [])):
+            print("server json status missing reusable service-manager state record", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         if (staged_files_state.get("path") != queue_status_json.get("staged_files") or

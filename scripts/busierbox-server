@@ -8539,6 +8539,36 @@ def status_document(cfg):
     services = service_status_rows(cfg)
     service_manager = SERVICE_MANAGER.snapshot()
     service_manager_resources = service_manager_resource_records(service_manager)
+    service_manager_state_record = {
+        "id": "service-manager",
+        "shutdown_requested": bool(service_manager.get("shutdown_requested", False)),
+        "socket_count": int_value(service_manager.get("socket_count", 0)),
+        "open_socket_count": int_value(service_manager.get("open_socket_count", 0)),
+        "transport_count": int_value(service_manager.get("transport_count", 0)),
+        "active_transport_count": int_value(service_manager.get("active_transport_count", 0)),
+        "thread_count": int_value(service_manager.get("thread_count", 0)),
+        "alive_thread_count": int_value(service_manager.get("alive_thread_count", 0)),
+        "child_process_count": int_value(service_manager.get("child_process_count", 0)),
+        "running_child_process_count": int_value(service_manager.get("running_child_process_count", 0)),
+        "resource_count": len(service_manager_resources),
+    }
+    service_manager_state_record.update({
+        "has_open_sockets": service_manager_state_record.get("open_socket_count", 0) > 0,
+        "has_active_transports": service_manager_state_record.get("active_transport_count", 0) > 0,
+        "has_alive_threads": service_manager_state_record.get("alive_thread_count", 0) > 0,
+        "has_running_children": service_manager_state_record.get("running_child_process_count", 0) > 0,
+        "has_resources": service_manager_state_record.get("resource_count", 0) > 0,
+    })
+    service_manager_state_records = [service_manager_state_record]
+    service_manager_state_index_maps = {
+        "service_manager_state_records_by_id": {rec.get("id", ""): rec for rec in service_manager_state_records if rec.get("id")},
+        "service_manager_state_records_by_shutdown_requested": records_by_key(service_manager_state_records, "shutdown_requested"),
+        "service_manager_state_records_by_has_open_sockets": records_by_key(service_manager_state_records, "has_open_sockets"),
+        "service_manager_state_records_by_has_active_transports": records_by_key(service_manager_state_records, "has_active_transports"),
+        "service_manager_state_records_by_has_alive_threads": records_by_key(service_manager_state_records, "has_alive_threads"),
+        "service_manager_state_records_by_has_running_children": records_by_key(service_manager_state_records, "has_running_children"),
+        "service_manager_state_records_by_has_resources": records_by_key(service_manager_state_records, "has_resources"),
+    }
     service_manager_resource_index_maps = service_manager_resource_indexes(service_manager_resources)
     uploads = recent_upload_metadata(cfg)
     fetches = recent_fetch_metadata(cfg)
@@ -9371,6 +9401,12 @@ def status_document(cfg):
         "service_manager_alive_thread_count": service_manager.get("alive_thread_count", 0),
         "service_manager_child_process_count": service_manager.get("child_process_count", 0),
         "service_manager_running_child_process_count": service_manager.get("running_child_process_count", 0),
+        "service_manager_state_record_count": len(service_manager_state_records),
+        "service_manager_has_open_sockets": bool(service_manager_state_record.get("has_open_sockets", False)),
+        "service_manager_has_active_transports": bool(service_manager_state_record.get("has_active_transports", False)),
+        "service_manager_has_alive_threads": bool(service_manager_state_record.get("has_alive_threads", False)),
+        "service_manager_has_running_children": bool(service_manager_state_record.get("has_running_children", False)),
+        "service_manager_has_resources": bool(service_manager_state_record.get("has_resources", False)),
         "service_manager_resource_count": len(service_manager_resources),
         "service_manager_resource_kind_counts": record_count_by_key(service_manager_resources, "kind"),
         "service_manager_resource_state_counts": record_count_by_key(service_manager_resources, "state"),
@@ -9781,6 +9817,17 @@ def status_document(cfg):
                 "service_manager_resources_by_pid", "service_manager_resources_by_kind_state",
                 "service_manager_resources_by_kind_active",
             ), "service_manager_resource_count",
+        ),
+        "service_manager_state_records": api_collection_record(
+            "service_manager_state_records", service_manager_state_records, "id", (
+                "service_manager_state_records_by_id",
+                "service_manager_state_records_by_shutdown_requested",
+                "service_manager_state_records_by_has_open_sockets",
+                "service_manager_state_records_by_has_active_transports",
+                "service_manager_state_records_by_has_alive_threads",
+                "service_manager_state_records_by_has_running_children",
+                "service_manager_state_records_by_has_resources",
+            ), "service_manager_state_record_count",
         ),
         "ports": api_collection_record(
             "ports", ports, "service", (
@@ -10296,6 +10343,8 @@ def status_document(cfg):
         "command_queue_state_records": command_queue_state_records,
         **command_queue_state_index_maps,
         "service_manager": service_manager,
+        "service_manager_state_records": service_manager_state_records,
+        **service_manager_state_index_maps,
         "service_manager_resources": service_manager_resources,
         **service_manager_resource_index_maps,
         "services": services,
