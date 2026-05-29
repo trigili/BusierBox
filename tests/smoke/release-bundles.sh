@@ -681,6 +681,16 @@ if doc.get("project_license") != "GPL-2.0-or-later":
     raise SystemExit(f"release self-test project license missing: {doc!r}")
 if doc.get("combined_gplv2_compatible") is not True:
     raise SystemExit(f"release self-test GPL compatibility missing: {doc!r}")
+if doc.get("corresponding_source_required") is not True:
+    raise SystemExit(f"release self-test corresponding source requirement missing: {doc!r}")
+if doc.get("corresponding_source_status") != "required_for_distribution":
+    raise SystemExit(f"release self-test corresponding source status missing: {doc!r}")
+if doc.get("corresponding_source_requires_package_license_audit") is not True:
+    raise SystemExit(f"release self-test package license audit requirement missing: {doc!r}")
+if doc.get("corresponding_source_release_input_count", 0) < 7:
+    raise SystemExit(f"release self-test corresponding source release inputs missing: {doc!r}")
+if doc.get("corresponding_source_reconstruction_input_count", 0) < 4:
+    raise SystemExit(f"release self-test corresponding source reconstruction inputs missing: {doc!r}")
 if doc.get("license_notice_count") != 11:
     raise SystemExit(f"release self-test license notice count missing: {doc!r}")
 notice_files = doc.get("license_notice_files") or []
@@ -720,6 +730,12 @@ if by_name.get("command_queue_safety", {}).get("status") != "pass":
 license_diag = by_name.get("license_inventory") or {}
 if license_diag.get("status") != "pass" or license_diag.get("details", {}).get("project_license") != "GPL-2.0-or-later":
     raise SystemExit(f"release self-test license diagnostic missing: {by_name!r}")
+if license_diag.get("details", {}).get("corresponding_source_required") is not True:
+    raise SystemExit(f"release self-test license diagnostic corresponding source missing: {by_name!r}")
+if license_diag.get("details", {}).get("corresponding_source_status") != "required_for_distribution":
+    raise SystemExit(f"release self-test license diagnostic corresponding source status missing: {by_name!r}")
+if license_diag.get("details", {}).get("corresponding_source_requires_package_license_audit") is not True:
+    raise SystemExit(f"release self-test license diagnostic package audit missing: {by_name!r}")
 if by_name["command_queue_safety"]["details"].get("execution_supported_count") != 0:
     raise SystemExit(f"release self-test command queue execution diagnostic unsafe: {by_name!r}")
 if by_name.get("compatibility_labels", {}).get("details", {}).get("counts", {}).get("exact") != 1:

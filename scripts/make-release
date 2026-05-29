@@ -1163,10 +1163,24 @@ def write_release_helpers(script_dir):
         license_policy = load_json(root / "manifests" / "license-policy.json")
         project_policy = license_policy.get("project") or {}
         compatibility_policy = license_policy.get("compatibility") or {}
+        artifact_distribution = license_policy.get("artifact_distribution") or {}
+        corresponding_source_policy = artifact_distribution.get("corresponding_source_strategy")
+        if not isinstance(corresponding_source_policy, dict):
+            corresponding_source_policy = {}
         if project_policy.get("license") != "GPL-2.0-or-later":
             fail("license policy does not declare BusierBox as GPL-2.0-or-later")
         if compatibility_policy.get("combined_gplv2_compatible") is not True:
             fail("license policy does not declare combined GPLv2 compatibility")
+        if corresponding_source_policy.get("status") != "required_for_distribution":
+            fail("license policy does not declare corresponding source as required for distribution")
+        if corresponding_source_policy.get("requires_package_license_audit") is not True:
+            fail("license policy does not require package license audit for bundled payloads")
+        corresponding_source_release_inputs = [
+            str(item) for item in (corresponding_source_policy.get("release_bundle_inputs") or [])
+        ]
+        corresponding_source_reconstruction_inputs = [
+            str(item) for item in (corresponding_source_policy.get("source_reconstruction_inputs") or [])
+        ]
         run([str(root / "scripts" / "verify-checksums"), "--original"])
         helpers = ("artifact-config", "busierbox-server", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find")
         for helper in helpers:
@@ -1190,6 +1204,14 @@ def write_release_helpers(script_dir):
             "release_device_count": len((release.get("layout", {}).get("devices") or {})),
             "project_license": project_policy.get("license", ""),
             "combined_gplv2_compatible": compatibility_policy.get("combined_gplv2_compatible") is True,
+            "corresponding_source_required": corresponding_source_policy.get("status") == "required_for_distribution",
+            "corresponding_source_status": str(corresponding_source_policy.get("status") or ""),
+            "corresponding_source_summary": str(corresponding_source_policy.get("summary") or ""),
+            "corresponding_source_release_input_count": len(corresponding_source_release_inputs),
+            "corresponding_source_reconstruction_input_count": len(corresponding_source_reconstruction_inputs),
+            "corresponding_source_requires_package_license_audit": corresponding_source_policy.get("requires_package_license_audit") is True,
+            "corresponding_source_release_inputs": corresponding_source_release_inputs,
+            "corresponding_source_reconstruction_inputs": corresponding_source_reconstruction_inputs,
             "license_notice_count": len(required_license_files),
             "license_notice_files": list(required_license_files),
             "index_artifact_count": len(index.get("artifacts", []) or []),
@@ -1304,6 +1326,14 @@ def write_release_helpers(script_dir):
                 {
                     "project_license": diagnostics["project_license"],
                     "combined_gplv2_compatible": diagnostics["combined_gplv2_compatible"],
+                    "corresponding_source_required": diagnostics["corresponding_source_required"],
+                    "corresponding_source_status": diagnostics["corresponding_source_status"],
+                    "corresponding_source_summary": diagnostics["corresponding_source_summary"],
+                    "corresponding_source_release_input_count": diagnostics["corresponding_source_release_input_count"],
+                    "corresponding_source_reconstruction_input_count": diagnostics["corresponding_source_reconstruction_input_count"],
+                    "corresponding_source_requires_package_license_audit": diagnostics["corresponding_source_requires_package_license_audit"],
+                    "corresponding_source_release_inputs": diagnostics["corresponding_source_release_inputs"],
+                    "corresponding_source_reconstruction_inputs": diagnostics["corresponding_source_reconstruction_inputs"],
                     "files": diagnostics["license_notice_files"],
                 },
             ),

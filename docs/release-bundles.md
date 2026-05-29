@@ -131,7 +131,11 @@ scripts/release-self-test --json
 same validation passes. The JSON includes release and index artifact counts,
 tuple/device counts, helper checks, checksum verification, manifest sidecar
 counts, artifact-config round-trip counts, compatibility and payload-preset
-counts, and command-queue safety counters such as
+counts, licensing posture fields such as `project_license`,
+`combined_gplv2_compatible`, `corresponding_source_required`,
+`corresponding_source_status`, and
+`corresponding_source_requires_package_license_audit`, and command-queue safety
+counters such as
 `command_queue_execution_supported_count` and
 `command_queue_operator_supplied_command_execution_count`. It also includes
 normalized `diagnostic_records` with lookup maps by name, category, and status
