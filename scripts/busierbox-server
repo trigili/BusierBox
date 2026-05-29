@@ -10282,13 +10282,24 @@ def run_curses_tui(cfg):
                     f"cert: {cfg.get('tls_cert', '')}",
                     f"key: {cfg.get('tls_key', '')}",
                 ]
+                unhealthy_state = [
+                    rec for rec in snap.get("operator_state_records") or []
+                    if rec.get("status") in ("missing", "invalid", "error")
+                ]
+                if unhealthy_state:
+                    detail_lines.append("operator state health:")
+                    for rec in unhealthy_state[:5]:
+                        detail_lines.append(f"{rec.get('name', '')}: {rec.get('status', '')} {rec.get('path', '')}")
             stdscr.erase()
             height, width = stdscr.getmaxyx()
             active = sum(1 for row in services if row["actual"] == "listening")
             warning_count = len(snap.get("warnings") or [])
+            summary = snap.get("summary") or {}
+            operator_state_counts = summary.get("operator_state_status_counts") or {}
+            operator_state_unhealthy = sum(int(operator_state_counts.get(key, 0) or 0) for key in ("missing", "invalid", "error"))
             workbench = snap.get("workbench") or {}
             refresh_suffix = f"refresh={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}"
-            safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} warnings={warning_count} | ip={snap['selected_local_ip']} | {utc_now()} | {refresh_suffix} | tab panes j/k move enter start/stop s stage d unstage v view c copy ? help q quit", curses.A_REVERSE)
+            safe_add(stdscr, 0, 0, f"BusierBox Operator Workbench | active={active} warnings={warning_count} operator_state_unhealthy={operator_state_unhealthy} | ip={snap['selected_local_ip']} | {utc_now()} | {refresh_suffix} | tab panes j/k move enter start/stop s stage d unstage v view c copy ? help q quit", curses.A_REVERSE)
             left_w = max(34, width // 3)
             right_w = max(20, width - left_w - 1)
             lower_y = max(12, height // 2)

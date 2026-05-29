@@ -110,7 +110,8 @@ def main():
         return 1
     for word in ("open_path_in_pager", "pager_command", 'ord("v")', "v opens", "copy_generated_command", "clipboard_command",
                  "event_id:", "details_json:", "v opens operator event log in pager", "record_workbench_refresh",
-                 "workbench_refreshed", 'ord("r")', 'ord("R")'):
+                 "workbench_refreshed", 'ord("r")', 'ord("R")', "operator_state_unhealthy",
+                 "operator state health:"):
         if word not in src:
             print(f"busierbox-server: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
