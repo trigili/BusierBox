@@ -787,6 +787,7 @@ def main():
         invalid_path_api = (invalid_state_doc.get("api_collections") or {}).get("path_status_records") or {}
         invalid_browser_api = (invalid_state_doc.get("api_collections") or {}).get("browser_paths") or {}
         invalid_operator_state_api = (invalid_state_doc.get("api_collections") or {}).get("operator_state_records") or {}
+        invalid_command_queue_state_api = (invalid_state_doc.get("api_collections") or {}).get("command_queue_state_records") or {}
         invalid_operator_state_by_name = invalid_state_doc.get("operator_state_records_by_name") or {}
         invalid_operator_state_by_status = invalid_state_doc.get("operator_state_records_by_status") or {}
         invalid_operator_state_by_kind_status = invalid_state_doc.get("operator_state_records_by_kind_status") or {}
@@ -865,6 +866,7 @@ def main():
                 invalid_warnings_by_path.get(str(invalid_staged_file), [{}])[0].get("type") != "invalid_staged_files_state" or
                 invalid_warnings_by_path.get(str(invalid_queue_file), [{}])[0].get("type") != "invalid_command_queue_state" or
                 invalid_warnings_by_type_path.get(f"invalid_server_state:{invalid_state_file}", [{}])[0].get("path") != str(invalid_state_file) or
+                invalid_state_doc.get("command_queue_state_records_by_valid", {}).get("False", [{}])[0].get("path") != str(invalid_queue_file) or
                 "path_status_by_has_warnings" not in (invalid_path_api.get("indexes") or []) or
                 "path_status_by_warning_type" not in (invalid_path_api.get("indexes") or []) or
                 "operator_state_records_by_status" not in (invalid_operator_state_api.get("indexes") or []) or
@@ -872,6 +874,7 @@ def main():
                 "operator_state_records_by_remediation_class" not in (invalid_operator_state_api.get("indexes") or []) or
                 "operator_state_records_by_requires_operator_action" not in (invalid_operator_state_api.get("indexes") or []) or
                 "operator_state_records_by_kind_status" not in (invalid_operator_state_api.get("indexes") or []) or
+                "command_queue_state_records_by_valid" not in (invalid_command_queue_state_api.get("indexes") or []) or
                 "browser_paths_by_has_warnings" not in (invalid_browser_api.get("indexes") or []) or
                 "browser_paths_by_warning_type" not in (invalid_browser_api.get("indexes") or [])):
             print("server json status missing invalid operator state warnings", file=sys.stderr)
@@ -1837,6 +1840,7 @@ def main():
                 ("target_attribution_records", len(queue_status_json.get("target_attribution_records") or []), "target_attribution_records_by_scope"),
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
                 ("command_copy_records", len(queue_status_json.get("command_copy_records") or []), "command_copy_records_by_has_command"),
+                ("command_queue_state_records", len(queue_status_json.get("command_queue_state_records") or []), "command_queue_state_records_by_valid"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_result_upload_supported"),
                 ("release_state_records", len(queue_status_json.get("release_state_records") or []), "release_state_records_by_detection_source"),
@@ -1871,6 +1875,9 @@ def main():
                 "services_by_name" not in (api_resources_by_name.get("services", {}).get("indexes") or []) or
                 "services_by_session_log_exists" not in (api_resources_by_name.get("services", {}).get("indexes") or []) or
                 "services_by_process_log_exists" not in (api_resources_by_name.get("services", {}).get("indexes") or []) or
+                api_resources_by_name.get("command_queue_state_records", {}).get("records_key") != "command_queue_state_records" or
+                api_resources_by_summary_key.get("command_queue_state_record_count", [{}])[0].get("name") != "command_queue_state_records" or
+                not any(rec.get("name") == "command_queue_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
                 api_resources_by_name.get("command_queue_commands", {}).get("records_key") != "command_queue.commands" or
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
                 api_resources_by_name.get("operator_network_records", {}).get("records_key") != "operator_network_records" or
@@ -2049,10 +2056,16 @@ def main():
                 command_queue_state.get("exists") != command_queue_path_status.get("exists") or
                 command_queue_state.get("valid") is not True or
                 command_queue_state.get("command_count") != 1 or
+                command_queue_state.get("has_commands") is not True or
                 command_queue_state.get("status_counts", {}).get("result-received") != 1 or
+                queue_status_json.get("command_queue_state_records_by_path", {}).get(command_queue_state.get("path"), {}).get("command_count") != 1 or
+                queue_status_json.get("command_queue_state_records_by_has_commands", {}).get("True", [{}])[0].get("path") != command_queue_state.get("path") or
                 queue_status_json["summary"].get("command_queue_file_exists") is not True or
                 queue_status_json["summary"].get("command_queue_file_valid") is not True or
-                queue_status_json["summary"].get("command_queue_file_command_count") != 1):
+                queue_status_json["summary"].get("command_queue_file_command_count") != 1 or
+                queue_status_json["summary"].get("command_queue_state_record_count") != 1 or
+                queue_status_json["summary"].get("command_queue_state_has_commands") is not True or
+                "command_queue_state_records_by_has_commands" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_state_records") or {}).get("indexes", [])):
             print("server json status missing reusable command queue state record", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1

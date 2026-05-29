@@ -8978,6 +8978,14 @@ def status_document(cfg):
     server_state = server_state_record(cfg)
     staged_files_state = staged_files_state_record(cfg)
     command_queue_state = command_queue_state_record(cfg)
+    command_queue_state["has_commands"] = int(command_queue_state.get("command_count") or 0) > 0
+    command_queue_state_records = [command_queue_state]
+    command_queue_state_index_maps = {
+        "command_queue_state_records_by_path": {rec.get("path", ""): rec for rec in command_queue_state_records if rec.get("path")},
+        "command_queue_state_records_by_exists": records_by_key(command_queue_state_records, "exists"),
+        "command_queue_state_records_by_valid": records_by_key(command_queue_state_records, "valid"),
+        "command_queue_state_records_by_has_commands": records_by_key(command_queue_state_records, "has_commands"),
+    }
     command_copy = command_copy_record(cfg)
     command_copy_records = [command_copy]
     command_copy_record_indexes = command_copy_indexes(command_copy_records)
@@ -9181,6 +9189,8 @@ def status_document(cfg):
         "command_queue_file_exists": bool(command_queue_state.get("exists", False)),
         "command_queue_file_valid": bool(command_queue_state.get("valid", False)),
         "command_queue_file_command_count": command_queue_state.get("command_count", 0),
+        "command_queue_state_record_count": len(command_queue_state_records),
+        "command_queue_state_has_commands": bool(command_queue_state.get("has_commands", False)),
         "command_copy_exists_count": 1 if command_copy.get("exists") is True else 0,
         "command_copy_has_command_count": 1 if command_copy.get("has_command") is True else 0,
         "workbench_jobs_file_exists": bool(workbench_jobs_state.get("exists", False)),
@@ -9759,6 +9769,14 @@ def status_document(cfg):
                 "command_copy_records_by_command_sha256",
             ), "command_copy_exists_count",
         ),
+        "command_queue_state_records": api_collection_record(
+            "command_queue_state_records", command_queue_state_records, "path", (
+                "command_queue_state_records_by_path",
+                "command_queue_state_records_by_exists",
+                "command_queue_state_records_by_valid",
+                "command_queue_state_records_by_has_commands",
+            ), "command_queue_state_record_count",
+        ),
         "uploads": api_collection_record(
             "uploads", uploads, "metadata_path", (
                 "uploads_by_session", "uploads_by_filename", "uploads_by_kind", "uploads_by_sha256",
@@ -10064,6 +10082,8 @@ def status_document(cfg):
         "server_state": server_state,
         "staged_files_state": staged_files_state,
         "command_queue_state": command_queue_state,
+        "command_queue_state_records": command_queue_state_records,
+        **command_queue_state_index_maps,
         "service_manager": service_manager,
         "service_manager_resources": service_manager_resources,
         **service_manager_resource_index_maps,
