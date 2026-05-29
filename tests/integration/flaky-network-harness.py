@@ -216,14 +216,14 @@ def poll_request(target_id="", label="", interval="3600"):
     return ("\r\n".join(headers) + "\r\n\r\n").encode("ascii")
 
 
-def result_request(command_id, target_id, label):
+def result_request(command_id, target_id, label, status="completed", exit_code=0, stdout_bytes=5, stderr_bytes=0):
     body = json.dumps({
         "schema": 1,
         "command_id": command_id,
-        "status": "completed",
-        "exit_code": 0,
-        "stdout_bytes": 5,
-        "stderr_bytes": 0,
+        "status": status,
+        "exit_code": exit_code,
+        "stdout_bytes": stdout_bytes,
+        "stderr_bytes": stderr_bytes,
     }).encode("utf-8")
     return (
         "POST /command-queue/result HTTP/1.1\r\n"
@@ -390,6 +390,30 @@ def write_offline_workflow_artifact(artifact_dir, doc):
     })
 
 
+def write_mailbox_lifecycle_artifact(artifact_dir, doc, failed_id, expired_id):
+    records = [
+        rec for rec in (doc.get("target_mailbox_records") or [])
+        if rec.get("target_id") in ("target-failed", "target-expired")
+    ]
+    by_command = doc.get("target_mailbox_records_by_command_id") or {}
+    write_json(artifact_dir / "mailbox-lifecycle.json", {
+        "schema": 1,
+        "kind": "mailbox-lifecycle-artifact",
+        "summary": {
+            "target_mailbox_record_count": doc.get("summary", {}).get("target_mailbox_record_count", 0),
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_mailbox_status_counts": doc.get("summary", {}).get("target_mailbox_status_counts", {}),
+            "target_mailbox_result_status_counts": doc.get("summary", {}).get("target_mailbox_result_status_counts", {}),
+            "target_mailbox_expired_counts": doc.get("summary", {}).get("target_mailbox_expired_counts", {}),
+        },
+        "failed_command_id": failed_id,
+        "expired_command_id": expired_id,
+        "failed_mailbox_record": by_command.get(failed_id) or {},
+        "expired_mailbox_record": by_command.get(expired_id) or {},
+        "target_mailbox_records": records,
+    })
+
+
 def write_artifact_manifest(artifact_dir, phases):
     records = []
     for path in sorted(artifact_dir.iterdir()):
@@ -473,6 +497,92 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     return {"name": "offline-workflow-queue", "status": "pass", "artifact": "offline-workflow-status.json"}
 
 
+def run_mailbox_lifecycle_scenario(artifact_dir):
+    scenario_dir = artifact_dir / "mailbox-lifecycle-session"
+    queue_port = free_port()
+    cfg = scenario_dir / "server-config.json"
+    queue_file = scenario_dir / "command-queue.json"
+    write_json(cfg, {
+        "listen_host": "127.0.0.1",
+        "operator_session_dir": str(scenario_dir),
+        "session_root": str(scenario_dir / "sessions"),
+        "server_state": str(scenario_dir / "server-state.json"),
+        "targets_file": str(scenario_dir / "targets.json"),
+        "command_queue_file": str(queue_file),
+        "command_queue_enable": "yes",
+        "command_queue_tls": "no",
+        "command_queue_port": str(queue_port),
+        "command_queue_require_token": "no",
+        "command_queue_allowed_commands": "busierbox-only",
+        "command_queue_allow_arbitrary": "no",
+    })
+
+    queue_command(cfg, "target-failed", "Failed Router", "busierbox survey --json")
+    label_result = run(
+        str(SERVER), "--config", str(cfg),
+        "--set-target-label", "target-expired",
+        "--target-label", "Expired Router",
+    )
+    if label_result.returncode != 0:
+        raise RuntimeError(f"target label setup failed for target-expired: {label_result.stderr}")
+    expired_queue = run(
+        str(SERVER), "--config", str(cfg),
+        "--target-id", "target-expired",
+        "--target-label", "Expired Router",
+        "--queue-command", "busierbox survey --json",
+        "--queue-expire-sec", "1",
+    )
+    if expired_queue.returncode != 0:
+        raise RuntimeError(f"expired command queue failed: {expired_queue.stderr}")
+    data = json.loads(queue_file.read_text(encoding="utf-8"))
+    failed_id = ""
+    expired_id = ""
+    for rec in data.get("commands") or []:
+        if rec.get("target_id") == "target-failed":
+            failed_id = rec.get("id")
+        if rec.get("target_id") == "target-expired":
+            expired_id = rec.get("id")
+            rec["created_at"] = "2000-01-01T00:00:00Z"
+            rec["expires_at"] = "2000-01-01T00:00:01Z"
+    write_json(queue_file, data)
+    assert_condition(failed_id and expired_id, "mailbox lifecycle command ids missing", data)
+
+    proc = start_one_shot(cfg, "command-queue")
+    failed_poll = connect_with_retry(queue_port, poll_request("target-failed", "Failed Router"))
+    wait_proc(proc, "failed target poll")
+    save_response(artifact_dir, "lifecycle-failed-poll", failed_poll)
+    assert_condition(b"HTTP/1.1 200 OK" in failed_poll and failed_id.encode("ascii") in failed_poll, "failed target command was not delivered")
+
+    proc = start_one_shot(cfg, "command-queue")
+    expired_poll = connect_with_retry(queue_port, poll_request("target-expired", "Expired Router"))
+    wait_proc(proc, "expired target poll")
+    save_response(artifact_dir, "lifecycle-expired-poll", expired_poll)
+    assert_condition(b"HTTP/1.1 204 No Content" in expired_poll and expired_id.encode("ascii") not in expired_poll, "expired command should not be delivered")
+
+    proc = start_one_shot(cfg, "command-queue")
+    failed_result = connect_with_retry(
+        queue_port,
+        result_request(failed_id, "target-failed", "Failed Router", status="failed", exit_code=23, stdout_bytes=0, stderr_bytes=11),
+    )
+    wait_proc(proc, "failed target result")
+    save_response(artifact_dir, "lifecycle-failed-result", failed_result)
+    assert_condition(b"HTTP/1.1 200 OK" in failed_result, "failed target result upload failed")
+
+    doc = status(cfg, artifact_dir, "mailbox-lifecycle-status")
+    failed = (doc.get("target_mailbox_records_by_command_id") or {}).get(failed_id) or {}
+    expired = (doc.get("target_mailbox_records_by_command_id") or {}).get(expired_id) or {}
+    assert_condition(failed.get("status") == "result-received", "failed mailbox status mismatch", failed)
+    assert_condition(failed.get("result_status") == "failed", "failed mailbox result status mismatch", failed)
+    assert_condition(failed.get("result_exit_code") == 23, "failed mailbox exit mismatch", failed)
+    assert_condition(expired.get("status") == "expired", "expired mailbox status mismatch", expired)
+    assert_condition(expired.get("expired") is True, "expired mailbox flag mismatch", expired)
+    assert_condition(expired.get("pending_work") is False, "expired mailbox pending mismatch", expired)
+    assert_condition(doc["summary"]["target_mailbox_result_status_counts"].get("failed") == 1, "failed mailbox summary missing")
+    assert_condition(doc["summary"]["target_mailbox_expired_counts"].get("True") == 1, "expired mailbox summary missing")
+    write_mailbox_lifecycle_artifact(artifact_dir, doc, failed_id, expired_id)
+    return {"name": "mailbox-failed-expired", "status": "pass", "artifact": "mailbox-lifecycle-status.json"}
+
+
 def assert_condition(condition, message, detail=None):
     if not condition:
         if detail is not None:
@@ -517,6 +627,7 @@ def run_harness(artifact_dir):
     phases = []
 
     phases.append(run_offline_workflow_queue_scenario(artifact_dir))
+    phases.append(run_mailbox_lifecycle_scenario(artifact_dir))
 
     queue_command(cfg, "target-alpha", "Alpha Router", "busierbox survey --json")
     queue_command(cfg, "target-bravo", "Bravo Router", "busierbox survey --json")

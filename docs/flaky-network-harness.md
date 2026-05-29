@@ -12,6 +12,7 @@ virtual network boundaries:
 - a short phone-home window delivers only the reconnecting target's work
 - duplicate polls do not redeliver already delivered commands
 - dropped/truncated result uploads are rejected without mutating delivered work
+- failed command results and expired queued work remain visible in mailbox state
 - target result upload updates `last_seen`, mailbox, and latest-result state
 - survey bootstrap script/result flows refresh target survey state
 - interrupted file uploads are recorded as truncated target file activity
@@ -27,7 +28,8 @@ The artifact directory contains HTTP transcripts, per-phase operator status
 JSON, dropped-result evidence, bridge response data, and `summary.json`. It also
 writes focused debug artifacts that mirror the QEMU lab contract:
 `target-mailbox.json`, `offline-workflow-mailbox.json`, `command-result.json`,
-`transfer.log`, `bridge-events.jsonl`, and `artifact-manifest.json`. The smoke wrapper
+`mailbox-lifecycle.json`, `transfer.log`, `bridge-events.jsonl`, and
+`artifact-manifest.json`. The smoke wrapper
 `tests/smoke/flaky-network-harness.sh` runs the same scenario from
 `make smoke-test` with a temporary artifact directory and validates those
 focused artifacts.
@@ -37,7 +39,8 @@ run in CI without QEMU, tap devices, root privileges, or network downloads. A
 future QEMU lab should reuse the same phase names and expected artifacts while
 adding operator/target VM topology, link-state transitions, image/kernel
 metadata, tap/bridge setup, target-side poll logs, and proof that queued survey
-and staged-file fetch mailbox work drains during a short reconnect window.
+and staged-file fetch mailbox work drains during a short reconnect window while
+failed and expired mailbox records stay inspectable.
 
 For the networked-QEMU path, `tests/qemu-system/run-flaky-network-lab` creates
 that lab plan without requiring QEMU by default:

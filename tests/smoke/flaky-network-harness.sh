@@ -8,6 +8,7 @@ python3 tests/integration/flaky-network-harness.py --artifact-dir "$tmp/flaky-ne
 test -s "$tmp/flaky-network/summary.json"
 test -s "$tmp/flaky-network/target-mailbox.json"
 test -s "$tmp/flaky-network/offline-workflow-mailbox.json"
+test -s "$tmp/flaky-network/mailbox-lifecycle.json"
 test -s "$tmp/flaky-network/command-result.json"
 test -s "$tmp/flaky-network/transfer.log"
 test -s "$tmp/flaky-network/bridge-events.jsonl"
@@ -21,6 +22,7 @@ from pathlib import Path
 artifact_dir = Path(sys.argv[1])
 mailbox = json.loads((artifact_dir / "target-mailbox.json").read_text(encoding="utf-8"))
 workflow = json.loads((artifact_dir / "offline-workflow-mailbox.json").read_text(encoding="utf-8"))
+lifecycle = json.loads((artifact_dir / "mailbox-lifecycle.json").read_text(encoding="utf-8"))
 result = json.loads((artifact_dir / "command-result.json").read_text(encoding="utf-8"))
 transfer = json.loads((artifact_dir / "transfer.log").read_text(encoding="utf-8"))
 manifest = json.loads((artifact_dir / "artifact-manifest.json").read_text(encoding="utf-8"))
@@ -40,6 +42,14 @@ assert workflow["summary"]["target_mailbox_waiting_for_counts"]["target-poll"] =
 workflow_commands = "\n".join(rec.get("command") or "" for rec in workflow["target_mailbox_records"])
 assert "wget -O-" in workflow_commands and "survey.sh" in workflow_commands
 assert "busierbox fetch workflow-payload.txt" in workflow_commands
+assert lifecycle["kind"] == "mailbox-lifecycle-artifact"
+assert lifecycle["failed_mailbox_record"]["result_status"] == "failed"
+assert lifecycle["failed_mailbox_record"]["result_exit_code"] == 23
+assert lifecycle["expired_mailbox_record"]["status"] == "expired"
+assert lifecycle["expired_mailbox_record"]["expired"] is True
+assert lifecycle["expired_mailbox_record"]["pending_work"] is False
+assert lifecycle["summary"]["target_mailbox_result_status_counts"]["failed"] == 1
+assert lifecycle["summary"]["target_mailbox_expired_counts"]["True"] == 1
 assert result["kind"] == "command-result-artifact"
 assert result["status"] == "result-received"
 assert result["result_status"] == "completed"
@@ -52,6 +62,7 @@ manifest_names = {item["name"] for item in manifest["artifacts"]}
 for name in (
     "target-mailbox.json",
     "offline-workflow-mailbox.json",
+    "mailbox-lifecycle.json",
     "command-result.json",
     "transfer.log",
     "bridge-events.jsonl",
