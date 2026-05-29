@@ -1,0 +1,36 @@
+{
+  "schema": 2,
+  "uname": {
+    "sysname": "Linux",
+    "nodename": "debian-arm-lab",
+    "release": "4.19.0-25-armmp",
+    "version": "#1 SMP Debian 4.19.289-2",
+    "machine": "armv7l"
+  },
+  "arch": "armv7l",
+  "kernel": "4.19.0",
+  "endianness": "little",
+  "os": "Debian GNU/Linux 10 (buster)",
+  "libc": "glibc 2.28",
+  "dirs": [
+    {
+      "path": ".",
+      "writable": true,
+      "noexec": false
+    },
+    {
+      "path": "/tmp",
+      "writable": true,
+      "noexec": false
+    }
+  ],
+  "recommendations": {
+    "target_arch_guess": "armv7",
+    "endian_guess": "little",
+    "kernel_floor_guess": "4.x",
+    "libc_guess": "glibc",
+    "target_cpu_guess": "cortex-a9",
+    "payload_mode_possible": true,
+    "recommended_extract_dir": "."
+  }
+}

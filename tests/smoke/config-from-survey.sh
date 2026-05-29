@@ -59,6 +59,31 @@ assert "kernel floor 2.6" in compat["reasons"]
 assert "no target preset selected" in compat["reasons"]
 PY
 
+scripts/config-from-survey --format json tests/fixtures/survey/non-openwrt-armv7-glibc.json >"$tmp/non-openwrt.json"
+python3 - "$tmp/non-openwrt.json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+cfg = doc["recommendations"]
+assert cfg["BB_TARGET_PRESET"] == ""
+assert cfg["BB_TARGET_ARCH"] == "armv7"
+assert cfg["BB_TARGET_ENDIAN"] == "little"
+assert cfg["BB_TARGET_LIBC"] == "glibc"
+assert cfg["BB_KERNEL_FLOOR"] == "4.x"
+assert cfg["BB_RUNTIME_MODE"] == "extract"
+compat = doc["compatibility"]
+assert compat["label"] == "heuristic"
+assert "arch inferred armv7" in compat["reasons"]
+assert "libc inferred glibc" in compat["reasons"]
+assert "kernel floor 4.x" in compat["reasons"]
+assert "no target preset selected" in compat["reasons"]
+facts = doc["facts"]
+assert facts["arch"] == "armv7"
+assert facts["libc"] == "glibc"
+assert facts["payload_possible"] is True
+PY
+
 cat >"$tmp/reality-bad-runtime.json" <<'EOF'
 {
   "schema": 1,

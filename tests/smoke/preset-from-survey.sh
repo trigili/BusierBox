@@ -112,4 +112,31 @@ assert evidence["endianness"] == "big"
 assert evidence["recommendations"]["target_cpu_guess"] == "mips32"
 PY
 
+scripts/preset-from-survey \
+    --survey tests/fixtures/survey/non-openwrt-armv7-glibc.json \
+    --name debian-armv7-lab \
+    --json >"$work/non-openwrt.json"
+python3 - "$work/non-openwrt.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data["arch"] == "armv7"
+assert data["endian"] == "little"
+assert data["libc"] == "glibc"
+assert data["kernel_floor"] == "4.x"
+assert data["cpu"] == "cortex-a9"
+assert data["openwrt"] == {}
+compat = data["compatibility"]
+assert compat["label"] == "exact"
+assert "arch inferred from survey evidence" in compat["reasons"]
+assert "libc inferred from survey evidence" in compat["reasons"]
+assert "kernel floor inferred from survey evidence" in compat["reasons"]
+assert "OpenWrt release hints present" not in compat["reasons"]
+assert "payload/runtime compatibility is scored separately" in compat["note"]
+evidence = data["evidence"]
+assert evidence["machine"] == "armv7l"
+assert evidence["recommendations"]["target_arch_guess"] == "armv7"
+PY
+
 printf '%s\n' "preset-from-survey ok"
