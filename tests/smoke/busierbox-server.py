@@ -6016,7 +6016,7 @@ def main():
             os.close(line_slave)
             line_slave = -1
             time.sleep(0.5)
-            os.write(line_master, b"16\ntarget-action\n15\ntarget-action:queue-command\nbusierbox survey --json\n18\ncurrent\nq\n")
+            os.write(line_master, b"16\ntarget-action\n15\ntarget-action:queue-command\nbusierbox survey --json\n18\ncurrent\n18\nall\nq\n")
             _line_stdout, line_stderr = line_proc.communicate(timeout=8)
             line_output = b""
             while True:
@@ -6043,6 +6043,7 @@ def main():
                 "Target detail: target-action label=Action Router" not in line_text or
                 "headless_command: scripts/busierbox-server --config" not in line_text or
                 "--target-id target-action --status" not in line_text or
+                " --status" not in line_text or
                 "mailbox queued=1 delivered=0 results=0 pending=1" not in line_text or
                 "Target workflow actions:" not in line_text):
             print("line TUI target detail did not show mailbox/activity and headless command", file=sys.stderr)
@@ -6051,6 +6052,7 @@ def main():
         action_doc = json.loads(run(
             "scripts/busierbox-server",
             "--config", str(action_cfg),
+            "--event-limit", "32",
             "--json-status",
         ).stdout)
         action_queue = (action_doc.get("command_queue") or {}).get("commands_by_target_id", {}).get("target-action") or []
@@ -6078,6 +6080,11 @@ def main():
                     "--target-id target-action --status" in ((event.get("details") or {}).get("headless_command") or "")
                     for event in selected_events) or
                 not action_events.get("workbench_target_inspected") or
+                not any(
+                    (event.get("details") or {}).get("scope") == "all" and
+                    "--status" in ((event.get("details") or {}).get("headless_command") or "")
+                    for event in action_events.get("workbench_targets_inspected", [])
+                ) or
                 line_workbench_state.get("selected_target_id") != "target-action" or
                 line_workbench_state.get("selected_target_label") != "Action Router" or
                 action_doc.get("summary", {}).get("command_queue_target_counts", {}).get("target-action") != 1 or

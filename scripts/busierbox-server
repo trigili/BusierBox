@@ -15341,9 +15341,15 @@ def run_line_tui(cfg):
                     if not target:
                         raise ValueError(f"target not found: {current}")
                 elif selected.lower() in ("all", "*"):
-                    print("headless_command: scripts/busierbox-server --config " + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG))) + " --status")
+                    headless = (
+                        "scripts/busierbox-server --config "
+                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                        + " --status"
+                    )
+                    print(f"headless_command: {headless}")
                     print_target_summary(snap)
                     append_event(cfg, "workbench", "workbench_targets_inspected", details={
+                        "headless_command": headless,
                         "scope": "all",
                         "target_count": len(targets),
                     })

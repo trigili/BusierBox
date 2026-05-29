@@ -503,7 +503,9 @@ adds an `unknown_target_filter` warning with the requested target id and
 The line-oriented workbench target selector prints and records the equivalent
 `--target-id ID --status` command when a target is selected, or plain `--status`
 when the filter is cleared, so manual target context changes remain reproducible
-from headless automation.
+from headless automation. The line-oriented target mailbox/activity inspector
+does the same for both per-target detail and all-target summaries, so offline
+mailbox review leaves a reproducible headless status command in the audit log.
 The same status payload includes `target_attribution` plus mirrored summary
 counts for uploads, fetches, and sessions with and without `target_id`, so
 legacy single-target traffic remains valid but visible instead of being
