@@ -2036,7 +2036,54 @@ def load_bridge_profiles(cfg):
     return data
 
 
+def parse_bridge_hop(text):
+    raw = str(text or "").strip()
+    for sep in ("->", "=", ","):
+        if sep in raw:
+            left, right = raw.split(sep, 1)
+            left = left.strip()
+            right = right.strip()
+            if not left or not right:
+                raise ValueError("--bridge-hop requires non-empty FROM and TO endpoints")
+            return {"from": left, "to": right}
+    raise ValueError("--bridge-hop must use FROM=TO, FROM->TO, or FROM,TO")
+
+
+def default_bridge_hops(cfg, dest_port):
+    listen_port = int(cfg.get("bridge_listen_port") or cfg.get("listen_port") or 22206)
+    dest_host = str(cfg.get("bridge_dest_host") or cfg.get("dest_host") or "127.0.0.1")
+    return [
+        {
+            "from": f"operator:{listen_port}",
+            "to": f"{dest_host}:{dest_port}",
+        }
+    ]
+
+
+def bridge_hops_from_args(cfg, dest_port, hop_args=None):
+    if not hop_args:
+        return default_bridge_hops(cfg, dest_port)
+    return [parse_bridge_hop(item) for item in hop_args]
+
+
 def bridge_route_path(rec):
+    hops = rec.get("hops")
+    if isinstance(hops, list) and hops:
+        path = []
+        for hop in hops:
+            if not isinstance(hop, dict):
+                continue
+            src = str(hop.get("from") or "").strip()
+            dst = str(hop.get("to") or "").strip()
+            if not src or not dst:
+                continue
+            if not path:
+                path.append(src)
+            elif path[-1] != src:
+                path.append(src)
+            path.append(dst)
+        if path:
+            return " -> ".join(path)
     return f"operator:{rec.get('listen_port', '')} -> {rec.get('dest_host', '')}:{rec.get('dest_port', '')}"
 
 
@@ -2051,9 +2098,13 @@ def bridge_profile_record(cfg, name, rec, service_state=None):
     out["target_label"] = str(out.get("target_label") or "")
     out["purpose"] = str(out.get("purpose") or "")
     out["notes"] = str(out.get("notes") or "")
+    if not isinstance(out.get("hops"), list) or not out.get("hops"):
+        out["hops"] = default_bridge_hops(out, int(out.get("dest_port") or 0))
     out["route_path"] = bridge_route_path(out)
     out["hop_count"] = len(out.get("hops") or []) if isinstance(out.get("hops"), list) else 1
     out["multi_hop"] = out["hop_count"] > 1
+    out["start_command"] = f"scripts/busierbox-server --transport bridge --bridge-profile {shquote(out['name'])}"
+    out["stop_command"] = "scripts/busierbox-server --stop --transport bridge"
     out["requires_target_online"] = bool(out.get("target_id"))
     state = service_state if isinstance(service_state, dict) else {}
     active_profile = str(state.get("bridge_profile") or "")
@@ -2088,10 +2139,12 @@ def bridge_profile_indexes(records):
         "bridge_profiles_by_active": records_by_key(records, "active"),
         "bridge_profiles_by_requires_target_online": records_by_key(records, "requires_target_online"),
         "bridge_profiles_by_multi_hop": records_by_key(records, "multi_hop"),
+        "bridge_profiles_by_hop_count": records_by_key(records, "hop_count"),
+        "bridge_profiles_by_route_path": records_by_key(records, "route_path"),
     }
 
 
-def save_bridge_profile(cfg, name, purpose="", notes=""):
+def save_bridge_profile(cfg, name, purpose="", notes="", hop_args=None):
     name = str(name or "").strip()
     if not valid_profile_name(name):
         raise ValueError("bridge profile name must contain only letters, numbers, dot, underscore, or dash")
@@ -2110,12 +2163,7 @@ def save_bridge_profile(cfg, name, purpose="", notes=""):
         "target_label": str(target.get("target_label") or ""),
         "purpose": str(purpose or ""),
         "notes": str(notes or ""),
-        "hops": [
-            {
-                "from": f"operator:{int(cfg.get('bridge_listen_port', 22206))}",
-                "to": f"{cfg.get('bridge_dest_host', '127.0.0.1')}:{dest_port}",
-            }
-        ],
+        "hops": bridge_hops_from_args(cfg, dest_port, hop_args=hop_args),
         "created_at": utc_now(),
         "updated_at": utc_now(),
     }
@@ -10407,6 +10455,7 @@ def status_document(cfg):
         "bridge_profile_current_state_counts": record_count_by_key(bridge_profiles, "current_state"),
         "bridge_profile_requires_target_online_counts": record_count_by_key(bridge_profiles, "requires_target_online"),
         "bridge_profile_multi_hop_counts": record_count_by_key(bridge_profiles, "multi_hop"),
+        "bridge_profile_hop_count_counts": record_count_by_key(bridge_profiles, "hop_count"),
     })
     (services_by_actual,
      services_by_configured,
@@ -11298,6 +11347,7 @@ def status_document(cfg):
                 "bridge_profiles_by_dest_host", "bridge_profiles_by_listen_port",
                 "bridge_profiles_by_current_state", "bridge_profiles_by_active",
                 "bridge_profiles_by_requires_target_online", "bridge_profiles_by_multi_hop",
+                "bridge_profiles_by_hop_count", "bridge_profiles_by_route_path",
             ), "bridge_profile_count",
         ),
         "ports": api_collection_record(
@@ -14442,6 +14492,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="purpose text stored with --save-bridge-profile")
     parser.add_argument("--bridge-profile-notes",
                         help="operator notes stored with --save-bridge-profile")
+    parser.add_argument("--bridge-hop", action="append", default=[],
+                        help="explicit bridge profile hop FROM=TO; may be repeated for multi-hop chains")
     parser.add_argument("--list-bridge-profiles", action="store_true",
                         help="list named bridge profiles")
     parser.add_argument("--json-bridge-profiles", action="store_true",
@@ -14535,7 +14587,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
 
     try:
         if args.save_bridge_profile:
-            rec = save_bridge_profile(cfg, args.save_bridge_profile, purpose=args.bridge_profile_purpose or "", notes=args.bridge_profile_notes or "")
+            rec = save_bridge_profile(cfg, args.save_bridge_profile, purpose=args.bridge_profile_purpose or "", notes=args.bridge_profile_notes or "", hop_args=args.bridge_hop)
             print(f"saved bridge profile {rec.get('name', '')}: {rec.get('route_path', '')}")
             print(f"bridge_profiles_file={bridge_profiles_path(cfg)}")
             if not (args.list_bridge_profiles or args.json_bridge_profiles):

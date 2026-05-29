@@ -38,8 +38,8 @@ exposing it beyond a local lab interface.
 
 ## Named Profiles
 
-Bridge profiles store repeatable one-hop bridge routes for CLI, status JSON,
-and the operator console:
+Bridge profiles store repeatable bridge routes for CLI, status JSON, and the
+operator console. A profile without explicit hops is a simple one-hop route:
 
 ```sh
 scripts/busierbox-server \
@@ -54,11 +54,32 @@ scripts/busierbox-server --json-bridge-profiles
 scripts/busierbox-server --transport bridge --bridge-profile lab-http
 ```
 
+Profiles can also carry explicit multi-hop chain metadata. Repeat `--bridge-hop`
+when saving the profile:
+
+```sh
+scripts/busierbox-server \
+  --save-bridge-profile rack-chain \
+  --bridge-port 22206 \
+  --bridge-dest-host 10.10.40.8 \
+  --bridge-dest-port 80 \
+  --bridge-hop operator:22206=rack-host:9001 \
+  --bridge-hop rack-host:9001=target-lan-device:80
+```
+
+The stored path is rendered as:
+
+```text
+operator:22206 -> rack-host:9001 -> target-lan-device:80
+```
+
 Profiles live in `bridge-profiles.json` under the operator session directory by
 default. Each record includes the listen endpoint, destination endpoint,
-optional target id/label, purpose, notes, state, route path, and whether the
-profile requires a target to be online. `--json-status` exposes
-`bridge_profiles` plus indexes such as `bridge_profiles_by_name`,
-`bridge_profiles_by_target_id`, `bridge_profiles_by_current_state`, and
-`bridge_profiles_by_active` for TUI and automation clients. The simple direct
-`--bridge-*` flags remain the easy one-hop path.
+explicit hops, hop count, multi-hop flag, optional target id/label, purpose,
+notes, state, route path, start/stop commands, and whether the profile requires
+a target to be online. `--json-status` exposes `bridge_profiles` plus indexes
+such as `bridge_profiles_by_name`, `bridge_profiles_by_target_id`,
+`bridge_profiles_by_current_state`, `bridge_profiles_by_active`,
+`bridge_profiles_by_multi_hop`, `bridge_profiles_by_hop_count`, and
+`bridge_profiles_by_route_path` for TUI and automation clients. The simple
+direct `--bridge-*` flags remain the easy one-hop path.

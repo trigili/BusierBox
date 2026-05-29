@@ -303,16 +303,53 @@ def main():
             print(save_bridge_profile.stdout, file=sys.stderr)
             print(save_bridge_profile.stderr, file=sys.stderr)
             return 1
+        save_bridge_chain = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--target-id", "target-bridge",
+            "--target-label", "Bridge Target",
+            "--save-bridge-profile", "chain-http",
+            "--bridge-profile-purpose", "multi-hop-web",
+            "--bridge-profile-notes", "two hop smoke",
+            "--bridge-hop", f"operator:{bridge_port}=rack-host:9001",
+            "--bridge-hop", "rack-host:9001=target-lan-device:80",
+        )
+        expected_chain_path = f"operator:{bridge_port} -> rack-host:9001 -> target-lan-device:80"
+        if (save_bridge_chain.returncode != 0 or
+                "saved bridge profile chain-http" not in save_bridge_chain.stdout or
+                expected_chain_path not in save_bridge_chain.stdout):
+            print("multi-hop bridge profile save failed", file=sys.stderr)
+            print(save_bridge_chain.stdout, file=sys.stderr)
+            print(save_bridge_chain.stderr, file=sys.stderr)
+            return 1
         list_bridge_profiles = run(
             "scripts/busierbox-server",
             "--config", str(bridge_cfg),
             "--list-bridge-profiles",
         )
         if ("lab-http" not in list_bridge_profiles.stdout or
+                "chain-http" not in list_bridge_profiles.stdout or
+                expected_chain_path not in list_bridge_profiles.stdout or
                 "target=target-bridge" not in list_bridge_profiles.stdout or
                 "path: operator:" not in list_bridge_profiles.stdout):
             print("bridge profile list missing saved route", file=sys.stderr)
             print(list_bridge_profiles.stdout, file=sys.stderr)
+            return 1
+        json_bridge_profiles = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--json-bridge-profiles",
+        ).stdout)
+        chain_profile = (json_bridge_profiles.get("bridge_profiles_by_name") or {}).get("chain-http") or {}
+        if (chain_profile.get("multi_hop") is not True or
+                chain_profile.get("hop_count") != 2 or
+                chain_profile.get("route_path") != expected_chain_path or
+                len(chain_profile.get("hops") or []) != 2 or
+                ((json_bridge_profiles.get("bridge_profiles_by_multi_hop") or {}).get("True") or [{}])[0].get("name") != "chain-http" or
+                ((json_bridge_profiles.get("bridge_profiles_by_hop_count") or {}).get("2") or [{}])[0].get("route_path") != expected_chain_path or
+                (json_bridge_profiles.get("bridge_profiles_by_route_path") or {}).get(expected_chain_path, [{}])[0].get("name") != "chain-http"):
+            print("json bridge profiles missing multi-hop metadata", file=sys.stderr)
+            print(json.dumps(json_bridge_profiles, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         bridge_proc = subprocess.Popen(
             [
@@ -358,14 +395,17 @@ def main():
         bridge_profile = (bridge_status.get("bridge_profiles_by_name") or {}).get("lab-http") or {}
         if (bridge_service.get("port") != bridge_port or
                 bridge_service.get("actual") != "stopped" or
-                bridge_status.get("summary", {}).get("bridge_profile_count") != 1 or
+                bridge_status.get("summary", {}).get("bridge_profile_count") != 2 or
                 bridge_profile.get("target_id") != "target-bridge" or
                 bridge_profile.get("purpose") != "web-admin" or
                 bridge_profile.get("route_path") != f"operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" or
+                ((bridge_status.get("bridge_profiles_by_name") or {}).get("chain-http") or {}).get("route_path") != expected_chain_path or
+                bridge_status.get("summary", {}).get("bridge_profile_hop_count_counts", {}).get("2") != 1 or
                 bridge_profile.get("last_bytes_from_client", 0) < len(b"hello") or
                 bridge_profile.get("last_bytes_from_upstream", 0) < len(b"bridge:hello") or
-                ((bridge_status.get("bridge_profiles_by_target_id") or {}).get("target-bridge") or [{}])[0].get("name") != "lab-http" or
+                "lab-http" not in [rec.get("name") for rec in ((bridge_status.get("bridge_profiles_by_target_id") or {}).get("target-bridge") or [])] or
                 "bridge_profiles_by_current_state" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
+                "bridge_profiles_by_hop_count" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 not bridge_events.get("bridge_connected") or
                 not bridge_events.get("bridge_closed") or
                 bridge_events["bridge_closed"][0].get("details", {}).get("bridge_profile") != "lab-http" or
