@@ -3565,11 +3565,22 @@ def main():
             "session_root": str(Path(tmp) / "sessions-single-shell"),
             "operator_session_dir": str(single_shell_operator_dir),
         }), encoding="utf-8")
+        single_shell_label = run(
+            "scripts/busierbox-server", "--config", str(single_shell_cfg),
+            "--set-target-label", "target-shell",
+            "--target-label", "Shell Router",
+        )
+        if single_shell_label.returncode != 0:
+            print("single rshell target label setup failed", file=sys.stderr)
+            print(single_shell_label.stdout, file=sys.stderr)
+            print(single_shell_label.stderr, file=sys.stderr)
+            return 1
         single_shell_proc = subprocess.Popen(
             [
                 str(server), "--config", str(single_shell_cfg),
                 "--state-file", str(single_shell_state),
                 "--staged-file", str(single_shell_staged),
+                "--target-id", "target-shell",
                 "--transport", "plain-shell",
                 "--no-stdin",
                 "--timeout", "30",
@@ -3627,6 +3638,37 @@ def main():
         ]
         if not any(event.get("event") == "shell_listener_policy_stop" and event.get("details", {}).get("session_policy") == "single" for event in single_events):
             print("single rshell session policy did not write policy stop event", file=sys.stderr)
+            return 1
+        single_shell_session = next((rec for rec in single_after.get("sessions") or [] if rec.get("service") == "plain-shell"), {})
+        single_shell_target = (single_after.get("targets_by_id") or {}).get("target-shell") or {}
+        single_shell_target_events = [
+            event for event in single_events
+            if event.get("details", {}).get("target_id") == "target-shell"
+        ]
+        if (single_shell_session.get("target_id") != "target-shell" or
+                single_shell_session.get("target_label") != "Shell Router" or
+                single_shell_target.get("label") != "Shell Router" or
+                "plain-shell" not in (single_shell_target.get("services_seen") or []) or
+                single_shell_target.get("latest_session_id") != single_shell_session.get("session_id") or
+                not any(event.get("event") == "shell_connected" for event in single_shell_target_events) or
+                not any(event.get("event") == "shell_listener_policy_stop" for event in single_shell_target_events)):
+            print("target-scoped rshell session/event records were not captured", file=sys.stderr)
+            print(json.dumps(single_after, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        single_shell_filtered = json.loads(run(
+            "scripts/busierbox-server", "--config", str(single_shell_cfg),
+            "--state-file", str(single_shell_state),
+            "--staged-file", str(single_shell_staged),
+            "--target-id", "target-shell",
+            "--json-status",
+        ).stdout)
+        if (single_shell_filtered.get("target_filter", {}).get("active") is not True or
+                single_shell_filtered.get("summary", {}).get("target_count") != 1 or
+                single_shell_filtered.get("summary", {}).get("session_count") != 1 or
+                (single_shell_filtered.get("sessions") or [{}])[0].get("target_id") != "target-shell" or
+                not any((event.get("details") or {}).get("target_id") == "target-shell" for event in single_shell_filtered.get("events") or [])):
+            print("target-filtered rshell status did not retain scoped session/events", file=sys.stderr)
+            print(json.dumps(single_shell_filtered, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         reconnect_shell_port = free_port()
