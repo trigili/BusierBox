@@ -175,6 +175,26 @@ def queue_command(cfg, target_id, label, command):
         raise RuntimeError(f"queue command failed for {target_id}: {result.stderr}")
 
 
+def run_target_workflow_action(cfg, action, target_id="target-workflow", label="Workflow Target", extra=None):
+    label_result = run(
+        str(SERVER), "--config", str(cfg),
+        "--set-target-label", target_id,
+        "--target-label", label,
+    )
+    if label_result.returncode != 0:
+        raise RuntimeError(f"target label setup failed for {target_id}: {label_result.stderr}")
+    args = [
+        str(SERVER), "--config", str(cfg),
+        "--run-target-workflow-action", f"{target_id}:{action}",
+    ]
+    if extra:
+        args.extend(extra)
+    result = run(*args)
+    if result.returncode != 0:
+        raise RuntimeError(f"target workflow action {action} failed: {result.stderr}")
+    return result
+
+
 def command_ids(queue_file):
     data = json.loads(queue_file.read_text(encoding="utf-8"))
     return {rec.get("target_id"): rec.get("id") for rec in data.get("commands") or []}
@@ -344,6 +364,32 @@ def write_bridge_events_artifact(artifact_dir, doc):
     write_jsonl(artifact_dir / "bridge-events.jsonl", records)
 
 
+def write_offline_workflow_artifact(artifact_dir, doc):
+    target = (doc.get("targets_by_id") or {}).get("target-workflow") or {}
+    records = [
+        rec for rec in (doc.get("target_mailbox_records") or [])
+        if rec.get("target_id") == "target-workflow"
+    ]
+    actions = [
+        rec for rec in (doc.get("events") or [])
+        if rec.get("event") == "target_workflow_action_completed"
+        and (rec.get("details") or {}).get("target_id") == "target-workflow"
+    ]
+    write_json(artifact_dir / "offline-workflow-mailbox.json", {
+        "schema": 1,
+        "kind": "offline-workflow-mailbox-artifact",
+        "target": target,
+        "summary": {
+            "target_mailbox_record_count": doc.get("summary", {}).get("target_mailbox_record_count", 0),
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_mailbox_waiting_for_counts": doc.get("summary", {}).get("target_mailbox_waiting_for_counts", {}),
+            "target_workflow_action_result_counts": doc.get("summary", {}).get("target_workflow_action_result_counts", {}),
+        },
+        "target_mailbox_records": records,
+        "target_workflow_action_events": actions,
+    })
+
+
 def write_artifact_manifest(artifact_dir, phases):
     records = []
     for path in sorted(artifact_dir.iterdir()):
@@ -360,6 +406,71 @@ def write_artifact_manifest(artifact_dir, phases):
         "artifacts": records,
         "phases": phases,
     })
+
+
+def run_offline_workflow_queue_scenario(artifact_dir):
+    scenario_dir = artifact_dir / "offline-workflow-session"
+    queue_port = free_port()
+    survey_port = free_port()
+    file_port = free_port()
+    cfg = scenario_dir / "server-config.json"
+    queue_file = scenario_dir / "command-queue.json"
+    source = scenario_dir / "workflow-payload.txt"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("payload for offline staged fetch\n", encoding="utf-8")
+    write_json(cfg, {
+        "listen_host": "127.0.0.1",
+        "operator_session_dir": str(scenario_dir),
+        "session_root": str(scenario_dir / "sessions"),
+        "server_state": str(scenario_dir / "server-state.json"),
+        "targets_file": str(scenario_dir / "targets.json"),
+        "command_queue_file": str(queue_file),
+        "command_queue_enable": "yes",
+        "command_queue_tls": "no",
+        "command_queue_port": str(queue_port),
+        "command_queue_require_token": "no",
+        "command_queue_allowed_commands": "busierbox-only",
+        "command_queue_allow_arbitrary": "no",
+        "survey_bootstrap_port": str(survey_port),
+        "survey_bootstrap_name": "survey.sh",
+        "file_service_enable": "yes",
+        "file_service_tls": "no",
+        "file_service_port": str(file_port),
+    })
+
+    run_target_workflow_action(cfg, "stage-file-fetch", extra=[
+        "--target-workflow-local-file", str(source),
+        "--target-workflow-request-name", "workflow-payload.txt",
+    ])
+    run_target_workflow_action(cfg, "queue-survey-bootstrap")
+    run_target_workflow_action(cfg, "queue-staged-fetch", extra=[
+        "--target-workflow-request-name", "workflow-payload.txt",
+    ])
+    doc = status(cfg, artifact_dir, "offline-workflow-status")
+    target = doc["targets_by_id"]["target-workflow"]
+    workflow_events = [
+        rec for rec in (doc.get("events") or [])
+        if rec.get("event") == "target_workflow_action_completed"
+        and (rec.get("details") or {}).get("target_id") == "target-workflow"
+    ]
+    completed_by_action = {
+        (rec.get("details") or {}).get("action_id"): (rec.get("details") or {})
+        for rec in workflow_events
+    }
+    mailbox_records = [
+        rec for rec in (doc.get("target_mailbox_records") or [])
+        if rec.get("target_id") == "target-workflow"
+    ]
+    mailbox_commands = "\n".join(rec.get("command") or "" for rec in mailbox_records)
+    assert_condition(target["mailbox_pending_work_count"] == 2, "offline workflow mailbox count mismatch", target)
+    assert_condition(doc["summary"]["target_mailbox_waiting_for_counts"].get("target-poll") == 2, "offline workflow waiting-for count mismatch")
+    assert_condition(completed_by_action.get("stage-file-fetch", {}).get("result") == "staged-file-fetch", "stage-file-fetch event missing", completed_by_action)
+    assert_condition(completed_by_action.get("queue-survey-bootstrap", {}).get("result") == "queued-survey-bootstrap", "queue-survey-bootstrap event missing", completed_by_action)
+    assert_condition(completed_by_action.get("queue-staged-fetch", {}).get("result") == "queued-staged-fetch", "queue-staged-fetch event missing", completed_by_action)
+    assert_condition("wget -O-" in mailbox_commands and "survey.sh" in mailbox_commands, "queued survey bootstrap command missing", mailbox_commands)
+    assert_condition("busierbox fetch workflow-payload.txt" in mailbox_commands, "queued staged fetch command missing", mailbox_commands)
+    write_offline_workflow_artifact(artifact_dir, doc)
+    return {"name": "offline-workflow-queue", "status": "pass", "artifact": "offline-workflow-status.json"}
 
 
 def assert_condition(condition, message, detail=None):
@@ -404,6 +515,8 @@ def run_harness(artifact_dir):
     })
 
     phases = []
+
+    phases.append(run_offline_workflow_queue_scenario(artifact_dir))
 
     queue_command(cfg, "target-alpha", "Alpha Router", "busierbox survey --json")
     queue_command(cfg, "target-bravo", "Bravo Router", "busierbox survey --json")
@@ -540,7 +653,7 @@ def run_harness(artifact_dir):
         "qemu_lab_followup": {
             "status": "planned",
             "topology": "operator node plus one or more target nodes with controllable link interruption",
-            "reuse_scenario": "offline queue, short phone-home window, duplicate poll, result upload, survey, partial transfer, bridge relay",
+            "reuse_scenario": "offline workflow queue, offline command queue, short phone-home window, duplicate poll, result upload, survey, partial transfer, bridge relay",
         },
     }
     write_json(artifact_dir / "summary.json", summary)

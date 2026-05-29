@@ -7,6 +7,7 @@ trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 python3 tests/integration/flaky-network-harness.py --artifact-dir "$tmp/flaky-network" >/dev/null
 test -s "$tmp/flaky-network/summary.json"
 test -s "$tmp/flaky-network/target-mailbox.json"
+test -s "$tmp/flaky-network/offline-workflow-mailbox.json"
 test -s "$tmp/flaky-network/command-result.json"
 test -s "$tmp/flaky-network/transfer.log"
 test -s "$tmp/flaky-network/bridge-events.jsonl"
@@ -19,6 +20,7 @@ from pathlib import Path
 
 artifact_dir = Path(sys.argv[1])
 mailbox = json.loads((artifact_dir / "target-mailbox.json").read_text(encoding="utf-8"))
+workflow = json.loads((artifact_dir / "offline-workflow-mailbox.json").read_text(encoding="utf-8"))
 result = json.loads((artifact_dir / "command-result.json").read_text(encoding="utf-8"))
 transfer = json.loads((artifact_dir / "transfer.log").read_text(encoding="utf-8"))
 manifest = json.loads((artifact_dir / "artifact-manifest.json").read_text(encoding="utf-8"))
@@ -31,6 +33,13 @@ bridge_events = [
 assert mailbox["kind"] == "target-mailbox-artifact"
 assert mailbox["summary"]["target_mailbox_pending_work_count"] == 2
 assert len(mailbox["target_mailbox_records"]) == 2
+assert workflow["kind"] == "offline-workflow-mailbox-artifact"
+assert workflow["target"]["target_id"] == "target-workflow"
+assert workflow["target"]["mailbox_pending_work_count"] == 2
+assert workflow["summary"]["target_mailbox_waiting_for_counts"]["target-poll"] == 2
+workflow_commands = "\n".join(rec.get("command") or "" for rec in workflow["target_mailbox_records"])
+assert "wget -O-" in workflow_commands and "survey.sh" in workflow_commands
+assert "busierbox fetch workflow-payload.txt" in workflow_commands
 assert result["kind"] == "command-result-artifact"
 assert result["status"] == "result-received"
 assert result["result_status"] == "completed"
@@ -42,6 +51,7 @@ assert any((rec.get("details") or {}).get("bridge_profile") == "flaky-bridge" fo
 manifest_names = {item["name"] for item in manifest["artifacts"]}
 for name in (
     "target-mailbox.json",
+    "offline-workflow-mailbox.json",
     "command-result.json",
     "transfer.log",
     "bridge-events.jsonl",
