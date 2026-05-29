@@ -14191,6 +14191,7 @@ def print_target_summary(doc, limit=8):
         f"latest_seen={summary.get('latest_target_seen_at') or '-'}"
     )
     mailbox_by_target = doc.get("target_mailbox_records_by_target_id") or {}
+    phone_home_by_target = doc.get("target_phone_home_records_by_target_id") or {}
     for rec in records[:limit]:
         aliases = ",".join(str(item) for item in rec.get("aliases") or []) or "-"
         remotes = ",".join(str(item) for item in rec.get("remote_addresses") or []) or "-"
@@ -14240,6 +14241,16 @@ def print_target_summary(doc, limit=8):
                 f"service={rec.get('latest_activity_service', '') or '-'} "
                 f"remote={rec.get('latest_activity_remote_addr', '') or '-'} "
                 f"at={rec.get('latest_activity_at', '') or '-'}"
+            )
+        target_id = str(rec.get("target_id") or "")
+        for attempt in (phone_home_by_target.get(target_id) or [])[:3]:
+            reason = attempt.get("pending_reason") or attempt.get("reason") or ""
+            reason_text = f" reason={reason}" if reason else ""
+            command = f" command={attempt.get('command_id', '')}" if attempt.get("command_id") else ""
+            print(
+                f"    phone_home {attempt.get('timestamp', '') or '-'} "
+                f"{attempt.get('kind', '') or '-'} status={attempt.get('status', '') or '-'} "
+                f"via={attempt.get('contact_path', '') or '-'}{command}{reason_text}"
             )
         print(f"    aliases={aliases} services={services} remotes={remotes}")
         if str(rec.get("notes") or "").strip():

@@ -364,10 +364,11 @@ Target status also exposes `targets_by_connectivity_state`,
 `targets_by_latest_survey_result_route_kind`,
 `targets_by_latest_survey_result_bridge_profile`, and
 `targets_by_latest_bridge_profile`. Text status and the noninteractive
-workbench print each target's recent mailbox items and latest workflow activity
-below the heartbeat and mailbox counts, so an operator can queue work while a
-target is gone, see the last successful phone-home path, inspect pending work,
-and confirm delivery when the target reconnects.
+workbench print each target's recent mailbox items, recent phone-home attempts,
+and latest workflow activity below the heartbeat and mailbox counts, so an
+operator can queue work while a target is gone, see the last successful
+phone-home path, inspect pending work, and confirm delivery when the target
+reconnects.
 
 For target-centered operator UX, status JSON also includes
 `target_workflow_actions`. These records are generated per target and expose the

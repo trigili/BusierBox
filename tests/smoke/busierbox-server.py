@@ -3199,7 +3199,7 @@ def main():
             os.close(queue_tui_slave)
             queue_tui_slave = -1
             time.sleep(0.5)
-            os.write(queue_tui_master, b"20\nq\n")
+            os.write(queue_tui_master, b"20\n18\ntarget-alpha\nq\n")
             _queue_tui_stdout, queue_tui_stderr = queue_tui_proc.communicate(timeout=8)
             queue_tui_output = b""
             while True:
@@ -3226,6 +3226,10 @@ def main():
                 f"{alpha_id}\tresult-received" not in queue_tui_text or
                 "result: " not in queue_tui_text or
                 "Target mailbox records:" not in queue_tui_text or
+                "Target detail: target-alpha label=Alpha Router" not in queue_tui_text or
+                "phone_home " not in queue_tui_text or
+                "poll status=delivered" not in queue_tui_text or
+                "result status=result-received" not in queue_tui_text or
                 f"{alpha_id} target=target-alpha state=online status=result-received waiting_for=none expired=no pending=no result=completed exit=0" not in queue_tui_text or
                 f"{bravo_id} target=target-bravo state=offline status=queued waiting_for=target-poll expired=no pending=yes result=- exit=-" not in queue_tui_text or
                 f"last_seen={old_seen} via=command-queue:command_queue_poll" not in queue_tui_text or
