@@ -263,7 +263,13 @@ tail. Result uploads also participate in operation and HTTP-status composites
 such as `events_by_event_detail_operation`,
 `events_by_service_detail_operation`, `events_by_event_detail_http_status`, and
 `events_by_service_detail_http_status`, allowing direct lookup of accepted or
-rejected result submissions by endpoint operation and response code.
+rejected result submissions by endpoint operation and response code. Poll
+events also expose target-reported callback settings through
+`events_by_detail_poll_mode`, `events_by_detail_poll_interval_sec`,
+`events_by_detail_poll_jitter_pct`, `events_by_detail_poll_backoff`,
+`events_by_detail_poll_max_interval_sec`, and `events_by_detail_max_polls`,
+with mirrored `summary.event_detail_*_counts` counters for dashboards that need
+to group live polls by interval policy without parsing every event payload.
 The same event detail indexing also includes `details.sha256` for file-transfer
 events, so file-service uploads and fetches can be correlated by content digest
 separately from command text digests.
