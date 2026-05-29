@@ -7534,19 +7534,27 @@ def command_queue_execution_rejection_reason(cfg):
 def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
     remote = f"{addr[0]}:{addr[1]}"
     target_identity = target_identity_from_headers(headers)
+    poll_context = {
+        "poll_mode": str(headers.get("x-busierbox-command-queue-mode") or ""),
+        "poll_interval_sec": str(headers.get("x-busierbox-command-queue-poll-interval-sec") or ""),
+        "poll_jitter_pct": str(headers.get("x-busierbox-command-queue-poll-jitter-pct") or ""),
+        "poll_backoff": str(headers.get("x-busierbox-command-queue-poll-backoff") or ""),
+        "poll_max_interval_sec": str(headers.get("x-busierbox-command-queue-poll-max-interval-sec") or ""),
+        "max_polls": str(headers.get("x-busierbox-command-queue-max-polls") or ""),
+    }
     if method not in {"GET", "HEAD"}:
         payload = {"schema": 1, "status": "rejected", "reason": "command queue poll accepts only GET or HEAD"}
         send_json_response(conn, 405, payload)
-        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 405, "method": method, "remote_addr": remote}, target_identity)
+        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 405, "method": method, "remote_addr": remote, **poll_context}, target_identity)
     parsed = urllib.parse.urlparse(target)
     if parsed.path not in {"/command-queue/poll", "/command-queue/poll/"}:
         payload = {"schema": 1, "status": "rejected", "reason": "unknown command queue endpoint"}
         send_json_response(conn, 404, payload)
-        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint"}, target_identity)
+        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint", **poll_context}, target_identity)
     if not command_queue_token_valid(cfg, headers):
         payload = {"schema": 1, "status": "rejected", "reason": "missing or invalid command queue token"}
         send_json_response(conn, 403, payload)
-        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 403, "method": method, "remote_addr": remote, "reason": "invalid token"}, target_identity)
+        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 403, "method": method, "remote_addr": remote, "reason": "invalid token", **poll_context}, target_identity)
     queue = command_queue_summary(cfg)
     queued_count = int(queue.get("queued_count", 0) or 0)
     target_id = str(target_identity.get("target_id") or "")
@@ -7608,6 +7616,7 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
             "result_upload_supported": True,
             "execution_decision": "rejected",
             "execution_decision_reason": command_queue_execution_rejection_reason(cfg),
+            **poll_context,
         }, target_identity)
     payload = {
         "schema": 1,
@@ -7643,6 +7652,7 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "execution_supported": False,
         "executes_commands": False,
         "result_upload_supported": True,
+        **poll_context,
     }, target_identity)
 
 

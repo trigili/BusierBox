@@ -230,6 +230,12 @@ operator_events = Path(cfg["operator_session_dir"]) / "events.jsonl"
 operator = [json.loads(line) for line in operator_events.open(encoding="utf-8")]
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll_no_command" and event["details"].get("status") == "no-command" for event in operator)
+assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" and event["details"].get("poll_mode") == "poll" for event in operator)
+assert any(event["service"] == "command-queue" and event["details"].get("poll_interval_sec") == "5" for event in operator)
+assert any(event["service"] == "command-queue" and event["details"].get("poll_jitter_pct") == "0" for event in operator)
+assert any(event["service"] == "command-queue" and event["details"].get("poll_backoff") == "none" for event in operator)
+assert any(event["service"] == "command-queue" and event["details"].get("poll_max_interval_sec") == "300" for event in operator)
+assert any(event["service"] == "command-queue" and event["details"].get("max_polls") == "0" for event in operator)
 PY
 rm -f "$cq_cfg" "$cq_out" "$cq_err" "$cq_events"
 token_port=$(python3 - <<'PY'

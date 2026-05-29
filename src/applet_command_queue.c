@@ -732,7 +732,7 @@ static int connect_operator_once(const char *host, const char *port, struct poll
 {
     struct addrinfo hints, *res = NULL, *rp;
     int rc, fd = -1;
-    char request[512];
+    char request[1024];
     char response[8192];
 
     if (errsz)
@@ -760,8 +760,15 @@ static int connect_operator_once(const char *host, const char *port, struct poll
                      "User-Agent: busierbox-command-queue\r\n"
                      "X-BusierBox-Command-Queue-Mode: poll\r\n"
                      "X-BusierBox-Command-Queue-Token: %s\r\n"
+                     "X-BusierBox-Command-Queue-Poll-Interval-Sec: %d\r\n"
+                     "X-BusierBox-Command-Queue-Poll-Jitter-Pct: %d\r\n"
+                     "X-BusierBox-Command-Queue-Poll-Backoff: %s\r\n"
+                     "X-BusierBox-Command-Queue-Poll-Max-Interval-Sec: %d\r\n"
+                     "X-BusierBox-Command-Queue-Max-Polls: %d\r\n"
                      "Connection: close\r\n\r\n",
-                     host, port, BB_COMMAND_QUEUE_TOKEN);
+                     host, port, BB_COMMAND_QUEUE_TOKEN,
+                     event_poll_interval_sec, event_poll_jitter_pct,
+                     event_poll_backoff, event_poll_max_interval_sec, event_max_polls);
             if (send_all(fd, request, strlen(request), err, errsz, "poll request") != 0) {
                 close(fd);
                 freeaddrinfo(res);
