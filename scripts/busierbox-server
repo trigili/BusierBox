@@ -909,6 +909,7 @@ DEFAULT_COMMAND_QUEUE_FILE = DEFAULT_OPERATOR_SESSION_DIR / "command-queue.json"
 DEFAULT_COMMAND_COPY_FILE = DEFAULT_OPERATOR_SESSION_DIR / "last-command.txt"
 DEFAULT_WORKBENCH_JOBS_FILE = DEFAULT_OPERATOR_SESSION_DIR / "workbench-jobs.json"
 DEFAULT_TARGETS_FILE = DEFAULT_OPERATOR_SESSION_DIR / "targets.json"
+DEFAULT_BRIDGE_PROFILES_FILE = DEFAULT_OPERATOR_SESSION_DIR / "bridge-profiles.json"
 DEFAULTS = {
     "transport": "ssh",
     "encryption": "tls",
@@ -938,6 +939,7 @@ DEFAULTS = {
     "command_copy_file": str(DEFAULT_COMMAND_COPY_FILE),
     "workbench_jobs_file": str(DEFAULT_WORKBENCH_JOBS_FILE),
     "targets_file": str(DEFAULT_TARGETS_FILE),
+    "bridge_profiles_file": str(DEFAULT_BRIDGE_PROFILES_FILE),
     "command_queue_enable": "no",
     "command_queue_port": "22205",
     "command_queue_tls": "yes",
@@ -1096,6 +1098,10 @@ def command_copy_path(cfg):
     return Path(str(cfg.get("command_copy_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "last-command.txt"))
 
 
+def bridge_profiles_path(cfg):
+    return Path(str(cfg.get("bridge_profiles_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "bridge-profiles.json"))
+
+
 def command_copy_record(cfg):
     path = command_copy_path(cfg)
     rec = {
@@ -1191,6 +1197,7 @@ def apply_operator_session_path_defaults(cfg, explicit_keys):
         "command_copy_file": operator_dir / "last-command.txt",
         "workbench_jobs_file": operator_dir / "workbench-jobs.json",
         "targets_file": operator_dir / "targets.json",
+        "bridge_profiles_file": operator_dir / "bridge-profiles.json",
         "authorized_dbclient_pubkey": operator_dir / "id_dbclient.pub",
         "operator_host_key": operator_dir / "operator_ssh_host_key",
         "tls_cert": operator_dir / "shell-server.crt",
@@ -2012,6 +2019,159 @@ def target_context_fields(cfg, target_id):
 
 def selected_target_context(cfg):
     return target_context_fields(cfg, configured_target_filter(cfg))
+
+
+def valid_profile_name(name):
+    text = str(name or "").strip()
+    return bool(text) and all(ch.isalnum() or ch in "._-" for ch in text)
+
+
+def load_bridge_profiles(cfg):
+    data = read_json_file(bridge_profiles_path(cfg), {"schema": 1, "profiles": {}})
+    if not isinstance(data, dict):
+        data = {"schema": 1, "profiles": {}}
+    if not isinstance(data.get("profiles"), dict):
+        data["profiles"] = {}
+    data.setdefault("schema", 1)
+    return data
+
+
+def bridge_route_path(rec):
+    return f"operator:{rec.get('listen_port', '')} -> {rec.get('dest_host', '')}:{rec.get('dest_port', '')}"
+
+
+def bridge_profile_record(cfg, name, rec, service_state=None):
+    out = dict(rec or {})
+    out["name"] = str(name or out.get("name") or "")
+    out["listen_host"] = str(out.get("listen_host") or cfg.get("listen_host") or "")
+    out["listen_port"] = int(out.get("listen_port") or cfg.get("bridge_listen_port", 22206) or 0)
+    out["dest_host"] = str(out.get("dest_host") or "")
+    out["dest_port"] = int(out.get("dest_port") or 0)
+    out["target_id"] = str(out.get("target_id") or "")
+    out["target_label"] = str(out.get("target_label") or "")
+    out["purpose"] = str(out.get("purpose") or "")
+    out["notes"] = str(out.get("notes") or "")
+    out["route_path"] = bridge_route_path(out)
+    out["hop_count"] = len(out.get("hops") or []) if isinstance(out.get("hops"), list) else 1
+    out["multi_hop"] = out["hop_count"] > 1
+    out["requires_target_online"] = bool(out.get("target_id"))
+    state = service_state if isinstance(service_state, dict) else {}
+    active_profile = str(state.get("bridge_profile") or "")
+    out["current_state"] = str(state.get("status") or "configured") if active_profile == out["name"] else "configured"
+    out["active"] = active_profile == out["name"] and out["current_state"] in ("starting", "listening")
+    out["pid"] = state.get("pid", "") if active_profile == out["name"] else ""
+    out["last_error"] = str(state.get("error") or "") if active_profile == out["name"] else ""
+    out["last_failure_reason"] = str(state.get("stopped_reason") or state.get("error") or "") if active_profile == out["name"] else ""
+    out["last_successful_relay_at"] = str(out.get("last_successful_relay_at") or "")
+    return out
+
+
+def bridge_profile_records(cfg):
+    profiles = load_bridge_profiles(cfg).get("profiles") or {}
+    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
+    bridge_state = ((state.get("services") or {}).get("bridge") or {}) if isinstance(state, dict) else {}
+    records = [
+        bridge_profile_record(cfg, name, rec, service_state=bridge_state)
+        for name, rec in sorted(profiles.items())
+        if isinstance(rec, dict)
+    ]
+    return records
+
+
+def bridge_profile_indexes(records):
+    return {
+        "bridge_profiles_by_name": {rec.get("name", ""): rec for rec in records or [] if rec.get("name")},
+        "bridge_profiles_by_target_id": records_by_key(records, "target_id"),
+        "bridge_profiles_by_dest_host": records_by_key(records, "dest_host"),
+        "bridge_profiles_by_listen_port": records_by_key(records, "listen_port"),
+        "bridge_profiles_by_current_state": records_by_key(records, "current_state"),
+        "bridge_profiles_by_active": records_by_key(records, "active"),
+        "bridge_profiles_by_requires_target_online": records_by_key(records, "requires_target_online"),
+        "bridge_profiles_by_multi_hop": records_by_key(records, "multi_hop"),
+    }
+
+
+def save_bridge_profile(cfg, name, purpose="", notes=""):
+    name = str(name or "").strip()
+    if not valid_profile_name(name):
+        raise ValueError("bridge profile name must contain only letters, numbers, dot, underscore, or dash")
+    dest_port = int(cfg.get("bridge_dest_port", 0) or 0)
+    if dest_port <= 0:
+        raise ValueError("--save-bridge-profile requires --bridge-dest-port")
+    target = selected_target_context(cfg)
+    rec = {
+        "schema": 1,
+        "name": name,
+        "listen_host": str(cfg.get("listen_host", "")),
+        "listen_port": int(cfg.get("bridge_listen_port", 22206)),
+        "dest_host": str(cfg.get("bridge_dest_host", "127.0.0.1")),
+        "dest_port": dest_port,
+        "target_id": str(target.get("target_id") or ""),
+        "target_label": str(target.get("target_label") or ""),
+        "purpose": str(purpose or ""),
+        "notes": str(notes or ""),
+        "hops": [
+            {
+                "from": f"operator:{int(cfg.get('bridge_listen_port', 22206))}",
+                "to": f"{cfg.get('bridge_dest_host', '127.0.0.1')}:{dest_port}",
+            }
+        ],
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
+    }
+    data = load_bridge_profiles(cfg)
+    existing = data.setdefault("profiles", {}).get(name)
+    if isinstance(existing, dict) and existing.get("created_at"):
+        rec["created_at"] = existing.get("created_at")
+    data["profiles"][name] = rec
+    atomic_write_json(bridge_profiles_path(cfg), data)
+    append_event(cfg, "bridge", "bridge_profile_saved", details=rec)
+    return bridge_profile_record(cfg, name, rec)
+
+
+def apply_bridge_profile(cfg, name):
+    name = str(name or "").strip()
+    profiles = load_bridge_profiles(cfg).get("profiles") or {}
+    rec = profiles.get(name)
+    if not isinstance(rec, dict):
+        raise ValueError(f"bridge profile not found: {name}")
+    cfg["bridge_profile"] = name
+    cfg["listen_host"] = str(rec.get("listen_host") or cfg.get("listen_host", "0.0.0.0"))
+    cfg["bridge_listen_port"] = int(rec.get("listen_port") or cfg.get("bridge_listen_port", 22206))
+    cfg["bridge_dest_host"] = str(rec.get("dest_host") or cfg.get("bridge_dest_host", "127.0.0.1"))
+    cfg["bridge_dest_port"] = int(rec.get("dest_port") or cfg.get("bridge_dest_port", 0))
+    if rec.get("target_id"):
+        cfg["_target_id_filter"] = str(rec.get("target_id") or "")
+        if rec.get("target_label"):
+            cfg["_target_label_filter"] = str(rec.get("target_label") or "")
+    return bridge_profile_record(cfg, name, rec)
+
+
+def print_bridge_profiles(cfg, json_output=False):
+    records = bridge_profile_records(cfg)
+    if json_output:
+        payload = {
+            "schema": 1,
+            "path": str(bridge_profiles_path(cfg)),
+            "profiles": records,
+            **bridge_profile_indexes(records),
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if not records:
+        print("No bridge profiles.")
+        return 0
+    for rec in records:
+        print(
+            f"{rec.get('name', '')}\t{rec.get('listen_host', '')}:{rec.get('listen_port', '')}"
+            f"\t{rec.get('dest_host', '')}:{rec.get('dest_port', '')}"
+            f"\tstate={rec.get('current_state', '')}"
+            f"\ttarget={rec.get('target_id', '') or '-'}"
+        )
+        print(f"  path: {rec.get('route_path', '')}")
+        if rec.get("purpose") or rec.get("notes"):
+            print(f"  purpose={rec.get('purpose', '') or '-'} notes={rec.get('notes', '') or '-'}")
+    return 0
 
 
 def details_with_target(cfg, details=None, target_context=None):
@@ -8665,6 +8825,7 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
     port = int(cfg.get("bridge_listen_port", 22206))
     dest_host = str(cfg.get("bridge_dest_host", "127.0.0.1"))
     dest_port = int(cfg.get("bridge_dest_port", 0))
+    profile_name = str(cfg.get("bridge_profile") or "")
     if dest_port <= 0:
         print("bridge: --bridge-dest-port is required", file=sys.stderr)
         mark_service_error(cfg, service, ValueError("missing bridge destination port"), {
@@ -8675,10 +8836,10 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
         })
         return 2
     log_dir = session_log_dir(cfg, service)
-    start_session_record(cfg, service, log_dir, details={"port": port, "bridge_dest_host": dest_host, "bridge_dest_port": dest_port})
+    start_session_record(cfg, service, log_dir, details={"port": port, "bridge_dest_host": dest_host, "bridge_dest_port": dest_port, "bridge_profile": profile_name})
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     print(f"TCP bridge listener. Relaying {cfg['listen_host']}:{port} -> {dest_host}:{dest_port}")
-    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "bridge_dest_host": dest_host, "bridge_dest_port": dest_port})
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "bridge_dest_host": dest_host, "bridge_dest_port": dest_port, "bridge_profile": profile_name})
     sessions = 0
     sock = None
     bound = False
@@ -8686,8 +8847,8 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
         sock = bind_listen_socket(cfg, service, port, 20)
         bound = True
         sock.settimeout(timeout)
-        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "bridge_dest_host": dest_host, "bridge_dest_port": dest_port})
-        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "bridge_dest_host": dest_host, "bridge_dest_port": dest_port})
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "bridge_dest_host": dest_host, "bridge_dest_port": dest_port, "bridge_profile": profile_name})
+        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "bridge_dest_host": dest_host, "bridge_dest_port": dest_port, "bridge_profile": profile_name})
         print_candidates(cfg, port)
         while not SHUTDOWN.is_set():
             print("Waiting for bridge client...")
@@ -8708,6 +8869,7 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
                 "remote_addr": remote,
                 "bridge_dest_host": dest_host,
                 "bridge_dest_port": dest_port,
+                "bridge_profile": profile_name,
             }
             register_socket(client)
             try:
@@ -8725,6 +8887,16 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
                     "bytes_from_upstream": from_upstream,
                 })
                 append_event(cfg, service, "bridge_closed", session=str(log_dir), remote=remote, details=metadata)
+                if profile_name:
+                    data = load_bridge_profiles(cfg)
+                    profile = data.get("profiles", {}).get(profile_name)
+                    if isinstance(profile, dict):
+                        profile["last_successful_relay_at"] = utc_now()
+                        profile["last_bytes_from_client"] = from_client
+                        profile["last_bytes_from_upstream"] = from_upstream
+                        profile["updated_at"] = utc_now()
+                        data["profiles"][profile_name] = profile
+                        atomic_write_json(bridge_profiles_path(cfg), data)
                 print(f"bridge closed: reason={reason} client_bytes={from_client} upstream_bytes={from_upstream}")
             except OSError as exc:
                 metadata.update({"status": "error", "reason": str(exc)})
@@ -8757,6 +8929,7 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
                 "session_log": str(log_dir),
                 "bridge_dest_host": dest_host,
                 "bridge_dest_port": dest_port,
+                "bridge_profile": profile_name,
                 "pid": "",
                 "managed_by": "",
                 "stopped_at": utc_now(),
@@ -9524,6 +9697,8 @@ def status_document(cfg):
     event_log_path = operator_dir / "events.jsonl"
     session_root = str(cfg.get("session_root", "local/sessions"))
     services = service_status_rows(cfg)
+    bridge_profiles = bridge_profile_records(cfg)
+    bridge_profile_index_maps = bridge_profile_indexes(bridge_profiles)
     service_manager = SERVICE_MANAGER.snapshot()
     service_manager_resources = service_manager_resource_records(service_manager)
     service_manager_state_record = {
@@ -10225,6 +10400,14 @@ def status_document(cfg):
      fetches_by_status_remote_addr,
      fetches_by_http_status_remote_addr) = fetch_record_indexes(fetches)
     summary, warnings = status_summary_and_warnings(services)
+    summary.update({
+        "bridge_profile_count": len(bridge_profiles),
+        "bridge_profile_active_count": len([rec for rec in bridge_profiles if rec.get("active")]),
+        "bridge_profile_target_counts": record_count_by_key(bridge_profiles, "target_id"),
+        "bridge_profile_current_state_counts": record_count_by_key(bridge_profiles, "current_state"),
+        "bridge_profile_requires_target_online_counts": record_count_by_key(bridge_profiles, "requires_target_online"),
+        "bridge_profile_multi_hop_counts": record_count_by_key(bridge_profiles, "multi_hop"),
+    })
     (services_by_actual,
      services_by_configured,
      services_by_bind_address,
@@ -11109,6 +11292,14 @@ def status_document(cfg):
                 "service_manager_state_records_by_has_resources",
             ), "service_manager_state_record_count",
         ),
+        "bridge_profiles": api_collection_record(
+            "bridge_profiles", bridge_profiles, "name", (
+                "bridge_profiles_by_name", "bridge_profiles_by_target_id",
+                "bridge_profiles_by_dest_host", "bridge_profiles_by_listen_port",
+                "bridge_profiles_by_current_state", "bridge_profiles_by_active",
+                "bridge_profiles_by_requires_target_online", "bridge_profiles_by_multi_hop",
+            ), "bridge_profile_count",
+        ),
         "ports": api_collection_record(
             "ports", ports, "service", (
                 "ports_by_number", "ports_by_service", "ports_by_actual",
@@ -11686,6 +11877,7 @@ def status_document(cfg):
         "staged_files": str(staged_file_path(cfg)),
         "command_queue_file": str(command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
+        "bridge_profiles_file": str(bridge_profiles_path(cfg)),
         "command_copy": command_copy,
         "command_copy_records": command_copy_records,
         **command_copy_record_indexes,
@@ -11737,6 +11929,8 @@ def status_document(cfg):
         **service_manager_state_index_maps,
         "service_manager_resources": service_manager_resources,
         **service_manager_resource_index_maps,
+        "bridge_profiles": bridge_profiles,
+        **bridge_profile_index_maps,
         "services": services,
         "services_by_name": services_by_name,
         "services_by_actual": services_by_actual,
@@ -14099,6 +14293,8 @@ File staging:
   --stage-release-artifact by-tuple/.../bin/busierbox-target-full
   --release-dir dist/releases/lab --stage-release-artifact bin/busierbox-target-full
   --transport file-service --list-staged
+  --save-bridge-profile lab-http --bridge-port 22206 --bridge-dest-host 10.0.0.8 --bridge-dest-port 80
+  --transport bridge --bridge-profile lab-http
 
 Command queue:
   --queue-command 'busierbox reality-test --json'
@@ -14181,6 +14377,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="operator last copied/generated command text path")
     parser.add_argument("--targets-file",
                         help="operator target ledger JSON path")
+    parser.add_argument("--bridge-profiles-file",
+                        help="operator bridge profiles JSON path")
     parser.add_argument("--target-id",
                         help="filter target-aware status/API/workbench records to this target id")
     parser.add_argument("--set-target-label",
@@ -14236,6 +14434,18 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="TCP bridge destination host")
     parser.add_argument("--bridge-dest-port", type=int,
                         help="TCP bridge destination port")
+    parser.add_argument("--bridge-profile",
+                        help="named bridge profile to use for bridge listener/status context")
+    parser.add_argument("--save-bridge-profile",
+                        help="create or update a named bridge profile from current bridge flags")
+    parser.add_argument("--bridge-profile-purpose",
+                        help="purpose text stored with --save-bridge-profile")
+    parser.add_argument("--bridge-profile-notes",
+                        help="operator notes stored with --save-bridge-profile")
+    parser.add_argument("--list-bridge-profiles", action="store_true",
+                        help="list named bridge profiles")
+    parser.add_argument("--json-bridge-profiles", action="store_true",
+                        help="print named bridge profiles as JSON")
     parser.add_argument("--survey-bootstrap-port", type=int,
                         help="survey bootstrap HTTP listener port")
     parser.add_argument("--survey-bootstrap-name",
@@ -14298,6 +14508,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["command_copy_file"] = args.command_copy_file
     if args.targets_file:
         cfg["targets_file"] = args.targets_file
+    if args.bridge_profiles_file:
+        cfg["bridge_profiles_file"] = args.bridge_profiles_file
     if args.target_id:
         cfg["_target_id_filter"] = args.target_id
     if args.target_label:
@@ -14310,12 +14522,26 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["_managed_by"] = args.managed_by
     if args.process_log:
         cfg["_process_log"] = args.process_log
+    if args.bridge_profile:
+        try:
+            apply_bridge_profile(cfg, args.bridge_profile)
+        except ValueError as exc:
+            print(f"busierbox-server: {exc}", file=sys.stderr)
+            return 2
     if args.event_limit < 0:
         print("busierbox-server: --event-limit must be >= 0", file=sys.stderr)
         return 2
     cfg["_event_limit"] = args.event_limit
 
     try:
+        if args.save_bridge_profile:
+            rec = save_bridge_profile(cfg, args.save_bridge_profile, purpose=args.bridge_profile_purpose or "", notes=args.bridge_profile_notes or "")
+            print(f"saved bridge profile {rec.get('name', '')}: {rec.get('route_path', '')}")
+            print(f"bridge_profiles_file={bridge_profiles_path(cfg)}")
+            if not (args.list_bridge_profiles or args.json_bridge_profiles):
+                return 0
+        if args.list_bridge_profiles or args.json_bridge_profiles:
+            return print_bridge_profiles(cfg, json_output=args.json_bridge_profiles)
         if args.start_workbench_job:
             print(f"workbench action: {args.start_workbench_job}")
             rec = start_workbench_job(cfg, args.start_workbench_job, command_override=args.job_command)

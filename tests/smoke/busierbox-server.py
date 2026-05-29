@@ -274,6 +274,7 @@ def main():
         bridge_cfg = Path(tmp) / "bridge-config.json"
         bridge_state = Path(tmp) / "bridge-state.json"
         bridge_operator_dir = Path(tmp) / "operator-session-bridge"
+        bridge_profiles = bridge_operator_dir / "bridge-profiles.json"
         bridge_cfg.write_text(json.dumps({
             "transport": "bridge",
             "listen_host": "127.0.0.1",
@@ -283,12 +284,42 @@ def main():
             "operator_session_dir": str(bridge_operator_dir),
             "server_state": str(bridge_state),
             "session_root": str(Path(tmp) / "bridge-sessions"),
+            "bridge_profiles_file": str(bridge_profiles),
         }), encoding="utf-8")
+        save_bridge_profile = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--target-id", "target-bridge",
+            "--target-label", "Bridge Target",
+            "--save-bridge-profile", "lab-http",
+            "--bridge-profile-purpose", "web-admin",
+            "--bridge-profile-notes", "one hop smoke",
+        )
+        if (save_bridge_profile.returncode != 0 or
+                "saved bridge profile lab-http" not in save_bridge_profile.stdout or
+                "operator:" not in save_bridge_profile.stdout or
+                not bridge_profiles.is_file()):
+            print("bridge profile save failed", file=sys.stderr)
+            print(save_bridge_profile.stdout, file=sys.stderr)
+            print(save_bridge_profile.stderr, file=sys.stderr)
+            return 1
+        list_bridge_profiles = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--list-bridge-profiles",
+        )
+        if ("lab-http" not in list_bridge_profiles.stdout or
+                "target=target-bridge" not in list_bridge_profiles.stdout or
+                "path: operator:" not in list_bridge_profiles.stdout):
+            print("bridge profile list missing saved route", file=sys.stderr)
+            print(list_bridge_profiles.stdout, file=sys.stderr)
+            return 1
         bridge_proc = subprocess.Popen(
             [
                 "scripts/busierbox-server",
                 "--config", str(bridge_cfg),
                 "--transport", "bridge",
+                "--bridge-profile", "lab-http",
                 "--timeout", "10",
                 "--one-shot",
             ],
@@ -324,10 +355,20 @@ def main():
         ).stdout)
         bridge_service = (bridge_status.get("services_by_name") or {}).get("bridge") or {}
         bridge_events = bridge_status.get("events_by_event", {})
+        bridge_profile = (bridge_status.get("bridge_profiles_by_name") or {}).get("lab-http") or {}
         if (bridge_service.get("port") != bridge_port or
                 bridge_service.get("actual") != "stopped" or
+                bridge_status.get("summary", {}).get("bridge_profile_count") != 1 or
+                bridge_profile.get("target_id") != "target-bridge" or
+                bridge_profile.get("purpose") != "web-admin" or
+                bridge_profile.get("route_path") != f"operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" or
+                bridge_profile.get("last_bytes_from_client", 0) < len(b"hello") or
+                bridge_profile.get("last_bytes_from_upstream", 0) < len(b"bridge:hello") or
+                ((bridge_status.get("bridge_profiles_by_target_id") or {}).get("target-bridge") or [{}])[0].get("name") != "lab-http" or
+                "bridge_profiles_by_current_state" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 not bridge_events.get("bridge_connected") or
                 not bridge_events.get("bridge_closed") or
+                bridge_events["bridge_closed"][0].get("details", {}).get("bridge_profile") != "lab-http" or
                 bridge_events["bridge_closed"][0].get("details", {}).get("bytes_from_client", 0) < len(b"hello") or
                 bridge_events["bridge_closed"][0].get("details", {}).get("bytes_from_upstream", 0) < len(b"bridge:hello")):
             print("json status missing bridge relay evidence", file=sys.stderr)

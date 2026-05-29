@@ -35,3 +35,30 @@ Status and audit behavior:
 The bridge does not authenticate or inspect the forwarded protocol. Bind it to
 the narrowest practical listener address and use existing network controls when
 exposing it beyond a local lab interface.
+
+## Named Profiles
+
+Bridge profiles store repeatable one-hop bridge routes for CLI, status JSON,
+and the operator console:
+
+```sh
+scripts/busierbox-server \
+  --save-bridge-profile lab-http \
+  --bridge-port 22206 \
+  --bridge-dest-host 10.10.40.8 \
+  --bridge-dest-port 80 \
+  --bridge-profile-purpose web-admin
+
+scripts/busierbox-server --list-bridge-profiles
+scripts/busierbox-server --json-bridge-profiles
+scripts/busierbox-server --transport bridge --bridge-profile lab-http
+```
+
+Profiles live in `bridge-profiles.json` under the operator session directory by
+default. Each record includes the listen endpoint, destination endpoint,
+optional target id/label, purpose, notes, state, route path, and whether the
+profile requires a target to be online. `--json-status` exposes
+`bridge_profiles` plus indexes such as `bridge_profiles_by_name`,
+`bridge_profiles_by_target_id`, `bridge_profiles_by_current_state`, and
+`bridge_profiles_by_active` for TUI and automation clients. The simple direct
+`--bridge-*` flags remain the easy one-hop path.
