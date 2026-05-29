@@ -1727,6 +1727,19 @@ def main():
         poll_before = json.loads(poll_target_queue_file.read_text(encoding="utf-8"))
         alpha_id = next(rec["id"] for rec in poll_before["commands"] if rec.get("target_id") == "target-alpha")
         bravo_id = next(rec["id"] for rec in poll_before["commands"] if rec.get("target_id") == "target-bravo")
+        poll_targets_file = poll_target_dir / "targets.json"
+        poll_targets = json.loads(poll_targets_file.read_text(encoding="utf-8"))
+        old_seen = "2000-01-01T00:00:00Z"
+        poll_targets["targets"]["target-bravo"].update({
+            "last_seen_at": old_seen,
+            "latest_activity_at": old_seen,
+            "latest_activity_service": "command-queue",
+            "latest_activity_operation": "command_queue_poll",
+            "latest_command_queue_poll_interval_sec": "11",
+            "remote_addresses": ["198.51.100.10:12345"],
+            "services_seen": ["command-queue"],
+        })
+        poll_targets_file.write_text(json.dumps(poll_targets, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         anonymous_poll_server = subprocess.Popen(
             ["scripts/busierbox-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
@@ -1753,6 +1766,21 @@ def main():
         if alpha_before_reconnect.get("status") != "queued":
             print("target-scoped command should remain queued while its target is offline", file=sys.stderr)
             print(json.dumps(anonymous_after, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        offline_status = json.loads(run(
+            "scripts/busierbox-server", "--config", str(poll_target_cfg),
+            "--json-status",
+        ).stdout)
+        offline_bravo = (offline_status.get("targets_by_id") or {}).get("target-bravo") or {}
+        if (offline_bravo.get("connectivity_state") != "offline" or
+                offline_bravo.get("mailbox_pending_work_count") != 1 or
+                offline_bravo.get("last_seen") != old_seen or
+                offline_bravo.get("last_seen_via") != "command-queue:command_queue_poll" or
+                offline_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("offline") != 1 or
+                offline_status.get("summary", {}).get("target_mailbox_pending_work_count") != 2 or
+                ((offline_status.get("targets_by_mailbox_pending_work") or {}).get("yes") or [{}])[0].get("target_id") not in {"target-alpha", "target-bravo"}):
+            print("offline mailbox status did not preserve queued work and stale heartbeat", file=sys.stderr)
+            print(json.dumps(offline_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         poll_target_server = subprocess.Popen(
             ["scripts/busierbox-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
@@ -1900,6 +1928,83 @@ def main():
         if alpha_after_reject.get("status") != "delivered" or alpha_after_reject.get("result"):
             print("rejected target-scoped command result mutated the command record", file=sys.stderr)
             print(json.dumps(result_reject_after, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        poll_targets = json.loads(poll_targets_file.read_text(encoding="utf-8"))
+        poll_targets["targets"]["target-bravo"].update({
+            "last_seen_at": old_seen,
+            "latest_activity_at": old_seen,
+            "latest_activity_service": "command-queue",
+            "latest_activity_operation": "command_queue_poll",
+            "latest_command_queue_poll_interval_sec": "11",
+            "remote_addresses": ["198.51.100.10:12345"],
+            "services_seen": ["command-queue"],
+        })
+        poll_targets_file.write_text(json.dumps(poll_targets, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        result_alpha_server = subprocess.Popen(
+            ["scripts/busierbox-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        result_alpha_response = connect_with_retry(poll_target_port, (
+            b"POST /command-queue/result HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"X-BusierBox-Target-Id: target-alpha\r\n"
+            b"X-BusierBox-Target-Label: Alpha Router\r\n"
+            b"Content-Length: " + str(len(target_result)).encode("ascii") + b"\r\n"
+            b"Connection: close\r\n\r\n" + target_result
+        ))
+        result_alpha_stdout, result_alpha_stderr = result_alpha_server.communicate(timeout=15)
+        if (result_alpha_server.returncode != 0 or
+                b"HTTP/1.1 200 OK" not in result_alpha_response or
+                b'"status": "result-received"' not in result_alpha_response):
+            print("target-scoped command result upload failed after reconnect", file=sys.stderr)
+            print(result_alpha_response.decode("utf-8", errors="replace"), file=sys.stderr)
+            print(result_alpha_stdout, file=sys.stderr)
+            print(result_alpha_stderr, file=sys.stderr)
+            return 1
+        result_status = json.loads(run(
+            "scripts/busierbox-server", "--config", str(poll_target_cfg),
+            "--json-status",
+        ).stdout)
+        result_alpha = (result_status.get("targets_by_id") or {}).get("target-alpha") or {}
+        result_bravo = (result_status.get("targets_by_id") or {}).get("target-bravo") or {}
+        result_alpha_command = ((result_status.get("command_queue") or {}).get("commands_by_result_status") or {}).get("completed", [{}])[0]
+        if (result_alpha.get("connectivity_state") != "online" or
+                result_alpha.get("last_seen_via") != "command-queue:command_queue_result" or
+                result_alpha.get("mailbox_result_received_command_count") != 1 or
+                result_alpha.get("mailbox_pending_work_count") != 0 or
+                result_alpha.get("latest_command_result_id") != alpha_id or
+                not result_alpha.get("latest_command_result_at") or
+                result_bravo.get("connectivity_state") != "offline" or
+                result_bravo.get("mailbox_pending_work_count") != 1 or
+                result_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("online") != 1 or
+                result_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("offline") != 1 or
+                result_status.get("summary", {}).get("target_mailbox_pending_work_count") != 1 or
+                result_status.get("summary", {}).get("target_last_seen_via_counts", {}).get("command-queue:command_queue_result") != 1 or
+                result_alpha_command.get("id") != alpha_id or
+                result_alpha_command.get("target_id") != "target-alpha" or
+                ((result_status.get("targets_by_mailbox_pending_work") or {}).get("yes") or [{}])[0].get("target_id") != "target-bravo" or
+                ((result_status.get("targets_by_last_seen_via") or {}).get("command-queue:command_queue_result") or [{}])[0].get("target_id") != "target-alpha" or
+                not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_result_upload_received" for event in result_status.get("events") or [])):
+            print("target mailbox result upload did not update heartbeat and result status", file=sys.stderr)
+            print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        result_status_text = run(
+            "scripts/busierbox-server", "--config", str(poll_target_cfg),
+            "--status",
+        )
+        if ("target-alpha label=Alpha Router" not in result_status_text.stdout or
+                "state=online" not in result_status_text.stdout or
+                "heartbeat_via=command-queue:command_queue_result" not in result_status_text.stdout or
+                "mailbox queued=0 delivered=0 results=1 pending=0" not in result_status_text.stdout or
+                "target-bravo label=Bravo Router" not in result_status_text.stdout or
+                "state=offline" not in result_status_text.stdout or
+                "mailbox queued=1 delivered=0 results=0 pending=1" not in result_status_text.stdout):
+            print("text status missing intermittent mailbox heartbeat/result summary", file=sys.stderr)
+            print(result_status_text.stdout, file=sys.stderr)
             return 1
 
         daemon_file_port = free_port()
