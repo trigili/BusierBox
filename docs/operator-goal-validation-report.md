@@ -44,10 +44,16 @@ complete.
   execution remains intentionally unsupported.
 - Multi-target status tracks target ids, labels, aliases, identity source and
   confidence, target filters, target-scoped staged records, uploads, fetches,
-  sessions, events, command-queue records, and generated target commands.
+  sessions, events, command-queue records, and generated target commands. Status
+  also reports target-attributed versus legacy no-target uploads, fetches, and
+  sessions so old single-target traffic stays valid but auditable.
 - Local/offline release indexes expose deduplicated artifacts, tuple/device/tool
   lookups, payload preset and feature lookups, provider status, Doom WAD
   metadata, command-queue safety metadata, and recommendation records.
+- Repository and release metadata now declare BusierBox-maintained code as
+  `GPL-2.0-or-later`, preserve third-party component license inventory, and
+  document current GPLv2-compatible combined distribution posture for BusyBox,
+  Buildroot, doom-ascii, and miniz.
 - Stale Doom/Dune feature branches have been pruned from the local and remote
   branch lists; `main` is the only remaining branch.
 
@@ -106,6 +112,11 @@ Command queue:
 - `tests/smoke/command-queue.sh`
 - `tests/smoke/busierbox-server.py`
 
+Multi-target status:
+- `scripts/busierbox-server`
+- `docs/release-bundles.md`
+- `tests/smoke/busierbox-server.py`
+
 Release and offline artifact browsing:
 - `scripts/make-release`
 - `scripts/index-release-repo`
@@ -114,28 +125,36 @@ Release and offline artifact browsing:
 - `tests/smoke/release-bundles.sh`
 - `tests/smoke/release-repo-index.sh`
 
+Licensing:
+- `LICENSE`
+- `LICENSE.busierbox`
+- `NOTICE`
+- `docs/licensing.md`
+- `manifests/license-policy.json`
+- `tests/smoke/licensing.sh`
+
 ## Verification Run
 
 Commands run for the most recent committed slice:
 
 ```sh
 python3 -m py_compile scripts/busierbox-server tests/smoke/busierbox-server.py
-sh -n tests/smoke/command-queue.sh
-tests/smoke/command-queue.sh dist/busierbox-native-full
 tests/smoke/busierbox-server.py
 git diff --check
-make smoke-test
 tests/smoke/stale-ux-text.sh
+make smoke-test
+git fetch --prune origin
+git branch -a --verbose --no-abbrev
+git remote prune origin --dry-run
+git ls-remote --heads origin
 ```
 
 Result:
 
-- `make smoke-test` passed after the latest applet and server changes.
-- `tests/smoke/command-queue.sh dist/busierbox-native-full` passed, including
-  daemon status, poll metadata, result upload, and no-execution safety checks.
-- `tests/smoke/busierbox-server.py` passed, including command-queue
-  poll-setting summary, event-stat, map, and API collection index checks.
-- `tests/smoke/stale-ux-text.sh` passed after the command-queue documentation
+- `make smoke-test` passed after the latest server/status changes.
+- `tests/smoke/busierbox-server.py` passed, including target-attribution
+  status coverage for target-id traffic and legacy no-target traffic.
+- `tests/smoke/stale-ux-text.sh` passed after the latest status documentation
   update.
 - `git branch -a --verbose --no-abbrev`, `git fetch --prune origin`,
   `git remote prune origin --dry-run`, and `git ls-remote --heads origin`
