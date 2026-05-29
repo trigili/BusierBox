@@ -3,9 +3,12 @@
 Date: 2026-05-29
 Branch: `main`
 
-This report records current evidence for the operator/server hardening goal in
-`local/GOAL.md`. It is a validation snapshot, not a claim that the entire goal is
-complete.
+This report records the completion audit for the operator/server hardening goal
+in `local/GOAL.md`. The audited scope covers the explicit implementation,
+documentation, metadata, and smoke-test requirements in that file. The command
+queue execution path remains intentionally unsupported; the goal allowed that
+fallback when the architecture, schema, status, polling, result-upload,
+documentation, and safety tests were implemented first.
 
 ## What Changed
 
@@ -176,7 +179,42 @@ Licensing:
 
 ## Verification Run
 
-Commands run for the most recent committed slices:
+Fresh completion-audit commands run on 2026-05-29:
+
+```sh
+python3 -m py_compile scripts/busierbox-server tests/smoke/busierbox-server.py scripts/make-release scripts/index-release-repo scripts/find-artifact scripts/preset-from-survey
+sh -n scripts/config-from-survey scripts/busierbox-bringup tests/smoke/integration-glinet-harness.sh tests/smoke/release-bundles.sh tests/smoke/release-repo-index.sh tests/smoke/licensing.sh
+python3 -m json.tool manifests/license-policy.json
+scripts/check-licensing
+make check-licensing
+git diff --check
+tests/smoke/licensing.sh
+tests/smoke/command-queue.sh
+tests/smoke/recovery.sh
+tests/smoke/reality-test.sh
+python3 tests/smoke/busierbox-server.py
+make smoke-test
+```
+
+Fresh result:
+
+- `make smoke-test` passed, including native package build, artifact
+  verification, target tuple/config checks, menuconfig validation, survey and
+  preset conversion, heavy-tool and gdbserver workflows, reverse-shell policy
+  checks, plan JSON, stale UX text checks, integration harness/report checks,
+  build matrix and qemu matrix smoke checks, release bundle and release repo
+  indexes, offline tools, licensing, dotfiles, runtime/no-residue modes,
+  cleanup JSON, recovery, rshell lifecycle, server/operator status, operator
+  upload, command queue, zero-arg autorun, manifest metadata, support tokens,
+  doctor JSON, reality-test, and core extraction.
+- The focused server smoke also passed directly, covering lifecycle, status,
+  `--stop`, bind failure, stale state, TUI fallback, API catalogs, multi-target
+  records, release browsing, selected-target capability/compatibility evidence,
+  command queue status, and failure paths.
+- The focused licensing, command-queue, recovery, and reality-test smokes passed
+  directly before the full smoke run.
+
+Commands run for earlier committed slices:
 
 ```sh
 python3 -m py_compile scripts/busierbox-server tests/smoke/busierbox-server.py
