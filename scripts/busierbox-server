@@ -1156,6 +1156,7 @@ def staged_record_indexes(records):
     by_request = {}
     by_kind = {}
     by_sha256 = {}
+    by_target_id = {}
     by_source_path = {}
     by_fetch_command = {}
     by_fetch_command_force = {}
@@ -1167,6 +1168,7 @@ def staged_record_indexes(records):
         request_name = str(rec.get("request_name") or rec.get("name") or "")
         kind = str(rec.get("stage_kind") or "file")
         sha256 = str(rec.get("sha256") or "")
+        target_id = str(rec.get("target_id") or "")
         source_path = str(rec.get("source_path") or "")
         fetch_command = str(rec.get("fetch_command") or "")
         fetch_command_force = str(rec.get("fetch_command_force") or "")
@@ -1178,6 +1180,8 @@ def staged_record_indexes(records):
             by_kind_source_exists.setdefault(f"{kind}:{source_exists}", []).append(rec)
         if sha256:
             by_sha256.setdefault(sha256, []).append(rec)
+        if target_id:
+            by_target_id.setdefault(target_id, []).append(rec)
         if source_path:
             by_source_path[source_path] = rec
         if fetch_command:
@@ -1186,7 +1190,7 @@ def staged_record_indexes(records):
             by_fetch_command_force[fetch_command_force] = rec
         by_source_exists[source_exists].append(rec)
     return (
-        by_request, by_kind, by_sha256, by_source_path,
+        by_request, by_kind, by_sha256, by_target_id, by_source_path,
         by_fetch_command, by_fetch_command_force,
         by_source_exists, by_kind_source_exists,
     )
@@ -1458,6 +1462,21 @@ def event_for_target(event, target_id, session_ids=None):
         return True
     session_id = str(event.get("session") or details.get("session_id") or "")
     return bool(session_id and session_id in (session_ids or set()))
+
+
+def target_context_fields(cfg, target_id):
+    target_id = str(target_id or "").strip()
+    if not target_id:
+        return {}
+    rec = (load_targets(cfg).get("targets") or {}).get(target_id)
+    if not isinstance(rec, dict):
+        rec = {}
+    return {
+        "target_id": target_id,
+        "target_label": str(rec.get("label") or ""),
+        "target_identity_source": "operator-selection",
+        "target_identity_confidence": "operator-assigned",
+    }
 
 
 def service_manager_resource_records(snapshot):
@@ -2522,6 +2541,7 @@ def staged_record_summary(records):
         "source_missing_count": source_missing_count,
         "fetch_command_count": fetch_command_count,
         "fetch_command_force_count": fetch_command_force_count,
+        "target_counts": record_count_by_key(records, "target_id"),
         "source_exists_by_kind": source_exists_by_kind,
         "source_missing_by_kind": source_missing_by_kind,
     }
@@ -3535,6 +3555,7 @@ def compact_event_details(event):
 
 def target_command_record_indexes(records):
     by_service = {}
+    by_target_id = {}
     by_request_name = {}
     by_stage_kind = {}
     by_release_path = {}
@@ -3557,6 +3578,7 @@ def target_command_record_indexes(records):
         if not isinstance(rec, dict):
             continue
         service = str(rec.get("service") or "")
+        target_id = str(rec.get("target_id") or "")
         request_name = str(rec.get("request_name") or "")
         stage_kind = str(rec.get("stage_kind") or "")
         release_path = str(rec.get("release_path") or "")
@@ -3568,6 +3590,8 @@ def target_command_record_indexes(records):
         command_sha256 = str(rec.get("command_sha256") or "")
         if service:
             by_service.setdefault(service, []).append(rec)
+        if target_id:
+            by_target_id.setdefault(target_id, []).append(rec)
         if ordinal not in (None, ""):
             by_ordinal[str(ordinal)] = rec
         if command_sha256:
@@ -3597,7 +3621,7 @@ def target_command_record_indexes(records):
         if retry.get("post_disconnect_count") not in (None, ""):
             by_retry_post_disconnect_count.setdefault(str(retry.get("post_disconnect_count")), []).append(rec)
     return (
-        by_service, by_request_name, by_stage_kind, by_release_path, by_side,
+        by_service, by_target_id, by_request_name, by_stage_kind, by_release_path, by_side,
         by_purpose, by_service_purpose, by_side_purpose, by_network,
         by_requires_explicit_target_action, by_executes_operator_supplied_commands,
         by_ordinal, by_command_sha256, by_copy_supported,
@@ -3613,6 +3637,7 @@ def target_command_record_summary(records):
     explicit_target_action_count = 0
     operator_supplied_command_execution_count = 0
     by_service = {}
+    by_target_id = {}
     by_stage_kind = {}
     by_release_path = {}
     by_side = {}
@@ -3627,6 +3652,7 @@ def target_command_record_summary(records):
             continue
         total += 1
         service = str(rec.get("service") or "")
+        target_id = str(rec.get("target_id") or "")
         stage_kind = str(rec.get("stage_kind") or "")
         release_path = str(rec.get("release_path") or "")
         side = str(rec.get("side") or "")
@@ -3635,6 +3661,8 @@ def target_command_record_summary(records):
         retry = metadata.get("retry") if isinstance(metadata.get("retry"), dict) else {}
         if service:
             by_service[service] = by_service.get(service, 0) + 1
+        if target_id:
+            by_target_id[target_id] = by_target_id.get(target_id, 0) + 1
         if stage_kind:
             by_stage_kind[stage_kind] = by_stage_kind.get(stage_kind, 0) + 1
         if release_path:
@@ -3673,6 +3701,7 @@ def target_command_record_summary(records):
         "executes_operator_supplied_commands": operator_supplied_command_execution_count > 0,
         "all_require_explicit_target_action": total > 0 and explicit_target_action_count == total,
         "by_service": by_service,
+        "by_target_id": by_target_id,
         "by_stage_kind": by_stage_kind,
         "by_release_path": by_release_path,
         "by_side": by_side,
@@ -4109,6 +4138,8 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
         "queue_policy_snapshot": command_queue_policy_snapshot(cfg),
         "safety_boundary": "operator queue record only; target execution is disabled unless future explicit command-queue execution is implemented and enabled",
     }
+    if configured_target_filter(cfg):
+        rec.update(target_context_fields(cfg, configured_target_filter(cfg)))
     data["commands"].append(rec)
     save_command_queue(cfg, data)
     append_event(
@@ -4124,6 +4155,8 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
             "max_output_bytes": rec["max_output_bytes"],
             "delivery_supported": rec["delivery_supported"],
             "execution_supported": rec["execution_supported"],
+            "target_id": rec.get("target_id", ""),
+            "target_label": rec.get("target_label", ""),
             "policy_snapshot": rec["queue_policy_snapshot"],
         },
     )
@@ -4366,6 +4399,10 @@ def command_result_output_size_bucket(size):
 def command_queue_summary(cfg):
     data = load_command_queue(cfg)
     commands = data.get("commands", [])
+    target_filter_id = configured_target_filter(cfg)
+    unfiltered_command_count = len([rec for rec in commands if isinstance(rec, dict)])
+    if target_filter_id:
+        commands = records_for_target(commands, target_filter_id)
     queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
     delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
     commands_by_id = {}
@@ -4382,6 +4419,7 @@ def command_queue_summary(cfg):
     commands_by_result_exit_code = {}
     commands_by_result_output_exceeded = {}
     commands_by_result_output_size_bucket = {}
+    commands_by_target_id = {}
     commands_by_queue_policy_enabled = {}
     commands_by_queue_policy_valid = {}
     commands_by_queue_policy_execution_mode = {}
@@ -4421,6 +4459,9 @@ def command_queue_summary(cfg):
             status_counts[status] = status_counts.get(status, 0) + 1
         if command_sha256:
             commands_by_command_sha256.setdefault(command_sha256, []).append(rec)
+        target_id = str(rec.get("target_id") or "")
+        if target_id:
+            commands_by_target_id.setdefault(target_id, []).append(rec)
         if created_at:
             commands_by_created_at.setdefault(created_at, []).append(rec)
         if delivered_at:
@@ -4551,6 +4592,7 @@ def command_queue_summary(cfg):
         "commands_by_id": commands_by_id,
         "commands_by_status": commands_by_status,
         "commands_by_command_sha256": commands_by_command_sha256,
+        "commands_by_target_id": commands_by_target_id,
         "commands_by_created_at": commands_by_created_at,
         "commands_by_delivered_at": commands_by_delivered_at,
         "commands_by_result_received_at": commands_by_result_received_at,
@@ -4575,6 +4617,7 @@ def command_queue_summary(cfg):
         "status_counts": status_counts,
         "timeout_sec_counts": record_count_by_key(commands, "timeout_sec"),
         "max_output_bytes_counts": record_count_by_key(commands, "max_output_bytes"),
+        "target_counts": record_count_by_key(commands, "target_id"),
         "execution_decision_counts": execution_decision_counts,
         "result_status_counts": result_status_counts,
         "result_exit_code_counts": result_exit_code_counts,
@@ -4596,6 +4639,9 @@ def command_queue_summary(cfg):
         "result_count": result_count,
         "result_output_exceeded_count": result_exceeded_count,
         "total_count": len(commands),
+        "target_filter_active": bool(target_filter_id),
+        "target_filter_id": target_filter_id,
+        "unfiltered_total_count": unfiltered_command_count,
         "execution_supported": False,
         "delivery_supported": False,
         "result_upload_supported": True,
@@ -4633,6 +4679,7 @@ def print_command_queue(cfg, json_output=False):
         for error in summary["policy_errors"]:
             print(f"  policy_error={error}")
         print(f"  command_limits: timeouts={format_counts(summary.get('timeout_sec_counts') or {})} max_output={format_counts(summary.get('max_output_bytes_counts') or {})}")
+        print(f"  targets: {format_counts(summary.get('target_counts') or {})}")
         print(f"  delivery_policy_counts: {delivery_counts}")
         print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
         print_command_queue_mode_lines(summary)
@@ -4646,6 +4693,7 @@ def print_command_queue(cfg, json_output=False):
     for error in summary["policy_errors"]:
         print(f"  policy_error={error}")
     print(f"  command_limits: timeouts={format_counts(summary.get('timeout_sec_counts') or {})} max_output={format_counts(summary.get('max_output_bytes_counts') or {})}")
+    print(f"  targets: {format_counts(summary.get('target_counts') or {})}")
     print(f"  delivery_policy_counts: {delivery_counts}")
     print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
     print_command_queue_mode_lines(summary)
@@ -4653,6 +4701,8 @@ def print_command_queue(cfg, json_output=False):
         print(f"{rec.get('id', '')}\t{rec.get('status', '')}\tcreated={rec.get('created_at', '')}")
         print(f"  command: {rec.get('command', '')}")
         print(f"  timeout={rec.get('timeout_sec', '')} max_output={rec.get('max_output_bytes', '')} execution_supported={yes_no(rec.get('execution_supported'))}")
+        if rec.get("target_id"):
+            print(f"  target: {rec.get('target_id', '')} label={rec.get('target_label', '')}")
         delivery_policy = rec.get("delivery_policy_snapshot") if isinstance(rec.get("delivery_policy_snapshot"), dict) else {}
         if delivery_policy:
             print(
@@ -4723,6 +4773,8 @@ def stage_file(cfg, path, request_name, metadata=None):
         record["mtime"] = int(stat.st_mtime)
         record["staged_at"] = record.get("staged_at") or utc_now()
         record["stage_kind"] = str(record.get("stage_kind") or "file")
+    if configured_target_filter(cfg) and not record.get("target_id"):
+        record.update(target_context_fields(cfg, configured_target_filter(cfg)))
     data["staged"][request] = record
     atomic_write_json(staged_file_path(cfg), data)
     append_event(cfg, "file-service", "staged_file_add", details=data["staged"][request])
@@ -5555,6 +5607,12 @@ def render_file_service_command(parts, cfg, host=None):
 
 def print_staged(cfg):
     staged = load_staged(cfg).get("staged", {})
+    target_filter_id = configured_target_filter(cfg)
+    if target_filter_id and isinstance(staged, dict):
+        staged = {
+            name: rec for name, rec in staged.items()
+            if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_filter_id
+        }
     if not staged:
         print("No staged files.")
         return
@@ -5566,6 +5624,8 @@ def print_staged(cfg):
             compat_label = compatibility.get("label", "")
             compat_text = f" compatibility={compat_label}" if compat_label else ""
             print(f"  release={rec.get('release_path', '')} tuple={rec.get('tuple_path', '')} preset={rec.get('payload_preset', '')}{compat_text}")
+        if rec.get("target_id"):
+            print(f"  target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
         print(f"  {render_fetch_command(name, cfg)}")
 
 
@@ -7853,13 +7913,21 @@ def status_summary_and_warnings(services):
 
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
+    target_filter_id = configured_target_filter(cfg)
     staged_raw = load_staged(cfg).get("staged", {})
+    unfiltered_staged_count = len(staged_raw if isinstance(staged_raw, dict) else {})
+    if target_filter_id and isinstance(staged_raw, dict):
+        staged_raw = {
+            name: rec for name, rec in staged_raw.items()
+            if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_filter_id
+        }
     staged = enriched_staged_records(cfg, staged_raw)
     staged_records = staged_record_list(staged)
     staged_summary = staged_record_summary(staged_records)
     (staged_by_request,
      staged_by_kind,
      staged_by_sha256,
+     staged_by_target_id,
      staged_by_source_path,
      staged_by_fetch_command,
      staged_by_fetch_command_force,
@@ -7876,11 +7944,11 @@ def status_document(cfg):
     uploads = recent_upload_metadata(cfg)
     fetches = recent_fetch_metadata(cfg)
     targets = target_records(cfg)
-    target_filter_id = configured_target_filter(cfg)
     unfiltered_counts = {
         "targets": len(targets),
         "uploads": len(uploads),
         "fetches": len(fetches),
+        "staged": unfiltered_staged_count,
     }
     if target_filter_id:
         uploads = records_for_target(uploads, target_filter_id)
@@ -7999,7 +8067,10 @@ def status_document(cfg):
         for rec in target_command_records:
             if isinstance(rec, dict):
                 rec["target_id_filter"] = target_filter_id
+                rec.setdefault("target_id", target_filter_id)
+                rec.setdefault("target_label", (target_context_fields(cfg, target_filter_id) or {}).get("target_label", ""))
     (target_commands_by_service,
+     target_commands_by_target_id,
      target_commands_by_request,
      target_commands_by_stage_kind,
      target_commands_by_release_path,
@@ -8299,6 +8370,7 @@ def status_document(cfg):
         "staged_count": len(staged),
         "staged_total_size": staged_summary.get("total_size", 0),
         "staged_kind_counts": record_count_by_key(staged_records, "stage_kind"),
+        "staged_target_counts": staged_summary.get("target_counts") or {},
         "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
         "staged_source_missing_count": staged_summary.get("source_missing_count", 0),
         "staged_fetch_command_count": staged_summary.get("fetch_command_count", 0),
@@ -8391,6 +8463,7 @@ def status_document(cfg):
         "target_filter_unfiltered_target_count": unfiltered_counts.get("targets", 0),
         "target_filter_unfiltered_upload_count": unfiltered_counts.get("uploads", 0),
         "target_filter_unfiltered_fetch_count": unfiltered_counts.get("fetches", 0),
+        "target_filter_unfiltered_staged_count": unfiltered_counts.get("staged", 0),
         "target_filter_unfiltered_session_count": unfiltered_counts.get("sessions", 0),
         "target_filter_unfiltered_event_tail_count": unfiltered_counts.get("event_tail", 0),
         "target_filter_event_tail_count": len(events),
@@ -8438,6 +8511,7 @@ def status_document(cfg):
         "target_command_copy_supported_count": target_command_summary.get("copy_supported_count", 0),
         "target_command_executes_operator_supplied_commands": bool(target_command_summary.get("executes_operator_supplied_commands", False)),
         "target_command_all_require_explicit_target_action": bool(target_command_summary.get("all_require_explicit_target_action", False)),
+        "target_command_target_counts": target_command_summary.get("by_target_id") or {},
         "target_command_side_counts": target_command_summary.get("by_side") or {},
         "target_command_purpose_counts": target_command_summary.get("by_purpose") or {},
         "target_command_stage_kind_counts": target_command_summary.get("by_stage_kind") or {},
@@ -8513,6 +8587,7 @@ def status_document(cfg):
         "command_queue_result_count": command_queue.get("result_count", 0),
         "command_queue_result_output_exceeded_count": command_queue.get("result_output_exceeded_count", 0),
         "command_queue_status_counts": command_queue.get("status_counts") or {},
+        "command_queue_target_counts": command_queue.get("target_counts") or {},
         "command_queue_timeout_sec_counts": command_queue.get("timeout_sec_counts") or {},
         "command_queue_max_output_bytes_counts": command_queue.get("max_output_bytes_counts") or {},
         "command_queue_execution_decision_counts": command_queue.get("execution_decision_counts") or {},
@@ -8717,6 +8792,7 @@ def status_document(cfg):
         "target_command_records": api_collection_record(
             "target_command_records", target_command_records, "command", (
                 "target_commands_by_service", "target_commands_by_request",
+                "target_commands_by_target_id",
                 "target_commands_by_stage_kind", "target_commands_by_release_path",
                 "target_commands_by_side", "target_commands_by_purpose",
                 "target_commands_by_service_purpose", "target_commands_by_side_purpose",
@@ -8738,7 +8814,8 @@ def status_document(cfg):
         ),
         "staged_records": api_collection_record(
             "staged_records", staged_records, "request_name", (
-                "staged_by_request", "staged_by_kind", "staged_by_sha256", "staged_by_source_path",
+                "staged_by_request", "staged_by_kind", "staged_by_sha256",
+                "staged_by_target_id", "staged_by_source_path",
                 "staged_by_fetch_command", "staged_by_fetch_command_force",
                 "staged_by_source_exists", "staged_by_kind_source_exists",
             ), "staged_count",
@@ -8854,7 +8931,7 @@ def status_document(cfg):
         "command_queue_commands": api_collection_record(
             "command_queue_commands", command_queue.get("commands") or [], "id", (
                 "commands_by_id", "commands_by_status", "commands_by_command_sha256",
-                "commands_by_created_at",
+                "commands_by_target_id", "commands_by_created_at",
                 "commands_by_delivered_at", "commands_by_result_received_at",
                 "commands_by_result_source_path", "commands_by_timeout_sec",
                 "commands_by_max_output_bytes", "commands_by_execution_decision",
@@ -8942,6 +9019,7 @@ def status_document(cfg):
             "target_id": target_filter_id,
             "applied_to": [
                 "targets", "uploads", "fetches", "sessions", "events",
+                "command_queue.commands", "staged_records",
                 "target_command_records",
             ] if target_filter_id else [],
             "unfiltered_counts": unfiltered_counts,
@@ -8951,6 +9029,8 @@ def status_document(cfg):
                 "fetches": len(fetches),
                 "sessions": len(sessions),
                 "events": len(events),
+                "command_queue_commands": len(command_queue.get("commands") or []),
+                "staged_records": len(staged_records),
                 "target_command_records": len(target_command_records),
             },
         },
@@ -9048,6 +9128,7 @@ def status_document(cfg):
         "target_command_records": target_command_records,
         "target_command_summary": target_command_summary,
         "target_commands_by_service": target_commands_by_service,
+        "target_commands_by_target_id": target_commands_by_target_id,
         "target_commands_by_request": target_commands_by_request,
         "target_commands_by_stage_kind": target_commands_by_stage_kind,
         "target_commands_by_release_path": target_commands_by_release_path,
@@ -9079,6 +9160,7 @@ def status_document(cfg):
         "staged_by_request": staged_by_request,
         "staged_by_kind": staged_by_kind,
         "staged_by_sha256": staged_by_sha256,
+        "staged_by_target_id": staged_by_target_id,
         "staged_by_source_path": staged_by_source_path,
         "staged_by_fetch_command": staged_by_fetch_command,
         "staged_by_fetch_command_force": staged_by_fetch_command_force,
@@ -9196,6 +9278,7 @@ def status_document(cfg):
         "release_state": release_state,
         "release": release,
         "command_queue": command_queue,
+        "commands_by_target_id": command_queue.get("commands_by_target_id") or {},
         "commands_by_timeout_sec": command_queue.get("commands_by_timeout_sec") or {},
         "commands_by_max_output_bytes": command_queue.get("commands_by_max_output_bytes") or {},
         "commands_by_queue_policy_enabled": command_queue.get("commands_by_queue_policy_enabled") or {},
@@ -9713,7 +9796,11 @@ def generated_target_command_records(cfg, staged=None):
             "stage_kind": str((rec or {}).get("stage_kind") or "file") if isinstance(rec, dict) else "file",
         }
         if isinstance(rec, dict):
-            for key in ("release_path", "tuple_path", "payload_preset", "selected_by_recommendation", "compatibility"):
+            for key in (
+                "target_id", "target_label", "target_identity_source",
+                "target_identity_confidence", "release_path", "tuple_path",
+                "payload_preset", "selected_by_recommendation", "compatibility",
+            ):
                 value = rec.get(key)
                 if value not in (None, ""):
                     record[key] = value
@@ -9958,11 +10045,14 @@ def print_status(cfg, json_output=False):
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported={command_queue_policy_yes_no(queue, 'execution_supported')} delivery_supported={command_queue_policy_yes_no(queue, 'delivery_supported')} result_upload_supported={command_queue_policy_yes_no(queue, 'result_upload_supported')}")
     print(f"  command_limits: timeouts={format_counts(queue.get('timeout_sec_counts') or {})} max_output={format_counts(queue.get('max_output_bytes_counts') or {})}")
+    print(f"  targets: {format_counts(queue.get('target_counts') or {})}")
     print(f"  result_size_buckets: {format_counts(queue.get('result_output_size_bucket_counts') or {})}")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
     print_command_queue_mode_lines(queue)
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
+        if rec.get("target_id"):
+            print(f"    target: {rec.get('target_id', '')} label={rec.get('target_label', '')}")
         if rec.get("result_received_at"):
             print(f"    result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
             print(f"    result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
@@ -10182,6 +10272,8 @@ def print_workbench(cfg, include_api_summary=True):
             print(f"  {name} kind={rec.get('stage_kind', 'file')} <- {rec.get('source_path', '')} size={rec.get('size', '')} sha256={sha} staged={rec.get('staged_at', '')}")
             if rec.get("release_path") or rec.get("tuple_path"):
                 print(f"    release: {rec.get('release_path', '')} tuple={rec.get('tuple_path', '')} preset={rec.get('payload_preset', '')}")
+            if rec.get("target_id"):
+                print(f"    target: {rec.get('target_id', '')} label={rec.get('target_label', '')}")
             print(f"    {rec.get('fetch_command') or render_fetch_command(name, cfg)}")
     else:
         print("  none")
@@ -10274,11 +10366,14 @@ def print_workbench(cfg, include_api_summary=True):
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported={command_queue_policy_yes_no(queue, 'execution_supported')} delivery_supported={command_queue_policy_yes_no(queue, 'delivery_supported')} result_upload_supported={command_queue_policy_yes_no(queue, 'result_upload_supported')}")
     print(f"  command_limits: timeouts={format_counts(queue.get('timeout_sec_counts') or {})} max_output={format_counts(queue.get('max_output_bytes_counts') or {})}")
+    print(f"  targets: {format_counts(queue.get('target_counts') or {})}")
     print(f"  result_size_buckets: {format_counts(queue.get('result_output_size_bucket_counts') or {})}")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
     print_command_queue_mode_lines(queue)
     for rec in (queue.get("commands") or [])[:8]:
         print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
+        if rec.get("target_id"):
+            print(f"    target: {rec.get('target_id', '')} label={rec.get('target_label', '')}")
         if rec.get("result_received_at"):
             print(f"    result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
             print(f"    result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
@@ -11329,6 +11424,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         if args.queue_command:
             rec = queue_command(cfg, args.queue_command, timeout_sec=args.queue_timeout, max_output_bytes=args.queue_max_output)
             print(f"queued {rec['id']}: {rec['command']}")
+            if rec.get("target_id"):
+                print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
             print("execution_supported=no delivery_supported=no")
             if not (args.list_command_queue or args.json_command_queue):
                 return 0
@@ -11365,17 +11462,23 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             request_name = args.serve_as or Path(args.serve_file).name
             rec = stage_file(cfg, args.serve_file, request_name)
             print(f"staged {rec['request_name']} <- {rec['source_path']}")
+            if rec.get("target_id"):
+                print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
             print(render_fetch_command(rec["request_name"], cfg))
             action = "file-service"
         if args.serve_dir:
             records = stage_dir(cfg, args.serve_dir)
             for rec in records:
                 print(f"staged {rec['request_name']} <- {rec['source_path']}")
+                if rec.get("target_id"):
+                    print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
                 print(render_fetch_command(rec["request_name"], cfg))
             action = "file-service"
         if args.stage_release_artifact:
             rec = stage_release_artifact(cfg, args.stage_release_artifact)
             print(f"staged {rec['request_name']} <- {rec['source_path']}")
+            if rec.get("target_id"):
+                print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
             print(render_fetch_command(rec["request_name"], cfg))
             action = "file-service"
         if args.unstage:

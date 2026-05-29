@@ -4666,6 +4666,55 @@ def main():
             print(filtered_workbench.stdout, file=sys.stderr)
             return 1
 
+        target_staged_source = Path(tmp) / "bravo-staged.txt"
+        target_staged_source.write_text("target scoped staged file\n", encoding="utf-8")
+        target_stage = run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--target-id", "target-bravo",
+            "--serve-file", str(target_staged_source),
+            "--as", "/tmp/bravo-staged.txt",
+            "--list-staged",
+        )
+        if (target_stage.returncode != 0 or
+                "target=target-bravo label=Bravo Router" not in target_stage.stdout or
+                "/tmp/bravo-staged.txt" not in target_stage.stdout):
+            print("target-scoped staged file was not recorded visibly", file=sys.stderr)
+            print(target_stage.stdout, file=sys.stderr)
+            return 1
+        target_queue = run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--target-id", "target-bravo",
+            "--queue-command", "busierbox survey",
+            "--list-command-queue",
+        )
+        if (target_queue.returncode != 0 or
+                "target=target-bravo label=Bravo Router" not in target_queue.stdout or
+                "target: target-bravo label=Bravo Router" not in target_queue.stdout):
+            print("target-scoped command queue record was not recorded visibly", file=sys.stderr)
+            print(target_queue.stdout, file=sys.stderr)
+            return 1
+        scoped_doc = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--target-id", "target-bravo",
+            "--json-status",
+        ).stdout)
+        if (scoped_doc.get("summary", {}).get("staged_count") != 1 or
+                scoped_doc.get("summary", {}).get("staged_target_counts", {}).get("target-bravo") != 1 or
+                (scoped_doc.get("staged_by_target_id") or {}).get("target-bravo", [{}])[0].get("request_name") != "/tmp/bravo-staged.txt" or
+                scoped_doc.get("summary", {}).get("command_queue_total_count") != 1 or
+                scoped_doc.get("summary", {}).get("command_queue_target_counts", {}).get("target-bravo") != 1 or
+                (scoped_doc.get("command_queue") or {}).get("commands_by_target_id", {}).get("target-bravo", [{}])[0].get("command") != "busierbox survey" or
+                scoped_doc.get("summary", {}).get("target_command_target_counts", {}).get("target-bravo", 0) < 1 or
+                "target_commands_by_target_id" not in ((scoped_doc.get("api_collections") or {}).get("target_command_records") or {}).get("indexes", []) or
+                "staged_by_target_id" not in ((scoped_doc.get("api_collections") or {}).get("staged_records") or {}).get("indexes", []) or
+                "commands_by_target_id" not in ((scoped_doc.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", [])):
+            print("target-scoped staged/queue records missing from JSON/API status", file=sys.stderr)
+            print(json.dumps(scoped_doc, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
         tui_sigint_state = Path(tmp) / "operator-session" / "tui-sigint-state.json"
         tui_master, tui_slave = pty.openpty()
         try:
