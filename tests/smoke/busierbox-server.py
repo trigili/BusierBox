@@ -3553,6 +3553,157 @@ def main():
             print("SIGTERM foreground listener did not record structured shutdown event", file=sys.stderr)
             return 1
 
+        single_shell_port = free_port()
+        single_shell_cfg = Path(tmp) / "server-config-single-shell.json"
+        single_shell_state = Path(tmp) / "operator-session" / "single-shell-state.json"
+        single_shell_staged = Path(tmp) / "operator-session" / "single-shell-staged.json"
+        single_shell_operator_dir = Path(tmp) / "operator-session-single-shell"
+        single_shell_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "shell_listen_port": single_shell_port,
+            "rshell_session_policy": "single",
+            "session_root": str(Path(tmp) / "sessions-single-shell"),
+            "operator_session_dir": str(single_shell_operator_dir),
+        }), encoding="utf-8")
+        single_shell_proc = subprocess.Popen(
+            [
+                str(server), "--config", str(single_shell_cfg),
+                "--state-file", str(single_shell_state),
+                "--staged-file", str(single_shell_staged),
+                "--transport", "plain-shell",
+                "--no-stdin",
+                "--timeout", "30",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            status = run(
+                "scripts/busierbox-server", "--config", str(single_shell_cfg),
+                "--state-file", str(single_shell_state),
+                "--staged-file", str(single_shell_staged),
+                "--json-status",
+            )
+            if status.returncode == 0:
+                rows = {row["name"]: row for row in json.loads(status.stdout)["services"]}
+                if rows["plain-shell"]["actual"] == "listening":
+                    break
+            time.sleep(0.05)
+        else:
+            print("single rshell policy listener did not reach listening state", file=sys.stderr)
+            single_shell_proc.terminate()
+            single_shell_proc.communicate(timeout=2)
+            return 1
+        with socket.create_connection(("127.0.0.1", single_shell_port), timeout=5) as sock:
+            sock.sendall(b"single-policy-session\n")
+        single_stdout, single_stderr = single_shell_proc.communicate(timeout=5)
+        if (single_shell_proc.returncode != 0 or
+                "single-policy-session" not in single_stdout or
+                "session_policy=single stops after first successful session" not in single_stdout or
+                "Traceback" in (single_stdout + single_stderr)):
+            print("single rshell session policy did not stop cleanly after one session", file=sys.stderr)
+            print(single_stdout, file=sys.stderr)
+            print(single_stderr, file=sys.stderr)
+            return 1
+        single_after = json.loads(run(
+            "scripts/busierbox-server", "--config", str(single_shell_cfg),
+            "--state-file", str(single_shell_state),
+            "--staged-file", str(single_shell_staged),
+            "--json-status",
+        ).stdout)
+        single_rows = {row["name"]: row for row in single_after["services"]}
+        single_state_rec = single_after.get("server_state", {}).get("services", {}).get("plain-shell") or {}
+        if (single_rows["plain-shell"]["actual"] == "listening" or
+                single_rows["plain-shell"]["configured"] != "stopped" or
+                single_state_rec.get("stopped_reason") != "remote_eof"):
+            print("single rshell session policy left listener active or state misleading", file=sys.stderr)
+            print(json.dumps(single_after, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        single_events = [
+            json.loads(line) for line in (single_shell_operator_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        if not any(event.get("event") == "shell_listener_policy_stop" and event.get("details", {}).get("session_policy") == "single" for event in single_events):
+            print("single rshell session policy did not write policy stop event", file=sys.stderr)
+            return 1
+
+        reconnect_shell_port = free_port()
+        reconnect_shell_cfg = Path(tmp) / "server-config-reconnect-shell.json"
+        reconnect_shell_state = Path(tmp) / "operator-session" / "reconnect-shell-state.json"
+        reconnect_shell_staged = Path(tmp) / "operator-session" / "reconnect-shell-staged.json"
+        reconnect_shell_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "shell_listen_port": reconnect_shell_port,
+            "rshell_session_policy": "reconnect",
+            "session_root": str(Path(tmp) / "sessions-reconnect-shell"),
+            "operator_session_dir": str(Path(tmp) / "operator-session-reconnect-shell"),
+        }), encoding="utf-8")
+        reconnect_shell_proc = subprocess.Popen(
+            [
+                str(server), "--config", str(reconnect_shell_cfg),
+                "--state-file", str(reconnect_shell_state),
+                "--staged-file", str(reconnect_shell_staged),
+                "--transport", "plain-shell",
+                "--no-stdin",
+                "--timeout", "30",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            status = run(
+                "scripts/busierbox-server", "--config", str(reconnect_shell_cfg),
+                "--state-file", str(reconnect_shell_state),
+                "--staged-file", str(reconnect_shell_staged),
+                "--json-status",
+            )
+            if status.returncode == 0:
+                rows = {row["name"]: row for row in json.loads(status.stdout)["services"]}
+                if rows["plain-shell"]["actual"] == "listening":
+                    break
+            time.sleep(0.05)
+        else:
+            print("reconnect rshell policy listener did not reach listening state", file=sys.stderr)
+            reconnect_shell_proc.terminate()
+            reconnect_shell_proc.communicate(timeout=2)
+            return 1
+        with socket.create_connection(("127.0.0.1", reconnect_shell_port), timeout=5) as sock:
+            sock.sendall(b"reconnect-policy-session\n")
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            reconnect_status = run(
+                "scripts/busierbox-server", "--config", str(reconnect_shell_cfg),
+                "--state-file", str(reconnect_shell_state),
+                "--staged-file", str(reconnect_shell_staged),
+                "--json-status",
+            )
+            if reconnect_status.returncode == 0:
+                reconnect_doc = json.loads(reconnect_status.stdout)
+                rows = {row["name"]: row for row in reconnect_doc["services"]}
+                if rows["plain-shell"]["actual"] == "listening" and rows["plain-shell"]["configured"] == "listening":
+                    break
+            time.sleep(0.05)
+        else:
+            print("reconnect rshell policy did not keep listener open after disconnect", file=sys.stderr)
+            reconnect_shell_proc.terminate()
+            reconnect_shell_proc.communicate(timeout=2)
+            return 1
+        reconnect_shell_proc.terminate()
+        reconnect_stdout, reconnect_stderr = reconnect_shell_proc.communicate(timeout=5)
+        if ("reconnect-policy-session" not in reconnect_stdout or
+                "listener remains open for target retry/reconnect" not in reconnect_stdout or
+                "session_policy=reconnect stops after first successful session" in reconnect_stdout or
+                "Traceback" in (reconnect_stdout + reconnect_stderr)):
+            print("reconnect rshell session policy did not preserve reconnect listener behavior", file=sys.stderr)
+            print(reconnect_stdout, file=sys.stderr)
+            print(reconnect_stderr, file=sys.stderr)
+            return 1
+
         unmanaged_state = {
             "schema": 1,
             "services": {

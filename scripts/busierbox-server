@@ -7178,6 +7178,16 @@ def serve_file_service(cfg, timeout, max_sessions=0):
     return 0
 
 
+def shell_listener_max_sessions(cfg, explicit_one_shot=False, scripted=False):
+    if explicit_one_shot or scripted:
+        return 1
+    policy = rshell_session_policy_record(cfg)
+    summary = policy.get("session_policy_summary") or {}
+    if not policy.get("session_policy_valid", False):
+        return 1
+    return 0 if summary.get("reconnects_after_disconnect") else 1
+
+
 def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=None,
                     expect=None, session_timeout=None):
     """TLS shell listener — accepts both builtin+tls and socat+tls targets."""
@@ -7193,7 +7203,8 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=N
         print(f"Generated TLS cert/key: {cert}", file=sys.stderr)
     port = int(cfg["shell_listen_port"])
     log_dir = session_log_dir(cfg, "tls-shell")
-    start_session_record(cfg, service, log_dir, details={"port": port, "tls": True})
+    policy = rshell_session_policy_record(cfg)
+    start_session_record(cfg, service, log_dir, details={"port": port, "tls": True, "session_policy": policy.get("session_policy", "")})
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     if hasattr(ssl, "TLSVersion"):
@@ -7209,7 +7220,7 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=N
         bound = True
         sock.settimeout(timeout)
         update_server_state(cfg, service, "listening", {"session_log": str(log_dir)})
-        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port})
+        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "session_policy": policy.get("session_policy", "")})
         print_candidates(cfg, port)
         while not SHUTDOWN.is_set():
             print("Waiting for TLS shell connection...")
@@ -7246,6 +7257,12 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=N
                 upsert_state_session(cfg, log_dir, service, "listening", remote=f"{addr[0]}:{addr[1]}", exit_reason=exit_reason)
                 append_event(cfg, service, "shell_disconnected", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
             if max_sessions > 0 and sessions >= max_sessions:
+                print(f"Shell session ended; session_policy={policy.get('session_policy', '')} stops after first successful session.")
+                append_event(cfg, service, "shell_listener_policy_stop", session=str(log_dir), details={
+                    "session_policy": policy.get("session_policy", ""),
+                    "sessions": sessions,
+                    "reason": "max_sessions",
+                })
                 break
             print("Shell session ended; listener remains open for target retry/reconnect.")
     finally:
@@ -7272,7 +7289,8 @@ def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes
     port = int(cfg["shell_listen_port"])
     print("WARNING: plain-shell is INSECURE and for debug use only!", file=sys.stderr)
     log_dir = session_log_dir(cfg, "plain-shell")
-    start_session_record(cfg, service, log_dir, details={"port": port, "tls": False})
+    policy = rshell_session_policy_record(cfg)
+    start_session_record(cfg, service, log_dir, details={"port": port, "tls": False, "session_policy": policy.get("session_policy", "")})
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     sessions = 0
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir)})
@@ -7283,7 +7301,7 @@ def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes
         bound = True
         sock.settimeout(timeout)
         update_server_state(cfg, service, "listening", {"session_log": str(log_dir)})
-        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port})
+        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "session_policy": policy.get("session_policy", "")})
         print_candidates(cfg, port)
         while not SHUTDOWN.is_set():
             print("Waiting for plaintext shell connection (INSECURE)...")
@@ -7313,6 +7331,12 @@ def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes
             upsert_state_session(cfg, log_dir, service, "listening", remote=f"{addr[0]}:{addr[1]}", exit_reason=reason)
             append_event(cfg, service, "shell_disconnected", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
             if max_sessions > 0 and sessions >= max_sessions:
+                print(f"Shell session ended; session_policy={policy.get('session_policy', '')} stops after first successful session.")
+                append_event(cfg, service, "shell_listener_policy_stop", session=str(log_dir), details={
+                    "session_policy": policy.get("session_policy", ""),
+                    "sessions": sessions,
+                    "reason": "max_sessions",
+                })
                 break
             print("Shell session ended; listener remains open for target retry/reconnect.")
     finally:
@@ -10965,12 +10989,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             return serve_ssh(cfg, timeout)
         if action == "tls-shell":
             return serve_tls_shell(cfg, timeout, use_stdin=not (args.no_stdin or args.log_only),
-                                   max_sessions=1 if args.one_shot or args.script else 0,
+                                   max_sessions=shell_listener_max_sessions(cfg, explicit_one_shot=args.one_shot, scripted=bool(args.script)),
                                    script_bytes=script_bytes, expect=args.expect,
                                    session_timeout=session_timeout)
         if action == "plain-shell":
             return serve_plain_shell(cfg, timeout, use_stdin=not (args.no_stdin or args.log_only),
-                                     max_sessions=1 if args.one_shot or args.script else 0,
+                                     max_sessions=shell_listener_max_sessions(cfg, explicit_one_shot=args.one_shot, scripted=bool(args.script)),
                                      script_bytes=script_bytes, expect=args.expect,
                                      session_timeout=session_timeout)
         if action == "file-service":
