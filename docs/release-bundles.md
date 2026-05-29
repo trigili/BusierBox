@@ -506,6 +506,11 @@ when the filter is cleared, so manual target context changes remain reproducible
 from headless automation. The line-oriented target mailbox/activity inspector
 does the same for both per-target detail and all-target summaries, so offline
 mailbox review leaves a reproducible headless status command in the audit log.
+Target mailbox records also mirror target heartbeat fields such as connectivity
+state, last-seen time/source, offline age, and next expected poll; the line TUI
+command queue view prints those fields beside queued/delivered/result state, so
+operators can distinguish pending work for an offline target from work that was
+recently polled but not completed.
 The same status payload includes `target_attribution` plus mirrored summary
 counts for uploads, fetches, and sessions with and without `target_id`, so
 legacy single-target traffic remains valid but visible instead of being

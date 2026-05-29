@@ -2657,17 +2657,31 @@ def main():
                 result_alpha_mailbox.get("has_result") is not True or
                 result_alpha_mailbox.get("pending_work") is not False or
                 not result_alpha_mailbox.get("result_received_at") or
+                result_alpha_mailbox.get("target_connectivity_state") != "online" or
+                result_alpha_mailbox.get("target_last_seen_via") != "command-queue:command_queue_result" or
+                result_alpha_mailbox.get("has_target_next_expected_poll") is not False or
                 result_bravo_mailbox.get("target_id") != "target-bravo" or
                 result_bravo_mailbox.get("target_label") != "Bravo Router" or
                 result_bravo_mailbox.get("status") != "queued" or
                 result_bravo_mailbox.get("pending_work") is not True or
                 result_bravo_mailbox.get("has_result") is not False or
+                result_bravo_mailbox.get("target_connectivity_state") != "offline" or
+                result_bravo_mailbox.get("target_last_seen") != old_seen or
+                result_bravo_mailbox.get("target_last_seen_via") != "command-queue:command_queue_poll" or
+                result_bravo_mailbox.get("has_target_next_expected_poll") is not True or
+                not result_bravo_mailbox.get("target_next_expected_poll") or
                 ((result_status.get("target_mailbox_records_by_target_id") or {}).get("target-alpha") or [{}])[0].get("command_id") != alpha_id or
                 ((result_status.get("target_mailbox_records_by_target_id") or {}).get("target-bravo") or [{}])[0].get("command_id") != bravo_id or
+                ((result_status.get("target_mailbox_records_by_target_connectivity_state") or {}).get("offline") or [{}])[0].get("command_id") != bravo_id or
+                ((result_status.get("target_mailbox_records_by_target_last_seen_via") or {}).get("command-queue:command_queue_poll") or [{}])[0].get("command_id") != bravo_id or
+                ((result_status.get("target_mailbox_records_by_has_target_next_expected_poll") or {}).get("True") or [{}])[0].get("command_id") != bravo_id or
                 ((result_status.get("target_mailbox_records_by_pending_work") or {}).get("True") or [{}])[0].get("command_id") != bravo_id or
                 ((result_status.get("target_mailbox_records_by_has_result") or {}).get("True") or [{}])[0].get("command_id") != alpha_id or
                 ((result_status.get("targets_by_mailbox_pending_work") or {}).get("yes") or [{}])[0].get("target_id") != "target-bravo" or
                 ((result_status.get("targets_by_last_seen_via") or {}).get("command-queue:command_queue_result") or [{}])[0].get("target_id") != "target-alpha" or
+                result_status.get("summary", {}).get("target_mailbox_target_connectivity_state_counts", {}).get("offline") != 1 or
+                result_status.get("summary", {}).get("target_mailbox_has_target_next_expected_poll_counts", {}).get("True") != 1 or
+                "target_mailbox_records_by_target_connectivity_state" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_result_upload_received" for event in result_status.get("events") or [])):
             print("target mailbox result upload did not update heartbeat and result status", file=sys.stderr)
             print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
@@ -2734,8 +2748,12 @@ def main():
                 f"{alpha_id}\tresult-received" not in queue_tui_text or
                 "result: " not in queue_tui_text or
                 "Target mailbox records:" not in queue_tui_text or
-                f"{alpha_id} target=target-alpha status=result-received pending=no result=completed exit=0" not in queue_tui_text or
-                f"{bravo_id} target=target-bravo status=queued pending=yes result=- exit=-" not in queue_tui_text):
+                f"{alpha_id} target=target-alpha state=online status=result-received pending=no result=completed exit=0" not in queue_tui_text or
+                f"{bravo_id} target=target-bravo state=offline status=queued pending=yes result=- exit=-" not in queue_tui_text or
+                f"last_seen={old_seen} via=command-queue:command_queue_poll" not in queue_tui_text or
+                "next_expected_poll=" not in queue_tui_text or
+                "created=" not in queue_tui_text or
+                "delivered=" not in queue_tui_text):
             print("line TUI command queue inspection missing result/mailbox state", file=sys.stderr)
             print(queue_tui_text, file=sys.stderr)
             print(queue_tui_stderr or "", file=sys.stderr)

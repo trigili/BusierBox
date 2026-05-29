@@ -1756,12 +1756,13 @@ def target_mailbox_counts(cfg):
     return counts, latest_result
 
 
-def target_mailbox_record_from_command(rec, target_labels=None):
+def target_mailbox_record_from_command(rec, targets_by_id=None):
     if not isinstance(rec, dict):
         return None
     target_id = str(rec.get("target_id") or "")
     if not target_id:
         return None
+    target_rec = (targets_by_id or {}).get(target_id) or {}
     command_id = str(rec.get("id") or "")
     status = str(rec.get("status") or "")
     result = rec.get("result") if isinstance(rec.get("result"), dict) else {}
@@ -1779,7 +1780,13 @@ def target_mailbox_record_from_command(rec, target_labels=None):
         "id": command_id,
         "command_id": command_id,
         "target_id": target_id,
-        "target_label": str((target_labels or {}).get(target_id) or ""),
+        "target_label": str(target_rec.get("label") or ""),
+        "target_last_seen": str(target_rec.get("last_seen") or target_rec.get("last_seen_at") or ""),
+        "target_last_seen_via": str(target_rec.get("last_seen_via") or ""),
+        "target_offline_for_sec": target_rec.get("offline_for_sec", ""),
+        "target_connectivity_state": str(target_rec.get("connectivity_state") or ""),
+        "target_next_expected_poll": str(target_rec.get("next_expected_poll") or ""),
+        "has_target_next_expected_poll": bool(str(target_rec.get("next_expected_poll") or "")),
         "status": status,
         "command": command_text,
         "command_sha256": command_sha256,
@@ -1802,14 +1809,9 @@ def target_mailbox_record_from_command(rec, target_labels=None):
 
 
 def target_mailbox_records_from_commands(commands, targets_by_id=None):
-    target_labels = {
-        str(target_id): str((rec or {}).get("label") or "")
-        for target_id, rec in (targets_by_id or {}).items()
-        if target_id
-    }
     records = []
     for rec in commands or []:
-        item = target_mailbox_record_from_command(rec, target_labels)
+        item = target_mailbox_record_from_command(rec, targets_by_id)
         if item:
             records.append(item)
     records.sort(
@@ -1832,6 +1834,9 @@ def target_mailbox_record_indexes(records):
         },
         "target_mailbox_records_by_target_id": records_by_key(records, "target_id"),
         "target_mailbox_records_by_target_label": records_by_key(records, "target_label"),
+        "target_mailbox_records_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
+        "target_mailbox_records_by_target_last_seen_via": records_by_key(records, "target_last_seen_via"),
+        "target_mailbox_records_by_has_target_next_expected_poll": records_by_key(records, "has_target_next_expected_poll"),
         "target_mailbox_records_by_status": records_by_key(records, "status"),
         "target_mailbox_records_by_pending_work": records_by_key(records, "pending_work"),
         "target_mailbox_records_by_pending_delivery": records_by_key(records, "pending_delivery"),
@@ -12126,6 +12131,9 @@ def status_document(cfg):
         "target_mailbox_has_result_counts": record_count_by_key(target_mailbox_records, "has_result"),
         "target_mailbox_result_status_counts": record_count_by_key(target_mailbox_records, "result_status"),
         "target_mailbox_result_exit_code_counts": record_count_by_key(target_mailbox_records, "result_exit_code"),
+        "target_mailbox_target_connectivity_state_counts": record_count_by_key(target_mailbox_records, "target_connectivity_state"),
+        "target_mailbox_target_last_seen_via_counts": record_count_by_key(target_mailbox_records, "target_last_seen_via"),
+        "target_mailbox_has_target_next_expected_poll_counts": record_count_by_key(target_mailbox_records, "has_target_next_expected_poll"),
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
         "command_queue_policy_error_count": len(command_queue.get("policy_errors") or []),
         "command_queue_policy_record_count": len(command_queue_policy_records),
@@ -12568,6 +12576,9 @@ def status_document(cfg):
                 "target_mailbox_records_by_command_id",
                 "target_mailbox_records_by_target_id",
                 "target_mailbox_records_by_target_label",
+                "target_mailbox_records_by_target_connectivity_state",
+                "target_mailbox_records_by_target_last_seen_via",
+                "target_mailbox_records_by_has_target_next_expected_poll",
                 "target_mailbox_records_by_status",
                 "target_mailbox_records_by_pending_work",
                 "target_mailbox_records_by_pending_delivery",
@@ -15590,13 +15601,25 @@ def run_line_tui(cfg):
                     print(
                         f"  {rec.get('command_id', '')} "
                         f"target={rec.get('target_id', '') or '-'} "
+                        f"state={rec.get('target_connectivity_state', '') or '-'} "
                         f"status={rec.get('status', '') or '-'} "
                         f"pending={'yes' if rec.get('pending_work') else 'no'} "
                         f"result={rec.get('result_status', '') or '-'} "
                         f"exit={rec.get('result_exit_code', '') if rec.get('result_exit_code') != '' else '-'}"
                     )
+                    print(
+                        f"    last_seen={rec.get('target_last_seen', '') or '-'} "
+                        f"via={rec.get('target_last_seen_via', '') or '-'} "
+                        f"offline_for_sec={rec.get('target_offline_for_sec', '') if rec.get('target_offline_for_sec') != '' else '-'} "
+                        f"next_expected_poll={rec.get('target_next_expected_poll', '') or '-'}"
+                    )
+                    print(
+                        f"    created={rec.get('created_at', '') or '-'} "
+                        f"delivered={rec.get('delivered_at', '') or '-'} "
+                        f"result_at={rec.get('result_received_at', '') or '-'}"
+                    )
                     if rec.get("result_received_at"):
-                        print(f"    result_at={rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
+                        print(f"    result_source={rec.get('result_source_path', '') or '-'}")
             else:
                 print("Target mailbox records: none")
             append_event(cfg, "workbench", "workbench_command_queue_inspected", details={
