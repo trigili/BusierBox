@@ -16,7 +16,9 @@ complete.
 - The workbench exposes services, staged files, uploads, sessions, events,
   generated target commands, build/config fields, background jobs, release
   browsing, and pager-based local path inspection without target execution by
-  default.
+  default. Curses status now badges target attribution and legacy no-target
+  activity in the top area, and details panes show target identity for staged
+  files, uploads, and sessions when known.
 - Reverse shell lifecycle behavior is explicit through
   `BB_RSHELL_SESSION_POLICY=single|reconnect|persistent`, with status, plan,
   manifest, runtime-config, menuconfig, release, and server metadata exposure.
@@ -139,10 +141,25 @@ Commands run for the most recent committed slice:
 
 ```sh
 python3 -m py_compile scripts/busierbox-server tests/smoke/busierbox-server.py
-tests/smoke/busierbox-server.py
-git diff --check
 tests/smoke/stale-ux-text.sh
+git diff --check
+tests/smoke/busierbox-server.py
 make smoke-test
+```
+
+Result:
+
+- `make smoke-test` passed after the latest workbench target-identity changes.
+- `tests/smoke/busierbox-server.py` passed, including target-attribution
+  status coverage, target-scoped staged/fetch/queue records, label updates that
+  do not rewrite event history, capability-report uploads, and static checks
+  for curses target identity detail fields.
+- `tests/smoke/stale-ux-text.sh` passed after the latest workbench/status
+  documentation update.
+
+Recent branch cleanup evidence:
+
+```sh
 git fetch --prune origin
 git branch -a --verbose --no-abbrev
 git remote prune origin --dry-run
@@ -151,14 +168,8 @@ git ls-remote --heads origin
 
 Result:
 
-- `make smoke-test` passed after the latest server/status changes.
-- `tests/smoke/busierbox-server.py` passed, including target-attribution
-  status coverage for target-id traffic and legacy no-target traffic.
-- `tests/smoke/stale-ux-text.sh` passed after the latest status documentation
-  update.
-- `git branch -a --verbose --no-abbrev`, `git fetch --prune origin`,
-  `git remote prune origin --dry-run`, and `git ls-remote --heads origin`
-  showed only `main`/`origin/main` after stale feature branch cleanup.
+- The stale Doom/Dune feature branches were absent locally and remotely; only
+  `main`/`origin/main` remained.
 
 Earlier full-goal verification also included:
 
@@ -206,6 +217,64 @@ Recent full smoke coverage included:
   settings surfaced through target state, target events, live poll request
   headers, server poll metadata, status maps, API indexes, and docs
 - release bundle generation, release self-test, and release repository indexes
+
+## Examples
+
+Server lifecycle:
+
+```sh
+scripts/busierbox-server --status
+scripts/busierbox-server --stop
+```
+
+Expected evidence includes configured versus actual service state, listener
+PIDs, stale-state warnings, session root, staged-files path, and recent
+sessions/uploads/fetches.
+
+Reverse shell policy:
+
+```sh
+./busierbox rshell status --json
+./busierbox plan rshell --json
+```
+
+Expected evidence includes `session_policy`, `session_semantics`,
+`session_policy_summary`, retry timing, and no claim of session resume for
+`reconnect` or `persistent`.
+
+Event log:
+
+```json
+{"schema":1,"service":"file-service","event":"upload_complete","level":"info","details":{"target_id":"target-alpha","status":"stored"}}
+```
+
+Status surfaces expose event tails plus indexes by service, event, level,
+remote, status, target id, target label, expected target id, command id, and
+command hash.
+
+Reality and compatibility:
+
+```sh
+./busierbox reality-test --json
+scripts/config-from-survey --survey-json survey.json --reality-json reality.json --json
+scripts/find-artifact --index release-index.json --survey-json survey.json --reality-json reality.json --recommendation-json
+```
+
+Expected evidence includes capability pass/fail/skipped counts, constraints
+such as `/tmp` noexec or read-only rootfs, and compatibility labels from
+`exact` through `incompatible` with reasons.
+
+Command queue safety:
+
+```sh
+./busierbox command-queue status
+./busierbox command-queue poll --json
+scripts/busierbox-server --json-command-queue
+```
+
+Expected evidence shows disabled-by-default policy, metadata-only default,
+explicit polling state, result upload records, and `execution_supported=false`
+unless a future explicit execution implementation is added.
 
 ## Caveats
 
