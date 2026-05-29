@@ -35,6 +35,14 @@ struct cleanup_record {
     char cleanup_action[64];
 };
 
+struct ledger_json_record {
+    char raw[2048];
+    char op[64];
+    char path[PATH_MAX];
+    char scope[64];
+    int valid;
+};
+
 static int json_get_string_field(const char *line, const char *key, char *out, size_t outsz);
 
 static int is_help(int argc, char **argv)
@@ -290,6 +298,94 @@ static void print_cleanup_record_index_json(const struct cleanup_record *records
             first_index = 0;
         }
         fputc(']', stdout);
+        first_key = 0;
+    }
+    fputc('}', stdout);
+}
+
+static const char *ledger_json_record_field_value(const struct ledger_json_record *record, const char *field)
+{
+    if (!strcmp(field, "op"))
+        return record->op;
+    if (!strcmp(field, "scope"))
+        return record->scope;
+    if (!strcmp(field, "path"))
+        return record->path;
+    if (!strcmp(field, "valid"))
+        return record->valid ? "yes" : "no";
+    return "";
+}
+
+static int ledger_json_record_field_equals(const struct ledger_json_record *record,
+                                           const char *field, const char *value)
+{
+    return !strcmp(ledger_json_record_field_value(record, field), value);
+}
+
+static void print_ledger_json_record_index(const struct ledger_json_record *records,
+                                           int count, const char *field)
+{
+    int i, first_key = 1;
+
+    fputc('{', stdout);
+    for (i = 0; i < count; i++) {
+        int j, first_index = 1, seen = 0;
+        const char *value = ledger_json_record_field_value(&records[i], field);
+
+        if (!value[0])
+            continue;
+        for (j = 0; j < i; j++) {
+            if (ledger_json_record_field_equals(&records[j], field, value)) {
+                seen = 1;
+                break;
+            }
+        }
+        if (seen)
+            continue;
+        if (!first_key)
+            fputc(',', stdout);
+        bb_json_string(stdout, value);
+        fputc(':', stdout);
+        fputc('[', stdout);
+        for (j = 0; j < count; j++) {
+            if (!ledger_json_record_field_equals(&records[j], field, value))
+                continue;
+            printf("%s%d", first_index ? "" : ",", j);
+            first_index = 0;
+        }
+        fputc(']', stdout);
+        first_key = 0;
+    }
+    fputc('}', stdout);
+}
+
+static void print_ledger_json_counts(const struct ledger_json_record *records,
+                                     int count, const char *field)
+{
+    int i, first_key = 1;
+
+    fputc('{', stdout);
+    for (i = 0; i < count; i++) {
+        int j, seen = 0, n = 0;
+        const char *value = ledger_json_record_field_value(&records[i], field);
+
+        if (!value[0])
+            continue;
+        for (j = 0; j < i; j++) {
+            if (ledger_json_record_field_equals(&records[j], field, value)) {
+                seen = 1;
+                break;
+            }
+        }
+        if (seen)
+            continue;
+        for (j = 0; j < count; j++)
+            if (ledger_json_record_field_equals(&records[j], field, value))
+                n++;
+        if (!first_key)
+            fputc(',', stdout);
+        bb_json_string(stdout, value);
+        printf(":%d", n);
         first_key = 0;
     }
     fputc('}', stdout);
@@ -732,7 +828,8 @@ int applet_cleanup_ledger_main(int argc, char **argv)
     int json = 0;
     char path[PATH_MAX], line[1024];
     FILE *fp;
-    int first = 1;
+    struct ledger_json_record *records = NULL;
+    int first = 1, count = 0, capacity = 0, invalid_count = 0;
     int i;
 
     if (is_help(argc, argv)) {
@@ -751,18 +848,89 @@ int applet_cleanup_ledger_main(int argc, char **argv)
     }
     printf("{\"schema\":1,\"path\":");
     bb_json_string(stdout, path);
-    printf(",\"entries\":[");
     if (fp) {
         while (fgets(line, sizeof(line), fp)) {
+            char op[64], ledger_path[PATH_MAX], scope[64];
+            int valid;
+
             line[strcspn(line, "\r\n")] = '\0';
             if (!line[0])
                 continue;
-            printf("%s%s", first ? "" : ",", line);
-            first = 0;
+            if (count >= capacity) {
+                int new_capacity = capacity ? capacity * 2 : 256;
+                struct ledger_json_record *new_records = realloc(records, (size_t)new_capacity * sizeof(*records));
+                if (!new_records) {
+                    fclose(fp);
+                    free(records);
+                    fputs("cleanup-ledger: out of memory\n", stderr);
+                    return 1;
+                }
+                records = new_records;
+                capacity = new_capacity;
+            }
+            op[0] = '\0';
+            ledger_path[0] = '\0';
+            scope[0] = '\0';
+            valid = line[0] == '{' &&
+                    line[strlen(line) - 1] == '}' &&
+                    json_get_string_field(line, "op", op, sizeof(op)) == 0 &&
+                    json_get_string_field(line, "path", ledger_path, sizeof(ledger_path)) == 0;
+            if (valid && json_get_string_field(line, "scope", scope, sizeof(scope)) != 0)
+                snprintf(scope, sizeof(scope), "%s", "runtime");
+            if (!valid)
+                invalid_count++;
+            snprintf(records[count].raw, sizeof(records[count].raw), "%s", line);
+            snprintf(records[count].op, sizeof(records[count].op), "%s", valid ? op : "");
+            snprintf(records[count].path, sizeof(records[count].path), "%s", valid ? ledger_path : "");
+            snprintf(records[count].scope, sizeof(records[count].scope), "%s", valid ? scope : "");
+            records[count].valid = valid;
+            count++;
         }
         fclose(fp);
     }
-    printf("]}\n");
+    printf(",\"present\":%s,\"entry_count\":%d,\"invalid_count\":%d,\"truncated\":%s",
+           fp ? "true" : "false", count, invalid_count,
+           "false");
+    printf(",\"entries\":[");
+    for (i = 0; i < count; i++) {
+        printf("%s", first ? "" : ",");
+        if (records[i].valid)
+            fputs(records[i].raw, stdout);
+        else {
+            fputs("{\"invalid\":true,\"raw\":", stdout);
+            bb_json_string(stdout, records[i].raw);
+            fputc('}', stdout);
+        }
+        first = 0;
+    }
+    printf("],\"entries_by_op\":");
+    print_ledger_json_record_index(records, count, "op");
+    printf(",\"entries_by_scope\":");
+    print_ledger_json_record_index(records, count, "scope");
+    printf(",\"entries_by_path\":");
+    print_ledger_json_record_index(records, count, "path");
+    printf(",\"entries_by_valid\":");
+    print_ledger_json_record_index(records, count, "valid");
+    printf(",\"op_counts\":");
+    print_ledger_json_counts(records, count, "op");
+    printf(",\"scope_counts\":");
+    print_ledger_json_counts(records, count, "scope");
+    printf(",\"api\":{\"schema\":1,\"collections_key\":\"api_collections\",\"resources_key\":\"api_resources\",\"resource_count\":1}");
+    printf(",\"api_collections\":{\"entries\":{\"name\":\"entries\",\"count\":%d,\"count_summary_key\":\"entry_count\",\"summary_key\":\"entry_count\",\"primary_key\":\"path\",\"indexes\":[", count);
+    bb_json_string(stdout, "entries_by_op");
+    fputc(',', stdout);
+    bb_json_string(stdout, "entries_by_scope");
+    fputc(',', stdout);
+    bb_json_string(stdout, "entries_by_path");
+    fputc(',', stdout);
+    bb_json_string(stdout, "entries_by_valid");
+    printf("]}}");
+    printf(",\"api_resources\":[{\"name\":\"entries\",\"records_key\":\"entries\",\"collection_key\":\"api_collections.entries\",\"count\":%d,\"summary_key\":\"entry_count\",\"primary_key\":\"path\"}]", count);
+    printf(",\"api_resources_by_name\":{\"entries\":{\"name\":\"entries\",\"records_key\":\"entries\",\"collection_key\":\"api_collections.entries\",\"count\":%d,\"summary_key\":\"entry_count\",\"primary_key\":\"path\"}}", count);
+    printf(",\"api_resources_by_records_key\":{\"entries\":[{\"name\":\"entries\",\"records_key\":\"entries\",\"collection_key\":\"api_collections.entries\",\"count\":%d,\"summary_key\":\"entry_count\",\"primary_key\":\"path\"}]}", count);
+    printf(",\"api_resources_by_summary_key\":{\"entry_count\":[{\"name\":\"entries\",\"records_key\":\"entries\",\"collection_key\":\"api_collections.entries\",\"count\":%d,\"summary_key\":\"entry_count\",\"primary_key\":\"path\"}]}", count);
+    printf("}\n");
+    free(records);
     return 0;
 }
 

@@ -89,6 +89,10 @@ if not doc.get("path", "").endswith("cleanup-ledger.jsonl"):
 entries = doc.get("entries")
 if not isinstance(entries, list) or not entries:
     raise SystemExit("cleanup ledger entries missing after extract")
+if doc.get("entry_count") != len(entries):
+    raise SystemExit("cleanup ledger entry count mismatch")
+if doc.get("invalid_count") != 0:
+    raise SystemExit("cleanup ledger unexpectedly reported invalid entries")
 details = "\n".join(item.get("detail", "") for item in entries if isinstance(item, dict))
 ops = {item.get("op") for item in entries if isinstance(item, dict)}
 scopes = {item.get("scope") for item in entries if isinstance(item, dict)}
@@ -98,6 +102,21 @@ if "extract" not in ops or "write" not in ops:
     raise SystemExit("cleanup ledger missing extract/write operations")
 if "payload" not in scopes:
     raise SystemExit("cleanup ledger missing payload scope")
+if not doc.get("entries_by_op", {}).get("extract"):
+    raise SystemExit("cleanup ledger missing entries_by_op extract index")
+if not doc.get("entries_by_scope", {}).get("payload"):
+    raise SystemExit("cleanup ledger missing entries_by_scope payload index")
+if doc.get("op_counts", {}).get("extract", 0) < 1:
+    raise SystemExit("cleanup ledger missing op counts")
+api = (doc.get("api_collections") or {}).get("entries") or {}
+if api.get("count") != len(entries) or api.get("primary_key") != "path":
+    raise SystemExit("cleanup ledger API collection metadata mismatch")
+for index in ("entries_by_op", "entries_by_scope", "entries_by_path", "entries_by_valid"):
+    if index not in api.get("indexes", []):
+        raise SystemExit(f"cleanup ledger API index missing {index}")
+resources = doc.get("api_resources_by_name") or {}
+if resources.get("entries", {}).get("records_key") != "entries":
+    raise SystemExit("cleanup ledger API resource metadata missing")
 PY
     ./busierbox clean --dry-run --json >dry-run-after-extract.json
     python3 -m json.tool dry-run-after-extract.json >/dev/null
@@ -231,6 +250,28 @@ if doc.get("cleanup_complete") is not False:
     raise SystemExit("unsupported external apply overclaimed complete cleanup")
 if doc.get("cleanup_warning") != "unsupported external ledger entries require manual cleanup":
     raise SystemExit("unsupported external apply warning missing")
+PY
+
+    mkdir -p .busierbox/run
+    cat >.busierbox/run/cleanup-ledger.jsonl <<'EOF'
+{"op":"write","path":".busierbox/payload","scope":"payload","detail":"valid entry"}
+not-json
+EOF
+    ./busierbox cleanup-ledger --json >invalid-ledger.json
+    python3 -m json.tool invalid-ledger.json >/dev/null
+    python3 - invalid-ledger.json <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if doc.get("entry_count") != 2:
+    raise SystemExit("invalid ledger fixture entry count mismatch")
+if doc.get("invalid_count") != 1:
+    raise SystemExit("invalid ledger line was not counted")
+if doc.get("entries_by_valid", {}).get("no") != [1]:
+    raise SystemExit("invalid ledger line missing valid=no index")
+if doc.get("entries", [{}])[1].get("invalid") is not True:
+    raise SystemExit("invalid ledger line was not wrapped safely")
 PY
 )
 
