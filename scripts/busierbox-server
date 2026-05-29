@@ -8797,6 +8797,52 @@ def status_document(cfg):
             "by_service_detail_target_identity_confidence": count_index(events_by_service_detail_target_identity_confidence),
         }
     command_queue = command_queue_summary(cfg)
+    command_queue_policy_summary_record = command_queue.get("policy_summary") or {}
+    command_queue_policy_record = {
+        "id": "command-queue",
+        "enabled": bool(command_queue_policy_summary_record.get("enabled", False)),
+        "default_enabled": bool(command_queue_policy_summary_record.get("default_enabled", False)),
+        "valid": bool(command_queue_policy_summary_record.get("valid", True)),
+        "errors": command_queue.get("policy_errors") or [],
+        "error_count": len(command_queue.get("policy_errors") or []),
+        "configured_for_polling": bool(command_queue_policy_summary_record.get("configured_for_polling", False)),
+        "operator_queue_records_only": bool(command_queue_policy_summary_record.get("operator_queue_records_only", False)),
+        "allowed_commands": command_queue.get("allowed_commands", "none"),
+        "execution_mode": command_queue_policy_summary_record.get("execution_mode", "metadata-only"),
+        "metadata_only_default": bool(command_queue_policy_summary_record.get("metadata_only_default", False)),
+        "execution_supported": bool(command_queue_policy_summary_record.get("execution_supported", False)),
+        "executes_commands": bool(command_queue_policy_summary_record.get("executes_commands", False)),
+        "delivery_supported": bool(command_queue_policy_summary_record.get("delivery_supported", False)),
+        "result_upload_supported": bool(command_queue_policy_summary_record.get("result_upload_supported", False)),
+        "poll_transport_supported": bool(command_queue_policy_summary_record.get("poll_transport_supported", False)),
+        "live_polling_supported": bool(command_queue_policy_summary_record.get("live_polling_supported", False)),
+        "active_control_channel": bool(command_queue_policy_summary_record.get("active_control_channel", False)),
+        "token_required": bool(command_queue_policy_summary_record.get("token_required", False)),
+        "token_configured": bool(command_queue_policy_summary_record.get("token_configured", False)),
+        "poll_interval_sec": command_queue_policy_summary_record.get("poll_interval_sec", "5"),
+        "poll_jitter_pct": command_queue_policy_summary_record.get("poll_jitter_pct", "0"),
+        "poll_backoff": command_queue_policy_summary_record.get("poll_backoff", "none"),
+        "poll_max_interval_sec": command_queue_policy_summary_record.get("poll_max_interval_sec", "300"),
+        "max_polls": command_queue_policy_summary_record.get("max_polls", "0"),
+        "arbitrary_policy_requested": bool(command_queue_policy_summary_record.get("arbitrary_policy_requested", False)),
+        "arbitrary_execution_allowed": bool(command_queue_policy_summary_record.get("arbitrary_execution_allowed", False)),
+        "safe_disabled_default": bool(command_queue_policy_summary_record.get("safe_disabled_default", False)),
+        "policy_summary": command_queue_policy_summary_record,
+    }
+    command_queue_policy_records = [command_queue_policy_record]
+    command_queue_policy_index_maps = {
+        "command_queue_policy_records_by_id": {rec.get("id", ""): rec for rec in command_queue_policy_records if rec.get("id")},
+        "command_queue_policy_records_by_enabled": records_by_key(command_queue_policy_records, "enabled"),
+        "command_queue_policy_records_by_valid": records_by_key(command_queue_policy_records, "valid"),
+        "command_queue_policy_records_by_configured_for_polling": records_by_key(command_queue_policy_records, "configured_for_polling"),
+        "command_queue_policy_records_by_execution_mode": records_by_key(command_queue_policy_records, "execution_mode"),
+        "command_queue_policy_records_by_allowed_commands": records_by_key(command_queue_policy_records, "allowed_commands"),
+        "command_queue_policy_records_by_token_required": records_by_key(command_queue_policy_records, "token_required"),
+        "command_queue_policy_records_by_token_configured": records_by_key(command_queue_policy_records, "token_configured"),
+        "command_queue_policy_records_by_safe_disabled_default": records_by_key(command_queue_policy_records, "safe_disabled_default"),
+        "command_queue_policy_records_by_active_control_channel": records_by_key(command_queue_policy_records, "active_control_channel"),
+        "command_queue_policy_records_by_arbitrary_execution_allowed": records_by_key(command_queue_policy_records, "arbitrary_execution_allowed"),
+    }
     unfiltered_counts["command_queue_commands"] = command_queue.get(
         "unfiltered_total_count", len(command_queue.get("commands") or [])
     )
@@ -9594,6 +9640,7 @@ def status_document(cfg):
         "command_queue_latest_result_received_at": command_queue.get("latest_result_received_at", ""),
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
         "command_queue_policy_error_count": len(command_queue.get("policy_errors") or []),
+        "command_queue_policy_record_count": len(command_queue_policy_records),
         "command_queue_enabled": bool(command_queue_policy_summary.get("enabled", False)),
         "command_queue_configured_for_polling": bool(command_queue_policy_summary.get("configured_for_polling", False)),
         "command_queue_active_control_channel": bool(command_queue_policy_summary.get("active_control_channel", False)),
@@ -10074,6 +10121,21 @@ def status_document(cfg):
                 "commands_by_delivery_policy_active_control_channel",
             ), "command_queue_total_count",
         ),
+        "command_queue_policy_records": api_collection_record(
+            "command_queue_policy_records", command_queue_policy_records, "id", (
+                "command_queue_policy_records_by_id",
+                "command_queue_policy_records_by_enabled",
+                "command_queue_policy_records_by_valid",
+                "command_queue_policy_records_by_configured_for_polling",
+                "command_queue_policy_records_by_execution_mode",
+                "command_queue_policy_records_by_allowed_commands",
+                "command_queue_policy_records_by_token_required",
+                "command_queue_policy_records_by_token_configured",
+                "command_queue_policy_records_by_safe_disabled_default",
+                "command_queue_policy_records_by_active_control_channel",
+                "command_queue_policy_records_by_arbitrary_execution_allowed",
+            ), "command_queue_policy_record_count",
+        ),
         "command_queue_modes": api_collection_record(
             "command_queue_modes", command_queue.get("mode_records") or [], "mode", (
                 "command_queue_modes_by_mode", "command_queue_modes_by_lifecycle",
@@ -10471,6 +10533,8 @@ def status_document(cfg):
         **release_state_index_maps,
         "release": release,
         "command_queue": command_queue,
+        "command_queue_policy_records": command_queue_policy_records,
+        **command_queue_policy_index_maps,
         "commands_by_target_id": command_queue.get("commands_by_target_id") or {},
         "commands_by_timeout_sec": command_queue.get("commands_by_timeout_sec") or {},
         "commands_by_max_output_bytes": command_queue.get("commands_by_max_output_bytes") or {},

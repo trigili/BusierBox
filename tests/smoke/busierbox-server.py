@@ -1568,6 +1568,7 @@ def main():
         )
         invalid_queue_status = json.loads(invalid_queue_status_doc.stdout)
         invalid_status_queue = invalid_queue_status["command_queue"]
+        invalid_queue_policy_record = (invalid_queue_status.get("command_queue_policy_records_by_id") or {}).get("command-queue") or {}
         invalid_policy_warnings = [
             item for item in invalid_queue_status.get("warnings", [])
             if item.get("type") == "invalid_command_queue_policy"
@@ -1576,11 +1577,18 @@ def main():
                 invalid_status_queue.get("configured_for_polling") is not False or
                 invalid_status_queue.get("arbitrary_policy_requested") is not False or
                 invalid_status_queue.get("arbitrary_execution_allowed") is not False or
+                invalid_queue_policy_record.get("valid") is not False or
+                invalid_queue_policy_record.get("allowed_commands") != "busierbox-only" or
+                invalid_queue_policy_record.get("arbitrary_execution_allowed") is not False or
+                invalid_queue_policy_record.get("active_control_channel") is not False or
+                invalid_queue_status.get("command_queue_policy_records_by_valid", {}).get("False", [{}])[0].get("id") != "command-queue" or
+                invalid_queue_status.get("summary", {}).get("command_queue_policy_record_count") != 1 or
                 invalid_queue_status.get("summary", {}).get("command_queue_policy_valid") is not False or
                 invalid_queue_status.get("summary", {}).get("command_queue_policy_error_count") != len(invalid_status_queue.get("policy_errors", [])) or
                 invalid_queue_status.get("summary", {}).get("command_queue_configured_for_polling") is not False or
                 invalid_queue_status.get("summary", {}).get("command_queue_active_control_channel") is not False or
                 invalid_queue_status.get("summary", {}).get("command_queue_arbitrary_execution_allowed") is not False or
+                "command_queue_policy_records_by_arbitrary_execution_allowed" not in ((invalid_queue_status.get("api_collections") or {}).get("command_queue_policy_records") or {}).get("indexes", []) or
                 not invalid_policy_warnings or
                 "disabled command queue must keep allowed commands policy none" not in invalid_policy_warnings[-1].get("policy_errors", [])):
             print("server json status marked invalid command queue policy usable", file=sys.stderr)
@@ -1855,6 +1863,7 @@ def main():
                 ("command_copy_records", len(queue_status_json.get("command_copy_records") or []), "command_copy_records_by_has_command"),
                 ("command_queue_state_records", len(queue_status_json.get("command_queue_state_records") or []), "command_queue_state_records_by_valid"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
+                ("command_queue_policy_records", len(queue_status_json.get("command_queue_policy_records") or []), "command_queue_policy_records_by_valid"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_result_upload_supported"),
                 ("release_state_records", len(queue_status_json.get("release_state_records") or []), "release_state_records_by_detection_source"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
@@ -1895,6 +1904,9 @@ def main():
                 not any(rec.get("name") == "command_queue_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
                 api_resources_by_name.get("command_queue_commands", {}).get("records_key") != "command_queue.commands" or
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
+                api_resources_by_name.get("command_queue_policy_records", {}).get("records_key") != "command_queue_policy_records" or
+                api_resources_by_summary_key.get("command_queue_policy_record_count", [{}])[0].get("name") != "command_queue_policy_records" or
+                not any(rec.get("name") == "command_queue_policy_records" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("server_state_records", {}).get("records_key") != "server_state_records" or
                 api_resources_by_summary_key.get("server_state_record_count", [{}])[0].get("name") != "server_state_records" or
                 not any(rec.get("name") == "server_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
@@ -2184,6 +2196,7 @@ def main():
                     print(queue_status_doc.stdout, file=sys.stderr)
                     return 1
         command_queue_doc = queue_status_json.get("command_queue") or {}
+        command_queue_policy_record = (queue_status_json.get("command_queue_policy_records_by_id") or {}).get("command-queue") or {}
         command_queue_modes = command_queue_doc.get("mode_semantics") or {}
         command_queue_mode_records = queue_status_json.get("command_queue_mode_records") or []
         command_queue_modes_by_mode = queue_status_json.get("command_queue_modes_by_mode") or {}
@@ -2213,6 +2226,16 @@ def main():
                 queue_status_json["summary"].get("command_queue_execution_supported") is not False or
                 queue_status_json["summary"].get("command_queue_delivery_supported") is not False or
                 queue_status_json["summary"].get("command_queue_result_upload_supported") is not True or
+                queue_status_json["summary"].get("command_queue_policy_record_count") != 1 or
+                command_queue_policy_record.get("valid") is not True or
+                command_queue_policy_record.get("enabled") is not False or
+                command_queue_policy_record.get("safe_disabled_default") is not True or
+                command_queue_policy_record.get("execution_mode") != "metadata-only" or
+                command_queue_policy_record.get("active_control_channel") is not False or
+                command_queue_policy_record.get("arbitrary_execution_allowed") is not False or
+                queue_status_json.get("command_queue_policy_records_by_safe_disabled_default", {}).get("True", [{}])[0].get("id") != "command-queue" or
+                queue_status_json.get("command_queue_policy_records_by_active_control_channel", {}).get("False", [{}])[0].get("id") != "command-queue" or
+                "command_queue_policy_records_by_token_configured" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_policy_records") or {}).get("indexes", []) or
                 queue_status_json["summary"].get("command_queue_poll_transport_supported") is not True or
                 queue_status_json["summary"].get("command_queue_live_polling_supported") is not True or
                 queue_status_json["summary"].get("command_queue_poll_interval_sec") != "5" or
