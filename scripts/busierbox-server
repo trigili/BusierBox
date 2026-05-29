@@ -8533,6 +8533,41 @@ def status_document(cfg):
         "operator_network_records_by_source": records_by_key(operator_network_records, "source"),
         "operator_network_records_by_usable_for_generated_commands": records_by_key(operator_network_records, "usable_for_generated_commands"),
     }
+    selected_operator_network_record = next(
+        (rec for rec in operator_network_records if rec.get("selected")),
+        operator_network_records[0] if operator_network_records else {},
+    )
+    operator_network_state_record = {
+        "id": "operator-network",
+        "selected_ip": selected_local_ip,
+        "selected_source": selected_operator_network_record.get("source", ""),
+        "selected_placeholder": bool(selected_operator_network_record.get("placeholder", False)),
+        "selected_usable_for_generated_commands": bool(selected_operator_network_record.get("usable_for_generated_commands", False)),
+        "record_count": len(operator_network_records),
+        "detected_ip_count": len([rec for rec in operator_network_records if rec.get("source") == "detected"]),
+        "placeholder_count": len([rec for rec in operator_network_records if rec.get("placeholder")]),
+        "usable_for_generated_commands_count": len([
+            rec for rec in operator_network_records
+            if rec.get("usable_for_generated_commands")
+        ]),
+    }
+    operator_network_state_record.update({
+        "has_detected_ip": operator_network_state_record.get("detected_ip_count", 0) > 0,
+        "uses_placeholder": bool(operator_network_state_record.get("selected_placeholder", False)),
+        "has_generated_command_ip": bool(operator_network_state_record.get("selected_usable_for_generated_commands", False)),
+        "has_multiple_ips": operator_network_state_record.get("record_count", 0) > 1,
+    })
+    operator_network_state_records = [operator_network_state_record]
+    operator_network_state_index_maps = {
+        "operator_network_state_records_by_id": {rec.get("id", ""): rec for rec in operator_network_state_records if rec.get("id")},
+        "operator_network_state_records_by_selected_ip": records_by_key(operator_network_state_records, "selected_ip"),
+        "operator_network_state_records_by_selected_source": records_by_key(operator_network_state_records, "selected_source"),
+        "operator_network_state_records_by_selected_placeholder": records_by_key(operator_network_state_records, "selected_placeholder"),
+        "operator_network_state_records_by_has_detected_ip": records_by_key(operator_network_state_records, "has_detected_ip"),
+        "operator_network_state_records_by_uses_placeholder": records_by_key(operator_network_state_records, "uses_placeholder"),
+        "operator_network_state_records_by_has_generated_command_ip": records_by_key(operator_network_state_records, "has_generated_command_ip"),
+        "operator_network_state_records_by_has_multiple_ips": records_by_key(operator_network_state_records, "has_multiple_ips"),
+    }
     operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
     event_log_path = operator_dir / "events.jsonl"
     session_root = str(cfg.get("session_root", "local/sessions"))
@@ -9743,10 +9778,16 @@ def status_document(cfg):
         "event_detail_poll_max_interval_sec_counts": event_summary_stats.get("by_detail_poll_max_interval_sec") or {},
         "event_detail_max_polls_counts": event_summary_stats.get("by_detail_max_polls") or {},
         "operator_network_record_count": len(operator_network_records),
+        "operator_network_state_record_count": len(operator_network_state_records),
         "operator_network_detected_ip_count": len([rec for rec in operator_network_records if rec.get("source") == "detected"]),
         "operator_network_placeholder_count": len([rec for rec in operator_network_records if rec.get("placeholder")]),
         "operator_network_selected_ip": selected_local_ip,
         "operator_network_selected_source": "detected" if selected_local_ip != "OPERATOR_IP" else "placeholder",
+        "operator_network_selected_placeholder": bool(operator_network_state_record.get("selected_placeholder", False)),
+        "operator_network_has_detected_ip": bool(operator_network_state_record.get("has_detected_ip", False)),
+        "operator_network_uses_placeholder": bool(operator_network_state_record.get("uses_placeholder", False)),
+        "operator_network_has_generated_command_ip": bool(operator_network_state_record.get("has_generated_command_ip", False)),
+        "operator_network_has_multiple_ips": bool(operator_network_state_record.get("has_multiple_ips", False)),
         "event_type_detail_status_counts": event_summary_stats.get("by_event_detail_status") or {},
         "event_service_detail_status_counts": event_summary_stats.get("by_service_detail_status") or {},
         "event_type_detail_operation_counts": event_summary_stats.get("by_event_detail_operation") or {},
@@ -10010,6 +10051,18 @@ def status_document(cfg):
                 "operator_network_records_by_source",
                 "operator_network_records_by_usable_for_generated_commands",
             ), "operator_network_record_count",
+        ),
+        "operator_network_state_records": api_collection_record(
+            "operator_network_state_records", operator_network_state_records, "id", (
+                "operator_network_state_records_by_id",
+                "operator_network_state_records_by_selected_ip",
+                "operator_network_state_records_by_selected_source",
+                "operator_network_state_records_by_selected_placeholder",
+                "operator_network_state_records_by_has_detected_ip",
+                "operator_network_state_records_by_uses_placeholder",
+                "operator_network_state_records_by_has_generated_command_ip",
+                "operator_network_state_records_by_has_multiple_ips",
+            ), "operator_network_state_record_count",
         ),
         "browser_paths": api_collection_record(
             "browser_paths", browser_paths, "id", (
@@ -10566,6 +10619,8 @@ def status_document(cfg):
         "selected_local_ip": selected_local_ip,
         "operator_network_records": operator_network_records,
         **operator_network_index_maps,
+        "operator_network_state_records": operator_network_state_records,
+        **operator_network_state_index_maps,
         "target_commands": [rec["command"] for rec in target_command_records],
         "target_command_records": target_command_records,
         "target_command_summary": target_command_summary,

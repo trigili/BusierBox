@@ -1789,6 +1789,7 @@ def main():
         staged_files_state = queue_status_json.get("staged_files_state") or {}
         command_queue_state = queue_status_json.get("command_queue_state") or {}
         service_manager_state = (queue_status_json.get("service_manager_state_records_by_id") or {}).get("service-manager") or {}
+        operator_network_state = (queue_status_json.get("operator_network_state_records_by_id") or {}).get("operator-network") or {}
         if (set(paths) - set(path_status) or
                 state_path_status.get("path") != queue_status_json.get("state_file") or
                 state_path_status.get("expected_kind") != "file" or
@@ -1873,6 +1874,7 @@ def main():
                 ("path_status_records", len(path_status_records), "path_status_by_name"),
                 ("server_state_records", len(queue_status_json.get("server_state_records") or []), "server_state_records_by_valid"),
                 ("operator_network_records", len(queue_status_json.get("operator_network_records") or []), "operator_network_records_by_selected"),
+                ("operator_network_state_records", len(queue_status_json.get("operator_network_state_records") or []), "operator_network_state_records_by_selected_ip"),
                 ("browser_paths", len(browser_paths), "browser_paths_by_expected_kind_mismatch"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
                 ("target_registry_state_records", len(queue_status_json.get("target_registry_state_records") or []), "target_registry_state_records_by_has_targets"),
@@ -1939,6 +1941,9 @@ def main():
                 api_resources_by_name.get("operator_network_records", {}).get("records_key") != "operator_network_records" or
                 api_resources_by_summary_key.get("operator_network_record_count", [{}])[0].get("name") != "operator_network_records" or
                 not any(rec.get("name") == "operator_network_records" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("operator_network_state_records", {}).get("records_key") != "operator_network_state_records" or
+                api_resources_by_summary_key.get("operator_network_state_record_count", [{}])[0].get("name") != "operator_network_state_records" or
+                not any(rec.get("name") == "operator_network_state_records" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("target_registry_state_records", {}).get("records_key") != "target_registry_state_records" or
                 api_resources_by_summary_key.get("target_registry_state_record_count", [{}])[0].get("name") != "target_registry_state_records" or
                 not any(rec.get("name") == "target_registry_state_records" for rec in api_resources_by_primary_key.get("id", [])) or
@@ -1981,6 +1986,23 @@ def main():
                 not any(rec.get("name") == "event_log_state_records" for rec in api_resources_by_primary_key.get("path", [])) or
                 not any(rec.get("name") == "services" for rec in api_resources_by_primary_key.get("name", []))):
             print("server json status missing API resource catalog lookup maps", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        if (operator_network_state.get("id") != "operator-network" or
+                operator_network_state.get("selected_ip") != queue_status_json.get("selected_local_ip") or
+                operator_network_state.get("record_count") != len(queue_status_json.get("operator_network_records") or []) or
+                operator_network_state.get("detected_ip_count") != queue_status_json["summary"].get("operator_network_detected_ip_count") or
+                operator_network_state.get("placeholder_count") != queue_status_json["summary"].get("operator_network_placeholder_count") or
+                operator_network_state.get("selected_source") != queue_status_json["summary"].get("operator_network_selected_source") or
+                operator_network_state.get("selected_placeholder") != queue_status_json["summary"].get("operator_network_selected_placeholder") or
+                operator_network_state.get("uses_placeholder") != (operator_network_state.get("selected_ip") == "OPERATOR_IP") or
+                operator_network_state.get("has_detected_ip") != (operator_network_state.get("detected_ip_count", 0) > 0) or
+                operator_network_state.get("has_generated_command_ip") != bool(operator_network_state.get("selected_usable_for_generated_commands")) or
+                queue_status_json["summary"].get("operator_network_state_record_count") != 1 or
+                queue_status_json["summary"].get("operator_network_has_generated_command_ip") != bool(operator_network_state.get("has_generated_command_ip")) or
+                queue_status_json.get("operator_network_state_records_by_selected_ip", {}).get(operator_network_state.get("selected_ip"), [{}])[0].get("id") != "operator-network" or
+                "operator_network_state_records_by_has_generated_command_ip" not in ((queue_status_json.get("api_collections") or {}).get("operator_network_state_records") or {}).get("indexes", [])):
+            print("server json status missing reusable operator network state record", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         workbench_actions = queue_status_json.get("workbench_actions") or []
