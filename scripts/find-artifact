@@ -199,6 +199,18 @@ def matches(row, index, args):
         actual = "true" if release_license.get("combined_gplv2_compatible") else "false"
         if actual != wanted:
             return False
+    if args.corresponding_source_required:
+        wanted = bool_filter_value(args.corresponding_source_required)
+        actual = "true" if release_license.get("corresponding_source_required") else "false"
+        if actual != wanted:
+            return False
+    if args.corresponding_source_status and release_license.get("corresponding_source_status") != args.corresponding_source_status:
+        return False
+    if args.package_license_audit_required:
+        wanted = bool_filter_value(args.package_license_audit_required)
+        actual = "true" if release_license.get("corresponding_source_requires_package_license_audit") else "false"
+        if actual != wanted:
+            return False
     if args.license_component and args.license_component not in (release_license.get("component_names") or []):
         return False
     if args.component_license:
@@ -340,6 +352,12 @@ def print_text(row, index):
     if release_license:
         print(f"project_license={release_license.get('project_license', '')}")
         print(f"combined_gplv2_compatible={'yes' if release_license.get('combined_gplv2_compatible') else 'no'}")
+        print(f"corresponding_source_required={'yes' if release_license.get('corresponding_source_required') else 'no'}")
+        print(f"corresponding_source_status={release_license.get('corresponding_source_status', '')}")
+        print(
+            "package_license_audit_required="
+            f"{'yes' if release_license.get('corresponding_source_requires_package_license_audit') else 'no'}"
+        )
         print(f"license_notice_count={release_license.get('notice_count', 0)}")
         for component, license_id in sorted((release_license.get("component_licenses") or {}).items()):
             print(f"license_component={component} {license_id}")
@@ -390,6 +408,9 @@ def active_filters(args):
         "doom_wad_sha256",
         "project_license",
         "gplv2_compatible",
+        "corresponding_source_required",
+        "corresponding_source_status",
+        "package_license_audit_required",
         "license_component",
         "component_license",
         "max_compatibility",
@@ -462,6 +483,9 @@ def match_indexes(rows):
         "matches_by_doom_wad_sha256": {},
         "matches_by_project_license": {},
         "matches_by_combined_gplv2_compatible": {},
+        "matches_by_corresponding_source_required": {},
+        "matches_by_corresponding_source_status": {},
+        "matches_by_package_license_audit_required": {},
         "matches_by_license_component": {},
         "matches_by_component_license": {},
         "matches_by_command_queue_enabled": {},
@@ -487,6 +511,24 @@ def match_indexes(rows):
             indexes,
             "matches_by_combined_gplv2_compatible",
             "true" if release_license.get("combined_gplv2_compatible") else "false",
+            row,
+        )
+        add_index(
+            indexes,
+            "matches_by_corresponding_source_required",
+            "true" if release_license.get("corresponding_source_required") else "false",
+            row,
+        )
+        add_index(
+            indexes,
+            "matches_by_corresponding_source_status",
+            release_license.get("corresponding_source_status"),
+            row,
+        )
+        add_index(
+            indexes,
+            "matches_by_package_license_audit_required",
+            "true" if release_license.get("corresponding_source_requires_package_license_audit") else "false",
             row,
         )
         for component in release_license.get("component_names") or []:
@@ -634,6 +676,9 @@ def recommendation_document(index, rows, args, survey_context=None, reality=None
                 "matches_by_doom_wad_sha256",
                 "matches_by_project_license",
                 "matches_by_combined_gplv2_compatible",
+                "matches_by_corresponding_source_required",
+                "matches_by_corresponding_source_status",
+                "matches_by_package_license_audit_required",
                 "matches_by_license_component",
                 "matches_by_component_license",
                 "matches_by_command_queue_enabled",
@@ -782,6 +827,12 @@ def main(argv=None):
     parser.add_argument("--project-license", help="match artifacts from releases with this BusierBox project license")
     parser.add_argument("--gplv2-compatible", choices=("yes", "no", "true", "false", "1", "0"),
                         help="match artifacts from releases with this combined GPLv2 compatibility state")
+    parser.add_argument("--corresponding-source-required", choices=("yes", "no", "true", "false", "1", "0"),
+                        help="match artifacts from releases with this corresponding-source requirement state")
+    parser.add_argument("--corresponding-source-status",
+                        help="match artifacts from releases with this corresponding-source status")
+    parser.add_argument("--package-license-audit-required", choices=("yes", "no", "true", "false", "1", "0"),
+                        help="match artifacts from releases with this package license audit requirement state")
     parser.add_argument("--license-component", help="match artifacts from releases whose license policy includes this component name")
     parser.add_argument("--component-license", help="match artifacts from releases whose license policy has COMPONENT:LICENSE")
     parser.add_argument("--max-compatibility", choices=("exact", "likely", "heuristic", "unsafe", "incompatible"),

@@ -278,10 +278,15 @@ each bundle and attached to artifact rows as `release_license`,
 compatibility, corresponding-source posture, package audit requirements, and
 notice coverage without opening every release directory.
 `scripts/find-artifact` can also filter by that metadata with
-`--project-license`, `--gplv2-compatible yes|no`, `--license-component`, and
+`--project-license`, `--gplv2-compatible yes|no`,
+`--corresponding-source-required yes|no`, `--corresponding-source-status`,
+`--package-license-audit-required yes|no`, `--license-component`, and
 `--component-license COMPONENT:LICENSE`, and recommendation JSON exposes
 matching `matches_by_project_license`, `matches_by_combined_gplv2_compatible`,
-`matches_by_license_component`, and `matches_by_component_license` maps.
+`matches_by_corresponding_source_required`,
+`matches_by_corresponding_source_status`,
+`matches_by_package_license_audit_required`, `matches_by_license_component`,
+and `matches_by_component_license` maps.
 When `scripts/busierbox-server` is launched from a release bundle, `--status`,
 `--json-status`, and the workbench release browser expose the same compact
 release license record as `release.release_license`, `release_licenses`, and

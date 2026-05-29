@@ -407,6 +407,9 @@ grep -q '^release_self_test_status=pass$' "$tmp/find-device.out"
 grep -q '^release_self_test_path=release-self-test.json$' "$tmp/find-device.out"
 grep -q '^project_license=GPL-2.0-or-later$' "$tmp/find-device.out"
 grep -q '^combined_gplv2_compatible=yes$' "$tmp/find-device.out"
+grep -q '^corresponding_source_required=yes$' "$tmp/find-device.out"
+grep -q '^corresponding_source_status=required_for_distribution$' "$tmp/find-device.out"
+grep -q '^package_license_audit_required=yes$' "$tmp/find-device.out"
 grep -q '^license_notice_count=11$' "$tmp/find-device.out"
 grep -q '^license_component=BusyBox GPL-2.0$' "$tmp/find-device.out"
 grep -q '^release_self_test_command_queue_token_required_count=1$' "$tmp/find-device.out"
@@ -420,9 +423,19 @@ scripts/find-artifact --index "$tmp/repo-index.json" --doom-wad doom.wad >"$tmp/
 grep -q '^release_name=one$' "$tmp/find-doom-wad.out"
 scripts/find-artifact --index "$tmp/repo-index.json" --doom-wad-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef >"$tmp/find-doom-sha.out"
 grep -q '^payload_preset=survey-core$' "$tmp/find-doom-sha.out"
-scripts/find-artifact --index "$tmp/repo-index.json" --project-license GPL-2.0-or-later --gplv2-compatible yes --license-component BusyBox --component-license BusyBox:GPL-2.0 --payload-preset survey-core >"$tmp/find-license.out"
+scripts/find-artifact --index "$tmp/repo-index.json" --project-license GPL-2.0-or-later --gplv2-compatible yes --corresponding-source-required yes --corresponding-source-status required_for_distribution --package-license-audit-required yes --license-component BusyBox --component-license BusyBox:GPL-2.0 --payload-preset survey-core >"$tmp/find-license.out"
 grep -q '^release_name=one$' "$tmp/find-license.out"
 grep -q '^project_license=GPL-2.0-or-later$' "$tmp/find-license.out"
+scripts/find-artifact --index "$tmp/repo-index.json" --corresponding-source-required no >/dev/null 2>"$tmp/find-corresponding-source-not-required.err" && {
+    printf '%s\n' "release-repo-index smoke: corresponding-source required filter unexpectedly matched no" >&2
+    exit 1
+}
+grep -q 'find-artifact: no matching artifact' "$tmp/find-corresponding-source-not-required.err"
+scripts/find-artifact --index "$tmp/repo-index.json" --package-license-audit-required no >/dev/null 2>"$tmp/find-package-audit-not-required.err" && {
+    printf '%s\n' "release-repo-index smoke: package license audit filter unexpectedly matched no" >&2
+    exit 1
+}
+grep -q 'find-artifact: no matching artifact' "$tmp/find-package-audit-not-required.err"
 scripts/find-artifact --index "$tmp/repo-index.json" --gplv2-compatible no >/dev/null 2>"$tmp/find-license-incompatible.err" && {
     printf '%s\n' "release-repo-index smoke: incompatible GPL filter unexpectedly matched" >&2
     exit 1
@@ -466,7 +479,7 @@ assert row["release_self_test"]["command_queue_operator_supplied_command_executi
 assert row["release_self_test"]["command_queue_token_required_count"] == 1
 assert row["release_self_test"]["command_queue_token_configured_count"] == 0
 PY
-scripts/find-artifact --index "$tmp/repo-index.json" --project-license GPL-2.0-or-later --gplv2-compatible true --license-component BusyBox --component-license BusyBox:GPL-2.0 --payload-preset ssh-operator --recommendation-json >"$tmp/recommend-license-json.out"
+scripts/find-artifact --index "$tmp/repo-index.json" --project-license GPL-2.0-or-later --gplv2-compatible true --corresponding-source-required true --corresponding-source-status required_for_distribution --package-license-audit-required true --license-component BusyBox --component-license BusyBox:GPL-2.0 --payload-preset ssh-operator --recommendation-json >"$tmp/recommend-license-json.out"
 python3 - "$tmp/recommend-license-json.out" <<'PY'
 import json
 import sys
@@ -474,13 +487,20 @@ import sys
 doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 assert doc["filters"]["project_license"] == "GPL-2.0-or-later"
 assert doc["filters"]["gplv2_compatible"] == "true"
+assert doc["filters"]["corresponding_source_required"] == "true"
+assert doc["filters"]["corresponding_source_status"] == "required_for_distribution"
+assert doc["filters"]["package_license_audit_required"] == "true"
 assert doc["filters"]["license_component"] == "BusyBox"
 assert doc["filters"]["component_license"] == "BusyBox:GPL-2.0"
 assert doc["filters_by_name"]["project_license"]["source"] == "explicit"
+assert doc["filters_by_name"]["corresponding_source_status"]["source"] == "explicit"
 assert doc["selected"]["release_name"] == "two"
 assert doc["selected"]["release_license"]["component_licenses"]["BusyBox"] == "GPL-2.0"
 assert doc["matches_by_project_license"]["GPL-2.0-or-later"][0]["release_name"] == "two"
 assert doc["matches_by_combined_gplv2_compatible"]["true"][0]["release_name"] == "two"
+assert doc["matches_by_corresponding_source_required"]["true"][0]["release_name"] == "two"
+assert doc["matches_by_corresponding_source_status"]["required_for_distribution"][0]["release_name"] == "two"
+assert doc["matches_by_package_license_audit_required"]["true"][0]["release_name"] == "two"
 assert doc["matches_by_license_component"]["BusyBox"][0]["release_name"] == "two"
 assert doc["matches_by_component_license"]["BusyBox:GPL-2.0"][0]["release_name"] == "two"
 PY
@@ -528,6 +548,9 @@ assert "matches_by_device_alias" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_provider_status" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_project_license" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_combined_gplv2_compatible" in doc["api_collections"]["matches"]["indexes"]
+assert "matches_by_corresponding_source_required" in doc["api_collections"]["matches"]["indexes"]
+assert "matches_by_corresponding_source_status" in doc["api_collections"]["matches"]["indexes"]
+assert "matches_by_package_license_audit_required" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_license_component" in doc["api_collections"]["matches"]["indexes"]
 assert "matches_by_component_license" in doc["api_collections"]["matches"]["indexes"]
 assert doc["matches_by_release"]["two"][0]["release_name"] == "two"
@@ -538,6 +561,9 @@ assert doc["matches_by_provider_tool"]["strace"][0]["release_name"] == "two"
 assert doc["matches_by_provider_status"]["strace:found"][0]["release_name"] == "two"
 assert doc["matches_by_project_license"]["GPL-2.0-or-later"][0]["release_name"] == "two"
 assert doc["matches_by_combined_gplv2_compatible"]["true"][0]["release_name"] == "two"
+assert doc["matches_by_corresponding_source_required"]["true"][0]["release_name"] == "two"
+assert doc["matches_by_corresponding_source_status"]["required_for_distribution"][0]["release_name"] == "two"
+assert doc["matches_by_package_license_audit_required"]["true"][0]["release_name"] == "two"
 assert doc["matches_by_license_component"]["BusyBox"][0]["release_name"] == "two"
 assert doc["matches_by_component_license"]["BusyBox:GPL-2.0"][0]["release_name"] == "two"
 assert doc["matches_by_command_queue_enabled"]["false"][0]["release_name"] == "two"
