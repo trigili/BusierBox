@@ -5678,12 +5678,22 @@ def main():
         action_queue = (action_doc.get("command_queue") or {}).get("commands_by_target_id", {}).get("target-action") or []
         action_staged = (action_doc.get("staged_by_target_id") or {}).get("target-action") or []
         action_events = action_doc.get("events_by_event") or {}
+        action_completed = action_events.get("target_workflow_action_completed") or []
+        completed_by_action = {
+            (event.get("details") or {}).get("action_id"): event.get("details") or {}
+            for event in action_completed
+        }
         line_workbench_state = (json.loads(line_action_state.read_text(encoding="utf-8")).get("services") or {}).get("workbench") or {}
         if (len(action_queue) != 1 or
                 action_queue[0].get("command") != "busierbox survey --json" or
                 len(action_staged) != 1 or
                 action_staged[0].get("request_name") != "action-staged.txt" or
                 not action_events.get("target_workflow_action_selected") or
+                completed_by_action.get("stage-file-fetch", {}).get("request_name") != "action-staged.txt" or
+                completed_by_action.get("stage-file-fetch", {}).get("target_id") != "target-action" or
+                completed_by_action.get("queue-command", {}).get("command_id") != action_queue[0].get("id") or
+                completed_by_action.get("queue-command", {}).get("target_id") != "target-action" or
+                "headless_command" not in completed_by_action.get("queue-command", {}) or
                 not action_events.get("workbench_target_selected") or
                 not action_events.get("workbench_target_inspected") or
                 line_workbench_state.get("selected_target_id") != "target-action" or

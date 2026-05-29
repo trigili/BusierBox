@@ -375,6 +375,10 @@ In line-mode TUI, action `15` lists the target workflow actions and prompts for
 the required command/path fields before applying the same target-scoped queue or
 staging operation. No action changes the safety boundary: target execution still
 requires an explicit target-side fetch, upload, poll, or bridge connection.
+Mutating target workflow actions record `target_workflow_action_completed`
+events with the target id, action id, headless command, and result-specific
+metadata such as queued command id or staged request name, so headless and TUI
+runs leave the same operator audit trail.
 Action `16` selects the current target filter for the workbench session by
 target number, id, label, or alias; enter `all` to clear the filter and return
 to the fleet view. The selected target is recorded in workbench state and

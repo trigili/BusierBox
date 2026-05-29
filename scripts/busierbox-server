@@ -14635,6 +14635,18 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         queued = queue_command(scoped, command)
         print(f"queued {queued['id']}: {queued['command']}")
         print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        append_event(cfg, "workbench", "target_workflow_action_completed", details={
+            "id": rec.get("id", ""),
+            "action_id": action_id,
+            "target_id": target_id,
+            "target_label": target_label,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "result": "queued-command",
+            "command_id": queued.get("id", ""),
+            "command_sha256": queued.get("command_sha256", ""),
+        })
         return 0
     if action_id == "stage-file-fetch":
         path = str(local_file or "")
@@ -14653,18 +14665,65 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         print(f"staged {staged['request_name']} <- {staged['source_path']}")
         print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
         print(render_fetch_command(staged["request_name"], scoped))
+        append_event(cfg, "workbench", "target_workflow_action_completed", details={
+            "id": rec.get("id", ""),
+            "action_id": action_id,
+            "target_id": target_id,
+            "target_label": target_label,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "result": "staged-file-fetch",
+            "request_name": staged.get("request_name", ""),
+            "source_path": staged.get("source_path", ""),
+            "sha256": staged.get("sha256", ""),
+        })
         return 0
     if action_id == "start-file-service":
         start_service_process(scoped, "file-service")
+        append_event(cfg, "workbench", "target_workflow_action_completed", details={
+            "id": rec.get("id", ""),
+            "action_id": action_id,
+            "target_id": target_id,
+            "target_label": target_label,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "result": "started-service",
+            "service": "file-service",
+        })
         return 0
     if action_id == "serve-survey-bootstrap":
         start_service_process(scoped, "survey-bootstrap")
+        append_event(cfg, "workbench", "target_workflow_action_completed", details={
+            "id": rec.get("id", ""),
+            "action_id": action_id,
+            "target_id": target_id,
+            "target_label": target_label,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "result": "started-service",
+            "service": "survey-bootstrap",
+        })
         return 0
     if action_id.startswith("start-bridge:"):
         profile = str(rec.get("bridge_profile") or action_id.split(":", 1)[1])
         if not profile:
             raise ValueError("start-bridge target workflow action is missing a bridge profile")
         start_service_process(scoped, "bridge", argv_extra=["--bridge-profile", profile])
+        append_event(cfg, "workbench", "target_workflow_action_completed", details={
+            "id": rec.get("id", ""),
+            "action_id": action_id,
+            "target_id": target_id,
+            "target_label": target_label,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "headless_command": rec.get("headless_command", rec.get("command", "")),
+            "result": "started-service",
+            "service": "bridge",
+            "bridge_profile": profile,
+        })
         return 0
     raise ValueError(f"unsupported target workflow action: {action_id}")
 
