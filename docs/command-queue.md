@@ -301,3 +301,31 @@ events, so file-service uploads and fetches can be correlated by content digest
 separately from command text digests.
 This is still operator-side bookkeeping; it does not poll, deliver, or execute
 commands.
+
+## Intermittent Target Mailboxes
+
+Target-scoped command queue records now act as an operator-side mailbox for
+devices that can only phone home briefly. A command queued for `target_id`
+remains pending while the target is offline, is delivered on the next matching
+`/command-queue/poll`, and stays auditable through delivery and result upload.
+
+Status JSON derives heartbeat and mailbox fields from the target registry and
+queue records:
+
+- `targets[].last_seen`, `last_seen_via`, `offline_for_sec`, and
+  `connectivity_state` (`online`, `recent`, `stale`, `offline`, or `unknown`)
+  show when and how the target last contacted the operator.
+- `targets[].next_expected_poll` is populated when the latest command-queue poll
+  reported a polling interval.
+- `targets[].mailbox_queued_command_count`,
+  `mailbox_delivered_command_count`, `mailbox_result_received_command_count`,
+  and `mailbox_pending_work_count` summarize queued work per target.
+- `targets[].latest_command_result_at` and `latest_command_result_id` point to
+  the latest received command result for that target.
+
+The status API also exposes `targets_by_connectivity_state`,
+`targets_by_last_seen_via`, `targets_by_has_next_expected_poll`, and
+`targets_by_mailbox_pending_work`, plus matching summary counters. These fields
+are intended for the TUI and headless dashboards so an operator can queue work
+while a target is gone, see the last successful phone-home path, and confirm
+delivery when the target reconnects.

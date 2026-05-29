@@ -1569,6 +1569,11 @@ def main():
             print(anonymous_stdout, file=sys.stderr)
             print(anonymous_stderr, file=sys.stderr)
             return 1
+        alpha_before_reconnect = next(rec for rec in anonymous_after["commands"] if rec.get("id") == alpha_id)
+        if alpha_before_reconnect.get("status") != "queued":
+            print("target-scoped command should remain queued while its target is offline", file=sys.stderr)
+            print(json.dumps(anonymous_after, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
         poll_target_server = subprocess.Popen(
             ["scripts/busierbox-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
@@ -1622,15 +1627,33 @@ def main():
             "--target-id", "target-alpha",
             "--json-status",
         ).stdout)
+        target_alpha_status = (poll_target_status.get("targets_by_id") or {}).get("target-alpha", {})
         if (poll_target_status.get("summary", {}).get("command_queue_target_counts", {}).get("target-alpha") != 1 or
                 poll_target_status.get("summary", {}).get("target_count") != 1 or
                 poll_target_status.get("summary", {}).get("target_latest_activity_service_counts", {}).get("command-queue") != 1 or
                 poll_target_status.get("summary", {}).get("target_latest_activity_operation_counts", {}).get("command_queue_poll") != 1 or
-                (poll_target_status.get("targets_by_id") or {}).get("target-alpha", {}).get("services_seen") != ["command-queue"] or
-                (poll_target_status.get("targets_by_id") or {}).get("target-alpha", {}).get("latest_activity_service") != "command-queue" or
-                (poll_target_status.get("targets_by_id") or {}).get("target-alpha", {}).get("latest_activity_operation") != "command_queue_poll" or
+                poll_target_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("online") != 1 or
+                poll_target_status.get("summary", {}).get("target_last_seen_via_counts", {}).get("command-queue:command_queue_poll") != 1 or
+                poll_target_status.get("summary", {}).get("target_next_expected_poll_count") != 1 or
+                poll_target_status.get("summary", {}).get("target_mailbox_pending_work_count") != 0 or
+                target_alpha_status.get("services_seen") != ["command-queue"] or
+                target_alpha_status.get("latest_activity_service") != "command-queue" or
+                target_alpha_status.get("latest_activity_operation") != "command_queue_poll" or
+                target_alpha_status.get("last_seen") != target_alpha_status.get("last_seen_at") or
+                target_alpha_status.get("last_seen_via") != "command-queue:command_queue_poll" or
+                target_alpha_status.get("connectivity_state") != "online" or
+                not isinstance(target_alpha_status.get("offline_for_sec"), int) or
+                not target_alpha_status.get("next_expected_poll") or
+                target_alpha_status.get("mailbox_queued_command_count") != 0 or
+                target_alpha_status.get("mailbox_delivered_command_count") != 1 or
+                target_alpha_status.get("mailbox_pending_work_count") != 0 or
+                target_alpha_status.get("latest_command_queue_poll_interval_sec") != "11" or
                 ((poll_target_status.get("targets_by_latest_activity_service") or {}).get("command-queue") or [{}])[0].get("target_id") != "target-alpha" or
                 ((poll_target_status.get("targets_by_latest_activity_operation") or {}).get("command_queue_poll") or [{}])[0].get("target_id") != "target-alpha" or
+                ((poll_target_status.get("targets_by_connectivity_state") or {}).get("online") or [{}])[0].get("target_id") != "target-alpha" or
+                ((poll_target_status.get("targets_by_last_seen_via") or {}).get("command-queue:command_queue_poll") or [{}])[0].get("target_id") != "target-alpha" or
+                ((poll_target_status.get("targets_by_has_next_expected_poll") or {}).get("yes") or [{}])[0].get("target_id") != "target-alpha" or
+                ((poll_target_status.get("targets_by_mailbox_pending_work") or {}).get("no") or [{}])[0].get("target_id") != "target-alpha" or
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_poll_delivered" for event in poll_target_status.get("events") or []) or
                 poll_target_status.get("summary", {}).get("event_detail_poll_mode_counts", {}).get("poll", 0) < 1 or
                 poll_target_status.get("summary", {}).get("event_detail_poll_interval_sec_counts", {}).get("11", 0) < 1 or
@@ -1640,7 +1663,8 @@ def main():
                 poll_target_status.get("summary", {}).get("event_detail_max_polls_counts", {}).get("9", 0) < 1 or
                 (poll_target_status.get("event_log_stats") or {}).get("by_detail_poll_backoff", {}).get("exponential", 0) < 1 or
                 ((poll_target_status.get("events_by_detail_poll_interval_sec") or {}).get("11") or [{}])[0].get("details", {}).get("poll_backoff") != "exponential" or
-                "events_by_detail_poll_interval_sec" not in (((poll_target_status.get("api_collections") or {}).get("events") or {}).get("indexes") or [])):
+                "events_by_detail_poll_interval_sec" not in (((poll_target_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
+                "targets_by_connectivity_state" not in (((poll_target_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or [])):
             print("target-scoped command queue poll missing from filtered status", file=sys.stderr)
             print(json.dumps(poll_target_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1

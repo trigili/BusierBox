@@ -980,6 +980,47 @@ def elapsed_seconds(started_at, ended_at):
     return int(end - start)
 
 
+TARGET_ONLINE_WINDOW_SEC = 300
+TARGET_RECENT_WINDOW_SEC = 3600
+TARGET_STALE_WINDOW_SEC = 86400
+
+
+def utc_from_epoch(epoch):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(epoch)))
+
+
+def target_connectivity_state(offline_for_sec):
+    if offline_for_sec is None:
+        return "unknown"
+    if offline_for_sec <= TARGET_ONLINE_WINDOW_SEC:
+        return "online"
+    if offline_for_sec <= TARGET_RECENT_WINDOW_SEC:
+        return "recent"
+    if offline_for_sec <= TARGET_STALE_WINDOW_SEC:
+        return "stale"
+    return "offline"
+
+
+def target_last_seen_via(rec):
+    service = str((rec or {}).get("latest_activity_service") or "")
+    operation = str((rec or {}).get("latest_activity_operation") or "")
+    if service and operation:
+        return f"{service}:{operation}"
+    return service or operation
+
+
+def target_next_expected_poll(rec):
+    if str((rec or {}).get("latest_activity_operation") or "") != "command_queue_poll":
+        return ""
+    interval = str((rec or {}).get("latest_command_queue_poll_interval_sec") or "")
+    if not interval.isdigit() or int(interval) <= 0:
+        return ""
+    last_seen_epoch = parse_utc_timestamp((rec or {}).get("last_seen_at") or (rec or {}).get("latest_activity_at"))
+    if last_seen_epoch is None:
+        return ""
+    return utc_from_epoch(last_seen_epoch + int(interval))
+
+
 def atomic_write_json(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1559,6 +1600,12 @@ def record_target_activity(cfg, metadata, service, session_id=""):
     rec["latest_activity_service"] = str(service or "")
     rec["latest_activity_operation"] = operation
     rec["latest_activity_remote_addr"] = str(metadata.get("remote_addr") or "")
+    if operation == "command_queue_poll":
+        rec["latest_command_queue_poll_at"] = now
+        for key in ("poll_mode", "poll_interval_sec", "poll_jitter_pct", "poll_backoff", "poll_max_interval_sec", "max_polls"):
+            value = str((metadata or {}).get(key) or "")
+            if value:
+                rec[f"latest_command_queue_{key}"] = value
     if session_id:
         rec["latest_session_id"] = str(session_id)
     if operation == "upload":
@@ -1630,9 +1677,58 @@ def set_target_label(cfg, target_id, label, aliases=None, notes=None):
     return rec
 
 
+def target_mailbox_counts(cfg):
+    counts = {}
+    latest_result = {}
+    latest_result_at = {}
+    for rec in (load_command_queue(cfg).get("commands") or []):
+        if not isinstance(rec, dict):
+            continue
+        target_id = str(rec.get("target_id") or "")
+        if not target_id:
+            continue
+        target_counts = counts.setdefault(target_id, {"queued": 0, "delivered": 0, "result-received": 0, "total": 0})
+        status = str(rec.get("status") or "")
+        target_counts["total"] = target_counts.get("total", 0) + 1
+        if status in target_counts:
+            target_counts[status] = target_counts.get(status, 0) + 1
+        result_received_at = str(rec.get("result_received_at") or "")
+        if result_received_at and result_received_at >= latest_result_at.get(target_id, ""):
+            latest_result_at[target_id] = result_received_at
+            latest_result[target_id] = rec
+    return counts, latest_result
+
+
+def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
+    last_seen = str(rec.get("last_seen_at") or rec.get("latest_activity_at") or "")
+    last_seen_epoch = parse_utc_timestamp(last_seen)
+    offline_for_sec = None if last_seen_epoch is None else max(int(now_epoch - last_seen_epoch), 0)
+    counts = mailbox_counts.get(str(rec.get("target_id") or ""), {})
+    latest_result_rec = latest_result.get(str(rec.get("target_id") or ""), {})
+    rec["last_seen"] = last_seen
+    rec["last_seen_via"] = target_last_seen_via(rec)
+    rec["offline_for_sec"] = offline_for_sec if offline_for_sec is not None else ""
+    rec["connectivity_state"] = target_connectivity_state(offline_for_sec)
+    rec["connectivity_online_window_sec"] = TARGET_ONLINE_WINDOW_SEC
+    rec["connectivity_recent_window_sec"] = TARGET_RECENT_WINDOW_SEC
+    rec["connectivity_stale_window_sec"] = TARGET_STALE_WINDOW_SEC
+    rec["next_expected_poll"] = target_next_expected_poll(rec)
+    rec["mailbox_queued_command_count"] = int(counts.get("queued", 0) or 0)
+    rec["mailbox_delivered_command_count"] = int(counts.get("delivered", 0) or 0)
+    rec["mailbox_result_received_command_count"] = int(counts.get("result-received", 0) or 0)
+    rec["mailbox_command_count"] = int(counts.get("total", 0) or 0)
+    rec["mailbox_pending_work_count"] = rec["mailbox_queued_command_count"]
+    rec["latest_command_result_at"] = str(latest_result_rec.get("result_received_at") or "")
+    rec["latest_command_result_id"] = str(latest_result_rec.get("id") or "")
+    return rec
+
+
 def target_records(cfg):
     targets = load_targets(cfg).get("targets") or {}
+    now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
+    mailbox_counts, latest_result = target_mailbox_counts(cfg)
     records = [dict(rec) for rec in targets.values() if isinstance(rec, dict)]
+    records = [enrich_target_record(rec, now_epoch, mailbox_counts, latest_result) for rec in records]
     records.sort(key=lambda rec: (str(rec.get("last_seen_at") or ""), str(rec.get("target_id") or "")), reverse=True)
     return records
 
@@ -1647,6 +1743,10 @@ def target_record_indexes(records):
     by_identity_source = {}
     by_latest_activity_service = {}
     by_latest_activity_operation = {}
+    by_connectivity_state = {}
+    by_last_seen_via = {}
+    by_has_next_expected_poll = {}
+    by_mailbox_pending_work = {}
     by_has_notes = {}
     by_capability_report_kind = {}
     by_compatibility_report_kind = {}
@@ -1680,6 +1780,14 @@ def target_record_indexes(records):
         activity_operation = str(rec.get("latest_activity_operation") or "")
         if activity_operation:
             by_latest_activity_operation.setdefault(activity_operation, []).append(rec)
+        connectivity_state = str(rec.get("connectivity_state") or "")
+        if connectivity_state:
+            by_connectivity_state.setdefault(connectivity_state, []).append(rec)
+        last_seen_via = str(rec.get("last_seen_via") or "")
+        if last_seen_via:
+            by_last_seen_via.setdefault(last_seen_via, []).append(rec)
+        by_has_next_expected_poll.setdefault("yes" if str(rec.get("next_expected_poll") or "") else "no", []).append(rec)
+        by_mailbox_pending_work.setdefault("yes" if int(rec.get("mailbox_pending_work_count") or 0) > 0 else "no", []).append(rec)
         for alias in rec.get("aliases") or []:
             alias = str(alias or "")
             if alias:
@@ -1727,6 +1835,8 @@ def target_record_indexes(records):
         by_id, by_label, by_alias, by_remote_addr, by_service,
         by_identity_confidence, by_identity_source,
         by_latest_activity_service, by_latest_activity_operation,
+        by_connectivity_state, by_last_seen_via,
+        by_has_next_expected_poll, by_mailbox_pending_work,
         by_has_notes, by_capability_report_kind,
         by_compatibility_report_kind, by_compatibility_label,
         by_compatibility_baseline_label, by_compatibility_release,
@@ -1741,6 +1851,8 @@ def target_record_summary(records):
     identity_source_counts = {}
     latest_activity_service_counts = {}
     latest_activity_operation_counts = {}
+    connectivity_state_counts = {}
+    last_seen_via_counts = {}
     report_kind_counts = {}
     compatibility_report_kind_counts = {}
     compatibility_label_counts = {}
@@ -1753,6 +1865,9 @@ def target_record_summary(records):
     remote_count = 0
     report_count = 0
     notes_count = 0
+    next_expected_poll_count = 0
+    mailbox_pending_target_count = 0
+    mailbox_pending_work_count = 0
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1773,6 +1888,18 @@ def target_record_summary(records):
         activity_operation = str(rec.get("latest_activity_operation") or "")
         if activity_operation:
             latest_activity_operation_counts[activity_operation] = latest_activity_operation_counts.get(activity_operation, 0) + 1
+        connectivity_state = str(rec.get("connectivity_state") or "")
+        if connectivity_state:
+            connectivity_state_counts[connectivity_state] = connectivity_state_counts.get(connectivity_state, 0) + 1
+        last_seen_via = str(rec.get("last_seen_via") or "")
+        if last_seen_via:
+            last_seen_via_counts[last_seen_via] = last_seen_via_counts.get(last_seen_via, 0) + 1
+        if str(rec.get("next_expected_poll") or ""):
+            next_expected_poll_count += 1
+        pending_work = int(rec.get("mailbox_pending_work_count") or 0)
+        mailbox_pending_work_count += pending_work
+        if pending_work > 0:
+            mailbox_pending_target_count += 1
         report_kind = str(rec.get("latest_capability_report_kind") or "")
         if report_kind:
             report_kind_counts[report_kind] = report_kind_counts.get(report_kind, 0) + 1
@@ -1821,6 +1948,11 @@ def target_record_summary(records):
         "target_without_notes_count": max(len(records or []) - notes_count, 0),
         "target_latest_activity_service_counts": latest_activity_service_counts,
         "target_latest_activity_operation_counts": latest_activity_operation_counts,
+        "target_connectivity_state_counts": connectivity_state_counts,
+        "target_last_seen_via_counts": last_seen_via_counts,
+        "target_next_expected_poll_count": next_expected_poll_count,
+        "target_mailbox_pending_target_count": mailbox_pending_target_count,
+        "target_mailbox_pending_work_count": mailbox_pending_work_count,
         "target_capability_report_count": report_count,
         "target_capability_report_kind_counts": report_kind_counts,
         "target_compatibility_report_count": sum(compatibility_report_kind_counts.values()),
@@ -9214,6 +9346,10 @@ def status_document(cfg):
      targets_by_identity_source,
      targets_by_latest_activity_service,
      targets_by_latest_activity_operation,
+     targets_by_connectivity_state,
+     targets_by_last_seen_via,
+     targets_by_has_next_expected_poll,
+     targets_by_mailbox_pending_work,
      targets_by_has_notes,
      targets_by_capability_report_kind,
      targets_by_compatibility_report_kind,
@@ -9266,6 +9402,11 @@ def status_document(cfg):
         "service_counts": target_summary.get("target_service_counts") or {},
         "latest_activity_service_counts": target_summary.get("target_latest_activity_service_counts") or {},
         "latest_activity_operation_counts": target_summary.get("target_latest_activity_operation_counts") or {},
+        "connectivity_state_counts": target_summary.get("target_connectivity_state_counts") or {},
+        "last_seen_via_counts": target_summary.get("target_last_seen_via_counts") or {},
+        "next_expected_poll_count": int_value(target_summary.get("target_next_expected_poll_count", 0)),
+        "mailbox_pending_target_count": int_value(target_summary.get("target_mailbox_pending_target_count", 0)),
+        "mailbox_pending_work_count": int_value(target_summary.get("target_mailbox_pending_work_count", 0)),
         "capability_report_count": int_value(target_summary.get("target_capability_report_count", 0)),
         "compatibility_report_count": int_value(target_summary.get("target_compatibility_report_count", 0)),
         "compatibility_label_counts": target_summary.get("target_compatibility_label_counts") or {},
@@ -9281,6 +9422,8 @@ def status_document(cfg):
             target_registry_state_record.get("latest_activity_service_counts") or
             target_registry_state_record.get("latest_activity_operation_counts")
         ),
+        "has_next_expected_polls": target_registry_state_record.get("next_expected_poll_count", 0) > 0,
+        "has_mailbox_pending_work": target_registry_state_record.get("mailbox_pending_work_count", 0) > 0,
         "has_identity_sources": bool(target_registry_state_record.get("identity_source_counts")),
         "has_capability_reports": target_registry_state_record.get("capability_report_count", 0) > 0,
         "has_compatibility_reports": target_registry_state_record.get("compatibility_report_count", 0) > 0,
@@ -9298,6 +9441,8 @@ def status_document(cfg):
         "target_registry_state_records_by_selected_target_latest_compatibility_label": records_by_key(target_registry_state_records, "selected_target_latest_compatibility_label"),
         "target_registry_state_records_by_selected_target_latest_compatibility_release_name": records_by_key(target_registry_state_records, "selected_target_latest_compatibility_release_name"),
         "target_registry_state_records_by_has_latest_activity": records_by_key(target_registry_state_records, "has_latest_activity"),
+        "target_registry_state_records_by_has_next_expected_polls": records_by_key(target_registry_state_records, "has_next_expected_polls"),
+        "target_registry_state_records_by_has_mailbox_pending_work": records_by_key(target_registry_state_records, "has_mailbox_pending_work"),
         "target_registry_state_records_by_has_identity_sources": records_by_key(target_registry_state_records, "has_identity_sources"),
         "target_registry_state_records_by_has_capability_reports": records_by_key(target_registry_state_records, "has_capability_reports"),
         "target_registry_state_records_by_has_compatibility_reports": records_by_key(target_registry_state_records, "has_compatibility_reports"),
@@ -10339,6 +10484,8 @@ def status_document(cfg):
         "target_registry_has_unfiltered_targets": bool(target_registry_state_record.get("has_unfiltered_targets", False)),
         "target_registry_has_selected_target": bool(target_registry_state_record.get("has_selected_target", False)),
         "target_registry_has_latest_activity": bool(target_registry_state_record.get("has_latest_activity", False)),
+        "target_registry_has_next_expected_polls": bool(target_registry_state_record.get("has_next_expected_polls", False)),
+        "target_registry_has_mailbox_pending_work": bool(target_registry_state_record.get("has_mailbox_pending_work", False)),
         "target_registry_has_identity_sources": bool(target_registry_state_record.get("has_identity_sources", False)),
         "target_registry_has_capability_reports": bool(target_registry_state_record.get("has_capability_reports", False)),
         "target_registry_has_compatibility_reports": bool(target_registry_state_record.get("has_compatibility_reports", False)),
@@ -10855,6 +11002,10 @@ def status_document(cfg):
                 "targets_by_identity_confidence", "targets_by_identity_source",
                 "targets_by_latest_activity_service",
                 "targets_by_latest_activity_operation",
+                "targets_by_connectivity_state",
+                "targets_by_last_seen_via",
+                "targets_by_has_next_expected_poll",
+                "targets_by_mailbox_pending_work",
                 "targets_by_has_notes",
                 "targets_by_capability_report_kind",
                 "targets_by_compatibility_report_kind",
@@ -10880,6 +11031,8 @@ def status_document(cfg):
                 "target_registry_state_records_by_selected_target_latest_compatibility_label",
                 "target_registry_state_records_by_selected_target_latest_compatibility_release_name",
                 "target_registry_state_records_by_has_latest_activity",
+                "target_registry_state_records_by_has_next_expected_polls",
+                "target_registry_state_records_by_has_mailbox_pending_work",
                 "target_registry_state_records_by_has_identity_sources",
                 "target_registry_state_records_by_has_capability_reports",
                 "target_registry_state_records_by_has_compatibility_reports",
@@ -11436,6 +11589,10 @@ def status_document(cfg):
         "targets_by_identity_source": targets_by_identity_source,
         "targets_by_latest_activity_service": targets_by_latest_activity_service,
         "targets_by_latest_activity_operation": targets_by_latest_activity_operation,
+        "targets_by_connectivity_state": targets_by_connectivity_state,
+        "targets_by_last_seen_via": targets_by_last_seen_via,
+        "targets_by_has_next_expected_poll": targets_by_has_next_expected_poll,
+        "targets_by_mailbox_pending_work": targets_by_mailbox_pending_work,
         "targets_by_has_notes": targets_by_has_notes,
         "targets_by_capability_report_kind": targets_by_capability_report_kind,
         "targets_by_compatibility_report_kind": targets_by_compatibility_report_kind,
@@ -11857,8 +12014,22 @@ def print_target_summary(doc, limit=8):
         print(
             f"  {rec.get('target_id', '')} label={rec.get('label', '') or '-'} "
             f"confidence={rec.get('identity_confidence', '') or '-'} "
-            f"last_seen={rec.get('last_seen_at', '') or '-'}"
+            f"state={rec.get('connectivity_state', '') or '-'} "
+            f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
         )
+        if rec.get("last_seen_via") or rec.get("next_expected_poll") or rec.get("offline_for_sec") not in ("", None):
+            print(
+                f"    heartbeat_via={rec.get('last_seen_via', '') or '-'} "
+                f"offline_for_sec={rec.get('offline_for_sec', '') if rec.get('offline_for_sec') != '' else '-'} "
+                f"next_expected_poll={rec.get('next_expected_poll', '') or '-'}"
+            )
+        if int(rec.get("mailbox_command_count") or 0) > 0:
+            print(
+                f"    mailbox queued={rec.get('mailbox_queued_command_count', 0)} "
+                f"delivered={rec.get('mailbox_delivered_command_count', 0)} "
+                f"results={rec.get('mailbox_result_received_command_count', 0)} "
+                f"pending={rec.get('mailbox_pending_work_count', 0)}"
+            )
         if rec.get("latest_activity_operation") or rec.get("latest_activity_service"):
             print(
                 f"    latest_activity={rec.get('latest_activity_operation', '') or '-'} "
