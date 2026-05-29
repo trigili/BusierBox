@@ -1437,6 +1437,29 @@ def target_record_summary(records):
     }
 
 
+def configured_target_filter(cfg):
+    return str(cfg.get("_target_id_filter") or "").strip()
+
+
+def records_for_target(records, target_id):
+    if not target_id:
+        return list(records or [])
+    return [
+        rec for rec in records or []
+        if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_id
+    ]
+
+
+def event_for_target(event, target_id, session_ids=None):
+    if not target_id or not isinstance(event, dict):
+        return True
+    details = event.get("details") if isinstance(event.get("details"), dict) else {}
+    if str(details.get("target_id") or "") == target_id:
+        return True
+    session_id = str(event.get("session") or details.get("session_id") or "")
+    return bool(session_id and session_id in (session_ids or set()))
+
+
 def service_manager_resource_records(snapshot):
     records = []
     for idx, rec in enumerate(snapshot.get("sockets") or []):
@@ -7853,6 +7876,16 @@ def status_document(cfg):
     uploads = recent_upload_metadata(cfg)
     fetches = recent_fetch_metadata(cfg)
     targets = target_records(cfg)
+    target_filter_id = configured_target_filter(cfg)
+    unfiltered_counts = {
+        "targets": len(targets),
+        "uploads": len(uploads),
+        "fetches": len(fetches),
+    }
+    if target_filter_id:
+        uploads = records_for_target(uploads, target_filter_id)
+        fetches = records_for_target(fetches, target_filter_id)
+        targets = records_for_target(targets, target_filter_id)
     (targets_by_id,
      targets_by_label,
      targets_by_alias,
@@ -7861,6 +7894,14 @@ def status_document(cfg):
      targets_by_identity_confidence) = target_record_indexes(targets)
     target_summary = target_record_summary(targets)
     sessions = recent_session_records(cfg)
+    unfiltered_counts["sessions"] = len(sessions)
+    if target_filter_id:
+        sessions = records_for_target(sessions, target_filter_id)
+    target_filter_session_ids = {
+        str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
+        for rec in sessions or []
+        if isinstance(rec, dict) and (rec.get("session_id") or rec.get("path"))
+    }
     session_root_state = session_root_record(cfg, sessions)
     reconcile_workbench_job_completion_events(cfg)
     (sessions_by_id,
@@ -7883,6 +7924,12 @@ def status_document(cfg):
     event_stats = event_log_stats(cfg, event_limit)
     event_log_state = event_log_state_record(cfg, event_stats)
     events = event_stats["tail"]
+    unfiltered_counts["event_tail"] = len(events)
+    if target_filter_id:
+        events = [
+            event for event in events
+            if event_for_target(event, target_filter_id, target_filter_session_ids)
+        ]
     (events_by_id,
      events_by_session,
      events_by_service,
@@ -7948,6 +7995,10 @@ def status_document(cfg):
     workbench_job_index_maps = workbench_job_indexes(workbench_jobs)
     workbench_job_stats = workbench_job_summary(workbench_jobs)
     target_command_records = generated_target_command_records(cfg, staged_raw)
+    if target_filter_id:
+        for rec in target_command_records:
+            if isinstance(rec, dict):
+                rec["target_id_filter"] = target_filter_id
     (target_commands_by_service,
      target_commands_by_request,
      target_commands_by_stage_kind,
@@ -8335,6 +8386,14 @@ def status_document(cfg):
         "fetch_http_status_remote_counts": {key: len(value) for key, value in fetches_by_http_status_remote_addr.items()},
         "latest_fetch_at": latest_record_value(fetches, ("timestamp", "updated_at")),
         **target_summary,
+        "target_filter_active": bool(target_filter_id),
+        "target_filter_id": target_filter_id,
+        "target_filter_unfiltered_target_count": unfiltered_counts.get("targets", 0),
+        "target_filter_unfiltered_upload_count": unfiltered_counts.get("uploads", 0),
+        "target_filter_unfiltered_fetch_count": unfiltered_counts.get("fetches", 0),
+        "target_filter_unfiltered_session_count": unfiltered_counts.get("sessions", 0),
+        "target_filter_unfiltered_event_tail_count": unfiltered_counts.get("event_tail", 0),
+        "target_filter_event_tail_count": len(events),
         "session_count": len(sessions),
         "session_root_exists": bool(session_root_state.get("exists", False)),
         "session_root_recent_count": session_root_state.get("recent_session_count", 0),
@@ -8387,11 +8446,12 @@ def status_document(cfg):
         "target_command_session_policy_valid_counts": target_command_summary.get("by_session_policy_valid") or {},
         "target_command_session_policy_error_count": target_command_summary.get("session_policy_error_count", 0),
         "target_command_retry_backoff_counts": target_command_summary.get("by_retry_backoff") or {},
-        "event_count": event_stats["total_count"],
+        "event_count": len(events) if target_filter_id else event_stats["total_count"],
+        "event_log_total_count": event_stats["total_count"],
         "event_log_exists": bool(event_log_state.get("exists", False)),
         "event_log_valid": bool(event_log_state.get("valid", False)),
         "event_log_size": event_log_state.get("size", 0),
-        "event_tail_count": event_stats["tail_count"],
+        "event_tail_count": len(events),
         "event_tail_truncated": bool(event_stats.get("tail_truncated", False)),
         "event_tail_omitted_count": event_stats.get("tail_omitted_count", 0),
         "event_invalid_count": event_stats["invalid_count"],
@@ -8871,9 +8931,28 @@ def status_document(cfg):
             "status_command": "scripts/busierbox-server --api-status",
             "json_status_command": "scripts/busierbox-server --json-status",
             "event_limit": int(cfg.get("_event_limit", 0) or 0),
+            "target_filter_active": bool(target_filter_id),
+            "target_filter_id": target_filter_id,
             "resource_count": len(api_resources),
             "resources_key": "api_resources",
             "collections_key": "api_collections",
+        },
+        "target_filter": {
+            "active": bool(target_filter_id),
+            "target_id": target_filter_id,
+            "applied_to": [
+                "targets", "uploads", "fetches", "sessions", "events",
+                "target_command_records",
+            ] if target_filter_id else [],
+            "unfiltered_counts": unfiltered_counts,
+            "filtered_counts": {
+                "targets": len(targets),
+                "uploads": len(uploads),
+                "fetches": len(fetches),
+                "sessions": len(sessions),
+                "events": len(events),
+                "target_command_records": len(target_command_records),
+            },
         },
         "api_resources": api_resources,
         **api_resource_indexes,
@@ -9663,6 +9742,13 @@ def print_status(cfg, json_output=False):
         print(f"  last_copied_command: {(doc.get('command_copy') or {}).get('command', '')}")
     print(f"  workbench_jobs_file: {doc['workbench_jobs_file']}")
     print(f"  targets_file: {doc['targets_file']}")
+    if (doc.get("target_filter") or {}).get("active"):
+        counts = (doc.get("target_filter") or {}).get("filtered_counts") or {}
+        print(
+            f"  target_filter: {doc.get('target_filter', {}).get('target_id', '')} "
+            f"targets={counts.get('targets', 0)} uploads={counts.get('uploads', 0)} "
+            f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)}"
+        )
     print(f"  session_root: {doc['session_root']}")
     manager = doc.get("service_manager") or {}
     print(
@@ -9997,6 +10083,13 @@ def print_workbench(cfg, include_api_summary=True):
     workbench = snap.get("workbench") or {}
     if workbench.get("mode"):
         print(f"Workbench mode: {workbench.get('mode', '')}")
+    if (snap.get("target_filter") or {}).get("active"):
+        counts = (snap.get("target_filter") or {}).get("filtered_counts") or {}
+        print(
+            f"Target filter: {snap.get('target_filter', {}).get('target_id', '')} "
+            f"targets={counts.get('targets', 0)} uploads={counts.get('uploads', 0)} "
+            f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)}"
+        )
     print(f"Workbench refresh: count={workbench.get('refresh_count', 0)} last={workbench.get('last_refresh_at', '') or '-'}")
     print(
         "Service summary: "
@@ -11080,6 +11173,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="operator last copied/generated command text path")
     parser.add_argument("--targets-file",
                         help="operator target ledger JSON path")
+    parser.add_argument("--target-id",
+                        help="filter target-aware status/API/workbench records to this target id")
     parser.add_argument("--set-target-label",
                         help="set or override a friendly label for target id in targets.json")
     parser.add_argument("--target-label",
@@ -11169,6 +11264,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["command_copy_file"] = args.command_copy_file
     if args.targets_file:
         cfg["targets_file"] = args.targets_file
+    if args.target_id:
+        cfg["_target_id_filter"] = args.target_id
     if args.release_dir:
         cfg["release_dir"] = args.release_dir
     if args.managed_by:

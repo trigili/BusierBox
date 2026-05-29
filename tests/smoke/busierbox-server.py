@@ -4619,6 +4619,52 @@ def main():
             print("two uploads from distinct target ids did not remain separate", file=sys.stderr)
             print(json.dumps(multi_target_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        filtered_alpha = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--target-id", "target-alpha",
+            "--json-status",
+        ).stdout)
+        if (filtered_alpha.get("target_filter", {}).get("target_id") != "target-alpha" or
+                filtered_alpha.get("target_filter", {}).get("active") is not True or
+                filtered_alpha.get("target_filter", {}).get("unfiltered_counts", {}).get("targets") != 2 or
+                filtered_alpha.get("summary", {}).get("target_count") != 1 or
+                filtered_alpha.get("summary", {}).get("upload_count") != 1 or
+                filtered_alpha.get("summary", {}).get("target_filter_unfiltered_upload_count") != 2 or
+                filtered_alpha.get("summary", {}).get("upload_target_counts", {}).get("target-alpha") != 1 or
+                "target-bravo" in (filtered_alpha.get("targets_by_id") or {}) or
+                (filtered_alpha.get("targets_by_id") or {}).get("target-alpha", {}).get("label") != "Alpha Router Renamed" or
+                len((filtered_alpha.get("uploads_by_target_id") or {}).get("target-alpha") or []) != 1 or
+                (filtered_alpha.get("uploads_by_target_id") or {}).get("target-bravo")):
+            print("target-filtered JSON status did not narrow target records", file=sys.stderr)
+            print(json.dumps(filtered_alpha, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        filtered_status = run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--target-id", "target-bravo",
+            "--status",
+        )
+        if (filtered_status.returncode != 0 or
+                "target_filter: target-bravo targets=1 uploads=1" not in filtered_status.stdout or
+                "target-bravo label=Bravo Router confidence=explicit" not in filtered_status.stdout or
+                "target-alpha label=Alpha Router Renamed" in filtered_status.stdout):
+            print("target-filtered text status did not show selected target only", file=sys.stderr)
+            print(filtered_status.stdout, file=sys.stderr)
+            return 1
+        filtered_workbench = run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--target-id", "target-bravo",
+            "--tui",
+        )
+        if (filtered_workbench.returncode != 0 or
+                "Target filter: target-bravo targets=1 uploads=1" not in filtered_workbench.stdout or
+                "target-bravo label=Bravo Router confidence=explicit" not in filtered_workbench.stdout or
+                "target-alpha label=Alpha Router Renamed" in filtered_workbench.stdout):
+            print("target-filtered workbench did not show selected target only", file=sys.stderr)
+            print(filtered_workbench.stdout, file=sys.stderr)
+            return 1
 
         tui_sigint_state = Path(tmp) / "operator-session" / "tui-sigint-state.json"
         tui_master, tui_slave = pty.openpty()
