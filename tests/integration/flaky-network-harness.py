@@ -239,12 +239,14 @@ def command_ids(queue_file):
     return {rec.get("target_id"): rec.get("id") for rec in data.get("commands") or []}
 
 
-def poll_request(target_id="", label="", interval="3600"):
+def poll_request(target_id="", label="", interval="3600", token=""):
     headers = [
         "GET /command-queue/poll HTTP/1.1",
         "Host: 127.0.0.1",
         "Connection: close",
     ]
+    if token:
+        headers.append(f"X-BusierBox-Command-Queue-Token: {token}")
     if target_id:
         headers.extend([
             f"X-BusierBox-Target-Id: {target_id}",
@@ -391,6 +393,26 @@ def write_phone_home_artifact(artifact_dir, doc):
             "target_phone_home_pending_reason_counts": doc.get("summary", {}).get("target_phone_home_pending_reason_counts", {}),
         },
         "target_phone_home_records": doc.get("target_phone_home_records") or [],
+    })
+
+
+def write_bad_token_phone_home_artifact(artifact_dir, doc, command_id):
+    write_json(artifact_dir / "bad-token-phone-home.json", {
+        "schema": 1,
+        "kind": "bad-token-phone-home-artifact",
+        "command_id": command_id,
+        "summary": {
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+            "target_phone_home_failed_counts": doc.get("summary", {}).get("target_phone_home_failed_counts", {}),
+            "target_phone_home_http_status_counts": doc.get("summary", {}).get("target_phone_home_http_status_counts", {}),
+            "target_phone_home_pending_reason_counts": doc.get("summary", {}).get("target_phone_home_pending_reason_counts", {}),
+        },
+        "mailbox_record": (doc.get("target_mailbox_records_by_command_id") or {}).get(command_id) or {},
+        "phone_home_records": [
+            rec for rec in (doc.get("target_phone_home_records") or [])
+            if rec.get("target_id") == "target-bad-token"
+        ],
     })
 
 
@@ -727,6 +749,54 @@ def run_restart_persistence_scenario(artifact_dir):
     return {"name": "restart-persistence", "status": "pass", "artifact": "restart-after-reconnect.json"}
 
 
+def run_bad_token_phone_home_scenario(artifact_dir):
+    scenario_dir = artifact_dir / "bad-token-phone-home-session"
+    queue_port = free_port()
+    cfg = scenario_dir / "server-config.json"
+    queue_file = scenario_dir / "command-queue.json"
+    write_json(cfg, {
+        "listen_host": "127.0.0.1",
+        "operator_session_dir": str(scenario_dir),
+        "session_root": str(scenario_dir / "sessions"),
+        "server_state": str(scenario_dir / "server-state.json"),
+        "targets_file": str(scenario_dir / "targets.json"),
+        "command_queue_file": str(queue_file),
+        "command_queue_enable": "yes",
+        "command_queue_tls": "no",
+        "command_queue_port": str(queue_port),
+        "command_queue_require_token": "yes",
+        "command_queue_token": "correct-token",
+        "command_queue_allowed_commands": "busierbox-only",
+        "command_queue_allow_arbitrary": "no",
+    })
+
+    queue_command(cfg, "target-bad-token", "Bad Token Router", "busierbox survey --json")
+    command_id = command_ids(queue_file)["target-bad-token"]
+    proc = start_one_shot(cfg, "command-queue")
+    rejected = connect_with_retry(
+        queue_port,
+        poll_request("target-bad-token", "Bad Token Router", token="wrong-token"),
+    )
+    wait_proc(proc, "bad token poll")
+    save_response(artifact_dir, "bad-token-poll", rejected)
+    doc = status(cfg, artifact_dir, "bad-token-phone-home-status")
+    mailbox = (doc.get("target_mailbox_records_by_command_id") or {}).get(command_id) or {}
+    attempts = [
+        rec for rec in (doc.get("target_phone_home_records") or [])
+        if rec.get("target_id") == "target-bad-token"
+    ]
+    assert_condition(b"HTTP/1.1 403 Forbidden" in rejected, "bad token poll should return HTTP 403")
+    assert_condition(mailbox.get("status") == "queued", "bad token poll should not drain queued work", mailbox)
+    assert_condition(doc["summary"]["target_mailbox_pending_work_count"] == 1, "bad token poll should leave mailbox pending")
+    assert_condition(attempts, "bad token phone-home attempt was not recorded")
+    assert_condition(attempts[0].get("status") == "rejected", "bad token phone-home status mismatch", attempts[0])
+    assert_condition(attempts[0].get("failed") is True, "bad token phone-home should be failed", attempts[0])
+    assert_condition(attempts[0].get("http_status") == "403", "bad token HTTP status missing", attempts[0])
+    assert_condition(attempts[0].get("reason") == "invalid token", "bad token reason missing", attempts[0])
+    write_bad_token_phone_home_artifact(artifact_dir, doc, command_id)
+    return {"name": "bad-token-phone-home", "status": "pass", "artifact": "bad-token-phone-home-status.json"}
+
+
 def assert_condition(condition, message, detail=None):
     if not condition:
         if detail is not None:
@@ -773,6 +843,7 @@ def run_harness(artifact_dir):
     phases.append(run_offline_workflow_queue_scenario(artifact_dir))
     phases.append(run_mailbox_lifecycle_scenario(artifact_dir))
     phases.append(run_restart_persistence_scenario(artifact_dir))
+    phases.append(run_bad_token_phone_home_scenario(artifact_dir))
 
     queue_command(cfg, "target-alpha", "Alpha Router", "busierbox survey --json")
     queue_command(cfg, "target-bravo", "Bravo Router", "busierbox survey --json")

@@ -12,6 +12,8 @@ virtual network boundaries:
 - anonymous polls do not drain target-scoped mailboxes
 - anonymous polls are recorded as phone-home attempts with an explicit pending
   reason when queued work requires target identity
+- bad-token polls are rejected, recorded as failed phone-home attempts, and do
+  not drain queued mailbox work
 - a short phone-home window delivers only the reconnecting target's work
 - duplicate polls do not redeliver already delivered commands
 - dropped/truncated result uploads are rejected without mutating delivered work
@@ -34,8 +36,8 @@ JSON, dropped-result evidence, bridge response data, and `summary.json`. It also
 writes focused debug artifacts that mirror the QEMU lab contract:
 `target-mailbox.json`, `offline-workflow-mailbox.json`, `command-result.json`,
 `phone-home-attempts.json`, `mailbox-lifecycle.json`,
-`restart-persistence.json`, `transfer.log`, `bridge-events.jsonl`, and
-`artifact-manifest.json`. The smoke wrapper
+`restart-persistence.json`, `bad-token-phone-home.json`, `transfer.log`,
+`bridge-events.jsonl`, and `artifact-manifest.json`. The smoke wrapper
 `tests/smoke/flaky-network-harness.sh` runs the same scenario from
 `make smoke-test` with a temporary artifact directory and validates those
 focused artifacts.
