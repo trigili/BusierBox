@@ -2480,7 +2480,10 @@ def bridge_profile_record(cfg, name, rec, service_state=None):
     out["active"] = active_profile == out["name"] and out["current_state"] in ("starting", "listening")
     out["pid"] = state.get("pid", "") if active_profile == out["name"] else ""
     out["last_error"] = str(state.get("error") or "") if active_profile == out["name"] else ""
-    out["last_failure_reason"] = str(state.get("stopped_reason") or state.get("error") or "") if active_profile == out["name"] else ""
+    state_failure = str(state.get("stopped_reason") or state.get("error") or "") if active_profile == out["name"] else ""
+    out["last_failure_reason"] = str(out.get("last_failure_reason") or state_failure)
+    out["last_failure_at"] = str(out.get("last_failure_at") or "")
+    out["last_failure_remote_addr"] = str(out.get("last_failure_remote_addr") or "")
     out["last_successful_relay_at"] = str(out.get("last_successful_relay_at") or "")
     return out
 
@@ -9753,6 +9756,19 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
                 metadata.update({"status": "error", "reason": str(exc), "bridge_route_path": bridge_route_path})
                 append_event(cfg, service, "bridge_error", "error", session=str(log_dir), remote=remote, details=metadata)
                 record_selected_target_activity(cfg, service, log_dir, "bridge_error", remote=remote, details=metadata)
+                if profile_name:
+                    data = load_bridge_profiles(cfg)
+                    profile = data.get("profiles", {}).get(profile_name)
+                    if isinstance(profile, dict):
+                        now = utc_now()
+                        profile["last_failure_at"] = now
+                        profile["last_failure_reason"] = str(exc)
+                        profile["last_failure_remote_addr"] = remote
+                        profile["last_failure_dest_host"] = dest_host
+                        profile["last_failure_dest_port"] = dest_port
+                        profile["updated_at"] = now
+                        data["profiles"][profile_name] = profile
+                        atomic_write_json(bridge_profiles_path(cfg), data)
                 print(f"bridge failed: {exc}", file=sys.stderr)
             finally:
                 for s in (client, upstream):

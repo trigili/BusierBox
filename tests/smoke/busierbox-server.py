@@ -553,6 +553,104 @@ def main():
             print(json.dumps(bridge_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
+        bad_bridge_port = free_port()
+        bad_bridge_dest_port = free_port()
+        while bad_bridge_dest_port == bad_bridge_port:
+            bad_bridge_dest_port = free_port()
+        save_bad_bridge = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--target-id", "target-bridge",
+            "--target-label", "Bridge Target",
+            "--save-bridge-profile", "bad-http",
+            "--bridge-port", str(bad_bridge_port),
+            "--bridge-dest-host", "127.0.0.1",
+            "--bridge-dest-port", str(bad_bridge_dest_port),
+            "--bridge-profile-purpose", "closed-port",
+        )
+        if save_bad_bridge.returncode != 0 or "saved bridge profile bad-http" not in save_bad_bridge.stdout:
+            print("failed to save failing bridge profile", file=sys.stderr)
+            print(save_bad_bridge.stdout, file=sys.stderr)
+            print(save_bad_bridge.stderr, file=sys.stderr)
+            return 1
+        bad_bridge_proc = subprocess.Popen(
+            [
+                "scripts/busierbox-server",
+                "--config", str(bridge_cfg),
+                "--transport", "bridge",
+                "--bridge-profile", "bad-http",
+                "--timeout", "10",
+                "--one-shot",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        time.sleep(0.2)
+        if bad_bridge_proc.poll() is not None:
+            bad_out, bad_err = bad_bridge_proc.communicate(timeout=5)
+            print("bad bridge listener exited before client connection", file=sys.stderr)
+            print(bad_out, file=sys.stderr)
+            print(bad_err, file=sys.stderr)
+            return 1
+        try:
+            deadline = time.time() + 5
+            connected_bad_bridge = False
+            last_bad_bridge_error = None
+            while time.time() < deadline and not connected_bad_bridge:
+                try:
+                    with socket.create_connection(("127.0.0.1", bad_bridge_port), timeout=0.5) as raw:
+                        raw.sendall(b"hello")
+                        connected_bad_bridge = True
+                except OSError as exc:
+                    last_bad_bridge_error = exc
+                    time.sleep(0.05)
+            if not connected_bad_bridge:
+                bad_bridge_proc.terminate()
+                bad_out, bad_err = bad_bridge_proc.communicate(timeout=5)
+                print(f"bad bridge listener did not accept on expected port: {last_bad_bridge_error}", file=sys.stderr)
+                print(bad_out, file=sys.stderr)
+                print(bad_err, file=sys.stderr)
+                return 1
+            bad_out, bad_err = bad_bridge_proc.communicate(timeout=5)
+        finally:
+            if bad_bridge_proc.poll() is None:
+                bad_bridge_proc.terminate()
+                bad_bridge_proc.wait(timeout=5)
+        if bad_bridge_proc.returncode != 0 or "bridge failed:" not in bad_err:
+            print("bridge listener did not record closed-port failure cleanly", file=sys.stderr)
+            print(bad_out, file=sys.stderr)
+            print(bad_err, file=sys.stderr)
+            return 1
+        bridge_failure_status = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--event-limit", "48",
+            "--json-status",
+        ).stdout)
+        bad_bridge_profile = (bridge_failure_status.get("bridge_profiles_by_name") or {}).get("bad-http") or {}
+        bridge_failure_target = (bridge_failure_status.get("targets_by_id") or {}).get("target-bridge") or {}
+        bridge_failure_events = bridge_failure_status.get("events_by_event") or {}
+        if (bridge_failure_status.get("summary", {}).get("bridge_profile_count") != 3 or
+                bridge_failure_status.get("summary", {}).get("target_workflow_action_count") != 9 or
+                bridge_failure_status.get("summary", {}).get("target_workflow_action_requires_target_online_count") != 3 or
+                bridge_failure_status.get("summary", {}).get("target_latest_bridge_status_counts", {}).get("error") != 1 or
+                bridge_failure_target.get("latest_bridge_profile") != "bad-http" or
+                bridge_failure_target.get("latest_bridge_operation") != "bridge_error" or
+                bridge_failure_target.get("latest_bridge_status") != "error" or
+                not bridge_failure_target.get("latest_bridge_failure_reason") or
+                bad_bridge_profile.get("last_failure_reason") != bridge_failure_target.get("latest_bridge_failure_reason") or
+                not bad_bridge_profile.get("last_failure_at") or
+                bad_bridge_profile.get("last_failure_dest_port") != bad_bridge_dest_port or
+                ((bridge_failure_status.get("bridge_profiles_by_requires_target_online") or {}).get("True") or [{}])[0].get("target_id") != "target-bridge" or
+                ((bridge_failure_status.get("targets_by_latest_bridge_status") or {}).get("error") or [{}])[0].get("target_id") != "target-bridge" or
+                not bridge_failure_events.get("bridge_error") or
+                bridge_failure_events["bridge_error"][0].get("details", {}).get("bridge_profile") != "bad-http"):
+            print("json status missing bridge failure evidence", file=sys.stderr)
+            print(json.dumps(bridge_failure_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
         survey_port = free_port()
         survey_cfg = Path(tmp) / "survey-bootstrap-config.json"
         survey_state = Path(tmp) / "survey-bootstrap-state.json"

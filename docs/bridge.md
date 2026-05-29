@@ -29,6 +29,10 @@ Status and audit behavior:
   close reason.
 - Operator events include `bridge_connected`, `bridge_closed`, and
   `bridge_error` with destination host/port and byte counts.
+- Named profiles persist the latest successful relay timestamp and byte counts,
+  and failed upstream connections persist `last_failure_at`,
+  `last_failure_reason`, destination endpoint, and remote client address so the
+  TUI/status views can explain why a bridge path is not currently usable.
 - `--one-shot` exits after one bridged connection, matching other listener
   workflows.
 
