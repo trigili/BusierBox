@@ -840,7 +840,10 @@ the same commands without guessing whether a command is a safe explicit
 fetch/upload helper or control-like behavior. Human `--status` and the
 line-oriented fallback print the same target-command safety summary, including
 route counts, bridge profile counts, rshell policy validity, and policy error
-counts, before listing generated commands with route badges.
+counts, before listing generated commands with route badges. The line-oriented
+bridge-profile controls print their equivalent inspect/start/stop/delete
+commands, and bridge start/stop service events record the same command metadata
+for audit parity.
 Command queue entries remain explicit operator records only; `command_queue`
 includes `commands_by_status` and `status_counts`, mirrored into `summary` as
 `command_queue_status_counts`. Queue records are also indexed by

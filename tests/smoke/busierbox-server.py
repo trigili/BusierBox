@@ -388,6 +388,7 @@ def main():
             time.sleep(0.5)
             bridge_tui_input = (
                 f"17\nchain-http\ninspect\n"
+                f"17\nchain-http\nstop\n"
                 f"17\nnew\ntui-http\n{tui_bridge_port}\n127.0.0.1\n{echo_result['port']}\n"
                 "tui-created\nline tui profile\n\n"
                 "17\ntui-http\ndelete\nq\n"
@@ -415,6 +416,7 @@ def main():
                 "Traceback" in (bridge_tui_stderr or "") or
                 "selected bridge profile chain-http" not in bridge_tui_text or
                 "headless_command:" not in bridge_tui_text or
+                "--stop --transport bridge" not in bridge_tui_text or
                 "saved bridge profile tui-http" not in bridge_tui_text or
                 "deleted bridge profile tui-http" not in bridge_tui_text):
             print("line TUI bridge profile management failed", file=sys.stderr)
@@ -489,6 +491,7 @@ def main():
         bridge_status = json.loads(run(
             "scripts/busierbox-server",
             "--config", str(bridge_cfg),
+            "--event-limit", "32",
             "--json-status",
         ).stdout)
         bridge_service = (bridge_status.get("services_by_name") or {}).get("bridge") or {}
@@ -530,6 +533,11 @@ def main():
                 not bridge_events.get("workbench_bridge_profile_inspected") or
                 not bridge_events.get("workbench_bridge_profile_saved") or
                 not bridge_events.get("workbench_bridge_profile_deleted") or
+                not any(
+                    event.get("service") == "bridge" and
+                    "--stop --transport bridge" in event.get("details", {}).get("headless_command", "")
+                    for event in bridge_events.get("service_stop", [])
+                ) or
                 not bridge_events.get("bridge_connected") or
                 not bridge_events.get("bridge_closed") or
                 bridge_events["bridge_closed"][0].get("details", {}).get("bridge_profile") != "lab-http" or

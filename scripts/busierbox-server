@@ -15281,11 +15281,18 @@ def run_line_tui(cfg):
                         "headless_command": bridge_profile_headless_command("inspect", name),
                     })
                 elif action == "start":
-                    print(f"headless_command: {bridge_profile_headless_command('start', name)}")
-                    start_service_process(cfg, "bridge", argv_extra=["--bridge-profile", name])
+                    headless = bridge_profile_headless_command("start", name)
+                    print(f"headless_command: {headless}")
+                    start_service_process(
+                        cfg,
+                        "bridge",
+                        argv_extra=["--bridge-profile", name],
+                        headless_command=headless,
+                    )
                 elif action == "stop":
-                    print(f"headless_command: {bridge_profile_headless_command('stop', name)}")
-                    stop_recorded_service(cfg, "bridge")
+                    headless = bridge_profile_headless_command("stop", name)
+                    print(f"headless_command: {headless}")
+                    stop_recorded_service(cfg, "bridge", headless_command=headless)
                 elif action == "delete":
                     deleted = delete_bridge_profile(cfg, name)
                     print(f"deleted bridge profile {deleted.get('name', '')}: {deleted.get('route_path', '')}")
