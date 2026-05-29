@@ -8757,6 +8757,16 @@ def status_document(cfg):
     )
     release = release_context(cfg)
     release_state = release_state_record(cfg, release)
+    release_state_records = [release_state]
+    release_state_index_maps = {
+        "release_state_records_by_release_dir": records_by_key(release_state_records, "release_dir"),
+        "release_state_records_by_present": records_by_key(release_state_records, "present"),
+        "release_state_records_by_valid": records_by_key(release_state_records, "valid"),
+        "release_state_records_by_detection_source": records_by_key(release_state_records, "detection_source"),
+        "release_state_records_by_detection_reason": records_by_key(release_state_records, "detection_reason"),
+        "release_state_records_by_explicit_release_dir": records_by_key(release_state_records, "explicit_release_dir"),
+        "release_state_records_by_marker_count": records_by_key(release_state_records, "release_marker_count"),
+    }
     workbench_config_fields = workbench_config_field_records(cfg)
     workbench_config_field_index_maps = workbench_config_field_indexes(workbench_config_fields)
     workbench_config_field_stats = workbench_config_field_summary(workbench_config_fields)
@@ -9419,6 +9429,7 @@ def status_document(cfg):
         "release_detection_reason": release_state.get("detection_reason", ""),
         "release_explicit_release_dir": bool(release_state.get("explicit_release_dir", False)),
         "release_marker_count": release_state.get("release_marker_count", 0),
+        "release_state_record_count": len(release_state_records),
         "release_artifact_count": len(release.get("artifacts") or []),
         "release_artifact_total_size": (release.get("artifact_stats") or {}).get("total_size", 0),
         "release_device_count": len(release.get("devices") or []),
@@ -9731,6 +9742,17 @@ def status_document(cfg):
             "release_tuples", release.get("tuples") or [], "path", (
                 "tuples_by_path", "tuples_by_artifact",
             ), "release_tuple_count",
+        ),
+        "release_state_records": api_collection_record(
+            "release_state_records", release_state_records, "release_dir", (
+                "release_state_records_by_release_dir",
+                "release_state_records_by_present",
+                "release_state_records_by_valid",
+                "release_state_records_by_detection_source",
+                "release_state_records_by_detection_reason",
+                "release_state_records_by_explicit_release_dir",
+                "release_state_records_by_marker_count",
+            ), "release_state_record_count",
         ),
         "command_queue_commands": api_collection_record(
             "command_queue_commands", command_queue.get("commands") or [], "id", (
@@ -10123,6 +10145,8 @@ def status_document(cfg):
             key: value for key, value in event_stats.items() if key != "tail"
         },
         "release_state": release_state,
+        "release_state_records": release_state_records,
+        **release_state_index_maps,
         "release": release,
         "command_queue": command_queue,
         "commands_by_target_id": command_queue.get("commands_by_target_id") or {},

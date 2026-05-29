@@ -1836,6 +1836,7 @@ def main():
                 ("command_copy_records", len(queue_status_json.get("command_copy_records") or []), "command_copy_records_by_has_command"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_result_upload_supported"),
+                ("release_state_records", len(queue_status_json.get("release_state_records") or []), "release_state_records_by_detection_source"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
                 ("workbench_config_fields", len(queue_status_json.get("workbench_config_fields") or []), "workbench_config_fields_by_key"),
                 ("workbench_jobs", len(queue_status_json.get("workbench_jobs") or []), "workbench_jobs_by_id"),
@@ -1868,6 +1869,9 @@ def main():
                 "services_by_process_log_exists" not in (api_resources_by_name.get("services", {}).get("indexes") or []) or
                 api_resources_by_name.get("command_queue_commands", {}).get("records_key") != "command_queue.commands" or
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
+                api_resources_by_name.get("release_state_records", {}).get("records_key") != "release_state_records" or
+                api_resources_by_summary_key.get("release_state_record_count", [{}])[0].get("name") != "release_state_records" or
+                api_resources_by_primary_key.get("release_dir", [{}])[0].get("name") != "release_state_records" or
                 api_resources_by_name.get("workbench_actions", {}).get("records_key") != "workbench_actions" or
                 api_resources_by_summary_key.get("workbench_action_count", [{}])[0].get("name") != "workbench_actions" or
                 api_resources_by_name.get("workbench_config_fields", {}).get("records_key") != "workbench_config_fields" or
@@ -6018,6 +6022,23 @@ def main():
             print("json status missing explicit release state metadata", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
+        release_state_records = release_doc.get("release_state_records") or []
+        release_state_by_source = release_doc.get("release_state_records_by_detection_source") or {}
+        release_state_by_reason = release_doc.get("release_state_records_by_detection_reason") or {}
+        release_state_by_marker_count = release_doc.get("release_state_records_by_marker_count") or {}
+        release_state_api = ((release_doc.get("api_collections") or {}).get("release_state_records") or {})
+        if (len(release_state_records) != 1 or
+                release_state_records[0].get("release_dir") != str(release_dir) or
+                release_state_by_source.get("auto", [{}])[0].get("release_dir") != str(release_dir) or
+                release_state_by_reason.get("release.json,release-index.json,bin+scripts", [{}])[0].get("valid") is not True or
+                release_state_by_marker_count.get("3", [{}])[0].get("present") is not True or
+                release_state_api.get("count") != 1 or
+                release_state_api.get("primary_key") != "release_dir" or
+                "release_state_records_by_detection_reason" not in (release_state_api.get("indexes") or []) or
+                (release_doc.get("api_resources_by_name") or {}).get("release_state_records", {}).get("summary_key") != "release_state_record_count"):
+            print("json status missing release state API records", file=sys.stderr)
+            print(release_status.stdout, file=sys.stderr)
+            return 1
         release_browser_by_kind = release_doc.get("browser_paths_by_kind") or {}
         release_browser_by_path = release_doc.get("browser_paths_by_path") or {}
         release_browser_by_release_path = release_doc.get("browser_paths_by_release_path") or {}
@@ -6107,7 +6128,8 @@ def main():
                 "artifacts_by_device_alias" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
                 "artifacts_by_device_payload_preset" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
                 "recommendations_by_payload_preset" not in (release_api.get("release_recommendations", {}).get("indexes") or []) or
-                "recommendations_by_compatibility" not in (release_api.get("release_recommendations", {}).get("indexes") or [])):
+                "recommendations_by_compatibility" not in (release_api.get("release_recommendations", {}).get("indexes") or []) or
+                "release_state_records_by_detection_source" not in (release_api.get("release_state_records", {}).get("indexes") or [])):
             print("json status missing release device/tuple api collection indexes", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
