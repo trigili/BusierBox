@@ -545,7 +545,9 @@ equivalent `--stop-service SERVICE` command and records it on the resulting
 service stop event, so targeted service lifecycle work can be repeated
 headlessly. Foreground operator-daemon lifecycle events also record the
 equivalent `--daemon --daemon-service ...` command, child service start
-commands, and `--stop` command used for managed shutdown.
+commands, and `--stop` command used for managed shutdown. Systemd user-service
+print/install/control actions record the BusierBox headless command, rendered
+daemon command, and systemctl command strings where applicable.
 Listener ports are exposed as `ports`,
 `ports_by_number`, `ports_by_service`, and `ports_by_actual`. Service and port
 records carry `warning_count` and `warning_types` fields, and are grouped in

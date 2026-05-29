@@ -2951,6 +2951,31 @@ def main():
             print(systemd_status.stdout, file=sys.stderr)
             print(systemd_status.stderr, file=sys.stderr)
             return 1
+        systemd_events = [
+            json.loads(line)
+            for line in (Path(tmp) / "operator-session" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if (not any(
+                    event.get("event") == "systemd_user_unit_printed" and
+                    "--systemd-user-action print" in event.get("details", {}).get("headless_command", "") and
+                    "--daemon --daemon-service file-service" in event.get("details", {}).get("daemon_headless_command", "")
+                    for event in systemd_events) or
+                not any(
+                    event.get("event") == "systemd_user_unit_installed" and
+                    "--systemd-user-action install" in event.get("details", {}).get("headless_command", "") and
+                    "systemctl --user daemon-reload" == event.get("details", {}).get("daemon_reload_command", "") and
+                    "systemctl --user enable --now busierbox-smoke.service" == event.get("details", {}).get("enable_now_command", "")
+                    for event in systemd_events) or
+                not any(
+                    event.get("event") == "systemd_user_action_dry_run" and
+                    event.get("details", {}).get("action") == "status" and
+                    "--systemd-user-action status" in event.get("details", {}).get("headless_command", "") and
+                    "systemctl --user status busierbox-smoke.service" == event.get("details", {}).get("systemctl_command", "")
+                    for event in systemd_events)):
+            print("systemd user-service events missing headless command metadata", file=sys.stderr)
+            print(json.dumps(systemd_events[-12:], indent=2, sort_keys=True), file=sys.stderr)
+            return 1
 
         workbench_jobs_file = queue_operator_dir / "workbench-jobs.json"
         workbench_job_log = queue_operator_dir / "package-job.log"
