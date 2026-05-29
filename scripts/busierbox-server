@@ -9415,6 +9415,10 @@ def status_document(cfg):
         "release_valid": bool(release_state.get("valid", False)),
         "release_json_valid": bool(release_state.get("release_json_valid", False)),
         "release_index_valid": bool(release_state.get("release_index_valid", False)),
+        "release_detection_source": release_state.get("detection_source", ""),
+        "release_detection_reason": release_state.get("detection_reason", ""),
+        "release_explicit_release_dir": bool(release_state.get("explicit_release_dir", False)),
+        "release_marker_count": release_state.get("release_marker_count", 0),
         "release_artifact_count": len(release.get("artifacts") or []),
         "release_artifact_total_size": (release.get("artifact_stats") or {}).get("total_size", 0),
         "release_device_count": len(release.get("devices") or []),
@@ -10463,6 +10467,12 @@ def print_release_summary(doc):
         f"valid={'yes' if release_state.get('valid') else 'no'} "
         f"release_json_valid={'yes' if release_state.get('release_json_valid') else 'no'} "
         f"release_index_valid={'yes' if release_state.get('release_index_valid') else 'no'}"
+    )
+    print(
+        f"  detection_source={release_state.get('detection_source', '') or '-'} "
+        f"detection_reason={release_state.get('detection_reason', '') or '-'} "
+        f"explicit_release_dir={'yes' if release_state.get('explicit_release_dir') else 'no'} "
+        f"markers={release_state.get('release_marker_count', 0)}"
     )
     print(
         f"  artifacts={summary.get('release_artifact_count', len(release.get('artifacts') or []))} "

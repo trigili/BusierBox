@@ -5815,6 +5815,7 @@ def main():
         if ("Release artifact browser" not in release_view.stdout or
                 "Release summary:" not in release_view.stdout or
                 "present=yes valid=yes release_json_valid=yes release_index_valid=yes" not in release_view.stdout or
+                "detection_source=auto detection_reason=release.json,release-index.json,bin+scripts explicit_release_dir=no markers=3" not in release_view.stdout or
                 "artifacts=1 devices=1 tuples=1 total_size=9" not in release_view.stdout or
                 f"release_dir: {release_dir}" not in release_view.stdout or
                 "release_name: operator-smoke" not in release_view.stdout or
@@ -5849,6 +5850,7 @@ def main():
         if ("Release browser" not in release_text_status.stdout or
                 "Release summary:" not in release_text_status.stdout or
                 "present=yes valid=yes release_json_valid=yes release_index_valid=yes" not in release_text_status.stdout or
+                "detection_source=auto detection_reason=release.json,release-index.json,bin+scripts explicit_release_dir=no markers=3" not in release_text_status.stdout or
                 "artifacts=1 devices=1 tuples=1 total_size=9" not in release_text_status.stdout or
                 "recommendations:" not in release_text_status.stdout or
                 "by_device:lab-router -> bin/busierbox-test" not in release_text_status.stdout):
@@ -6047,6 +6049,10 @@ def main():
                 release_summary.get("release_valid") is not True or
                 release_summary.get("release_json_valid") is not True or
                 release_summary.get("release_index_valid") is not True or
+                release_summary.get("release_detection_source") != "auto" or
+                release_summary.get("release_detection_reason") != "release.json,release-index.json,bin+scripts" or
+                release_summary.get("release_explicit_release_dir") is not False or
+                release_summary.get("release_marker_count") != 3 or
                 release_summary.get("release_artifact_count", 0) < 1 or
                 release_summary.get("release_artifact_total_size") != release_artifact_size or
                 release_summary.get("release_device_count") != 1 or
@@ -6128,6 +6134,10 @@ def main():
                 non_release_state.get("release_marker_count") != 0 or
                 non_release_doc.get("release") or
                 non_release_doc.get("summary", {}).get("release_present") is not False or
+                non_release_doc.get("summary", {}).get("release_detection_source") != "auto" or
+                non_release_doc.get("summary", {}).get("release_detection_reason") != "no-release-markers" or
+                non_release_doc.get("summary", {}).get("release_explicit_release_dir") is not False or
+                non_release_doc.get("summary", {}).get("release_marker_count") != 0 or
                 non_release_doc.get("summary", {}).get("warning_type_counts", {}).get("invalid_release_state", 0) != 0):
             print("json status treated a normal scripts directory as an invalid release bundle", file=sys.stderr)
             print(non_release_status.stdout, file=sys.stderr)
