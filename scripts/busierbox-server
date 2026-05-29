@@ -6669,9 +6669,15 @@ def copy_generated_command(cfg, index):
 def pid_alive(pid):
     try:
         os.kill(int(pid), 0)
-        return True
     except (OSError, ValueError, TypeError):
         return False
+    try:
+        fields = Path(f"/proc/{int(pid)}/stat").read_text(encoding="utf-8", errors="replace").split()
+        if len(fields) > 2 and fields[2] == "Z":
+            return False
+    except (OSError, ValueError, TypeError):
+        pass
+    return True
 
 
 def pid_cmdline(pid):
@@ -8954,6 +8960,144 @@ def service_port(cfg, service):
     return 0
 
 
+DAEMON_SERVICE_CHOICES = ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "survey-bootstrap")
+
+
+def configured_daemon_services(cfg, explicit=None):
+    services = []
+    for service in explicit or []:
+        if service not in DAEMON_SERVICE_CHOICES:
+            raise ValueError(f"unsupported daemon service: {service}")
+        services.append(service)
+    if not services:
+        if yes(cfg.get("file_service_enable", "no")):
+            services.append("file-service")
+        if yes(cfg.get("command_queue_enable", "no")):
+            services.append("command-queue")
+        if yes(cfg.get("bridge_enable", "no")):
+            services.append("bridge")
+        if yes(cfg.get("survey_bootstrap_enable", "no")):
+            services.append("survey-bootstrap")
+        if yes(cfg.get("rshell_enable", "no")):
+            services.append(_resolve_transport(cfg, None))
+    return list(dict.fromkeys(services))
+
+
+def daemon_child_command(cfg, service):
+    command = [sys.executable, str(Path(sys.argv[0]).resolve())]
+    command.extend(["--config", str(cfg.get("_config_path", DEFAULT_CONFIG))])
+    command.extend(["--state-file", str(state_file_path(cfg))])
+    command.extend(["--staged-file", str(staged_file_path(cfg))])
+    command.extend(["--command-queue-file", str(command_queue_path(cfg))])
+    command.extend(["--command-copy-file", str(command_copy_path(cfg))])
+    command.extend(["--targets-file", str(targets_path(cfg))])
+    command.extend(["--listen-host", str(cfg.get("listen_host", "0.0.0.0"))])
+    if service in ("tls-shell", "plain-shell"):
+        command.extend(["--shell-port", str(cfg.get("shell_listen_port", 22203))])
+    if service == "ssh":
+        command.extend(["--ssh-port", str(cfg.get("ssh_listen_port", 22202))])
+        command.extend(["--forward-port", str(cfg.get("forward_port", 2200))])
+    if service == "file-service":
+        command.extend(["--file-port", str(cfg.get("file_service_port", 22204))])
+        command.extend(["--file-service-tls", str(cfg.get("file_service_tls", "yes"))])
+    if service == "command-queue":
+        command.extend(["--command-queue-port", str(cfg.get("command_queue_port", 22205))])
+    if service == "bridge":
+        command.extend(["--bridge-port", str(cfg.get("bridge_listen_port", 22206))])
+        command.extend(["--bridge-dest-host", str(cfg.get("bridge_dest_host", "127.0.0.1"))])
+        command.extend(["--bridge-dest-port", str(cfg.get("bridge_dest_port", 0))])
+    if service == "survey-bootstrap":
+        command.extend(["--survey-bootstrap-port", str(cfg.get("survey_bootstrap_port", 22207))])
+        command.extend(["--survey-bootstrap-name", str(cfg.get("survey_bootstrap_name", "survey.sh"))])
+    command.extend(["--transport", service])
+    command.extend(["--managed-by", "operator-daemon"])
+    return command
+
+
+def run_operator_daemon(cfg, services, timeout=None):
+    services = configured_daemon_services(cfg, services)
+    if not services:
+        raise ValueError("operator daemon has no services selected; set *_enable=yes or pass --daemon-service")
+    daemon_log_root = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "daemon-logs"
+    daemon_log_root.mkdir(parents=True, exist_ok=True)
+    update_server_state(cfg, "operator-daemon", "starting", {
+        "daemon_services": services,
+        "child_count": 0,
+    })
+    append_event(cfg, "operator-daemon", "daemon_starting", details={"services": services})
+    children = []
+    for service in services:
+        command = daemon_child_command(cfg, service)
+        log_path = daemon_log_root / f"{service}.log"
+        log_fh = log_path.open("ab")
+        child_env = dict(os.environ)
+        child_env["BB_OPERATOR_DAEMON"] = "1"
+        proc = start_child_process(command + ["--process-log", str(log_path)], cwd=Path.cwd(), stdout=log_fh, stderr=subprocess.STDOUT, env=child_env)
+        children.append({"service": service, "process": proc, "log_fh": log_fh, "log_path": str(log_path), "command": command})
+        append_event(cfg, "operator-daemon", "daemon_child_start", details={"service": service, "pid": proc.pid, "process_log": str(log_path), "command": command})
+    update_server_state(cfg, "operator-daemon", "listening", {
+        "daemon_services": services,
+        "child_count": len(children),
+        "child_pids": [item["process"].pid for item in children],
+        "child_process_logs": {item["service"]: item["log_path"] for item in children},
+    })
+    print("BusierBox operator daemon")
+    for item in children:
+        print(f"  {item['service']}: pid={item['process'].pid} log={item['log_path']}")
+    deadline = None if timeout is None else time.time() + float(timeout)
+    exit_code = 0
+    try:
+        while not SHUTDOWN.is_set():
+            failed = [item for item in children if item["process"].poll() not in (None, 0)]
+            if failed:
+                for item in failed:
+                    append_event(cfg, "operator-daemon", "daemon_child_exit", "error", details={
+                        "service": item["service"],
+                        "pid": item["process"].pid,
+                        "returncode": item["process"].returncode,
+                    })
+                exit_code = 1
+                break
+            if all(item["process"].poll() == 0 for item in children):
+                break
+            if deadline is not None and time.time() >= deadline:
+                request_shutdown("daemon-timeout")
+                break
+            time.sleep(0.1)
+    finally:
+        request_shutdown(SHUTDOWN_REASON or "daemon-stop")
+        for item in children:
+            proc = item["process"]
+            if proc.poll() is None:
+                try:
+                    proc.terminate()
+                except OSError:
+                    pass
+        for item in children:
+            proc = item["process"]
+            if proc.poll() is None:
+                try:
+                    proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+                    proc.wait(timeout=3)
+            try:
+                item["log_fh"].close()
+            except OSError:
+                pass
+            append_event(cfg, "operator-daemon", "daemon_child_stopped", details={
+                "service": item["service"],
+                "pid": proc.pid,
+                "returncode": proc.returncode,
+            })
+        mark_service_stopped(cfg, "operator-daemon", SHUTDOWN_REASON or "daemon-stop")
+        append_event(cfg, "operator-daemon", "daemon_stopped", details={"services": services, "exit_code": exit_code})
+    return exit_code
+
+
 def service_tls_enabled(cfg, service):
     if service == "tls-shell":
         return True
@@ -8967,7 +9111,7 @@ def service_tls_enabled(cfg, service):
 def wait_service_port_released(cfg, service, pid=None, timeout=3.0):
     port = service_port(cfg, service)
     if not port:
-        deadline = time.time() + timeout
+        deadline = time.time() + max(timeout, 8.0)
         while time.time() < deadline:
             if not pid or not pid_alive(pid):
                 return True
@@ -13873,6 +14017,10 @@ Command queue:
   --record-command-result cq-id --result-json result.json
   --clear-command-queue
 
+Operator daemon:
+  --daemon --daemon-service file-service --daemon-service command-queue
+  --daemon --timeout 60
+
 Build configuration:
   --build-config configs/busierbox.conf --list-build-config
   --build-config configs/busierbox.conf --set-build-config BB_NORESIDUE_LEVEL=aggressive
@@ -13904,6 +14052,11 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="number of recent structured events to include in --status/--json-status output")
     parser.add_argument("--stop", action="store_true",
                         help="stop known managed listeners from server-state PID records")
+    parser.add_argument("--daemon", action="store_true",
+                        help="run a foreground operator daemon that owns selected listener child processes")
+    parser.add_argument("--daemon-service", action="append", default=[],
+                        choices=DAEMON_SERVICE_CHOICES,
+                        help="service for --daemon to own; may be repeated; default uses *_enable=yes config")
     parser.add_argument("--serve-file",
                         help="stage a local file for explicit target fetch")
     parser.add_argument("--as", dest="serve_as",
@@ -13975,6 +14128,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="remote forward port exposed on the operator workstation")
     parser.add_argument("--file-port", type=int,
                         help="receive-only file service listener port")
+    parser.add_argument("--command-queue-port", type=int,
+                        help="command queue poll listener port")
     parser.add_argument("--bridge-port", type=int,
                         help="TCP bridge listener port")
     parser.add_argument("--bridge-dest-host",
@@ -14019,6 +14174,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["forward_port"] = args.forward_port
     if args.file_port:
         cfg["file_service_port"] = args.file_port
+    if args.command_queue_port:
+        cfg["command_queue_port"] = str(args.command_queue_port)
     if args.bridge_port:
         cfg["bridge_listen_port"] = args.bridge_port
     if args.bridge_dest_host:
@@ -14140,6 +14297,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         return stop_managed_services(cfg)
 
     timeout = None if args.timeout == 0 else args.timeout
+    if args.daemon:
+        try:
+            return run_operator_daemon(cfg, args.daemon_service, timeout=timeout)
+        except ValueError as exc:
+            print(f"busierbox-server: {exc}", file=sys.stderr)
+            return 2
     action = "file-service" if args.file_service else _resolve_transport(cfg, args.transport)
     script_bytes = None
     if args.script:

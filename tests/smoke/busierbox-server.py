@@ -1722,6 +1722,126 @@ def main():
             print(json.dumps(result_reject_after, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
+        daemon_file_port = free_port()
+        daemon_queue_port = free_port()
+        while daemon_queue_port == daemon_file_port:
+            daemon_queue_port = free_port()
+        daemon_cfg = Path(tmp) / "server-config-daemon.json"
+        daemon_state = Path(tmp) / "operator-session" / "daemon-state.json"
+        daemon_staged = Path(tmp) / "operator-session" / "daemon-staged.json"
+        daemon_queue = Path(tmp) / "operator-session" / "daemon-command-queue.json"
+        daemon_targets = Path(tmp) / "operator-session" / "daemon-targets.json"
+        daemon_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(Path(tmp) / "operator-session"),
+            "session_root": str(Path(tmp) / "sessions-daemon"),
+            "file_service_enable": "yes",
+            "file_service_port": daemon_file_port,
+            "file_service_tls": "no",
+            "command_queue_enable": "yes",
+            "command_queue_port": str(daemon_queue_port),
+            "command_queue_tls": "no",
+            "command_queue_require_token": "no",
+            "server_state": str(daemon_state),
+            "staged_files": str(daemon_staged),
+            "command_queue_file": str(daemon_queue),
+            "targets_file": str(daemon_targets),
+        }), encoding="utf-8")
+        daemon_proc = subprocess.Popen(
+            [
+                str(server),
+                "--config", str(daemon_cfg),
+                "--daemon",
+                "--daemon-service", "file-service",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            daemon_doc = {}
+            deadline = time.time() + 20
+            while time.time() < deadline:
+                if daemon_proc.poll() is not None:
+                    break
+                daemon_status = run(
+                    "scripts/busierbox-server",
+                    "--config", str(daemon_cfg),
+                    "--json-status",
+                )
+                if daemon_status.returncode == 0:
+                    daemon_doc = json.loads(daemon_status.stdout)
+                    services_by_name = daemon_doc.get("services_by_name") or {}
+                    if services_by_name.get("file-service", {}).get("actual") == "listening":
+                        break
+                time.sleep(0.1)
+            services_by_name = daemon_doc.get("services_by_name") or {}
+            daemon_state_doc = json.loads(daemon_state.read_text(encoding="utf-8"))
+            operator_daemon_state = (daemon_state_doc.get("services") or {}).get("operator-daemon") or {}
+            if (services_by_name.get("file-service", {}).get("actual") != "listening" or
+                    services_by_name.get("file-service", {}).get("configured") != "listening" or
+                    operator_daemon_state.get("status") != "listening" or
+                    operator_daemon_state.get("daemon_services") != ["file-service"] or
+                    len(operator_daemon_state.get("child_pids") or []) != 1):
+                print("operator daemon did not own configured child listeners", file=sys.stderr)
+                print(json.dumps(daemon_doc, indent=2, sort_keys=True), file=sys.stderr)
+                print(json.dumps(daemon_state_doc, indent=2, sort_keys=True), file=sys.stderr)
+                for log_path in sorted((Path(tmp) / "operator-session" / "daemon-logs").glob("*.log")):
+                    print(f"{log_path.name}:", file=sys.stderr)
+                    print(log_path.read_text(encoding="utf-8", errors="replace"), file=sys.stderr)
+                return 1
+            daemon_upload_response = connect_with_retry(daemon_file_port, (
+                b"PUT /upload/daemon.txt HTTP/1.1\r\n"
+                b"Host: 127.0.0.1\r\n"
+                b"X-BusierBox-Target-Id: daemon-target\r\n"
+                b"Content-Length: 13\r\n"
+                b"Connection: close\r\n\r\n"
+                b"daemon upload"
+            ))
+            if b"HTTP/1.1 200 OK" not in daemon_upload_response:
+                print("operator daemon file-service child did not accept an upload", file=sys.stderr)
+                print(daemon_upload_response.decode("utf-8", errors="replace"), file=sys.stderr)
+                return 1
+            daemon_stop = run(
+                "scripts/busierbox-server",
+                "--config", str(daemon_cfg),
+                "--stop",
+            )
+            if daemon_stop.returncode != 0 or "failed=0" not in daemon_stop.stdout:
+                print("operator daemon stop failed", file=sys.stderr)
+                print(daemon_stop.stdout, file=sys.stderr)
+                print(daemon_stop.stderr, file=sys.stderr)
+                return 1
+            daemon_stdout, daemon_stderr = daemon_proc.communicate(timeout=8)
+            if daemon_proc.returncode not in (0, -signal.SIGTERM):
+                print("operator daemon exited unexpectedly", file=sys.stderr)
+                print(daemon_stdout, file=sys.stderr)
+                print(daemon_stderr, file=sys.stderr)
+                return 1
+            stopped_doc = json.loads(run(
+                "scripts/busierbox-server",
+                "--config", str(daemon_cfg),
+                "--json-status",
+            ).stdout)
+            stopped_services = stopped_doc.get("services_by_name") or {}
+            daemon_state_after = json.loads(daemon_state.read_text(encoding="utf-8"))
+            stopped_daemon_state = daemon_state_after.get("services") or {}
+            if (stopped_services.get("file-service", {}).get("actual") != "stopped" or
+                    stopped_daemon_state.get("operator-daemon", {}).get("status") != "stopped"):
+                print("operator daemon stop did not release child listeners", file=sys.stderr)
+                print(json.dumps(stopped_doc, indent=2, sort_keys=True), file=sys.stderr)
+                print(json.dumps(daemon_state_after, indent=2, sort_keys=True), file=sys.stderr)
+                return 1
+        finally:
+            if daemon_proc.poll() is None:
+                daemon_proc.terminate()
+                try:
+                    daemon_proc.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    daemon_proc.kill()
+                    daemon_proc.communicate(timeout=5)
+
         workbench_jobs_file = queue_operator_dir / "workbench-jobs.json"
         workbench_job_log = queue_operator_dir / "package-job.log"
         workbench_job_log.write_text(
