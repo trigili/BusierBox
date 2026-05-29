@@ -2102,6 +2102,18 @@ def main():
             print(bad_queue_output.stdout, file=sys.stderr)
             print(bad_queue_output.stderr, file=sys.stderr)
             return 1
+        bad_queue_expire = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--command-queue-file", str(queue_file),
+            "--queue-command", "busierbox survey",
+            "--queue-expire-sec", "-1",
+        )
+        if bad_queue_expire.returncode == 0 or "expiration must be zero or a positive integer" not in bad_queue_expire.stderr:
+            print("operator command queue accepted invalid expiration", file=sys.stderr)
+            print(bad_queue_expire.stdout, file=sys.stderr)
+            print(bad_queue_expire.stderr, file=sys.stderr)
+            return 1
         queue_doc_after_bad = json.loads(queue_file.read_text(encoding="utf-8"))
         if len(queue_doc_after_bad.get("commands", [])) != 1:
             print("invalid command queue entries were persisted", file=sys.stderr)
@@ -2158,8 +2170,12 @@ def main():
                 queue_summary["commands_by_status"]["queued"][0].get("id") != queued_id or
                 queue_summary.get("commands_by_timeout_sec", {}).get("9", [{}])[0].get("id") != queued_id or
                 queue_summary.get("commands_by_max_output_bytes", {}).get("1234", [{}])[0].get("id") != queued_id or
+                queue_summary.get("commands_by_expire_sec", {}).get("0", [{}])[0].get("id") != queued_id or
+                queue_summary.get("commands_by_expired", {}).get("false", [{}])[0].get("id") != queued_id or
                 queue_summary.get("timeout_sec_counts", {}).get("9") != 1 or
                 queue_summary.get("max_output_bytes_counts", {}).get("1234") != 1 or
+                queue_summary.get("expire_sec_counts", {}).get("0") != 1 or
+                queue_summary.get("expired_counts", {}).get("False") != 1 or
                 queue_summary.get("commands_by_queue_policy_enabled", {}).get("false", [{}])[0].get("id") != queued_id or
                 queue_summary.get("commands_by_queue_policy_valid", {}).get("true", [{}])[0].get("id") != queued_id or
                 queue_summary.get("commands_by_queue_policy_execution_mode", {}).get("metadata-only", [{}])[0].get("id") != queued_id or
@@ -2186,6 +2202,113 @@ def main():
                 queued_policy.get("operator_queue_records_only") is not True):
             print("queued command missing policy snapshot", file=sys.stderr)
             print(queue_list.stdout, file=sys.stderr)
+            return 1
+
+        expired_port = free_port()
+        expired_dir = Path(tmp) / "operator-session-command-expired"
+        expired_queue_file = expired_dir / "command-queue.json"
+        expired_result_file = Path(tmp) / "expired-result.json"
+        expired_cfg = Path(tmp) / "server-config-command-expired.json"
+        expired_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(expired_dir),
+            "command_queue_file": str(expired_queue_file),
+            "command_queue_enable": "yes",
+            "command_queue_tls": "no",
+            "command_queue_port": str(expired_port),
+            "command_queue_require_token": "no",
+            "command_queue_allowed_commands": "busierbox-only",
+            "command_queue_allow_arbitrary": "no",
+        }), encoding="utf-8")
+        expired_label = run(
+            "scripts/busierbox-server", "--config", str(expired_cfg),
+            "--set-target-label", "target-expired",
+            "--target-label", "Expired Router",
+        )
+        if expired_label.returncode != 0:
+            print("expired command target label setup failed", file=sys.stderr)
+            print(expired_label.stderr, file=sys.stderr)
+            return 1
+        expired_queue = run(
+            "scripts/busierbox-server", "--config", str(expired_cfg),
+            "--target-id", "target-expired",
+            "--queue-command", "busierbox survey --json",
+            "--queue-expire-sec", "1",
+        )
+        if expired_queue.returncode != 0:
+            print("expired command queue setup failed", file=sys.stderr)
+            print(expired_queue.stdout, file=sys.stderr)
+            print(expired_queue.stderr, file=sys.stderr)
+            return 1
+        expired_doc = json.loads(expired_queue_file.read_text(encoding="utf-8"))
+        expired_id = expired_doc["commands"][0]["id"]
+        expired_doc["commands"][0]["created_at"] = "2000-01-01T00:00:00Z"
+        expired_doc["commands"][0]["expires_at"] = "2000-01-01T00:00:01Z"
+        expired_queue_file.write_text(json.dumps(expired_doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        expired_status = json.loads(run(
+            "scripts/busierbox-server", "--config", str(expired_cfg),
+            "--json-status",
+        ).stdout)
+        expired_command = (expired_status.get("command_queue") or {}).get("commands_by_id", {}).get(expired_id) or {}
+        expired_mailbox = (expired_status.get("target_mailbox_records_by_command_id") or {}).get(expired_id) or {}
+        expired_target = (expired_status.get("targets_by_id") or {}).get("target-expired") or {}
+        if (expired_command.get("status") != "expired" or
+                expired_command.get("expired") is not True or
+                expired_mailbox.get("status") != "expired" or
+                expired_mailbox.get("expired") is not True or
+                expired_mailbox.get("waiting_for") != "none" or
+                expired_mailbox.get("pending_work") is not False or
+                expired_target.get("mailbox_expired_command_count") != 1 or
+                expired_target.get("mailbox_pending_work_count") != 0 or
+                expired_status.get("summary", {}).get("command_queue_status_counts", {}).get("expired") != 1 or
+                expired_status.get("summary", {}).get("command_queue_expired_counts", {}).get("True") != 1 or
+                expired_status.get("summary", {}).get("target_mailbox_status_counts", {}).get("expired") != 1 or
+                expired_status.get("summary", {}).get("target_mailbox_expired_counts", {}).get("True") != 1 or
+                ((expired_status.get("commands_by_expired") or {}).get("true") or [{}])[0].get("id") != expired_id or
+                ((expired_status.get("target_mailbox_records_by_expired") or {}).get("True") or [{}])[0].get("command_id") != expired_id or
+                "commands_by_expired" not in ((expired_status.get("api_collections") or {}).get("command_queue_commands") or {}).get("indexes", []) or
+                "target_mailbox_records_by_expired" not in ((expired_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes", [])):
+            print("expired command queue entry missing mailbox/API state", file=sys.stderr)
+            print(json.dumps(expired_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        expired_poll_server = subprocess.Popen(
+            ["scripts/busierbox-server", "--config", str(expired_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        expired_poll_response = connect_with_retry(expired_port, (
+            b"GET /command-queue/poll HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"X-BusierBox-Target-Id: target-expired\r\n"
+            b"X-BusierBox-Target-Label: Expired Router\r\n"
+            b"Connection: close\r\n\r\n"
+        ))
+        expired_poll_stdout, expired_poll_stderr = expired_poll_server.communicate(timeout=15)
+        if (expired_poll_server.returncode != 0 or
+                b"HTTP/1.1 204 No Content" not in expired_poll_response or
+                expired_id.encode("ascii") in expired_poll_response):
+            print("expired target command should not be delivered on poll", file=sys.stderr)
+            print(expired_poll_response.decode("utf-8", errors="replace"), file=sys.stderr)
+            print(expired_poll_stdout, file=sys.stderr)
+            print(expired_poll_stderr, file=sys.stderr)
+            return 1
+        expired_result_file.write_text(json.dumps({
+            "schema": 1,
+            "command_id": expired_id,
+            "status": "completed",
+            "exit_code": 0,
+        }) + "\n", encoding="utf-8")
+        expired_result = run(
+            "scripts/busierbox-server", "--config", str(expired_cfg),
+            "--record-command-result", expired_id,
+            "--result-json", str(expired_result_file),
+        )
+        if expired_result.returncode == 0 or "command queue id expired" not in expired_result.stderr:
+            print("expired command accepted a late result", file=sys.stderr)
+            print(expired_result.stdout, file=sys.stderr)
+            print(expired_result.stderr, file=sys.stderr)
             return 1
         if (queue_summary.get("enabled") != "no" or
                 queue_summary.get("default_enabled") is not False or
@@ -2824,13 +2947,13 @@ def main():
         if ("target-alpha label=Alpha Router" not in result_status_text.stdout or
                 "state=online" not in result_status_text.stdout or
                 "heartbeat_via=command-queue:command_queue_result" not in result_status_text.stdout or
-                "mailbox queued=0 delivered=0 results=1 pending=0" not in result_status_text.stdout or
+                "mailbox queued=0 delivered=0 results=1 expired=0 pending=0" not in result_status_text.stdout or
                 f"mailbox_command {alpha_id} status=result-received" not in result_status_text.stdout or
                 "waiting_for=none" not in result_status_text.stdout or
                 "result=completed exit=0" not in result_status_text.stdout or
                 "target-bravo label=Bravo Router" not in result_status_text.stdout or
                 "state=offline" not in result_status_text.stdout or
-                "mailbox queued=1 delivered=0 results=0 pending=1" not in result_status_text.stdout or
+                "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in result_status_text.stdout or
                 f"mailbox_command {bravo_id} status=queued" not in result_status_text.stdout or
                 "waiting_for=target-poll" not in result_status_text.stdout):
             print("text status missing intermittent mailbox heartbeat/result summary", file=sys.stderr)
@@ -2881,8 +3004,8 @@ def main():
                 f"{alpha_id}\tresult-received" not in queue_tui_text or
                 "result: " not in queue_tui_text or
                 "Target mailbox records:" not in queue_tui_text or
-                f"{alpha_id} target=target-alpha state=online status=result-received waiting_for=none pending=no result=completed exit=0" not in queue_tui_text or
-                f"{bravo_id} target=target-bravo state=offline status=queued waiting_for=target-poll pending=yes result=- exit=-" not in queue_tui_text or
+                f"{alpha_id} target=target-alpha state=online status=result-received waiting_for=none expired=no pending=no result=completed exit=0" not in queue_tui_text or
+                f"{bravo_id} target=target-bravo state=offline status=queued waiting_for=target-poll expired=no pending=yes result=- exit=-" not in queue_tui_text or
                 f"last_seen={old_seen} via=command-queue:command_queue_poll" not in queue_tui_text or
                 "next_expected_poll=" not in queue_tui_text or
                 "created=" not in queue_tui_text or
@@ -4358,7 +4481,7 @@ def main():
                 "busierbox reality-test --json" not in queue_status_text.stdout or
                 "result-received" not in queue_status_text.stdout or
                 "result_output=12 limit=1234 exceeded_limit=no" not in queue_status_text.stdout or
-                "command_limits: timeouts=9=1 max_output=1234=1" not in queue_status_text.stdout or
+                "command_limits: timeouts=9=1 max_output=1234=1 expire_sec=0=1" not in queue_status_text.stdout or
                 "result_size_buckets: small=1" not in queue_status_text.stdout or
                 "latest_created=" not in queue_status_text.stdout or
                 "latest_result=" not in queue_status_text.stdout or
@@ -6373,7 +6496,7 @@ def main():
                 " --status" not in line_text or
                 "queues_offline_work=yes" not in line_text or
                 "offline=yes requires_online=no" not in line_text or
-                "mailbox queued=1 delivered=0 results=0 pending=1" not in line_text or
+                "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in line_text or
                 "Target workflow actions:" not in line_text):
             print("line TUI target detail did not show mailbox/activity and headless command", file=sys.stderr)
             print(line_text, file=sys.stderr)

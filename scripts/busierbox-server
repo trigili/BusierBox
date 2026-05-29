@@ -982,6 +982,19 @@ def elapsed_seconds(started_at, ended_at):
     return int(end - start)
 
 
+def command_queue_expired(rec, now_epoch=None):
+    if not isinstance(rec, dict):
+        return False
+    if str(rec.get("status") or "") != "queued":
+        return False
+    expires_epoch = parse_utc_timestamp(str(rec.get("expires_at") or ""))
+    if expires_epoch is None:
+        return False
+    if now_epoch is None:
+        now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
+    return int(now_epoch) >= int(expires_epoch)
+
+
 TARGET_ONLINE_WINDOW_SEC = 300
 TARGET_RECENT_WINDOW_SEC = 3600
 TARGET_STALE_WINDOW_SEC = 86400
@@ -1751,14 +1764,17 @@ def target_mailbox_counts(cfg):
     counts = {}
     latest_result = {}
     latest_result_at = {}
+    now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
     for rec in (load_command_queue(cfg).get("commands") or []):
         if not isinstance(rec, dict):
             continue
         target_id = str(rec.get("target_id") or "")
         if not target_id:
             continue
-        target_counts = counts.setdefault(target_id, {"queued": 0, "delivered": 0, "result-received": 0, "total": 0})
+        target_counts = counts.setdefault(target_id, {"queued": 0, "delivered": 0, "result-received": 0, "expired": 0, "total": 0})
         status = str(rec.get("status") or "")
+        if command_queue_expired(rec, now_epoch=now_epoch):
+            status = "expired"
         target_counts["total"] = target_counts.get("total", 0) + 1
         if status in target_counts:
             target_counts[status] = target_counts.get(status, 0) + 1
@@ -1802,6 +1818,9 @@ def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
     target_rec = (targets_by_id or {}).get(target_id) or {}
     command_id = str(rec.get("id") or "")
     status = str(rec.get("status") or "")
+    expired = status == "expired" or command_queue_expired(rec, now_epoch=now_epoch)
+    if expired:
+        status = "expired"
     result = rec.get("result") if isinstance(rec.get("result"), dict) else {}
     result_status = str(result.get("status") or "")
     result_exit_code = result.get("exit_code")
@@ -1814,6 +1833,7 @@ def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
     created_at = str(rec.get("created_at") or "")
     delivered_at = str(rec.get("delivered_at") or "")
     result_received_at = str(rec.get("result_received_at") or "")
+    expires_at = str(rec.get("expires_at") or "")
     age_sec = ""
     created_epoch = parse_utc_timestamp(created_at)
     if created_epoch is not None and now_epoch is not None:
@@ -1828,6 +1848,8 @@ def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
     result_latency_sec = mailbox_elapsed_seconds(delivered_at, result_received_at)
     if pending_work:
         waiting_for = "target-poll"
+    elif expired:
+        waiting_for = "none"
     elif delivered_without_result:
         waiting_for = "result-upload"
     elif has_result:
@@ -1854,6 +1876,8 @@ def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
         "created_at": created_at,
         "delivered_at": delivered_at,
         "result_received_at": result_received_at,
+        "expires_at": expires_at,
+        "expired": expired,
         "age_sec": age_sec,
         "age_bucket": mailbox_wait_bucket(age_sec),
         "pending_delivery_for_sec": pending_delivery_for_sec,
@@ -1908,6 +1932,7 @@ def target_mailbox_record_indexes(records):
         "target_mailbox_records_by_has_target_next_expected_poll": records_by_key(records, "has_target_next_expected_poll"),
         "target_mailbox_records_by_status": records_by_key(records, "status"),
         "target_mailbox_records_by_waiting_for": records_by_key(records, "waiting_for"),
+        "target_mailbox_records_by_expired": records_by_key(records, "expired"),
         "target_mailbox_records_by_age_bucket": records_by_key(records, "age_bucket"),
         "target_mailbox_records_by_pending_delivery_age_bucket": records_by_key(records, "pending_delivery_age_bucket"),
         "target_mailbox_records_by_delivered_without_result_age_bucket": records_by_key(records, "delivered_without_result_age_bucket"),
@@ -1941,6 +1966,7 @@ def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
     rec["mailbox_queued_command_count"] = int(counts.get("queued", 0) or 0)
     rec["mailbox_delivered_command_count"] = int(counts.get("delivered", 0) or 0)
     rec["mailbox_result_received_command_count"] = int(counts.get("result-received", 0) or 0)
+    rec["mailbox_expired_command_count"] = int(counts.get("expired", 0) or 0)
     rec["mailbox_command_count"] = int(counts.get("total", 0) or 0)
     rec["mailbox_pending_work_count"] = rec["mailbox_queued_command_count"]
     rec["latest_command_result_at"] = str(latest_result_rec.get("result_received_at") or "")
@@ -5812,6 +5838,8 @@ def mark_command_delivered(cfg, command_id, remote_addr="", target_identity=None
     data = load_command_queue(cfg)
     for rec in data.get("commands", []):
         if isinstance(rec, dict) and rec.get("id") == command_id:
+            if command_queue_expired(rec):
+                raise ValueError(f"command queue id expired: {command_id}")
             policy = command_queue_delivery_policy_snapshot(cfg)
             target_identity = dict(target_identity or {})
             rec_target_id = str(rec.get("target_id") or "").strip()
@@ -5860,7 +5888,7 @@ def mark_command_delivered(cfg, command_id, remote_addr="", target_identity=None
     return None
 
 
-def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
+def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None, expire_sec=None):
     text = str(command or "").strip()
     if not text:
         raise ValueError("command queue entry must not be empty")
@@ -5870,8 +5898,12 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
         raise ValueError("command queue timeout must be a positive integer")
     if max_output_value <= 0:
         raise ValueError("command queue max output must be a positive integer")
+    expire_value = int(expire_sec) if expire_sec is not None else 0
+    if expire_value < 0:
+        raise ValueError("command queue expiration must be zero or a positive integer")
     data = load_command_queue(cfg)
     now = utc_now()
+    now_epoch = parse_utc_timestamp(now) or int(time.time())
     digest = hashlib.sha256(f"{now}\0{time.time_ns()}\0{text}\0{os.getpid()}".encode("utf-8")).hexdigest()[:16]
     queue_policy = command_queue_policy_snapshot(cfg)
     rec = {
@@ -5882,6 +5914,8 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
         "command_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "timeout_sec": timeout_value,
         "max_output_bytes": max_output_value,
+        "expire_sec": expire_value,
+        "expires_at": utc_from_epoch(now_epoch + expire_value) if expire_value > 0 else "",
         "execution_supported": bool(queue_policy.get("execution_supported")),
         "executes_commands": False,
         "delivery_supported": False,
@@ -5903,6 +5937,8 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None):
             "command_sha256": rec["command_sha256"],
             "timeout_sec": rec["timeout_sec"],
             "max_output_bytes": rec["max_output_bytes"],
+            "expire_sec": rec["expire_sec"],
+            "expires_at": rec["expires_at"],
             "delivery_supported": rec["delivery_supported"],
             "execution_supported": rec["execution_supported"],
             "executes_commands": rec["executes_commands"],
@@ -5933,6 +5969,8 @@ def record_command_result_payload(cfg, command_id, result, result_source_path=""
     commands = data.get("commands", [])
     for rec in commands:
         if isinstance(rec, dict) and rec.get("id") == command_id:
+            if command_queue_expired(rec):
+                raise ValueError(f"command queue id expired: {command_id}")
             target_identity = dict(target_identity or {})
             rec_target_id = str(rec.get("target_id") or "").strip()
             result_target_id = str(target_identity.get("target_id") or "").strip()
@@ -6180,6 +6218,17 @@ def command_queue_summary(cfg):
     unfiltered_command_count = len([rec for rec in commands if isinstance(rec, dict)])
     if target_filter_id:
         commands = records_for_target(commands, target_filter_id)
+    now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
+    for rec in commands:
+        if not isinstance(rec, dict):
+            continue
+        expired = command_queue_expired(rec, now_epoch=now_epoch)
+        rec["expired"] = expired
+        if expired:
+            rec["effective_status"] = "expired"
+            rec["status"] = "expired"
+        else:
+            rec["effective_status"] = str(rec.get("status") or "")
     queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
     delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
     commands_by_id = {}
@@ -6190,6 +6239,9 @@ def command_queue_summary(cfg):
     commands_by_result_received_at = {}
     commands_by_result_source_path = {}
     commands_by_timeout_sec = {}
+    commands_by_expire_sec = {}
+    commands_by_expires_at = {}
+    commands_by_expired = {}
     commands_by_max_output_bytes = {}
     commands_by_execution_decision = {}
     commands_by_result_status = {}
@@ -6229,6 +6281,7 @@ def command_queue_summary(cfg):
         delivered_at = str(rec.get("delivered_at") or "")
         result_received_at = str(rec.get("result_received_at") or "")
         result_source_path = str(rec.get("result_source_path") or "")
+        expires_at = str(rec.get("expires_at") or "")
         if command_id:
             commands_by_id[command_id] = rec
         if status:
@@ -6255,6 +6308,13 @@ def command_queue_summary(cfg):
         if max_output_bytes not in (None, ""):
             key = str(max_output_bytes)
             commands_by_max_output_bytes.setdefault(key, []).append(rec)
+        expire_sec = rec.get("expire_sec")
+        if expire_sec not in (None, ""):
+            key = str(expire_sec)
+            commands_by_expire_sec.setdefault(key, []).append(rec)
+        if expires_at:
+            commands_by_expires_at.setdefault(expires_at, []).append(rec)
+        commands_by_expired.setdefault("true" if rec.get("expired") is True else "false", []).append(rec)
         if execution_decision:
             commands_by_execution_decision.setdefault(execution_decision, []).append(rec)
             execution_decision_counts[execution_decision] = execution_decision_counts.get(execution_decision, 0) + 1
@@ -6385,6 +6445,9 @@ def command_queue_summary(cfg):
         "commands_by_result_source_path": commands_by_result_source_path,
         "commands_by_timeout_sec": commands_by_timeout_sec,
         "commands_by_max_output_bytes": commands_by_max_output_bytes,
+        "commands_by_expire_sec": commands_by_expire_sec,
+        "commands_by_expires_at": commands_by_expires_at,
+        "commands_by_expired": commands_by_expired,
         "commands_by_execution_decision": commands_by_execution_decision,
         "commands_by_result_status": commands_by_result_status,
         "commands_by_result_exit_code": commands_by_result_exit_code,
@@ -6403,6 +6466,8 @@ def command_queue_summary(cfg):
         "status_counts": status_counts,
         "timeout_sec_counts": record_count_by_key(commands, "timeout_sec"),
         "max_output_bytes_counts": record_count_by_key(commands, "max_output_bytes"),
+        "expire_sec_counts": record_count_by_key(commands, "expire_sec"),
+        "expired_counts": record_count_by_key(commands, "expired"),
         "target_counts": record_count_by_key(commands, "target_id"),
         "execution_decision_counts": execution_decision_counts,
         "result_status_counts": result_status_counts,
@@ -6465,7 +6530,7 @@ def print_command_queue(cfg, json_output=False):
         print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
         for error in summary["policy_errors"]:
             print(f"  policy_error={error}")
-        print(f"  command_limits: timeouts={format_counts(summary.get('timeout_sec_counts') or {})} max_output={format_counts(summary.get('max_output_bytes_counts') or {})}")
+        print(f"  command_limits: timeouts={format_counts(summary.get('timeout_sec_counts') or {})} max_output={format_counts(summary.get('max_output_bytes_counts') or {})} expire_sec={format_counts(summary.get('expire_sec_counts') or {})}")
         print(f"  targets: {format_counts(summary.get('target_counts') or {})}")
         print(f"  delivery_policy_counts: {delivery_counts}")
         print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
@@ -6479,7 +6544,7 @@ def print_command_queue(cfg, json_output=False):
     print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
     for error in summary["policy_errors"]:
         print(f"  policy_error={error}")
-    print(f"  command_limits: timeouts={format_counts(summary.get('timeout_sec_counts') or {})} max_output={format_counts(summary.get('max_output_bytes_counts') or {})}")
+    print(f"  command_limits: timeouts={format_counts(summary.get('timeout_sec_counts') or {})} max_output={format_counts(summary.get('max_output_bytes_counts') or {})} expire_sec={format_counts(summary.get('expire_sec_counts') or {})}")
     print(f"  targets: {format_counts(summary.get('target_counts') or {})}")
     print(f"  delivery_policy_counts: {delivery_counts}")
     print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
@@ -6487,7 +6552,7 @@ def print_command_queue(cfg, json_output=False):
     for rec in summary["commands"]:
         print(f"{rec.get('id', '')}\t{rec.get('status', '')}\tcreated={rec.get('created_at', '')}")
         print(f"  command: {rec.get('command', '')}")
-        print(f"  timeout={rec.get('timeout_sec', '')} max_output={rec.get('max_output_bytes', '')} execution_supported={yes_no(rec.get('execution_supported'))}")
+        print(f"  timeout={rec.get('timeout_sec', '')} max_output={rec.get('max_output_bytes', '')} expire_sec={rec.get('expire_sec', '')} expires_at={rec.get('expires_at', '') or '-'} expired={yes_no(rec.get('expired'))} execution_supported={yes_no(rec.get('execution_supported'))}")
         if rec.get("target_id"):
             print(f"  target: {rec.get('target_id', '')} label={rec.get('target_label', '')}")
         delivery_policy = rec.get("delivery_policy_snapshot") if isinstance(rec.get("delivery_policy_snapshot"), dict) else {}
@@ -12347,6 +12412,8 @@ def status_document(cfg):
         "command_queue_target_counts": command_queue.get("target_counts") or {},
         "command_queue_timeout_sec_counts": command_queue.get("timeout_sec_counts") or {},
         "command_queue_max_output_bytes_counts": command_queue.get("max_output_bytes_counts") or {},
+        "command_queue_expire_sec_counts": command_queue.get("expire_sec_counts") or {},
+        "command_queue_expired_counts": command_queue.get("expired_counts") or {},
         "command_queue_execution_decision_counts": command_queue.get("execution_decision_counts") or {},
         "command_queue_result_status_counts": command_queue.get("result_status_counts") or {},
         "command_queue_result_exit_code_counts": command_queue.get("result_exit_code_counts") or {},
@@ -12366,6 +12433,7 @@ def status_document(cfg):
         "target_mailbox_record_count": len(target_mailbox_records),
         "target_mailbox_status_counts": record_count_by_key(target_mailbox_records, "status"),
         "target_mailbox_waiting_for_counts": record_count_by_key(target_mailbox_records, "waiting_for"),
+        "target_mailbox_expired_counts": record_count_by_key(target_mailbox_records, "expired"),
         "target_mailbox_age_bucket_counts": record_count_by_key(target_mailbox_records, "age_bucket"),
         "target_mailbox_pending_delivery_age_bucket_counts": record_count_by_key(target_mailbox_records, "pending_delivery_age_bucket"),
         "target_mailbox_delivered_without_result_age_bucket_counts": record_count_by_key(target_mailbox_records, "delivered_without_result_age_bucket"),
@@ -12844,6 +12912,7 @@ def status_document(cfg):
                 "target_mailbox_records_by_has_target_next_expected_poll",
                 "target_mailbox_records_by_status",
                 "target_mailbox_records_by_waiting_for",
+                "target_mailbox_records_by_expired",
                 "target_mailbox_records_by_age_bucket",
                 "target_mailbox_records_by_pending_delivery_age_bucket",
                 "target_mailbox_records_by_delivered_without_result_age_bucket",
@@ -13029,7 +13098,9 @@ def status_document(cfg):
                 "commands_by_target_id", "commands_by_created_at",
                 "commands_by_delivered_at", "commands_by_result_received_at",
                 "commands_by_result_source_path", "commands_by_timeout_sec",
-                "commands_by_max_output_bytes", "commands_by_execution_decision",
+                "commands_by_max_output_bytes", "commands_by_expire_sec",
+                "commands_by_expires_at", "commands_by_expired",
+                "commands_by_execution_decision",
                 "commands_by_result_status",
                 "commands_by_result_exit_code", "commands_by_result_output_exceeded",
                 "commands_by_result_output_size_bucket",
@@ -13552,6 +13623,9 @@ def status_document(cfg):
         "commands_by_target_id": command_queue.get("commands_by_target_id") or {},
         "commands_by_timeout_sec": command_queue.get("commands_by_timeout_sec") or {},
         "commands_by_max_output_bytes": command_queue.get("commands_by_max_output_bytes") or {},
+        "commands_by_expire_sec": command_queue.get("commands_by_expire_sec") or {},
+        "commands_by_expires_at": command_queue.get("commands_by_expires_at") or {},
+        "commands_by_expired": command_queue.get("commands_by_expired") or {},
         "commands_by_queue_policy_enabled": command_queue.get("commands_by_queue_policy_enabled") or {},
         "commands_by_queue_policy_valid": command_queue.get("commands_by_queue_policy_valid") or {},
         "commands_by_queue_policy_execution_mode": command_queue.get("commands_by_queue_policy_execution_mode") or {},
@@ -13838,6 +13912,7 @@ def print_target_summary(doc, limit=8):
                 f"    mailbox queued={rec.get('mailbox_queued_command_count', 0)} "
                 f"delivered={rec.get('mailbox_delivered_command_count', 0)} "
                 f"results={rec.get('mailbox_result_received_command_count', 0)} "
+                f"expired={rec.get('mailbox_expired_command_count', 0)} "
                 f"pending={rec.get('mailbox_pending_work_count', 0)}"
             )
             target_id = str(rec.get("target_id") or "")
@@ -13849,11 +13924,13 @@ def print_target_summary(doc, limit=8):
                     f"      mailbox_command {item.get('command_id', '')} "
                     f"status={item.get('status', '') or '-'} "
                     f"waiting_for={item.get('waiting_for', '') or '-'} "
+                    f"expired={'yes' if item.get('expired') else 'no'} "
                     f"result={item.get('result_status', '') or '-'} "
                     f"exit={item.get('result_exit_code', '') if item.get('result_exit_code') != '' else '-'} "
                     f"age_sec={item.get('age_sec', '') if item.get('age_sec') != '' else '-'} "
                     f"created={item.get('created_at', '') or '-'} "
                     f"delivered={item.get('delivered_at', '') or '-'} "
+                    f"expires={item.get('expires_at', '') or '-'} "
                     f"result_at={item.get('result_received_at', '') or '-'} "
                     f"command={command_text}"
                 )
@@ -14590,7 +14667,7 @@ def print_status(cfg, json_output=False):
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported={command_queue_policy_yes_no(queue, 'execution_supported')} delivery_supported={command_queue_policy_yes_no(queue, 'delivery_supported')} result_upload_supported={command_queue_policy_yes_no(queue, 'result_upload_supported')}")
-    print(f"  command_limits: timeouts={format_counts(queue.get('timeout_sec_counts') or {})} max_output={format_counts(queue.get('max_output_bytes_counts') or {})}")
+    print(f"  command_limits: timeouts={format_counts(queue.get('timeout_sec_counts') or {})} max_output={format_counts(queue.get('max_output_bytes_counts') or {})} expire_sec={format_counts(queue.get('expire_sec_counts') or {})}")
     print(f"  targets: {format_counts(queue.get('target_counts') or {})}")
     print(f"  result_size_buckets: {format_counts(queue.get('result_output_size_bucket_counts') or {})}")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
@@ -14933,7 +15010,7 @@ def print_workbench(cfg, include_api_summary=True):
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported={command_queue_policy_yes_no(queue, 'execution_supported')} delivery_supported={command_queue_policy_yes_no(queue, 'delivery_supported')} result_upload_supported={command_queue_policy_yes_no(queue, 'result_upload_supported')}")
-    print(f"  command_limits: timeouts={format_counts(queue.get('timeout_sec_counts') or {})} max_output={format_counts(queue.get('max_output_bytes_counts') or {})}")
+    print(f"  command_limits: timeouts={format_counts(queue.get('timeout_sec_counts') or {})} max_output={format_counts(queue.get('max_output_bytes_counts') or {})} expire_sec={format_counts(queue.get('expire_sec_counts') or {})}")
     print(f"  targets: {format_counts(queue.get('target_counts') or {})}")
     print(f"  result_size_buckets: {format_counts(queue.get('result_output_size_bucket_counts') or {})}")
     print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
@@ -16039,6 +16116,7 @@ def run_line_tui(cfg):
                         f"state={rec.get('target_connectivity_state', '') or '-'} "
                         f"status={rec.get('status', '') or '-'} "
                         f"waiting_for={rec.get('waiting_for', '') or '-'} "
+                        f"expired={'yes' if rec.get('expired') else 'no'} "
                         f"pending={'yes' if rec.get('pending_work') else 'no'} "
                         f"result={rec.get('result_status', '') or '-'} "
                         f"exit={rec.get('result_exit_code', '') if rec.get('result_exit_code') != '' else '-'}"
@@ -16052,6 +16130,7 @@ def run_line_tui(cfg):
                     print(
                         f"    created={rec.get('created_at', '') or '-'} "
                         f"delivered={rec.get('delivered_at', '') or '-'} "
+                        f"expires={rec.get('expires_at', '') or '-'} "
                         f"result_at={rec.get('result_received_at', '') or '-'} "
                         f"age_sec={rec.get('age_sec', '') if rec.get('age_sec') != '' else '-'} "
                         f"pending_delivery_for_sec={rec.get('pending_delivery_for_sec', '') if rec.get('pending_delivery_for_sec') != '' else '-'} "
@@ -16716,6 +16795,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="timeout metadata for --queue-command, in seconds")
     parser.add_argument("--queue-max-output", type=int,
                         help="max output metadata for --queue-command, in bytes")
+    parser.add_argument("--queue-expire-sec", type=int,
+                        help="expire queued work after this many seconds; 0 or omitted means no expiration")
     parser.add_argument("--list-command-queue", action="store_true",
                         help="list explicit operator command queue entries")
     parser.add_argument("--json-command-queue", action="store_true",
@@ -16953,7 +17034,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             if not (args.queue_command or args.list_command_queue or args.json_command_queue):
                 return 0
         if args.queue_command:
-            rec = queue_command(cfg, args.queue_command, timeout_sec=args.queue_timeout, max_output_bytes=args.queue_max_output)
+            rec = queue_command(
+                cfg,
+                args.queue_command,
+                timeout_sec=args.queue_timeout,
+                max_output_bytes=args.queue_max_output,
+                expire_sec=args.queue_expire_sec,
+            )
             print(f"queued {rec['id']}: {rec['command']}")
             if rec.get("target_id"):
                 print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")

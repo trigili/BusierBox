@@ -225,6 +225,7 @@ Operator queue inspection:
 
 ```sh
 scripts/busierbox-server --queue-command 'busierbox reality-test --json'
+scripts/busierbox-server --queue-command 'busierbox survey --json' --queue-expire-sec 3600
 scripts/busierbox-server --transport command-queue --config local/server-config.json
 scripts/busierbox-server --list-command-queue
 scripts/busierbox-server --json-command-queue
@@ -233,12 +234,12 @@ scripts/busierbox-server --clear-command-queue
 ```
 
 Queue entries include an id, timestamp, literal command text, command SHA-256,
-timeout metadata, maximum output metadata, status, and explicit
+timeout metadata, maximum output metadata, optional expiration metadata, status, and explicit
 `execution_supported` / `delivery_supported=false` fields at queue time.
 Each entry also stores a `queue_policy_snapshot` so old queue records remain
 auditable if the operator configuration changes later. The
 `command_queue_queued` operator event records the command id, command SHA-256,
-timeout, maximum output limit, delivery/execution support flags, and the queue
+timeout, maximum output limit, optional expiration, delivery/execution support flags, and the queue
 policy snapshot. Live target polling responses and operator poll metadata include
 the same command SHA-256. A poll can mark a queued entry `delivered`, attach a
 `delivery_policy_snapshot`, return its command metadata to the target, and record
@@ -255,6 +256,7 @@ The operator JSON status API indexes queue records by snapshot posture with
 `commands_by_command_sha256`, `commands_by_created_at`, `commands_by_delivered_at`,
 `commands_by_result_received_at`, `commands_by_result_source_path`,
 `commands_by_timeout_sec`, `commands_by_max_output_bytes`,
+`commands_by_expire_sec`, `commands_by_expires_at`, `commands_by_expired`,
 `commands_by_queue_policy_enabled`, `commands_by_queue_policy_valid`,
 `commands_by_queue_policy_execution_mode`,
 `commands_by_queue_policy_allowed_commands`,
@@ -263,7 +265,9 @@ and `commands_by_delivery_policy_execution_mode`. Matching compact counts are
 mirrored under `summary.command_queue_*_counts`, and the indexes are listed in
 `api_collections.command_queue_commands` for frontend discovery. Timeout and
 maximum-output counts let operator UIs show queued command limits without
-rescanning every command. Result uploads are also grouped by
+rescanning every command. Expired queued work appears with status `expired`, no
+longer counts as pending mailbox work, is skipped by target polls, and rejects
+late result uploads. Result uploads are also grouped by
 `commands_by_result_output_size_bucket` (`zero`, `small`, `medium`, `large`)
 with matching `command_queue_result_output_size_bucket_counts` for dashboards
 that need to highlight unexpectedly large output.
@@ -339,10 +343,12 @@ timestamps, result timestamp, result status, exit code, output-size metadata,
 booleans for pending work and result availability, and ready-to-render wait
 metadata such as `waiting_for`, `age_sec`, `pending_delivery_for_sec`,
 `delivered_without_result_for_sec`, `result_latency_sec`, and corresponding
-age buckets. Indexes such as
+age buckets. Expired records expose `expired=true`, `status=expired`, and
+`waiting_for=none`. Indexes such as
 `target_mailbox_records_by_target_id`,
 `target_mailbox_records_by_status`,
 `target_mailbox_records_by_waiting_for`,
+`target_mailbox_records_by_expired`,
 `target_mailbox_records_by_age_bucket`,
 `target_mailbox_records_by_pending_work`, and
 `target_mailbox_records_by_has_result` let TUI or API clients build per-target
