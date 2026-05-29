@@ -1830,6 +1830,7 @@ def main():
                 ("services", len(queue_status_json.get("services") or []), "services_by_has_error"),
                 ("ports", len(queue_status_json.get("ports") or []), "ports_by_number"),
                 ("path_status_records", len(path_status_records), "path_status_by_name"),
+                ("operator_network_records", len(queue_status_json.get("operator_network_records") or []), "operator_network_records_by_selected"),
                 ("browser_paths", len(browser_paths), "browser_paths_by_expected_kind_mismatch"),
                 ("warnings", len(queue_status_json.get("warnings") or []), "warnings_by_type"),
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
@@ -1869,6 +1870,9 @@ def main():
                 "services_by_process_log_exists" not in (api_resources_by_name.get("services", {}).get("indexes") or []) or
                 api_resources_by_name.get("command_queue_commands", {}).get("records_key") != "command_queue.commands" or
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
+                api_resources_by_name.get("operator_network_records", {}).get("records_key") != "operator_network_records" or
+                api_resources_by_summary_key.get("operator_network_record_count", [{}])[0].get("name") != "operator_network_records" or
+                not any(rec.get("name") == "operator_network_records" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("release_state_records", {}).get("records_key") != "release_state_records" or
                 api_resources_by_summary_key.get("release_state_record_count", [{}])[0].get("name") != "release_state_records" or
                 api_resources_by_primary_key.get("release_dir", [{}])[0].get("name") != "release_state_records" or
@@ -6693,6 +6697,8 @@ def main():
         staged_files_state = status_doc.get("staged_files_state") or {}
         staged_sha = staged_record.get("sha256", "")
         staged_summary = status_doc.get("summary") or {}
+        operator_network_records = status_doc.get("operator_network_records") or []
+        operator_network_selected = status_doc.get("operator_network_records_by_selected", {}).get("True") or []
         if (not staged_status or
                 staged_status.get("request_name") != "/tmp/myfile" or
                 staged_status.get("stage_kind") != "file" or
@@ -6728,6 +6734,12 @@ def main():
                 status_doc.get("target_commands_by_request", {}).get("/tmp/myfile", {}).get("request_name") != "/tmp/myfile" or
                 not any("fetch /tmp/myfile" in cmd for cmd in status_doc.get("target_commands", [])) or
                 "selected_local_ip" not in status_doc or
+                not operator_network_records or
+                not operator_network_selected or
+                operator_network_selected[0].get("ip") != status_doc.get("selected_local_ip") or
+                staged_summary.get("operator_network_record_count") != len(operator_network_records) or
+                staged_summary.get("operator_network_selected_ip") != status_doc.get("selected_local_ip") or
+                "operator_network_records_by_source" not in (status_doc.get("api_collections", {}).get("operator_network_records", {}).get("indexes") or []) or
                 not isinstance(status_doc.get("events"), list)):
             print("json status missing enriched workbench fields", file=sys.stderr)
             print(status_enriched.stdout, file=sys.stderr)
