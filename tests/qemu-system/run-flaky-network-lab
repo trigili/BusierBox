@@ -670,14 +670,16 @@ def load_json(path):
 
 
 def resolve_path(value, path):
-    current = value
-    for part in path.split("."):
+    def step(current, parts):
+        if not parts:
+            return current
+        part = parts[0]
         if part.endswith("[*]"):
             key = part[:-3]
             current = current[key] if isinstance(current, dict) else current[int(key)]
             if not isinstance(current, list):
                 raise KeyError(path)
-            return current
+            return [step(item, parts[1:]) for item in current]
         if "[" in part and part.endswith("]"):
             key, index = part[:-1].split("[", 1)
             if key:
@@ -687,7 +689,9 @@ def resolve_path(value, path):
             current = current[part]
         else:
             current = current[int(part)]
-    return current
+        return step(current, parts[1:])
+
+    return step(value, path.split("."))
 
 
 def check_value(actual, check):

@@ -68,6 +68,29 @@ for name in (
     else:
         subprocess.run(["sh", "-n", str(path)], check=True)
 subprocess.run([str(artifact_dir / "validate-phase-artifacts.py"), "--artifact-dir", str(artifact_dir), "--contract-only"], check=True)
+validator_sample = artifact_dir / "validator-sample"
+validator_sample.mkdir()
+(validator_sample / "phase-contracts.json").write_text(json.dumps({
+    "schema": 1,
+    "kind": "qemu-flaky-network-phase-contracts",
+    "contract_count": 1,
+    "contracts": [{
+        "phase": "systemd-user-service",
+        "link_state": "operator-only",
+        "required_artifacts": ["systemd-user-service.json"],
+        "target_scope": [],
+        "assertions": ["systemd dry-run commands complete"],
+        "evidence_checks": [
+            {"artifact": "systemd-user-service.json", "path": "unit_name", "expect": "busierbox-flaky.service"},
+            {"artifact": "systemd-user-service.json", "path": "commands[*].returncode", "expect_all": 0},
+        ],
+    }],
+}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+(validator_sample / "systemd-user-service.json").write_text(json.dumps({
+    "unit_name": "busierbox-flaky.service",
+    "commands": [{"returncode": 0}, {"returncode": 0}],
+}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+subprocess.run([str(artifact_dir / "validate-phase-artifacts.py"), "--artifact-dir", str(validator_sample)], check=True)
 plan = json.loads((artifact_dir / "plan.json").read_text(encoding="utf-8"))
 topology = json.loads((artifact_dir / "topology.json").read_text(encoding="utf-8"))
 contracts = json.loads((artifact_dir / "phase-contracts.json").read_text(encoding="utf-8"))
