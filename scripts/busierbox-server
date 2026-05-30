@@ -11406,6 +11406,14 @@ def status_document(cfg):
         "selected_target_found": bool(selected_target),
         "selected_target_label": str(selected_target.get("label") or ""),
         "selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
+        "selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
+        "selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
+        "selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
+        "selected_target_next_expected_poll": str(selected_target.get("next_expected_poll") or ""),
+        "selected_target_poll_overdue": bool(selected_target.get("poll_overdue", False)),
+        "selected_target_poll_overdue_for_sec": selected_target.get("poll_overdue_for_sec", ""),
+        "selected_target_mailbox_command_count": int_value(selected_target.get("mailbox_command_count", 0)),
+        "selected_target_mailbox_pending_work_count": int_value(selected_target.get("mailbox_pending_work_count", 0)),
         "selected_target_identity_source_count": len(selected_target_sources),
         "selected_target_alias_count": len(selected_target.get("aliases") or []),
         "selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
@@ -11486,6 +11494,9 @@ def status_document(cfg):
         "target_registry_state_records_by_filter_target_id": records_by_key(target_registry_state_records, "filter_target_id"),
         "target_registry_state_records_by_selected_target_found": records_by_key(target_registry_state_records, "selected_target_found"),
         "target_registry_state_records_by_selected_target_identity_confidence": records_by_key(target_registry_state_records, "selected_target_identity_confidence"),
+        "target_registry_state_records_by_selected_target_connectivity_state": records_by_key(target_registry_state_records, "selected_target_connectivity_state"),
+        "target_registry_state_records_by_selected_target_poll_overdue": records_by_key(target_registry_state_records, "selected_target_poll_overdue"),
+        "target_registry_state_records_by_selected_target_mailbox_pending_work_count": records_by_key(target_registry_state_records, "selected_target_mailbox_pending_work_count"),
         "target_registry_state_records_by_selected_target_latest_file_transfer_status": records_by_key(target_registry_state_records, "selected_target_latest_file_transfer_status"),
         "target_registry_state_records_by_selected_target_latest_file_transfer_route_kind": records_by_key(target_registry_state_records, "selected_target_latest_file_transfer_route_kind"),
         "target_registry_state_records_by_selected_target_latest_survey_result_status": records_by_key(target_registry_state_records, "selected_target_latest_survey_result_status"),
@@ -11871,6 +11882,14 @@ def status_document(cfg):
         "selected_target_found": bool(selected_target),
         "selected_target_label": str(selected_target.get("label") or ""),
         "selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
+        "selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
+        "selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
+        "selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
+        "selected_target_next_expected_poll": str(selected_target.get("next_expected_poll") or ""),
+        "selected_target_poll_overdue": bool(selected_target.get("poll_overdue", False)),
+        "selected_target_poll_overdue_for_sec": selected_target.get("poll_overdue_for_sec", ""),
+        "selected_target_mailbox_command_count": int_value(selected_target.get("mailbox_command_count", 0)),
+        "selected_target_mailbox_pending_work_count": int_value(selected_target.get("mailbox_pending_work_count", 0)),
         "selected_target_identity_source_count": len(selected_target_sources),
         "selected_target_alias_count": len(selected_target.get("aliases") or []),
         "selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
@@ -13255,9 +13274,12 @@ def status_document(cfg):
                 "target_registry_state_records_by_has_unfiltered_targets",
                 "target_registry_state_records_by_filter_active",
                 "target_registry_state_records_by_filter_target_id",
-                "target_registry_state_records_by_selected_target_found",
-                "target_registry_state_records_by_selected_target_identity_confidence",
-                "target_registry_state_records_by_selected_target_latest_file_transfer_status",
+        "target_registry_state_records_by_selected_target_found",
+        "target_registry_state_records_by_selected_target_identity_confidence",
+        "target_registry_state_records_by_selected_target_connectivity_state",
+        "target_registry_state_records_by_selected_target_poll_overdue",
+        "target_registry_state_records_by_selected_target_mailbox_pending_work_count",
+        "target_registry_state_records_by_selected_target_latest_file_transfer_status",
                 "target_registry_state_records_by_selected_target_latest_file_transfer_route_kind",
                 "target_registry_state_records_by_selected_target_latest_survey_result_status",
                 "target_registry_state_records_by_selected_target_latest_survey_result_route_kind",
@@ -13286,6 +13308,9 @@ def status_document(cfg):
                 "target_filter_records_by_selected_target_found",
                 "target_filter_records_by_selected_target_label",
                 "target_filter_records_by_selected_target_identity_confidence",
+                "target_filter_records_by_selected_target_connectivity_state",
+                "target_filter_records_by_selected_target_poll_overdue",
+                "target_filter_records_by_selected_target_mailbox_pending_work_count",
                 "target_filter_records_by_selected_target_notes_present",
                 "target_filter_records_by_selected_target_latest_activity_service",
                 "target_filter_records_by_selected_target_latest_activity_operation",
@@ -13689,6 +13714,12 @@ def status_document(cfg):
             "target_filter_selected_target_found": bool(selected_target),
             "target_filter_selected_target_label": str(selected_target.get("label") or ""),
             "target_filter_selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
+            "target_filter_selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
+            "target_filter_selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
+            "target_filter_selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
+            "target_filter_selected_target_next_expected_poll": str(selected_target.get("next_expected_poll") or ""),
+            "target_filter_selected_target_poll_overdue": bool(selected_target.get("poll_overdue", False)),
+            "target_filter_selected_target_mailbox_pending_work_count": int_value(selected_target.get("mailbox_pending_work_count", 0)),
             "target_filter_selected_target_latest_file_transfer_status": str(selected_target.get("latest_file_transfer_status") or ""),
             "target_filter_selected_target_latest_file_transfer_route_kind": str(selected_target.get("latest_file_transfer_route_kind") or ""),
             "target_filter_selected_target_latest_survey_result_status": str(selected_target.get("latest_survey_result_status") or ""),
@@ -13711,6 +13742,14 @@ def status_document(cfg):
             "selected_target_aliases": selected_target.get("aliases") or [],
             "selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
             "selected_target_identity_sources": selected_target_sources,
+            "selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
+            "selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
+            "selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
+            "selected_target_next_expected_poll": str(selected_target.get("next_expected_poll") or ""),
+            "selected_target_poll_overdue": bool(selected_target.get("poll_overdue", False)),
+            "selected_target_poll_overdue_for_sec": selected_target.get("poll_overdue_for_sec", ""),
+            "selected_target_mailbox_command_count": int_value(selected_target.get("mailbox_command_count", 0)),
+            "selected_target_mailbox_pending_work_count": int_value(selected_target.get("mailbox_pending_work_count", 0)),
             "selected_target_latest_activity_service": str(selected_target.get("latest_activity_service") or ""),
             "selected_target_latest_activity_operation": str(selected_target.get("latest_activity_operation") or ""),
             "selected_target_latest_file_transfer_operation": str(selected_target.get("latest_file_transfer_operation") or ""),
@@ -14352,15 +14391,18 @@ def target_filter_summary_text(target_filter, prefix="target_filter:"):
     observed_counts = target_filter.get("observed_activity_counts") or {}
     label = target_filter.get("selected_target_label") or "-"
     confidence = target_filter.get("selected_target_identity_confidence") or "-"
+    state = target_filter.get("selected_target_connectivity_state") or "-"
     return (
         f"{prefix} {target_filter.get('target_id', '')} "
         f"targets={counts.get('targets', 0)} uploads={counts.get('uploads', 0)} "
         f"fetches={counts.get('fetches', 0)} sessions={counts.get('sessions', 0)} "
         f"commands={counts.get('command_queue_commands', 0)} "
         f"target_cmds={counts.get('target_command_records', 0)} "
+        f"mailbox_pending={target_filter.get('selected_target_mailbox_pending_work_count', 0)} "
+        f"poll_overdue={'yes' if target_filter.get('selected_target_poll_overdue') else 'no'} "
         f"observed={observed_counts.get('filtered', 0)}/{observed_counts.get('unfiltered', 0)} "
         f"observed_seen={'yes' if observed_counts.get('has_filtered') else 'no'} "
-        f"label={label} confidence={confidence}"
+        f"state={state} label={label} confidence={confidence}"
     )
 
 
@@ -16473,6 +16515,8 @@ def run_line_tui(cfg):
                         f"{idx}:{marker} {rec.get('target_id', '')} "
                         f"label={rec.get('label', '') or '-'} "
                         f"state={rec.get('connectivity_state', '') or '-'} "
+                        f"mailbox_pending={rec.get('mailbox_pending_work_count', 0)} "
+                        f"poll_overdue={'yes' if rec.get('poll_overdue') else 'no'} "
                         f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
                     )
             else:
@@ -16664,6 +16708,7 @@ def run_line_tui(cfg):
                         f"label={rec.get('label', '') or '-'} "
                         f"state={rec.get('connectivity_state', '') or '-'} "
                         f"mailbox_pending={rec.get('mailbox_pending_work_count', 0)} "
+                        f"poll_overdue={'yes' if rec.get('poll_overdue') else 'no'} "
                         f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
                     )
             else:

@@ -6813,6 +6813,7 @@ def main():
                 "offline=yes requires_online=no" not in line_text or
                 "target_workflow_action_returncode=0" not in line_text or
                 "Target activity after action:" not in line_text or
+                "mailbox_pending=1 poll_overdue=no" not in line_text or
                 "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in line_text or
                 "Target workflow actions:" not in line_text):
             print("line TUI target detail did not show mailbox/activity and headless command", file=sys.stderr)
@@ -7836,6 +7837,9 @@ def main():
                 filtered_alpha.get("target_filter", {}).get("selected_target_found") is not True or
                 filtered_alpha.get("target_filter", {}).get("selected_target_label") != "Alpha Router Renamed" or
                 filtered_alpha.get("target_filter", {}).get("selected_target_identity_confidence") != "explicit" or
+                filtered_alpha.get("target_filter", {}).get("selected_target_connectivity_state") != "online" or
+                filtered_alpha.get("target_filter", {}).get("selected_target_mailbox_pending_work_count") != 0 or
+                filtered_alpha.get("target_filter", {}).get("selected_target_poll_overdue") is not False or
                 filtered_alpha.get("target_filter", {}).get("selected_target_latest_file_transfer_operation") != "upload" or
                 filtered_alpha.get("target_filter", {}).get("selected_target_latest_file_transfer_status") != "ok" or
                 filtered_alpha.get("target_filter", {}).get("selected_target_latest_file_transfer_route_kind") != "direct" or
@@ -7847,6 +7851,9 @@ def main():
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_found") is not True or
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_label") != "Alpha Router Renamed" or
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_identity_confidence") != "explicit" or
+                filtered_alpha.get("api", {}).get("target_filter_selected_target_connectivity_state") != "online" or
+                filtered_alpha.get("api", {}).get("target_filter_selected_target_mailbox_pending_work_count") != 0 or
+                filtered_alpha.get("api", {}).get("target_filter_selected_target_poll_overdue") is not False or
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_latest_file_transfer_status") != "ok" or
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_latest_file_transfer_route_kind") != "direct" or
                 filtered_alpha.get("target_filter", {}).get("unfiltered_counts", {}).get("targets") != 2 or
@@ -7867,6 +7874,9 @@ def main():
                 filtered_alpha.get("summary", {}).get("target_filter_selected_target_found") is not True or
                 filtered_alpha.get("summary", {}).get("target_filter_selected_target_identity_source_count") < 1 or
                 filtered_alpha_record.get("selected_target_label") != "Alpha Router Renamed" or
+                filtered_alpha_record.get("selected_target_connectivity_state") != "online" or
+                filtered_alpha_record.get("selected_target_mailbox_pending_work_count") != 0 or
+                filtered_alpha_record.get("selected_target_poll_overdue") is not False or
                 filtered_alpha_record.get("selected_target_latest_file_transfer_operation") != "upload" or
                 filtered_alpha_record.get("selected_target_latest_file_transfer_status") != "ok" or
                 filtered_alpha_record.get("selected_target_latest_file_transfer_route_kind") != "direct" or
@@ -7890,7 +7900,11 @@ def main():
                 (filtered_alpha.get("target_filter_records_by_selected_target_found") or {}).get("True", [{}])[0].get("target_id") != "target-alpha" or
                 (filtered_alpha.get("target_filter_records_by_selected_target_latest_file_transfer_route_kind") or {}).get("direct", [{}])[0].get("target_id") != "target-alpha" or
                 "target_filter_records_by_selected_target_identity_confidence" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
+                "target_filter_records_by_selected_target_connectivity_state" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
+                "target_filter_records_by_selected_target_mailbox_pending_work_count" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
                 "target_filter_records_by_selected_target_latest_file_transfer_route_kind" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
+                "target_registry_state_records_by_selected_target_connectivity_state" not in ((filtered_alpha.get("api_collections") or {}).get("target_registry_state_records") or {}).get("indexes", []) or
+                "target_registry_state_records_by_selected_target_mailbox_pending_work_count" not in ((filtered_alpha.get("api_collections") or {}).get("target_registry_state_records") or {}).get("indexes", []) or
                 "target_registry_state_records_by_selected_target_latest_file_transfer_route_kind" not in ((filtered_alpha.get("api_collections") or {}).get("target_registry_state_records") or {}).get("indexes", []) or
                 "target_filter_records_by_filter_reduced_activity" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
                 "target_filter_records_by_has_filtered_observed_activity" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
@@ -7969,6 +7983,8 @@ def main():
         )
         if (filtered_status.returncode != 0 or
                 "target_filter: target-bravo targets=1 uploads=1" not in filtered_status.stdout or
+                "mailbox_pending=0 poll_overdue=no" not in filtered_status.stdout or
+                "state=online label=Bravo Router confidence=explicit" not in filtered_status.stdout or
                 "file_transfer=upload status=ok route=direct" not in filtered_status.stdout or
                 "observed=" not in filtered_status.stdout or
                 "observed_seen=yes" not in filtered_status.stdout or
@@ -7987,6 +8003,8 @@ def main():
         )
         if (filtered_workbench.returncode != 0 or
                 "Target filter: target-bravo targets=1 uploads=1" not in filtered_workbench.stdout or
+                "mailbox_pending=0 poll_overdue=no" not in filtered_workbench.stdout or
+                "state=online label=Bravo Router confidence=explicit" not in filtered_workbench.stdout or
                 "observed=" not in filtered_workbench.stdout or
                 "observed_seen=yes" not in filtered_workbench.stdout or
                 "label=Bravo Router confidence=explicit" not in filtered_workbench.stdout or
