@@ -61,6 +61,10 @@ Status JSON also exposes the daemon subset as
 but add daemon-specific fields such as `workflow`,
 `daemon_status`, `daemon_attached`, selected daemon services, child PIDs,
 alive child count, systemd user action, and the daemon-specific Enter action.
+Each record also exposes stable `run_command` and `dry_run_command` fields for
+`--run-operator-daemon-workflow-action ACTION_OR_NUMBER`; confirmation-gated
+daemon/systemd actions use `--confirm-operator-daemon-workflow-action`, and
+previews use `--operator-daemon-workflow-dry-run`.
 Indexes such as `operator_daemon_workflow_actions_by_workflow`,
 `operator_daemon_workflow_actions_by_daemon_attached`,
 `operator_daemon_workflow_actions_by_systemd_user_action`, and

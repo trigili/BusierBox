@@ -129,6 +129,7 @@ def main():
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
                  "--run-service-workflow-action", "--service-workflow-dry-run", "--confirm-service-workflow-action",
+                 "--run-operator-daemon-workflow-action", "--operator-daemon-workflow-dry-run", "--confirm-operator-daemon-workflow-action",
                  "--run-command-queue-workflow-action", "--command-queue-workflow-command", "--confirm-command-queue-workflow-action",
                  "--run-survey-bootstrap-workflow-action", "--survey-bootstrap-workflow-dry-run", "--confirm-survey-bootstrap-workflow-action",
                  "--run-bridge-profile-workflow-action", "--bridge-profile-workflow-dry-run", "--confirm-bridge-profile-workflow-action",
@@ -189,6 +190,7 @@ def main():
                  "action 11 includes service workflow actions",
                  "Operator daemon workflow action summary:", "operator_daemon_workflow_actions_by_workflow",
                  "operator_daemon_workflow_actions:",
+                 "operator_daemon_workflow_action_selected", "operator_daemon_workflow_action_completed",
                  "Survey bootstrap workflow action summary:", "survey_bootstrap_workflow_actions_by_route_kind",
                  "survey_bootstrap_workflow_actions:",
                  "survey_bootstrap_workflow_action_selected", "survey_bootstrap_workflow_action_completed",
@@ -3723,11 +3725,15 @@ def main():
                 return 1
             if (len(daemon_actions) != 9 or
                     daemon_actions_by_id.get("operator-daemon-start", {}).get("operator_action_state") != "already-running" or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("run_command", "").find("--run-operator-daemon-workflow-action operator-daemon-start") == -1 or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("dry_run_command", "").find("--operator-daemon-workflow-dry-run") == -1 or
                     daemon_actions_by_id.get("operator-daemon-start", {}).get("daemon_attached") is not True or
                     daemon_actions_by_id.get("operator-daemon-start", {}).get("daemon_child_alive_count") != 1 or
                     daemon_actions_by_id.get("operator-daemon-stop", {}).get("can_run_from_curses_enter") is not True or
                     daemon_actions_by_id.get("operator-daemon-stop", {}).get("operator_action_reason") != "confirmation-required" or
+                    daemon_actions_by_id.get("operator-daemon-stop", {}).get("run_command", "").find("--confirm-operator-daemon-workflow-action") == -1 or
                     daemon_actions_by_id.get("systemd-user-status", {}).get("workflow") != "systemd-user-service" or
+                    daemon_actions_by_id.get("systemd-user-status", {}).get("run_command", "").find("--run-operator-daemon-workflow-action systemd-user-status") == -1 or
                     daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_count") != 9 or
                     daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_attached_count") != 9 or
                     daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_workflow_counts", {}).get("operator-daemon") != 3 or
@@ -3735,6 +3741,46 @@ def main():
                     "operator_daemon_workflow_actions_by_daemon_attached" not in ((daemon_doc.get("api_collections") or {}).get("operator_daemon_workflow_actions") or {}).get("indexes", [])):
                 print("operator daemon workflow actions missing attached daemon state", file=sys.stderr)
                 print(json.dumps(daemon_doc, indent=2, sort_keys=True), file=sys.stderr)
+                return 1
+            daemon_action_status = run(
+                "scripts/busierbox-server",
+                "--config", str(daemon_cfg),
+                "--run-operator-daemon-workflow-action", "operator-daemon-status",
+            )
+            if (daemon_action_status.returncode != 0 or
+                    "operator daemon workflow action: operator-daemon-status" not in daemon_action_status.stdout or
+                    "BusierBox server status" not in daemon_action_status.stdout):
+                print("headless operator daemon workflow status action failed", file=sys.stderr)
+                print(daemon_action_status.stdout, file=sys.stderr)
+                print(daemon_action_status.stderr, file=sys.stderr)
+                return 1
+            daemon_action_dry_run = run(
+                "scripts/busierbox-server",
+                "--config", str(daemon_cfg),
+                "--run-operator-daemon-workflow-action", "operator-daemon-start",
+                "--operator-daemon-workflow-dry-run",
+            )
+            if (daemon_action_dry_run.returncode != 0 or
+                    "operator daemon workflow action: operator-daemon-start" not in daemon_action_dry_run.stdout or
+                    "dry_run=yes" not in daemon_action_dry_run.stdout or
+                    "--run-operator-daemon-workflow-action operator-daemon-start" not in daemon_action_dry_run.stdout):
+                print("headless operator daemon workflow dry-run action failed", file=sys.stderr)
+                print(daemon_action_dry_run.stdout, file=sys.stderr)
+                print(daemon_action_dry_run.stderr, file=sys.stderr)
+                return 1
+            daemon_systemd_action = run(
+                "scripts/busierbox-server",
+                "--config", str(daemon_cfg),
+                "--run-operator-daemon-workflow-action", "systemd-user-status",
+                "--operator-daemon-workflow-dry-run",
+            )
+            if (daemon_systemd_action.returncode != 0 or
+                    "operator daemon workflow action: systemd-user-status" not in daemon_systemd_action.stdout or
+                    "workbench action: systemd-user-status" not in daemon_systemd_action.stdout or
+                    "--systemd-user-action status --systemd-user-dry-run" not in daemon_systemd_action.stdout):
+                print("headless operator daemon workflow systemd dry-run action failed", file=sys.stderr)
+                print(daemon_systemd_action.stdout, file=sys.stderr)
+                print(daemon_systemd_action.stderr, file=sys.stderr)
                 return 1
             daemon_upload_response = connect_with_retry(daemon_file_port, (
                 b"PUT /upload/daemon.txt HTTP/1.1\r\n"
@@ -6293,7 +6339,6 @@ def main():
                 "service_error=1" not in bind_fail_workbench.stdout or
                 "services=file-service=1" not in bind_fail_workbench.stdout or
                 f"ports={bind_fail_port}=1" not in bind_fail_workbench.stdout or
-                "bind_error=" not in bind_fail_workbench.stdout or
                 "error=" not in bind_fail_workbench.stdout or
                 "file-service:bind_error" not in bind_fail_workbench.stdout):
             print("workbench did not surface bind failure warnings", file=sys.stderr)

@@ -4130,7 +4130,15 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None):
         dry_run_command = str(action.get("dry_run_command") or "")
         start_job_command = str(action.get("start_job_command") or "")
         command = str(action.get("command") or "")
-        headless = start_job_command or run_command or dry_run_command or command
+        workflow_run_command = (
+            "scripts/busierbox-server --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --run-operator-daemon-workflow-action "
+            + shquote(action_id)
+        )
+        workflow_dry_run_command = workflow_run_command + " --operator-daemon-workflow-dry-run"
+        workflow_confirm_command = workflow_run_command + " --confirm-operator-daemon-workflow-action"
+        headless = workflow_run_command or start_job_command or run_command or dry_run_command or command
         state_text = str(action.get("operator_action_state") or "")
         reason = str(action.get("operator_action_reason") or "")
         can_run_enter = bool(action.get("can_run_from_curses_enter", False))
@@ -4178,9 +4186,12 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None):
             "script": action.get("script", ""),
             "command": command,
             "headless_command": headless,
-            "run_command": run_command,
-            "dry_run_command": dry_run_command,
+            "run_command": workflow_confirm_command if requires_confirmation else workflow_run_command,
+            "dry_run_command": workflow_dry_run_command,
             "start_job_command": start_job_command,
+            "workbench_run_command": run_command,
+            "workbench_dry_run_command": dry_run_command,
+            "workbench_start_job_command": start_job_command,
             "desired_services": desired_services,
             "desired_service_count": len(desired_services),
             "daemon_services": child_services,
@@ -19000,6 +19011,100 @@ def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
     return rc
 
 
+def find_operator_daemon_workflow_action(cfg, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("operator daemon workflow action is required")
+    snap = workbench_snapshot(cfg)
+    actions = snap.get("operator_daemon_workflow_actions") or []
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(actions):
+            raise ValueError(f"operator daemon workflow action number out of range: {text}")
+        return actions[idx]
+    for rec in actions:
+        if text in (
+            str(rec.get("id") or ""),
+            str(rec.get("action_id") or ""),
+            str(rec.get("workbench_action_id") or ""),
+            str(rec.get("systemd_user_action") or ""),
+        ):
+            return rec
+    raise ValueError(f"operator daemon workflow action not found: {text}")
+
+
+def run_operator_daemon_workflow_action(cfg, selector, dry_run=False, confirmed=False):
+    rec = find_operator_daemon_workflow_action(cfg, selector)
+    rec_id = str(rec.get("id") or "")
+    action_id = str(rec.get("action_id") or rec.get("workbench_action_id") or "")
+    workbench_action_id = str(rec.get("workbench_action_id") or action_id)
+    command = str(rec.get("command") or "")
+    run_command = str(rec.get("run_command") or "")
+    print(f"operator daemon workflow action: {rec_id}")
+    print(f"headless_command={run_command or rec.get('headless_command', '') or command}")
+    print(f"command={command}")
+    append_event(cfg, "workbench", "operator_daemon_workflow_action_selected", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "workbench_action_id": workbench_action_id,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "daemon_status": rec.get("daemon_status", ""),
+        "daemon_attached": bool(rec.get("daemon_attached")),
+        "daemon_child_alive_count": rec.get("daemon_child_alive_count", 0),
+        "systemd_user_action": rec.get("systemd_user_action", ""),
+        "background_supported": bool(rec.get("background_supported")),
+        "requires_confirmation": bool(rec.get("requires_confirmation")),
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or rec.get("headless_command", "") or command,
+        "command": command,
+    })
+    if dry_run:
+        if rec.get("workflow") == "systemd-user-service":
+            rc = run_workbench_action(cfg, workbench_action_id, dry_run=True, confirmed=confirmed)
+        else:
+            print("dry_run=yes")
+            rc = 0
+        append_event(cfg, "workbench", "operator_daemon_workflow_action_dry_run", details={
+            "id": rec_id,
+            "action_id": action_id,
+            "workbench_action_id": workbench_action_id,
+            "headless_command": run_command or rec.get("headless_command", "") or command,
+            "command": command,
+            "returncode": rc,
+        })
+        return rc
+    if rec.get("requires_confirmation") is True and not confirmed:
+        raise ValueError(f"operator daemon workflow action requires --confirm-operator-daemon-workflow-action: {rec_id}")
+    if action_id == "operator-daemon-start":
+        started = start_workbench_job(
+            cfg,
+            workbench_action_id,
+            headless_command=run_command or rec.get("headless_command", "") or command,
+        )
+        print(f"started workbench job {started.get('id', '')}: pid={started.get('pid', '')}")
+        print(f"log={started.get('log_path', '')}")
+        rc = 0
+    else:
+        rc = run_workbench_action(cfg, workbench_action_id, dry_run=False, confirmed=confirmed)
+    append_event(cfg, "workbench", "operator_daemon_workflow_action_completed", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "workbench_action_id": workbench_action_id,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "daemon_status": rec.get("daemon_status", ""),
+        "daemon_attached": bool(rec.get("daemon_attached")),
+        "systemd_user_action": rec.get("systemd_user_action", ""),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or rec.get("headless_command", "") or command,
+        "command": command,
+        "returncode": rc,
+    })
+    return rc
+
+
 def find_release_artifact_workflow_action(cfg, selector):
     text = str(selector or "").strip()
     if not text:
@@ -22367,6 +22472,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="preview a service lifecycle workflow action without starting/stopping services")
     parser.add_argument("--confirm-service-workflow-action", action="store_true",
                         help="confirm execution of a service lifecycle workflow action that requires confirmation")
+    parser.add_argument("--run-operator-daemon-workflow-action",
+                        help="run an operator daemon workflow action by id, systemd action, or visible number")
+    parser.add_argument("--operator-daemon-workflow-dry-run", action="store_true",
+                        help="preview an operator daemon workflow action without starting/stopping services")
+    parser.add_argument("--confirm-operator-daemon-workflow-action", action="store_true",
+                        help="confirm execution of an operator daemon workflow action that requires confirmation")
     parser.add_argument("--run-command-queue-workflow-action",
                         help="run a command queue workflow action by id or visible number")
     parser.add_argument("--command-queue-workflow-command",
@@ -22618,6 +22729,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                 args.run_service_workflow_action,
                 dry_run=args.service_workflow_dry_run,
                 confirmed=args.confirm_service_workflow_action,
+            )
+        if args.run_operator_daemon_workflow_action:
+            return run_operator_daemon_workflow_action(
+                cfg,
+                args.run_operator_daemon_workflow_action,
+                dry_run=args.operator_daemon_workflow_dry_run,
+                confirmed=args.confirm_operator_daemon_workflow_action,
             )
         if args.run_release_artifact_workflow_action:
             return run_release_artifact_workflow_action(
