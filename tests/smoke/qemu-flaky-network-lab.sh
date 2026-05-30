@@ -208,10 +208,16 @@ assert "target-alpha" in plan["qemu_command_templates"]
 assert any("bbx-alpha-tap0" in item for item in plan["qemu_command_templates"]["target-alpha"])
 host_script = (artifact_dir / "host-network-setup.sh").read_text(encoding="utf-8")
 qemu_script = (artifact_dir / "qemu-commands.sh").read_text(encoding="utf-8")
+operator_script = (artifact_dir / "operator-commands.sh").read_text(encoding="utf-8")
+target_script = (artifact_dir / "target-commands.sh").read_text(encoding="utf-8")
 assert "ip link add bbx-qemu-br0 type bridge" in host_script
 assert "target-alpha-link-down" in host_script
 assert "bbx-alpha-tap0" in qemu_script
 assert "target-workflow" in qemu_script
+assert "# phase: offline-queue" in operator_script
+assert "# phase: bridge-interruption" in operator_script
+assert "# phase: offline-workflow-drain" in target_script
+assert "busierbox command-queue once --target-id target-alpha" in target_script
 requirements = plan["requirements"]
 assert requirements["kind"] == "qemu-flaky-network-lab-requirements"
 assert requirements["qemu_binary"]
@@ -235,8 +241,18 @@ assert "malformed-result-upload.json" in plan["required_artifacts"]
 assert "bridge-events.jsonl" in plan["required_artifacts"]
 assert "bridge-interruption.json" in plan["required_artifacts"]
 assert "return-offline.json" in plan["required_artifacts"]
-assert any("systemd-dry-run" in item for item in plan["operator_commands"])
+phases_by_name = {item["name"]: item for item in plan["phases"]}
+assert any("--queue-command 'busierbox survey --json'" in item for item in phases_by_name["offline-queue"]["operator_commands"])
+assert any("--line-tui" in item for item in phases_by_name["offline-queue"]["operator_commands"])
+assert any("systemd-user-dry-run" in item for item in phases_by_name["systemd-user-service"]["operator_commands"])
+assert any("--survey-bootstrap" in item for item in phases_by_name["survey-window"]["operator_commands"])
+assert any("--file-service" in item for item in phases_by_name["partial-transfer"]["operator_commands"])
+assert any("--save-bridge-profile flaky-bad-bridge" in item for item in phases_by_name["bridge-interruption"]["operator_commands"])
+assert any("command-queue once --target-id target-workflow" in item for item in phases_by_name["offline-workflow-drain"]["target_commands"])
+assert any("busierbox upload /tmp/evidence.txt" in item for item in phases_by_name["partial-transfer"]["target_commands"])
+assert any("systemd-user-dry-run" in item for item in plan["operator_commands"])
 assert any("line-tui" in item for item in plan["operator_commands"])
+assert any("busierbox command-queue result --target-id target-alpha" in item for item in plan["target_commands"])
 PY
 
 "$ROOT/tests/qemu-system/run-flaky-network-lab" --artifact-root "$tmp/qemu-flaky-run" --run >/dev/null

