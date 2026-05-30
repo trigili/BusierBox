@@ -26,6 +26,8 @@ virtual network boundaries:
 - duplicate polls do not redeliver already delivered commands
 - target-mismatched result uploads are rejected, recorded with the mismatch
   reason, and do not mutate the delivered command
+- malformed result uploads are rejected, recorded with the parse failure, and
+  do not mutate the delivered command
 - dropped/truncated result uploads are rejected without mutating delivered work
 - rejected result uploads are exposed as failed phone-home attempts with the
   rejection reason
@@ -55,7 +57,8 @@ writes focused debug artifacts that mirror the QEMU lab contract:
 `phone-home-attempts.json`, `multi-target-isolation.json`,
 `mailbox-lifecycle.json`,
 `restart-persistence.json`, `bad-token-phone-home.json`,
-`duplicate-poll.json`, `dropped-result-upload.json`,
+`duplicate-poll.json`, `malformed-result-upload.json`,
+`dropped-result-upload.json`,
 `systemd-user-service.json`, `target-mismatch-phone-home.json`, `transfer.log`,
 `bridge-events.jsonl`, `bridge-interruption.json`, and
 `artifact-manifest.json`. The smoke wrapper
@@ -84,9 +87,10 @@ They record the operator node, target nodes, controllable links, phase names,
 expected per-phase artifacts, QEMU command template, and the exact operator and
 target commands to run once a real image/kernel/tap setup is available. The
 plan deliberately names the deterministic harness evidence files, including TUI
-parity, systemd dry-run, multi-target isolation, target-mismatch rejection, and
-duplicate-poll, dropped-result-upload, and bridge-interruption artifacts, so a
-live QEMU implementation has the same acceptance target as CI.
+parity, systemd dry-run, multi-target isolation, target-mismatch rejection,
+duplicate-poll, malformed-result-upload, dropped-result-upload, and
+bridge-interruption artifacts, so a live QEMU implementation has the same
+acceptance target as CI.
 
 To ask for the opt-in QEMU path, use:
 

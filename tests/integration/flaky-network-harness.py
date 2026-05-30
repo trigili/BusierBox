@@ -359,6 +359,19 @@ def dropped_result_request(command_id, target_id, label):
     ).encode("ascii") + body
 
 
+def malformed_result_request(target_id, label):
+    body = b'{"schema": 1, "command_id": '
+    return (
+        "POST /command-queue/result HTTP/1.1\r\n"
+        "Host: 127.0.0.1\r\n"
+        "Content-Type: application/json\r\n"
+        f"X-BusierBox-Target-Id: {target_id}\r\n"
+        f"X-BusierBox-Target-Label: {label}\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "Connection: close\r\n\r\n"
+    ).encode("ascii") + body
+
+
 def survey_get_request(target_id, label):
     return (
         "GET /survey.sh HTTP/1.1\r\n"
@@ -552,8 +565,40 @@ def write_dropped_result_upload_artifact(artifact_dir, doc, command_id, response
         "result_upload_events": [
             rec for rec in (doc.get("events") or [])
             if rec.get("event") == "command_queue_result_upload"
-            and (rec.get("details") or {}).get("command_id") == command_id
             and (rec.get("details") or {}).get("status") == "rejected"
+            and str((rec.get("details") or {}).get("target_id") or "") == "target-alpha"
+            and str((rec.get("details") or {}).get("reason") or "") == "truncated request body"
+        ],
+    })
+
+
+def write_malformed_result_upload_artifact(artifact_dir, doc, command_id, response):
+    write_json(artifact_dir / "malformed-result-upload.json", {
+        "schema": 1,
+        "kind": "malformed-result-upload-artifact",
+        "command_id": command_id,
+        "http_status": http_status_line(response),
+        "summary": {
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+            "target_phone_home_failed_counts": doc.get("summary", {}).get("target_phone_home_failed_counts", {}),
+            "target_phone_home_http_status_counts": doc.get("summary", {}).get("target_phone_home_http_status_counts", {}),
+            "target_phone_home_pending_reason_counts": doc.get("summary", {}).get("target_phone_home_pending_reason_counts", {}),
+        },
+        "target": (doc.get("targets_by_id") or {}).get("target-alpha") or {},
+        "mailbox_record": (doc.get("target_mailbox_records_by_command_id") or {}).get(command_id) or {},
+        "phone_home_records": [
+            rec for rec in (doc.get("target_phone_home_records") or [])
+            if rec.get("target_id") == "target-alpha"
+            and rec.get("kind") == "result"
+            and rec.get("failed") is True
+            and "invalid command result JSON" in str(rec.get("reason") or "")
+        ],
+        "result_upload_events": [
+            rec for rec in (doc.get("events") or [])
+            if rec.get("event") == "command_queue_result_upload"
+            and (rec.get("details") or {}).get("status") == "rejected"
+            and "invalid command result JSON" in str((rec.get("details") or {}).get("reason") or "")
         ],
     })
 
@@ -1311,6 +1356,32 @@ def run_harness(artifact_dir):
     phases.append({"name": "target-mismatch-result-upload", "status": "pass", "artifact": "after-mismatched-alpha-result.json"})
 
     proc = start_one_shot(cfg, "command-queue")
+    malformed_result = connect_with_retry(
+        queue_port,
+        malformed_result_request("target-alpha", "Alpha Router"),
+    )
+    wait_proc(proc, "malformed alpha result")
+    save_response(artifact_dir, "malformed-alpha-result", malformed_result)
+    after_malformed = status(cfg, artifact_dir, "after-malformed-alpha-result")
+    malformed_alpha = after_malformed["target_mailbox_records_by_command_id"][alpha_id]
+    malformed_attempts = [
+        rec for rec in after_malformed.get("target_phone_home_records") or []
+        if rec.get("kind") == "result"
+        and rec.get("target_id") == "target-alpha"
+        and rec.get("failed") is True
+        and "invalid command result JSON" in rec.get("reason", "")
+    ]
+    assert_condition(b"HTTP/1.1 400 Bad Request" in malformed_result, "malformed result upload should return HTTP 400")
+    assert_condition(b"invalid command result JSON" in malformed_result, "malformed result upload should explain invalid JSON")
+    assert_condition(malformed_alpha["status"] == "delivered", "malformed result mutated command status", malformed_alpha)
+    assert_condition(malformed_alpha["delivered_without_result"] is True, "malformed result should leave command awaiting result", malformed_alpha)
+    assert_condition(after_malformed["targets_by_id"]["target-alpha"]["mailbox_result_received_command_count"] == 0, "malformed result should not count as received")
+    assert_condition(malformed_attempts, "malformed result phone-home rejection was not recorded")
+    assert_condition(malformed_attempts[-1].get("http_status") == "400", "malformed result HTTP status missing", malformed_attempts[-1])
+    write_malformed_result_upload_artifact(artifact_dir, after_malformed, alpha_id, malformed_result)
+    phases.append({"name": "malformed-result-upload", "status": "pass", "artifact": "after-malformed-alpha-result.json"})
+
+    proc = start_one_shot(cfg, "command-queue")
     dropped_result = connect_with_retry(
         queue_port,
         dropped_result_request(alpha_id, "target-alpha", "Alpha Router"),
@@ -1334,8 +1405,8 @@ def run_harness(artifact_dir):
         if rec.get("kind") == "result" and rec.get("target_id") == "target-alpha" and rec.get("failed") is True
     ]
     assert_condition(rejected_results, "dropped result phone-home rejection was not recorded")
-    assert_condition(rejected_results[0].get("reason"), "dropped result rejection reason missing", rejected_results[0])
-    assert_condition(rejected_results[0].get("http_status") == "400", "dropped result HTTP status missing", rejected_results[0])
+    assert_condition(rejected_results[-1].get("reason"), "dropped result rejection reason missing", rejected_results[-1])
+    assert_condition(rejected_results[-1].get("http_status") == "400", "dropped result HTTP status missing", rejected_results[-1])
     write_dropped_result_upload_artifact(artifact_dir, after_dropped_result, alpha_id, dropped_result)
     phases.append({"name": "dropped-result-upload", "status": "pass", "artifact": "after-dropped-alpha-result.json"})
 

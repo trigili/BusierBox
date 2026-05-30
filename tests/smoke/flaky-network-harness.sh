@@ -14,6 +14,7 @@ test -s "$tmp/flaky-network/mailbox-lifecycle.json"
 test -s "$tmp/flaky-network/restart-persistence.json"
 test -s "$tmp/flaky-network/bad-token-phone-home.json"
 test -s "$tmp/flaky-network/duplicate-poll.json"
+test -s "$tmp/flaky-network/malformed-result-upload.json"
 test -s "$tmp/flaky-network/dropped-result-upload.json"
 test -s "$tmp/flaky-network/systemd-user-service.json"
 test -s "$tmp/flaky-network/target-mismatch-phone-home.json"
@@ -39,6 +40,7 @@ lifecycle = json.loads((artifact_dir / "mailbox-lifecycle.json").read_text(encod
 restart = json.loads((artifact_dir / "restart-persistence.json").read_text(encoding="utf-8"))
 bad_token = json.loads((artifact_dir / "bad-token-phone-home.json").read_text(encoding="utf-8"))
 duplicate = json.loads((artifact_dir / "duplicate-poll.json").read_text(encoding="utf-8"))
+malformed_result = json.loads((artifact_dir / "malformed-result-upload.json").read_text(encoding="utf-8"))
 dropped_result = json.loads((artifact_dir / "dropped-result-upload.json").read_text(encoding="utf-8"))
 systemd = json.loads((artifact_dir / "systemd-user-service.json").read_text(encoding="utf-8"))
 mismatch = json.loads((artifact_dir / "target-mismatch-phone-home.json").read_text(encoding="utf-8"))
@@ -110,12 +112,19 @@ assert duplicate["mailbox_record"]["status"] == "delivered"
 assert duplicate["mailbox_record"]["delivered_without_result"] is True
 assert duplicate["target"]["mailbox_pending_work_count"] == 0
 assert any(rec["status"] == "no-command" and rec["successful"] is True for rec in duplicate["phone_home_records"])
+assert malformed_result["kind"] == "malformed-result-upload-artifact"
+assert malformed_result["http_status"] == "HTTP/1.1 400 Bad Request"
+assert malformed_result["mailbox_record"]["status"] == "delivered"
+assert malformed_result["mailbox_record"]["delivered_without_result"] is True
+assert malformed_result["target"]["mailbox_result_received_command_count"] == 0
+assert any("invalid command result JSON" in rec["reason"] and rec["failed"] is True for rec in malformed_result["phone_home_records"])
+assert malformed_result["result_upload_events"]
 assert dropped_result["kind"] == "dropped-result-upload-artifact"
 assert dropped_result["http_status"] == "HTTP/1.1 400 Bad Request"
 assert dropped_result["mailbox_record"]["status"] == "delivered"
 assert dropped_result["mailbox_record"]["delivered_without_result"] is True
 assert dropped_result["target"]["mailbox_result_received_command_count"] == 0
-assert any(rec["status"] == "rejected" and rec["failed"] is True and rec["http_status"] == "400" for rec in dropped_result["phone_home_records"])
+assert any(rec["status"] == "rejected" and rec["failed"] is True and rec["http_status"] == "400" and rec["reason"] == "truncated request body" for rec in dropped_result["phone_home_records"])
 assert dropped_result["result_upload_events"]
 assert systemd["kind"] == "systemd-user-service-artifact"
 assert systemd["unit_name"] == "busierbox-flaky.service"
@@ -196,6 +205,7 @@ for name in (
     "restart-persistence.json",
     "bad-token-phone-home.json",
     "duplicate-poll.json",
+    "malformed-result-upload.json",
     "dropped-result-upload.json",
     "systemd-user-service.json",
     "target-mismatch-phone-home.json",

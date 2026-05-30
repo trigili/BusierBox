@@ -19,7 +19,7 @@ summary = json.loads(summary_path.read_text(encoding="utf-8"))
 assert summary["schema"] == 1
 assert summary["kind"] == "qemu-flaky-network-lab"
 assert summary["status"] == "planned"
-assert summary["phase_count"] == 13
+assert summary["phase_count"] == 14
 for required in (
     "offline-queue",
     "offline-workflow-drain",
@@ -30,6 +30,7 @@ for required in (
     "result-upload",
     "multi-target-isolation",
     "target-mismatch-phone-home",
+    "malformed-result-upload",
     "survey-window",
     "partial-transfer",
     "bridge-interruption",
@@ -58,6 +59,7 @@ assert "systemd-user-service.json" in plan["required_artifacts"]
 assert "dropped-command-result.http" in plan["required_artifacts"]
 assert "multi-target-isolation.json" in plan["required_artifacts"]
 assert "target-mismatch-phone-home.json" in plan["required_artifacts"]
+assert "malformed-result-upload.json" in plan["required_artifacts"]
 assert "bridge-events.jsonl" in plan["required_artifacts"]
 assert "bridge-interruption.json" in plan["required_artifacts"]
 assert any("systemd-dry-run" in item for item in plan["operator_commands"])
