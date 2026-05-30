@@ -372,6 +372,42 @@ phase_validation_contracts = [
     for phase in phases
 ]
 
+phase_validation_records = []
+for contract in phase_validation_contracts:
+    missing_evidence = sorted({
+        check.get("artifact", "")
+        for check in contract.get("evidence_checks") or []
+        if check.get("artifact") and not (run_dir / str(check.get("artifact"))).exists()
+    })
+    phase_validation_records.append({
+        "phase": contract.get("phase", ""),
+        "link_state": contract.get("link_state", ""),
+        "target_scope": contract.get("target_scope") or [],
+        "required_artifacts": contract.get("required_artifacts") or [],
+        "assertion_count": len(contract.get("assertions") or []),
+        "evidence_check_count": len(contract.get("evidence_checks") or []),
+        "missing_evidence_artifacts": missing_evidence,
+        "missing_evidence_artifact_count": len(missing_evidence),
+        "status": "pending-evidence" if missing_evidence else "ready",
+    })
+
+phase_validation_report = {
+    "schema": 1,
+    "kind": "qemu-flaky-network-phase-validation-report",
+    "environment": name,
+    "mode": mode,
+    "contract_count": len(phase_validation_contracts),
+    "phase_count": len(phase_validation_records),
+    "evidence_check_count": sum(rec["evidence_check_count"] for rec in phase_validation_records),
+    "missing_evidence_artifact_count": sum(rec["missing_evidence_artifact_count"] for rec in phase_validation_records),
+    "status_counts": {
+        status_name: len([rec for rec in phase_validation_records if rec.get("status") == status_name])
+        for status_name in ("ready", "pending-evidence")
+    },
+    "records": phase_validation_records,
+}
+phase_validation_report["status"] = "pending-evidence" if phase_validation_report["missing_evidence_artifact_count"] else "ready"
+
 topology = {
     "schema": 1,
     "kind": "qemu-flaky-network-topology",
@@ -547,6 +583,7 @@ plan = {
     "topology_path": str(run_dir / "topology.json"),
     "artifact_manifest": str(run_dir / "artifact-manifest.json"),
     "phase_contracts_path": str(run_dir / "phase-contracts.json"),
+    "phase_validation_report": str(run_dir / "validation-report.json"),
     "phase_count": len(phases),
     "phases": phases,
     "phase_validation_contracts": phase_validation_contracts,
@@ -566,6 +603,7 @@ plan = {
         "target-commands.sh",
         "link-transitions.json",
         "phase-contracts.json",
+        "validation-report.json",
     ],
     "support_artifact_modes": {
         "validate-phase-artifacts.py": "0755",
@@ -575,6 +613,7 @@ plan = {
         "target-commands.sh": "0755",
         "link-transitions.json": "0644",
         "phase-contracts.json": "0644",
+        "validation-report.json": "0644",
     },
 }
 
@@ -599,12 +638,15 @@ summary = {
     "topology": str(run_dir / "topology.json"),
     "artifact_manifest": str(run_dir / "artifact-manifest.json"),
     "phase_contracts": str(run_dir / "phase-contracts.json"),
+    "phase_validation_report": str(run_dir / "validation-report.json"),
     "phase_count": len(phases),
     "phase_names": [phase["name"] for phase in phases],
     "required_artifacts": plan["required_artifacts"],
     "support_artifacts": plan["support_artifacts"],
     "support_artifact_modes": plan["support_artifact_modes"],
     "phase_contract_count": len(phase_validation_contracts),
+    "phase_validation_status": phase_validation_report["status"],
+    "phase_validation_missing_evidence_artifact_count": phase_validation_report["missing_evidence_artifact_count"],
     "requirements": requirements,
     "missing_requirements": missing_requirements,
     "records_by_status": {status: [0]},
@@ -789,6 +831,7 @@ for script_name in ("operator-commands.sh", "target-commands.sh", "host-network-
     "contract_count": len(phase_validation_contracts),
     "contracts": phase_validation_contracts,
 }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+(run_dir / "validation-report.json").write_text(json.dumps(phase_validation_report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (artifact_root_path / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (artifact_root_path / "summary.txt").write_text(f"{status.upper()} {name} {reason}\n", encoding="utf-8")

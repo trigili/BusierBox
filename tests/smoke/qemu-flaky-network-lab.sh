@@ -50,6 +50,7 @@ for name in (
     "operator-commands.sh",
     "target-commands.sh",
     "phase-contracts.json",
+    "validation-report.json",
     "artifact-manifest.json",
     "summary.json",
 ):
@@ -94,14 +95,20 @@ subprocess.run([str(artifact_dir / "validate-phase-artifacts.py"), "--artifact-d
 plan = json.loads((artifact_dir / "plan.json").read_text(encoding="utf-8"))
 topology = json.loads((artifact_dir / "topology.json").read_text(encoding="utf-8"))
 contracts = json.loads((artifact_dir / "phase-contracts.json").read_text(encoding="utf-8"))
+validation_report = json.loads((artifact_dir / "validation-report.json").read_text(encoding="utf-8"))
 manifest = json.loads((artifact_dir / "artifact-manifest.json").read_text(encoding="utf-8"))
 assert plan["kind"] == "qemu-flaky-network-lab-plan"
 assert topology["kind"] == "qemu-flaky-network-topology"
 assert contracts["kind"] == "qemu-flaky-network-phase-contracts"
+assert validation_report["kind"] == "qemu-flaky-network-phase-validation-report"
 assert manifest["kind"] == "qemu-flaky-network-artifact-manifest"
 assert plan["artifact_manifest"] == str(artifact_dir / "artifact-manifest.json")
 assert plan["phase_contracts_path"] == str(artifact_dir / "phase-contracts.json")
+assert plan["phase_validation_report"] == str(artifact_dir / "validation-report.json")
 assert summary["phase_contracts"] == str(artifact_dir / "phase-contracts.json")
+assert summary["phase_validation_report"] == str(artifact_dir / "validation-report.json")
+assert summary["phase_validation_status"] == "pending-evidence"
+assert summary["phase_validation_missing_evidence_artifact_count"] > 0
 assert summary["phase_contract_count"] == summary["phase_count"]
 assert summary["artifact_manifest"] == str(artifact_dir / "artifact-manifest.json")
 manifest_by_name = {item["name"]: item for item in manifest["artifacts"]}
@@ -109,7 +116,14 @@ assert manifest_by_name["host-network-setup.sh"]["executable"] is True
 assert manifest_by_name["host-network-setup.sh"]["mode"] == "0755"
 assert len(manifest_by_name["topology.json"]["sha256"]) == 64
 assert len(manifest_by_name["phase-contracts.json"]["sha256"]) == 64
+assert len(manifest_by_name["validation-report.json"]["sha256"]) == 64
 assert manifest_by_name["summary.json"]["size"] > 0
+assert validation_report["status"] == "pending-evidence"
+assert validation_report["phase_count"] == summary["phase_count"]
+assert validation_report["status_counts"]["pending-evidence"] == summary["phase_count"]
+report_by_phase = {item["phase"]: item for item in validation_report["records"]}
+assert "offline-workflow-drain.json" in report_by_phase["offline-workflow-drain"]["missing_evidence_artifacts"]
+assert report_by_phase["offline-workflow-drain"]["evidence_check_count"] >= 2
 contracts_by_phase = {item["phase"]: item for item in contracts["contracts"]}
 assert len(contracts_by_phase) == summary["phase_count"]
 assert contracts_by_phase["offline-workflow-drain"]["timing"]["short_window_seconds"] == 90
@@ -144,10 +158,12 @@ assert "host-network-setup.sh" in plan["support_artifacts"]
 assert "qemu-commands.sh" in plan["support_artifacts"]
 assert "validate-phase-artifacts.py" in plan["support_artifacts"]
 assert "phase-contracts.json" in plan["support_artifacts"]
+assert "validation-report.json" in plan["support_artifacts"]
 assert plan["support_artifact_modes"]["validate-phase-artifacts.py"] == "0755"
 assert plan["support_artifact_modes"]["host-network-setup.sh"] == "0755"
 assert plan["support_artifact_modes"]["link-transitions.json"] == "0644"
 assert plan["support_artifact_modes"]["phase-contracts.json"] == "0644"
+assert plan["support_artifact_modes"]["validation-report.json"] == "0644"
 assert "target-alpha" in plan["qemu_command_templates"]
 assert any("bbx-alpha-tap0" in item for item in plan["qemu_command_templates"]["target-alpha"])
 host_script = (artifact_dir / "host-network-setup.sh").read_text(encoding="utf-8")
@@ -199,6 +215,7 @@ assert summary["status"] == "skip"
 assert summary["missing_requirements"]
 assert summary["artifact_manifest"].endswith("/artifact-manifest.json")
 assert summary["phase_contracts"].endswith("/phase-contracts.json")
+assert summary["phase_validation_report"].endswith("/validation-report.json")
 assert "host-network-setup.sh" in summary["support_artifacts"]
 assert "qemu-commands.sh" in summary["support_artifacts"]
 assert "validate-phase-artifacts.py" in summary["support_artifacts"]
