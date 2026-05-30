@@ -11,6 +11,8 @@ test -s "$tmp/qemu-flaky/summary.txt"
 
 python3 - "$tmp/qemu-flaky/summary.json" <<'PY'
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -49,6 +51,15 @@ for name in (
     "summary.json",
 ):
     assert (artifact_dir / name).is_file(), name
+for name in (
+    "host-network-setup.sh",
+    "qemu-commands.sh",
+    "operator-commands.sh",
+    "target-commands.sh",
+):
+    path = artifact_dir / name
+    assert os.access(path, os.X_OK), name
+    subprocess.run(["sh", "-n", str(path)], check=True)
 plan = json.loads((artifact_dir / "plan.json").read_text(encoding="utf-8"))
 topology = json.loads((artifact_dir / "topology.json").read_text(encoding="utf-8"))
 assert plan["kind"] == "qemu-flaky-network-lab-plan"
@@ -71,6 +82,8 @@ assert plan["service_ports"]["file_service"] == 22204
 assert plan["accelerated_timing"]["short_window_seconds"] == topology["accelerated_timing"]["short_window_seconds"]
 assert "host-network-setup.sh" in plan["support_artifacts"]
 assert "qemu-commands.sh" in plan["support_artifacts"]
+assert plan["support_artifact_modes"]["host-network-setup.sh"] == "0755"
+assert plan["support_artifact_modes"]["link-transitions.json"] == "0644"
 assert "target-alpha" in plan["qemu_command_templates"]
 assert any("bbx-alpha-tap0" in item for item in plan["qemu_command_templates"]["target-alpha"])
 host_script = (artifact_dir / "host-network-setup.sh").read_text(encoding="utf-8")
@@ -121,6 +134,7 @@ assert summary["status"] == "skip"
 assert summary["missing_requirements"]
 assert "host-network-setup.sh" in summary["support_artifacts"]
 assert "qemu-commands.sh" in summary["support_artifacts"]
+assert summary["support_artifact_modes"]["qemu-commands.sh"] == "0755"
 assert summary["requirements"]["kind"] == "qemu-flaky-network-lab-requirements"
 assert "environment disabled" in summary["reason"]
 assert any(item.startswith("missing qemu binary") or item == "missing qemu_binary" or item == "KVM unavailable" or item == "tap/tun unavailable" or item.startswith("missing kernel_path") for item in summary["missing_requirements"])

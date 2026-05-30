@@ -380,6 +380,13 @@ plan = {
         "target-commands.sh",
         "link-transitions.json",
     ],
+    "support_artifact_modes": {
+        "host-network-setup.sh": "0755",
+        "qemu-commands.sh": "0755",
+        "operator-commands.sh": "0755",
+        "target-commands.sh": "0755",
+        "link-transitions.json": "0644",
+    },
 }
 
 status = "planned"
@@ -405,6 +412,7 @@ summary = {
     "phase_names": [phase["name"] for phase in phases],
     "required_artifacts": plan["required_artifacts"],
     "support_artifacts": plan["support_artifacts"],
+    "support_artifact_modes": plan["support_artifact_modes"],
     "requirements": requirements,
     "missing_requirements": missing_requirements,
     "records_by_status": {status: [0]},
@@ -463,6 +471,8 @@ for target, command in sorted(qemu_command_templates.items()):
 (run_dir / "target-commands.sh").write_text("#!/bin/sh\nset -eu\n\n" + "\n".join(target_commands) + "\n", encoding="utf-8")
 (run_dir / "host-network-setup.sh").write_text("\n".join(host_network_script), encoding="utf-8")
 (run_dir / "qemu-commands.sh").write_text("\n".join(qemu_command_script), encoding="utf-8")
+for script_name in ("operator-commands.sh", "target-commands.sh", "host-network-setup.sh", "qemu-commands.sh"):
+    (run_dir / script_name).chmod(0o755)
 (run_dir / "link-transitions.json").write_text(json.dumps(topology["link_transitions"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (artifact_root_path / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
