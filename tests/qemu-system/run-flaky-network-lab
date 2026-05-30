@@ -61,6 +61,8 @@ fi
 
 python3 - "$MATRIX" "$ENVIRONMENT" "$ARTIFACT_ROOT" "$MODE" "$ROOT" <<'PY'
 import json
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -228,6 +230,51 @@ base_qemu = [
     "-no-reboot",
 ]
 
+qemu_binary = str(env.get("qemu_binary") or "")
+qemu_binary_path = shutil.which(qemu_binary) if qemu_binary else ""
+path_requirements = {}
+for key in ("kernel_path", "rootfs_path", "busierbox_path"):
+    rel = str(env.get(key) or "")
+    path = Path(root) / rel if rel else Path("")
+    path_requirements[key] = {
+        "configured": bool(rel),
+        "path": str(path) if rel else "",
+        "exists": bool(rel) and path.exists(),
+    }
+
+requirements = {
+    "schema": 1,
+    "kind": "qemu-flaky-network-lab-requirements",
+    "environment_enabled": bool(env.get("enabled", False)),
+    "qemu_binary": qemu_binary,
+    "qemu_binary_found": bool(qemu_binary_path),
+    "qemu_binary_path": qemu_binary_path or "",
+    "kvm_device": "/dev/kvm",
+    "kvm_available": os.path.exists("/dev/kvm") and os.access("/dev/kvm", os.R_OK | os.W_OK),
+    "tap_device": "/dev/net/tun",
+    "tap_available": os.path.exists("/dev/net/tun") and os.access("/dev/net/tun", os.R_OK | os.W_OK),
+    "path_requirements": path_requirements,
+    "live_execution_supported": False,
+    "live_execution_note": "run mode is intentionally scaffolded until host tap/link controls are wired",
+}
+
+missing_requirements = []
+if not requirements["environment_enabled"]:
+    missing_requirements.append("environment disabled")
+if qemu_binary and not requirements["qemu_binary_found"]:
+    missing_requirements.append(f"missing qemu binary {qemu_binary}")
+elif not qemu_binary:
+    missing_requirements.append("missing qemu_binary")
+if not requirements["kvm_available"]:
+    missing_requirements.append("KVM unavailable")
+if not requirements["tap_available"]:
+    missing_requirements.append("tap/tun unavailable")
+for key, rec in path_requirements.items():
+    if not rec["configured"]:
+        missing_requirements.append(f"missing {key}")
+    elif not rec["exists"]:
+        missing_requirements.append(f"missing {key} at {rec['path']}")
+
 operator_commands = [
     "scripts/busierbox-server --daemon --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
     "scripts/busierbox-server --systemd-user-unit --systemd-dry-run --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
@@ -258,29 +305,16 @@ plan = {
     "operator_commands": operator_commands,
     "target_commands": target_commands,
     "qemu_command_template": base_qemu,
+    "requirements": requirements,
     "required_artifacts": sorted({artifact for phase in phases for artifact in phase["artifacts"]}),
 }
-
-enabled = bool(env.get("enabled", False))
-missing = []
-for key in ("qemu_binary", "kernel_path", "rootfs_path", "busierbox_path"):
-    value = env.get(key, "")
-    if not value:
-        missing.append(key)
-        continue
-    if key == "qemu_binary":
-        continue
-    if not (Path(root) / value).exists():
-        missing.append(key)
 
 status = "planned"
 reason = "plan-only"
 if mode == "run":
     status = "skip"
-    if not enabled:
-        reason = "environment disabled in matrix"
-    elif missing:
-        reason = "missing " + ",".join(missing)
+    if missing_requirements:
+        reason = "; ".join(missing_requirements)
     else:
         reason = "live flaky-network QEMU execution is opt-in scaffolded; use the emitted plan artifacts to wire host tap/link controls"
 
@@ -297,6 +331,8 @@ summary = {
     "phase_count": len(phases),
     "phase_names": [phase["name"] for phase in phases],
     "required_artifacts": plan["required_artifacts"],
+    "requirements": requirements,
+    "missing_requirements": missing_requirements,
     "records_by_status": {status: [0]},
 }
 

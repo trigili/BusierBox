@@ -52,6 +52,15 @@ topology = json.loads((artifact_dir / "topology.json").read_text(encoding="utf-8
 assert plan["kind"] == "qemu-flaky-network-lab-plan"
 assert topology["kind"] == "qemu-flaky-network-topology"
 assert len(topology["target_nodes"]) >= 3
+requirements = plan["requirements"]
+assert requirements["kind"] == "qemu-flaky-network-lab-requirements"
+assert requirements["qemu_binary"]
+assert "qemu_binary_found" in requirements
+assert "kvm_available" in requirements
+assert "tap_available" in requirements
+assert requirements["path_requirements"]["kernel_path"]["path"]
+assert requirements["path_requirements"]["rootfs_path"]["path"]
+assert requirements["path_requirements"]["busierbox_path"]["path"]
 assert "offline-status.json" in plan["required_artifacts"]
 assert "tui-offline-queue.json" in plan["required_artifacts"]
 assert "tui-offline-queue-drain.json" in plan["required_artifacts"]
@@ -68,6 +77,24 @@ assert "bridge-interruption.json" in plan["required_artifacts"]
 assert "return-offline.json" in plan["required_artifacts"]
 assert any("systemd-dry-run" in item for item in plan["operator_commands"])
 assert any("line-tui" in item for item in plan["operator_commands"])
+PY
+
+"$ROOT/tests/qemu-system/run-flaky-network-lab" --artifact-root "$tmp/qemu-flaky-run" --run >/dev/null
+test -s "$tmp/qemu-flaky-run/summary.json"
+
+python3 - "$tmp/qemu-flaky-run/summary.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+summary = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert summary["kind"] == "qemu-flaky-network-lab"
+assert summary["mode"] == "run"
+assert summary["status"] == "skip"
+assert summary["missing_requirements"]
+assert summary["requirements"]["kind"] == "qemu-flaky-network-lab-requirements"
+assert "environment disabled" in summary["reason"]
+assert any(item.startswith("missing qemu binary") or item == "missing qemu_binary" or item == "KVM unavailable" or item == "tap/tun unavailable" or item.startswith("missing kernel_path") for item in summary["missing_requirements"])
 PY
 
 printf '%s\n' "qemu-flaky-network-lab ok"
