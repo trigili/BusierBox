@@ -343,11 +343,15 @@ timestamps, result timestamp, result status, exit code, output-size metadata,
 booleans for pending work and result availability, and ready-to-render wait
 metadata such as `waiting_for`, `age_sec`, `pending_delivery_for_sec`,
 `delivered_without_result_for_sec`, `result_latency_sec`, and corresponding
-age buckets. Expired records expose `expired=true`, `status=expired`, and
+age buckets. `pending_reason` gives an operator-facing reason such as
+`target-poll-overdue`, `target-offline`, `awaiting-result-upload`, or
+`waiting-for-next-poll`, so headless clients and the TUI can explain why work is
+still waiting. Expired records expose `expired=true`, `status=expired`, and
 `waiting_for=none`. Indexes such as
 `target_mailbox_records_by_target_id`,
 `target_mailbox_records_by_status`,
 `target_mailbox_records_by_waiting_for`,
+`target_mailbox_records_by_pending_reason`,
 `target_mailbox_records_by_expired`,
 `target_mailbox_records_by_age_bucket`,
 `target_mailbox_records_by_pending_work`, and
@@ -445,11 +449,11 @@ queueing survey bootstrap work or starting target-scoped services; actions that
 need operator input keep pointing at line-mode action `15` and the shown
 headless command.
 It also includes a persistent `Mailbox` pane for target-scoped queued work. The
-pane shows command id, target, delivery/result status, and pending state; the
-details view expands the selected mailbox record with connectivity state,
-timestamps, result status/exit code, last phone-home path, next expected poll,
-and the queued command. Use line-mode action `20` for the full command queue and
-result listing.
+pane shows command id, target, delivery/result status, pending state, and the
+current pending reason; the details view expands the selected mailbox record
+with connectivity state, timestamps, result status/exit code, last phone-home
+path, next expected poll, pending reason, and the queued command. Use line-mode
+action `20` for the full command queue and result listing.
 Mutating target workflow actions record `target_workflow_action_completed`
 events with the target id, action id, headless command, and result-specific
 metadata such as queued command id or staged request name, so headless and TUI

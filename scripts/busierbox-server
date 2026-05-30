@@ -1865,6 +1865,28 @@ def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
         waiting_for = "none"
     else:
         waiting_for = "unknown"
+    if pending_work:
+        target_state = str(target_rec.get("connectivity_state") or "")
+        if not target_rec:
+            pending_reason = "target-not-registered"
+        elif target_rec.get("poll_overdue") is True:
+            pending_reason = "target-poll-overdue"
+        elif target_state == "offline":
+            pending_reason = "target-offline"
+        elif target_state == "stale":
+            pending_reason = "target-stale"
+        elif target_state == "unknown":
+            pending_reason = "target-not-seen"
+        else:
+            pending_reason = "waiting-for-next-poll"
+    elif delivered_without_result:
+        pending_reason = "awaiting-result-upload"
+    elif expired:
+        pending_reason = "expired"
+    elif has_result:
+        pending_reason = ""
+    else:
+        pending_reason = "unknown"
     output_bytes = rec.get("result_output_bytes")
     output_bucket = command_result_output_size_bucket(output_bytes) if has_result else ""
     return {
@@ -1882,6 +1904,8 @@ def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
         "target_poll_overdue_for_sec": target_rec.get("poll_overdue_for_sec", ""),
         "status": status,
         "waiting_for": waiting_for,
+        "pending_reason": pending_reason,
+        "has_pending_reason": bool(pending_reason),
         "command": command_text,
         "command_sha256": command_sha256,
         "created_at": created_at,
@@ -1944,6 +1968,8 @@ def target_mailbox_record_indexes(records):
         "target_mailbox_records_by_target_poll_overdue": records_by_key(records, "target_poll_overdue"),
         "target_mailbox_records_by_status": records_by_key(records, "status"),
         "target_mailbox_records_by_waiting_for": records_by_key(records, "waiting_for"),
+        "target_mailbox_records_by_pending_reason": records_by_key(records, "pending_reason"),
+        "target_mailbox_records_by_has_pending_reason": records_by_key(records, "has_pending_reason"),
         "target_mailbox_records_by_expired": records_by_key(records, "expired"),
         "target_mailbox_records_by_age_bucket": records_by_key(records, "age_bucket"),
         "target_mailbox_records_by_pending_delivery_age_bucket": records_by_key(records, "pending_delivery_age_bucket"),
@@ -12969,6 +12995,8 @@ def status_document(cfg):
         "target_mailbox_record_count": len(target_mailbox_records),
         "target_mailbox_status_counts": record_count_by_key(target_mailbox_records, "status"),
         "target_mailbox_waiting_for_counts": record_count_by_key(target_mailbox_records, "waiting_for"),
+        "target_mailbox_pending_reason_counts": record_count_by_key(target_mailbox_records, "pending_reason"),
+        "target_mailbox_has_pending_reason_counts": record_count_by_key(target_mailbox_records, "has_pending_reason"),
         "target_mailbox_expired_counts": record_count_by_key(target_mailbox_records, "expired"),
         "target_mailbox_age_bucket_counts": record_count_by_key(target_mailbox_records, "age_bucket"),
         "target_mailbox_pending_delivery_age_bucket_counts": record_count_by_key(target_mailbox_records, "pending_delivery_age_bucket"),
@@ -13497,6 +13525,8 @@ def status_document(cfg):
                 "target_mailbox_records_by_target_poll_overdue",
                 "target_mailbox_records_by_status",
                 "target_mailbox_records_by_waiting_for",
+                "target_mailbox_records_by_pending_reason",
+                "target_mailbox_records_by_has_pending_reason",
                 "target_mailbox_records_by_expired",
                 "target_mailbox_records_by_age_bucket",
                 "target_mailbox_records_by_pending_delivery_age_bucket",
@@ -14564,6 +14594,7 @@ def print_target_summary(doc, limit=8):
                     f"      mailbox_command {item.get('command_id', '')} "
                     f"status={item.get('status', '') or '-'} "
                     f"waiting_for={item.get('waiting_for', '') or '-'} "
+                    f"reason={item.get('pending_reason', '') or '-'} "
                     f"expired={'yes' if item.get('expired') else 'no'} "
                     f"result={item.get('result_status', '') or '-'} "
                     f"exit={item.get('result_exit_code', '') if item.get('result_exit_code') != '' else '-'} "
@@ -16996,6 +17027,7 @@ def run_line_tui(cfg):
                         f"state={rec.get('target_connectivity_state', '') or '-'} "
                         f"status={rec.get('status', '') or '-'} "
                         f"waiting_for={rec.get('waiting_for', '') or '-'} "
+                        f"reason={rec.get('pending_reason', '') or '-'} "
                         f"expired={'yes' if rec.get('expired') else 'no'} "
                         f"pending={'yes' if rec.get('pending_work') else 'no'} "
                         f"result={rec.get('result_status', '') or '-'} "
@@ -17188,7 +17220,8 @@ def run_curses_tui(cfg):
                     f"{rec.get('command_id', '') or '-'} "
                     f"target={rec.get('target_id', '') or '-'} "
                     f"status={rec.get('status', '') or '-'} "
-                    f"pending={'yes' if rec.get('pending_work') else 'no'}"
+                    f"pending={'yes' if rec.get('pending_work') else 'no'} "
+                    f"reason={rec.get('pending_reason', '') or '-'}"
                 )
                 for idx, rec in enumerate(mailbox_records)
             ] or ["none"]
@@ -17535,6 +17568,7 @@ def run_curses_tui(cfg):
                     f"target: {rec.get('target_id', '') or '-'}",
                     f"target_state: {rec.get('target_connectivity_state', '') or '-'}",
                     f"status: {rec.get('status', '') or '-'} waiting_for={rec.get('waiting_for', '') or '-'}",
+                    f"pending_reason: {rec.get('pending_reason', '') or '-'}",
                     f"pending: {'yes' if rec.get('pending_work') else 'no'} expired={'yes' if rec.get('expired') else 'no'}",
                     f"created: {rec.get('created_at', '') or '-'}",
                     f"delivered: {rec.get('delivered_at', '') or '-'}",
