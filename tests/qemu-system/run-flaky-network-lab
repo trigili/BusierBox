@@ -191,11 +191,75 @@ phases = [
     },
 ]
 
+phase_evidence_checks = {
+    "offline-queue": [
+        {"artifact": "target-mailbox.json", "path": "summary.target_mailbox_pending_work_count", "expect": 2},
+        {"artifact": "offline-workflow-mailbox.json", "path": "target.mailbox_pending_work_count", "expect": 2},
+        {"artifact": "offline-workflow-tui.json", "path": "returncode", "expect": 0},
+    ],
+    "offline-workflow-drain": [
+        {"artifact": "offline-workflow-drain.json", "path": "target.mailbox_pending_work_count", "expect": 0},
+        {"artifact": "offline-workflow-drain.json", "path": "target.latest_phone_home_status", "expect": "delivered"},
+        {"artifact": "offline-workflow-drain-tui.json", "path": "target.mailbox_delivered_command_count", "expect": 2},
+    ],
+    "systemd-user-service": [
+        {"artifact": "systemd-user-service.json", "path": "unit_name", "expect": "busierbox-flaky.service"},
+        {"artifact": "systemd-user-service.json", "path": "commands[*].returncode", "expect_all": 0},
+    ],
+    "short-phone-home-window": [
+        {"artifact": "after-alpha-poll.json", "path": "target.latest_phone_home_status", "expect": "delivered"},
+        {"artifact": "after-alpha-poll.json", "path": "target.mailbox_pending_work_count", "expect": 0},
+    ],
+    "duplicate-poll": [
+        {"artifact": "duplicate-poll.json", "path": "http_status", "expect": "HTTP/1.1 204 No Content"},
+        {"artifact": "duplicate-poll.json", "path": "target.mailbox_pending_work_count", "expect": 0},
+    ],
+    "dropped-result-upload": [
+        {"artifact": "dropped-result-upload.json", "path": "http_status", "expect": "HTTP/1.1 400 Bad Request"},
+        {"artifact": "dropped-result-upload.json", "path": "target.mailbox_result_received_command_count", "expect": 0},
+    ],
+    "malformed-result-upload": [
+        {"artifact": "malformed-result-upload.json", "path": "http_status", "expect": "HTTP/1.1 400 Bad Request"},
+        {"artifact": "malformed-result-upload.json", "path": "target.mailbox_result_received_command_count", "expect": 0},
+    ],
+    "result-upload": [
+        {"artifact": "command-result.json", "path": "mailbox_record.status", "expect": "result-received"},
+        {"artifact": "command-result.json", "path": "mailbox_record.result_status", "expect": "success"},
+    ],
+    "multi-target-isolation": [
+        {"artifact": "multi-target-isolation.json", "path": "summary.target_mailbox_pending_work_count", "expect": 1},
+        {"artifact": "multi-target-isolation.json", "path": "summary.target_mailbox_status_counts.result-received", "expect": 1},
+        {"artifact": "multi-target-isolation.json", "path": "summary.target_mailbox_status_counts.queued", "expect": 1},
+    ],
+    "target-mismatch-phone-home": [
+        {"artifact": "target-mismatch-phone-home.json", "path": "phone_home_records[0].failed", "expect": True},
+        {"artifact": "target-mismatch-phone-home.json", "path": "mailbox_record.status", "expect": "delivered"},
+    ],
+    "survey-window": [
+        {"artifact": "survey-bootstrap-results.json", "path": "status", "expect": "result-received"},
+        {"artifact": "after-survey-result.json", "path": "targets_by_id.target-alpha.latest_survey_result_id", "expect_present": True},
+    ],
+    "partial-transfer": [
+        {"artifact": "transfer.log", "path": "transfer_status", "expect": "truncated"},
+        {"artifact": "after-partial-upload.json", "path": "summary.upload_transfer_status_counts.truncated", "expect": 1},
+    ],
+    "bridge-interruption": [
+        {"artifact": "bridge-interruption.json", "path": "target.latest_bridge_profile", "expect": "flaky-bad-bridge"},
+        {"artifact": "bridge-interruption.json", "path": "summary.bridge_profile_has_last_failure_counts.True", "expect": 1},
+    ],
+    "return-offline": [
+        {"artifact": "return-offline.json", "path": "targets_by_id.target-alpha.connectivity_state", "expect": "offline"},
+        {"artifact": "return-offline.json", "path": "targets_by_id.target-bravo.mailbox_pending_work_count", "expect": 1},
+        {"artifact": "final-status.json", "path": "summary.target_connectivity_state_counts.offline", "expect_at_least": 2},
+    ],
+}
+
 phase_validation_contracts = [
     {
         "phase": phase["name"],
         "link_state": phase["link_state"],
         "required_artifacts": phase["artifacts"],
+        "evidence_checks": phase_evidence_checks.get(phase["name"], []),
         "target_scope": (
             ["target-alpha", "target-bravo", "target-workflow"]
             if phase["name"] == "offline-queue"

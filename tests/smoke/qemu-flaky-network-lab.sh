@@ -86,8 +86,15 @@ assert len(contracts_by_phase) == summary["phase_count"]
 assert contracts_by_phase["offline-workflow-drain"]["timing"]["short_window_seconds"] == 90
 assert "target-workflow" in contracts_by_phase["offline-workflow-drain"]["target_scope"]
 assert any("queued survey bootstrap" in item for item in contracts_by_phase["offline-workflow-drain"]["assertions"])
+drain_checks = contracts_by_phase["offline-workflow-drain"]["evidence_checks"]
+assert any(item["artifact"] == "offline-workflow-drain.json" and item["path"] == "target.latest_phone_home_status" and item["expect"] == "delivered" for item in drain_checks)
+assert any(item["artifact"] == "offline-workflow-drain-tui.json" and item["path"] == "target.mailbox_delivered_command_count" and item["expect"] == 2 for item in drain_checks)
 assert "target-bravo" in contracts_by_phase["multi-target-isolation"]["target_scope"]
 assert any("does not mutate target-bravo" in item for item in contracts_by_phase["multi-target-isolation"]["assertions"])
+isolation_checks = contracts_by_phase["multi-target-isolation"]["evidence_checks"]
+assert any(item["path"] == "summary.target_mailbox_status_counts.queued" and item["expect"] == 1 for item in isolation_checks)
+assert any(item["path"] == "summary.target_mailbox_status_counts.result-received" and item["expect"] == 1 for item in isolation_checks)
+assert any(item["artifact"] == "return-offline.json" and item["path"] == "targets_by_id.target-bravo.mailbox_pending_work_count" and item["expect"] == 1 for item in contracts_by_phase["return-offline"]["evidence_checks"])
 assert len(topology["target_nodes"]) >= 3
 assert topology["environment_paths"]["kernel"]
 assert topology["environment_paths"]["rootfs"]
