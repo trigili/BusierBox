@@ -8,6 +8,7 @@ python3 tests/integration/flaky-network-harness.py --artifact-dir "$tmp/flaky-ne
 test -s "$tmp/flaky-network/summary.json"
 test -s "$tmp/flaky-network/target-mailbox.json"
 test -s "$tmp/flaky-network/offline-workflow-mailbox.json"
+test -s "$tmp/flaky-network/offline-workflow-tui.json"
 test -s "$tmp/flaky-network/mailbox-lifecycle.json"
 test -s "$tmp/flaky-network/restart-persistence.json"
 test -s "$tmp/flaky-network/bad-token-phone-home.json"
@@ -27,6 +28,7 @@ from pathlib import Path
 artifact_dir = Path(sys.argv[1])
 mailbox = json.loads((artifact_dir / "target-mailbox.json").read_text(encoding="utf-8"))
 workflow = json.loads((artifact_dir / "offline-workflow-mailbox.json").read_text(encoding="utf-8"))
+workflow_tui = json.loads((artifact_dir / "offline-workflow-tui.json").read_text(encoding="utf-8"))
 lifecycle = json.loads((artifact_dir / "mailbox-lifecycle.json").read_text(encoding="utf-8"))
 restart = json.loads((artifact_dir / "restart-persistence.json").read_text(encoding="utf-8"))
 bad_token = json.loads((artifact_dir / "bad-token-phone-home.json").read_text(encoding="utf-8"))
@@ -52,6 +54,19 @@ assert workflow["summary"]["target_mailbox_waiting_for_counts"]["target-poll"] =
 workflow_commands = "\n".join(rec.get("command") or "" for rec in workflow["target_mailbox_records"])
 assert "wget -O-" in workflow_commands and "survey.sh" in workflow_commands
 assert "busierbox fetch workflow-payload.txt" in workflow_commands
+assert workflow_tui["kind"] == "offline-workflow-tui-artifact"
+assert workflow_tui["returncode"] == 0
+assert workflow_tui["summary"]["target_mailbox_pending_work_count"] == 2
+assert workflow_tui["summary"]["target_mailbox_waiting_for_counts"]["target-poll"] == 2
+assert "Target mailbox records:" in workflow_tui["stdout"]
+assert "target=target-workflow" in workflow_tui["stdout"]
+assert "waiting_for=target-poll" in workflow_tui["stdout"]
+assert "pending=yes" in workflow_tui["stdout"]
+assert "Target detail: target-workflow label=Workflow Target" in workflow_tui["stdout"]
+assert "queue-survey-bootstrap" in workflow_tui["stdout"]
+assert "queue-staged-fetch" in workflow_tui["stdout"]
+assert any(rec["event"] == "workbench_command_queue_inspected" for rec in workflow_tui["workbench_events"])
+assert any(rec["event"] == "workbench_target_inspected" for rec in workflow_tui["workbench_events"])
 assert lifecycle["kind"] == "mailbox-lifecycle-artifact"
 assert lifecycle["failed_mailbox_record"]["result_status"] == "failed"
 assert lifecycle["failed_mailbox_record"]["result_exit_code"] == 23
@@ -112,6 +127,7 @@ manifest_names = {item["name"] for item in manifest["artifacts"]}
 for name in (
     "target-mailbox.json",
     "offline-workflow-mailbox.json",
+    "offline-workflow-tui.json",
     "mailbox-lifecycle.json",
     "restart-persistence.json",
     "bad-token-phone-home.json",

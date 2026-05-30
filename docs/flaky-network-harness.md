@@ -9,6 +9,8 @@ virtual network boundaries:
 - queued target mailbox work survives operator-daemon stop/start boundaries
 - queued survey bootstrap and staged-file fetch work can be prepared before any
   target reconnect
+- the line-mode TUI can inspect the same queued offline workflow mailbox state
+  and target detail that headless status exposes
 - anonymous polls do not drain target-scoped mailboxes
 - anonymous polls are recorded as phone-home attempts with an explicit pending
   reason when queued work requires target identity
@@ -41,7 +43,8 @@ tests/integration/flaky-network-harness.py --artifact-dir local/flaky-network/la
 The artifact directory contains HTTP transcripts, per-phase operator status
 JSON, dropped-result evidence, bridge response data, and `summary.json`. It also
 writes focused debug artifacts that mirror the QEMU lab contract:
-`target-mailbox.json`, `offline-workflow-mailbox.json`, `command-result.json`,
+`target-mailbox.json`, `offline-workflow-mailbox.json`,
+`offline-workflow-tui.json`, `command-result.json`,
 `phone-home-attempts.json`, `mailbox-lifecycle.json`,
 `restart-persistence.json`, `bad-token-phone-home.json`,
 `target-mismatch-phone-home.json`, `transfer.log`, `bridge-events.jsonl`, and

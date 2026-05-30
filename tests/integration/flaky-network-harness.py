@@ -4,6 +4,7 @@
 import argparse
 import json
 import os
+import pty
 import shutil
 import socket
 import subprocess
@@ -180,6 +181,50 @@ def wait_proc(proc, name):
     if proc.returncode != 0:
         raise RuntimeError(f"{name} exited {proc.returncode}\nstdout:\n{out}\nstderr:\n{err}")
     return out, err
+
+
+def run_line_tui(cfg, script, timeout=8):
+    master, slave = pty.openpty()
+    proc = None
+    try:
+        proc = subprocess.Popen(
+            [str(SERVER), "--config", str(cfg), "--tui"],
+            cwd=ROOT,
+            stdin=slave,
+            stdout=slave,
+            stderr=subprocess.PIPE,
+            text=True,
+            env={**os.environ, "TERM": "dumb"},
+        )
+        os.close(slave)
+        slave = -1
+        time.sleep(0.5)
+        os.write(master, script.encode("utf-8"))
+        _stdout, stderr = proc.communicate(timeout=timeout)
+        output = b""
+        while True:
+            try:
+                chunk = os.read(master, 65536)
+            except OSError:
+                break
+            if not chunk:
+                break
+            output += chunk
+        return {
+            "returncode": proc.returncode,
+            "stdout": output.decode("utf-8", errors="replace"),
+            "stderr": stderr or "",
+        }
+    finally:
+        if slave != -1:
+            os.close(slave)
+        try:
+            os.close(master)
+        except OSError:
+            pass
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+            proc.wait(timeout=5)
 
 
 def start_echo_server(prefix=b"bridge:"):
@@ -550,6 +595,25 @@ def write_offline_workflow_artifact(artifact_dir, doc):
     })
 
 
+def write_offline_workflow_tui_artifact(artifact_dir, doc, tui_result):
+    events = [
+        rec for rec in (doc.get("events") or [])
+        if rec.get("event") in ("workbench_command_queue_inspected", "workbench_target_inspected")
+    ]
+    write_json(artifact_dir / "offline-workflow-tui.json", {
+        "schema": 1,
+        "kind": "offline-workflow-tui-artifact",
+        "returncode": tui_result.get("returncode"),
+        "stderr": tui_result.get("stderr", ""),
+        "stdout": tui_result.get("stdout", ""),
+        "summary": {
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_mailbox_waiting_for_counts": doc.get("summary", {}).get("target_mailbox_waiting_for_counts", {}),
+        },
+        "workbench_events": events,
+    })
+
+
 def write_mailbox_lifecycle_artifact(artifact_dir, doc, failed_id, expired_id):
     records = [
         rec for rec in (doc.get("target_mailbox_records") or [])
@@ -679,6 +743,22 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition("wget -O-" in mailbox_commands and "survey.sh" in mailbox_commands, "queued survey bootstrap command missing", mailbox_commands)
     assert_condition("busierbox fetch workflow-payload.txt" in mailbox_commands, "queued staged fetch command missing", mailbox_commands)
     write_offline_workflow_artifact(artifact_dir, doc)
+    tui_result = run_line_tui(cfg, "20\n18\ntarget-workflow\nq\n")
+    assert_condition(tui_result["returncode"] == 0, "offline workflow line TUI failed", tui_result)
+    tui_text = tui_result["stdout"]
+    assert_condition("headless_command: scripts/busierbox-server --config" in tui_text, "offline workflow TUI missing headless command", tui_text)
+    assert_condition("--list-command-queue" in tui_text, "offline workflow TUI missing command queue headless path", tui_text)
+    assert_condition("Target mailbox records:" in tui_text, "offline workflow TUI missing mailbox section", tui_text)
+    assert_condition("target=target-workflow" in tui_text, "offline workflow TUI missing target-scoped mailbox records", tui_text)
+    assert_condition("waiting_for=target-poll" in tui_text and "pending=yes" in tui_text, "offline workflow TUI missing pending mailbox state", tui_text)
+    assert_condition("Target detail: target-workflow label=Workflow Target" in tui_text, "offline workflow TUI missing target detail", tui_text)
+    assert_condition("mailbox queued=2" in tui_text and "pending=2" in tui_text, "offline workflow TUI missing target mailbox counts", tui_text)
+    assert_condition("queue-survey-bootstrap" in tui_text and "queue-staged-fetch" in tui_text, "offline workflow TUI missing offline workflow actions", tui_text)
+    tui_doc = status(cfg, artifact_dir, "offline-workflow-tui-status")
+    tui_events = tui_doc.get("events_by_event") or {}
+    assert_condition(tui_events.get("workbench_command_queue_inspected"), "offline workflow TUI command queue event missing")
+    assert_condition(tui_events.get("workbench_target_inspected"), "offline workflow TUI target detail event missing")
+    write_offline_workflow_tui_artifact(artifact_dir, tui_doc, tui_result)
     return {"name": "offline-workflow-queue", "status": "pass", "artifact": "offline-workflow-status.json"}
 
 
