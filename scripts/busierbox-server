@@ -6156,7 +6156,7 @@ def staged_file_workflow_action_summary(records):
     }
 
 
-def file_service_workflow_action_records(cfg, service_row, staged_records=None, uploads=None, fetches=None, transfer_records=None):
+def file_service_workflow_action_records(cfg, service_row, staged_records=None, uploads=None, fetches=None, transfer_records=None, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/busierbox-server --config " + shquote(config_path)
     service_row = service_row if isinstance(service_row, dict) else {}
@@ -6174,6 +6174,27 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
     upload_count = len([rec for rec in uploads or [] if isinstance(rec, dict)])
     fetch_count = len([rec for rec in fetches or [] if isinstance(rec, dict)])
     transfer_count = len([rec for rec in transfer_records or [] if isinstance(rec, dict)])
+    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    fleet_mailbox_pending_work_count = sum(
+        int_value(rec.get("mailbox_pending_work_count", 0))
+        for rec in target_records
+    )
+    fleet_offline_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "offline"
+    ])
+    fleet_stale_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "stale"
+    ])
+    fleet_mailbox_pending_target_count = len([
+        rec for rec in target_records
+        if int_value(rec.get("mailbox_pending_work_count", 0)) > 0
+    ])
+    fleet_poll_overdue_target_count = len([
+        rec for rec in target_records
+        if rec.get("poll_overdue") is True
+    ])
     records = []
 
     def add(action_id, category, label, command, workflow, action_state, action_reason,
@@ -6209,6 +6230,17 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
             "upload_count": upload_count,
             "fetch_count": fetch_count,
             "target_file_transfer_record_count": transfer_count,
+            "fleet_target_count": len(target_records),
+            "fleet_connectivity_state_counts": record_count_by_key(target_records, "connectivity_state"),
+            "fleet_offline_target_count": fleet_offline_target_count,
+            "fleet_stale_target_count": fleet_stale_target_count,
+            "fleet_mailbox_pending_target_count": fleet_mailbox_pending_target_count,
+            "fleet_mailbox_pending_work_count": fleet_mailbox_pending_work_count,
+            "fleet_poll_overdue_target_count": fleet_poll_overdue_target_count,
+            "fleet_has_offline_targets": fleet_offline_target_count > 0,
+            "fleet_has_stale_targets": fleet_stale_target_count > 0,
+            "fleet_has_mailbox_pending_work": fleet_mailbox_pending_work_count > 0,
+            "fleet_has_poll_overdue_targets": fleet_poll_overdue_target_count > 0,
             "available": bool(available),
             "requires_input": bool(requires_input),
             "requires_confirmation": bool(requires_confirmation),
@@ -6314,6 +6346,16 @@ def file_service_workflow_action_indexes(records):
         "file_service_workflow_actions_by_route_kind": records_by_key(records, "route_kind"),
         "file_service_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
         "file_service_workflow_actions_by_requires_bridge": records_by_key(records, "requires_bridge"),
+        "file_service_workflow_actions_by_fleet_target_count": records_by_key(records, "fleet_target_count"),
+        "file_service_workflow_actions_by_fleet_offline_target_count": records_by_key(records, "fleet_offline_target_count"),
+        "file_service_workflow_actions_by_fleet_stale_target_count": records_by_key(records, "fleet_stale_target_count"),
+        "file_service_workflow_actions_by_fleet_mailbox_pending_target_count": records_by_key(records, "fleet_mailbox_pending_target_count"),
+        "file_service_workflow_actions_by_fleet_mailbox_pending_work_count": records_by_key(records, "fleet_mailbox_pending_work_count"),
+        "file_service_workflow_actions_by_fleet_poll_overdue_target_count": records_by_key(records, "fleet_poll_overdue_target_count"),
+        "file_service_workflow_actions_by_fleet_has_offline_targets": records_by_key(records, "fleet_has_offline_targets"),
+        "file_service_workflow_actions_by_fleet_has_stale_targets": records_by_key(records, "fleet_has_stale_targets"),
+        "file_service_workflow_actions_by_fleet_has_mailbox_pending_work": records_by_key(records, "fleet_has_mailbox_pending_work"),
+        "file_service_workflow_actions_by_fleet_has_poll_overdue_targets": records_by_key(records, "fleet_has_poll_overdue_targets"),
         "file_service_workflow_actions_by_available": records_by_key(records, "available"),
         "file_service_workflow_actions_by_requires_input": records_by_key(records, "requires_input"),
         "file_service_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
@@ -6343,6 +6385,16 @@ def file_service_workflow_action_summary(records):
         "route_kind_counts": record_count_by_key(records, "route_kind"),
         "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
         "requires_bridge_counts": record_count_by_key(records, "requires_bridge"),
+        "fleet_target_count_counts": record_count_by_key(records, "fleet_target_count"),
+        "fleet_offline_target_count_counts": record_count_by_key(records, "fleet_offline_target_count"),
+        "fleet_stale_target_count_counts": record_count_by_key(records, "fleet_stale_target_count"),
+        "fleet_mailbox_pending_target_count_counts": record_count_by_key(records, "fleet_mailbox_pending_target_count"),
+        "fleet_mailbox_pending_work_count_counts": record_count_by_key(records, "fleet_mailbox_pending_work_count"),
+        "fleet_poll_overdue_target_count_counts": record_count_by_key(records, "fleet_poll_overdue_target_count"),
+        "fleet_has_offline_targets_counts": record_count_by_key(records, "fleet_has_offline_targets"),
+        "fleet_has_stale_targets_counts": record_count_by_key(records, "fleet_has_stale_targets"),
+        "fleet_has_mailbox_pending_work_counts": record_count_by_key(records, "fleet_has_mailbox_pending_work"),
+        "fleet_has_poll_overdue_targets_counts": record_count_by_key(records, "fleet_has_poll_overdue_targets"),
         "available_counts": record_count_by_key(records, "available"),
         "requires_input_counts": record_count_by_key(records, "requires_input"),
         "requires_confirmation_counts": record_count_by_key(records, "requires_confirmation"),
@@ -14961,6 +15013,7 @@ def status_document(cfg):
         uploads,
         fetches,
         target_file_transfer_records,
+        targets,
     )
     file_service_workflow_action_index_maps = file_service_workflow_action_indexes(file_service_workflow_actions)
     file_service_workflow_action_stats = file_service_workflow_action_summary(file_service_workflow_actions)
@@ -15636,6 +15689,16 @@ def status_document(cfg):
         "file_service_workflow_action_route_kind_counts": file_service_workflow_action_stats.get("route_kind_counts") or {},
         "file_service_workflow_action_bridge_profile_counts": file_service_workflow_action_stats.get("bridge_profile_counts") or {},
         "file_service_workflow_action_requires_bridge_counts": file_service_workflow_action_stats.get("requires_bridge_counts") or {},
+        "file_service_workflow_action_fleet_target_count_counts": file_service_workflow_action_stats.get("fleet_target_count_counts") or {},
+        "file_service_workflow_action_fleet_offline_target_count_counts": file_service_workflow_action_stats.get("fleet_offline_target_count_counts") or {},
+        "file_service_workflow_action_fleet_stale_target_count_counts": file_service_workflow_action_stats.get("fleet_stale_target_count_counts") or {},
+        "file_service_workflow_action_fleet_mailbox_pending_target_count_counts": file_service_workflow_action_stats.get("fleet_mailbox_pending_target_count_counts") or {},
+        "file_service_workflow_action_fleet_mailbox_pending_work_count_counts": file_service_workflow_action_stats.get("fleet_mailbox_pending_work_count_counts") or {},
+        "file_service_workflow_action_fleet_poll_overdue_target_count_counts": file_service_workflow_action_stats.get("fleet_poll_overdue_target_count_counts") or {},
+        "file_service_workflow_action_fleet_has_offline_targets_counts": file_service_workflow_action_stats.get("fleet_has_offline_targets_counts") or {},
+        "file_service_workflow_action_fleet_has_stale_targets_counts": file_service_workflow_action_stats.get("fleet_has_stale_targets_counts") or {},
+        "file_service_workflow_action_fleet_has_mailbox_pending_work_counts": file_service_workflow_action_stats.get("fleet_has_mailbox_pending_work_counts") or {},
+        "file_service_workflow_action_fleet_has_poll_overdue_targets_counts": file_service_workflow_action_stats.get("fleet_has_poll_overdue_targets_counts") or {},
         "file_service_workflow_action_available_counts": file_service_workflow_action_stats.get("available_counts") or {},
         "file_service_workflow_action_requires_input_counts": file_service_workflow_action_stats.get("requires_input_counts") or {},
         "file_service_workflow_action_requires_confirmation_counts": file_service_workflow_action_stats.get("requires_confirmation_counts") or {},
@@ -16684,6 +16747,16 @@ def status_document(cfg):
                 "file_service_workflow_actions_by_route_kind",
                 "file_service_workflow_actions_by_bridge_profile",
                 "file_service_workflow_actions_by_requires_bridge",
+                "file_service_workflow_actions_by_fleet_target_count",
+                "file_service_workflow_actions_by_fleet_offline_target_count",
+                "file_service_workflow_actions_by_fleet_stale_target_count",
+                "file_service_workflow_actions_by_fleet_mailbox_pending_target_count",
+                "file_service_workflow_actions_by_fleet_mailbox_pending_work_count",
+                "file_service_workflow_actions_by_fleet_poll_overdue_target_count",
+                "file_service_workflow_actions_by_fleet_has_offline_targets",
+                "file_service_workflow_actions_by_fleet_has_stale_targets",
+                "file_service_workflow_actions_by_fleet_has_mailbox_pending_work",
+                "file_service_workflow_actions_by_fleet_has_poll_overdue_targets",
                 "file_service_workflow_actions_by_available",
                 "file_service_workflow_actions_by_requires_input",
                 "file_service_workflow_actions_by_requires_confirmation",
@@ -18444,7 +18517,10 @@ def print_workbench_action_summary(doc):
         f"available={summary.get('file_service_workflow_action_available_count', 0)} "
         f"requires_input={summary.get('file_service_workflow_action_requires_input_count', 0)} "
         f"requires_confirmation={summary.get('file_service_workflow_action_requires_confirmation_count', 0)} "
-        f"enter_runnable={summary.get('file_service_workflow_action_can_run_from_curses_enter_count', 0)}"
+        f"enter_runnable={summary.get('file_service_workflow_action_can_run_from_curses_enter_count', 0)} "
+        f"fleet_pending_work={format_counts(summary.get('file_service_workflow_action_fleet_mailbox_pending_work_count_counts') or {})} "
+        f"fleet_offline={format_counts(summary.get('file_service_workflow_action_fleet_offline_target_count_counts') or {})} "
+        f"fleet_poll_overdue={format_counts(summary.get('file_service_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
     )
     print(f"  file workflows: {format_counts(summary.get('file_service_workflow_action_workflow_counts') or {})}")
     print(f"  file action states: {format_counts(summary.get('file_service_workflow_action_operator_action_state_counts') or {})}")
@@ -21111,7 +21187,11 @@ def run_line_tui(cfg):
                         f"  {rec.get('id', '')} "
                         f"state={rec.get('operator_action_state', '') or '-'} "
                         f"reason={rec.get('operator_action_reason', '') or '-'} "
-                        f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'}"
+                        f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
+                        f"fleet_targets={rec.get('fleet_target_count', 0)} "
+                        f"pending_work={rec.get('fleet_mailbox_pending_work_count', 0)} "
+                        f"offline_targets={rec.get('fleet_offline_target_count', 0)} "
+                        f"poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}"
                     )
                     print(f"    command: {rec.get('headless_command', rec.get('command', ''))}")
                     if rec.get("target_command_template"):
@@ -22296,6 +22376,9 @@ def run_curses_tui(cfg):
                     f"route: {rec.get('route_kind', '') or '-'} bridge_profile={rec.get('bridge_profile', '') or '-'}",
                     f"fetch_command: {rec.get('fetch_command', '') or '-'}",
                     f"file_service_workflow_actions: {len(file_service_workflow_actions)}",
+                    f"fleet_pending_work: {inspect_action.get('fleet_mailbox_pending_work_count', 0)}",
+                    f"fleet_offline_targets: {inspect_action.get('fleet_offline_target_count', 0)}",
+                    f"fleet_poll_overdue_targets: {inspect_action.get('fleet_poll_overdue_target_count', 0)}",
                     f"inspect_action_state: {inspect_action.get('operator_action_state', '') or '-'} reason={inspect_action.get('operator_action_reason', '') or '-'}",
                     f"upload_action_state: {upload_action.get('operator_action_state', '') or '-'} reason={upload_action.get('operator_action_reason', '') or '-'}",
                     f"upload_command_template: {upload_action.get('target_command_template', '') or '-'}",
