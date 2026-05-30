@@ -56,6 +56,13 @@ Workbench action records also expose `operator_action_state`,
 `curses_enter_action` so TUI/API clients can distinguish background-ready jobs,
 foreground-safe actions, confirmation-gated actions, and prompted placeholder
 commands without parsing command text.
+Individual listener controls are also exposed through `service_workflow_actions`.
+Each service has `inspect-status`, `start-service`, and `stop-service` records
+with the generated headless command, current listener state, confirmation
+requirements, and curses Enter readiness. API clients can group these through
+`service_workflow_actions_by_service` or
+`service_workflow_actions_by_operator_action_state` to render service controls
+without inferring start/stop state from command text.
 Foreground-safe actions can also be run through the workbench action API:
 
 ```sh

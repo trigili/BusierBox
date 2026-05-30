@@ -4031,6 +4031,7 @@ def main():
             return 1
         for collection_name, expected_count, expected_index in (
                 ("services", len(queue_status_json.get("services") or []), "services_by_has_error"),
+                ("service_workflow_actions", len(queue_status_json.get("service_workflow_actions") or []), "service_workflow_actions_by_service"),
                 ("service_manager_state_records", len(queue_status_json.get("service_manager_state_records") or []), "service_manager_state_records_by_shutdown_requested"),
                 ("ports", len(queue_status_json.get("ports") or []), "ports_by_number"),
                 ("path_status_records", len(path_status_records), "path_status_by_name"),
@@ -4122,6 +4123,9 @@ def main():
                 api_resources_by_name.get("target_workflow_actions", {}).get("records_key") != "target_workflow_actions" or
                 api_resources_by_summary_key.get("target_workflow_action_count", [{}])[0].get("name") != "target_workflow_actions" or
                 not any(rec.get("name") == "target_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("service_workflow_actions", {}).get("records_key") != "service_workflow_actions" or
+                api_resources_by_summary_key.get("service_workflow_action_count", [{}])[0].get("name") != "service_workflow_actions" or
+                not any(rec.get("name") == "service_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("rshell_session_policy_records", {}).get("records_key") != "rshell_session_policy_records" or
                 api_resources_by_summary_key.get("rshell_session_policy_record_count", [{}])[0].get("name") != "rshell_session_policy_records" or
                 not any(rec.get("name") == "rshell_session_policy_records" for rec in api_resources_by_primary_key.get("id", [])) or
@@ -4477,6 +4481,44 @@ def main():
         services_by_name = queue_status_json.get("services_by_name") or {}
         if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "survey-bootstrap"}:
             print("server json status missing stable services_by_name map", file=sys.stderr)
+            print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        service_workflow_actions = queue_status_json.get("service_workflow_actions") or []
+        service_actions_by_id = queue_status_json.get("service_workflow_actions_by_id") or {}
+        service_actions_by_service = queue_status_json.get("service_workflow_actions_by_service") or {}
+        service_actions_by_action = queue_status_json.get("service_workflow_actions_by_action_id") or {}
+        service_actions_by_state = queue_status_json.get("service_workflow_actions_by_operator_action_state") or {}
+        service_actions_by_reason = queue_status_json.get("service_workflow_actions_by_operator_action_reason") or {}
+        service_actions_by_enter = queue_status_json.get("service_workflow_actions_by_can_run_from_curses_enter") or {}
+        if (len(service_workflow_actions) != 21 or
+                queue_status_json["summary"].get("service_workflow_action_count") != len(service_workflow_actions) or
+                queue_status_json["summary"].get("service_workflow_action_available_count") != len(service_workflow_actions) or
+                queue_status_json["summary"].get("service_workflow_action_requires_input_count") != 0 or
+                queue_status_json["summary"].get("service_workflow_action_requires_confirmation_count") != 7 or
+                queue_status_json["summary"].get("service_workflow_action_can_run_from_curses_enter_count") != 7 or
+                queue_status_json["summary"].get("service_workflow_action_action_counts", {}).get("inspect-status") != 7 or
+                queue_status_json["summary"].get("service_workflow_action_action_counts", {}).get("start-service") != 7 or
+                queue_status_json["summary"].get("service_workflow_action_action_counts", {}).get("stop-service") != 7 or
+                queue_status_json["summary"].get("service_workflow_action_service_counts", {}).get("file-service") != 3 or
+                queue_status_json["summary"].get("service_workflow_action_operator_action_state_counts", {}).get("ready") != 14 or
+                queue_status_json["summary"].get("service_workflow_action_operator_action_state_counts", {}).get("not-running") != 7 or
+                queue_status_json["summary"].get("service_workflow_action_operator_action_reason_counts", {}).get("start-listener") != 7 or
+                queue_status_json["summary"].get("service_workflow_action_operator_action_reason_counts", {}).get("no-recorded-listener") != 7 or
+                service_actions_by_id.get("file-service:start-service", {}).get("operator_action_state") != "ready" or
+                service_actions_by_id.get("file-service:start-service", {}).get("can_run_from_curses_enter") is not True or
+                "--transport file-service" not in service_actions_by_id.get("file-service:start-service", {}).get("command", "") or
+                service_actions_by_id.get("file-service:stop-service", {}).get("operator_action_state") != "not-running" or
+                service_actions_by_id.get("file-service:stop-service", {}).get("requires_confirmation") is not True or
+                service_actions_by_id.get("file-service:inspect-status", {}).get("command") != f"scripts/busierbox-server --config {str(cfg)} --status" or
+                len(service_actions_by_service.get("file-service", [])) != 3 or
+                len(service_actions_by_action.get("start-service", [])) != 7 or
+                len(service_actions_by_state.get("ready", [])) != 14 or
+                len(service_actions_by_state.get("not-running", [])) != 7 or
+                len(service_actions_by_reason.get("start-listener", [])) != 7 or
+                len(service_actions_by_enter.get("True", [])) != 7 or
+                "service_workflow_actions_by_operator_action_state" not in ((queue_status_json.get("api_collections") or {}).get("service_workflow_actions") or {}).get("indexes", []) or
+                "service_workflow_actions_by_can_run_from_curses_enter" not in ((queue_status_json.get("api_collections") or {}).get("service_workflow_actions") or {}).get("indexes", [])):
+            print("server json status missing service workflow action descriptors", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         services_by_actual = queue_status_json.get("services_by_actual") or {}
@@ -5071,6 +5113,21 @@ def main():
                 lifecycle_server_state.get("services", {}).get("file-service", {}).get("status") != "listening" or
                 status_doc.get("summary", {}).get("server_state_valid") is not True):
             print("status missing live reusable server-state record", file=sys.stderr)
+            print(status.stdout, file=sys.stderr)
+            lifecycle_proc.terminate()
+            return 1
+        lifecycle_actions_by_id = status_doc.get("service_workflow_actions_by_id") or {}
+        lifecycle_file_actions = (status_doc.get("service_workflow_actions_by_service") or {}).get("file-service") or []
+        if (len(lifecycle_file_actions) != 3 or
+                status_doc.get("summary", {}).get("service_workflow_action_count") != 21 or
+                status_doc.get("summary", {}).get("service_workflow_action_operator_action_state_counts", {}).get("already-running") != 1 or
+                status_doc.get("summary", {}).get("service_workflow_action_operator_action_reason_counts", {}).get("already-listening") != 1 or
+                lifecycle_actions_by_id.get("file-service:start-service", {}).get("operator_action_state") != "already-running" or
+                lifecycle_actions_by_id.get("file-service:start-service", {}).get("can_run_from_curses_enter") is not False or
+                lifecycle_actions_by_id.get("file-service:stop-service", {}).get("operator_action_state") != "ready" or
+                lifecycle_actions_by_id.get("file-service:stop-service", {}).get("can_run_from_curses_enter") is not True or
+                lifecycle_actions_by_id.get("file-service:stop-service", {}).get("command") != f"scripts/busierbox-server --config {str(lifecycle_cfg)} --stop-service file-service"):
+            print("status missing live service workflow action readiness", file=sys.stderr)
             print(status.stdout, file=sys.stderr)
             lifecycle_proc.terminate()
             return 1

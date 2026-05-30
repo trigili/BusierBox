@@ -5173,6 +5173,159 @@ def service_record_indexes(records):
     )
 
 
+def service_workflow_action_records(cfg, services):
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    status_command = "scripts/busierbox-server --config " + shquote(config_path) + " --status"
+    records = []
+
+    def add(service, action_id, category, label, command, action_state, action_reason,
+            can_run_from_curses_enter=False, curses_enter_action="", requires_confirmation=False):
+        name = str(service.get("name") or "")
+        if not name:
+            return
+        actual = str(service.get("actual") or "")
+        configured = str(service.get("configured") or "")
+        records.append({
+            "id": f"{name}:{action_id}",
+            "action_id": action_id,
+            "service": name,
+            "category": category,
+            "workflow": "service-lifecycle",
+            "label": label,
+            "command": command,
+            "headless_command": command,
+            "actual": actual,
+            "configured": configured,
+            "port": service.get("port", ""),
+            "bind_address": str(service.get("bind_address") or ""),
+            "tls": bool(service.get("tls", False)),
+            "pid": service.get("pid", ""),
+            "pid_alive": bool(service.get("pid_alive", False)),
+            "pid_managed": bool(service.get("pid_managed", False)),
+            "listener_pids": service.get("listener_pids") or [],
+            "stale": bool(service.get("stale", False)),
+            "has_error": bool(service.get("error")),
+            "has_warnings": bool(service.get("warning_count", 0)),
+            "available": True,
+            "requires_input": False,
+            "requires_confirmation": bool(requires_confirmation),
+            "operator_action_state": action_state,
+            "operator_action_reason": action_reason,
+            "can_run_from_curses_enter": bool(can_run_from_curses_enter),
+            "curses_enter_action": curses_enter_action,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "tui_visible": True,
+            "safety_boundary": "operator-side service lifecycle; starts/stops local BusierBox listener processes only",
+        })
+
+    for service in services or []:
+        if not isinstance(service, dict):
+            continue
+        name = str(service.get("name") or "")
+        if not name:
+            continue
+        actual = str(service.get("actual") or "")
+        configured = str(service.get("configured") or "")
+        pid = service.get("pid", "")
+        can_stop = actual == "listening" or configured in ("listening", "starting", "error") or bool(pid)
+        if actual == "listening":
+            start_state = "already-running"
+            start_reason = "already-listening"
+            start_enter = False
+        else:
+            start_state = "ready"
+            start_reason = "start-listener"
+            start_enter = True
+        if can_stop:
+            stop_state = "ready"
+            stop_reason = "stop-listener"
+            stop_enter = True
+        else:
+            stop_state = "not-running"
+            stop_reason = "no-recorded-listener"
+            stop_enter = False
+        add(
+            service,
+            "inspect-status",
+            "inspect",
+            f"Inspect {name} service status",
+            status_command,
+            "ready",
+            "run-now",
+            can_run_from_curses_enter=False,
+            curses_enter_action="show-details",
+        )
+        add(
+            service,
+            "start-service",
+            "service",
+            f"Start {name} service",
+            service_start_headless_command(cfg, name),
+            start_state,
+            start_reason,
+            can_run_from_curses_enter=start_enter,
+            curses_enter_action="start-service" if start_enter else "stop-service",
+        )
+        add(
+            service,
+            "stop-service",
+            "service",
+            f"Stop {name} service",
+            service_stop_headless_command(cfg, name),
+            stop_state,
+            stop_reason,
+            can_run_from_curses_enter=stop_enter,
+            curses_enter_action="stop-service" if stop_enter else "start-service",
+            requires_confirmation=True,
+        )
+    records.sort(key=lambda rec: (rec.get("service", ""), rec.get("category", ""), rec.get("action_id", "")))
+    return records
+
+
+def service_workflow_action_indexes(records):
+    return {
+        "service_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "service_workflow_actions_by_action_id": records_by_key(records, "action_id"),
+        "service_workflow_actions_by_service": records_by_key(records, "service"),
+        "service_workflow_actions_by_category": records_by_key(records, "category"),
+        "service_workflow_actions_by_workflow": records_by_key(records, "workflow"),
+        "service_workflow_actions_by_actual": records_by_key(records, "actual"),
+        "service_workflow_actions_by_configured": records_by_key(records, "configured"),
+        "service_workflow_actions_by_available": records_by_key(records, "available"),
+        "service_workflow_actions_by_requires_input": records_by_key(records, "requires_input"),
+        "service_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
+        "service_workflow_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "service_workflow_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "service_workflow_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
+        "service_workflow_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
+        "service_workflow_actions_by_has_error": records_by_key(records, "has_error"),
+        "service_workflow_actions_by_has_warnings": records_by_key(records, "has_warnings"),
+    }
+
+
+def service_workflow_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "service_counts": record_count_by_key(records, "service"),
+        "action_counts": record_count_by_key(records, "action_id"),
+        "category_counts": record_count_by_key(records, "category"),
+        "workflow_counts": record_count_by_key(records, "workflow"),
+        "actual_counts": record_count_by_key(records, "actual"),
+        "configured_counts": record_count_by_key(records, "configured"),
+        "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
+        "requires_input_count": len([rec for rec in records or [] if rec.get("requires_input") is True]),
+        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
+        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
+        "has_error_counts": record_count_by_key(records, "has_error"),
+        "has_warnings_counts": record_count_by_key(records, "has_warnings"),
+    }
+
+
 def port_records_from_services(records):
     ports = []
     for rec in records or []:
@@ -12974,6 +13127,9 @@ def status_document(cfg):
             mapped["warning_types"] = row.get("warning_types", [])
     services_by_has_warnings, services_by_warning_type = warning_health_indexes(services)
     ports_by_has_warnings, ports_by_warning_type = warning_health_indexes(ports)
+    service_workflow_actions = service_workflow_action_records(cfg, services)
+    service_workflow_action_index_maps = service_workflow_action_indexes(service_workflow_actions)
+    service_workflow_action_stats = service_workflow_action_summary(service_workflow_actions)
     warning_summary = warning_stats(warnings)
     command_queue_policy_summary = command_queue.get("policy_summary") or {}
     command_queue_mode_summary = command_queue.get("mode_summary") or {}
@@ -13586,6 +13742,23 @@ def status_document(cfg):
         "workbench_action_operator_action_reason_counts": workbench_action_stats.get("operator_action_reason_counts") or {},
         "workbench_action_can_run_from_curses_enter_counts": workbench_action_stats.get("can_run_from_curses_enter_counts") or {},
         "workbench_action_curses_enter_action_counts": workbench_action_stats.get("curses_enter_action_counts") or {},
+        "service_workflow_action_count": service_workflow_action_stats.get("total_count", 0),
+        "service_workflow_action_available_count": service_workflow_action_stats.get("available_count", 0),
+        "service_workflow_action_requires_input_count": service_workflow_action_stats.get("requires_input_count", 0),
+        "service_workflow_action_requires_confirmation_count": service_workflow_action_stats.get("requires_confirmation_count", 0),
+        "service_workflow_action_can_run_from_curses_enter_count": service_workflow_action_stats.get("can_run_from_curses_enter_count", 0),
+        "service_workflow_action_service_counts": service_workflow_action_stats.get("service_counts") or {},
+        "service_workflow_action_action_counts": service_workflow_action_stats.get("action_counts") or {},
+        "service_workflow_action_category_counts": service_workflow_action_stats.get("category_counts") or {},
+        "service_workflow_action_workflow_counts": service_workflow_action_stats.get("workflow_counts") or {},
+        "service_workflow_action_actual_counts": service_workflow_action_stats.get("actual_counts") or {},
+        "service_workflow_action_configured_counts": service_workflow_action_stats.get("configured_counts") or {},
+        "service_workflow_action_operator_action_state_counts": service_workflow_action_stats.get("operator_action_state_counts") or {},
+        "service_workflow_action_operator_action_reason_counts": service_workflow_action_stats.get("operator_action_reason_counts") or {},
+        "service_workflow_action_can_run_from_curses_enter_counts": service_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
+        "service_workflow_action_curses_enter_action_counts": service_workflow_action_stats.get("curses_enter_action_counts") or {},
+        "service_workflow_action_has_error_counts": service_workflow_action_stats.get("has_error_counts") or {},
+        "service_workflow_action_has_warnings_counts": service_workflow_action_stats.get("has_warnings_counts") or {},
         "workbench_job_count": workbench_job_stats.get("total_count", 0),
         "workbench_job_running_count": workbench_job_stats.get("running_count", 0),
         "workbench_job_pid_managed_count": workbench_job_stats.get("pid_managed_count", 0),
@@ -13621,6 +13794,26 @@ def status_document(cfg):
                 "services_by_stopped_reason", "services_by_has_warnings",
                 "services_by_warning_type",
             ), "service_count",
+        ),
+        "service_workflow_actions": api_collection_record(
+            "service_workflow_actions", service_workflow_actions, "id", (
+                "service_workflow_actions_by_id",
+                "service_workflow_actions_by_action_id",
+                "service_workflow_actions_by_service",
+                "service_workflow_actions_by_category",
+                "service_workflow_actions_by_workflow",
+                "service_workflow_actions_by_actual",
+                "service_workflow_actions_by_configured",
+                "service_workflow_actions_by_available",
+                "service_workflow_actions_by_requires_input",
+                "service_workflow_actions_by_requires_confirmation",
+                "service_workflow_actions_by_operator_action_state",
+                "service_workflow_actions_by_operator_action_reason",
+                "service_workflow_actions_by_can_run_from_curses_enter",
+                "service_workflow_actions_by_curses_enter_action",
+                "service_workflow_actions_by_has_error",
+                "service_workflow_actions_by_has_warnings",
+            ), "service_workflow_action_count",
         ),
         "service_manager_resources": api_collection_record(
             "service_manager_resources", service_manager_resources, "id", (
@@ -14511,6 +14704,8 @@ def status_document(cfg):
         "services_by_stopped_reason": services_by_stopped_reason,
         "services_by_has_warnings": services_by_has_warnings,
         "services_by_warning_type": services_by_warning_type,
+        "service_workflow_actions": service_workflow_actions,
+        **service_workflow_action_index_maps,
         "ports": ports,
         "ports_by_number": ports_by_number,
         "ports_by_service": ports_by_service,
