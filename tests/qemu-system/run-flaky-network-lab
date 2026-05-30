@@ -84,6 +84,17 @@ name = env.get("name") or "unnamed"
 run_dir = artifact_root_path / name
 run_dir.mkdir(parents=True, exist_ok=True)
 
+kernel_path = str(Path(root) / str(env.get("kernel_path") or ""))
+rootfs_path = str(Path(root) / str(env.get("rootfs_path") or ""))
+busierbox_path = str(Path(root) / str(env.get("busierbox_path") or ""))
+qemu_append = (str(env.get("append_args") or "") + " init=/bin/sh").strip()
+service_ports = {
+    "command_queue": 22205,
+    "file_service": 22204,
+    "survey_bootstrap": 22207,
+    "bridge": 22206,
+}
+
 phases = [
     {
         "name": "offline-queue",
@@ -182,20 +193,23 @@ topology = {
     "schema": 1,
     "kind": "qemu-flaky-network-topology",
     "environment": name,
+    "environment_paths": {
+        "kernel": kernel_path,
+        "rootfs": rootfs_path,
+        "busierbox": busierbox_path,
+    },
+    "kernel_init_command_line": qemu_append,
+    "service_ports": service_ports,
     "operator_node": {
         "name": "operator",
         "role": "busierbox-server",
-        "host_forward_ports": {
-            "command_queue": 22205,
-            "file_service": 22204,
-            "survey_bootstrap": 22207,
-            "bridge": 22206,
-        },
+        "host_forward_ports": service_ports,
+        "network_mode": "host-side control plane with per-target controllable links",
     },
     "target_nodes": [
-        {"name": "target-alpha", "role": "polling-target", "mailbox": "target-alpha"},
-        {"name": "target-bravo", "role": "polling-target", "mailbox": "target-bravo"},
-        {"name": "target-workflow", "role": "polling-target", "mailbox": "target-workflow"},
+        {"name": "target-alpha", "role": "polling-target", "mailbox": "target-alpha", "kernel": kernel_path, "rootfs": rootfs_path, "busierbox": busierbox_path, "init_command_line": qemu_append},
+        {"name": "target-bravo", "role": "polling-target", "mailbox": "target-bravo", "kernel": kernel_path, "rootfs": rootfs_path, "busierbox": busierbox_path, "init_command_line": qemu_append},
+        {"name": "target-workflow", "role": "polling-target", "mailbox": "target-workflow", "kernel": kernel_path, "rootfs": rootfs_path, "busierbox": busierbox_path, "init_command_line": qemu_append},
     ],
     "networks": [
         {"name": "operator-lan", "kind": "tap-or-user", "purpose": "operator services"},
@@ -217,18 +231,66 @@ topology = {
         {"phase": "bridge-interruption", "target-alpha-link": "up", "target-bravo-link": "down", "bridge-path": "flap"},
         {"phase": "return-offline", "target-alpha-link": "down", "target-bravo-link": "down", "bridge-path": "down"},
     ],
+    "host_network_setup": {
+        "bridge": "bbx-qemu-br0",
+        "operator_tap": "bbx-op-tap0",
+        "target_taps": {
+            "target-alpha": "bbx-alpha-tap0",
+            "target-bravo": "bbx-bravo-tap0",
+            "target-workflow": "bbx-workflow-tap0",
+        },
+        "setup_commands": [
+            "ip link add bbx-qemu-br0 type bridge",
+            "ip tuntap add bbx-op-tap0 mode tap user $(id -un)",
+            "ip tuntap add bbx-alpha-tap0 mode tap user $(id -un)",
+            "ip tuntap add bbx-bravo-tap0 mode tap user $(id -un)",
+            "ip tuntap add bbx-workflow-tap0 mode tap user $(id -un)",
+            "ip link set bbx-op-tap0 master bbx-qemu-br0",
+            "ip link set bbx-alpha-tap0 master bbx-qemu-br0",
+            "ip link set bbx-bravo-tap0 master bbx-qemu-br0",
+            "ip link set bbx-workflow-tap0 master bbx-qemu-br0",
+            "ip link set bbx-qemu-br0 up",
+        ],
+        "link_control_commands": {
+            "target-alpha-link-down": "ip link set bbx-alpha-tap0 down",
+            "target-alpha-link-up": "ip link set bbx-alpha-tap0 up",
+            "target-bravo-link-down": "ip link set bbx-bravo-tap0 down",
+            "target-bravo-link-up": "ip link set bbx-bravo-tap0 up",
+            "target-workflow-link-down": "ip link set bbx-workflow-tap0 down",
+            "target-workflow-link-up": "ip link set bbx-workflow-tap0 up",
+            "bridge-path-down": "ip link set bbx-op-tap0 down",
+            "bridge-path-up": "ip link set bbx-op-tap0 up",
+        },
+        "cleanup_commands": [
+            "ip link del bbx-qemu-br0",
+        ],
+    },
+    "accelerated_timing": {
+        "simulated_offline_seconds": 7200,
+        "short_window_seconds": 90,
+        "poll_interval_seconds": 15,
+        "poll_jitter_pct": 0,
+        "stale_after_seconds": 120,
+        "offline_after_seconds": 300,
+        "note": "tests advance status timestamps instead of waiting real hours; the short window budget is minute-scale",
+    },
 }
 
 base_qemu = [
     env.get("qemu_binary", ""),
     "-M", env.get("qemu_machine", ""),
     "-cpu", env.get("qemu_cpu", ""),
-    "-kernel", str(Path(root) / env.get("kernel_path", "")),
-    "-drive", "file=" + str(Path(root) / env.get("rootfs_path", "")) + ",if=virtio,format=raw",
-    "-append", (env.get("append_args", "") + " init=/bin/sh").strip(),
+    "-kernel", kernel_path,
+    "-drive", "file=" + rootfs_path + ",if=virtio,format=raw",
+    "-append", qemu_append,
     "-nographic",
     "-no-reboot",
 ]
+qemu_command_templates = {
+    "target-alpha": base_qemu + ["-netdev", "tap,id=target-alpha,ifname=bbx-alpha-tap0,script=no,downscript=no", "-device", "virtio-net-pci,netdev=target-alpha"],
+    "target-bravo": base_qemu + ["-netdev", "tap,id=target-bravo,ifname=bbx-bravo-tap0,script=no,downscript=no", "-device", "virtio-net-pci,netdev=target-bravo"],
+    "target-workflow": base_qemu + ["-netdev", "tap,id=target-workflow,ifname=bbx-workflow-tap0,script=no,downscript=no", "-device", "virtio-net-pci,netdev=target-workflow"],
+}
 
 qemu_binary = str(env.get("qemu_binary") or "")
 qemu_binary_path = shutil.which(qemu_binary) if qemu_binary else ""
@@ -305,6 +367,9 @@ plan = {
     "operator_commands": operator_commands,
     "target_commands": target_commands,
     "qemu_command_template": base_qemu,
+    "qemu_command_templates": qemu_command_templates,
+    "service_ports": service_ports,
+    "accelerated_timing": topology["accelerated_timing"],
     "requirements": requirements,
     "required_artifacts": sorted({artifact for phase in phases for artifact in phase["artifacts"]}),
 }

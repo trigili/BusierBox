@@ -52,6 +52,23 @@ topology = json.loads((artifact_dir / "topology.json").read_text(encoding="utf-8
 assert plan["kind"] == "qemu-flaky-network-lab-plan"
 assert topology["kind"] == "qemu-flaky-network-topology"
 assert len(topology["target_nodes"]) >= 3
+assert topology["environment_paths"]["kernel"]
+assert topology["environment_paths"]["rootfs"]
+assert topology["environment_paths"]["busierbox"]
+assert topology["kernel_init_command_line"]
+assert topology["service_ports"]["command_queue"] == 22205
+assert topology["operator_node"]["host_forward_ports"]["survey_bootstrap"] == 22207
+assert topology["host_network_setup"]["bridge"] == "bbx-qemu-br0"
+assert topology["host_network_setup"]["target_taps"]["target-alpha"] == "bbx-alpha-tap0"
+assert topology["host_network_setup"]["link_control_commands"]["target-alpha-link-down"]
+assert topology["accelerated_timing"]["simulated_offline_seconds"] >= 3600
+assert topology["accelerated_timing"]["short_window_seconds"] <= 120
+assert topology["accelerated_timing"]["poll_interval_seconds"] > 0
+assert all(node["kernel"] and node["rootfs"] and node["init_command_line"] for node in topology["target_nodes"])
+assert plan["service_ports"]["file_service"] == 22204
+assert plan["accelerated_timing"]["short_window_seconds"] == topology["accelerated_timing"]["short_window_seconds"]
+assert "target-alpha" in plan["qemu_command_templates"]
+assert any("bbx-alpha-tap0" in item for item in plan["qemu_command_templates"]["target-alpha"])
 requirements = plan["requirements"]
 assert requirements["kind"] == "qemu-flaky-network-lab-requirements"
 assert requirements["qemu_binary"]
