@@ -3371,6 +3371,10 @@ def main():
                 "result: " not in queue_tui_text or
                 "Target mailbox records:" not in queue_tui_text or
                 "Target detail: target-alpha label=Alpha Router" not in queue_tui_text or
+                "Target activity records:" not in queue_tui_text or
+                "activity_record " not in queue_tui_text or
+                "target=target-alpha category=mailbox operation=none status=result-received" not in queue_tui_text or
+                "target=target-alpha category=phone-home operation=result status=result-received" not in queue_tui_text or
                 "phone_home " not in queue_tui_text or
                 "queued_remaining=" not in queue_tui_text or
                 "poll status=delivered" not in queue_tui_text or
@@ -3392,7 +3396,13 @@ def main():
             "scripts/busierbox-server", "--config", str(poll_target_cfg),
             "--json-status",
         ).stdout)
-        if not (queue_tui_status.get("events_by_event") or {}).get("workbench_command_queue_inspected"):
+        queue_target_events = (queue_tui_status.get("events_by_event") or {}).get("workbench_target_inspected") or []
+        if (not (queue_tui_status.get("events_by_event") or {}).get("workbench_command_queue_inspected") or
+                not any(
+                    (event.get("details") or {}).get("target_id") == "target-alpha" and
+                    (event.get("details") or {}).get("target_activity_record_count", 0) >= 3
+                    for event in queue_target_events
+                )):
             print("line TUI command queue inspection did not record event", file=sys.stderr)
             print(json.dumps(queue_tui_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
@@ -6986,7 +6996,7 @@ def main():
             line_slave = -1
             time.sleep(0.5)
             os.write(line_master, b"16\ntarget-action\n15\ntarget-action:queue-command\nbusierbox survey --json\n18\ncurrent\n18\nall\nq\n")
-            _line_stdout, line_stderr = line_proc.communicate(timeout=8)
+            _line_stdout, line_stderr = line_proc.communicate(timeout=15)
             line_output = b""
             while True:
                 try:
@@ -7027,6 +7037,9 @@ def main():
                 "state=queueable-offline reason=queues-until-phone-home enter=yes" not in line_text or
                 "target_workflow_action_returncode=0" not in line_text or
                 "Target activity after action:" not in line_text or
+                "Target activity records:" not in line_text or
+                "activity_record " not in line_text or
+                "target=target-action category=mailbox operation=target-poll status=queued" not in line_text or
                 "mailbox_pending=1 poll_overdue=no" not in line_text or
                 "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in line_text or
                 "Target workflow actions:" not in line_text):
@@ -7158,8 +7171,14 @@ def main():
                     for event in selected_events) or
                 not action_events.get("workbench_target_inspected") or
                 not any(
+                    (event.get("details") or {}).get("target_id") == "target-action" and
+                    (event.get("details") or {}).get("target_activity_record_count", 0) >= 1
+                    for event in action_events.get("workbench_target_inspected", [])
+                ) or
+                not any(
                     (event.get("details") or {}).get("scope") == "all" and
-                    "--status" in ((event.get("details") or {}).get("headless_command") or "")
+                    "--status" in ((event.get("details") or {}).get("headless_command") or "") and
+                    (event.get("details") or {}).get("target_activity_record_count", 0) >= 1
                     for event in action_events.get("workbench_targets_inspected", [])
                 ) or
                 line_workbench_state.get("selected_target_id") != "target-action" or

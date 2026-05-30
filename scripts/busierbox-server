@@ -15159,6 +15159,44 @@ def print_target_summary(doc, limit=8):
             )
 
 
+def print_target_activity_records(doc, target_id=None, limit=8):
+    records = list((doc or {}).get("target_activity_records") or [])
+    if target_id:
+        records = [
+            rec for rec in records
+            if str(rec.get("target_id") or "") == str(target_id)
+        ]
+    print("Target activity records:")
+    if not records:
+        print("  none")
+        return
+    for rec in records[:limit]:
+        label = (
+            rec.get("summary")
+            or rec.get("filename")
+            or rec.get("request_name")
+            or rec.get("command_id")
+            or rec.get("session_id")
+            or "-"
+        )
+        route = str(rec.get("route_kind") or "-")
+        if rec.get("bridge_profile"):
+            route += f" bridge_profile={rec.get('bridge_profile', '')}"
+        print(
+            f"  activity_record {rec.get('id', '') or '-'} "
+            f"target={rec.get('target_id', '') or '-'} "
+            f"category={rec.get('category', '') or '-'} "
+            f"operation={rec.get('operation', '') or '-'} "
+            f"status={rec.get('status', '') or '-'} "
+            f"waiting_for={rec.get('waiting_for', '') or '-'} "
+            f"pending={'yes' if rec.get('pending_work') else 'no'} "
+            f"source={rec.get('source_collection', '') or '-'} "
+            f"route={route} "
+            f"at={rec.get('timestamp', '') or '-'} "
+            f"label={label}"
+        )
+
+
 def print_operator_state_records(doc):
     print("Operator state:")
     operator_state_records = sorted(doc.get("operator_state_records") or [], key=lambda rec: rec.get("name", ""))
@@ -17405,10 +17443,12 @@ def run_line_tui(cfg):
                     )
                     print(f"headless_command: {headless}")
                     print_target_summary(snap)
+                    activity_count = len(snap.get("target_activity_records") or [])
                     append_event(cfg, "workbench", "workbench_targets_inspected", details={
                         "headless_command": headless,
                         "scope": "all",
                         "target_count": len(targets),
+                        "target_activity_record_count": activity_count,
                     })
                     continue
                 elif selected.isdigit():
@@ -17441,6 +17481,8 @@ def run_line_tui(cfg):
                 print(f"Target detail: {target_id} label={target_label or '-'}")
                 print(f"headless_command: {headless}")
                 print_target_summary(scoped_snap, limit=3)
+                target_activity_count = len(scoped_snap.get("target_activity_records") or [])
+                print_target_activity_records(scoped_snap, target_id=target_id, limit=5)
                 actions = scoped_snap.get("target_workflow_actions") or []
                 if actions:
                     print("Target workflow actions:")
@@ -17461,6 +17503,7 @@ def run_line_tui(cfg):
                     "headless_command": headless,
                     "mailbox_pending_work_count": target.get("mailbox_pending_work_count", 0),
                     "last_seen": target.get("last_seen", "") or target.get("last_seen_at", ""),
+                    "target_activity_record_count": target_activity_count,
                 })
             except ValueError as exc:
                 print(exc)
