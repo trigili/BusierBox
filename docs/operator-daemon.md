@@ -50,6 +50,16 @@ These are metadata-backed workflow actions, so automated clients can discover
 them from `workbench_actions`, group them through
 `workbench_actions_by_category.daemon`, and decide whether to run the shown
 command directly or start long-running actions as background workbench jobs.
+Foreground-safe actions can also be run through the workbench action API:
+
+```sh
+scripts/busierbox-server --run-workbench-action systemd-user-status \
+  --workbench-action-dry-run
+```
+
+Line-mode TUI action `11` lists the same actions and can preview or run
+foreground actions after explicit selection. Long-running/background-capable
+actions continue to use TUI action `12` or `--start-workbench-job`.
 
 ## Systemd User Service
 

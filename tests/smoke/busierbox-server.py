@@ -1108,7 +1108,7 @@ def main():
             os.close(actions_tui_slave)
             actions_tui_slave = -1
             time.sleep(0.3)
-            os.write(actions_tui_master, b"11\nq\n")
+            os.write(actions_tui_master, b"11\nsystemd-user-status\n\nq\n")
             _actions_tui_stdout, actions_tui_stderr = actions_tui_proc.communicate(timeout=8)
             actions_tui_output = b""
             while True:
@@ -1132,8 +1132,13 @@ def main():
                 "Workbench action summary:" not in actions_tui_text or
                 "headless_command: scripts/busierbox-server --config" not in actions_tui_text or
                 "--status" not in actions_tui_text or
-                "operator-daemon-status" not in actions_tui_text):
-            print("line TUI workflow-action view did not expose headless status command", file=sys.stderr)
+                "operator-daemon-status" not in actions_tui_text or
+                "operator action id/number to run" not in actions_tui_text or
+                "workbench action: systemd-user-status" not in actions_tui_text or
+                "--run-workbench-action systemd-user-status --workbench-action-dry-run" not in actions_tui_text or
+                "systemctl --user status busierbox-operator.service" not in actions_tui_text or
+                "workbench_action_returncode=0" not in actions_tui_text):
+            print("line TUI workflow-action view/run did not expose headless status command", file=sys.stderr)
             print(actions_tui_text, file=sys.stderr)
             print(actions_tui_stderr or "", file=sys.stderr)
             return 1
@@ -1149,6 +1154,15 @@ def main():
                 for event in actions_tui_events):
             print("line TUI workflow-action view did not record headless command event", file=sys.stderr)
             print(json.dumps(actions_tui_events[-8:], indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        if not any(
+                event.get("event") == "workbench_action_run_completed" and
+                (event.get("details") or {}).get("action_id") == "systemd-user-status" and
+                (event.get("details") or {}).get("dry_run") is True and
+                "--run-workbench-action systemd-user-status --workbench-action-dry-run" in ((event.get("details") or {}).get("headless_command") or "")
+                for event in actions_tui_events):
+            print("line TUI workflow-action run did not record dry-run event", file=sys.stderr)
+            print(json.dumps(actions_tui_events[-12:], indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         refresh_tui_master, refresh_tui_slave = pty.openpty()
@@ -3472,6 +3486,20 @@ def main():
             print(systemd_status.stdout, file=sys.stderr)
             print(systemd_status.stderr, file=sys.stderr)
             return 1
+        systemd_workbench_action = run(
+            "scripts/busierbox-server",
+            "--config", str(daemon_cfg),
+            "--run-workbench-action", "systemd-user-status",
+            "--workbench-action-dry-run",
+        )
+        if (systemd_workbench_action.returncode != 0 or
+                "workbench action: systemd-user-status" not in systemd_workbench_action.stdout or
+                "--run-workbench-action systemd-user-status --workbench-action-dry-run" not in systemd_workbench_action.stdout or
+                "systemctl --user status busierbox-operator.service" not in systemd_workbench_action.stdout):
+            print("workbench action dry-run did not execute systemd user status preview", file=sys.stderr)
+            print(systemd_workbench_action.stdout, file=sys.stderr)
+            print(systemd_workbench_action.stderr, file=sys.stderr)
+            return 1
         systemd_events = [
             json.loads(line)
             for line in (Path(tmp) / "operator-session" / "events.jsonl").read_text(encoding="utf-8").splitlines()
@@ -3493,6 +3521,13 @@ def main():
                     event.get("details", {}).get("action") == "status" and
                     "--systemd-user-action status" in event.get("details", {}).get("headless_command", "") and
                     "systemctl --user status busierbox-smoke.service" == event.get("details", {}).get("systemctl_command", "")
+                    for event in systemd_events) or
+                not any(
+                    event.get("event") == "workbench_action_run_completed" and
+                    event.get("details", {}).get("action_id") == "systemd-user-status" and
+                    event.get("details", {}).get("dry_run") is True and
+                    event.get("details", {}).get("returncode") == 0 and
+                    "--run-workbench-action systemd-user-status --workbench-action-dry-run" in event.get("details", {}).get("headless_command", "")
                     for event in systemd_events)):
             print("systemd user-service events missing headless command metadata", file=sys.stderr)
             print(json.dumps(systemd_events[-12:], indent=2, sort_keys=True), file=sys.stderr)

@@ -4270,6 +4270,110 @@ def cancel_workbench_job_headless_command(cfg, job_id):
     )
 
 
+def workbench_action_by_selector(cfg, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("workbench action is required")
+    actions = workbench_action_records(cfg)
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(actions):
+            raise ValueError(f"workbench action number out of range: {text}")
+        return actions[idx]
+    for rec in actions:
+        if text == str(rec.get("id") or ""):
+            return rec
+    raise ValueError(f"unknown workbench action: {text}")
+
+
+def run_workbench_action_headless_command(cfg, action_id, dry_run=False, confirmed=False):
+    parts = [
+        "scripts/busierbox-server",
+        "--config",
+        str(cfg.get("_config_path", DEFAULT_CONFIG)),
+        "--run-workbench-action",
+        str(action_id or ""),
+    ]
+    if dry_run:
+        parts.append("--workbench-action-dry-run")
+    if confirmed:
+        parts.append("--confirm-workbench-action")
+    return " ".join(shquote(str(part)) for part in parts)
+
+
+def workbench_action_command_for_run(action, dry_run=False):
+    command = str(action.get("command") or "").strip()
+    if dry_run and "--systemd-user-action" in command and "--systemd-user-dry-run" not in command:
+        command = command + " --systemd-user-dry-run"
+    return command
+
+
+def run_workbench_action(cfg, selector, dry_run=False, confirmed=False):
+    action = workbench_action_by_selector(cfg, selector)
+    action_id = str(action.get("id") or "")
+    command = workbench_action_command_for_run(action, dry_run=dry_run)
+    if not command:
+        raise ValueError("workbench action has no command")
+    if action.get("background_supported") is True:
+        raise ValueError(f"workbench action is background-capable; use --start-workbench-job for {action_id}")
+    if not dry_run and action.get("requires_confirmation") is True and not confirmed:
+        raise ValueError(f"workbench action requires --confirm-workbench-action: {action_id}")
+    if any(token in command for token in (" NAME ", " ARTIFACT ", "KEY=VALUE", "VALUE")):
+        raise ValueError("workbench action command contains placeholders and must be configured before running")
+
+    headless = run_workbench_action_headless_command(
+        cfg,
+        action_id,
+        dry_run=dry_run,
+        confirmed=confirmed,
+    )
+    print(f"workbench action: {action_id}")
+    print(f"headless_command={headless}")
+    print(f"command={command}")
+    append_event(cfg, "workbench", "workbench_action_run_requested", details={
+        "action_id": action_id,
+        "category": action.get("category", ""),
+        "script": action.get("script", ""),
+        "command": command,
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "headless_command": headless,
+    })
+
+    if dry_run and "--systemd-user-action" not in command:
+        print("dry_run=yes")
+        append_event(cfg, "workbench", "workbench_action_dry_run", details={
+            "action_id": action_id,
+            "category": action.get("category", ""),
+            "script": action.get("script", ""),
+            "command": command,
+            "headless_command": headless,
+        })
+        return 0
+
+    result = subprocess.run(
+        ["/bin/sh", "-c", command],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.stdout:
+        print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+    if result.stderr:
+        print(result.stderr, end="" if result.stderr.endswith("\n") else "\n", file=sys.stderr)
+    append_event(cfg, "workbench", "workbench_action_run_completed", details={
+        "action_id": action_id,
+        "category": action.get("category", ""),
+        "script": action.get("script", ""),
+        "command": command,
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "returncode": int(result.returncode),
+        "headless_command": headless,
+    })
+    return int(result.returncode)
+
+
 def start_workbench_job(cfg, action_id, command_override=None, headless_command=""):
     actions = {rec.get("id", ""): rec for rec in workbench_action_records(cfg) if rec.get("id")}
     action = actions.get(str(action_id or ""))
@@ -16236,6 +16340,29 @@ def run_line_tui(cfg):
                 "action_count": len(snap.get("workbench_actions") or []),
                 "target_workflow_action_count": len(snap.get("target_workflow_actions") or []),
             })
+            selected_line = line_input("operator action id/number to run, or blank> ")
+            selected = selected_line.strip() if selected_line is not None else ""
+            if selected:
+                try:
+                    action = workbench_action_by_selector(cfg, selected)
+                    if action.get("background_supported") is True:
+                        print("background action; use action 12 to start it as a managed job")
+                        continue
+                    dry_line = line_input("dry-run/preview only? [Y/n]> ")
+                    dry_run = dry_line is None or dry_line.strip().lower() not in ("n", "no")
+                    confirmed = False
+                    if not dry_run and action.get("requires_confirmation") is True:
+                        confirm_line = line_input("run confirmed action now? type yes> ")
+                        confirmed = confirm_line is not None and confirm_line.strip().lower() == "yes"
+                    rc = run_workbench_action(
+                        cfg,
+                        action.get("id", selected),
+                        dry_run=dry_run,
+                        confirmed=confirmed,
+                    )
+                    print(f"workbench_action_returncode={rc}")
+                except (ValueError, IndexError) as exc:
+                    print(exc)
         elif choice == "15":
             snap = workbench_snapshot(cfg)
             actions = snap.get("target_workflow_actions") or []
@@ -17255,6 +17382,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="start a background-capable operator workflow action by id")
     parser.add_argument("--cancel-workbench-job",
                         help="cancel a managed workbench background job by id when ownership evidence matches")
+    parser.add_argument("--run-workbench-action",
+                        help="run a foreground operator workflow action by id or visible number")
+    parser.add_argument("--workbench-action-dry-run", action="store_true",
+                        help="preview a foreground operator workflow action without changing host state where supported")
+    parser.add_argument("--confirm-workbench-action", action="store_true",
+                        help="confirm execution of a foreground operator workflow action that requires confirmation")
     parser.add_argument("--job-command", help=argparse.SUPPRESS)
     parser.add_argument("--run-target-workflow-action",
                         help="run a target workflow action by id or visible number")
@@ -17451,6 +17584,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             print(f"pid={rec.get('pid', '')}")
             print(f"headless_command={headless}")
             return 0
+        if args.run_workbench_action:
+            return run_workbench_action(
+                cfg,
+                args.run_workbench_action,
+                dry_run=args.workbench_action_dry_run,
+                confirmed=args.confirm_workbench_action,
+            )
         if args.run_target_workflow_action:
             return run_target_workflow_action(
                 cfg,
