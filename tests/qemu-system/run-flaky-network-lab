@@ -708,6 +708,8 @@ plan = {
     "requirements": requirements,
     "required_artifacts": sorted({artifact for phase in phases for artifact in phase["artifacts"]}),
     "support_artifacts": [
+        "summary.json",
+        "artifact-manifest.json",
         "validate-phase-artifacts.py",
         "host-network-setup.sh",
         "qemu-commands.sh",
@@ -718,6 +720,8 @@ plan = {
         "validation-report.json",
     ],
     "support_artifact_modes": {
+        "summary.json": "0644",
+        "artifact-manifest.json": "0644",
         "validate-phase-artifacts.py": "0755",
         "host-network-setup.sh": "0755",
         "qemu-commands.sh": "0755",

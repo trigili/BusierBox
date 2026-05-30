@@ -1057,6 +1057,7 @@ def write_topology_artifact(artifact_dir, cfg, ports, phases):
             "target_nodes": "map target ids to separate target nodes and apply the same link_states sequence",
             "accelerated_windows": "replace hour-scale downtime with scripted offline/online transitions around the same mailbox assertions",
             "support_artifacts": [
+                "summary.json",
                 "artifact-manifest.json",
                 "phase-contracts.json",
                 "validation-report.json",
@@ -1068,6 +1069,7 @@ def write_topology_artifact(artifact_dir, cfg, ports, phases):
                 "link-transitions.json",
             ],
             "required_artifacts": [
+                "summary.json",
                 "topology.json",
                 "plan.json",
                 "phase-contracts.json",

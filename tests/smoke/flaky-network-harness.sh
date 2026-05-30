@@ -344,11 +344,13 @@ assert link_states["short-alpha-window"]["state"] == "online-target-alpha-only"
 assert link_states["return-offline"]["state"] == "offline-after-short-window"
 assert any("--daemon --daemon-service command-queue" in command for command in topology["operator_commands"])
 assert topology["qemu_lab_followup"]["status"] == "planned"
+assert "summary.json" in topology["qemu_lab_followup"]["required_artifacts"]
 assert "topology.json" in topology["qemu_lab_followup"]["required_artifacts"]
 assert "plan.json" in topology["qemu_lab_followup"]["required_artifacts"]
 assert "phase-contracts.json" in topology["qemu_lab_followup"]["required_artifacts"]
 assert "validation-report.json" in topology["qemu_lab_followup"]["required_artifacts"]
 assert "artifact-manifest.json" in topology["qemu_lab_followup"]["required_artifacts"]
+assert "summary.json" in topology["qemu_lab_followup"]["support_artifacts"]
 assert "validation-report.json" in topology["qemu_lab_followup"]["support_artifacts"]
 assert "validate-phase-artifacts.py" in topology["qemu_lab_followup"]["support_artifacts"]
 assert "host-network-setup.sh" in topology["qemu_lab_followup"]["support_artifacts"]

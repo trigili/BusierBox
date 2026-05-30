@@ -201,8 +201,12 @@ assert "qemu-commands.sh" in plan["support_artifacts"]
 assert "validate-phase-artifacts.py" in plan["support_artifacts"]
 assert "phase-contracts.json" in plan["support_artifacts"]
 assert "validation-report.json" in plan["support_artifacts"]
+assert "summary.json" in plan["support_artifacts"]
+assert "artifact-manifest.json" in plan["support_artifacts"]
 assert plan["support_artifact_modes"]["validate-phase-artifacts.py"] == "0755"
 assert plan["support_artifact_modes"]["host-network-setup.sh"] == "0755"
+assert plan["support_artifact_modes"]["summary.json"] == "0644"
+assert plan["support_artifact_modes"]["artifact-manifest.json"] == "0644"
 assert plan["support_artifact_modes"]["link-transitions.json"] == "0644"
 assert plan["support_artifact_modes"]["phase-contracts.json"] == "0644"
 assert plan["support_artifact_modes"]["validation-report.json"] == "0644"
