@@ -3379,16 +3379,25 @@ def main():
         result_bravo_mailbox = (result_status.get("target_mailbox_records_by_command_id") or {}).get(bravo_id) or {}
         if (result_alpha.get("connectivity_state") != "online" or
                 result_alpha.get("last_seen_via") != "command-queue:command_queue_result" or
+                result_alpha.get("latest_phone_home_status") != "result-received" or
+                result_alpha.get("latest_successful_phone_home_status") != "result-received" or
                 result_alpha.get("mailbox_result_received_command_count") != 1 or
                 result_alpha.get("mailbox_pending_work_count") != 0 or
                 result_alpha.get("latest_command_result_id") != alpha_id or
                 not result_alpha.get("latest_command_result_at") or
                 result_bravo.get("connectivity_state") != "offline" or
+                result_bravo.get("has_last_failed_phone_home") is not True or
+                result_bravo.get("failed_phone_home_count") != 1 or
+                result_bravo.get("last_failed_phone_home_status") != "rejected" or
+                "command result target mismatch" not in result_bravo.get("last_failed_phone_home_reason", "") or
                 result_bravo.get("poll_overdue") is not True or
                 not isinstance(result_bravo.get("poll_overdue_for_sec"), int) or
                 result_bravo.get("mailbox_pending_work_count") != 1 or
                 result_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("online") != 1 or
                 result_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("offline") != 1 or
+                result_status.get("summary", {}).get("target_failed_phone_home_target_count") != 1 or
+                result_status.get("summary", {}).get("target_last_failed_phone_home_status_counts", {}).get("rejected") != 1 or
+                result_status.get("summary", {}).get("target_has_last_failed_phone_home_counts", {}).get("True") != 1 or
                 result_status.get("summary", {}).get("target_poll_overdue_count") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_pending_work_count") != 1 or
                 result_status.get("summary", {}).get("target_last_seen_via_counts", {}).get("command-queue:command_queue_result") != 1 or
@@ -3444,6 +3453,8 @@ def main():
                 ((result_status.get("target_mailbox_records_by_pending_reason") or {}).get("target-poll-overdue") or [{}])[0].get("command_id") != bravo_id or
                 ((result_status.get("target_mailbox_records_by_has_result") or {}).get("True") or [{}])[0].get("command_id") != alpha_id or
                 ((result_status.get("targets_by_mailbox_pending_work") or {}).get("yes") or [{}])[0].get("target_id") != "target-bravo" or
+                ((result_status.get("targets_by_has_last_failed_phone_home") or {}).get("yes") or [{}])[0].get("target_id") != "target-bravo" or
+                ((result_status.get("targets_by_last_failed_phone_home_status") or {}).get("rejected") or [{}])[0].get("target_id") != "target-bravo" or
                 ((result_status.get("targets_by_last_seen_via") or {}).get("command-queue:command_queue_result") or [{}])[0].get("target_id") != "target-alpha" or
                 result_status.get("summary", {}).get("target_mailbox_target_connectivity_state_counts", {}).get("offline") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_has_target_next_expected_poll_counts", {}).get("True") != 1 or
@@ -3454,6 +3465,8 @@ def main():
                 "target_mailbox_records_by_target_poll_overdue" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
                 "target_mailbox_records_by_pending_reason" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
                 "target_mailbox_records_by_result_latency_bucket" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
+                "targets_by_has_last_failed_phone_home" not in (((result_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or []) or
+                "targets_by_last_failed_phone_home_status" not in (((result_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or []) or
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_result_upload_received" for event in result_status.get("events") or [])):
             print("target mailbox result upload did not update heartbeat and result status", file=sys.stderr)
             print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
@@ -3512,6 +3525,8 @@ def main():
                 "result=completed exit=0" not in result_status_text.stdout or
                 "target-bravo label=Bravo Router" not in result_status_text.stdout or
                 "state=offline" not in result_status_text.stdout or
+                "failed_status=rejected" not in result_status_text.stdout or
+                "failed_reason=command result target mismatch" not in result_status_text.stdout or
                 "poll_overdue=yes" not in result_status_text.stdout or
                 "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in result_status_text.stdout or
                 "activity mailbox target-poll status=queued" not in result_status_text.stdout or

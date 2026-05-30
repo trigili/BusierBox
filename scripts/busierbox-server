@@ -2127,6 +2127,68 @@ def target_phone_home_record_indexes(records):
     }
 
 
+def latest_target_phone_home_records(records):
+    latest = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        target_id = str(rec.get("target_id") or "")
+        if not target_id:
+            continue
+        bucket = latest.setdefault(target_id, {
+            "latest": {},
+            "latest_successful": {},
+            "latest_failed": {},
+            "record_count": 0,
+            "successful_count": 0,
+            "failed_count": 0,
+        })
+        bucket["record_count"] += 1
+        if not bucket["latest"]:
+            bucket["latest"] = rec
+        if rec.get("successful") is True:
+            bucket["successful_count"] += 1
+            if not bucket["latest_successful"]:
+                bucket["latest_successful"] = rec
+        if rec.get("failed") is True:
+            bucket["failed_count"] += 1
+            if not bucket["latest_failed"]:
+                bucket["latest_failed"] = rec
+    return latest
+
+
+def apply_target_phone_home_summary(targets, phone_home_records):
+    by_target = latest_target_phone_home_records(phone_home_records)
+    for rec in targets or []:
+        if not isinstance(rec, dict):
+            continue
+        summary = by_target.get(str(rec.get("target_id") or ""), {})
+        latest = summary.get("latest") or {}
+        latest_success = summary.get("latest_successful") or {}
+        latest_failed = summary.get("latest_failed") or {}
+        rec["phone_home_record_count"] = int(summary.get("record_count", 0) or 0)
+        rec["successful_phone_home_count"] = int(summary.get("successful_count", 0) or 0)
+        rec["failed_phone_home_count"] = int(summary.get("failed_count", 0) or 0)
+        rec["latest_phone_home_at"] = str(latest.get("timestamp") or "")
+        rec["latest_phone_home_kind"] = str(latest.get("kind") or "")
+        rec["latest_phone_home_status"] = str(latest.get("status") or "")
+        rec["latest_phone_home_http_status"] = str(latest.get("http_status") or "")
+        rec["latest_phone_home_contact_path"] = str(latest.get("contact_path") or "")
+        rec["latest_phone_home_reason"] = str(latest.get("pending_reason") or latest.get("reason") or "")
+        rec["latest_successful_phone_home_at"] = str(latest_success.get("timestamp") or "")
+        rec["latest_successful_phone_home_kind"] = str(latest_success.get("kind") or "")
+        rec["latest_successful_phone_home_status"] = str(latest_success.get("status") or "")
+        rec["latest_successful_phone_home_contact_path"] = str(latest_success.get("contact_path") or "")
+        rec["last_failed_phone_home_at"] = str(latest_failed.get("timestamp") or "")
+        rec["last_failed_phone_home_kind"] = str(latest_failed.get("kind") or "")
+        rec["last_failed_phone_home_status"] = str(latest_failed.get("status") or "")
+        rec["last_failed_phone_home_http_status"] = str(latest_failed.get("http_status") or "")
+        rec["last_failed_phone_home_contact_path"] = str(latest_failed.get("contact_path") or "")
+        rec["last_failed_phone_home_reason"] = str(latest_failed.get("pending_reason") or latest_failed.get("reason") or "")
+        rec["has_last_failed_phone_home"] = bool(rec["last_failed_phone_home_at"])
+    return targets
+
+
 def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
     last_seen = str(rec.get("last_seen_at") or rec.get("latest_activity_at") or "")
     last_seen_epoch = parse_utc_timestamp(last_seen)
@@ -2184,6 +2246,10 @@ def target_record_indexes(records):
     by_has_next_expected_poll = {}
     by_poll_overdue = {}
     by_mailbox_pending_work = {}
+    by_latest_phone_home_status = {}
+    by_has_last_failed_phone_home = {}
+    by_last_failed_phone_home_reason = {}
+    by_last_failed_phone_home_status = {}
     by_latest_file_transfer_operation = {}
     by_latest_file_transfer_status = {}
     by_latest_file_transfer_route_kind = {}
@@ -2237,6 +2303,16 @@ def target_record_indexes(records):
         by_has_next_expected_poll.setdefault("yes" if str(rec.get("next_expected_poll") or "") else "no", []).append(rec)
         by_poll_overdue.setdefault("yes" if rec.get("poll_overdue") is True else "no", []).append(rec)
         by_mailbox_pending_work.setdefault("yes" if int(rec.get("mailbox_pending_work_count") or 0) > 0 else "no", []).append(rec)
+        by_has_last_failed_phone_home.setdefault("yes" if rec.get("has_last_failed_phone_home") is True else "no", []).append(rec)
+        latest_phone_home_status = str(rec.get("latest_phone_home_status") or "")
+        if latest_phone_home_status:
+            by_latest_phone_home_status.setdefault(latest_phone_home_status, []).append(rec)
+        last_failed_status = str(rec.get("last_failed_phone_home_status") or "")
+        if last_failed_status:
+            by_last_failed_phone_home_status.setdefault(last_failed_status, []).append(rec)
+        last_failed_reason = str(rec.get("last_failed_phone_home_reason") or "")
+        if last_failed_reason:
+            by_last_failed_phone_home_reason.setdefault(last_failed_reason, []).append(rec)
         by_has_latest_bridge_activity.setdefault("yes" if str(rec.get("latest_bridge_activity_at") or "") else "no", []).append(rec)
         file_op = str(rec.get("latest_file_transfer_operation") or "")
         if file_op:
@@ -2317,6 +2393,8 @@ def target_record_indexes(records):
         by_latest_activity_service, by_latest_activity_operation,
         by_connectivity_state, by_last_seen_via,
         by_has_next_expected_poll, by_poll_overdue, by_mailbox_pending_work,
+        by_latest_phone_home_status, by_has_last_failed_phone_home,
+        by_last_failed_phone_home_reason, by_last_failed_phone_home_status,
         by_latest_file_transfer_operation, by_latest_file_transfer_status,
         by_latest_file_transfer_route_kind, by_latest_file_transfer_bridge_profile,
         by_latest_survey_result_kind, by_latest_survey_result_status,
@@ -2365,6 +2443,10 @@ def target_record_summary(records):
     poll_overdue_count = 0
     mailbox_pending_target_count = 0
     mailbox_pending_work_count = 0
+    phone_home_target_count = 0
+    failed_phone_home_target_count = 0
+    successful_phone_home_count = 0
+    failed_phone_home_count = 0
     latest_file_transfer_count = 0
     latest_survey_result_count = 0
     latest_bridge_activity_count = 0
@@ -2402,6 +2484,14 @@ def target_record_summary(records):
         mailbox_pending_work_count += pending_work
         if pending_work > 0:
             mailbox_pending_target_count += 1
+        phone_home_count = int(rec.get("phone_home_record_count") or 0)
+        if phone_home_count > 0:
+            phone_home_target_count += 1
+        failed_count = int(rec.get("failed_phone_home_count") or 0)
+        successful_phone_home_count += int(rec.get("successful_phone_home_count") or 0)
+        failed_phone_home_count += failed_count
+        if failed_count > 0:
+            failed_phone_home_target_count += 1
         if str(rec.get("latest_file_transfer_at") or ""):
             latest_file_transfer_count += 1
             file_operation = str(rec.get("latest_file_transfer_operation") or "")
@@ -2493,6 +2583,14 @@ def target_record_summary(records):
         "target_poll_overdue_counts": record_count_by_key(records, "poll_overdue"),
         "target_mailbox_pending_target_count": mailbox_pending_target_count,
         "target_mailbox_pending_work_count": mailbox_pending_work_count,
+        "target_phone_home_target_count": phone_home_target_count,
+        "target_successful_phone_home_count": successful_phone_home_count,
+        "target_failed_phone_home_count": failed_phone_home_count,
+        "target_failed_phone_home_target_count": failed_phone_home_target_count,
+        "target_latest_phone_home_status_counts": record_count_by_key(records, "latest_phone_home_status"),
+        "target_has_last_failed_phone_home_counts": record_count_by_key(records, "has_last_failed_phone_home"),
+        "target_last_failed_phone_home_status_counts": record_count_by_key(records, "last_failed_phone_home_status"),
+        "target_last_failed_phone_home_reason_counts": record_count_by_key(records, "last_failed_phone_home_reason"),
         "target_latest_file_transfer_count": latest_file_transfer_count,
         "target_latest_file_transfer_operation_counts": latest_file_transfer_operation_counts,
         "target_latest_file_transfer_status_counts": latest_file_transfer_status_counts,
@@ -13686,14 +13784,18 @@ def status_document(cfg):
         "service_manager_state_records_by_has_resources": records_by_key(service_manager_state_records, "has_resources"),
     }
     service_manager_resource_index_maps = service_manager_resource_indexes(service_manager_resources)
+    all_event_records, _all_event_invalid = EventLog(cfg).records()
+    all_target_phone_home_records = target_phone_home_records_from_events(all_event_records)
     uploads = recent_upload_metadata(cfg)
     fetches = recent_fetch_metadata(cfg)
     targets = target_records(cfg)
+    targets = apply_target_phone_home_summary(targets, all_target_phone_home_records)
     unfiltered_counts = {
         "targets": len(targets),
         "uploads": len(uploads),
         "fetches": len(fetches),
         "staged": unfiltered_staged_count,
+        "target_phone_home_records": len(all_target_phone_home_records),
     }
     if target_filter_id:
         uploads = records_for_target(uploads, target_filter_id)
@@ -13713,6 +13815,10 @@ def status_document(cfg):
      targets_by_has_next_expected_poll,
      targets_by_poll_overdue,
      targets_by_mailbox_pending_work,
+     targets_by_latest_phone_home_status,
+     targets_by_has_last_failed_phone_home,
+     targets_by_last_failed_phone_home_reason,
+     targets_by_last_failed_phone_home_status,
      targets_by_latest_file_transfer_operation,
      targets_by_latest_file_transfer_status,
      targets_by_latest_file_transfer_route_kind,
@@ -13755,6 +13861,12 @@ def status_document(cfg):
         "selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
         "selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
         "selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
+        "selected_target_latest_phone_home_at": str(selected_target.get("latest_phone_home_at") or ""),
+        "selected_target_latest_phone_home_status": str(selected_target.get("latest_phone_home_status") or ""),
+        "selected_target_latest_phone_home_kind": str(selected_target.get("latest_phone_home_kind") or ""),
+        "selected_target_last_failed_phone_home_at": str(selected_target.get("last_failed_phone_home_at") or ""),
+        "selected_target_last_failed_phone_home_status": str(selected_target.get("last_failed_phone_home_status") or ""),
+        "selected_target_last_failed_phone_home_reason": str(selected_target.get("last_failed_phone_home_reason") or ""),
         "selected_target_next_expected_poll": str(selected_target.get("next_expected_poll") or ""),
         "selected_target_poll_overdue": bool(selected_target.get("poll_overdue", False)),
         "selected_target_poll_overdue_for_sec": selected_target.get("poll_overdue_for_sec", ""),
@@ -13798,6 +13910,11 @@ def status_document(cfg):
         "latest_activity_operation_counts": target_summary.get("target_latest_activity_operation_counts") or {},
         "connectivity_state_counts": target_summary.get("target_connectivity_state_counts") or {},
         "last_seen_via_counts": target_summary.get("target_last_seen_via_counts") or {},
+        "latest_phone_home_status_counts": target_summary.get("target_latest_phone_home_status_counts") or {},
+        "last_failed_phone_home_status_counts": target_summary.get("target_last_failed_phone_home_status_counts") or {},
+        "last_failed_phone_home_reason_counts": target_summary.get("target_last_failed_phone_home_reason_counts") or {},
+        "failed_phone_home_target_count": int_value(target_summary.get("target_failed_phone_home_target_count", 0)),
+        "failed_phone_home_count": int_value(target_summary.get("target_failed_phone_home_count", 0)),
         "next_expected_poll_count": int_value(target_summary.get("target_next_expected_poll_count", 0)),
         "poll_overdue_count": int_value(target_summary.get("target_poll_overdue_count", 0)),
         "poll_overdue_counts": target_summary.get("target_poll_overdue_counts") or {},
@@ -13824,6 +13941,7 @@ def status_document(cfg):
         "has_next_expected_polls": target_registry_state_record.get("next_expected_poll_count", 0) > 0,
         "has_poll_overdue": target_registry_state_record.get("poll_overdue_count", 0) > 0,
         "has_mailbox_pending_work": target_registry_state_record.get("mailbox_pending_work_count", 0) > 0,
+        "has_failed_phone_home": target_registry_state_record.get("failed_phone_home_target_count", 0) > 0,
         "has_latest_file_transfer": target_registry_state_record.get("latest_file_transfer_count", 0) > 0,
         "has_latest_survey_result": target_registry_state_record.get("latest_survey_result_count", 0) > 0,
         "has_latest_bridge_activity": target_registry_state_record.get("latest_bridge_activity_count", 0) > 0,
@@ -13841,6 +13959,8 @@ def status_document(cfg):
         "target_registry_state_records_by_selected_target_found": records_by_key(target_registry_state_records, "selected_target_found"),
         "target_registry_state_records_by_selected_target_identity_confidence": records_by_key(target_registry_state_records, "selected_target_identity_confidence"),
         "target_registry_state_records_by_selected_target_connectivity_state": records_by_key(target_registry_state_records, "selected_target_connectivity_state"),
+        "target_registry_state_records_by_selected_target_latest_phone_home_status": records_by_key(target_registry_state_records, "selected_target_latest_phone_home_status"),
+        "target_registry_state_records_by_selected_target_last_failed_phone_home_status": records_by_key(target_registry_state_records, "selected_target_last_failed_phone_home_status"),
         "target_registry_state_records_by_selected_target_poll_overdue": records_by_key(target_registry_state_records, "selected_target_poll_overdue"),
         "target_registry_state_records_by_selected_target_mailbox_pending_work_count": records_by_key(target_registry_state_records, "selected_target_mailbox_pending_work_count"),
         "target_registry_state_records_by_selected_target_latest_file_transfer_status": records_by_key(target_registry_state_records, "selected_target_latest_file_transfer_status"),
@@ -13856,6 +13976,7 @@ def status_document(cfg):
         "target_registry_state_records_by_has_next_expected_polls": records_by_key(target_registry_state_records, "has_next_expected_polls"),
         "target_registry_state_records_by_has_poll_overdue": records_by_key(target_registry_state_records, "has_poll_overdue"),
         "target_registry_state_records_by_has_mailbox_pending_work": records_by_key(target_registry_state_records, "has_mailbox_pending_work"),
+        "target_registry_state_records_by_has_failed_phone_home": records_by_key(target_registry_state_records, "has_failed_phone_home"),
         "target_registry_state_records_by_has_latest_file_transfer": records_by_key(target_registry_state_records, "has_latest_file_transfer"),
         "target_registry_state_records_by_has_latest_survey_result": records_by_key(target_registry_state_records, "has_latest_survey_result"),
         "target_registry_state_records_by_has_latest_bridge_activity": records_by_key(target_registry_state_records, "has_latest_bridge_activity"),
@@ -14100,8 +14221,6 @@ def status_document(cfg):
         now_epoch=target_mailbox_now_epoch,
     )
     target_mailbox_index_maps = target_mailbox_record_indexes(target_mailbox_records)
-    all_event_records, _all_event_invalid = EventLog(cfg).records()
-    unfiltered_counts["target_phone_home_records"] = len(target_phone_home_records_from_events(all_event_records))
     target_phone_home_source_events = all_event_records
     if target_filter_id:
         target_phone_home_source_events = [
@@ -14237,6 +14356,12 @@ def status_document(cfg):
         "selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
         "selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
         "selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
+        "selected_target_latest_phone_home_at": str(selected_target.get("latest_phone_home_at") or ""),
+        "selected_target_latest_phone_home_status": str(selected_target.get("latest_phone_home_status") or ""),
+        "selected_target_latest_phone_home_kind": str(selected_target.get("latest_phone_home_kind") or ""),
+        "selected_target_last_failed_phone_home_at": str(selected_target.get("last_failed_phone_home_at") or ""),
+        "selected_target_last_failed_phone_home_status": str(selected_target.get("last_failed_phone_home_status") or ""),
+        "selected_target_last_failed_phone_home_reason": str(selected_target.get("last_failed_phone_home_reason") or ""),
         "selected_target_next_expected_poll": str(selected_target.get("next_expected_poll") or ""),
         "selected_target_poll_overdue": bool(selected_target.get("poll_overdue", False)),
         "selected_target_poll_overdue_for_sec": selected_target.get("poll_overdue_for_sec", ""),
@@ -15978,6 +16103,10 @@ def status_document(cfg):
                 "targets_by_has_next_expected_poll",
                 "targets_by_poll_overdue",
                 "targets_by_mailbox_pending_work",
+                "targets_by_latest_phone_home_status",
+                "targets_by_has_last_failed_phone_home",
+                "targets_by_last_failed_phone_home_reason",
+                "targets_by_last_failed_phone_home_status",
                 "targets_by_latest_file_transfer_operation",
                 "targets_by_latest_file_transfer_status",
                 "targets_by_latest_file_transfer_route_kind",
@@ -16011,6 +16140,8 @@ def status_document(cfg):
         "target_registry_state_records_by_selected_target_found",
         "target_registry_state_records_by_selected_target_identity_confidence",
         "target_registry_state_records_by_selected_target_connectivity_state",
+        "target_registry_state_records_by_selected_target_latest_phone_home_status",
+        "target_registry_state_records_by_selected_target_last_failed_phone_home_status",
         "target_registry_state_records_by_selected_target_poll_overdue",
         "target_registry_state_records_by_selected_target_mailbox_pending_work_count",
         "target_registry_state_records_by_selected_target_latest_file_transfer_status",
@@ -16026,6 +16157,7 @@ def status_document(cfg):
                 "target_registry_state_records_by_has_next_expected_polls",
                 "target_registry_state_records_by_has_poll_overdue",
                 "target_registry_state_records_by_has_mailbox_pending_work",
+                "target_registry_state_records_by_has_failed_phone_home",
                 "target_registry_state_records_by_has_latest_file_transfer",
                 "target_registry_state_records_by_has_latest_survey_result",
                 "target_registry_state_records_by_has_latest_bridge_activity",
@@ -16634,6 +16766,10 @@ def status_document(cfg):
             "target_filter_selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
             "target_filter_selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
             "target_filter_selected_target_next_expected_poll": str(selected_target.get("next_expected_poll") or ""),
+            "target_filter_selected_target_latest_phone_home_at": str(selected_target.get("latest_phone_home_at") or ""),
+            "target_filter_selected_target_latest_phone_home_status": str(selected_target.get("latest_phone_home_status") or ""),
+            "target_filter_selected_target_last_failed_phone_home_at": str(selected_target.get("last_failed_phone_home_at") or ""),
+            "target_filter_selected_target_last_failed_phone_home_status": str(selected_target.get("last_failed_phone_home_status") or ""),
             "target_filter_selected_target_poll_overdue": bool(selected_target.get("poll_overdue", False)),
             "target_filter_selected_target_mailbox_pending_work_count": int_value(selected_target.get("mailbox_pending_work_count", 0)),
             "target_filter_selected_target_latest_file_transfer_status": str(selected_target.get("latest_file_transfer_status") or ""),
@@ -16892,6 +17028,10 @@ def status_document(cfg):
         "targets_by_has_next_expected_poll": targets_by_has_next_expected_poll,
         "targets_by_poll_overdue": targets_by_poll_overdue,
         "targets_by_mailbox_pending_work": targets_by_mailbox_pending_work,
+        "targets_by_latest_phone_home_status": targets_by_latest_phone_home_status,
+        "targets_by_has_last_failed_phone_home": targets_by_has_last_failed_phone_home,
+        "targets_by_last_failed_phone_home_reason": targets_by_last_failed_phone_home_reason,
+        "targets_by_last_failed_phone_home_status": targets_by_last_failed_phone_home_status,
         "targets_by_latest_file_transfer_operation": targets_by_latest_file_transfer_operation,
         "targets_by_latest_file_transfer_status": targets_by_latest_file_transfer_status,
         "targets_by_latest_file_transfer_route_kind": targets_by_latest_file_transfer_route_kind,
@@ -17389,6 +17529,15 @@ def print_target_summary(doc, limit=8):
                 f"next_expected_poll={rec.get('next_expected_poll', '') or '-'} "
                 f"poll_overdue={'yes' if rec.get('poll_overdue') else 'no'} "
                 f"poll_overdue_for_sec={rec.get('poll_overdue_for_sec', '') if rec.get('poll_overdue_for_sec') != '' else '-'}"
+            )
+        if rec.get("latest_phone_home_at") or rec.get("last_failed_phone_home_at"):
+            print(
+                f"    phone_home_latest={rec.get('latest_phone_home_at', '') or '-'} "
+                f"kind={rec.get('latest_phone_home_kind', '') or '-'} "
+                f"status={rec.get('latest_phone_home_status', '') or '-'} "
+                f"failed_last={rec.get('last_failed_phone_home_at', '') or '-'} "
+                f"failed_status={rec.get('last_failed_phone_home_status', '') or '-'} "
+                f"failed_reason={rec.get('last_failed_phone_home_reason', '') or '-'}"
             )
         if int(rec.get("mailbox_command_count") or 0) > 0:
             print(
@@ -21646,6 +21795,8 @@ def run_curses_tui(cfg):
                     f"state: {rec.get('connectivity_state', '') or '-'}",
                     f"last_seen: {rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}",
                     f"last_seen_via: {rec.get('last_seen_via', '') or '-'}",
+                    f"latest_phone_home: {rec.get('latest_phone_home_at', '') or '-'} status={rec.get('latest_phone_home_status', '') or '-'}",
+                    f"last_failed_phone_home: {rec.get('last_failed_phone_home_at', '') or '-'} status={rec.get('last_failed_phone_home_status', '') or '-'} reason={rec.get('last_failed_phone_home_reason', '') or '-'}",
                     f"offline_for_sec: {rec.get('offline_for_sec', '') if rec.get('offline_for_sec') != '' else '-'}",
                     f"next_expected_poll: {rec.get('next_expected_poll', '') or '-'}",
                     f"poll_overdue: {'yes' if rec.get('poll_overdue') else 'no'}",

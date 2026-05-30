@@ -324,6 +324,11 @@ queue records:
   show when and how the target last contacted the operator.
 - `targets[].next_expected_poll` is populated when the latest command-queue poll
   reported a polling interval.
+- `targets[].latest_phone_home_at`, `latest_phone_home_status`,
+  `last_failed_phone_home_at`, `last_failed_phone_home_status`, and
+  `last_failed_phone_home_reason` promote recent phone-home success/failure
+  state into the target row so operators do not have to infer it from raw event
+  history.
 - `targets[].mailbox_queued_command_count`,
   `mailbox_delivered_command_count`, `mailbox_result_received_command_count`,
   and `mailbox_pending_work_count` summarize queued work per target.
