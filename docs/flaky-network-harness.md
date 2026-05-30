@@ -29,6 +29,8 @@ virtual network boundaries:
   latest-file-transfer indexes, retained forensic payload metadata, event
   records, and headless target status text
 - bridge relay activity is attributed back to the selected target
+- bridge path interruption is recorded with profile failure metadata, target
+  bridge failure state, bridge error events, and status/API indexes
 
 Run it directly when debugging:
 
@@ -43,7 +45,7 @@ writes focused debug artifacts that mirror the QEMU lab contract:
 `phone-home-attempts.json`, `mailbox-lifecycle.json`,
 `restart-persistence.json`, `bad-token-phone-home.json`,
 `target-mismatch-phone-home.json`, `transfer.log`, `bridge-events.jsonl`, and
-`artifact-manifest.json`. The smoke wrapper
+`bridge-interruption.json`, and `artifact-manifest.json`. The smoke wrapper
 `tests/smoke/flaky-network-harness.sh` runs the same scenario from
 `make smoke-test` with a temporary artifact directory and validates those
 focused artifacts.

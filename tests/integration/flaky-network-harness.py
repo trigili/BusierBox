@@ -72,6 +72,23 @@ def bridge_roundtrip(port, payload):
     raise RuntimeError(f"bridge did not open port {port}: {last}")
 
 
+def bridge_send_once(port, payload):
+    deadline = time.time() + 5
+    last = None
+    while time.time() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5) as conn:
+                conn.sendall(payload)
+                try:
+                    return conn.recv(65536)
+                except OSError:
+                    return b""
+        except (ConnectionRefusedError, TimeoutError, OSError) as exc:
+            last = exc
+            time.sleep(0.05)
+    raise RuntimeError(f"bridge did not open port {port}: {last}")
+
+
 def http_body(response):
     if b"\r\n\r\n" not in response:
         return b""
@@ -480,6 +497,31 @@ def write_bridge_events_artifact(artifact_dir, doc):
         if str(rec.get("service") or "") == "bridge" or str(rec.get("event") or "").startswith("bridge_")
     ]
     write_jsonl(artifact_dir / "bridge-events.jsonl", records)
+
+
+def write_bridge_interruption_artifact(artifact_dir, doc, profile_name):
+    profile = (doc.get("bridge_profiles_by_name") or {}).get(profile_name) or {}
+    target = (doc.get("targets_by_id") or {}).get("target-alpha") or {}
+    events = [
+        rec for rec in (doc.get("events") or [])
+        if rec.get("event") == "bridge_error"
+        and (rec.get("details") or {}).get("bridge_profile") == profile_name
+    ]
+    write_json(artifact_dir / "bridge-interruption.json", {
+        "schema": 1,
+        "kind": "bridge-interruption-artifact",
+        "profile": profile,
+        "target": target,
+        "summary": {
+            "bridge_profile_has_last_failure_counts": (doc.get("summary") or {}).get("bridge_profile_has_last_failure_counts") or {},
+            "target_latest_bridge_status_counts": (doc.get("summary") or {}).get("target_latest_bridge_status_counts") or {},
+        },
+        "api_indexes": {
+            "bridge_profiles": ((doc.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes") or [],
+            "targets": ((doc.get("api_collections") or {}).get("targets") or {}).get("indexes") or [],
+        },
+        "bridge_error_events": events,
+    })
 
 
 def write_offline_workflow_artifact(artifact_dir, doc):
@@ -1074,6 +1116,42 @@ def run_harness(artifact_dir):
     assert_condition(bridge_status["targets_by_id"]["target-alpha"]["latest_bridge_status"] == "closed", "bridge activity not tracked")
     write_bridge_events_artifact(artifact_dir, bridge_status)
     phases.append({"name": "bridge-reconnect", "status": "pass", "artifact": "after-bridge-relay.json"})
+
+    bad_bridge_dest_port = free_port()
+    save_bad = run(
+        str(SERVER), "--config", str(cfg),
+        "--target-id", "target-alpha",
+        "--save-bridge-profile", "flaky-bad-bridge",
+        "--bridge-port", str(bridge_port),
+        "--bridge-dest-host", "127.0.0.1",
+        "--bridge-dest-port", str(bad_bridge_dest_port),
+        "--bridge-profile-purpose", "flaky-link-interruption-test",
+        "--bridge-profile-notes", "deterministic harness closed upstream",
+    )
+    if save_bad.returncode != 0:
+        raise RuntimeError(f"bad bridge profile save failed: {save_bad.stderr}")
+    proc = start_one_shot(cfg, "bridge", extra=["--bridge-profile", "flaky-bad-bridge", "--session-timeout", "3"])
+    bridge_failure_response = bridge_send_once(bridge_port, b"hello")
+    wait_proc(proc, "bridge interruption")
+    (artifact_dir / "bridge-interruption-response.bin").write_bytes(bridge_failure_response)
+    bridge_failure_status = status(cfg, artifact_dir, "after-bridge-interruption")
+    bad_profile = (bridge_failure_status.get("bridge_profiles_by_name") or {}).get("flaky-bad-bridge") or {}
+    failure_target = bridge_failure_status["targets_by_id"]["target-alpha"]
+    failure_events = bridge_failure_status.get("events_by_event") or {}
+    assert_condition(failure_target["latest_bridge_status"] == "error", "bridge interruption target status missing", failure_target)
+    assert_condition(failure_target["latest_bridge_profile"] == "flaky-bad-bridge", "bridge interruption target profile missing", failure_target)
+    assert_condition(failure_target.get("latest_bridge_failure_reason"), "bridge interruption failure reason missing", failure_target)
+    assert_condition(bad_profile.get("has_last_failure") is True, "bridge profile failure flag missing", bad_profile)
+    assert_condition(bad_profile.get("last_failure_reason") == failure_target.get("latest_bridge_failure_reason"), "bridge profile failure reason mismatch", bad_profile)
+    assert_condition(bad_profile.get("last_failure_dest_port") == bad_bridge_dest_port, "bridge failure destination port missing", bad_profile)
+    assert_condition(bridge_failure_status["summary"]["bridge_profile_has_last_failure_counts"].get("True") == 1, "bridge failure summary missing")
+    assert_condition(bridge_failure_status["summary"]["target_latest_bridge_status_counts"].get("error") == 1, "bridge target error summary missing")
+    assert_condition(((bridge_failure_status.get("bridge_profiles_by_has_last_failure") or {}).get("True") or [{}])[0].get("name") == "flaky-bad-bridge", "bridge failure profile index missing")
+    assert_condition(((bridge_failure_status.get("targets_by_latest_bridge_status") or {}).get("error") or [{}])[0].get("target_id") == "target-alpha", "bridge failure target index missing")
+    assert_condition(failure_events.get("bridge_error"), "bridge error event missing")
+    write_bridge_interruption_artifact(artifact_dir, bridge_failure_status, "flaky-bad-bridge")
+    write_bridge_events_artifact(artifact_dir, bridge_failure_status)
+    phases.append({"name": "bridge-interruption", "status": "pass", "artifact": "after-bridge-interruption.json"})
 
     summary = {
         "schema": 1,

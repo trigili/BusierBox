@@ -16,6 +16,7 @@ test -s "$tmp/flaky-network/command-result.json"
 test -s "$tmp/flaky-network/phone-home-attempts.json"
 test -s "$tmp/flaky-network/transfer.log"
 test -s "$tmp/flaky-network/bridge-events.jsonl"
+test -s "$tmp/flaky-network/bridge-interruption.json"
 test -s "$tmp/flaky-network/artifact-manifest.json"
 python3 -m json.tool "$tmp/flaky-network/summary.json" >/dev/null
 python3 - "$tmp/flaky-network" <<'PY'
@@ -39,6 +40,7 @@ bridge_events = [
     for line in (artifact_dir / "bridge-events.jsonl").read_text(encoding="utf-8").splitlines()
     if line.strip()
 ]
+bridge_interruption = json.loads((artifact_dir / "bridge-interruption.json").read_text(encoding="utf-8"))
 
 assert mailbox["kind"] == "target-mailbox-artifact"
 assert mailbox["summary"]["target_mailbox_pending_work_count"] == 2
@@ -93,6 +95,19 @@ assert any(rec["event"] == "upload_complete" and (rec["details"] or {}).get("sta
 assert "latest_file_transfer=upload status=truncated" in transfer["status_text"]
 assert bridge_events
 assert any((rec.get("details") or {}).get("bridge_profile") == "flaky-bridge" for rec in bridge_events)
+assert any((rec.get("details") or {}).get("bridge_profile") == "flaky-bad-bridge" for rec in bridge_events)
+assert bridge_interruption["kind"] == "bridge-interruption-artifact"
+assert bridge_interruption["profile"]["name"] == "flaky-bad-bridge"
+assert bridge_interruption["profile"]["has_last_failure"] is True
+assert bridge_interruption["profile"]["last_failure_reason"]
+assert bridge_interruption["target"]["latest_bridge_status"] == "error"
+assert bridge_interruption["target"]["latest_bridge_profile"] == "flaky-bad-bridge"
+assert bridge_interruption["target"]["latest_bridge_failure_reason"] == bridge_interruption["profile"]["last_failure_reason"]
+assert bridge_interruption["summary"]["bridge_profile_has_last_failure_counts"]["True"] == 1
+assert bridge_interruption["summary"]["target_latest_bridge_status_counts"]["error"] == 1
+assert "bridge_profiles_by_has_last_failure" in bridge_interruption["api_indexes"]["bridge_profiles"]
+assert "targets_by_latest_bridge_status" in bridge_interruption["api_indexes"]["targets"]
+assert bridge_interruption["bridge_error_events"]
 manifest_names = {item["name"] for item in manifest["artifacts"]}
 for name in (
     "target-mailbox.json",
@@ -105,6 +120,7 @@ for name in (
     "phone-home-attempts.json",
     "transfer.log",
     "bridge-events.jsonl",
+    "bridge-interruption.json",
     "summary.json",
 ):
     assert name in manifest_names, name
