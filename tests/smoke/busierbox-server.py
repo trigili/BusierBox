@@ -6826,6 +6826,14 @@ def main():
             return 1
         line_text = line_output.decode("utf-8", errors="replace")
         if ("selected target target-action label=Action Router" not in line_text or
+                "Status bar: services=" not in line_text or
+                "targets=1" not in line_text or
+                "selected_target=target-action" not in line_text or
+                "  Services:" not in line_text or
+                "  Targets:" not in line_text or
+                "  Bridges:" not in line_text or
+                "  Files and releases:" not in line_text or
+                "  Automation and config:" not in line_text or
                 "Target detail: target-action label=Action Router" not in line_text or
                 "headless_command: scripts/busierbox-server --config" not in line_text or
                 "--target-id target-action --status" not in line_text or

@@ -16341,12 +16341,82 @@ def run_line_tui(cfg):
         except (TypeError, ValueError) as exc:
             print(exc)
 
+    def line_tui_status_bar(snap):
+        summary = snap.get("summary") or {}
+        target_filter = snap.get("target_filter") or {}
+        counts = summary.get("connectivity_state_counts") or summary.get("target_connectivity_state_counts") or {}
+        state_text = format_counts(counts) if counts else "none"
+        selected = "-"
+        if target_filter.get("active"):
+            selected = str(target_filter.get("target_id") or target_filter.get("selected_target_id") or "-")
+        pending_targets = (
+            summary.get("mailbox_pending_target_count", "")
+            if summary.get("mailbox_pending_target_count", "") != ""
+            else summary.get("target_mailbox_pending_target_count", 0)
+        )
+        pending_work = (
+            summary.get("mailbox_pending_work_count", "")
+            if summary.get("mailbox_pending_work_count", "") != ""
+            else summary.get("target_mailbox_pending_work_count", 0)
+        )
+        poll_overdue = (
+            summary.get("poll_overdue_count", "")
+            if summary.get("poll_overdue_count", "") != ""
+            else summary.get("target_poll_overdue_count", 0)
+        )
+        return (
+            "Status bar: "
+            f"services={summary.get('listening_count', 0)} "
+            f"warnings={len(snap.get('warnings') or [])} "
+            f"targets={summary.get('target_count', 0)} "
+            f"states={state_text} "
+            f"mailbox_pending_targets={pending_targets} "
+            f"mailbox_pending_work={pending_work} "
+            f"poll_overdue={poll_overdue} "
+            f"selected_target={selected} "
+            f"events={summary.get('event_count', 0)}"
+        )
+
+    def print_line_tui_actions():
+        print("Actions:")
+        print("  Services:")
+        print("    1 start ssh")
+        print("    2 start tls-shell")
+        print("    3 start plain-shell")
+        print("    4 start file-service")
+        print("    5 stop service")
+        print("    19 serve survey bootstrap")
+        print("  Targets:")
+        print("    15 run target workflow action")
+        print("    16 select target filter")
+        print("    18 inspect target mailbox/activity")
+        print("    20 inspect command queue/results")
+        print("  Bridges:")
+        print("    17 manage bridge profiles")
+        print("  Files and releases:")
+        print("    6 stage file")
+        print("    7 list staged")
+        print("    8 unstage file")
+        print("    9 open local path in pager")
+        print("    10 stage release recommendation/device/tuple")
+        print("    c show/copy generated commands")
+        print("  Automation and config:")
+        print("    11 show operator workflow actions")
+        print("    12 start background workflow job")
+        print("    13 cancel background workflow job")
+        print("    14 configure BusierBox build field")
+        print("  r refresh")
+        print("  ? help")
+        print("  q quit")
+
     render_full = False
     while not SHUTDOWN.is_set():
         print("")
+        snap = None
         if render_full:
             print_workbench(cfg, include_api_summary=False)
             render_full = False
+            snap = workbench_snapshot(cfg)
         else:
             snap = workbench_snapshot(cfg)
             summary = snap.get("summary") or {}
@@ -16365,32 +16435,11 @@ def run_line_tui(cfg):
             target_filter = snap.get("target_filter") or {}
             if target_filter.get("active"):
                 print(target_filter_summary_text(target_filter, prefix="Target filter:"))
+        if snap is None:
+            snap = workbench_snapshot(cfg)
+        print(line_tui_status_bar(snap))
         print("")
-        print("Actions:")
-        print("  1 start ssh")
-        print("  2 start tls-shell")
-        print("  3 start plain-shell")
-        print("  4 start file-service")
-        print("  5 stop service")
-        print("  6 stage file")
-        print("  7 list staged")
-        print("  8 unstage file")
-        print("  9 open local path in pager")
-        print("  10 stage release recommendation/device/tuple")
-        print("  11 show operator workflow actions")
-        print("  12 start background workflow job")
-        print("  13 cancel background workflow job")
-        print("  14 configure BusierBox build field")
-        print("  15 run target workflow action")
-        print("  16 select target filter")
-        print("  17 manage bridge profiles")
-        print("  18 inspect target mailbox/activity")
-        print("  19 serve survey bootstrap")
-        print("  20 inspect command queue/results")
-        print("  c show/copy generated commands")
-        print("  r refresh")
-        print("  ? help")
-        print("  q quit")
+        print_line_tui_actions()
         line = line_input("> ")
         if line is None:
             break

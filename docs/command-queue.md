@@ -420,6 +420,12 @@ code and a refreshed target activity summary so the operator can immediately see
 queued mailbox work and last-contact state. No action changes the safety
 boundary: target execution still requires an explicit target-side fetch, upload,
 poll, or bridge connection.
+The line-mode TUI also keeps a persistent status bar above its action menu with
+service, warning, target, connectivity-state, pending-mailbox, poll-overdue,
+selected-target, and event counts. Its menu is grouped into Services, Targets,
+Bridges, Files and releases, and Automation/config sections so multi-device
+workflows stay centered on target selection, target detail, and mailbox actions
+without hiding the existing numeric shortcuts.
 Mutating target workflow actions record `target_workflow_action_completed`
 events with the target id, action id, headless command, and result-specific
 metadata such as queued command id or staged request name, so headless and TUI
