@@ -3480,11 +3480,15 @@ def main():
                 result_alpha_actions_by_action.get("queue-command", {}).get("target_mailbox_pending_work_count") != 0 or
                 result_bravo_actions_by_action.get("queue-command", {}).get("target_mailbox_pending_work_count") != 1 or
                 result_bravo_actions_by_action.get("queue-command", {}).get("target_poll_overdue") is not True or
+                result_bravo_actions_by_action.get("queue-command", {}).get("target_offline_age_bucket") != "day-plus" or
                 result_bravo_actions_by_action.get("queue-command", {}).get("target_last_failed_phone_home_status") != "rejected" or
                 "command result target mismatch" not in result_bravo_actions_by_action.get("queue-command", {}).get("target_last_failed_phone_home_reason", "") or
                 ((result_status.get("target_workflow_actions_by_target_mailbox_pending_work_count") or {}).get("1") or [{}])[0].get("target_id") != "target-bravo" or
+                ((result_status.get("target_workflow_actions_by_target_offline_age_bucket") or {}).get("day-plus") or [{}])[0].get("target_id") != "target-bravo" or
                 ((result_status.get("target_workflow_actions_by_target_last_failed_phone_home_status") or {}).get("rejected") or [{}])[0].get("target_id") != "target-bravo" or
                 result_status.get("summary", {}).get("target_workflow_action_target_mailbox_pending_work_count_counts", {}).get("1") != len(result_bravo_actions) or
+                result_status.get("summary", {}).get("target_workflow_action_target_offline_age_bucket_counts", {}).get("under-minute") != len(result_alpha_actions) or
+                result_status.get("summary", {}).get("target_workflow_action_target_offline_age_bucket_counts", {}).get("day-plus") != len(result_bravo_actions) or
                 result_status.get("summary", {}).get("target_workflow_action_target_last_failed_phone_home_status_counts", {}).get("rejected") != len(result_bravo_actions) or
                 result_status.get("summary", {}).get("target_mailbox_target_connectivity_state_counts", {}).get("offline") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_has_target_next_expected_poll_counts", {}).get("True") != 1 or
@@ -3499,6 +3503,7 @@ def main():
                 "targets_by_has_last_failed_phone_home" not in (((result_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or []) or
                 "targets_by_last_failed_phone_home_status" not in (((result_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or []) or
                 "target_workflow_actions_by_target_mailbox_pending_work_count" not in (((result_status.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes") or []) or
+                "target_workflow_actions_by_target_offline_age_bucket" not in (((result_status.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes") or []) or
                 "target_workflow_actions_by_target_last_failed_phone_home_status" not in (((result_status.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes") or []) or
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_result_upload_received" for event in result_status.get("events") or [])):
             print("target mailbox result upload did not update heartbeat and result status", file=sys.stderr)
