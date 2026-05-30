@@ -17718,6 +17718,7 @@ def run_curses_tui(cfg):
         13: "Workflow Actions",
         14: "Target Actions",
         15: "Operator Daemon",
+        16: "Target Activity",
     }
     pane_groups = {
         0: "Services",
@@ -17736,6 +17737,7 @@ def run_curses_tui(cfg):
         13: "Automation",
         14: "Targets",
         15: "Daemon",
+        16: "Activity",
     }
     pane_shortcuts = {
         ord("t"): 8,
@@ -17746,6 +17748,7 @@ def run_curses_tui(cfg):
         ord("f"): 2,
         ord("w"): 13,
         ord("e"): 4,
+        ord("g"): 16,
     }
 
     def safe_add(stdscr, row, col, text, attr=0):
@@ -17841,6 +17844,18 @@ def run_curses_tui(cfg):
                     f"reason={rec.get('operator_action_reason', '') or '-'}"
                 )
                 for idx, rec in enumerate(target_workflow_actions)
+            ] or ["none"]
+            target_activity_records = snap.get("target_activity_records") or []
+            target_activity_lines = [
+                (
+                    f"{'>' if pane == 16 and idx == selected else ' '} "
+                    f"{rec.get('target_id', '') or '-'} "
+                    f"{rec.get('category', '') or '-'}:{rec.get('operation', '') or '-'} "
+                    f"status={rec.get('status', '') or '-'} "
+                    f"pending={'yes' if rec.get('pending_work') else 'no'} "
+                    f"at={rec.get('timestamp', '') or '-'}"
+                )
+                for idx, rec in enumerate(target_activity_records)
             ] or ["none"]
             bridge_profiles = snap.get("bridge_profiles") or []
             bridge_lines = [
@@ -18200,6 +18215,27 @@ def run_curses_tui(cfg):
                         f"error: {row.get('error') or '-'}",
                         "operator daemon child state is read from shared status",
                     ]
+            elif pane == 16 and target_activity_records:
+                rec = target_activity_records[min(selected, len(target_activity_records) - 1)]
+                route = str(rec.get("route_kind") or "-")
+                if rec.get("bridge_profile"):
+                    route += f" bridge_profile={rec.get('bridge_profile', '')}"
+                detail_lines = [
+                    f"target_activity_record: {rec.get('id', '') or '-'}",
+                    f"target: {rec.get('target_id', '') or '-'} label={rec.get('target_label', '') or '-'}",
+                    f"category: {rec.get('category', '') or '-'}",
+                    f"operation: {rec.get('operation', '') or '-'} status={rec.get('status', '') or '-'}",
+                    f"source_collection: {rec.get('source_collection', '') or '-'}",
+                    f"pending_work: {'yes' if rec.get('pending_work') else 'no'} waiting_for={rec.get('waiting_for', '') or '-'}",
+                    f"timestamp: {rec.get('timestamp', '') or '-'}",
+                    f"route: {route}",
+                    f"command_id: {rec.get('command_id', '') or '-'}",
+                    f"request_name: {rec.get('request_name', '') or '-'}",
+                    f"filename: {rec.get('filename', '') or '-'}",
+                    f"session_id: {rec.get('session_id', '') or '-'}",
+                    f"summary: {rec.get('summary', '') or '-'}",
+                    "g opens target activity feed; action 21 opens line-mode activity feed",
+                ]
             elif pane == 9 and bridge_profiles:
                 rec = bridge_profiles[min(selected, len(bridge_profiles) - 1)]
                 name = str(rec.get("name") or "")
@@ -18367,7 +18403,7 @@ def run_curses_tui(cfg):
                 stdscr,
                 3,
                 0,
-                "Groups: [t]argets [a]ctions [m]ailbox [b]ridges [o]daemon [f]iles [w]orkflows [e]vents"
+                "Groups: [t]argets [a]ctions [m]ailbox [b]ridges [o]daemon [f]iles [w]orkflows [e]vents [g]activity"
                 f" | active={active_group}/{active_pane_title}",
                 curses.A_BOLD,
             )
@@ -18393,13 +18429,14 @@ def run_curses_tui(cfg):
             draw_list(stdscr, "Mailbox", mailbox_lines, bottom_y, (top_sixth + 1) * 3, top_bottom_h, top_sixth, pane == 10)
             draw_list(stdscr, "Bridge Routes", bridge_lines, bottom_y, (top_sixth + 1) * 4, top_bottom_h, top_sixth, pane == 9)
             draw_list(stdscr, "Workflow Actions", action_lines, bottom_y, (top_sixth + 1) * 5, top_bottom_h, width - ((top_sixth + 1) * 5), pane == 13)
-            lower_sixth = max(11, width // 6)
-            draw_list(stdscr, "Target Commands", command_lines, lower_bottom_y, 0, lower_bottom_h, lower_sixth, pane == 5)
-            draw_list(stdscr, "Operator Daemon", daemon_lines, lower_bottom_y, lower_sixth + 1, lower_bottom_h, lower_sixth, pane == 15)
-            draw_list(stdscr, "Build Config", config_lines, lower_bottom_y, (lower_sixth + 1) * 2, lower_bottom_h, lower_sixth, pane == 11)
-            draw_list(stdscr, "Jobs", job_lines, lower_bottom_y, (lower_sixth + 1) * 3, lower_bottom_h, lower_sixth, pane == 12)
-            draw_list(stdscr, "Release Artifacts", release_lines, lower_bottom_y, (lower_sixth + 1) * 4, lower_bottom_h, lower_sixth, pane == 6)
-            draw_list(stdscr, "Devices / Tuples", device_tuple_lines, lower_bottom_y, (lower_sixth + 1) * 5, lower_bottom_h, width - ((lower_sixth + 1) * 5), pane == 7)
+            lower_seventh = max(10, width // 7)
+            draw_list(stdscr, "Target Commands", command_lines, lower_bottom_y, 0, lower_bottom_h, lower_seventh, pane == 5)
+            draw_list(stdscr, "Target Activity", target_activity_lines, lower_bottom_y, lower_seventh + 1, lower_bottom_h, lower_seventh, pane == 16)
+            draw_list(stdscr, "Operator Daemon", daemon_lines, lower_bottom_y, (lower_seventh + 1) * 2, lower_bottom_h, lower_seventh, pane == 15)
+            draw_list(stdscr, "Build Config", config_lines, lower_bottom_y, (lower_seventh + 1) * 3, lower_bottom_h, lower_seventh, pane == 11)
+            draw_list(stdscr, "Jobs", job_lines, lower_bottom_y, (lower_seventh + 1) * 4, lower_bottom_h, lower_seventh, pane == 12)
+            draw_list(stdscr, "Release Artifacts", release_lines, lower_bottom_y, (lower_seventh + 1) * 5, lower_bottom_h, lower_seventh, pane == 6)
+            draw_list(stdscr, "Devices / Tuples", device_tuple_lines, lower_bottom_y, (lower_seventh + 1) * 6, lower_bottom_h, width - ((lower_seventh + 1) * 6), pane == 7)
             key = stdscr.getch()
             if key in (ord("q"), ord("Q")):
                 return 0
@@ -18408,10 +18445,10 @@ def run_curses_tui(cfg):
             elif key in (curses.KEY_UP, ord("k")):
                 selected = max(0, selected - 1)
             elif key == ord("\t"):
-                pane = (pane + 1) % 16
+                pane = (pane + 1) % 17
                 selected = 0
             elif key == curses.KEY_BTAB:
-                pane = (pane - 1) % 16
+                pane = (pane - 1) % 17
                 selected = 0
             elif key in pane_shortcuts:
                 pane = pane_shortcuts[key]
@@ -18582,7 +18619,7 @@ def run_curses_tui(cfg):
                 safe_add(stdscr, height - 2, 0, message)
                 stdscr.getch()
             elif key in (ord("?"),):
-                safe_add(stdscr, height - 2, 0, "Help: arrows/jk move, Tab panes, t/a/m/b/o/f/w/e jump groups, Enter act, s stage, d unstage, v view, c copy, r refresh, q quit")
+                safe_add(stdscr, height - 2, 0, "Help: arrows/jk move, Tab panes, t/a/m/b/o/f/w/e/g jump groups, Enter act, s stage, d unstage, v view, c copy, r refresh, q quit")
                 stdscr.getch()
             elif key in (ord("r"), ord("R")):
                 rec = record_workbench_refresh(cfg)
@@ -18616,6 +18653,7 @@ def run_curses_tui(cfg):
                 len(workbench_actions) if pane == 13 else
                 len(target_workflow_actions) if pane == 14 else
                 len(daemon_records) if pane == 15 else
+                len(target_activity_records) if pane == 16 else
                 1
             )
             selected = min(max(0, selected), max(0, max_items - 1))
