@@ -788,6 +788,32 @@ def write_offline_workflow_tui_artifact(artifact_dir, doc, tui_result):
     })
 
 
+def write_offline_workflow_drain_tui_artifact(artifact_dir, doc, tui_result):
+    target = (doc.get("targets_by_id") or {}).get("target-workflow") or {}
+    records = [
+        rec for rec in (doc.get("target_mailbox_records") or [])
+        if rec.get("target_id") == "target-workflow"
+    ]
+    events = [
+        rec for rec in (doc.get("events") or [])
+        if rec.get("event") in ("workbench_command_queue_inspected", "workbench_target_inspected")
+    ]
+    write_json(artifact_dir / "offline-workflow-drain-tui.json", {
+        "schema": 1,
+        "kind": "offline-workflow-drain-tui-artifact",
+        "returncode": tui_result.get("returncode"),
+        "stderr": tui_result.get("stderr", ""),
+        "stdout": tui_result.get("stdout", ""),
+        "target": target,
+        "target_mailbox_records": records,
+        "summary": {
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+        },
+        "workbench_events": events,
+    })
+
+
 def write_offline_workflow_drain_artifact(artifact_dir, doc, delivered_ids, responses):
     records = [
         rec for rec in (doc.get("target_mailbox_records") or [])
@@ -1115,6 +1141,21 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition(any(rec.get("pending_work_remaining") is True for rec in drain_phone_home), "offline workflow drain should record remaining queued work after first poll", drain_phone_home)
     assert_condition(any(rec.get("pending_work_remaining") is False for rec in drain_phone_home), "offline workflow drain should record empty mailbox after final poll", drain_phone_home)
     write_offline_workflow_drain_artifact(artifact_dir, drain_doc, delivered_ids, responses)
+    drain_tui_result = run_line_tui(cfg, "20\n18\ntarget-workflow\nq\n")
+    assert_condition(drain_tui_result["returncode"] == 0, "offline workflow drain line TUI failed", drain_tui_result)
+    drain_tui_text = drain_tui_result["stdout"]
+    assert_condition("Target mailbox records:" in drain_tui_text, "offline workflow drain TUI missing mailbox section", drain_tui_text)
+    assert_condition("target=target-workflow" in drain_tui_text, "offline workflow drain TUI missing target-scoped mailbox records", drain_tui_text)
+    assert_condition("status=delivered" in drain_tui_text and "pending=no" in drain_tui_text, "offline workflow drain TUI missing delivered mailbox state", drain_tui_text)
+    assert_condition("last_seen=" in drain_tui_text and "via=command-queue:command_queue_poll" in drain_tui_text, "offline workflow drain TUI missing heartbeat context", drain_tui_text)
+    assert_condition("next_expected_poll=" in drain_tui_text and "poll_overdue=no" in drain_tui_text, "offline workflow drain TUI missing next poll context", drain_tui_text)
+    assert_condition("phone_home_latest=" in drain_tui_text and "status=delivered" in drain_tui_text, "offline workflow drain TUI missing phone-home status", drain_tui_text)
+    assert_condition("Target detail: target-workflow label=Workflow Target" in drain_tui_text, "offline workflow drain TUI missing target detail", drain_tui_text)
+    drain_tui_doc = status(cfg, artifact_dir, "offline-workflow-drain-tui-status")
+    drain_tui_events = drain_tui_doc.get("events_by_event") or {}
+    assert_condition(drain_tui_events.get("workbench_command_queue_inspected"), "offline workflow drain TUI command queue event missing")
+    assert_condition(drain_tui_events.get("workbench_target_inspected"), "offline workflow drain TUI target detail event missing")
+    write_offline_workflow_drain_tui_artifact(artifact_dir, drain_tui_doc, drain_tui_result)
     return {"name": "offline-workflow-queue", "status": "pass", "artifact": "offline-workflow-status.json"}
 
 

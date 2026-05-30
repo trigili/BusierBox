@@ -55,6 +55,7 @@ assert len(topology["target_nodes"]) >= 3
 assert "offline-status.json" in plan["required_artifacts"]
 assert "offline-workflow-tui.json" in plan["required_artifacts"]
 assert "offline-workflow-drain.json" in plan["required_artifacts"]
+assert "offline-workflow-drain-tui.json" in plan["required_artifacts"]
 assert "systemd-user-service.json" in plan["required_artifacts"]
 assert "dropped-command-result.http" in plan["required_artifacts"]
 assert "multi-target-isolation.json" in plan["required_artifacts"]

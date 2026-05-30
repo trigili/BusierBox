@@ -97,8 +97,8 @@ phases = [
     {
         "name": "offline-workflow-drain",
         "link_state": "target-workflow-link-up-short-window",
-        "operator_expectation": "target-workflow drains queued survey bootstrap and staged-file fetch commands during a short reconnect window",
-        "artifacts": ["offline-workflow-drain.json", "offline-workflow-drain-status.json", "offline-workflow-drain-poll-1.http", "offline-workflow-drain-poll-2.http"],
+        "operator_expectation": "target-workflow drains queued survey bootstrap and staged-file fetch commands during a short reconnect window, then TUI and headless status agree on delivered mailbox and heartbeat state",
+        "artifacts": ["offline-workflow-drain.json", "offline-workflow-drain-tui.json", "offline-workflow-drain-status.json", "offline-workflow-drain-tui-status.json", "offline-workflow-drain-poll-1.http", "offline-workflow-drain-poll-2.http"],
     },
     {
         "name": "systemd-user-service",

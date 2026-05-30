@@ -10,6 +10,7 @@ test -s "$tmp/flaky-network/target-mailbox.json"
 test -s "$tmp/flaky-network/offline-workflow-mailbox.json"
 test -s "$tmp/flaky-network/offline-workflow-tui.json"
 test -s "$tmp/flaky-network/offline-workflow-drain.json"
+test -s "$tmp/flaky-network/offline-workflow-drain-tui.json"
 test -s "$tmp/flaky-network/mailbox-lifecycle.json"
 test -s "$tmp/flaky-network/restart-persistence.json"
 test -s "$tmp/flaky-network/bad-token-phone-home.json"
@@ -38,6 +39,7 @@ mailbox = json.loads((artifact_dir / "target-mailbox.json").read_text(encoding="
 workflow = json.loads((artifact_dir / "offline-workflow-mailbox.json").read_text(encoding="utf-8"))
 workflow_tui = json.loads((artifact_dir / "offline-workflow-tui.json").read_text(encoding="utf-8"))
 workflow_drain = json.loads((artifact_dir / "offline-workflow-drain.json").read_text(encoding="utf-8"))
+workflow_drain_tui = json.loads((artifact_dir / "offline-workflow-drain-tui.json").read_text(encoding="utf-8"))
 lifecycle = json.loads((artifact_dir / "mailbox-lifecycle.json").read_text(encoding="utf-8"))
 restart = json.loads((artifact_dir / "restart-persistence.json").read_text(encoding="utf-8"))
 bad_token = json.loads((artifact_dir / "bad-token-phone-home.json").read_text(encoding="utf-8"))
@@ -109,6 +111,24 @@ assert all(rec["kind"] == "poll" for rec in workflow_drain["phone_home_records"]
 assert all(rec["successful"] is True for rec in workflow_drain["phone_home_records"])
 assert any(rec["pending_work_remaining"] is True for rec in workflow_drain["phone_home_records"])
 assert any(rec["pending_work_remaining"] is False for rec in workflow_drain["phone_home_records"])
+assert workflow_drain_tui["kind"] == "offline-workflow-drain-tui-artifact"
+assert workflow_drain_tui["returncode"] == 0
+assert workflow_drain_tui["target"]["target_id"] == "target-workflow"
+assert workflow_drain_tui["target"]["mailbox_pending_work_count"] == 0
+assert workflow_drain_tui["target"]["mailbox_delivered_command_count"] == 2
+assert workflow_drain_tui["target"]["last_seen_via"] == "command-queue:command_queue_poll"
+assert workflow_drain_tui["target"]["latest_phone_home_status"] == "delivered"
+assert all(rec["status"] == "delivered" for rec in workflow_drain_tui["target_mailbox_records"])
+assert "Target mailbox records:" in workflow_drain_tui["stdout"]
+assert "target=target-workflow" in workflow_drain_tui["stdout"]
+assert "status=delivered" in workflow_drain_tui["stdout"]
+assert "pending=no" in workflow_drain_tui["stdout"]
+assert "via=command-queue:command_queue_poll" in workflow_drain_tui["stdout"]
+assert "next_expected_poll=" in workflow_drain_tui["stdout"]
+assert "poll_overdue=no" in workflow_drain_tui["stdout"]
+assert "phone_home_latest=" in workflow_drain_tui["stdout"]
+assert any(rec["event"] == "workbench_command_queue_inspected" for rec in workflow_drain_tui["workbench_events"])
+assert any(rec["event"] == "workbench_target_inspected" for rec in workflow_drain_tui["workbench_events"])
 assert lifecycle["kind"] == "mailbox-lifecycle-artifact"
 assert lifecycle["failed_mailbox_record"]["result_status"] == "failed"
 assert lifecycle["failed_mailbox_record"]["result_exit_code"] == 23
@@ -246,6 +266,7 @@ for name in (
     "offline-workflow-mailbox.json",
     "offline-workflow-tui.json",
     "offline-workflow-drain.json",
+    "offline-workflow-drain-tui.json",
     "mailbox-lifecycle.json",
     "restart-persistence.json",
     "bad-token-phone-home.json",
