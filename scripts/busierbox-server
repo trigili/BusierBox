@@ -17154,6 +17154,17 @@ def run_curses_tui(cfg):
                 )
                 for idx, rec in enumerate(workbench_jobs)
             ] or ["none"]
+            workbench_actions = snap.get("workbench_actions") or []
+            action_lines = [
+                (
+                    f"{'>' if pane == 13 and idx == selected else ' '} "
+                    f"{rec.get('id', '') or '-'} "
+                    f"cat={rec.get('category', '') or '-'} "
+                    f"bg={'yes' if rec.get('background_supported') else 'no'} "
+                    f"confirm={'yes' if rec.get('requires_confirmation') else 'no'}"
+                )
+                for idx, rec in enumerate(workbench_actions)
+            ] or ["none"]
             release = snap.get("release") or {}
             release_artifacts = release.get("artifacts") or []
             release_devices = release.get("devices") or []
@@ -17438,6 +17449,27 @@ def run_curses_tui(cfg):
                 ]
                 for line in rec.get("last_output_tail") or []:
                     detail_lines.append(f"| {line}")
+            elif pane == 13 and workbench_actions:
+                rec = workbench_actions[min(selected, len(workbench_actions) - 1)]
+                detail_lines = [
+                    f"workflow_action: {rec.get('id', '') or '-'}",
+                    f"label: {rec.get('label', '')}",
+                    f"category: {rec.get('category', '')}",
+                    f"script: {rec.get('script', '')}",
+                    f"background_supported: {'yes' if rec.get('background_supported') else 'no'}",
+                    f"long_running: {'yes' if rec.get('long_running') else 'no'}",
+                    f"foreground_runnable: {'yes' if rec.get('foreground_runnable') else 'no'}",
+                    f"dry_run_supported: {'yes' if rec.get('dry_run_supported') else 'no'}",
+                    f"requires_confirmation: {'yes' if rec.get('requires_confirmation') else 'no'}",
+                    f"writes_config: {'yes' if rec.get('writes_config') else 'no'} runs_build={'yes' if rec.get('runs_build') else 'no'}",
+                    f"config_path: {rec.get('config_path', '') or '-'}",
+                    f"command: {rec.get('command', '') or '-'}",
+                    f"dry_run: {rec.get('dry_run_command', '') or '-'}",
+                    f"run: {rec.get('run_command', '') or '-'}",
+                    f"start_job: {rec.get('start_job_command', '') or '-'}",
+                    "enter starts background workflow job when supported",
+                    "action 11 opens full workflow action list",
+                ]
             else:
                 detail_lines = [
                     f"state: {state_file_path(cfg)}",
@@ -17498,11 +17530,12 @@ def run_curses_tui(cfg):
             top_bottom_h = max(4, bottom_h // 2)
             lower_bottom_y = bottom_y + top_bottom_h
             lower_bottom_h = max(1, height - lower_bottom_y - 1)
-            quarter = max(16, width // 4)
-            draw_list(stdscr, f"Event Log | {event_tail_status_line}", event_lines, bottom_y, 0, top_bottom_h, quarter, pane == 4)
-            draw_list(stdscr, "Target Fleet", target_lines, bottom_y, quarter + 1, top_bottom_h, quarter, pane == 8)
-            draw_list(stdscr, "Mailbox", mailbox_lines, bottom_y, (quarter + 1) * 2, top_bottom_h, quarter, pane == 10)
-            draw_list(stdscr, "Bridge Routes", bridge_lines, bottom_y, (quarter + 1) * 3, top_bottom_h, width - ((quarter + 1) * 3), pane == 9)
+            top_fifth = max(13, width // 5)
+            draw_list(stdscr, f"Event Log | {event_tail_status_line}", event_lines, bottom_y, 0, top_bottom_h, top_fifth, pane == 4)
+            draw_list(stdscr, "Target Fleet", target_lines, bottom_y, top_fifth + 1, top_bottom_h, top_fifth, pane == 8)
+            draw_list(stdscr, "Mailbox", mailbox_lines, bottom_y, (top_fifth + 1) * 2, top_bottom_h, top_fifth, pane == 10)
+            draw_list(stdscr, "Bridge Routes", bridge_lines, bottom_y, (top_fifth + 1) * 3, top_bottom_h, top_fifth, pane == 9)
+            draw_list(stdscr, "Workflow Actions", action_lines, bottom_y, (top_fifth + 1) * 4, top_bottom_h, width - ((top_fifth + 1) * 4), pane == 13)
             lower_fifth = max(13, width // 5)
             draw_list(stdscr, "Target Commands", command_lines, lower_bottom_y, 0, lower_bottom_h, lower_fifth, pane == 5)
             draw_list(stdscr, "Build Config", config_lines, lower_bottom_y, lower_fifth + 1, lower_bottom_h, lower_fifth, pane == 11)
@@ -17517,10 +17550,10 @@ def run_curses_tui(cfg):
             elif key in (curses.KEY_UP, ord("k")):
                 selected = max(0, selected - 1)
             elif key == ord("\t"):
-                pane = (pane + 1) % 13
+                pane = (pane + 1) % 14
                 selected = 0
             elif key == curses.KEY_BTAB:
-                pane = (pane - 1) % 13
+                pane = (pane - 1) % 14
                 selected = 0
             elif key in (ord("1"), ord("2"), ord("3"), ord("4")):
                 service = {ord("1"): "ssh", ord("2"): "tls-shell", ord("3"): "plain-shell", ord("4"): "file-service"}[key]
@@ -17579,6 +17612,24 @@ def run_curses_tui(cfg):
                         except ValueError as exc:
                             safe_add(stdscr, height - 2, 0, str(exc))
                             stdscr.getch()
+                elif pane == 13 and workbench_actions:
+                    rec = workbench_actions[min(selected, len(workbench_actions) - 1)]
+                    action_id = str(rec.get("id") or "")
+                    if action_id and rec.get("background_supported"):
+                        try:
+                            started = start_workbench_job(
+                                cfg,
+                                action_id,
+                                headless_command=start_workbench_job_headless_command(cfg, action_id),
+                            )
+                            safe_add(stdscr, height - 2, 0, f"Started job {started.get('id', '')}: log={started.get('log_path', '')}")
+                            stdscr.getch()
+                        except ValueError as exc:
+                            safe_add(stdscr, height - 2, 0, str(exc))
+                            stdscr.getch()
+                    else:
+                        safe_add(stdscr, height - 2, 0, "Foreground actions use action 11 for preview/run confirmation.")
+                        stdscr.getch()
             elif key == ord("5"):
                 curses.echo()
                 safe_add(stdscr, height - 2, 0, "service> ")
@@ -17662,6 +17713,7 @@ def run_curses_tui(cfg):
                 len(mailbox_records) if pane == 10 else
                 len(config_fields) if pane == 11 else
                 len(workbench_jobs) if pane == 12 else
+                len(workbench_actions) if pane == 13 else
                 1
             )
             selected = min(max(0, selected), max(0, max_items - 1))

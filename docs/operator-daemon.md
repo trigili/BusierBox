@@ -73,6 +73,13 @@ view shows process ownership, outcome, exit status, timestamps, log path, output
 tail, and command. Pressing Enter cancels a selected managed job when the same
 ownership checks used by line-mode action `13` say cancellation is supported.
 
+The curses workbench also has a `Workflow Actions` pane for the operator action
+catalog. It shows action ids, categories, background support, confirmation
+requirements, and the equivalent dry-run/run/start-job commands in the details
+view. Pressing Enter starts actions that are already background-safe as managed
+jobs; foreground or confirmation-sensitive actions remain routed through
+line-mode action `11` for explicit preview and confirmation.
+
 ## Systemd User Service
 
 The same daemon command can be rendered or installed as a systemd user service:
