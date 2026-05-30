@@ -930,6 +930,7 @@ def write_tui_offline_queue_artifact(artifact_dir, before_doc, after_doc, tui_re
         "after": {
             "target_mailbox_pending_work_count": after_doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
             "target_mailbox_waiting_for_counts": after_doc.get("summary", {}).get("target_mailbox_waiting_for_counts", {}),
+            "target_mailbox_bridge_profile_counts": after_doc.get("summary", {}).get("target_mailbox_bridge_profile_counts", {}),
         },
         "target": target,
         "target_mailbox_records": records,
@@ -1570,10 +1571,25 @@ def run_tui_offline_queue_scenario(artifact_dir):
     command_ids_to_drain = [rec.get("command_id") or rec.get("id") or "" for rec in records]
     assert_condition(all(command_ids_to_drain), "TUI offline queue command ids missing", records)
     queued_commands = "\n".join(rec.get("command") or "" for rec in records)
+    bridge_mailbox = next((rec for rec in records if rec.get("command") == "busierbox rshell start"), {})
     assert_condition("busierbox survey --json" in queued_commands, "TUI offline queue command missing", queued_commands)
     assert_condition("survey.sh" in queued_commands, "TUI offline queued survey command missing", queued_commands)
     assert_condition("busierbox fetch tui-payload.txt" in queued_commands, "TUI offline queued fetch command missing", queued_commands)
     assert_condition("busierbox rshell start" in queued_commands, "TUI offline queued bridge command missing", queued_commands)
+    assert_condition(bridge_mailbox.get("work_kind") == "bridge-start", "TUI offline bridge mailbox work kind missing", bridge_mailbox)
+    assert_condition(bridge_mailbox.get("workflow") == "bridge", "TUI offline bridge mailbox workflow missing", bridge_mailbox)
+    assert_condition(bridge_mailbox.get("bridge_profile") == "tui-bridge", "TUI offline bridge mailbox profile missing", bridge_mailbox)
+    assert_condition(bridge_mailbox.get("bridge_route_path"), "TUI offline bridge mailbox route missing", bridge_mailbox)
+    assert_condition(bridge_mailbox.get("route_kind") == "bridge", "TUI offline bridge mailbox route kind missing", bridge_mailbox)
+    assert_condition(after_doc["summary"]["target_mailbox_bridge_profile_counts"].get("tui-bridge") == 1, "TUI offline bridge mailbox profile summary missing")
+    assert_condition(
+        ((after_doc.get("target_mailbox_records_by_bridge_profile") or {}).get("tui-bridge") or [{}])[0].get("command_id") == bridge_mailbox.get("command_id"),
+        "TUI offline bridge mailbox profile index missing",
+    )
+    assert_condition(
+        "target_mailbox_records_by_bridge_profile" in (((after_doc.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []),
+        "TUI offline bridge mailbox API index missing",
+    )
     assert_condition(all(rec.get("status") == "queued" for rec in records), "TUI offline queue mailbox status mismatch", records)
     assert_condition(all(rec.get("pending_work") is True for rec in records), "TUI offline queue should remain pending while target is offline", records)
     assert_condition(all(rec.get("waiting_for") == "target-poll" for rec in records), "TUI offline queue waiting_for mismatch", records)
@@ -1630,9 +1646,12 @@ def run_tui_offline_queue_scenario(artifact_dir):
         if rec.get("target_id") == "target-tui"
     ]
     target = drain_doc["targets_by_id"]["target-tui"]
+    drained_bridge = next((rec for rec in drained_records if rec.get("command") == "busierbox rshell start"), {})
     assert_condition(len(drained_records) == 4, "TUI offline queue drain records missing", drained_records)
     assert_condition(all(rec.get("status") == "delivered" for rec in drained_records), "TUI offline queued work did not become delivered", drained_records)
     assert_condition(all(rec.get("pending_work") is False for rec in drained_records), "TUI offline queued work should no longer be pending", drained_records)
+    assert_condition(drained_bridge.get("bridge_profile") == "tui-bridge", "TUI offline drained bridge mailbox profile missing", drained_bridge)
+    assert_condition(drained_bridge.get("work_kind") == "bridge-start", "TUI offline drained bridge mailbox work kind missing", drained_bridge)
     assert_condition(target.get("last_seen_via") == "command-queue:command_queue_poll", "TUI offline queue drain last_seen_via mismatch", target)
     assert_condition(target.get("mailbox_pending_work_count") == 0, "TUI offline queue drain left pending work", target)
     assert_condition(target.get("latest_phone_home_status") == "delivered", "TUI offline queue drain phone-home status mismatch", target)

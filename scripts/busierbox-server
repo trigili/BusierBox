@@ -1906,6 +1906,13 @@ def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
         "waiting_for": waiting_for,
         "pending_reason": pending_reason,
         "has_pending_reason": bool(pending_reason),
+        "work_kind": str(rec.get("work_kind") or ""),
+        "workflow": str(rec.get("workflow") or ""),
+        "request_name": str(rec.get("request_name") or ""),
+        "bridge_profile": str(rec.get("bridge_profile") or ""),
+        "bridge_route_path": str(rec.get("bridge_route_path") or ""),
+        "bridge_requires_target_online": bool(rec.get("bridge_requires_target_online") is True),
+        "route_kind": str(rec.get("route_kind") or ""),
         "command": command_text,
         "command_sha256": command_sha256,
         "created_at": created_at,
@@ -1970,6 +1977,12 @@ def target_mailbox_record_indexes(records):
         "target_mailbox_records_by_waiting_for": records_by_key(records, "waiting_for"),
         "target_mailbox_records_by_pending_reason": records_by_key(records, "pending_reason"),
         "target_mailbox_records_by_has_pending_reason": records_by_key(records, "has_pending_reason"),
+        "target_mailbox_records_by_work_kind": records_by_key(records, "work_kind"),
+        "target_mailbox_records_by_workflow": records_by_key(records, "workflow"),
+        "target_mailbox_records_by_request_name": records_by_key(records, "request_name"),
+        "target_mailbox_records_by_bridge_profile": records_by_key(records, "bridge_profile"),
+        "target_mailbox_records_by_bridge_requires_target_online": records_by_key(records, "bridge_requires_target_online"),
+        "target_mailbox_records_by_route_kind": records_by_key(records, "route_kind"),
         "target_mailbox_records_by_expired": records_by_key(records, "expired"),
         "target_mailbox_records_by_age_bucket": records_by_key(records, "age_bucket"),
         "target_mailbox_records_by_pending_delivery_age_bucket": records_by_key(records, "pending_delivery_age_bucket"),
@@ -8427,7 +8440,7 @@ def mark_command_delivered(cfg, command_id, remote_addr="", target_identity=None
     return None
 
 
-def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None, expire_sec=None):
+def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None, expire_sec=None, metadata=None):
     text = str(command or "").strip()
     if not text:
         raise ValueError("command queue entry must not be empty")
@@ -8463,6 +8476,18 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None, expire_
     }
     if configured_target_filter(cfg):
         rec.update(target_context_fields(cfg, configured_target_filter(cfg)))
+    queue_metadata = metadata if isinstance(metadata, dict) else {}
+    for key in (
+        "work_kind",
+        "workflow",
+        "request_name",
+        "bridge_profile",
+        "bridge_route_path",
+        "bridge_requires_target_online",
+        "route_kind",
+    ):
+        if key in queue_metadata and queue_metadata.get(key) not in (None, ""):
+            rec[key] = queue_metadata.get(key)
     data["commands"].append(rec)
     save_command_queue(cfg, data)
     append_event(
@@ -8483,6 +8508,12 @@ def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None, expire_
             "executes_commands": rec["executes_commands"],
             "target_id": rec.get("target_id", ""),
             "target_label": rec.get("target_label", ""),
+            "work_kind": rec.get("work_kind", ""),
+            "workflow": rec.get("workflow", ""),
+            "request_name": rec.get("request_name", ""),
+            "bridge_profile": rec.get("bridge_profile", ""),
+            "bridge_route_path": rec.get("bridge_route_path", ""),
+            "bridge_requires_target_online": rec.get("bridge_requires_target_online", ""),
             "policy_snapshot": rec["queue_policy_snapshot"],
         },
     )
@@ -15673,6 +15704,12 @@ def status_document(cfg):
         "target_mailbox_waiting_for_counts": record_count_by_key(target_mailbox_records, "waiting_for"),
         "target_mailbox_pending_reason_counts": record_count_by_key(target_mailbox_records, "pending_reason"),
         "target_mailbox_has_pending_reason_counts": record_count_by_key(target_mailbox_records, "has_pending_reason"),
+        "target_mailbox_work_kind_counts": record_count_by_key(target_mailbox_records, "work_kind"),
+        "target_mailbox_workflow_counts": record_count_by_key(target_mailbox_records, "workflow"),
+        "target_mailbox_request_name_counts": record_count_by_key(target_mailbox_records, "request_name"),
+        "target_mailbox_bridge_profile_counts": record_count_by_key(target_mailbox_records, "bridge_profile"),
+        "target_mailbox_bridge_requires_target_online_counts": record_count_by_key(target_mailbox_records, "bridge_requires_target_online"),
+        "target_mailbox_route_kind_counts": record_count_by_key(target_mailbox_records, "route_kind"),
         "target_mailbox_expired_counts": record_count_by_key(target_mailbox_records, "expired"),
         "target_mailbox_age_bucket_counts": record_count_by_key(target_mailbox_records, "age_bucket"),
         "target_mailbox_pending_delivery_age_bucket_counts": record_count_by_key(target_mailbox_records, "pending_delivery_age_bucket"),
@@ -16487,6 +16524,12 @@ def status_document(cfg):
                 "target_mailbox_records_by_waiting_for",
                 "target_mailbox_records_by_pending_reason",
                 "target_mailbox_records_by_has_pending_reason",
+                "target_mailbox_records_by_work_kind",
+                "target_mailbox_records_by_workflow",
+                "target_mailbox_records_by_request_name",
+                "target_mailbox_records_by_bridge_profile",
+                "target_mailbox_records_by_bridge_requires_target_online",
+                "target_mailbox_records_by_route_kind",
                 "target_mailbox_records_by_expired",
                 "target_mailbox_records_by_age_bucket",
                 "target_mailbox_records_by_pending_delivery_age_bucket",
@@ -20441,7 +20484,14 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             raise ValueError(f"bridge profile not found: {profile}")
         profile_info = bridge_profile_record(cfg, profile, profile_rec)
         command = "busierbox rshell start"
-        queued = queue_command(scoped, command)
+        queued = queue_command(scoped, command, metadata={
+            "work_kind": "bridge-start",
+            "workflow": "bridge",
+            "bridge_profile": profile,
+            "bridge_route_path": profile_info.get("route_path", ""),
+            "bridge_requires_target_online": bool(profile_info.get("requires_target_online")),
+            "route_kind": "bridge",
+        })
         print(f"queued {queued['id']}: {queued['command']}")
         print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
         print(f"bridge_profile={profile} route={profile_info.get('route_path', '')}")
@@ -21353,6 +21403,16 @@ def run_line_tui(cfg):
                         f"poll_overdue={'yes' if rec.get('target_poll_overdue') else 'no'} "
                         f"poll_overdue_for_sec={rec.get('target_poll_overdue_for_sec', '') if rec.get('target_poll_overdue_for_sec') != '' else '-'}"
                     )
+                    if rec.get("work_kind") or rec.get("bridge_profile") or rec.get("request_name"):
+                        print(
+                            f"    work_kind={rec.get('work_kind', '') or '-'} "
+                            f"workflow={rec.get('workflow', '') or '-'} "
+                            f"request_name={rec.get('request_name', '') or '-'} "
+                            f"route_kind={rec.get('route_kind', '') or '-'} "
+                            f"bridge_profile={rec.get('bridge_profile', '') or '-'} "
+                            f"bridge_requires_target_online={'yes' if rec.get('bridge_requires_target_online') else 'no'} "
+                            f"bridge_route={rec.get('bridge_route_path', '') or '-'}"
+                        )
                     print(
                         f"    created={rec.get('created_at', '') or '-'} "
                         f"delivered={rec.get('delivered_at', '') or '-'} "
