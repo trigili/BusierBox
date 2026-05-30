@@ -477,6 +477,18 @@ enter-runnable counts, pending-work counts, warning counts, and an
 web clients render the same operator workflow map without reverse-engineering
 the lower-level action catalogs.
 
+Release/artifact selection has a matching `release_artifact_workflow_actions`
+collection. It exposes release inspection, release self-test, per-artifact
+staging, and per-recommendation staging actions with stable selectors and
+headless commands such as `--stage-release-artifact by_device:NAME`. Action
+records include selector kind, artifact/recommendation metadata, payload preset,
+compatibility label, whether the action writes staged-file state, and whether
+Enter can run it from the TUI. Indexes such as
+`release_artifact_workflow_actions_by_selector_kind`,
+`release_artifact_workflow_actions_by_release_path`, and
+`release_artifact_workflow_actions_by_recommendation_scope` let clients render a
+release browser without special-casing raw artifact and recommendation maps.
+
 The same actions can be run headlessly or from the line-oriented TUI. For
 automation, use the stable action id:
 

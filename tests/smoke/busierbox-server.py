@@ -171,6 +171,7 @@ def main():
                  "active={active_group}/{active_pane_title}", "pane_shortcuts",
                  "Operator console workflow summary:", "operator_console_workflows_by_group",
                  "operator_console_workflows", "operator_console_workflow_count",
+                 "release_artifact_workflow_actions", "release_artifact_workflow_actions_by_selector_kind",
                  "capability=", "compatibility=", "tail_status = event_tail_availability_text(snap)",
                  "Target Fleet", "enter selects this target filter", "set_workbench_target_filter(cfg",
                  "Target Files", "target_file_transfer:", "source_collection=", "v opens metadata, stored file, or source in pager",
@@ -4164,6 +4165,7 @@ def main():
                 ("command_queue_policy_records", len(queue_status_json.get("command_queue_policy_records") or []), "command_queue_policy_records_by_valid"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_result_upload_supported"),
                 ("release_state_records", len(queue_status_json.get("release_state_records") or []), "release_state_records_by_detection_source"),
+                ("release_artifact_workflow_actions", len(queue_status_json.get("release_artifact_workflow_actions") or []), "release_artifact_workflow_actions_by_selector_kind"),
                 ("operator_console_workflows", len(queue_status_json.get("operator_console_workflows") or []), "operator_console_workflows_by_group"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
                 ("operator_daemon_workflow_actions", len(queue_status_json.get("operator_daemon_workflow_actions") or []), "operator_daemon_workflow_actions_by_workflow"),
@@ -4210,6 +4212,9 @@ def main():
                 api_resources_by_name.get("command_queue_workflow_actions", {}).get("records_key") != "command_queue_workflow_actions" or
                 api_resources_by_summary_key.get("command_queue_workflow_action_count", [{}])[0].get("name") != "command_queue_workflow_actions" or
                 not any(rec.get("name") == "command_queue_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("release_artifact_workflow_actions", {}).get("records_key") != "release_artifact_workflow_actions" or
+                api_resources_by_summary_key.get("release_artifact_workflow_action_count", [{}])[0].get("name") != "release_artifact_workflow_actions" or
+                not any(rec.get("name") == "release_artifact_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("operator_console_workflows", {}).get("records_key") != "operator_console_workflows" or
                 api_resources_by_summary_key.get("operator_console_workflow_count", [{}])[0].get("name") != "operator_console_workflows" or
                 not any(rec.get("name") == "operator_console_workflows" for rec in api_resources_by_primary_key.get("id", [])) or
@@ -9604,6 +9609,11 @@ def main():
         release_recommendations_by_artifact = rel.get("recommendations_by_artifact") or {}
         release_recommendations_by_payload = rel.get("recommendations_by_payload_preset") or {}
         release_recommendations_by_compat = rel.get("recommendations_by_compatibility") or {}
+        release_artifact_actions = release_doc.get("release_artifact_workflow_actions") or []
+        release_artifact_actions_by_selector = release_doc.get("release_artifact_workflow_actions_by_selector_kind") or {}
+        release_artifact_actions_by_action = release_doc.get("release_artifact_workflow_actions_by_action_id") or {}
+        release_artifact_actions_by_release_path = release_doc.get("release_artifact_workflow_actions_by_release_path") or {}
+        release_artifact_actions_by_scope = release_doc.get("release_artifact_workflow_actions_by_recommendation_scope") or {}
         release_license = rel.get("release_license") or {}
         release_license_records = rel.get("release_license_records") or []
         release_licenses_by_project = rel.get("release_license_records_by_project_license") or {}
@@ -9669,6 +9679,12 @@ def main():
                 release_recommendations_by_artifact.get("bin/busierbox-test", [{}])[0].get("artifact_name") != "busierbox-test" or
                 release_recommendations_by_payload.get("default", [{}])[0].get("artifact_name") != "busierbox-test" or
                 release_recommendations_by_compat.get("exact", [{}])[0].get("payload_preset") != "default" or
+                len(release_artifact_actions) != 2 + len(rel.get("artifacts") or []) + len(release_recommendation_records) or
+                release_artifact_actions_by_selector.get("artifact", [{}])[0].get("action_id") != "stage-artifact" or
+                release_artifact_actions_by_selector.get("recommendation", [{}])[0].get("action_id") != "stage-recommendation" or
+                release_artifact_actions_by_action.get("self-test-release", [{}])[0].get("release_name") != "operator-smoke" or
+                release_artifact_actions_by_release_path.get("bin/busierbox-test", [{}])[0].get("headless_command", "").find("--stage-release-artifact") < 0 or
+                release_artifact_actions_by_scope.get("by_device", [{}])[0].get("selector") != "by_device:lab-router" or
                 release_license.get("project_license") != "GPL-2.0-or-later" or
                 release_license.get("combined_gplv2_compatible") is not True or
                 release_license.get("missing_notice_count") != 0 or
@@ -9806,7 +9822,13 @@ def main():
                 release_summary.get("release_recommendation_scope_counts", {}).get("by_device") != 1 or
                 release_summary.get("release_recommendation_scope_counts", {}).get("by_device_payload_preset") != 1 or
                 release_summary.get("release_recommendation_payload_preset_counts", {}).get("default", 0) < 1 or
-                release_summary.get("release_recommendation_compatibility_counts", {}).get("exact", 0) < 1):
+                release_summary.get("release_recommendation_compatibility_counts", {}).get("exact", 0) < 1 or
+                release_summary.get("release_artifact_workflow_action_count") != len(release_artifact_actions) or
+                release_summary.get("release_artifact_workflow_action_writes_staged_files_count") != len(release_artifact_actions) - 2 or
+                release_summary.get("release_artifact_workflow_action_selector_kind_counts", {}).get("artifact") != 1 or
+                release_summary.get("release_artifact_workflow_action_selector_kind_counts", {}).get("recommendation", 0) < 1 or
+                release_summary.get("release_artifact_workflow_action_action_counts", {}).get("stage-artifact") != 1 or
+                release_summary.get("release_artifact_workflow_action_action_counts", {}).get("stage-recommendation", 0) < 1):
             print("json status missing release aggregate counts", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
             return 1
@@ -9842,6 +9864,8 @@ def main():
                 "artifacts_by_device_payload_preset" not in (release_api.get("release_artifacts", {}).get("indexes") or []) or
                 "recommendations_by_payload_preset" not in (release_api.get("release_recommendations", {}).get("indexes") or []) or
                 "recommendations_by_compatibility" not in (release_api.get("release_recommendations", {}).get("indexes") or []) or
+                "release_artifact_workflow_actions_by_selector_kind" not in (release_api.get("release_artifact_workflow_actions", {}).get("indexes") or []) or
+                "release_artifact_workflow_actions_by_recommendation_scope" not in (release_api.get("release_artifact_workflow_actions", {}).get("indexes") or []) or
                 "release_state_records_by_detection_source" not in (release_api.get("release_state_records", {}).get("indexes") or [])):
             print("json status missing release device/tuple api collection indexes", file=sys.stderr)
             print(release_status.stdout, file=sys.stderr)
