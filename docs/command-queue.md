@@ -371,6 +371,14 @@ fields. Indexes such as `target_file_transfer_records_by_target_id`,
 files pane without stitching together `staged_records`, `uploads`, and
 `fetches` itself.
 
+Status JSON also exposes `target_activity_records`, a combined per-target feed
+derived from heartbeat target records, mailbox records, phone-home attempts,
+file transfers, bridge records, sessions, and latest survey results. The feed is
+indexed by target id, category, source collection, operation, status, pending
+work, waiting reason, command id, request name, filename, route, bridge profile,
+and session id. This gives TUI and API clients one stable target-detail activity
+source while preserving the more detailed source collections.
+
 Target status also exposes `targets_by_connectivity_state`,
 `targets_by_last_seen_via`, `targets_by_has_next_expected_poll`, and
 `targets_by_mailbox_pending_work`, plus workflow indexes such as
@@ -449,6 +457,9 @@ pane. It lists known targets with connectivity state, pending mailbox work,
 poll-overdue state, and last-seen time; selecting a target and pressing Enter
 sets the current target filter, while the details pane shows heartbeat, mailbox,
 latest result, latest survey/file activity, and bridge context for that device.
+The target detail also shows recent `target_activity_records` so the operator
+can scan mailbox, phone-home, file, survey, bridge, and session events without
+switching panes for each source collection.
 The adjacent `Target Files` pane is backed by `target_file_transfer_records`, so
 staged fetches, received uploads, and fetch attempts appear together with their
 target id, operation, status, route, digest, session metadata, and local paths.

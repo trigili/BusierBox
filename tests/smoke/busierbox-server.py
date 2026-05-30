@@ -171,6 +171,7 @@ def main():
                  "capability=", "compatibility=", "tail_status = event_tail_availability_text(snap)",
                  "Target Fleet", "enter selects this target filter", "set_workbench_target_filter(cfg",
                  "Target Files", "target_file_transfer:", "source_collection=", "v opens metadata, stored file, or source in pager",
+                 "target_activity_records", "target_activity_records_by_target_id", "recent target activity:",
                  "Target Actions", "enter runs no-input target workflow actions", "action 15 opens prompted target workflow list",
                  "operator_action_state:", "operator_action_reason:", "can_run_from_curses_enter:",
                  "Bridge Routes", "enter starts/stops this bridge profile", "--bridge-profile",
@@ -3262,6 +3263,46 @@ def main():
             print("target mailbox result upload did not update heartbeat and result status", file=sys.stderr)
             print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        result_activity_alpha = (result_status.get("target_activity_records_by_target_id") or {}).get("target-alpha") or []
+        result_activity_bravo = (result_status.get("target_activity_records_by_target_id") or {}).get("target-bravo") or []
+        result_alpha_activity_categories = {rec.get("category") for rec in result_activity_alpha}
+        result_bravo_activity_categories = {rec.get("category") for rec in result_activity_bravo}
+        alpha_mailbox_activity = next(
+            (rec for rec in result_activity_alpha if rec.get("category") == "mailbox" and rec.get("command_id") == alpha_id),
+            {},
+        )
+        bravo_mailbox_activity = next(
+            (rec for rec in result_activity_bravo if rec.get("category") == "mailbox" and rec.get("command_id") == bravo_id),
+            {},
+        )
+        alpha_phone_activity = next(
+            (rec for rec in result_activity_alpha if rec.get("category") == "phone-home" and rec.get("operation") == "result"),
+            {},
+        )
+        if (result_status.get("summary", {}).get("target_activity_record_count", 0) < 6 or
+                result_status.get("summary", {}).get("target_activity_target_counts", {}).get("target-alpha", 0) < 3 or
+                result_status.get("summary", {}).get("target_activity_target_counts", {}).get("target-bravo", 0) < 2 or
+                result_status.get("summary", {}).get("target_activity_category_counts", {}).get("mailbox") != 2 or
+                result_status.get("summary", {}).get("target_activity_category_counts", {}).get("phone-home", 0) < 2 or
+                result_status.get("summary", {}).get("target_activity_pending_work_counts", {}).get("True", 0) < 1 or
+                "mailbox" not in result_alpha_activity_categories or
+                "phone-home" not in result_alpha_activity_categories or
+                "heartbeat" not in result_alpha_activity_categories or
+                "mailbox" not in result_bravo_activity_categories or
+                "heartbeat" not in result_bravo_activity_categories or
+                alpha_mailbox_activity.get("status") != "result-received" or
+                alpha_mailbox_activity.get("waiting_for") != "none" or
+                alpha_mailbox_activity.get("pending_work") is not False or
+                bravo_mailbox_activity.get("status") != "queued" or
+                bravo_mailbox_activity.get("waiting_for") != "target-poll" or
+                bravo_mailbox_activity.get("pending_work") is not True or
+                alpha_phone_activity.get("status") != "result-received" or
+                not any(rec.get("target_id") == "target-alpha" for rec in (result_status.get("target_activity_records_by_command_id") or {}).get(alpha_id, [])) or
+                (result_status.get("target_activity_records_by_waiting_for") or {}).get("target-poll", [{}])[0].get("target_id") != "target-bravo" or
+                "target_activity_records_by_pending_work" not in (((result_status.get("api_collections") or {}).get("target_activity_records") or {}).get("indexes") or [])):
+            print("target activity feed did not combine mailbox, phone-home, and heartbeat state", file=sys.stderr)
+            print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
         result_status_text = run(
             "scripts/busierbox-server", "--config", str(poll_target_cfg),
             "--status",
@@ -3270,6 +3311,7 @@ def main():
                 "state=online" not in result_status_text.stdout or
                 "heartbeat_via=command-queue:command_queue_result" not in result_status_text.stdout or
                 "mailbox queued=0 delivered=0 results=1 expired=0 pending=0" not in result_status_text.stdout or
+                "activity mailbox none status=result-received" not in result_status_text.stdout or
                 f"mailbox_command {alpha_id} status=result-received" not in result_status_text.stdout or
                 "waiting_for=none" not in result_status_text.stdout or
                 "result=completed exit=0" not in result_status_text.stdout or
@@ -3277,6 +3319,7 @@ def main():
                 "state=offline" not in result_status_text.stdout or
                 "poll_overdue=yes" not in result_status_text.stdout or
                 "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in result_status_text.stdout or
+                "activity mailbox target-poll status=queued" not in result_status_text.stdout or
                 f"mailbox_command {bravo_id} status=queued" not in result_status_text.stdout or
                 "waiting_for=target-poll reason=target-poll-overdue" not in result_status_text.stdout):
             print("text status missing intermittent mailbox heartbeat/result summary", file=sys.stderr)
@@ -6845,6 +6888,40 @@ def main():
                 "target_file_transfer_records_by_status" not in (target_transfer_api.get("indexes") or []) or
                 "target_file_transfer_records" not in (upload_doc.get("api_resources_by_name") or {})):
             print("server json status missing unified target file transfer records", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
+        upload_activity_api = (upload_doc.get("api_collections") or {}).get("target_activity_records") or {}
+        upload_activity_by_target = upload_doc.get("target_activity_records_by_target_id") or {}
+        upload_activity = upload_activity_by_target.get("target-alpha") or []
+        upload_activity_categories = {rec.get("category") for rec in upload_activity}
+        upload_file_activity = next(
+            (rec for rec in upload_activity if rec.get("category") == "file-transfer" and rec.get("operation") == "upload"),
+            {},
+        )
+        upload_heartbeat_activity = next(
+            (rec for rec in upload_activity if rec.get("category") == "heartbeat"),
+            {},
+        )
+        if (upload_summary.get("target_activity_record_count", 0) < 2 or
+                upload_summary.get("target_activity_target_counts", {}).get("target-alpha", 0) < 2 or
+                upload_summary.get("target_activity_category_counts", {}).get("file-transfer") != 1 or
+                upload_summary.get("target_activity_category_counts", {}).get("heartbeat") != 1 or
+                "file-transfer" not in upload_activity_categories or
+                "heartbeat" not in upload_activity_categories or
+                upload_file_activity.get("target_id") != "target-alpha" or
+                upload_file_activity.get("source_collection") != "target_file_transfer_records" or
+                upload_file_activity.get("status") != "ok" or
+                upload_file_activity.get("filename") != "evidence.txt" or
+                upload_file_activity.get("route_kind") != "direct" or
+                upload_heartbeat_activity.get("status") != "online" or
+                upload_heartbeat_activity.get("operation") != "upload" or
+                (upload_doc.get("target_activity_records_by_category") or {}).get("file-transfer", [{}])[0].get("target_id") != "target-alpha" or
+                (upload_doc.get("target_activity_records_by_source_collection") or {}).get("target_file_transfer_records", [{}])[0].get("target_id") != "target-alpha" or
+                (upload_doc.get("target_activity_records_by_filename") or {}).get("evidence.txt", [{}])[0].get("target_id") != "target-alpha" or
+                "target_activity_records_by_target_id" not in (upload_activity_api.get("indexes") or []) or
+                "target_activity_records_by_category" not in (upload_activity_api.get("indexes") or []) or
+                "target_activity_records" not in (upload_doc.get("api_resources_by_name") or {})):
+            print("server json status missing target activity feed for upload target", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
 
