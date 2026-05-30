@@ -345,6 +345,13 @@ assert link_states["return-offline"]["state"] == "offline-after-short-window"
 assert any("--daemon --daemon-service command-queue" in command for command in topology["operator_commands"])
 assert topology["qemu_lab_followup"]["status"] == "planned"
 assert "topology.json" in topology["qemu_lab_followup"]["required_artifacts"]
+assert "plan.json" in topology["qemu_lab_followup"]["required_artifacts"]
+assert "phase-contracts.json" in topology["qemu_lab_followup"]["required_artifacts"]
+assert "artifact-manifest.json" in topology["qemu_lab_followup"]["required_artifacts"]
+assert "host-network-setup.sh" in topology["qemu_lab_followup"]["support_artifacts"]
+assert "qemu-commands.sh" in topology["qemu_lab_followup"]["support_artifacts"]
+assert "offline-workflow-drain" in topology["qemu_lab_followup"]["phase_contracts"]
+assert "multi-target-isolation" in topology["qemu_lab_followup"]["phase_contracts"]
 manifest_names = {item["name"] for item in manifest["artifacts"]}
 for name in (
     "target-mailbox.json",
