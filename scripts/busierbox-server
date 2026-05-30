@@ -1897,6 +1897,7 @@ def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
         "target_last_seen": str(target_rec.get("last_seen") or target_rec.get("last_seen_at") or ""),
         "target_last_seen_via": str(target_rec.get("last_seen_via") or ""),
         "target_offline_for_sec": target_rec.get("offline_for_sec", ""),
+        "target_offline_age_bucket": str(target_rec.get("offline_age_bucket") or ""),
         "target_connectivity_state": str(target_rec.get("connectivity_state") or ""),
         "target_next_expected_poll": str(target_rec.get("next_expected_poll") or ""),
         "has_target_next_expected_poll": bool(str(target_rec.get("next_expected_poll") or "")),
@@ -1971,6 +1972,7 @@ def target_mailbox_record_indexes(records):
         "target_mailbox_records_by_target_label": records_by_key(records, "target_label"),
         "target_mailbox_records_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
         "target_mailbox_records_by_target_last_seen_via": records_by_key(records, "target_last_seen_via"),
+        "target_mailbox_records_by_target_offline_age_bucket": records_by_key(records, "target_offline_age_bucket"),
         "target_mailbox_records_by_has_target_next_expected_poll": records_by_key(records, "has_target_next_expected_poll"),
         "target_mailbox_records_by_target_poll_overdue": records_by_key(records, "target_poll_overdue"),
         "target_mailbox_records_by_status": records_by_key(records, "status"),
@@ -15770,6 +15772,7 @@ def status_document(cfg):
         "target_mailbox_result_exit_code_counts": record_count_by_key(target_mailbox_records, "result_exit_code"),
         "target_mailbox_target_connectivity_state_counts": record_count_by_key(target_mailbox_records, "target_connectivity_state"),
         "target_mailbox_target_last_seen_via_counts": record_count_by_key(target_mailbox_records, "target_last_seen_via"),
+        "target_mailbox_target_offline_age_bucket_counts": record_count_by_key(target_mailbox_records, "target_offline_age_bucket"),
         "target_mailbox_has_target_next_expected_poll_counts": record_count_by_key(target_mailbox_records, "has_target_next_expected_poll"),
         "target_mailbox_target_poll_overdue_counts": record_count_by_key(target_mailbox_records, "target_poll_overdue"),
         "target_phone_home_record_count": len(target_phone_home_records),
@@ -16577,6 +16580,7 @@ def status_document(cfg):
                 "target_mailbox_records_by_target_label",
                 "target_mailbox_records_by_target_connectivity_state",
                 "target_mailbox_records_by_target_last_seen_via",
+                "target_mailbox_records_by_target_offline_age_bucket",
                 "target_mailbox_records_by_has_target_next_expected_poll",
                 "target_mailbox_records_by_target_poll_overdue",
                 "target_mailbox_records_by_status",
@@ -21498,6 +21502,7 @@ def run_line_tui(cfg):
                         f"    last_seen={rec.get('target_last_seen', '') or '-'} "
                         f"via={rec.get('target_last_seen_via', '') or '-'} "
                         f"offline_for_sec={rec.get('target_offline_for_sec', '') if rec.get('target_offline_for_sec') != '' else '-'} "
+                        f"offline_age={rec.get('target_offline_age_bucket', '') or '-'} "
                         f"next_expected_poll={rec.get('target_next_expected_poll', '') or '-'} "
                         f"poll_overdue={'yes' if rec.get('target_poll_overdue') else 'no'} "
                         f"poll_overdue_for_sec={rec.get('target_poll_overdue_for_sec', '') if rec.get('target_poll_overdue_for_sec') != '' else '-'}"
@@ -22345,6 +22350,7 @@ def run_curses_tui(cfg):
                     f"result: {rec.get('result_status', '') or '-'} exit={rec.get('result_exit_code', '') if rec.get('result_exit_code') != '' else '-'}",
                     f"last_seen: {rec.get('target_last_seen', '') or '-'} via={rec.get('target_last_seen_via', '') or '-'}",
                     f"offline_for_sec: {rec.get('target_offline_for_sec', '') if rec.get('target_offline_for_sec') != '' else '-'}",
+                    f"offline_age: {rec.get('target_offline_age_bucket', '') or '-'}",
                     f"next_expected_poll: {rec.get('target_next_expected_poll', '') or '-'}",
                     f"poll_overdue: {'yes' if rec.get('target_poll_overdue') else 'no'}",
                     f"command: {rec.get('command', '') or '-'}",

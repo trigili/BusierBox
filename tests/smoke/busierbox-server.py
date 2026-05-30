@@ -3143,6 +3143,7 @@ def main():
                 offline_bravo_mailbox.get("waiting_for") != "target-poll" or
                 offline_bravo_mailbox.get("pending_reason") != "target-poll-overdue" or
                 offline_bravo_mailbox.get("has_pending_reason") is not True or
+                offline_bravo_mailbox.get("target_offline_age_bucket") != "day-plus" or
                 offline_bravo_mailbox.get("target_poll_overdue") is not True or
                 not isinstance(offline_bravo_mailbox.get("target_poll_overdue_for_sec"), int) or
                 not isinstance(offline_bravo_mailbox.get("age_sec"), int) or
@@ -3163,9 +3164,11 @@ def main():
                 offline_status.get("summary", {}).get("target_poll_overdue_count") != 1 or
                 offline_status.get("summary", {}).get("target_poll_overdue_counts", {}).get("True") != 1 or
                 offline_status.get("summary", {}).get("target_mailbox_target_poll_overdue_counts", {}).get("True") != 1 or
+                offline_status.get("summary", {}).get("target_mailbox_target_offline_age_bucket_counts", {}).get("day-plus") != 1 or
                 offline_status.get("summary", {}).get("target_mailbox_pending_work_count") != 2 or
                 ((offline_status.get("targets_by_poll_overdue") or {}).get("yes") or [{}])[0].get("target_id") != "target-bravo" or
                 ((offline_status.get("target_mailbox_records_by_target_poll_overdue") or {}).get("True") or [{}])[0].get("target_id") != "target-bravo" or
+                ((offline_status.get("target_mailbox_records_by_target_offline_age_bucket") or {}).get("day-plus") or [{}])[0].get("target_id") != "target-bravo" or
                 ((offline_status.get("targets_by_mailbox_pending_work") or {}).get("yes") or [{}])[0].get("target_id") not in {"target-alpha", "target-bravo"}):
             print("offline mailbox status did not preserve queued work and stale heartbeat", file=sys.stderr)
             print(json.dumps(offline_status, indent=2, sort_keys=True), file=sys.stderr)
@@ -3444,6 +3447,7 @@ def main():
                 not result_alpha_mailbox.get("result_received_at") or
                 result_alpha_mailbox.get("target_connectivity_state") != "online" or
                 result_alpha_mailbox.get("target_last_seen_via") != "command-queue:command_queue_result" or
+                result_alpha_mailbox.get("target_offline_age_bucket") != "under-minute" or
                 result_alpha_mailbox.get("has_target_next_expected_poll") is not False or
                 result_bravo_mailbox.get("target_id") != "target-bravo" or
                 result_bravo_mailbox.get("target_label") != "Bravo Router" or
@@ -3454,6 +3458,7 @@ def main():
                 result_bravo_mailbox.get("pending_work") is not True or
                 result_bravo_mailbox.get("has_result") is not False or
                 result_bravo_mailbox.get("target_connectivity_state") != "offline" or
+                result_bravo_mailbox.get("target_offline_age_bucket") != "day-plus" or
                 result_bravo_mailbox.get("target_last_seen") != old_seen or
                 result_bravo_mailbox.get("target_last_seen_via") != "command-queue:command_queue_poll" or
                 result_bravo_mailbox.get("has_target_next_expected_poll") is not True or
@@ -3464,6 +3469,7 @@ def main():
                 ((result_status.get("target_mailbox_records_by_target_id") or {}).get("target-bravo") or [{}])[0].get("command_id") != bravo_id or
                 ((result_status.get("target_mailbox_records_by_target_connectivity_state") or {}).get("offline") or [{}])[0].get("command_id") != bravo_id or
                 ((result_status.get("target_mailbox_records_by_target_last_seen_via") or {}).get("command-queue:command_queue_poll") or [{}])[0].get("command_id") != bravo_id or
+                ((result_status.get("target_mailbox_records_by_target_offline_age_bucket") or {}).get("day-plus") or [{}])[0].get("command_id") != bravo_id or
                 ((result_status.get("target_mailbox_records_by_has_target_next_expected_poll") or {}).get("True") or [{}])[0].get("command_id") != bravo_id or
                 ((result_status.get("target_mailbox_records_by_pending_work") or {}).get("True") or [{}])[0].get("command_id") != bravo_id or
                 ((result_status.get("target_mailbox_records_by_waiting_for") or {}).get("none") or [{}])[0].get("command_id") != alpha_id or
@@ -3491,10 +3497,13 @@ def main():
                 result_status.get("summary", {}).get("target_workflow_action_target_offline_age_bucket_counts", {}).get("day-plus") != len(result_bravo_actions) or
                 result_status.get("summary", {}).get("target_workflow_action_target_last_failed_phone_home_status_counts", {}).get("rejected") != len(result_bravo_actions) or
                 result_status.get("summary", {}).get("target_mailbox_target_connectivity_state_counts", {}).get("offline") != 1 or
+                result_status.get("summary", {}).get("target_mailbox_target_offline_age_bucket_counts", {}).get("under-minute") != 1 or
+                result_status.get("summary", {}).get("target_mailbox_target_offline_age_bucket_counts", {}).get("day-plus") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_has_target_next_expected_poll_counts", {}).get("True") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_target_poll_overdue_counts", {}).get("True") != 1 or
                 not result_status.get("summary", {}).get("target_mailbox_age_bucket_counts") or
                 "target_mailbox_records_by_target_connectivity_state" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
+                "target_mailbox_records_by_target_offline_age_bucket" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
                 "targets_by_poll_overdue" not in (((result_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or []) or
                 "target_mailbox_records_by_target_poll_overdue" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
                 "target_mailbox_records_by_pending_reason" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
