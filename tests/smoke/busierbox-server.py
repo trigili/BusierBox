@@ -7943,6 +7943,7 @@ def main():
         action_staged_file_actions = (action_doc.get("staged_file_workflow_actions_by_request_name") or {}).get("action-staged.txt") or []
         action_staged_file_action_by_id = action_doc.get("staged_file_workflow_actions_by_id") or {}
         action_file_service_actions_by_id = action_doc.get("file_service_workflow_actions_by_id") or {}
+        action_survey_actions_by_id = action_doc.get("survey_bootstrap_workflow_actions_by_id") or {}
         action_events = action_doc.get("events_by_event") or {}
         activity_inspected_events = action_events.get("workbench_target_activity_inspected") or []
         selected_events = action_events.get("workbench_target_selected") or []
@@ -8055,11 +8056,17 @@ def main():
                 action_doc.get("summary", {}).get("file_service_workflow_action_fleet_target_count_counts", {}).get("1") != 6 or
                 action_doc.get("summary", {}).get("file_service_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get("3") != 6 or
                 action_doc.get("summary", {}).get("file_service_workflow_action_fleet_has_mailbox_pending_work_counts", {}).get("True") != 6 or
+                action_doc.get("summary", {}).get("survey_bootstrap_workflow_action_fleet_target_count_counts", {}).get("1") != 4 or
+                action_doc.get("summary", {}).get("survey_bootstrap_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get("3") != 4 or
+                action_doc.get("summary", {}).get("survey_bootstrap_workflow_action_fleet_has_mailbox_pending_work_counts", {}).get("True") != 4 or
                 action_file_service_actions_by_id.get("file-service:list-staged-files", {}).get("can_run_from_curses_enter") is not True or
                 action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("requires_input") is not True or
                 action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("fleet_target_count") != 1 or
                 action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("fleet_mailbox_pending_work_count") != 3 or
                 action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("fleet_has_mailbox_pending_work") is not True or
+                action_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("fleet_target_count") != 1 or
+                action_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("fleet_mailbox_pending_work_count") != 3 or
+                action_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("fleet_has_mailbox_pending_work") is not True or
                 "put TARGET_PATH" not in action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("target_command_template", "") or
                 action_doc.get("summary", {}).get("target_file_transfer_record_count") != 1 or
                 action_doc.get("summary", {}).get("target_file_transfer_operation_counts", {}).get("staged-fetch") != 1 or
@@ -8080,6 +8087,8 @@ def main():
                 "file_service_workflow_actions_by_route_kind" not in ((action_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", []) or
                 "file_service_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((action_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", []) or
                 "file_service_workflow_actions_by_fleet_has_mailbox_pending_work" not in ((action_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", []) or
+                "survey_bootstrap_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((action_doc.get("api_collections") or {}).get("survey_bootstrap_workflow_actions") or {}).get("indexes", []) or
+                "survey_bootstrap_workflow_actions_by_fleet_has_mailbox_pending_work" not in ((action_doc.get("api_collections") or {}).get("survey_bootstrap_workflow_actions") or {}).get("indexes", []) or
                 "target_file_transfer_records_by_request_name" not in ((action_doc.get("api_collections") or {}).get("target_file_transfer_records") or {}).get("indexes", [])):
             print("target workflow actions did not mutate target-scoped queue/staged state", file=sys.stderr)
             print(json.dumps(action_doc, indent=2, sort_keys=True), file=sys.stderr)

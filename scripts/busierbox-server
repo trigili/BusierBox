@@ -5270,7 +5270,7 @@ def target_workflow_action_summary(records):
     }
 
 
-def survey_bootstrap_workflow_action_records(cfg, service_row=None):
+def survey_bootstrap_workflow_action_records(cfg, service_row=None, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/busierbox-server --config " + shquote(config_path)
     bridge_arg = (" --bridge-profile " + shquote(str(cfg.get("bridge_profile")))) if cfg.get("bridge_profile") else ""
@@ -5285,6 +5285,27 @@ def survey_bootstrap_workflow_action_records(cfg, service_row=None):
         start_parts.extend(["--bridge-profile", str(cfg.get("bridge_profile"))])
     start_command = " ".join(shquote(str(item)) for item in start_parts)
     stop_command = base + " --stop"
+    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    fleet_mailbox_pending_work_count = sum(
+        int_value(rec.get("mailbox_pending_work_count", 0))
+        for rec in target_records
+    )
+    fleet_offline_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "offline"
+    ])
+    fleet_stale_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "stale"
+    ])
+    fleet_mailbox_pending_target_count = len([
+        rec for rec in target_records
+        if int_value(rec.get("mailbox_pending_work_count", 0)) > 0
+    ])
+    fleet_poll_overdue_target_count = len([
+        rec for rec in target_records
+        if rec.get("poll_overdue") is True
+    ])
     records = []
 
     def add(action_id, category, label, command, action_state, action_reason,
@@ -5305,6 +5326,17 @@ def survey_bootstrap_workflow_action_records(cfg, service_row=None):
             "script_name": str(cfg.get("survey_bootstrap_name", "survey.sh")).lstrip("/") or "survey.sh",
             "listen_host": str(cfg.get("listen_host") or service_row.get("bind_address") or ""),
             "listen_port": port,
+            "fleet_target_count": len(target_records),
+            "fleet_connectivity_state_counts": record_count_by_key(target_records, "connectivity_state"),
+            "fleet_offline_target_count": fleet_offline_target_count,
+            "fleet_stale_target_count": fleet_stale_target_count,
+            "fleet_mailbox_pending_target_count": fleet_mailbox_pending_target_count,
+            "fleet_mailbox_pending_work_count": fleet_mailbox_pending_work_count,
+            "fleet_poll_overdue_target_count": fleet_poll_overdue_target_count,
+            "fleet_has_offline_targets": fleet_offline_target_count > 0,
+            "fleet_has_stale_targets": fleet_stale_target_count > 0,
+            "fleet_has_mailbox_pending_work": fleet_mailbox_pending_work_count > 0,
+            "fleet_has_poll_overdue_targets": fleet_poll_overdue_target_count > 0,
             "available": bool(available),
             "requires_input": False,
             "requires_confirmation": bool(requires_confirmation),
@@ -5376,6 +5408,16 @@ def survey_bootstrap_workflow_action_indexes(records):
         "survey_bootstrap_workflow_actions_by_route_kind": records_by_key(records, "route_kind"),
         "survey_bootstrap_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
         "survey_bootstrap_workflow_actions_by_requires_bridge": records_by_key(records, "requires_bridge"),
+        "survey_bootstrap_workflow_actions_by_fleet_target_count": records_by_key(records, "fleet_target_count"),
+        "survey_bootstrap_workflow_actions_by_fleet_offline_target_count": records_by_key(records, "fleet_offline_target_count"),
+        "survey_bootstrap_workflow_actions_by_fleet_stale_target_count": records_by_key(records, "fleet_stale_target_count"),
+        "survey_bootstrap_workflow_actions_by_fleet_mailbox_pending_target_count": records_by_key(records, "fleet_mailbox_pending_target_count"),
+        "survey_bootstrap_workflow_actions_by_fleet_mailbox_pending_work_count": records_by_key(records, "fleet_mailbox_pending_work_count"),
+        "survey_bootstrap_workflow_actions_by_fleet_poll_overdue_target_count": records_by_key(records, "fleet_poll_overdue_target_count"),
+        "survey_bootstrap_workflow_actions_by_fleet_has_offline_targets": records_by_key(records, "fleet_has_offline_targets"),
+        "survey_bootstrap_workflow_actions_by_fleet_has_stale_targets": records_by_key(records, "fleet_has_stale_targets"),
+        "survey_bootstrap_workflow_actions_by_fleet_has_mailbox_pending_work": records_by_key(records, "fleet_has_mailbox_pending_work"),
+        "survey_bootstrap_workflow_actions_by_fleet_has_poll_overdue_targets": records_by_key(records, "fleet_has_poll_overdue_targets"),
         "survey_bootstrap_workflow_actions_by_available": records_by_key(records, "available"),
         "survey_bootstrap_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
         "survey_bootstrap_workflow_actions_by_target_phone_home_required": records_by_key(records, "target_phone_home_required"),
@@ -5400,6 +5442,16 @@ def survey_bootstrap_workflow_action_summary(records):
         "route_kind_counts": record_count_by_key(records, "route_kind"),
         "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
         "requires_bridge_counts": record_count_by_key(records, "requires_bridge"),
+        "fleet_target_count_counts": record_count_by_key(records, "fleet_target_count"),
+        "fleet_offline_target_count_counts": record_count_by_key(records, "fleet_offline_target_count"),
+        "fleet_stale_target_count_counts": record_count_by_key(records, "fleet_stale_target_count"),
+        "fleet_mailbox_pending_target_count_counts": record_count_by_key(records, "fleet_mailbox_pending_target_count"),
+        "fleet_mailbox_pending_work_count_counts": record_count_by_key(records, "fleet_mailbox_pending_work_count"),
+        "fleet_poll_overdue_target_count_counts": record_count_by_key(records, "fleet_poll_overdue_target_count"),
+        "fleet_has_offline_targets_counts": record_count_by_key(records, "fleet_has_offline_targets"),
+        "fleet_has_stale_targets_counts": record_count_by_key(records, "fleet_has_stale_targets"),
+        "fleet_has_mailbox_pending_work_counts": record_count_by_key(records, "fleet_has_mailbox_pending_work"),
+        "fleet_has_poll_overdue_targets_counts": record_count_by_key(records, "fleet_has_poll_overdue_targets"),
         "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
         "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
         "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
@@ -15443,6 +15495,7 @@ def status_document(cfg):
     survey_bootstrap_workflow_actions = survey_bootstrap_workflow_action_records(
         cfg,
         services_by_name.get("survey-bootstrap") or {},
+        targets,
     )
     survey_bootstrap_workflow_action_index_maps = survey_bootstrap_workflow_action_indexes(survey_bootstrap_workflow_actions)
     survey_bootstrap_workflow_action_stats = survey_bootstrap_workflow_action_summary(survey_bootstrap_workflow_actions)
@@ -16286,6 +16339,16 @@ def status_document(cfg):
         "survey_bootstrap_workflow_action_route_kind_counts": survey_bootstrap_workflow_action_stats.get("route_kind_counts") or {},
         "survey_bootstrap_workflow_action_bridge_profile_counts": survey_bootstrap_workflow_action_stats.get("bridge_profile_counts") or {},
         "survey_bootstrap_workflow_action_requires_bridge_counts": survey_bootstrap_workflow_action_stats.get("requires_bridge_counts") or {},
+        "survey_bootstrap_workflow_action_fleet_target_count_counts": survey_bootstrap_workflow_action_stats.get("fleet_target_count_counts") or {},
+        "survey_bootstrap_workflow_action_fleet_offline_target_count_counts": survey_bootstrap_workflow_action_stats.get("fleet_offline_target_count_counts") or {},
+        "survey_bootstrap_workflow_action_fleet_stale_target_count_counts": survey_bootstrap_workflow_action_stats.get("fleet_stale_target_count_counts") or {},
+        "survey_bootstrap_workflow_action_fleet_mailbox_pending_target_count_counts": survey_bootstrap_workflow_action_stats.get("fleet_mailbox_pending_target_count_counts") or {},
+        "survey_bootstrap_workflow_action_fleet_mailbox_pending_work_count_counts": survey_bootstrap_workflow_action_stats.get("fleet_mailbox_pending_work_count_counts") or {},
+        "survey_bootstrap_workflow_action_fleet_poll_overdue_target_count_counts": survey_bootstrap_workflow_action_stats.get("fleet_poll_overdue_target_count_counts") or {},
+        "survey_bootstrap_workflow_action_fleet_has_offline_targets_counts": survey_bootstrap_workflow_action_stats.get("fleet_has_offline_targets_counts") or {},
+        "survey_bootstrap_workflow_action_fleet_has_stale_targets_counts": survey_bootstrap_workflow_action_stats.get("fleet_has_stale_targets_counts") or {},
+        "survey_bootstrap_workflow_action_fleet_has_mailbox_pending_work_counts": survey_bootstrap_workflow_action_stats.get("fleet_has_mailbox_pending_work_counts") or {},
+        "survey_bootstrap_workflow_action_fleet_has_poll_overdue_targets_counts": survey_bootstrap_workflow_action_stats.get("fleet_has_poll_overdue_targets_counts") or {},
         "survey_bootstrap_workflow_action_operator_action_state_counts": survey_bootstrap_workflow_action_stats.get("operator_action_state_counts") or {},
         "survey_bootstrap_workflow_action_operator_action_reason_counts": survey_bootstrap_workflow_action_stats.get("operator_action_reason_counts") or {},
         "survey_bootstrap_workflow_action_can_run_from_curses_enter_counts": survey_bootstrap_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
@@ -16356,6 +16419,16 @@ def status_document(cfg):
                 "survey_bootstrap_workflow_actions_by_route_kind",
                 "survey_bootstrap_workflow_actions_by_bridge_profile",
                 "survey_bootstrap_workflow_actions_by_requires_bridge",
+                "survey_bootstrap_workflow_actions_by_fleet_target_count",
+                "survey_bootstrap_workflow_actions_by_fleet_offline_target_count",
+                "survey_bootstrap_workflow_actions_by_fleet_stale_target_count",
+                "survey_bootstrap_workflow_actions_by_fleet_mailbox_pending_target_count",
+                "survey_bootstrap_workflow_actions_by_fleet_mailbox_pending_work_count",
+                "survey_bootstrap_workflow_actions_by_fleet_poll_overdue_target_count",
+                "survey_bootstrap_workflow_actions_by_fleet_has_offline_targets",
+                "survey_bootstrap_workflow_actions_by_fleet_has_stale_targets",
+                "survey_bootstrap_workflow_actions_by_fleet_has_mailbox_pending_work",
+                "survey_bootstrap_workflow_actions_by_fleet_has_poll_overdue_targets",
                 "survey_bootstrap_workflow_actions_by_available",
                 "survey_bootstrap_workflow_actions_by_requires_confirmation",
                 "survey_bootstrap_workflow_actions_by_target_phone_home_required",
@@ -18492,7 +18565,10 @@ def print_workbench_action_summary(doc):
         f"available={summary.get('survey_bootstrap_workflow_action_available_count', 0)} "
         f"requires_confirmation={summary.get('survey_bootstrap_workflow_action_requires_confirmation_count', 0)} "
         f"target_phone_home_required={summary.get('survey_bootstrap_workflow_action_target_phone_home_required_count', 0)} "
-        f"enter_runnable={summary.get('survey_bootstrap_workflow_action_can_run_from_curses_enter_count', 0)}"
+        f"enter_runnable={summary.get('survey_bootstrap_workflow_action_can_run_from_curses_enter_count', 0)} "
+        f"fleet_pending_work={format_counts(summary.get('survey_bootstrap_workflow_action_fleet_mailbox_pending_work_count_counts') or {})} "
+        f"fleet_offline={format_counts(summary.get('survey_bootstrap_workflow_action_fleet_offline_target_count_counts') or {})} "
+        f"fleet_poll_overdue={format_counts(summary.get('survey_bootstrap_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
     )
     print(f"  survey routes: {format_counts(summary.get('survey_bootstrap_workflow_action_route_kind_counts') or {})}")
     print(f"  survey bridges: {format_counts(summary.get('survey_bootstrap_workflow_action_bridge_profile_counts') or {})}")
@@ -21760,6 +21836,7 @@ def run_line_tui(cfg):
                 if rec.get("bridge_route_path"):
                     print(f"  path={rec.get('bridge_route_path', '')}")
                 print(f"  survey_bootstrap_workflow_actions: {len(snap.get('survey_bootstrap_workflow_actions') or [])}")
+                print(f"  fleet_pending_work={rec.get('fleet_mailbox_pending_work_count', 0)} offline_targets={rec.get('fleet_offline_target_count', 0)} poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}")
                 print(f"  show_action_state={show_action.get('operator_action_state', '') or '-'} reason={show_action.get('operator_action_reason', '') or '-'}")
                 print(f"  start_action_state={start_action.get('operator_action_state', '') or '-'} reason={start_action.get('operator_action_reason', '') or '-'}")
             else:
