@@ -6168,9 +6168,31 @@ def staged_record_summary(records):
     }
 
 
-def staged_file_workflow_action_records(cfg, staged_records):
+def staged_file_workflow_action_records(cfg, staged_records, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/busierbox-server --config " + shquote(config_path)
+    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    targets_by_id = {str(rec.get("target_id") or ""): rec for rec in target_records if rec.get("target_id")}
+    fleet_mailbox_pending_work_count = sum(
+        int_value(rec.get("mailbox_pending_work_count", 0))
+        for rec in target_records
+    )
+    fleet_offline_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "offline"
+    ])
+    fleet_stale_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "stale"
+    ])
+    fleet_mailbox_pending_target_count = len([
+        rec for rec in target_records
+        if int_value(rec.get("mailbox_pending_work_count", 0)) > 0
+    ])
+    fleet_poll_overdue_target_count = len([
+        rec for rec in target_records
+        if rec.get("poll_overdue") is True
+    ])
     records = []
 
     def add(rec, action_id, category, label, command, workflow, action_state, action_reason,
@@ -6181,6 +6203,7 @@ def staged_file_workflow_action_records(cfg, staged_records):
         if not request:
             return
         target_id = str(rec.get("target_id") or "")
+        target = targets_by_id.get(target_id) or {}
         records.append({
             "id": f"{request}:{action_id}",
             "action_id": action_id,
@@ -6195,6 +6218,27 @@ def staged_file_workflow_action_records(cfg, staged_records):
             "run_command": base + " --run-staged-file-workflow-action " + shquote(f"{request}:{action_id}"),
             "target_id": target_id,
             "target_label": str(rec.get("target_label") or ""),
+            "target_connectivity_state": str(target.get("connectivity_state") or ""),
+            "target_last_seen": str(target.get("last_seen") or target.get("last_seen_at") or ""),
+            "target_last_seen_via": str(target.get("last_seen_via") or ""),
+            "target_offline_age_bucket": str(target.get("offline_age_bucket") or ""),
+            "target_next_expected_poll": str(target.get("next_expected_poll") or ""),
+            "target_poll_overdue": bool(target.get("poll_overdue", False)),
+            "target_poll_overdue_for_sec": target.get("poll_overdue_for_sec", ""),
+            "target_mailbox_command_count": int_value(target.get("mailbox_command_count", 0)),
+            "target_mailbox_pending_work_count": int_value(target.get("mailbox_pending_work_count", 0)),
+            "target_latest_phone_home_at": str(target.get("latest_phone_home_at") or ""),
+            "target_latest_phone_home_status": str(target.get("latest_phone_home_status") or ""),
+            "target_latest_phone_home_kind": str(target.get("latest_phone_home_kind") or ""),
+            "target_latest_phone_home_contact_path": str(target.get("latest_phone_home_contact_path") or ""),
+            "target_latest_successful_phone_home_at": str(target.get("latest_successful_phone_home_at") or ""),
+            "target_latest_successful_phone_home_status": str(target.get("latest_successful_phone_home_status") or ""),
+            "target_latest_successful_phone_home_kind": str(target.get("latest_successful_phone_home_kind") or ""),
+            "target_latest_successful_phone_home_contact_path": str(target.get("latest_successful_phone_home_contact_path") or ""),
+            "target_last_failed_phone_home_at": str(target.get("last_failed_phone_home_at") or ""),
+            "target_last_failed_phone_home_status": str(target.get("last_failed_phone_home_status") or ""),
+            "target_last_failed_phone_home_reason": str(target.get("last_failed_phone_home_reason") or ""),
+            "target_last_failed_phone_home_contact_path": str(target.get("last_failed_phone_home_contact_path") or ""),
             "route_kind": str(rec.get("route_kind") or ""),
             "bridge_profile": str(rec.get("bridge_profile") or ""),
             "bridge_route_path": str(rec.get("bridge_route_path") or ""),
@@ -6207,6 +6251,17 @@ def staged_file_workflow_action_records(cfg, staged_records):
             "size": rec.get("size", ""),
             "fetch_command": str(rec.get("fetch_command") or ""),
             "fetch_command_force": str(rec.get("fetch_command_force") or ""),
+            "fleet_target_count": len(target_records),
+            "fleet_connectivity_state_counts": record_count_by_key(target_records, "connectivity_state"),
+            "fleet_offline_target_count": fleet_offline_target_count,
+            "fleet_stale_target_count": fleet_stale_target_count,
+            "fleet_mailbox_pending_target_count": fleet_mailbox_pending_target_count,
+            "fleet_mailbox_pending_work_count": fleet_mailbox_pending_work_count,
+            "fleet_poll_overdue_target_count": fleet_poll_overdue_target_count,
+            "fleet_has_offline_targets": fleet_offline_target_count > 0,
+            "fleet_has_stale_targets": fleet_stale_target_count > 0,
+            "fleet_has_mailbox_pending_work": fleet_mailbox_pending_work_count > 0,
+            "fleet_has_poll_overdue_targets": fleet_poll_overdue_target_count > 0,
             "available": bool(available),
             "requires_input": False,
             "requires_confirmation": bool(requires_confirmation),
@@ -6281,8 +6336,25 @@ def staged_file_workflow_action_indexes(records):
         "staged_file_workflow_actions_by_category": records_by_key(records, "category"),
         "staged_file_workflow_actions_by_workflow": records_by_key(records, "workflow"),
         "staged_file_workflow_actions_by_target_id": records_by_key(records, "target_id"),
+        "staged_file_workflow_actions_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
+        "staged_file_workflow_actions_by_target_offline_age_bucket": records_by_key(records, "target_offline_age_bucket"),
+        "staged_file_workflow_actions_by_target_poll_overdue": records_by_key(records, "target_poll_overdue"),
+        "staged_file_workflow_actions_by_target_mailbox_pending_work_count": records_by_key(records, "target_mailbox_pending_work_count"),
+        "staged_file_workflow_actions_by_target_latest_phone_home_status": records_by_key(records, "target_latest_phone_home_status"),
+        "staged_file_workflow_actions_by_target_latest_successful_phone_home_status": records_by_key(records, "target_latest_successful_phone_home_status"),
+        "staged_file_workflow_actions_by_target_last_failed_phone_home_status": records_by_key(records, "target_last_failed_phone_home_status"),
         "staged_file_workflow_actions_by_route_kind": records_by_key(records, "route_kind"),
         "staged_file_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
+        "staged_file_workflow_actions_by_fleet_target_count": records_by_key(records, "fleet_target_count"),
+        "staged_file_workflow_actions_by_fleet_offline_target_count": records_by_key(records, "fleet_offline_target_count"),
+        "staged_file_workflow_actions_by_fleet_stale_target_count": records_by_key(records, "fleet_stale_target_count"),
+        "staged_file_workflow_actions_by_fleet_mailbox_pending_target_count": records_by_key(records, "fleet_mailbox_pending_target_count"),
+        "staged_file_workflow_actions_by_fleet_mailbox_pending_work_count": records_by_key(records, "fleet_mailbox_pending_work_count"),
+        "staged_file_workflow_actions_by_fleet_poll_overdue_target_count": records_by_key(records, "fleet_poll_overdue_target_count"),
+        "staged_file_workflow_actions_by_fleet_has_offline_targets": records_by_key(records, "fleet_has_offline_targets"),
+        "staged_file_workflow_actions_by_fleet_has_stale_targets": records_by_key(records, "fleet_has_stale_targets"),
+        "staged_file_workflow_actions_by_fleet_has_mailbox_pending_work": records_by_key(records, "fleet_has_mailbox_pending_work"),
+        "staged_file_workflow_actions_by_fleet_has_poll_overdue_targets": records_by_key(records, "fleet_has_poll_overdue_targets"),
         "staged_file_workflow_actions_by_source_exists": records_by_key(records, "source_exists"),
         "staged_file_workflow_actions_by_available": records_by_key(records, "available"),
         "staged_file_workflow_actions_by_requires_target": records_by_key(records, "requires_target"),
@@ -6303,9 +6375,26 @@ def staged_file_workflow_action_summary(records):
         "category_counts": record_count_by_key(records, "category"),
         "workflow_counts": record_count_by_key(records, "workflow"),
         "target_counts": record_count_by_key(records, "target_id"),
+        "target_connectivity_state_counts": record_count_by_key(records, "target_connectivity_state"),
+        "target_offline_age_bucket_counts": record_count_by_key(records, "target_offline_age_bucket"),
+        "target_poll_overdue_counts": record_count_by_key(records, "target_poll_overdue"),
+        "target_mailbox_pending_work_count_counts": record_count_by_key(records, "target_mailbox_pending_work_count"),
+        "target_latest_phone_home_status_counts": record_count_by_key(records, "target_latest_phone_home_status"),
+        "target_latest_successful_phone_home_status_counts": record_count_by_key(records, "target_latest_successful_phone_home_status"),
+        "target_last_failed_phone_home_status_counts": record_count_by_key(records, "target_last_failed_phone_home_status"),
         "route_kind_counts": record_count_by_key(records, "route_kind"),
         "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
         "action_counts": record_count_by_key(records, "action_id"),
+        "fleet_target_count_counts": record_count_by_key(records, "fleet_target_count"),
+        "fleet_offline_target_count_counts": record_count_by_key(records, "fleet_offline_target_count"),
+        "fleet_stale_target_count_counts": record_count_by_key(records, "fleet_stale_target_count"),
+        "fleet_mailbox_pending_target_count_counts": record_count_by_key(records, "fleet_mailbox_pending_target_count"),
+        "fleet_mailbox_pending_work_count_counts": record_count_by_key(records, "fleet_mailbox_pending_work_count"),
+        "fleet_poll_overdue_target_count_counts": record_count_by_key(records, "fleet_poll_overdue_target_count"),
+        "fleet_has_offline_targets_counts": record_count_by_key(records, "fleet_has_offline_targets"),
+        "fleet_has_stale_targets_counts": record_count_by_key(records, "fleet_has_stale_targets"),
+        "fleet_has_mailbox_pending_work_counts": record_count_by_key(records, "fleet_has_mailbox_pending_work"),
+        "fleet_has_poll_overdue_targets_counts": record_count_by_key(records, "fleet_has_poll_overdue_targets"),
         "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
         "requires_target_count": len([rec for rec in records or [] if rec.get("requires_target") is True]),
         "queues_offline_work_count": len([rec for rec in records or [] if rec.get("queues_offline_work") is True]),
@@ -14278,9 +14367,6 @@ def status_document(cfg):
      staged_by_fetch_command_force,
      staged_by_source_exists,
      staged_by_kind_source_exists) = staged_record_indexes(staged_records)
-    staged_file_workflow_actions = staged_file_workflow_action_records(cfg, staged_records)
-    staged_file_workflow_action_index_maps = staged_file_workflow_action_indexes(staged_file_workflow_actions)
-    staged_file_workflow_action_stats = staged_file_workflow_action_summary(staged_file_workflow_actions)
     ips = local_ips()
     selected_local_ip = (ips or ["OPERATOR_IP"])[0]
     operator_network_records = [
@@ -14439,6 +14525,9 @@ def status_document(cfg):
      targets_by_missing_capability,
      targets_by_observed_constraint) = target_record_indexes(targets)
     target_summary = target_record_summary(targets)
+    staged_file_workflow_actions = staged_file_workflow_action_records(cfg, staged_records, targets)
+    staged_file_workflow_action_index_maps = staged_file_workflow_action_indexes(staged_file_workflow_actions)
+    staged_file_workflow_action_stats = staged_file_workflow_action_summary(staged_file_workflow_actions)
     bridge_profile_workflow_actions = bridge_profile_workflow_action_records(cfg, bridge_profiles, targets)
     bridge_profile_workflow_action_index_maps = bridge_profile_workflow_action_indexes(bridge_profile_workflow_actions)
     bridge_profile_workflow_action_stats = bridge_profile_workflow_action_summary(bridge_profile_workflow_actions)
@@ -15794,9 +15883,26 @@ def status_document(cfg):
         "staged_file_workflow_action_category_counts": staged_file_workflow_action_stats.get("category_counts") or {},
         "staged_file_workflow_action_workflow_counts": staged_file_workflow_action_stats.get("workflow_counts") or {},
         "staged_file_workflow_action_target_counts": staged_file_workflow_action_stats.get("target_counts") or {},
+        "staged_file_workflow_action_target_connectivity_state_counts": staged_file_workflow_action_stats.get("target_connectivity_state_counts") or {},
+        "staged_file_workflow_action_target_offline_age_bucket_counts": staged_file_workflow_action_stats.get("target_offline_age_bucket_counts") or {},
+        "staged_file_workflow_action_target_poll_overdue_counts": staged_file_workflow_action_stats.get("target_poll_overdue_counts") or {},
+        "staged_file_workflow_action_target_mailbox_pending_work_count_counts": staged_file_workflow_action_stats.get("target_mailbox_pending_work_count_counts") or {},
+        "staged_file_workflow_action_target_latest_phone_home_status_counts": staged_file_workflow_action_stats.get("target_latest_phone_home_status_counts") or {},
+        "staged_file_workflow_action_target_latest_successful_phone_home_status_counts": staged_file_workflow_action_stats.get("target_latest_successful_phone_home_status_counts") or {},
+        "staged_file_workflow_action_target_last_failed_phone_home_status_counts": staged_file_workflow_action_stats.get("target_last_failed_phone_home_status_counts") or {},
         "staged_file_workflow_action_route_kind_counts": staged_file_workflow_action_stats.get("route_kind_counts") or {},
         "staged_file_workflow_action_bridge_profile_counts": staged_file_workflow_action_stats.get("bridge_profile_counts") or {},
         "staged_file_workflow_action_action_counts": staged_file_workflow_action_stats.get("action_counts") or {},
+        "staged_file_workflow_action_fleet_target_count_counts": staged_file_workflow_action_stats.get("fleet_target_count_counts") or {},
+        "staged_file_workflow_action_fleet_offline_target_count_counts": staged_file_workflow_action_stats.get("fleet_offline_target_count_counts") or {},
+        "staged_file_workflow_action_fleet_stale_target_count_counts": staged_file_workflow_action_stats.get("fleet_stale_target_count_counts") or {},
+        "staged_file_workflow_action_fleet_mailbox_pending_target_count_counts": staged_file_workflow_action_stats.get("fleet_mailbox_pending_target_count_counts") or {},
+        "staged_file_workflow_action_fleet_mailbox_pending_work_count_counts": staged_file_workflow_action_stats.get("fleet_mailbox_pending_work_count_counts") or {},
+        "staged_file_workflow_action_fleet_poll_overdue_target_count_counts": staged_file_workflow_action_stats.get("fleet_poll_overdue_target_count_counts") or {},
+        "staged_file_workflow_action_fleet_has_offline_targets_counts": staged_file_workflow_action_stats.get("fleet_has_offline_targets_counts") or {},
+        "staged_file_workflow_action_fleet_has_stale_targets_counts": staged_file_workflow_action_stats.get("fleet_has_stale_targets_counts") or {},
+        "staged_file_workflow_action_fleet_has_mailbox_pending_work_counts": staged_file_workflow_action_stats.get("fleet_has_mailbox_pending_work_counts") or {},
+        "staged_file_workflow_action_fleet_has_poll_overdue_targets_counts": staged_file_workflow_action_stats.get("fleet_has_poll_overdue_targets_counts") or {},
         "staged_file_workflow_action_source_exists_counts": staged_file_workflow_action_stats.get("source_exists_counts") or {},
         "staged_file_workflow_action_available_counts": staged_file_workflow_action_stats.get("available_counts") or {},
         "staged_file_workflow_action_operator_action_state_counts": staged_file_workflow_action_stats.get("operator_action_state_counts") or {},
@@ -17009,8 +17115,25 @@ def status_document(cfg):
                 "staged_file_workflow_actions_by_category",
                 "staged_file_workflow_actions_by_workflow",
                 "staged_file_workflow_actions_by_target_id",
+                "staged_file_workflow_actions_by_target_connectivity_state",
+                "staged_file_workflow_actions_by_target_offline_age_bucket",
+                "staged_file_workflow_actions_by_target_poll_overdue",
+                "staged_file_workflow_actions_by_target_mailbox_pending_work_count",
+                "staged_file_workflow_actions_by_target_latest_phone_home_status",
+                "staged_file_workflow_actions_by_target_latest_successful_phone_home_status",
+                "staged_file_workflow_actions_by_target_last_failed_phone_home_status",
                 "staged_file_workflow_actions_by_route_kind",
                 "staged_file_workflow_actions_by_bridge_profile",
+                "staged_file_workflow_actions_by_fleet_target_count",
+                "staged_file_workflow_actions_by_fleet_offline_target_count",
+                "staged_file_workflow_actions_by_fleet_stale_target_count",
+                "staged_file_workflow_actions_by_fleet_mailbox_pending_target_count",
+                "staged_file_workflow_actions_by_fleet_mailbox_pending_work_count",
+                "staged_file_workflow_actions_by_fleet_poll_overdue_target_count",
+                "staged_file_workflow_actions_by_fleet_has_offline_targets",
+                "staged_file_workflow_actions_by_fleet_has_stale_targets",
+                "staged_file_workflow_actions_by_fleet_has_mailbox_pending_work",
+                "staged_file_workflow_actions_by_fleet_has_poll_overdue_targets",
                 "staged_file_workflow_actions_by_source_exists",
                 "staged_file_workflow_actions_by_available",
                 "staged_file_workflow_actions_by_requires_target",
@@ -20842,6 +20965,27 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
     print(f"staged file workflow action: {rec_id}")
     print(f"headless_command={run_command or command}")
     print(f"command={command}")
+    target_details = {
+        "target_connectivity_state": rec.get("target_connectivity_state", ""),
+        "target_offline_age_bucket": rec.get("target_offline_age_bucket", ""),
+        "target_poll_overdue": bool(rec.get("target_poll_overdue")),
+        "target_mailbox_pending_work_count": rec.get("target_mailbox_pending_work_count", 0),
+        "target_latest_phone_home_status": rec.get("target_latest_phone_home_status", ""),
+        "target_latest_successful_phone_home_status": rec.get("target_latest_successful_phone_home_status", ""),
+        "target_last_failed_phone_home_status": rec.get("target_last_failed_phone_home_status", ""),
+    }
+    fleet_details = {
+        "fleet_target_count": rec.get("fleet_target_count", 0),
+        "fleet_offline_target_count": rec.get("fleet_offline_target_count", 0),
+        "fleet_stale_target_count": rec.get("fleet_stale_target_count", 0),
+        "fleet_mailbox_pending_target_count": rec.get("fleet_mailbox_pending_target_count", 0),
+        "fleet_mailbox_pending_work_count": rec.get("fleet_mailbox_pending_work_count", 0),
+        "fleet_poll_overdue_target_count": rec.get("fleet_poll_overdue_target_count", 0),
+        "fleet_has_offline_targets": bool(rec.get("fleet_has_offline_targets")),
+        "fleet_has_stale_targets": bool(rec.get("fleet_has_stale_targets")),
+        "fleet_has_mailbox_pending_work": bool(rec.get("fleet_has_mailbox_pending_work")),
+        "fleet_has_poll_overdue_targets": bool(rec.get("fleet_has_poll_overdue_targets")),
+    }
     append_event(cfg, "workbench", "staged_file_workflow_action_selected", details={
         "id": rec_id,
         "action_id": action_id,
@@ -20859,6 +21003,8 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
         "confirmed": bool(confirmed),
         "headless_command": run_command or command,
         "command": command,
+        **target_details,
+        **fleet_details,
     })
     if dry_run:
         print("dry_run=yes")
@@ -20868,6 +21014,8 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
             "request_name": request,
             "headless_command": run_command or command,
             "command": command,
+            **target_details,
+            **fleet_details,
         })
         return 0
     if not request:
@@ -20922,6 +21070,8 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
             "headless_command": run_command or command,
             "command": command,
             "returncode": rc,
+            **target_details,
+            **fleet_details,
         })
         return rc
     elif action_id == "unstage":
@@ -20945,6 +21095,8 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
         "headless_command": run_command or command,
         "command": command,
         "returncode": rc,
+        **target_details,
+        **fleet_details,
     })
     return rc
 
@@ -21566,7 +21718,10 @@ def run_line_tui(cfg):
                         f"  {rec.get('id', '')} "
                         f"state={rec.get('operator_action_state', '') or '-'} "
                         f"reason={rec.get('operator_action_reason', '') or '-'} "
-                        f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'}"
+                        f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
+                        f"target_pending={rec.get('target_mailbox_pending_work_count', 0)} "
+                        f"fleet_pending={rec.get('fleet_mailbox_pending_work_count', 0)} "
+                        f"poll_overdue={'yes' if rec.get('target_poll_overdue') else 'no'}"
                     )
                     print(f"    command: {rec.get('headless_command', rec.get('command', ''))}")
             headless = (
@@ -22715,6 +22870,11 @@ def run_curses_tui(cfg):
                     f"source_exists: {rec.get('source_exists', False)}",
                     f"target_id: {rec.get('target_id', '') or '-'}",
                     f"target_label: {rec.get('target_label', '') or '-'}",
+                    f"target_state: {queue_action.get('target_connectivity_state', '') or '-'} offline_age={queue_action.get('target_offline_age_bucket', '') or '-'}",
+                    f"target_mailbox_pending: {queue_action.get('target_mailbox_pending_work_count', '') if queue_action.get('target_mailbox_pending_work_count', '') != '' else '-'} poll_overdue={'yes' if queue_action.get('target_poll_overdue') else 'no'}",
+                    f"fleet_pending_work: {queue_action.get('fleet_mailbox_pending_work_count', 0)}",
+                    f"fleet_offline_targets: {queue_action.get('fleet_offline_target_count', 0)}",
+                    f"fleet_poll_overdue: {queue_action.get('fleet_poll_overdue_target_count', 0)}",
                     f"staged_file_workflow_actions: {len(staged_actions)}",
                     f"file_service_workflow_actions: {len(file_service_workflow_actions)}",
                     f"show_fetch_action_state: {show_action.get('operator_action_state', '') or '-'} reason={show_action.get('operator_action_reason', '') or '-'}",

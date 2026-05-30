@@ -8026,6 +8026,10 @@ def main():
                 action_staged_file_action_by_id.get("action-staged.txt:queue-staged-fetch", {}).get("operator_action_state") != "queueable-offline" or
                 action_staged_file_action_by_id.get("action-staged.txt:queue-staged-fetch", {}).get("queues_offline_work") is not True or
                 action_staged_file_action_by_id.get("action-staged.txt:queue-staged-fetch", {}).get("target_id") != "target-action" or
+                action_staged_file_action_by_id.get("action-staged.txt:queue-staged-fetch", {}).get("target_mailbox_pending_work_count") != 3 or
+                action_staged_file_action_by_id.get("action-staged.txt:queue-staged-fetch", {}).get("fleet_target_count") != 1 or
+                action_staged_file_action_by_id.get("action-staged.txt:queue-staged-fetch", {}).get("fleet_mailbox_pending_work_count") != 3 or
+                action_staged_file_action_by_id.get("action-staged.txt:queue-staged-fetch", {}).get("fleet_has_mailbox_pending_work") is not True or
                 "queue-staged-fetch --target-workflow-request-name action-staged.txt" not in action_staged_file_action_by_id.get("action-staged.txt:queue-staged-fetch", {}).get("headless_command", "") or
                 action_staged_file_action_by_id.get("action-staged.txt:show-fetch-command", {}).get("can_run_from_curses_enter") is not True or
                 action_staged_file_action_by_id.get("action-staged.txt:unstage", {}).get("requires_confirmation") is not True or
@@ -8094,6 +8098,10 @@ def main():
                 action_doc.get("summary", {}).get("staged_target_counts", {}).get("target-action") != 1 or
                 action_doc.get("summary", {}).get("staged_file_workflow_action_count") != 4 or
                 action_doc.get("summary", {}).get("staged_file_workflow_action_target_counts", {}).get("target-action") != 4 or
+                action_doc.get("summary", {}).get("staged_file_workflow_action_target_mailbox_pending_work_count_counts", {}).get("3") != 4 or
+                action_doc.get("summary", {}).get("staged_file_workflow_action_fleet_target_count_counts", {}).get("1") != 4 or
+                action_doc.get("summary", {}).get("staged_file_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get("3") != 4 or
+                action_doc.get("summary", {}).get("staged_file_workflow_action_fleet_has_mailbox_pending_work_counts", {}).get("True") != 4 or
                 action_doc.get("summary", {}).get("staged_file_workflow_action_queues_offline_work_count") != 1 or
                 action_doc.get("summary", {}).get("staged_file_workflow_action_requires_confirmation_count") != 1 or
                 action_doc.get("summary", {}).get("staged_file_workflow_action_can_run_from_curses_enter_count") != 1 or
@@ -8130,6 +8138,8 @@ def main():
                 (action_doc.get("target_file_transfer_records_by_operation") or {}).get("staged-fetch", [{}])[0].get("target_id") != "target-action" or
                 (action_doc.get("target_file_transfer_records_by_request_name") or {}).get("action-staged.txt", [{}])[0].get("target_id") != "target-action" or
                 "staged_file_workflow_actions_by_request_name" not in ((action_doc.get("api_collections") or {}).get("staged_file_workflow_actions") or {}).get("indexes", []) or
+                "staged_file_workflow_actions_by_target_mailbox_pending_work_count" not in ((action_doc.get("api_collections") or {}).get("staged_file_workflow_actions") or {}).get("indexes", []) or
+                "staged_file_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((action_doc.get("api_collections") or {}).get("staged_file_workflow_actions") or {}).get("indexes", []) or
                 "file_service_workflow_actions_by_route_kind" not in ((action_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", []) or
                 "file_service_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((action_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", []) or
                 "file_service_workflow_actions_by_fleet_has_mailbox_pending_work" not in ((action_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", []) or
@@ -10009,7 +10019,9 @@ def main():
                 not any(
                     (event.get("details") or {}).get("request_name") == "workflow-staged.txt" and
                     (event.get("details") or {}).get("action_id") == "queue-staged-fetch" and
-                    (event.get("details") or {}).get("queues_offline_work") is True
+                    (event.get("details") or {}).get("queues_offline_work") is True and
+                    (event.get("details") or {}).get("fleet_target_count") == 0 and
+                    (event.get("details") or {}).get("fleet_mailbox_pending_work_count") == 0
                     for event in file_workflow_events.get("staged_file_workflow_action_completed", [])
                 )):
             print("headless file/staged workflow actions did not persist expected events and mailbox state", file=sys.stderr)
