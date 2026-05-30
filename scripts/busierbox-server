@@ -2028,6 +2028,14 @@ def target_phone_home_record_from_event(event):
     success = status in ("delivered", "no-command", "result-received")
     failed = status in ("rejected", "error")
     pending_reason = target_phone_home_pending_reason(kind, details)
+    queued_remaining_count = ""
+    if kind == "poll" and status == "delivered":
+        queued_remaining_count = max(
+            int_value(details.get("queued_count_before")) - int_value(details.get("delivered_count")),
+            0,
+        )
+    elif kind == "poll" and status == "no-command":
+        queued_remaining_count = int_value(details.get("queued_count"))
     rec = {
         "id": str(event.get("id") or ""),
         "event_id": str(event.get("id") or ""),
@@ -2060,6 +2068,9 @@ def target_phone_home_record_from_event(event):
         "delivered_count": int_value(details.get("delivered_count")),
         "queued_count": int_value(details.get("queued_count")),
         "queued_count_before": int_value(details.get("queued_count_before")),
+        "queued_remaining_count": queued_remaining_count,
+        "has_queued_remaining_count": queued_remaining_count != "",
+        "pending_work_remaining": queued_remaining_count != "" and int_value(queued_remaining_count) > 0,
         "result_status": str(details.get("result_status") or ""),
         "result_exit_code": str(details.get("result_exit_code") or ""),
         "result_output_exceeded_limit": bool(details.get("result_output_exceeded_limit", False)),
@@ -2107,6 +2118,9 @@ def target_phone_home_record_indexes(records):
         "target_phone_home_records_by_reason": records_by_key(records, "reason"),
         "target_phone_home_records_by_pending_reason": records_by_key(records, "pending_reason"),
         "target_phone_home_records_by_has_pending_reason": records_by_key(records, "has_pending_reason"),
+        "target_phone_home_records_by_has_queued_remaining_count": records_by_key(records, "has_queued_remaining_count"),
+        "target_phone_home_records_by_pending_work_remaining": records_by_key(records, "pending_work_remaining"),
+        "target_phone_home_records_by_queued_remaining_count": records_by_key(records, "queued_remaining_count"),
         "target_phone_home_records_by_command_id": records_by_key(records, "command_id"),
         "target_phone_home_records_by_poll_mode": records_by_key(records, "poll_mode"),
         "target_phone_home_records_by_poll_interval_sec": records_by_key(records, "poll_interval_sec"),
@@ -13054,6 +13068,8 @@ def status_document(cfg):
         "target_phone_home_target_counts": record_count_by_key(target_phone_home_records, "target_id"),
         "target_phone_home_anonymous_counts": record_count_by_key(target_phone_home_records, "anonymous"),
         "target_phone_home_pending_reason_counts": record_count_by_key(target_phone_home_records, "pending_reason"),
+        "target_phone_home_queued_remaining_count_counts": record_count_by_key(target_phone_home_records, "queued_remaining_count"),
+        "target_phone_home_pending_work_remaining_counts": record_count_by_key(target_phone_home_records, "pending_work_remaining"),
         "target_phone_home_http_status_counts": record_count_by_key(target_phone_home_records, "http_status"),
         "target_phone_home_latest_at": latest_record_value(target_phone_home_records, ("timestamp",)),
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
@@ -13600,6 +13616,9 @@ def status_document(cfg):
                 "target_phone_home_records_by_reason",
                 "target_phone_home_records_by_pending_reason",
                 "target_phone_home_records_by_has_pending_reason",
+                "target_phone_home_records_by_has_queued_remaining_count",
+                "target_phone_home_records_by_pending_work_remaining",
+                "target_phone_home_records_by_queued_remaining_count",
                 "target_phone_home_records_by_command_id",
                 "target_phone_home_records_by_poll_mode",
                 "target_phone_home_records_by_poll_interval_sec",
@@ -14656,10 +14675,14 @@ def print_target_summary(doc, limit=8):
             reason = attempt.get("pending_reason") or attempt.get("reason") or ""
             reason_text = f" reason={reason}" if reason else ""
             command = f" command={attempt.get('command_id', '')}" if attempt.get("command_id") else ""
+            remaining = (
+                f" queued_remaining={attempt.get('queued_remaining_count')}"
+                if attempt.get("queued_remaining_count") != "" else ""
+            )
             print(
                 f"    phone_home {attempt.get('timestamp', '') or '-'} "
                 f"{attempt.get('kind', '') or '-'} status={attempt.get('status', '') or '-'} "
-                f"via={attempt.get('contact_path', '') or '-'}{command}{reason_text}"
+                f"via={attempt.get('contact_path', '') or '-'}{command}{remaining}{reason_text}"
             )
         print(f"    aliases={aliases} services={services} remotes={remotes}")
         if str(rec.get("notes") or "").strip():
@@ -15422,7 +15445,11 @@ def print_status(cfg, json_output=False):
             reason = rec.get("pending_reason") or rec.get("reason") or ""
             suffix = f" reason={reason}" if reason else ""
             command = f" command={rec.get('command_id', '')}" if rec.get("command_id") else ""
-            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{command}{suffix}")
+            remaining = (
+                f" queued_remaining={rec.get('queued_remaining_count')}"
+                if rec.get("queued_remaining_count") != "" else ""
+            )
+            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{command}{remaining}{suffix}")
     else:
         print("  none")
     print("")
@@ -15787,7 +15814,11 @@ def print_workbench(cfg, include_api_summary=True):
             reason = rec.get("pending_reason") or rec.get("reason") or ""
             suffix = f" reason={reason}" if reason else ""
             command = f" command={rec.get('command_id', '')}" if rec.get("command_id") else ""
-            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{command}{suffix}")
+            remaining = (
+                f" queued_remaining={rec.get('queued_remaining_count')}"
+                if rec.get("queued_remaining_count") != "" else ""
+            )
+            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{command}{remaining}{suffix}")
     else:
         print("  none")
     print("")

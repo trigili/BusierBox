@@ -2933,6 +2933,10 @@ def main():
         ).stdout)
         offline_bravo = (offline_status.get("targets_by_id") or {}).get("target-bravo") or {}
         offline_bravo_mailbox = (offline_status.get("target_mailbox_records_by_command_id") or {}).get(bravo_id) or {}
+        anonymous_phone_home = [
+            rec for rec in offline_status.get("target_phone_home_records") or []
+            if rec.get("anonymous") is True and rec.get("status") == "no-command"
+        ]
         if (offline_bravo.get("connectivity_state") != "offline" or
                 offline_bravo.get("mailbox_pending_work_count") != 1 or
                 offline_bravo.get("last_seen") != old_seen or
@@ -2946,11 +2950,18 @@ def main():
                 not isinstance(offline_bravo_mailbox.get("target_poll_overdue_for_sec"), int) or
                 not isinstance(offline_bravo_mailbox.get("age_sec"), int) or
                 not isinstance(offline_bravo_mailbox.get("pending_delivery_for_sec"), int) or
+                not anonymous_phone_home or
+                anonymous_phone_home[0].get("queued_remaining_count") != 2 or
+                anonymous_phone_home[0].get("pending_work_remaining") is not True or
+                anonymous_phone_home[0].get("has_queued_remaining_count") is not True or
                 offline_status.get("summary", {}).get("target_mailbox_waiting_for_counts", {}).get("target-poll") != 2 or
                 offline_status.get("summary", {}).get("target_mailbox_pending_reason_counts", {}).get("target-poll-overdue") != 1 or
                 offline_status.get("summary", {}).get("target_mailbox_has_pending_reason_counts", {}).get("True") != 2 or
+                offline_status.get("summary", {}).get("target_phone_home_queued_remaining_count_counts", {}).get("2") != 1 or
+                offline_status.get("summary", {}).get("target_phone_home_pending_work_remaining_counts", {}).get("True") != 1 or
                 ((offline_status.get("target_mailbox_records_by_waiting_for") or {}).get("target-poll") or [{}])[0].get("target_id") not in {"target-alpha", "target-bravo"} or
                 ((offline_status.get("target_mailbox_records_by_pending_reason") or {}).get("target-poll-overdue") or [{}])[0].get("target_id") != "target-bravo" or
+                ((offline_status.get("target_phone_home_records_by_queued_remaining_count") or {}).get("2") or [{}])[0].get("anonymous") is not True or
                 offline_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("offline") != 1 or
                 offline_status.get("summary", {}).get("target_poll_overdue_count") != 1 or
                 offline_status.get("summary", {}).get("target_poll_overdue_counts", {}).get("True") != 1 or
@@ -3041,10 +3052,13 @@ def main():
                 target_alpha_mailbox.get("pending_reason") != "awaiting-result-upload" or
                 target_alpha_mailbox.get("delivered_without_result") is not True or
                 not isinstance(target_alpha_mailbox.get("delivered_without_result_for_sec"), int) or
+                poll_target_status.get("summary", {}).get("target_phone_home_queued_remaining_count_counts", {}).get("1") != 1 or
+                poll_target_status.get("summary", {}).get("target_phone_home_pending_work_remaining_counts", {}).get("True") != 1 or
                 poll_target_status.get("summary", {}).get("target_mailbox_waiting_for_counts", {}).get("result-upload") != 1 or
                 poll_target_status.get("summary", {}).get("target_mailbox_pending_reason_counts", {}).get("awaiting-result-upload") != 1 or
                 ((poll_target_status.get("target_mailbox_records_by_waiting_for") or {}).get("result-upload") or [{}])[0].get("command_id") != alpha_id or
                 ((poll_target_status.get("target_mailbox_records_by_pending_reason") or {}).get("awaiting-result-upload") or [{}])[0].get("command_id") != alpha_id or
+                ((poll_target_status.get("target_phone_home_records_by_queued_remaining_count") or {}).get("1") or [{}])[0].get("command_id") != alpha_id or
                 ((poll_target_status.get("targets_by_latest_activity_service") or {}).get("command-queue") or [{}])[0].get("target_id") != "target-alpha" or
                 ((poll_target_status.get("targets_by_latest_activity_operation") or {}).get("command_queue_poll") or [{}])[0].get("target_id") != "target-alpha" or
                 ((poll_target_status.get("targets_by_connectivity_state") or {}).get("online") or [{}])[0].get("target_id") != "target-alpha" or
@@ -3063,7 +3077,8 @@ def main():
                 "events_by_detail_poll_interval_sec" not in (((poll_target_status.get("api_collections") or {}).get("events") or {}).get("indexes") or []) or
                 "targets_by_connectivity_state" not in (((poll_target_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or []) or
                 "target_mailbox_records_by_waiting_for" not in (((poll_target_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
-                "target_mailbox_records_by_pending_reason" not in (((poll_target_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or [])):
+                "target_mailbox_records_by_pending_reason" not in (((poll_target_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
+                "target_phone_home_records_by_queued_remaining_count" not in (((poll_target_status.get("api_collections") or {}).get("target_phone_home_records") or {}).get("indexes") or [])):
             print("target-scoped command queue poll missing from filtered status", file=sys.stderr)
             print(json.dumps(poll_target_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
@@ -3313,6 +3328,7 @@ def main():
                 "Target mailbox records:" not in queue_tui_text or
                 "Target detail: target-alpha label=Alpha Router" not in queue_tui_text or
                 "phone_home " not in queue_tui_text or
+                "queued_remaining=" not in queue_tui_text or
                 "poll status=delivered" not in queue_tui_text or
                 "result status=result-received" not in queue_tui_text or
                 f"{alpha_id} target=target-alpha state=online status=result-received waiting_for=none reason=- expired=no pending=no result=completed exit=0" not in queue_tui_text or

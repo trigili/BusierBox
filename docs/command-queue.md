@@ -371,8 +371,8 @@ Target status also exposes `targets_by_connectivity_state`,
 workbench print each target's recent mailbox items, recent phone-home attempts,
 and latest workflow activity below the heartbeat and mailbox counts, so an
 operator can queue work while a target is gone, see the last successful
-phone-home path, inspect pending work, and confirm delivery when the target
-reconnects.
+phone-home path, inspect pending work, see how much queued work remained after a
+poll, and confirm delivery when the target reconnects.
 
 For target-centered operator UX, status JSON also includes
 `target_workflow_actions`. These records are generated per target and expose the
@@ -480,7 +480,9 @@ dropped/truncated result upload while leaving the delivered command awaiting a
 valid result, accepts the matching target result, and verifies status JSON plus text status show
 `last_seen`, `last_seen_via`, `offline_for_sec`, `connectivity_state`,
 `next_expected_poll`, mailbox pending counts, and latest command result
-metadata.
+metadata. Phone-home records include `queued_remaining_count` and
+`pending_work_remaining` for poll attempts, with matching status indexes and
+summary counts for dashboards and TUI panes.
 The harness also writes `topology.json` alongside its status and HTTP
 transcript artifacts. That topology artifact records operator service ports,
 known target ids, scripted link states such as short reconnect windows and
