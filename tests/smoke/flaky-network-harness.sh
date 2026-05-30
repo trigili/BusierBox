@@ -90,6 +90,13 @@ assert workflow_drain["kind"] == "offline-workflow-drain-artifact"
 assert workflow_drain["target"]["target_id"] == "target-workflow"
 assert workflow_drain["target"]["mailbox_delivered_command_count"] == 2
 assert workflow_drain["target"]["mailbox_pending_work_count"] == 0
+assert workflow_drain["target"]["last_seen"]
+assert workflow_drain["target"]["last_seen_via"] == "command-queue:command_queue_poll"
+assert workflow_drain["target"]["next_expected_poll"]
+assert workflow_drain["target"]["poll_overdue"] is False
+assert workflow_drain["target"]["latest_phone_home_status"] == "delivered"
+assert workflow_drain["target"]["latest_successful_phone_home_status"] == "delivered"
+assert workflow_drain["target"]["latest_command_queue_poll_interval_sec"] == "3600"
 assert len(set(workflow_drain["delivered_command_ids"])) == 2
 assert workflow_drain["http_statuses"] == ["HTTP/1.1 200 OK", "HTTP/1.1 200 OK"]
 drained_commands = "\n".join(rec.get("command") or "" for rec in workflow_drain["target_mailbox_records"])
@@ -97,6 +104,11 @@ assert "wget -O-" in drained_commands and "survey.sh" in drained_commands
 assert "busierbox fetch workflow-payload.txt" in drained_commands
 assert all(rec["status"] == "delivered" for rec in workflow_drain["target_mailbox_records"])
 assert workflow_drain["summary"]["target_phone_home_status_counts"]["delivered"] >= 2
+assert len(workflow_drain["phone_home_records"]) >= 2
+assert all(rec["kind"] == "poll" for rec in workflow_drain["phone_home_records"])
+assert all(rec["successful"] is True for rec in workflow_drain["phone_home_records"])
+assert any(rec["pending_work_remaining"] is True for rec in workflow_drain["phone_home_records"])
+assert any(rec["pending_work_remaining"] is False for rec in workflow_drain["phone_home_records"])
 assert lifecycle["kind"] == "mailbox-lifecycle-artifact"
 assert lifecycle["failed_mailbox_record"]["result_status"] == "failed"
 assert lifecycle["failed_mailbox_record"]["result_exit_code"] == 23

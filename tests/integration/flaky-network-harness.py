@@ -1094,10 +1094,26 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition(len(set(delivered_ids)) == 2, "offline workflow drain delivered duplicate command ids", delivered_ids)
     assert_condition(drain_target["mailbox_delivered_command_count"] == 2, "offline workflow drain delivery count mismatch", drain_target)
     assert_condition(drain_target["mailbox_pending_work_count"] == 0, "offline workflow drain left queued work pending", drain_target)
+    assert_condition(drain_target.get("last_seen"), "offline workflow drain did not update target last_seen", drain_target)
+    assert_condition(drain_target.get("last_seen_via") == "command-queue:command_queue_poll", "offline workflow drain last_seen_via mismatch", drain_target)
+    assert_condition(drain_target.get("next_expected_poll"), "offline workflow drain did not record next expected poll", drain_target)
+    assert_condition(drain_target.get("poll_overdue") is False, "offline workflow drain should not be overdue immediately after reconnect", drain_target)
+    assert_condition(drain_target.get("latest_phone_home_status") == "delivered", "offline workflow drain latest phone-home status mismatch", drain_target)
+    assert_condition(drain_target.get("latest_successful_phone_home_status") == "delivered", "offline workflow drain successful phone-home status mismatch", drain_target)
+    assert_condition(str(drain_target.get("latest_command_queue_poll_interval_sec") or "") == "3600", "offline workflow drain poll interval mismatch", drain_target)
     assert_condition(all(rec.get("status") == "delivered" for rec in drain_records), "offline workflow drain records not delivered", drain_records)
     assert_condition("wget -O-" in drain_commands and "survey.sh" in drain_commands, "drained survey bootstrap command missing", drain_commands)
     assert_condition("busierbox fetch workflow-payload.txt" in drain_commands, "drained staged fetch command missing", drain_commands)
     assert_condition(drain_doc["summary"]["target_phone_home_status_counts"].get("delivered", 0) >= 2, "offline workflow drain phone-home deliveries missing")
+    drain_phone_home = [
+        rec for rec in (drain_doc.get("target_phone_home_records") or [])
+        if rec.get("target_id") == "target-workflow"
+    ]
+    assert_condition(len(drain_phone_home) >= 2, "offline workflow drain phone-home records missing", drain_phone_home)
+    assert_condition(all(rec.get("kind") == "poll" for rec in drain_phone_home), "offline workflow drain phone-home kind mismatch", drain_phone_home)
+    assert_condition(all(rec.get("successful") is True for rec in drain_phone_home), "offline workflow drain phone-home success mismatch", drain_phone_home)
+    assert_condition(any(rec.get("pending_work_remaining") is True for rec in drain_phone_home), "offline workflow drain should record remaining queued work after first poll", drain_phone_home)
+    assert_condition(any(rec.get("pending_work_remaining") is False for rec in drain_phone_home), "offline workflow drain should record empty mailbox after final poll", drain_phone_home)
     write_offline_workflow_drain_artifact(artifact_dir, drain_doc, delivered_ids, responses)
     return {"name": "offline-workflow-queue", "status": "pass", "artifact": "offline-workflow-status.json"}
 
