@@ -180,6 +180,8 @@ def main():
                  "action 11 includes service workflow actions",
                  "Survey bootstrap workflow action summary:", "survey_bootstrap_workflow_actions_by_route_kind",
                  "survey_bootstrap_workflow_actions:",
+                 "Command queue workflow action summary:", "command_queue_workflow_actions_by_action_id",
+                 "Command queue workflow actions:",
                  "staged_file_workflow_actions:", "staged_file_workflow_actions_by_request_name",
                  "enter shows staged fetch command", "action 7 lists staged workflow actions",
                  "Bridge Routes", "bridge_profile_workflow_actions:", "bridge_profile_workflow_actions_by_bridge_profile",
@@ -3425,6 +3427,11 @@ def main():
                 "headless_command: scripts/busierbox-server --config" not in queue_tui_text or
                 "--list-command-queue" not in queue_tui_text or
                 "Command queue:" not in queue_tui_text or
+                "Command queue workflow actions:" not in queue_tui_text or
+                "command-queue:list-command-queue state=ready reason=run-now enter=yes" not in queue_tui_text or
+                "command-queue:queue-command state=needs-input reason=input-required" not in queue_tui_text or
+                "command-queue:clear-command-queue state=confirm-required reason=confirmation-required" not in queue_tui_text or
+                "queues_offline_work=yes" not in queue_tui_text or
                 f"{alpha_id}\tresult-received" not in queue_tui_text or
                 "result: " not in queue_tui_text or
                 "Target mailbox records:" not in queue_tui_text or
@@ -3454,8 +3461,25 @@ def main():
             "scripts/busierbox-server", "--config", str(poll_target_cfg),
             "--json-status",
         ).stdout)
+        queue_workflow_actions = queue_tui_status.get("command_queue_workflow_actions") or []
+        queue_workflow_actions_by_id = queue_tui_status.get("command_queue_workflow_actions_by_id") or {}
         queue_target_events = (queue_tui_status.get("events_by_event") or {}).get("workbench_target_inspected") or []
-        if (not (queue_tui_status.get("events_by_event") or {}).get("workbench_command_queue_inspected") or
+        if (len(queue_workflow_actions) != 6 or
+                queue_workflow_actions_by_id.get("command-queue:list-command-queue", {}).get("can_run_from_curses_enter") is not True or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("requires_input") is not True or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("queues_offline_work") is not True or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("target_phone_home_required") is not True or
+                queue_workflow_actions_by_id.get("command-queue:clear-command-queue", {}).get("requires_confirmation") is not True or
+                queue_tui_status.get("summary", {}).get("command_queue_workflow_action_count") != 6 or
+                queue_tui_status.get("summary", {}).get("command_queue_workflow_action_queues_offline_work_count") != 1 or
+                queue_tui_status.get("summary", {}).get("command_queue_workflow_action_target_phone_home_required_count") != 1 or
+                queue_tui_status.get("summary", {}).get("command_queue_workflow_action_requires_confirmation_count") != 2 or
+                "command_queue_workflow_actions_by_queues_offline_work" not in ((queue_tui_status.get("api_collections") or {}).get("command_queue_workflow_actions") or {}).get("indexes", []) or
+                not (queue_tui_status.get("events_by_event") or {}).get("workbench_command_queue_inspected") or
+                not any(
+                    (event.get("details") or {}).get("command_queue_workflow_action_count") == 6
+                    for event in (queue_tui_status.get("events_by_event") or {}).get("workbench_command_queue_inspected", [])
+                ) or
                 not any(
                     (event.get("details") or {}).get("target_id") == "target-alpha" and
                     (event.get("details") or {}).get("target_activity_record_count", 0) >= 3
@@ -4112,6 +4136,7 @@ def main():
                 ("command_copy_state_records", len(queue_status_json.get("command_copy_state_records") or []), "command_copy_state_records_by_empty_or_missing"),
                 ("command_queue_state_records", len(queue_status_json.get("command_queue_state_records") or []), "command_queue_state_records_by_valid"),
                 ("command_queue_commands", len((queue_status_json.get("command_queue") or {}).get("commands") or []), "commands_by_queue_policy_execution_mode"),
+                ("command_queue_workflow_actions", len(queue_status_json.get("command_queue_workflow_actions") or []), "command_queue_workflow_actions_by_action_id"),
                 ("command_queue_policy_records", len(queue_status_json.get("command_queue_policy_records") or []), "command_queue_policy_records_by_valid"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_result_upload_supported"),
                 ("release_state_records", len(queue_status_json.get("release_state_records") or []), "release_state_records_by_detection_source"),
@@ -4156,6 +4181,9 @@ def main():
                 not any(rec.get("name") == "service_manager_state_records" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("command_queue_commands", {}).get("records_key") != "command_queue.commands" or
                 api_resources_by_records_key.get("command_queue.commands", [{}])[0].get("name") != "command_queue_commands" or
+                api_resources_by_name.get("command_queue_workflow_actions", {}).get("records_key") != "command_queue_workflow_actions" or
+                api_resources_by_summary_key.get("command_queue_workflow_action_count", [{}])[0].get("name") != "command_queue_workflow_actions" or
+                not any(rec.get("name") == "command_queue_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("command_queue_policy_records", {}).get("records_key") != "command_queue_policy_records" or
                 api_resources_by_summary_key.get("command_queue_policy_record_count", [{}])[0].get("name") != "command_queue_policy_records" or
                 not any(rec.get("name") == "command_queue_policy_records" for rec in api_resources_by_primary_key.get("id", [])) or

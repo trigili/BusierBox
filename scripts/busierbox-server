@@ -8020,6 +8020,194 @@ def command_queue_summary(cfg):
     }
 
 
+def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_records=None, service_row=None):
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    base = "scripts/busierbox-server --config " + shquote(config_path)
+    service_row = service_row if isinstance(service_row, dict) else {}
+    actual = str(service_row.get("actual") or "unknown")
+    target_filter_id = configured_target_filter(cfg)
+    target_arg = (" --target-id " + shquote(target_filter_id)) if target_filter_id else ""
+    queued_count = int(command_queue.get("queued_count", 0) or 0)
+    total_count = int(command_queue.get("total_count", 0) or 0)
+    result_count = int(command_queue.get("result_count", 0) or 0)
+    mailbox_records = [rec for rec in (target_mailbox_records or []) if isinstance(rec, dict)]
+    pending_mailbox_count = len([rec for rec in mailbox_records if rec.get("pending_work") is True])
+    records = []
+
+    def add(action_id, category, label, command, workflow, action_state, action_reason,
+            available=True, requires_input=False, requires_confirmation=False,
+            queues_offline_work=False, target_phone_home_required=False,
+            can_run_from_curses_enter=False, curses_enter_action=""):
+        records.append({
+            "id": f"command-queue:{action_id}",
+            "action_id": action_id,
+            "service": "command-queue",
+            "actual": actual,
+            "category": category,
+            "workflow": workflow,
+            "label": label,
+            "command": command,
+            "headless_command": command,
+            "target_id_filter": target_filter_id,
+            "target_filter_active": bool(target_filter_id),
+            "queue_path": str(command_queue.get("path") or command_queue_path(cfg)),
+            "queued_count": queued_count,
+            "total_count": total_count,
+            "result_count": result_count,
+            "target_mailbox_record_count": len(mailbox_records),
+            "target_mailbox_pending_work_count": pending_mailbox_count,
+            "policy_valid": bool(command_queue.get("policy_valid", True)),
+            "configured_for_polling": bool(command_queue.get("configured_for_polling", False)),
+            "poll_transport_supported": bool(command_queue.get("poll_transport_supported", False)),
+            "live_polling_supported": bool(command_queue.get("live_polling_supported", False)),
+            "result_upload_supported": bool(command_queue.get("result_upload_supported", False)),
+            "execution_supported": bool(command_queue.get("execution_supported", False)),
+            "delivery_supported": bool(command_queue.get("delivery_supported", False)),
+            "operator_queue_records_only": bool(command_queue.get("operator_queue_records_only", True)),
+            "available": bool(available),
+            "requires_input": bool(requires_input),
+            "requires_confirmation": bool(requires_confirmation),
+            "requires_target_online": False,
+            "queues_offline_work": bool(queues_offline_work),
+            "target_phone_home_required": bool(target_phone_home_required),
+            "operator_action_state": action_state,
+            "operator_action_reason": action_reason,
+            "can_run_from_curses_enter": bool(can_run_from_curses_enter),
+            "curses_enter_action": curses_enter_action,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "tui_visible": True,
+            "safety_boundary": "operator-side command queue metadata; target execution requires explicit target poll and execute policy",
+        })
+
+    add(
+        "inspect-command-queue",
+        "inspect",
+        "Inspect command queue, target mailbox, and policy state",
+        base + target_arg + " --status",
+        "command-queue",
+        "ready",
+        "run-now",
+    )
+    add(
+        "list-command-queue",
+        "mailbox",
+        "List command queue and mailbox records",
+        base + target_arg + " --list-command-queue",
+        "command-queue",
+        "ready",
+        "run-now",
+        can_run_from_curses_enter=True,
+        curses_enter_action="list-command-queue",
+    )
+    add(
+        "queue-command",
+        "mailbox",
+        "Queue command for target mailbox delivery",
+        base + target_arg + " --queue-command COMMAND",
+        "command-queue",
+        "needs-input",
+        "input-required",
+        requires_input=True,
+        queues_offline_work=True,
+        target_phone_home_required=True,
+    )
+    add(
+        "clear-command-queue",
+        "mailbox",
+        "Clear queued command records",
+        base + target_arg + " --clear-command-queue --list-command-queue",
+        "command-queue",
+        "confirm-required" if total_count else "already-empty",
+        "confirmation-required" if total_count else "queue-empty",
+        requires_confirmation=True,
+    )
+    add(
+        "start-command-queue-listener",
+        "service",
+        "Start command queue poll listener",
+        base + " --transport command-queue",
+        "command-queue",
+        "ready" if actual != "listening" else "already-running",
+        "run-now" if actual != "listening" else "service-already-listening",
+        can_run_from_curses_enter=actual != "listening",
+        curses_enter_action="start-command-queue-listener" if actual != "listening" else "stop-command-queue-listener",
+    )
+    add(
+        "stop-command-queue-listener",
+        "service",
+        "Stop command queue poll listener",
+        base + " --stop-service command-queue",
+        "command-queue",
+        "ready" if actual == "listening" else "already-stopped",
+        "run-now" if actual == "listening" else "service-not-listening",
+        requires_confirmation=True,
+        can_run_from_curses_enter=actual == "listening",
+        curses_enter_action="stop-command-queue-listener" if actual == "listening" else "start-command-queue-listener",
+    )
+    records.sort(key=lambda rec: (rec.get("category", ""), rec.get("action_id", "")))
+    return records
+
+
+def command_queue_workflow_action_indexes(records):
+    return {
+        "command_queue_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "command_queue_workflow_actions_by_action_id": records_by_key(records, "action_id"),
+        "command_queue_workflow_actions_by_category": records_by_key(records, "category"),
+        "command_queue_workflow_actions_by_workflow": records_by_key(records, "workflow"),
+        "command_queue_workflow_actions_by_actual": records_by_key(records, "actual"),
+        "command_queue_workflow_actions_by_target_filter_active": records_by_key(records, "target_filter_active"),
+        "command_queue_workflow_actions_by_policy_valid": records_by_key(records, "policy_valid"),
+        "command_queue_workflow_actions_by_configured_for_polling": records_by_key(records, "configured_for_polling"),
+        "command_queue_workflow_actions_by_poll_transport_supported": records_by_key(records, "poll_transport_supported"),
+        "command_queue_workflow_actions_by_live_polling_supported": records_by_key(records, "live_polling_supported"),
+        "command_queue_workflow_actions_by_result_upload_supported": records_by_key(records, "result_upload_supported"),
+        "command_queue_workflow_actions_by_execution_supported": records_by_key(records, "execution_supported"),
+        "command_queue_workflow_actions_by_delivery_supported": records_by_key(records, "delivery_supported"),
+        "command_queue_workflow_actions_by_operator_queue_records_only": records_by_key(records, "operator_queue_records_only"),
+        "command_queue_workflow_actions_by_requires_input": records_by_key(records, "requires_input"),
+        "command_queue_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
+        "command_queue_workflow_actions_by_queues_offline_work": records_by_key(records, "queues_offline_work"),
+        "command_queue_workflow_actions_by_target_phone_home_required": records_by_key(records, "target_phone_home_required"),
+        "command_queue_workflow_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "command_queue_workflow_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "command_queue_workflow_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
+        "command_queue_workflow_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
+    }
+
+
+def command_queue_workflow_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "requires_input_count": len([rec for rec in records or [] if rec.get("requires_input") is True]),
+        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
+        "queues_offline_work_count": len([rec for rec in records or [] if rec.get("queues_offline_work") is True]),
+        "target_phone_home_required_count": len([rec for rec in records or [] if rec.get("target_phone_home_required") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
+        "action_counts": record_count_by_key(records, "action_id"),
+        "category_counts": record_count_by_key(records, "category"),
+        "workflow_counts": record_count_by_key(records, "workflow"),
+        "actual_counts": record_count_by_key(records, "actual"),
+        "target_filter_active_counts": record_count_by_key(records, "target_filter_active"),
+        "policy_valid_counts": record_count_by_key(records, "policy_valid"),
+        "configured_for_polling_counts": record_count_by_key(records, "configured_for_polling"),
+        "poll_transport_supported_counts": record_count_by_key(records, "poll_transport_supported"),
+        "live_polling_supported_counts": record_count_by_key(records, "live_polling_supported"),
+        "result_upload_supported_counts": record_count_by_key(records, "result_upload_supported"),
+        "execution_supported_counts": record_count_by_key(records, "execution_supported"),
+        "delivery_supported_counts": record_count_by_key(records, "delivery_supported"),
+        "operator_queue_records_only_counts": record_count_by_key(records, "operator_queue_records_only"),
+        "requires_input_counts": record_count_by_key(records, "requires_input"),
+        "requires_confirmation_counts": record_count_by_key(records, "requires_confirmation"),
+        "queues_offline_work_counts": record_count_by_key(records, "queues_offline_work"),
+        "target_phone_home_required_counts": record_count_by_key(records, "target_phone_home_required"),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
+        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
+    }
+
+
 def print_command_queue(cfg, json_output=False):
     summary = command_queue_summary(cfg)
     delivery_counts = (
@@ -13493,6 +13681,43 @@ def status_document(cfg):
         }
         for row in services
     }
+    command_queue_workflow_actions = command_queue_workflow_action_records(
+        cfg,
+        command_queue,
+        target_mailbox_records,
+        services_by_name.get("command-queue") or {},
+    )
+    command_queue_workflow_action_index_maps = command_queue_workflow_action_indexes(command_queue_workflow_actions)
+    command_queue_workflow_action_stats = command_queue_workflow_action_summary(command_queue_workflow_actions)
+    summary.update({
+        "command_queue_workflow_action_count": command_queue_workflow_action_stats.get("total_count", 0),
+        "command_queue_workflow_action_requires_input_count": command_queue_workflow_action_stats.get("requires_input_count", 0),
+        "command_queue_workflow_action_requires_confirmation_count": command_queue_workflow_action_stats.get("requires_confirmation_count", 0),
+        "command_queue_workflow_action_queues_offline_work_count": command_queue_workflow_action_stats.get("queues_offline_work_count", 0),
+        "command_queue_workflow_action_target_phone_home_required_count": command_queue_workflow_action_stats.get("target_phone_home_required_count", 0),
+        "command_queue_workflow_action_can_run_from_curses_enter_count": command_queue_workflow_action_stats.get("can_run_from_curses_enter_count", 0),
+        "command_queue_workflow_action_action_counts": command_queue_workflow_action_stats.get("action_counts") or {},
+        "command_queue_workflow_action_category_counts": command_queue_workflow_action_stats.get("category_counts") or {},
+        "command_queue_workflow_action_workflow_counts": command_queue_workflow_action_stats.get("workflow_counts") or {},
+        "command_queue_workflow_action_actual_counts": command_queue_workflow_action_stats.get("actual_counts") or {},
+        "command_queue_workflow_action_target_filter_active_counts": command_queue_workflow_action_stats.get("target_filter_active_counts") or {},
+        "command_queue_workflow_action_policy_valid_counts": command_queue_workflow_action_stats.get("policy_valid_counts") or {},
+        "command_queue_workflow_action_configured_for_polling_counts": command_queue_workflow_action_stats.get("configured_for_polling_counts") or {},
+        "command_queue_workflow_action_poll_transport_supported_counts": command_queue_workflow_action_stats.get("poll_transport_supported_counts") or {},
+        "command_queue_workflow_action_live_polling_supported_counts": command_queue_workflow_action_stats.get("live_polling_supported_counts") or {},
+        "command_queue_workflow_action_result_upload_supported_counts": command_queue_workflow_action_stats.get("result_upload_supported_counts") or {},
+        "command_queue_workflow_action_execution_supported_counts": command_queue_workflow_action_stats.get("execution_supported_counts") or {},
+        "command_queue_workflow_action_delivery_supported_counts": command_queue_workflow_action_stats.get("delivery_supported_counts") or {},
+        "command_queue_workflow_action_operator_queue_records_only_counts": command_queue_workflow_action_stats.get("operator_queue_records_only_counts") or {},
+        "command_queue_workflow_action_requires_input_counts": command_queue_workflow_action_stats.get("requires_input_counts") or {},
+        "command_queue_workflow_action_requires_confirmation_counts": command_queue_workflow_action_stats.get("requires_confirmation_counts") or {},
+        "command_queue_workflow_action_queues_offline_work_counts": command_queue_workflow_action_stats.get("queues_offline_work_counts") or {},
+        "command_queue_workflow_action_target_phone_home_required_counts": command_queue_workflow_action_stats.get("target_phone_home_required_counts") or {},
+        "command_queue_workflow_action_operator_action_state_counts": command_queue_workflow_action_stats.get("operator_action_state_counts") or {},
+        "command_queue_workflow_action_operator_action_reason_counts": command_queue_workflow_action_stats.get("operator_action_reason_counts") or {},
+        "command_queue_workflow_action_can_run_from_curses_enter_counts": command_queue_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
+        "command_queue_workflow_action_curses_enter_action_counts": command_queue_workflow_action_stats.get("curses_enter_action_counts") or {},
+    })
     for name, rec in sorted((path_status or {}).items()):
         if not rec.get("expected_kind_mismatch"):
             continue
@@ -15012,6 +15237,32 @@ def status_document(cfg):
                 "commands_by_delivery_policy_active_control_channel",
             ), "command_queue_total_count",
         ),
+        "command_queue_workflow_actions": api_collection_record(
+            "command_queue_workflow_actions", command_queue_workflow_actions, "id", (
+                "command_queue_workflow_actions_by_id",
+                "command_queue_workflow_actions_by_action_id",
+                "command_queue_workflow_actions_by_category",
+                "command_queue_workflow_actions_by_workflow",
+                "command_queue_workflow_actions_by_actual",
+                "command_queue_workflow_actions_by_target_filter_active",
+                "command_queue_workflow_actions_by_policy_valid",
+                "command_queue_workflow_actions_by_configured_for_polling",
+                "command_queue_workflow_actions_by_poll_transport_supported",
+                "command_queue_workflow_actions_by_live_polling_supported",
+                "command_queue_workflow_actions_by_result_upload_supported",
+                "command_queue_workflow_actions_by_execution_supported",
+                "command_queue_workflow_actions_by_delivery_supported",
+                "command_queue_workflow_actions_by_operator_queue_records_only",
+                "command_queue_workflow_actions_by_requires_input",
+                "command_queue_workflow_actions_by_requires_confirmation",
+                "command_queue_workflow_actions_by_queues_offline_work",
+                "command_queue_workflow_actions_by_target_phone_home_required",
+                "command_queue_workflow_actions_by_operator_action_state",
+                "command_queue_workflow_actions_by_operator_action_reason",
+                "command_queue_workflow_actions_by_can_run_from_curses_enter",
+                "command_queue_workflow_actions_by_curses_enter_action",
+            ), "command_queue_workflow_action_count",
+        ),
         "command_queue_policy_records": api_collection_record(
             "command_queue_policy_records", command_queue_policy_records, "id", (
                 "command_queue_policy_records_by_id",
@@ -15560,6 +15811,8 @@ def status_document(cfg):
         "release_license_records_by_evidence_source": release.get("release_license_records_by_evidence_source") or {},
         "release_license_records_by_evidence_source_license": release.get("release_license_records_by_evidence_source_license") or {},
         "command_queue": command_queue,
+        "command_queue_workflow_actions": command_queue_workflow_actions,
+        **command_queue_workflow_action_index_maps,
         "command_queue_policy_records": command_queue_policy_records,
         **command_queue_policy_index_maps,
         "commands_by_target_id": command_queue.get("commands_by_target_id") or {},
@@ -16153,6 +16406,17 @@ def print_workbench_action_summary(doc):
     print(f"  survey routes: {format_counts(summary.get('survey_bootstrap_workflow_action_route_kind_counts') or {})}")
     print(f"  survey bridges: {format_counts(summary.get('survey_bootstrap_workflow_action_bridge_profile_counts') or {})}")
     print(f"  survey action states: {format_counts(summary.get('survey_bootstrap_workflow_action_operator_action_state_counts') or {})}")
+    print(
+        "Command queue workflow action summary: "
+        f"total={summary.get('command_queue_workflow_action_count', 0)} "
+        f"requires_input={summary.get('command_queue_workflow_action_requires_input_count', 0)} "
+        f"requires_confirmation={summary.get('command_queue_workflow_action_requires_confirmation_count', 0)} "
+        f"queues_offline_work={summary.get('command_queue_workflow_action_queues_offline_work_count', 0)} "
+        f"target_phone_home_required={summary.get('command_queue_workflow_action_target_phone_home_required_count', 0)} "
+        f"enter_runnable={summary.get('command_queue_workflow_action_can_run_from_curses_enter_count', 0)}"
+    )
+    print(f"  command queue categories: {format_counts(summary.get('command_queue_workflow_action_category_counts') or {})}")
+    print(f"  command queue action states: {format_counts(summary.get('command_queue_workflow_action_operator_action_state_counts') or {})}")
 
 
 def print_workbench_job_summary(doc):
@@ -18564,14 +18828,31 @@ def run_line_tui(cfg):
                     headless_command=headless,
                 )
         elif choice == "20":
+            snap = workbench_snapshot(cfg)
+            command_queue_actions = snap.get("command_queue_workflow_actions") or []
+            list_action = (snap.get("command_queue_workflow_actions_by_id") or {}).get("command-queue:list-command-queue") or {}
             headless = (
-                "scripts/busierbox-server --config "
-                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                + " --list-command-queue"
+                list_action.get("headless_command")
+                or list_action.get("command")
+                or (
+                    "scripts/busierbox-server --config "
+                    + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                    + " --list-command-queue"
+                )
             )
             print(f"headless_command: {headless}")
             print_command_queue(cfg, json_output=False)
-            snap = workbench_snapshot(cfg)
+            if command_queue_actions:
+                print("Command queue workflow actions:")
+                for rec in command_queue_actions:
+                    print(
+                        f"  {rec.get('id', '')} "
+                        f"state={rec.get('operator_action_state', '') or '-'} "
+                        f"reason={rec.get('operator_action_reason', '') or '-'} "
+                        f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
+                        f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'}"
+                    )
+                    print(f"    command: {rec.get('headless_command', rec.get('command', ''))}")
             mailbox_records = snap.get("target_mailbox_records") or []
             if mailbox_records:
                 print("Target mailbox records:")
@@ -18614,6 +18895,7 @@ def run_line_tui(cfg):
                 "headless_command": headless,
                 "command_count": len((command_queue_summary(cfg).get("commands") or [])),
                 "target_mailbox_record_count": len(mailbox_records),
+                "command_queue_workflow_action_count": len(command_queue_actions),
             })
         elif choice == "21":
             unfiltered_cfg = dict(cfg)
@@ -18944,6 +19226,8 @@ def run_curses_tui(cfg):
             service_workflow_actions_by_id = snap.get("service_workflow_actions_by_id") or {}
             staged_file_workflow_actions_by_request = snap.get("staged_file_workflow_actions_by_request_name") or {}
             staged_file_workflow_actions_by_id = snap.get("staged_file_workflow_actions_by_id") or {}
+            command_queue_workflow_actions = snap.get("command_queue_workflow_actions") or []
+            command_queue_workflow_actions_by_id = snap.get("command_queue_workflow_actions_by_id") or {}
             services_by_name = {str(row.get("name") or ""): row for row in services}
             daemon_service_names = configured_daemon_services(cfg, []) or ["file-service", "command-queue"]
             daemon_records = [{"kind": "daemon", "name": "operator-daemon", "row": services_by_name.get("operator-daemon") or {}}]
@@ -19329,6 +19613,9 @@ def run_curses_tui(cfg):
                 ]
             elif pane == 10 and mailbox_records:
                 rec = mailbox_records[min(selected, len(mailbox_records) - 1)]
+                list_action = command_queue_workflow_actions_by_id.get("command-queue:list-command-queue") or {}
+                queue_action = command_queue_workflow_actions_by_id.get("command-queue:queue-command") or {}
+                clear_action = command_queue_workflow_actions_by_id.get("command-queue:clear-command-queue") or {}
                 detail_lines = [
                     f"mailbox_command: {rec.get('command_id', '') or '-'}",
                     f"target: {rec.get('target_id', '') or '-'}",
@@ -19346,6 +19633,29 @@ def run_curses_tui(cfg):
                     f"next_expected_poll: {rec.get('target_next_expected_poll', '') or '-'}",
                     f"poll_overdue: {'yes' if rec.get('target_poll_overdue') else 'no'}",
                     f"command: {rec.get('command', '') or '-'}",
+                    f"command_queue_workflow_actions: {len(command_queue_workflow_actions)}",
+                    f"list_action_state: {list_action.get('operator_action_state', '') or '-'} reason={list_action.get('operator_action_reason', '') or '-'}",
+                    f"queue_action_state: {queue_action.get('operator_action_state', '') or '-'} reason={queue_action.get('operator_action_reason', '') or '-'}",
+                    f"clear_action_state: {clear_action.get('operator_action_state', '') or '-'} reason={clear_action.get('operator_action_reason', '') or '-'}",
+                    f"list_command: {list_action.get('headless_command', list_action.get('command', '')) or '-'}",
+                    f"queue_command: {queue_action.get('headless_command', queue_action.get('command', '')) or '-'}",
+                    "action 20 opens command queue/results",
+                ]
+            elif pane == 10:
+                list_action = command_queue_workflow_actions_by_id.get("command-queue:list-command-queue") or {}
+                queue_action = command_queue_workflow_actions_by_id.get("command-queue:queue-command") or {}
+                clear_action = command_queue_workflow_actions_by_id.get("command-queue:clear-command-queue") or {}
+                start_action = command_queue_workflow_actions_by_id.get("command-queue:start-command-queue-listener") or {}
+                stop_action = command_queue_workflow_actions_by_id.get("command-queue:stop-command-queue-listener") or {}
+                detail_lines = [
+                    f"command_queue_workflow_actions: {len(command_queue_workflow_actions)}",
+                    f"list_action_state: {list_action.get('operator_action_state', '') or '-'} reason={list_action.get('operator_action_reason', '') or '-'}",
+                    f"queue_action_state: {queue_action.get('operator_action_state', '') or '-'} reason={queue_action.get('operator_action_reason', '') or '-'}",
+                    f"clear_action_state: {clear_action.get('operator_action_state', '') or '-'} reason={clear_action.get('operator_action_reason', '') or '-'}",
+                    f"start_action_state: {start_action.get('operator_action_state', '') or '-'} reason={start_action.get('operator_action_reason', '') or '-'}",
+                    f"stop_action_state: {stop_action.get('operator_action_state', '') or '-'} reason={stop_action.get('operator_action_reason', '') or '-'}",
+                    f"list_command: {list_action.get('headless_command', list_action.get('command', '')) or '-'}",
+                    f"queue_command: {queue_action.get('headless_command', queue_action.get('command', '')) or '-'}",
                     "action 20 opens command queue/results",
                 ]
             elif pane == 11 and config_fields:
@@ -19600,6 +19910,16 @@ def run_curses_tui(cfg):
                                 argv_extra=["--bridge-profile", name],
                                 headless_command=action.get("headless_command", action.get("command", "")),
                             )
+                elif pane == 10:
+                    action = command_queue_workflow_actions_by_id.get("command-queue:list-command-queue") or {}
+                    command = action.get("headless_command", action.get("command", "")) or (
+                        "scripts/busierbox-server --config "
+                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                        + " --list-command-queue"
+                    )
+                    safe_add(stdscr, height - 3, 0, f"command queue action: {action.get('operator_action_state', '') or 'ready'} {action.get('operator_action_reason', '') or 'run-now'}")
+                    safe_add(stdscr, height - 2, 0, command)
+                    stdscr.getch()
                 elif pane == 11 and config_fields:
                     rec = config_fields[min(selected, len(config_fields) - 1)]
                     key_name = str(rec.get("key") or "")

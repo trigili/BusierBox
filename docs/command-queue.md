@@ -358,6 +358,26 @@ still waiting. Expired records expose `expired=true`, `status=expired`, and
 `target_mailbox_records_by_has_result` let TUI or API clients build per-target
 mailbox panes without scraping the raw command queue.
 
+Status JSON also exposes `command_queue_workflow_actions`, a small action
+catalog for the command-queue/mailbox workflow itself. The records cover
+inspect, list, queue command, clear queue, start listener, and stop listener
+actions. Each record includes the equivalent `headless_command`, current queue
+and mailbox counts, policy/support booleans, input or confirmation
+requirements, offline queueability, and `operator_action_state` /
+`operator_action_reason`. The `queue-command` action is explicitly marked
+`queues_offline_work=true` and `target_phone_home_required=true`, while the
+list action is marked as runnable from curses Enter. Indexes such as
+`command_queue_workflow_actions_by_action_id`,
+`command_queue_workflow_actions_by_category`,
+`command_queue_workflow_actions_by_requires_input`,
+`command_queue_workflow_actions_by_requires_confirmation`,
+`command_queue_workflow_actions_by_queues_offline_work`, and
+`command_queue_workflow_actions_by_can_run_from_curses_enter` let the TUI,
+scripts, and future API clients render command-queue controls from the same
+contract. Line-mode action `20` and the curses Mailbox pane use these records
+to show what can be run now, what needs input, and what will wait for a later
+phone-home window.
+
 For file workflows, status JSON exposes `target_file_transfer_records`, a
 unified target-scoped collection spanning staged target fetches, received
 uploads, and completed fetch attempts. Each record includes `operation`,
