@@ -878,6 +878,85 @@ def write_artifact_manifest(artifact_dir, phases):
     })
 
 
+def write_topology_artifact(artifact_dir, cfg, ports, phases):
+    cfg_doc = json.loads(Path(cfg).read_text(encoding="utf-8"))
+    target_records = status(cfg, artifact_dir, "topology-status").get("targets") or []
+    write_json(artifact_dir / "topology.json", {
+        "schema": 1,
+        "kind": "flaky-network-topology-artifact",
+        "operator": {
+            "config": str(cfg),
+            "operator_session_dir": str(cfg_doc.get("operator_session_dir", "")),
+            "session_root": str(cfg_doc.get("session_root", "")),
+            "listen_host": str(cfg_doc.get("listen_host", "")),
+            "services": {
+                "command_queue": {
+                    "port": ports.get("command_queue"),
+                    "tls": str(cfg_doc.get("command_queue_tls", "")),
+                    "queue_file": str(cfg_doc.get("command_queue_file", "")),
+                },
+                "survey_bootstrap": {
+                    "port": ports.get("survey_bootstrap"),
+                    "script_name": str(cfg_doc.get("survey_bootstrap_name", "")),
+                },
+                "file_service": {
+                    "port": ports.get("file_service"),
+                    "tls": str(cfg_doc.get("file_service_tls", "")),
+                },
+                "bridge": {
+                    "port": ports.get("bridge"),
+                    "profiles_file": str(cfg_doc.get("bridge_profiles_file", "")),
+                },
+            },
+        },
+        "targets": [
+            {
+                "target_id": rec.get("target_id", ""),
+                "label": rec.get("label", ""),
+                "connectivity_state": rec.get("connectivity_state", ""),
+                "last_seen": rec.get("last_seen", "") or rec.get("last_seen_at", ""),
+                "last_seen_via": rec.get("last_seen_via", ""),
+                "mailbox_pending_work_count": rec.get("mailbox_pending_work_count", 0),
+            }
+            for rec in target_records
+        ],
+        "link_states": [
+            {"name": "offline-queue", "state": "offline", "evidence": "target-mailbox.json"},
+            {"name": "anonymous-poll", "state": "online-without-target-identity", "evidence": "after-anonymous-poll.json"},
+            {"name": "short-alpha-window", "state": "online-target-alpha-only", "evidence": "after-alpha-poll.json"},
+            {"name": "duplicate-poll", "state": "online-no-pending-work", "evidence": "duplicate-poll.json"},
+            {"name": "malformed-result-upload", "state": "online-rejected-result", "evidence": "malformed-result-upload.json"},
+            {"name": "dropped-result-upload", "state": "interrupted-result-upload", "evidence": "dropped-result-upload.json"},
+            {"name": "partial-transfer", "state": "interrupted-file-transfer", "evidence": "transfer.log"},
+            {"name": "bridge-interruption", "state": "interrupted-bridge-path", "evidence": "bridge-interruption.json"},
+            {"name": "return-offline", "state": "offline-after-short-window", "evidence": "return-offline.json"},
+        ],
+        "operator_commands": [
+            "scripts/busierbox-server --config CONFIG --target-id TARGET --queue-command COMMAND",
+            "scripts/busierbox-server --config CONFIG --transport command-queue --one-shot",
+            "scripts/busierbox-server --config CONFIG --transport survey-bootstrap --one-shot",
+            "scripts/busierbox-server --config CONFIG --transport file-service --one-shot",
+            "scripts/busierbox-server --config CONFIG --transport bridge --bridge-profile PROFILE --one-shot",
+            "scripts/busierbox-server --config CONFIG --daemon --daemon-service command-queue",
+        ],
+        "qemu_lab_followup": {
+            "status": "planned",
+            "operator_node": "run the same operator config and service ports inside the lab operator node",
+            "target_nodes": "map target ids to separate target nodes and apply the same link_states sequence",
+            "accelerated_windows": "replace hour-scale downtime with scripted offline/online transitions around the same mailbox assertions",
+            "required_artifacts": [
+                "topology.json",
+                "target-mailbox.json",
+                "restart-persistence.json",
+                "offline-workflow-drain.json",
+                "bridge-interruption.json",
+                "return-offline.json",
+            ],
+        },
+        "phase_names": [phase.get("name", "") for phase in phases],
+    })
+
+
 def run_offline_workflow_queue_scenario(artifact_dir):
     scenario_dir = artifact_dir / "offline-workflow-session"
     queue_port = free_port()
@@ -1594,6 +1673,12 @@ def run_harness(artifact_dir):
     assert_condition("state=offline" in return_offline_text.stdout and "target-bravo" in return_offline_text.stdout, "return-offline status text missing offline target state", return_offline_text.stdout)
     write_return_offline_artifact(artifact_dir, return_offline_status, ["target-alpha", "target-bravo"], return_offline_text.stdout)
     phases.append({"name": "return-offline", "status": "pass", "artifact": "return-offline-status.json"})
+    write_topology_artifact(artifact_dir, cfg, {
+        "command_queue": queue_port,
+        "survey_bootstrap": survey_port,
+        "file_service": file_port,
+        "bridge": bridge_port,
+    }, phases)
 
     summary = {
         "schema": 1,

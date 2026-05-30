@@ -25,6 +25,7 @@ test -s "$tmp/flaky-network/transfer.log"
 test -s "$tmp/flaky-network/bridge-events.jsonl"
 test -s "$tmp/flaky-network/bridge-interruption.json"
 test -s "$tmp/flaky-network/return-offline.json"
+test -s "$tmp/flaky-network/topology.json"
 test -s "$tmp/flaky-network/artifact-manifest.json"
 python3 -m json.tool "$tmp/flaky-network/summary.json" >/dev/null
 python3 - "$tmp/flaky-network" <<'PY'
@@ -57,6 +58,7 @@ bridge_events = [
 ]
 bridge_interruption = json.loads((artifact_dir / "bridge-interruption.json").read_text(encoding="utf-8"))
 return_offline = json.loads((artifact_dir / "return-offline.json").read_text(encoding="utf-8"))
+topology = json.loads((artifact_dir / "topology.json").read_text(encoding="utf-8"))
 
 assert mailbox["kind"] == "target-mailbox-artifact"
 assert mailbox["summary"]["target_mailbox_pending_work_count"] == 2
@@ -207,6 +209,22 @@ assert any(rec["target_id"] == "target-bravo" and rec["pending_work"] is True an
 assert "state=offline" in return_offline["status_text"]
 assert "targets_by_connectivity_state" in return_offline["api_indexes"]["targets"]
 assert "target_mailbox_records_by_target_connectivity_state" in return_offline["api_indexes"]["target_mailbox_records"]
+assert topology["kind"] == "flaky-network-topology-artifact"
+assert topology["operator"]["services"]["command_queue"]["port"]
+assert topology["operator"]["services"]["survey_bootstrap"]["port"]
+assert topology["operator"]["services"]["file_service"]["port"]
+assert topology["operator"]["services"]["bridge"]["port"]
+topology_targets = {rec["target_id"]: rec for rec in topology["targets"]}
+assert "target-alpha" in topology_targets
+assert "target-bravo" in topology_targets
+link_states = {rec["name"]: rec for rec in topology["link_states"]}
+for state in ("offline-queue", "short-alpha-window", "duplicate-poll", "dropped-result-upload", "partial-transfer", "bridge-interruption", "return-offline"):
+    assert state in link_states, state
+assert link_states["short-alpha-window"]["state"] == "online-target-alpha-only"
+assert link_states["return-offline"]["state"] == "offline-after-short-window"
+assert any("--daemon --daemon-service command-queue" in command for command in topology["operator_commands"])
+assert topology["qemu_lab_followup"]["status"] == "planned"
+assert "topology.json" in topology["qemu_lab_followup"]["required_artifacts"]
 manifest_names = {item["name"] for item in manifest["artifacts"]}
 for name in (
     "target-mailbox.json",
@@ -228,6 +246,7 @@ for name in (
     "bridge-events.jsonl",
     "bridge-interruption.json",
     "return-offline.json",
+    "topology.json",
     "summary.json",
 ):
     assert name in manifest_names, name

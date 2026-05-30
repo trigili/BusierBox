@@ -468,3 +468,9 @@ valid result, accepts the matching target result, and verifies status JSON plus 
 `last_seen`, `last_seen_via`, `offline_for_sec`, `connectivity_state`,
 `next_expected_poll`, mailbox pending counts, and latest command result
 metadata.
+The harness also writes `topology.json` alongside its status and HTTP
+transcript artifacts. That topology artifact records operator service ports,
+known target ids, scripted link states such as short reconnect windows and
+interrupted transfers, representative operator commands, and the mapping needed
+for a future networked-QEMU lab to replay the same mailbox scenarios across
+virtual network boundaries.
