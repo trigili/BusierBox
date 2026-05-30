@@ -44,6 +44,7 @@ for name in (
     "plan.json",
     "topology.json",
     "link-transitions.json",
+    "validate-phase-artifacts.py",
     "host-network-setup.sh",
     "qemu-commands.sh",
     "operator-commands.sh",
@@ -58,10 +59,15 @@ for name in (
     "qemu-commands.sh",
     "operator-commands.sh",
     "target-commands.sh",
+    "validate-phase-artifacts.py",
 ):
     path = artifact_dir / name
     assert os.access(path, os.X_OK), name
-    subprocess.run(["sh", "-n", str(path)], check=True)
+    if name.endswith(".py"):
+        subprocess.run([sys.executable, "-m", "py_compile", str(path)], check=True)
+    else:
+        subprocess.run(["sh", "-n", str(path)], check=True)
+subprocess.run([str(artifact_dir / "validate-phase-artifacts.py"), "--artifact-dir", str(artifact_dir), "--contract-only"], check=True)
 plan = json.loads((artifact_dir / "plan.json").read_text(encoding="utf-8"))
 topology = json.loads((artifact_dir / "topology.json").read_text(encoding="utf-8"))
 contracts = json.loads((artifact_dir / "phase-contracts.json").read_text(encoding="utf-8"))
@@ -113,7 +119,9 @@ assert plan["service_ports"]["file_service"] == 22204
 assert plan["accelerated_timing"]["short_window_seconds"] == topology["accelerated_timing"]["short_window_seconds"]
 assert "host-network-setup.sh" in plan["support_artifacts"]
 assert "qemu-commands.sh" in plan["support_artifacts"]
+assert "validate-phase-artifacts.py" in plan["support_artifacts"]
 assert "phase-contracts.json" in plan["support_artifacts"]
+assert plan["support_artifact_modes"]["validate-phase-artifacts.py"] == "0755"
 assert plan["support_artifact_modes"]["host-network-setup.sh"] == "0755"
 assert plan["support_artifact_modes"]["link-transitions.json"] == "0644"
 assert plan["support_artifact_modes"]["phase-contracts.json"] == "0644"
@@ -170,6 +178,7 @@ assert summary["artifact_manifest"].endswith("/artifact-manifest.json")
 assert summary["phase_contracts"].endswith("/phase-contracts.json")
 assert "host-network-setup.sh" in summary["support_artifacts"]
 assert "qemu-commands.sh" in summary["support_artifacts"]
+assert "validate-phase-artifacts.py" in summary["support_artifacts"]
 assert summary["support_artifact_modes"]["qemu-commands.sh"] == "0755"
 assert summary["requirements"]["kind"] == "qemu-flaky-network-lab-requirements"
 assert "environment disabled" in summary["reason"]

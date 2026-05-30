@@ -559,6 +559,7 @@ plan = {
     "requirements": requirements,
     "required_artifacts": sorted({artifact for phase in phases for artifact in phase["artifacts"]}),
     "support_artifacts": [
+        "validate-phase-artifacts.py",
         "host-network-setup.sh",
         "qemu-commands.sh",
         "operator-commands.sh",
@@ -567,6 +568,7 @@ plan = {
         "phase-contracts.json",
     ],
     "support_artifact_modes": {
+        "validate-phase-artifacts.py": "0755",
         "host-network-setup.sh": "0755",
         "qemu-commands.sh": "0755",
         "operator-commands.sh": "0755",
@@ -655,6 +657,109 @@ for target, command in sorted(qemu_command_templates.items()):
     qemu_command_script.append(shlex.join(str(item) for item in command))
     qemu_command_script.append("")
 
+phase_validator_script = r'''#!/usr/bin/env python3
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+def load_json(path):
+    with path.open("r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def resolve_path(value, path):
+    current = value
+    for part in path.split("."):
+        if part.endswith("[*]"):
+            key = part[:-3]
+            current = current[key] if isinstance(current, dict) else current[int(key)]
+            if not isinstance(current, list):
+                raise KeyError(path)
+            return current
+        if "[" in part and part.endswith("]"):
+            key, index = part[:-1].split("[", 1)
+            if key:
+                current = current[key]
+            current = current[int(index)]
+        elif isinstance(current, dict):
+            current = current[part]
+        else:
+            current = current[int(part)]
+    return current
+
+
+def check_value(actual, check):
+    if "expect" in check:
+        return actual == check["expect"]
+    if "expect_at_least" in check:
+        return actual >= check["expect_at_least"]
+    if "expect_present" in check:
+        return bool(actual) is bool(check["expect_present"])
+    if "expect_all" in check:
+        if not isinstance(actual, list):
+            return False
+        return all(item == check["expect_all"] for item in actual)
+    raise KeyError("no expectation in check")
+
+
+def validate_contracts(contracts):
+    records = contracts.get("contracts") or []
+    if contracts.get("kind") != "qemu-flaky-network-phase-contracts":
+        raise AssertionError("unexpected phase contracts kind")
+    if contracts.get("contract_count") != len(records):
+        raise AssertionError("phase contract count mismatch")
+    for rec in records:
+        for key in ("phase", "link_state", "required_artifacts", "target_scope", "assertions", "evidence_checks"):
+            if key not in rec:
+                raise AssertionError(f"phase {rec.get('phase', '<missing>')} missing {key}")
+        if not rec["assertions"]:
+            raise AssertionError(f"phase {rec['phase']} has no assertions")
+        if not rec["evidence_checks"]:
+            raise AssertionError(f"phase {rec['phase']} has no evidence checks")
+
+
+def validate_evidence(artifact_dir, contracts):
+    failures = []
+    for rec in contracts.get("contracts") or []:
+        for check in rec.get("evidence_checks") or []:
+            artifact = artifact_dir / check["artifact"]
+            if not artifact.exists():
+                failures.append(f"{rec['phase']}: missing {check['artifact']}")
+                continue
+            try:
+                data = load_json(artifact)
+                actual = resolve_path(data, check["path"])
+                if not check_value(actual, check):
+                    failures.append(f"{rec['phase']}: {check['artifact']} {check['path']} got {actual!r} for {check!r}")
+            except Exception as exc:
+                failures.append(f"{rec['phase']}: {check['artifact']} {check.get('path', '<path>')} failed: {exc}")
+    if failures:
+        raise AssertionError("\n".join(failures))
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Validate QEMU flaky-network phase artifacts against phase-contracts.json")
+    parser.add_argument("--artifact-dir", default=".", help="directory containing phase-contracts.json and phase artifacts")
+    parser.add_argument("--contract-only", action="store_true", help="validate contract structure without requiring phase artifacts")
+    args = parser.parse_args()
+    artifact_dir = Path(args.artifact_dir)
+    contracts = load_json(artifact_dir / "phase-contracts.json")
+    validate_contracts(contracts)
+    if not args.contract_only:
+        validate_evidence(artifact_dir, contracts)
+    print("qemu phase artifact validation ok")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:
+        print(f"qemu phase artifact validation failed: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+'''
+
 def file_sha256(path):
     digest = hashlib.sha256()
     with path.open("rb") as fh:
@@ -669,7 +774,8 @@ def file_sha256(path):
 (run_dir / "target-commands.sh").write_text("#!/bin/sh\nset -eu\n\n" + "\n".join(target_commands) + "\n", encoding="utf-8")
 (run_dir / "host-network-setup.sh").write_text("\n".join(host_network_script), encoding="utf-8")
 (run_dir / "qemu-commands.sh").write_text("\n".join(qemu_command_script), encoding="utf-8")
-for script_name in ("operator-commands.sh", "target-commands.sh", "host-network-setup.sh", "qemu-commands.sh"):
+(run_dir / "validate-phase-artifacts.py").write_text(phase_validator_script, encoding="utf-8")
+for script_name in ("operator-commands.sh", "target-commands.sh", "host-network-setup.sh", "qemu-commands.sh", "validate-phase-artifacts.py"):
     (run_dir / script_name).chmod(0o755)
 (run_dir / "link-transitions.json").write_text(json.dumps(topology["link_transitions"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (run_dir / "phase-contracts.json").write_text(json.dumps({
