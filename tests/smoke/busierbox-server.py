@@ -3256,11 +3256,16 @@ def main():
                 not isinstance(target_alpha_mailbox.get("delivered_without_result_for_sec"), int) or
                 poll_target_status.get("summary", {}).get("target_phone_home_queued_remaining_count_counts", {}).get("1") != 1 or
                 poll_target_status.get("summary", {}).get("target_phone_home_pending_work_remaining_counts", {}).get("True") != 1 or
+                poll_target_status.get("summary", {}).get("target_phone_home_target_connectivity_state_counts", {}).get("online") != 1 or
+                poll_target_status.get("summary", {}).get("target_phone_home_target_offline_age_bucket_counts", {}).get("under-minute") != 1 or
+                poll_target_status.get("summary", {}).get("target_phone_home_target_mailbox_pending_work_count_counts", {}).get("0") != 1 or
                 poll_target_status.get("summary", {}).get("target_mailbox_waiting_for_counts", {}).get("result-upload") != 1 or
                 poll_target_status.get("summary", {}).get("target_mailbox_pending_reason_counts", {}).get("awaiting-result-upload") != 1 or
                 ((poll_target_status.get("target_mailbox_records_by_waiting_for") or {}).get("result-upload") or [{}])[0].get("command_id") != alpha_id or
                 ((poll_target_status.get("target_mailbox_records_by_pending_reason") or {}).get("awaiting-result-upload") or [{}])[0].get("command_id") != alpha_id or
                 ((poll_target_status.get("target_phone_home_records_by_queued_remaining_count") or {}).get("1") or [{}])[0].get("command_id") != alpha_id or
+                ((poll_target_status.get("target_phone_home_records_by_target_offline_age_bucket") or {}).get("under-minute") or [{}])[0].get("command_id") != alpha_id or
+                ((poll_target_status.get("target_phone_home_records_by_target_mailbox_pending_work_count") or {}).get("0") or [{}])[0].get("command_id") != alpha_id or
                 ((poll_target_status.get("targets_by_latest_activity_service") or {}).get("command-queue") or [{}])[0].get("target_id") != "target-alpha" or
                 ((poll_target_status.get("targets_by_latest_activity_operation") or {}).get("command_queue_poll") or [{}])[0].get("target_id") != "target-alpha" or
                 ((poll_target_status.get("targets_by_connectivity_state") or {}).get("online") or [{}])[0].get("target_id") != "target-alpha" or
@@ -3282,7 +3287,9 @@ def main():
                 "targets_by_offline_age_bucket" not in (((poll_target_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or []) or
                 "target_mailbox_records_by_waiting_for" not in (((poll_target_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
                 "target_mailbox_records_by_pending_reason" not in (((poll_target_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
-                "target_phone_home_records_by_queued_remaining_count" not in (((poll_target_status.get("api_collections") or {}).get("target_phone_home_records") or {}).get("indexes") or [])):
+                "target_phone_home_records_by_queued_remaining_count" not in (((poll_target_status.get("api_collections") or {}).get("target_phone_home_records") or {}).get("indexes") or []) or
+                "target_phone_home_records_by_target_offline_age_bucket" not in (((poll_target_status.get("api_collections") or {}).get("target_phone_home_records") or {}).get("indexes") or []) or
+                "target_phone_home_records_by_target_mailbox_pending_work_count" not in (((poll_target_status.get("api_collections") or {}).get("target_phone_home_records") or {}).get("indexes") or [])):
             print("target-scoped command queue poll missing from filtered status", file=sys.stderr)
             print(json.dumps(poll_target_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
@@ -3499,6 +3506,10 @@ def main():
                 result_status.get("summary", {}).get("target_mailbox_target_connectivity_state_counts", {}).get("offline") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_target_offline_age_bucket_counts", {}).get("under-minute") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_target_offline_age_bucket_counts", {}).get("day-plus") != 1 or
+                result_status.get("summary", {}).get("target_phone_home_target_connectivity_state_counts", {}).get("online") != 2 or
+                result_status.get("summary", {}).get("target_phone_home_target_connectivity_state_counts", {}).get("offline") != 1 or
+                result_status.get("summary", {}).get("target_phone_home_target_offline_age_bucket_counts", {}).get("under-minute") != 2 or
+                result_status.get("summary", {}).get("target_phone_home_target_offline_age_bucket_counts", {}).get("day-plus") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_has_target_next_expected_poll_counts", {}).get("True") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_target_poll_overdue_counts", {}).get("True") != 1 or
                 not result_status.get("summary", {}).get("target_mailbox_age_bucket_counts") or
@@ -3514,6 +3525,8 @@ def main():
                 "target_workflow_actions_by_target_mailbox_pending_work_count" not in (((result_status.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes") or []) or
                 "target_workflow_actions_by_target_offline_age_bucket" not in (((result_status.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes") or []) or
                 "target_workflow_actions_by_target_last_failed_phone_home_status" not in (((result_status.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes") or []) or
+                "target_phone_home_records_by_target_connectivity_state" not in (((result_status.get("api_collections") or {}).get("target_phone_home_records") or {}).get("indexes") or []) or
+                "target_phone_home_records_by_target_offline_age_bucket" not in (((result_status.get("api_collections") or {}).get("target_phone_home_records") or {}).get("indexes") or []) or
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_result_upload_received" for event in result_status.get("events") or [])):
             print("target mailbox result upload did not update heartbeat and result status", file=sys.stderr)
             print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
@@ -3685,6 +3698,7 @@ def main():
                 "selected_target=target-alpha" not in queue_tui_text or
                 "phone_home " not in queue_tui_text or
                 "queued_remaining=" not in queue_tui_text or
+                "target_state=online offline_age=under-minute" not in queue_tui_text or
                 "poll status=delivered" not in queue_tui_text or
                 "result status=result-received" not in queue_tui_text or
                 f"{alpha_id} target=target-alpha state=online status=result-received waiting_for=none reason=- expired=no pending=no result=completed exit=0" not in queue_tui_text or

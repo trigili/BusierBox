@@ -2026,7 +2026,7 @@ def target_phone_home_pending_reason(kind, details):
     return ""
 
 
-def target_phone_home_record_from_event(event):
+def target_phone_home_record_from_event(event, targets_by_id=None):
     if not isinstance(event, dict):
         return None
     event_name = str(event.get("event") or "")
@@ -2039,6 +2039,7 @@ def target_phone_home_record_from_event(event):
     details = event.get("details") if isinstance(event.get("details"), dict) else {}
     status = str(details.get("status") or "")
     target_id = str(details.get("target_id") or "")
+    target_rec = (targets_by_id or {}).get(target_id) or {}
     remote = str(event.get("remote") or details.get("remote_addr") or "")
     success = status in ("delivered", "no-command", "result-received")
     failed = status in ("rejected", "error")
@@ -2069,6 +2070,15 @@ def target_phone_home_record_from_event(event):
         "contact_path": f"{event.get('service', '')}:{remote}" if remote else str(event.get("service") or ""),
         "target_id": target_id,
         "target_label": str(details.get("target_label") or ""),
+        "target_connectivity_state": str(target_rec.get("connectivity_state") or ""),
+        "target_last_seen": str(target_rec.get("last_seen") or target_rec.get("last_seen_at") or ""),
+        "target_last_seen_via": str(target_rec.get("last_seen_via") or ""),
+        "target_offline_for_sec": target_rec.get("offline_for_sec", ""),
+        "target_offline_age_bucket": str(target_rec.get("offline_age_bucket") or ""),
+        "target_next_expected_poll": str(target_rec.get("next_expected_poll") or ""),
+        "target_poll_overdue": bool(target_rec.get("poll_overdue") is True),
+        "target_poll_overdue_for_sec": target_rec.get("poll_overdue_for_sec", ""),
+        "target_mailbox_pending_work_count": int_value(target_rec.get("mailbox_pending_work_count", 0)),
         "has_target_identity": bool(target_id),
         "target_identity_source": str(details.get("target_identity_source") or ""),
         "target_identity_confidence": str(details.get("target_identity_confidence") or ""),
@@ -2108,10 +2118,10 @@ def target_phone_home_record_from_event(event):
     return rec
 
 
-def target_phone_home_records_from_events(events):
+def target_phone_home_records_from_events(events, targets_by_id=None):
     records = []
     for event in events or []:
-        rec = target_phone_home_record_from_event(event)
+        rec = target_phone_home_record_from_event(event, targets_by_id=targets_by_id)
         if rec:
             records.append(rec)
     records.sort(key=lambda rec: (str(rec.get("timestamp") or ""), str(rec.get("id") or "")), reverse=True)
@@ -2132,6 +2142,11 @@ def target_phone_home_record_indexes(records):
         "target_phone_home_records_by_failed": records_by_key(records, "failed"),
         "target_phone_home_records_by_target_id": records_by_key(records, "target_id"),
         "target_phone_home_records_by_target_label": records_by_key(records, "target_label"),
+        "target_phone_home_records_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
+        "target_phone_home_records_by_target_last_seen_via": records_by_key(records, "target_last_seen_via"),
+        "target_phone_home_records_by_target_offline_age_bucket": records_by_key(records, "target_offline_age_bucket"),
+        "target_phone_home_records_by_target_poll_overdue": records_by_key(records, "target_poll_overdue"),
+        "target_phone_home_records_by_target_mailbox_pending_work_count": records_by_key(records, "target_mailbox_pending_work_count"),
         "target_phone_home_records_by_has_target_identity": records_by_key(records, "has_target_identity"),
         "target_phone_home_records_by_anonymous": records_by_key(records, "anonymous"),
         "target_phone_home_records_by_contact_path": records_by_key(records, "contact_path"),
@@ -14409,7 +14424,7 @@ def status_document(cfg):
             event for event in target_phone_home_source_events
             if event_for_target(event, target_filter_id, target_filter_session_ids)
         ]
-    target_phone_home_records = target_phone_home_records_from_events(target_phone_home_source_events)
+    target_phone_home_records = target_phone_home_records_from_events(target_phone_home_source_events, targets_by_id=targets_by_id)
     target_phone_home_index_maps = target_phone_home_record_indexes(target_phone_home_records)
     command_queue_policy_summary_record = command_queue.get("policy_summary") or {}
     command_queue_policy_record = {
@@ -15782,6 +15797,10 @@ def status_document(cfg):
         "target_phone_home_failed_counts": record_count_by_key(target_phone_home_records, "failed"),
         "target_phone_home_target_counts": record_count_by_key(target_phone_home_records, "target_id"),
         "target_phone_home_anonymous_counts": record_count_by_key(target_phone_home_records, "anonymous"),
+        "target_phone_home_target_connectivity_state_counts": record_count_by_key(target_phone_home_records, "target_connectivity_state"),
+        "target_phone_home_target_offline_age_bucket_counts": record_count_by_key(target_phone_home_records, "target_offline_age_bucket"),
+        "target_phone_home_target_poll_overdue_counts": record_count_by_key(target_phone_home_records, "target_poll_overdue"),
+        "target_phone_home_target_mailbox_pending_work_count_counts": record_count_by_key(target_phone_home_records, "target_mailbox_pending_work_count"),
         "target_phone_home_pending_reason_counts": record_count_by_key(target_phone_home_records, "pending_reason"),
         "target_phone_home_queued_remaining_count_counts": record_count_by_key(target_phone_home_records, "queued_remaining_count"),
         "target_phone_home_pending_work_remaining_counts": record_count_by_key(target_phone_home_records, "pending_work_remaining"),
@@ -16619,6 +16638,11 @@ def status_document(cfg):
                 "target_phone_home_records_by_failed",
                 "target_phone_home_records_by_target_id",
                 "target_phone_home_records_by_target_label",
+                "target_phone_home_records_by_target_connectivity_state",
+                "target_phone_home_records_by_target_last_seen_via",
+                "target_phone_home_records_by_target_offline_age_bucket",
+                "target_phone_home_records_by_target_poll_overdue",
+                "target_phone_home_records_by_target_mailbox_pending_work_count",
                 "target_phone_home_records_by_has_target_identity",
                 "target_phone_home_records_by_anonymous",
                 "target_phone_home_records_by_contact_path",
@@ -17908,6 +17932,14 @@ def print_target_summary(doc, limit=8):
             reason = attempt.get("pending_reason") or attempt.get("reason") or ""
             reason_text = f" reason={reason}" if reason else ""
             command = f" command={attempt.get('command_id', '')}" if attempt.get("command_id") else ""
+            target_state = (
+                f" target_state={attempt.get('target_connectivity_state', '')}"
+                if attempt.get("target_connectivity_state") else ""
+            )
+            offline_age = (
+                f" offline_age={attempt.get('target_offline_age_bucket', '')}"
+                if attempt.get("target_offline_age_bucket") else ""
+            )
             remaining = (
                 f" queued_remaining={attempt.get('queued_remaining_count')}"
                 if attempt.get("queued_remaining_count") != "" else ""
@@ -17915,7 +17947,7 @@ def print_target_summary(doc, limit=8):
             print(
                 f"    phone_home {attempt.get('timestamp', '') or '-'} "
                 f"{attempt.get('kind', '') or '-'} status={attempt.get('status', '') or '-'} "
-                f"via={attempt.get('contact_path', '') or '-'}{command}{remaining}{reason_text}"
+                f"via={attempt.get('contact_path', '') or '-'}{target_state}{offline_age}{command}{remaining}{reason_text}"
             )
         print(f"    aliases={aliases} services={services} remotes={remotes}")
         if str(rec.get("notes") or "").strip():
@@ -18802,11 +18834,13 @@ def print_status(cfg, json_output=False):
             work = f" work={rec.get('work_kind', '')}" if rec.get("work_kind") else ""
             route = f" route={rec.get('route_kind', '')}" if rec.get("route_kind") else ""
             bridge = f" bridge={rec.get('bridge_profile', '')}" if rec.get("bridge_profile") else ""
+            target_state = f" target_state={rec.get('target_connectivity_state', '')}" if rec.get("target_connectivity_state") else ""
+            offline_age = f" offline_age={rec.get('target_offline_age_bucket', '')}" if rec.get("target_offline_age_bucket") else ""
             remaining = (
                 f" queued_remaining={rec.get('queued_remaining_count')}"
                 if rec.get("queued_remaining_count") != "" else ""
             )
-            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{command}{work}{route}{bridge}{remaining}{suffix}")
+            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{target_state}{offline_age}{command}{work}{route}{bridge}{remaining}{suffix}")
     else:
         print("  none")
     print("")
@@ -19171,11 +19205,13 @@ def print_workbench(cfg, include_api_summary=True):
             reason = rec.get("pending_reason") or rec.get("reason") or ""
             suffix = f" reason={reason}" if reason else ""
             command = f" command={rec.get('command_id', '')}" if rec.get("command_id") else ""
+            target_state = f" target_state={rec.get('target_connectivity_state', '')}" if rec.get("target_connectivity_state") else ""
+            offline_age = f" offline_age={rec.get('target_offline_age_bucket', '')}" if rec.get("target_offline_age_bucket") else ""
             remaining = (
                 f" queued_remaining={rec.get('queued_remaining_count')}"
                 if rec.get("queued_remaining_count") != "" else ""
             )
-            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{command}{remaining}{suffix}")
+            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{target_state}{offline_age}{command}{remaining}{suffix}")
     else:
         print("  none")
     print("")
