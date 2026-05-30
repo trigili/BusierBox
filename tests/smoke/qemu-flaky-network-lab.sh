@@ -182,6 +182,12 @@ assert topology["operator_node"]["host_forward_ports"]["survey_bootstrap"] == 22
 assert topology["host_network_setup"]["bridge"] == "bbx-qemu-br0"
 assert topology["host_network_setup"]["target_taps"]["target-alpha"] == "bbx-alpha-tap0"
 assert topology["host_network_setup"]["link_control_commands"]["target-alpha-link-down"]
+transition_by_phase = {item["phase"]: item for item in topology["link_transitions"]}
+assert set(transition_by_phase) == set(summary["phase_names"])
+assert transition_by_phase["duplicate-poll"]["target-alpha-link"] == "up"
+assert transition_by_phase["result-upload"]["target-alpha-link"] == "up"
+assert transition_by_phase["survey-window"]["target-alpha-link"] == "up"
+assert transition_by_phase["return-offline"]["target-bravo-link"] == "down"
 assert topology["accelerated_timing"]["simulated_offline_seconds"] >= 3600
 assert topology["accelerated_timing"]["short_window_seconds"] <= 120
 assert topology["accelerated_timing"]["poll_interval_seconds"] > 0
