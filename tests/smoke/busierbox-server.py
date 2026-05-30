@@ -8831,6 +8831,7 @@ def main():
         ).stdout)
         filtered_alpha_registry = (filtered_alpha.get("target_registry_state_records_by_id") or {}).get("target-registry") or {}
         filtered_alpha_record = (filtered_alpha.get("target_filter_records_by_target_id") or {}).get("target-alpha", [{}])[0]
+        filtered_alpha_target = (filtered_alpha.get("targets_by_id") or {}).get("target-alpha", {})
         if (filtered_alpha.get("target_filter", {}).get("target_id") != "target-alpha" or
                 filtered_alpha.get("target_filter", {}).get("active") is not True or
                 filtered_alpha_registry.get("target_count") != 1 or
@@ -8840,6 +8841,8 @@ def main():
                 filtered_alpha_registry.get("selected_target_found") is not True or
                 filtered_alpha_registry.get("selected_target_label") != "Alpha Router Renamed" or
                 filtered_alpha_registry.get("selected_target_identity_confidence") != "explicit" or
+                filtered_alpha_registry.get("selected_target_offline_age_bucket") != filtered_alpha_target.get("offline_age_bucket") or
+                filtered_alpha_registry.get("selected_target_offline_for_sec") != filtered_alpha_target.get("offline_for_sec") or
                 filtered_alpha_registry.get("selected_target_notes_present") is not True or
                 filtered_alpha_registry.get("selected_target_latest_file_transfer_operation") != "upload" or
                 filtered_alpha_registry.get("selected_target_latest_file_transfer_status") != "ok" or
@@ -8851,6 +8854,8 @@ def main():
                 filtered_alpha.get("target_filter", {}).get("selected_target_label") != "Alpha Router Renamed" or
                 filtered_alpha.get("target_filter", {}).get("selected_target_identity_confidence") != "explicit" or
                 filtered_alpha.get("target_filter", {}).get("selected_target_connectivity_state") != "online" or
+                filtered_alpha.get("target_filter", {}).get("selected_target_offline_age_bucket") != filtered_alpha_target.get("offline_age_bucket") or
+                filtered_alpha.get("target_filter", {}).get("selected_target_offline_for_sec") != filtered_alpha_target.get("offline_for_sec") or
                 filtered_alpha.get("target_filter", {}).get("selected_target_mailbox_pending_work_count") != 0 or
                 filtered_alpha.get("target_filter", {}).get("selected_target_poll_overdue") is not False or
                 filtered_alpha.get("target_filter", {}).get("selected_target_latest_file_transfer_operation") != "upload" or
@@ -8865,6 +8870,8 @@ def main():
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_label") != "Alpha Router Renamed" or
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_identity_confidence") != "explicit" or
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_connectivity_state") != "online" or
+                filtered_alpha.get("api", {}).get("target_filter_selected_target_offline_age_bucket") != filtered_alpha_target.get("offline_age_bucket") or
+                filtered_alpha.get("api", {}).get("target_filter_selected_target_offline_for_sec") != filtered_alpha_target.get("offline_for_sec") or
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_mailbox_pending_work_count") != 0 or
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_poll_overdue") is not False or
                 filtered_alpha.get("api", {}).get("target_filter_selected_target_latest_file_transfer_status") != "ok" or
@@ -8888,6 +8895,8 @@ def main():
                 filtered_alpha.get("summary", {}).get("target_filter_selected_target_identity_source_count") < 1 or
                 filtered_alpha_record.get("selected_target_label") != "Alpha Router Renamed" or
                 filtered_alpha_record.get("selected_target_connectivity_state") != "online" or
+                filtered_alpha_record.get("selected_target_offline_age_bucket") != filtered_alpha_target.get("offline_age_bucket") or
+                filtered_alpha_record.get("selected_target_offline_for_sec") != filtered_alpha_target.get("offline_for_sec") or
                 filtered_alpha_record.get("selected_target_mailbox_pending_work_count") != 0 or
                 filtered_alpha_record.get("selected_target_poll_overdue") is not False or
                 filtered_alpha_record.get("selected_target_latest_file_transfer_operation") != "upload" or
@@ -8914,9 +8923,11 @@ def main():
                 (filtered_alpha.get("target_filter_records_by_selected_target_latest_file_transfer_route_kind") or {}).get("direct", [{}])[0].get("target_id") != "target-alpha" or
                 "target_filter_records_by_selected_target_identity_confidence" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
                 "target_filter_records_by_selected_target_connectivity_state" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
+                "target_filter_records_by_selected_target_offline_age_bucket" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
                 "target_filter_records_by_selected_target_mailbox_pending_work_count" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
                 "target_filter_records_by_selected_target_latest_file_transfer_route_kind" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
                 "target_registry_state_records_by_selected_target_connectivity_state" not in ((filtered_alpha.get("api_collections") or {}).get("target_registry_state_records") or {}).get("indexes", []) or
+                "target_registry_state_records_by_selected_target_offline_age_bucket" not in ((filtered_alpha.get("api_collections") or {}).get("target_registry_state_records") or {}).get("indexes", []) or
                 "target_registry_state_records_by_selected_target_mailbox_pending_work_count" not in ((filtered_alpha.get("api_collections") or {}).get("target_registry_state_records") or {}).get("indexes", []) or
                 "target_registry_state_records_by_selected_target_latest_file_transfer_route_kind" not in ((filtered_alpha.get("api_collections") or {}).get("target_registry_state_records") or {}).get("indexes", []) or
                 "target_filter_records_by_filter_reduced_activity" not in ((filtered_alpha.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes", []) or
@@ -8997,6 +9008,8 @@ def main():
         if (filtered_status.returncode != 0 or
                 "target_filter: target-bravo targets=1 uploads=1" not in filtered_status.stdout or
                 "mailbox_pending=0 poll_overdue=no" not in filtered_status.stdout or
+                "offline_for=" not in filtered_status.stdout or
+                "offline_age=under-minute" not in filtered_status.stdout or
                 "state=online label=Bravo Router confidence=explicit" not in filtered_status.stdout or
                 "file_transfer=upload status=ok route=direct" not in filtered_status.stdout or
                 "observed=" not in filtered_status.stdout or
@@ -9017,6 +9030,8 @@ def main():
         if (filtered_workbench.returncode != 0 or
                 "Target filter: target-bravo targets=1 uploads=1" not in filtered_workbench.stdout or
                 "mailbox_pending=0 poll_overdue=no" not in filtered_workbench.stdout or
+                "offline_for=" not in filtered_workbench.stdout or
+                "offline_age=under-minute" not in filtered_workbench.stdout or
                 "state=online label=Bravo Router confidence=explicit" not in filtered_workbench.stdout or
                 "observed=" not in filtered_workbench.stdout or
                 "observed_seen=yes" not in filtered_workbench.stdout or

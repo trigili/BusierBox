@@ -14031,6 +14031,8 @@ def status_document(cfg):
         "selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
         "selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
         "selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
+        "selected_target_offline_for_sec": selected_target.get("offline_for_sec", ""),
+        "selected_target_offline_age_bucket": str(selected_target.get("offline_age_bucket") or ""),
         "selected_target_latest_phone_home_at": str(selected_target.get("latest_phone_home_at") or ""),
         "selected_target_latest_phone_home_status": str(selected_target.get("latest_phone_home_status") or ""),
         "selected_target_latest_phone_home_kind": str(selected_target.get("latest_phone_home_kind") or ""),
@@ -14135,6 +14137,7 @@ def status_document(cfg):
         "target_registry_state_records_by_selected_target_found": records_by_key(target_registry_state_records, "selected_target_found"),
         "target_registry_state_records_by_selected_target_identity_confidence": records_by_key(target_registry_state_records, "selected_target_identity_confidence"),
         "target_registry_state_records_by_selected_target_connectivity_state": records_by_key(target_registry_state_records, "selected_target_connectivity_state"),
+        "target_registry_state_records_by_selected_target_offline_age_bucket": records_by_key(target_registry_state_records, "selected_target_offline_age_bucket"),
         "target_registry_state_records_by_selected_target_latest_phone_home_status": records_by_key(target_registry_state_records, "selected_target_latest_phone_home_status"),
         "target_registry_state_records_by_selected_target_latest_successful_phone_home_status": records_by_key(target_registry_state_records, "selected_target_latest_successful_phone_home_status"),
         "target_registry_state_records_by_selected_target_last_failed_phone_home_status": records_by_key(target_registry_state_records, "selected_target_last_failed_phone_home_status"),
@@ -14533,6 +14536,8 @@ def status_document(cfg):
         "selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
         "selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
         "selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
+        "selected_target_offline_for_sec": selected_target.get("offline_for_sec", ""),
+        "selected_target_offline_age_bucket": str(selected_target.get("offline_age_bucket") or ""),
         "selected_target_latest_phone_home_at": str(selected_target.get("latest_phone_home_at") or ""),
         "selected_target_latest_phone_home_status": str(selected_target.get("latest_phone_home_status") or ""),
         "selected_target_latest_phone_home_kind": str(selected_target.get("latest_phone_home_kind") or ""),
@@ -14692,6 +14697,7 @@ def status_document(cfg):
         "target_filter_records_by_selected_target_label": records_by_key(target_filter_records, "selected_target_label"),
         "target_filter_records_by_selected_target_identity_confidence": records_by_key(target_filter_records, "selected_target_identity_confidence"),
         "target_filter_records_by_selected_target_connectivity_state": records_by_key(target_filter_records, "selected_target_connectivity_state"),
+        "target_filter_records_by_selected_target_offline_age_bucket": records_by_key(target_filter_records, "selected_target_offline_age_bucket"),
         "target_filter_records_by_selected_target_latest_phone_home_status": records_by_key(target_filter_records, "selected_target_latest_phone_home_status"),
         "target_filter_records_by_selected_target_latest_successful_phone_home_status": records_by_key(target_filter_records, "selected_target_latest_successful_phone_home_status"),
         "target_filter_records_by_selected_target_last_failed_phone_home_status": records_by_key(target_filter_records, "selected_target_last_failed_phone_home_status"),
@@ -16364,6 +16370,7 @@ def status_document(cfg):
         "target_registry_state_records_by_selected_target_found",
         "target_registry_state_records_by_selected_target_identity_confidence",
         "target_registry_state_records_by_selected_target_connectivity_state",
+        "target_registry_state_records_by_selected_target_offline_age_bucket",
         "target_registry_state_records_by_selected_target_latest_phone_home_status",
         "target_registry_state_records_by_selected_target_latest_successful_phone_home_status",
         "target_registry_state_records_by_selected_target_last_failed_phone_home_status",
@@ -16400,6 +16407,7 @@ def status_document(cfg):
                 "target_filter_records_by_selected_target_label",
                 "target_filter_records_by_selected_target_identity_confidence",
                 "target_filter_records_by_selected_target_connectivity_state",
+                "target_filter_records_by_selected_target_offline_age_bucket",
                 "target_filter_records_by_selected_target_latest_phone_home_status",
                 "target_filter_records_by_selected_target_latest_successful_phone_home_status",
                 "target_filter_records_by_selected_target_last_failed_phone_home_status",
@@ -17015,6 +17023,8 @@ def status_document(cfg):
             "target_filter_selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
             "target_filter_selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
             "target_filter_selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
+            "target_filter_selected_target_offline_for_sec": selected_target.get("offline_for_sec", ""),
+            "target_filter_selected_target_offline_age_bucket": str(selected_target.get("offline_age_bucket") or ""),
             "target_filter_selected_target_next_expected_poll": str(selected_target.get("next_expected_poll") or ""),
             "target_filter_selected_target_latest_phone_home_at": str(selected_target.get("latest_phone_home_at") or ""),
             "target_filter_selected_target_latest_phone_home_status": str(selected_target.get("latest_phone_home_status") or ""),
@@ -17055,6 +17065,8 @@ def status_document(cfg):
             "selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
             "selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
             "selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
+            "selected_target_offline_for_sec": selected_target.get("offline_for_sec", ""),
+            "selected_target_offline_age_bucket": str(selected_target.get("offline_age_bucket") or ""),
             "selected_target_next_expected_poll": str(selected_target.get("next_expected_poll") or ""),
             "selected_target_latest_phone_home_at": str(selected_target.get("latest_phone_home_at") or ""),
             "selected_target_latest_phone_home_status": str(selected_target.get("latest_phone_home_status") or ""),
@@ -17777,6 +17789,10 @@ def target_filter_summary_text(target_filter, prefix="target_filter:"):
     successful_phone_home_status = target_filter.get("selected_target_latest_successful_phone_home_status") or "-"
     failed_phone_home_at = target_filter.get("selected_target_last_failed_phone_home_at") or "-"
     failed_phone_home_status = target_filter.get("selected_target_last_failed_phone_home_status") or "-"
+    offline_for = target_filter.get("selected_target_offline_for_sec", "")
+    offline_age = target_filter.get("selected_target_offline_age_bucket") or "-"
+    if offline_for == "":
+        offline_for = "-"
     return (
         f"{prefix} {target_filter.get('target_id', '')} "
         f"targets={counts.get('targets', 0)} uploads={counts.get('uploads', 0)} "
@@ -17785,6 +17801,8 @@ def target_filter_summary_text(target_filter, prefix="target_filter:"):
         f"target_cmds={counts.get('target_command_records', 0)} "
         f"mailbox_pending={target_filter.get('selected_target_mailbox_pending_work_count', 0)} "
         f"poll_overdue={'yes' if target_filter.get('selected_target_poll_overdue') else 'no'} "
+        f"offline_for={offline_for} "
+        f"offline_age={offline_age} "
         f"phone_home={phone_home_status}@{phone_home_at} "
         f"successful_phone_home={successful_phone_home_status}@{successful_phone_home_at} "
         f"failed_phone_home={failed_phone_home_status}@{failed_phone_home_at} "
