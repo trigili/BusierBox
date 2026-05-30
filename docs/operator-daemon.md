@@ -62,6 +62,12 @@ Line-mode TUI action `11` lists the same actions and can preview or run
 foreground actions after explicit selection. Long-running/background-capable
 actions continue to use TUI action `12` or `--start-workbench-job`.
 
+The curses workbench keeps build and operator configuration visible in a
+`Build Config` pane. It lists guided build fields, current values, category,
+safety boundary, fixed options, examples, and the equivalent `--set-build-config`
+command. Pressing Enter on a field prompts for a new value and applies the same
+validated config update used by line-mode action `14`.
+
 ## Systemd User Service
 
 The same daemon command can be rendered or installed as a systemd user service:

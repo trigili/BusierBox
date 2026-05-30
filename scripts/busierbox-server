@@ -17129,6 +17129,17 @@ def run_curses_tui(cfg):
                 )
                 for idx, rec in enumerate(mailbox_records)
             ] or ["none"]
+            config_fields = snap.get("workbench_config_fields") or []
+            config_lines = [
+                (
+                    f"{'>' if pane == 11 and idx == selected else ' '} "
+                    f"{rec.get('key', '')} "
+                    f"cat={rec.get('category', '')} "
+                    f"set={'yes' if rec.get('configured') else 'no'} "
+                    f"value={rec.get('value', '') or '-'}"
+                )
+                for idx, rec in enumerate(config_fields)
+            ] or ["none"]
             release = snap.get("release") or {}
             release_artifacts = release.get("artifacts") or []
             release_devices = release.get("devices") or []
@@ -17374,6 +17385,22 @@ def run_curses_tui(cfg):
                     f"command: {rec.get('command', '') or '-'}",
                     "action 20 opens command queue/results",
                 ]
+            elif pane == 11 and config_fields:
+                rec = config_fields[min(selected, len(config_fields) - 1)]
+                detail_lines = [
+                    f"config_key: {rec.get('key', '')}",
+                    f"label: {rec.get('label', '')}",
+                    f"category: {rec.get('category', '')}",
+                    f"value: {rec.get('value', '') or '-'} configured={'yes' if rec.get('configured') else 'no'}",
+                    f"config_path: {rec.get('config_path', '')}",
+                    f"safety: boundary={rec.get('safety_boundary', '')} control_like={'yes' if rec.get('control_like') else 'no'}",
+                    f"explicit_choice: {'yes' if rec.get('requires_explicit_operator_choice') else 'no'}",
+                    f"options: {' '.join(rec.get('options') or []) or '-'}",
+                    f"examples: {' '.join(rec.get('examples') or []) or '-'}",
+                    f"set_command: {rec.get('set_command', '')}",
+                    "enter sets this build config field",
+                    "action 14 opens guided build config",
+                ]
             else:
                 detail_lines = [
                     f"state: {state_file_path(cfg)}",
@@ -17429,14 +17456,21 @@ def run_curses_tui(cfg):
             draw_list(stdscr, "Recent Uploads", upload_lines, lower_y, third + 1, 7, third, pane == 2)
             draw_list(stdscr, "Recent Sessions", session_lines, lower_y, (third + 1) * 2, 7, width - ((third + 1) * 2), pane == 3)
             events_y = min(height - 8, lower_y + 8)
-            seventh = max(10, width // 7)
-            draw_list(stdscr, f"Event Log | {event_tail_status_line}", event_lines, events_y, 0, height - events_y - 1, seventh, pane == 4)
-            draw_list(stdscr, "Target Fleet", target_lines, events_y, seventh + 1, height - events_y - 1, seventh, pane == 8)
-            draw_list(stdscr, "Mailbox", mailbox_lines, events_y, (seventh + 1) * 2, height - events_y - 1, seventh, pane == 10)
-            draw_list(stdscr, "Bridge Routes", bridge_lines, events_y, (seventh + 1) * 3, height - events_y - 1, seventh, pane == 9)
-            draw_list(stdscr, "Target Commands", command_lines, events_y, (seventh + 1) * 4, height - events_y - 1, seventh, pane == 5)
-            draw_list(stdscr, "Release Artifacts", release_lines, events_y, (seventh + 1) * 5, height - events_y - 1, seventh, pane == 6)
-            draw_list(stdscr, "Devices / Tuples", device_tuple_lines, events_y, (seventh + 1) * 6, height - events_y - 1, width - ((seventh + 1) * 6), pane == 7)
+            bottom_y = events_y
+            bottom_h = height - bottom_y - 1
+            top_bottom_h = max(4, bottom_h // 2)
+            lower_bottom_y = bottom_y + top_bottom_h
+            lower_bottom_h = max(1, height - lower_bottom_y - 1)
+            quarter = max(16, width // 4)
+            draw_list(stdscr, f"Event Log | {event_tail_status_line}", event_lines, bottom_y, 0, top_bottom_h, quarter, pane == 4)
+            draw_list(stdscr, "Target Fleet", target_lines, bottom_y, quarter + 1, top_bottom_h, quarter, pane == 8)
+            draw_list(stdscr, "Mailbox", mailbox_lines, bottom_y, (quarter + 1) * 2, top_bottom_h, quarter, pane == 10)
+            draw_list(stdscr, "Bridge Routes", bridge_lines, bottom_y, (quarter + 1) * 3, top_bottom_h, width - ((quarter + 1) * 3), pane == 9)
+            lower_quarter = max(16, width // 4)
+            draw_list(stdscr, "Target Commands", command_lines, lower_bottom_y, 0, lower_bottom_h, lower_quarter, pane == 5)
+            draw_list(stdscr, "Build Config", config_lines, lower_bottom_y, lower_quarter + 1, lower_bottom_h, lower_quarter, pane == 11)
+            draw_list(stdscr, "Release Artifacts", release_lines, lower_bottom_y, (lower_quarter + 1) * 2, lower_bottom_h, lower_quarter, pane == 6)
+            draw_list(stdscr, "Devices / Tuples", device_tuple_lines, lower_bottom_y, (lower_quarter + 1) * 3, lower_bottom_h, width - ((lower_quarter + 1) * 3), pane == 7)
             key = stdscr.getch()
             if key in (ord("q"), ord("Q")):
                 return 0
@@ -17445,10 +17479,10 @@ def run_curses_tui(cfg):
             elif key in (curses.KEY_UP, ord("k")):
                 selected = max(0, selected - 1)
             elif key == ord("\t"):
-                pane = (pane + 1) % 11
+                pane = (pane + 1) % 12
                 selected = 0
             elif key == curses.KEY_BTAB:
-                pane = (pane - 1) % 11
+                pane = (pane - 1) % 12
                 selected = 0
             elif key in (ord("1"), ord("2"), ord("3"), ord("4")):
                 service = {ord("1"): "ssh", ord("2"): "tls-shell", ord("3"): "plain-shell", ord("4"): "file-service"}[key]
@@ -17486,6 +17520,19 @@ def run_curses_tui(cfg):
                             stop_recorded_service(cfg, "bridge")
                         else:
                             start_service_process(cfg, "bridge", argv_extra=["--bridge-profile", name])
+                elif pane == 11 and config_fields:
+                    rec = config_fields[min(selected, len(config_fields) - 1)]
+                    key_name = str(rec.get("key") or "")
+                    curses.echo()
+                    safe_add(stdscr, height - 2, 0, f"{key_name} value> ")
+                    value = stdscr.getstr(height - 2, len(key_name) + 8, 240).decode("utf-8", errors="replace").strip()
+                    curses.noecho()
+                    if key_name and value:
+                        try:
+                            set_workbench_build_config(cfg, f"{key_name}={value}")
+                        except ValueError as exc:
+                            safe_add(stdscr, height - 2, 0, str(exc))
+                            stdscr.getch()
             elif key == ord("5"):
                 curses.echo()
                 safe_add(stdscr, height - 2, 0, "service> ")
@@ -17567,6 +17614,7 @@ def run_curses_tui(cfg):
                 len(targets) if pane == 8 else
                 len(bridge_profiles) if pane == 9 else
                 len(mailbox_records) if pane == 10 else
+                len(config_fields) if pane == 11 else
                 1
             )
             selected = min(max(0, selected), max(0, max_items - 1))
