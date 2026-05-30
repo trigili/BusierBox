@@ -7024,6 +7024,7 @@ def main():
                 "selected_target=target-action" not in line_text or
                 "  Services:" not in line_text or
                 "  Targets:" not in line_text or
+                "    21 inspect target activity feed" not in line_text or
                 "  Bridges:" not in line_text or
                 "  Files and releases:" not in line_text or
                 "  Automation and config:" not in line_text or
@@ -7045,6 +7046,55 @@ def main():
                 "Target workflow actions:" not in line_text):
             print("line TUI target detail did not show mailbox/activity and headless command", file=sys.stderr)
             print(line_text, file=sys.stderr)
+            return 1
+        activity_master, activity_slave = pty.openpty()
+        try:
+            activity_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(action_cfg),
+                    "--state-file", str(line_action_state),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=activity_slave,
+                stdout=activity_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(activity_slave)
+            activity_slave = -1
+            time.sleep(0.5)
+            os.write(activity_master, b"21\ntarget-action\nq\n")
+            _activity_stdout, activity_stderr = activity_proc.communicate(timeout=8)
+            activity_output = b""
+            while True:
+                try:
+                    chunk = os.read(activity_master, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                activity_output += chunk
+        finally:
+            if activity_slave != -1:
+                os.close(activity_slave)
+            try:
+                os.close(activity_master)
+            except OSError:
+                pass
+        activity_text = activity_output.decode("utf-8", errors="replace")
+        if (activity_proc.returncode != 0 or
+                "Traceback" in (activity_stderr or "") or
+                "Target activity feed: target-action label=Action Router" not in activity_text or
+                "Target activity records:" not in activity_text or
+                "activity_record " not in activity_text or
+                "target=target-action category=mailbox operation=target-poll status=queued" not in activity_text or
+                "--target-id target-action --json-status" not in activity_text):
+            print("line TUI target activity feed did not show scoped activity records", file=sys.stderr)
+            print(activity_text, file=sys.stderr)
+            print(activity_stderr or "", file=sys.stderr)
             return 1
         action_survey = run(
             "scripts/busierbox-server",
@@ -7101,6 +7151,7 @@ def main():
         action_queue = (action_doc.get("command_queue") or {}).get("commands_by_target_id", {}).get("target-action") or []
         action_staged = (action_doc.get("staged_by_target_id") or {}).get("target-action") or []
         action_events = action_doc.get("events_by_event") or {}
+        activity_inspected_events = action_events.get("workbench_target_activity_inspected") or []
         selected_events = action_events.get("workbench_target_selected") or []
         action_completed = action_events.get("target_workflow_action_completed") or []
         queued_survey = [
@@ -7180,6 +7231,13 @@ def main():
                     "--status" in ((event.get("details") or {}).get("headless_command") or "") and
                     (event.get("details") or {}).get("target_activity_record_count", 0) >= 1
                     for event in action_events.get("workbench_targets_inspected", [])
+                ) or
+                not any(
+                    (event.get("details") or {}).get("target_id") == "target-action" and
+                    (event.get("details") or {}).get("scope") == "target" and
+                    "--target-id target-action --json-status" in ((event.get("details") or {}).get("headless_command") or "") and
+                    (event.get("details") or {}).get("target_activity_record_count", 0) >= 1
+                    for event in activity_inspected_events
                 ) or
                 line_workbench_state.get("selected_target_id") != "target-action" or
                 line_workbench_state.get("selected_target_label") != "Action Router" or

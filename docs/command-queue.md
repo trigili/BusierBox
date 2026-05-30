@@ -499,7 +499,9 @@ selected target, or all targets; it prints heartbeat/mailbox/activity state,
 latest file/survey/bridge route evidence, recent mailbox records, target
 workflow actions, a `Target activity records` section backed by
 `target_activity_records`, and the equivalent `--target-id TARGET --status`
-command.
+command. Action `21` opens the same activity feed directly for the current
+target, a selected target, or all targets, using `--json-status` as the
+equivalent headless source for automation.
 
 The smoke suite includes a deterministic intermittent-connectivity harness for
 this path. It queues target-scoped work while targets are offline, proves an

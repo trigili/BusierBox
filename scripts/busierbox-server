@@ -16948,6 +16948,7 @@ def run_line_tui(cfg):
         print("    16 select target filter")
         print("    18 inspect target mailbox/activity")
         print("    20 inspect command queue/results")
+        print("    21 inspect target activity feed")
         print("  Bridges:")
         print("    17 manage bridge profiles")
         print("  Files and releases:")
@@ -17595,8 +17596,105 @@ def run_line_tui(cfg):
                 "command_count": len((command_queue_summary(cfg).get("commands") or [])),
                 "target_mailbox_record_count": len(mailbox_records),
             })
+        elif choice == "21":
+            unfiltered_cfg = dict(cfg)
+            unfiltered_cfg.pop("_target_id_filter", None)
+            unfiltered_cfg.pop("_target_label_filter", None)
+            snap = workbench_snapshot(unfiltered_cfg)
+            targets = snap.get("targets") or []
+            current = configured_target_filter(cfg)
+            if targets:
+                for idx, rec in enumerate(targets, 1):
+                    marker = "*" if str(rec.get("target_id") or "") == current else " "
+                    print(
+                        f"{idx}:{marker} {rec.get('target_id', '')} "
+                        f"label={rec.get('label', '') or '-'} "
+                        f"state={rec.get('connectivity_state', '') or '-'} "
+                        f"mailbox_pending={rec.get('mailbox_pending_work_count', 0)} "
+                        f"poll_overdue={'yes' if rec.get('poll_overdue') else 'no'} "
+                        f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
+                    )
+            else:
+                print("no known targets")
+            selected_line = line_input("target number/id/label, current, or all> ")
+            selected = selected_line.strip() if selected_line is not None else ""
+            if not selected:
+                continue
+            try:
+                scope = "target"
+                target = {}
+                target_id = ""
+                target_label = ""
+                if selected.lower() == "current":
+                    if not current:
+                        raise ValueError("no current target filter is selected")
+                    for rec in targets:
+                        if str(rec.get("target_id") or "") == current:
+                            target = rec
+                            break
+                    if not target:
+                        raise ValueError(f"target not found: {current}")
+                elif selected.lower() in ("all", "*"):
+                    scope = "all"
+                elif selected.isdigit():
+                    idx = int(selected) - 1
+                    if idx < 0 or idx >= len(targets):
+                        raise ValueError(f"target number out of range: {selected}")
+                    target = targets[idx]
+                else:
+                    lower = selected.lower()
+                    for rec in targets:
+                        candidate_id = str(rec.get("target_id") or "")
+                        label = str(rec.get("label") or "")
+                        aliases = [str(item) for item in rec.get("aliases") or []]
+                        if selected == candidate_id or lower == label.lower() or lower in [alias.lower() for alias in aliases]:
+                            target = rec
+                            break
+                    if not target:
+                        raise ValueError(f"target not found: {selected}")
+                if scope == "all":
+                    headless = (
+                        "scripts/busierbox-server --config "
+                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                        + " --json-status"
+                    )
+                    activity_doc = snap
+                    print("Target activity feed: all")
+                    print(f"headless_command: {headless}")
+                    print_target_activity_records(activity_doc, limit=12)
+                    activity_count = len(activity_doc.get("target_activity_records") or [])
+                    append_event(cfg, "workbench", "workbench_target_activity_inspected", details={
+                        "headless_command": headless,
+                        "scope": "all",
+                        "target_activity_record_count": activity_count,
+                    })
+                else:
+                    target_id = str(target.get("target_id") or "")
+                    target_label = str(target.get("label") or target.get("target_label") or "")
+                    scoped = scoped_target_cfg(cfg, target_id, target_label=target_label)
+                    activity_doc = workbench_snapshot(scoped)
+                    headless = (
+                        "scripts/busierbox-server --config "
+                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                        + " --target-id "
+                        + shquote(target_id)
+                        + " --json-status"
+                    )
+                    print(f"Target activity feed: {target_id} label={target_label or '-'}")
+                    print(f"headless_command: {headless}")
+                    print_target_activity_records(activity_doc, target_id=target_id, limit=12)
+                    activity_count = len(activity_doc.get("target_activity_records") or [])
+                    append_event(cfg, "workbench", "workbench_target_activity_inspected", details={
+                        "headless_command": headless,
+                        "scope": "target",
+                        "target_id": target_id,
+                        "target_label": target_label,
+                        "target_activity_record_count": activity_count,
+                    })
+            except ValueError as exc:
+                print(exc)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 18 target detail, 19 survey bootstrap, 20 command queue, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 18 target detail, 19 survey bootstrap, 20 command queue, 21 target activity, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 
