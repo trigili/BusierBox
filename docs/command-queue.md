@@ -415,8 +415,11 @@ scripts/busierbox-server --run-target-workflow-action target-alpha:queue-bridge-
 
 In line-mode TUI, action `15` lists the target workflow actions and prompts for
 the required command/path fields before applying the same target-scoped queue or
-staging operation. No action changes the safety boundary: target execution still
-requires an explicit target-side fetch, upload, poll, or bridge connection.
+staging operation. After a target action runs, the TUI prints the action return
+code and a refreshed target activity summary so the operator can immediately see
+queued mailbox work and last-contact state. No action changes the safety
+boundary: target execution still requires an explicit target-side fetch, upload,
+poll, or bridge connection.
 Mutating target workflow actions record `target_workflow_action_completed`
 events with the target id, action id, headless command, and result-specific
 metadata such as queued command id or staged request name, so headless and TUI

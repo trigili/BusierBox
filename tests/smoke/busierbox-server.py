@@ -6788,6 +6788,8 @@ def main():
                 " --status" not in line_text or
                 "queues_offline_work=yes" not in line_text or
                 "offline=yes requires_online=no" not in line_text or
+                "target_workflow_action_returncode=0" not in line_text or
+                "Target activity after action:" not in line_text or
                 "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in line_text or
                 "Target workflow actions:" not in line_text):
             print("line TUI target detail did not show mailbox/activity and headless command", file=sys.stderr)

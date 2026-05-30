@@ -16374,7 +16374,15 @@ def run_line_tui(cfg):
             selected = selected_line.strip() if selected_line is not None else ""
             if selected:
                 try:
-                    run_target_workflow_action(cfg, selected, input_func=line_input)
+                    rec = find_target_workflow_action(cfg, selected)
+                    rc = run_target_workflow_action(cfg, rec.get("id", selected), input_func=line_input)
+                    print(f"target_workflow_action_returncode={rc}")
+                    target_id = str(rec.get("target_id") or "")
+                    if target_id:
+                        target_label = str(rec.get("target_label") or "")
+                        scoped = scoped_target_cfg(cfg, target_id, target_label=target_label)
+                        print("Target activity after action:")
+                        print_target_summary(workbench_snapshot(scoped), limit=2)
                 except (ValueError, IndexError) as exc:
                     print(exc)
         elif choice == "16":
