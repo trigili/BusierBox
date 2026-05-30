@@ -48,8 +48,9 @@ actions, with the same headless commands shown in status JSON and TUI output:
 
 These are metadata-backed workflow actions, so automated clients can discover
 them from `workbench_actions`, group them through
-`workbench_actions_by_category.daemon`, and decide whether to run the shown
-command directly or start long-running actions as background workbench jobs.
+`workbench_actions_by_category.daemon`, and use each record's `run_command`,
+`dry_run_command`, or `start_job_command` without inferring the right invocation
+from the lower-level command string.
 Foreground-safe actions can also be run through the workbench action API:
 
 ```sh

@@ -1134,6 +1134,9 @@ def main():
                 "--status" not in actions_tui_text or
                 "operator-daemon-status" not in actions_tui_text or
                 "operator action id/number to run" not in actions_tui_text or
+                "foreground_runnable=yes" not in actions_tui_text or
+                "dry_run: scripts/busierbox-server --config" not in actions_tui_text or
+                "start_job: scripts/busierbox-server --config" not in actions_tui_text or
                 "workbench action: systemd-user-status" not in actions_tui_text or
                 "--run-workbench-action systemd-user-status --workbench-action-dry-run" not in actions_tui_text or
                 "systemctl --user status busierbox-operator.service" not in actions_tui_text or
@@ -4064,6 +4067,11 @@ def main():
         actions_by_target_execution = queue_status_json.get("workbench_actions_by_target_execution") or {}
         actions_by_event = queue_status_json.get("workbench_actions_by_event") or {}
         actions_by_config_path = queue_status_json.get("workbench_actions_by_config_path") or {}
+        actions_by_foreground = queue_status_json.get("workbench_actions_by_foreground_runnable") or {}
+        actions_by_dry_run = queue_status_json.get("workbench_actions_by_dry_run_supported") or {}
+        actions_by_placeholder = queue_status_json.get("workbench_actions_by_has_placeholder") or {}
+        actions_by_run_command = queue_status_json.get("workbench_actions_by_has_run_command") or {}
+        actions_by_start_job_command = queue_status_json.get("workbench_actions_by_has_start_job_command") or {}
         workbench_summary = queue_status_json.get("summary") or {}
         if (target_workflow_actions != [] or
                 workbench_summary.get("target_workflow_action_count") != 0 or
@@ -4099,14 +4107,22 @@ def main():
                 workbench_summary.get("workbench_action_target_execution_count") != 0 or
                 workbench_summary.get("workbench_action_background_supported_count", 0) < 2 or
                 workbench_summary.get("workbench_action_requires_confirmation_count", 0) < 4 or
+                workbench_summary.get("workbench_action_foreground_runnable_count", 0) < 8 or
+                workbench_summary.get("workbench_action_dry_run_supported_count", 0) < 8 or
+                workbench_summary.get("workbench_action_has_run_command_count", 0) < 8 or
+                workbench_summary.get("workbench_action_has_start_job_command_count", 0) < 3 or
+                workbench_summary.get("workbench_action_has_placeholder_count", 0) < 1 or
                 workbench_summary.get("workbench_action_execution_default_counts", {}).get("show-command") != len(workbench_actions) or
                 workbench_summary.get("workbench_action_event_counts", {}).get("workbench_job_requested", 0) < 3 or
                 workbench_summary.get("workbench_action_config_path_counts", {}).get(str(cfg), 0) < 5 or
                 actions_by_id.get("package-artifact", {}).get("command") != "make package" or
+                actions_by_id.get("package-artifact", {}).get("start_job_command") != f"scripts/busierbox-server --config {str(cfg)} --start-workbench-job package-artifact" or
                 actions_by_id.get("operator-daemon-start", {}).get("background_supported") is not True or
                 actions_by_id.get("operator-daemon-start", {}).get("long_running") is not True or
                 "--daemon --daemon-service file-service --daemon-service command-queue" not in actions_by_id.get("operator-daemon-start", {}).get("command", "") or
                 actions_by_id.get("operator-daemon-stop", {}).get("command") != f"scripts/busierbox-server --config {str(cfg)} --stop" or
+                actions_by_id.get("operator-daemon-stop", {}).get("run_command") != f"scripts/busierbox-server --config {str(cfg)} --run-workbench-action operator-daemon-stop" or
+                actions_by_id.get("operator-daemon-stop", {}).get("dry_run_command") != f"scripts/busierbox-server --config {str(cfg)} --run-workbench-action operator-daemon-stop --workbench-action-dry-run" or
                 actions_by_id.get("systemd-user-print", {}).get("command", "").endswith("--systemd-user-action print") is not True or
                 actions_by_id.get("systemd-user-install", {}).get("writes_config") is not True or
                 actions_by_id.get("systemd-user-start", {}).get("requires_confirmation") is not True or
@@ -4124,6 +4140,11 @@ def main():
                 not actions_by_script.get("scripts/busierbox-server") or
                 not actions_by_background.get("True") or
                 not actions_by_confirmation.get("True") or
+                not actions_by_foreground.get("True") or
+                not actions_by_dry_run.get("True") or
+                not actions_by_placeholder.get("True") or
+                not actions_by_run_command.get("True") or
+                not actions_by_start_job_command.get("True") or
                 actions_by_execution_default.get("show-command", [{}])[0].get("execution_default") != "show-command" or
                 actions_by_target_execution.get("True", []) != [] or
                 len(actions_by_target_execution.get("False", [])) != len(workbench_actions) or
@@ -4133,7 +4154,9 @@ def main():
                 "workbench_actions_by_execution_default" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", []) or
                 "workbench_actions_by_target_execution" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", []) or
                 "workbench_actions_by_event" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", []) or
-                "workbench_actions_by_config_path" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", [])):
+                "workbench_actions_by_config_path" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", []) or
+                "workbench_actions_by_foreground_runnable" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", []) or
+                "workbench_actions_by_has_start_job_command" not in ((queue_status_json.get("api_collections") or {}).get("workbench_actions") or {}).get("indexes", [])):
             print("server json status missing operator workflow action descriptors", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
