@@ -125,7 +125,7 @@ def main():
     if "survey-bootstrap" not in combined or "--survey-bootstrap-port" not in combined:
         print("busierbox-server help missing survey bootstrap mode", file=sys.stderr)
         return 1
-    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--stop-service", "--view-path", "--json-status", "--api-status", "--event-limit",
+    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--run-release-artifact-workflow-action", "--list-staged", "--status", "--stop", "--stop-service", "--view-path", "--json-status", "--api-status", "--event-limit",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
                  "--run-service-workflow-action", "--service-workflow-dry-run", "--confirm-service-workflow-action",
@@ -172,6 +172,7 @@ def main():
                  "Operator console workflow summary:", "operator_console_workflows_by_group",
                  "operator_console_workflows", "operator_console_workflow_count",
                  "release_artifact_workflow_actions", "release_artifact_workflow_actions_by_selector_kind",
+                 "release_artifact_workflow_action_selected", "release_artifact_workflow_action_completed",
                  "capability=", "compatibility=", "tail_status = event_tail_availability_text(snap)",
                  "Target Fleet", "enter selects this target filter", "set_workbench_target_filter(cfg",
                  "Target Files", "target_file_transfer:", "source_collection=", "v opens metadata, stored file, or source in pager",
@@ -9684,6 +9685,7 @@ def main():
                 release_artifact_actions_by_selector.get("recommendation", [{}])[0].get("action_id") != "stage-recommendation" or
                 release_artifact_actions_by_action.get("self-test-release", [{}])[0].get("release_name") != "operator-smoke" or
                 release_artifact_actions_by_release_path.get("bin/busierbox-test", [{}])[0].get("headless_command", "").find("--stage-release-artifact") < 0 or
+                release_artifact_actions_by_release_path.get("bin/busierbox-test", [{}])[0].get("run_command", "").find("--run-release-artifact-workflow-action") < 0 or
                 release_artifact_actions_by_scope.get("by_device", [{}])[0].get("selector") != "by_device:lab-router" or
                 release_license.get("project_license") != "GPL-2.0-or-later" or
                 release_license.get("combined_gplv2_compatible") is not True or
@@ -10031,6 +10033,25 @@ def main():
             print("--stage-release-artifact did not stage release recommendation", file=sys.stderr)
             print(staged_release_recommendation.stdout, file=sys.stderr)
             print(staged_release_recommendation.stderr, file=sys.stderr)
+            return 1
+        staged_release_workflow = subprocess.run(
+            [
+                str(server),
+                "--config", str(fetch_cfg),
+                "--state-file", str(state_file),
+                "--staged-file", str(staged_file),
+                "--run-release-artifact-workflow-action", "by_device:lab-router",
+            ],
+            cwd=release_dir,
+            text=True,
+            capture_output=True,
+        )
+        if (staged_release_workflow.returncode != 0 or
+                "release artifact workflow action:" not in staged_release_workflow.stdout or
+                "staged busierbox-test" not in staged_release_workflow.stdout):
+            print("--run-release-artifact-workflow-action did not stage release recommendation", file=sys.stderr)
+            print(staged_release_workflow.stdout, file=sys.stderr)
+            print(staged_release_workflow.stderr, file=sys.stderr)
             return 1
         staged_release_tuple_recommendation = subprocess.run(
             [

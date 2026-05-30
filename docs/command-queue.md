@@ -488,6 +488,10 @@ Enter can run it from the TUI. Indexes such as
 `release_artifact_workflow_actions_by_release_path`, and
 `release_artifact_workflow_actions_by_recommendation_scope` let clients render a
 release browser without special-casing raw artifact and recommendation maps.
+The same records can also be executed through the stable action runner
+`--run-release-artifact-workflow-action ACTION_OR_SELECTOR`, with
+`--release-artifact-workflow-dry-run` available for previewing the selected
+action without staging files or running release self-tests.
 
 The same actions can be run headlessly or from the line-oriented TUI. For
 automation, use the stable action id:
