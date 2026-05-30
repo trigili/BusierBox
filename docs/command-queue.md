@@ -462,6 +462,21 @@ which target workflows can be prepared while a target is offline, which actions
 need prompted input, which bridge actions need the target online now, and which
 actions leave mailbox work waiting for the next phone-home window.
 
+Status JSON also exposes `operator_console_workflows`, a top-level catalog for
+frontends that want the console organized around workflows instead of raw
+collections. Each record groups the related source/action collections for target
+fleet, target actions, mailbox, bridges, files, survey, daemon, release
+artifacts, build config, jobs, events, and target activity. Records include the
+primary collection, matching TUI shortcut and line-mode action, `headless_command`,
+target-scoping flags, multi-target/offline-queue support, action counts,
+enter-runnable counts, pending-work counts, warning counts, and an
+`operator_action_state`. Indexes such as `operator_console_workflows_by_group`,
+`operator_console_workflows_by_primary_collection`,
+`operator_console_workflows_by_offline_queue_supported`, and
+`operator_console_workflows_by_operator_action_state` let TUI, API, and future
+web clients render the same operator workflow map without reverse-engineering
+the lower-level action catalogs.
+
 The same actions can be run headlessly or from the line-oriented TUI. For
 automation, use the stable action id:
 

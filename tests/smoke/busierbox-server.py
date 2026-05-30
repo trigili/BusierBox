@@ -169,6 +169,8 @@ def main():
                  "last_phone_home={summary.get('latest_target_seen_at', '') or '-'}",
                  "Groups: [t]argets [a]ctions [m]ailbox [b]ridges [o]daemon [f]iles [w]orkflows [e]vents [g]activity",
                  "active={active_group}/{active_pane_title}", "pane_shortcuts",
+                 "Operator console workflow summary:", "operator_console_workflows_by_group",
+                 "operator_console_workflows", "operator_console_workflow_count",
                  "capability=", "compatibility=", "tail_status = event_tail_availability_text(snap)",
                  "Target Fleet", "enter selects this target filter", "set_workbench_target_filter(cfg",
                  "Target Files", "target_file_transfer:", "source_collection=", "v opens metadata, stored file, or source in pager",
@@ -4162,6 +4164,7 @@ def main():
                 ("command_queue_policy_records", len(queue_status_json.get("command_queue_policy_records") or []), "command_queue_policy_records_by_valid"),
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_result_upload_supported"),
                 ("release_state_records", len(queue_status_json.get("release_state_records") or []), "release_state_records_by_detection_source"),
+                ("operator_console_workflows", len(queue_status_json.get("operator_console_workflows") or []), "operator_console_workflows_by_group"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
                 ("operator_daemon_workflow_actions", len(queue_status_json.get("operator_daemon_workflow_actions") or []), "operator_daemon_workflow_actions_by_workflow"),
                 ("workbench_config_fields", len(queue_status_json.get("workbench_config_fields") or []), "workbench_config_fields_by_key"),
@@ -4207,6 +4210,9 @@ def main():
                 api_resources_by_name.get("command_queue_workflow_actions", {}).get("records_key") != "command_queue_workflow_actions" or
                 api_resources_by_summary_key.get("command_queue_workflow_action_count", [{}])[0].get("name") != "command_queue_workflow_actions" or
                 not any(rec.get("name") == "command_queue_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("operator_console_workflows", {}).get("records_key") != "operator_console_workflows" or
+                api_resources_by_summary_key.get("operator_console_workflow_count", [{}])[0].get("name") != "operator_console_workflows" or
+                not any(rec.get("name") == "operator_console_workflows" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("operator_daemon_workflow_actions", {}).get("records_key") != "operator_daemon_workflow_actions" or
                 api_resources_by_summary_key.get("operator_daemon_workflow_action_count", [{}])[0].get("name") != "operator_daemon_workflow_actions" or
                 not any(rec.get("name") == "operator_daemon_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
