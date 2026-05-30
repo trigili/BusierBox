@@ -3781,6 +3781,7 @@ def main():
             print(daemon_queued.stdout, file=sys.stderr)
             print(daemon_queued.stderr, file=sys.stderr)
             return 1
+        daemon_restart_proc = None
         daemon_proc = subprocess.Popen(
             [
                 str(server),
@@ -3974,7 +3975,74 @@ def main():
                 print("operator daemon lifecycle events missing headless command metadata", file=sys.stderr)
                 print(json.dumps(daemon_events[-16:], indent=2, sort_keys=True), file=sys.stderr)
                 return 1
+            daemon_restart_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(daemon_cfg),
+                    "--daemon",
+                    "--daemon-service", "file-service",
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            restarted_doc = {}
+            deadline = time.time() + 20
+            while time.time() < deadline:
+                if daemon_restart_proc.poll() is not None:
+                    break
+                restarted_status = run(
+                    "scripts/busierbox-server",
+                    "--config", str(daemon_cfg),
+                    "--json-status",
+                )
+                if restarted_status.returncode == 0:
+                    restarted_doc = json.loads(restarted_status.stdout)
+                    restarted_services = restarted_doc.get("services_by_name") or {}
+                    if restarted_services.get("file-service", {}).get("actual") == "listening":
+                        break
+                time.sleep(0.1)
+            restarted_services = restarted_doc.get("services_by_name") or {}
+            restarted_actions_by_id = restarted_doc.get("operator_daemon_workflow_actions_by_id") or {}
+            restarted_queue = restarted_doc.get("command_queue") or {}
+            restarted_queue_by_target = restarted_queue.get("commands_by_target_id") or {}
+            restarted_target_commands = restarted_queue_by_target.get("daemon-target") or []
+            if (restarted_services.get("file-service", {}).get("actual") != "listening" or
+                    restarted_actions_by_id.get("operator-daemon-start", {}).get("daemon_attached") is not True or
+                    restarted_actions_by_id.get("operator-daemon-start", {}).get("command_queue_command_count") != 1 or
+                    restarted_actions_by_id.get("operator-daemon-start", {}).get("command_queue_queued_count") != 1 or
+                    restarted_actions_by_id.get("operator-daemon-start", {}).get("command_queue_target_count") != 1 or
+                    restarted_actions_by_id.get("operator-daemon-start", {}).get("target_count") != 1 or
+                    not restarted_target_commands or
+                    restarted_target_commands[0].get("command") != "busierbox survey --json"):
+                print("operator daemon restart did not preserve queued target work", file=sys.stderr)
+                print(json.dumps(restarted_doc, indent=2, sort_keys=True), file=sys.stderr)
+                return 1
+            daemon_restart_stop = run(
+                "scripts/busierbox-server",
+                "--config", str(daemon_cfg),
+                "--stop",
+            )
+            if daemon_restart_stop.returncode != 0 or "failed=0" not in daemon_restart_stop.stdout:
+                print("operator daemon restart stop failed", file=sys.stderr)
+                print(daemon_restart_stop.stdout, file=sys.stderr)
+                print(daemon_restart_stop.stderr, file=sys.stderr)
+                return 1
+            daemon_restart_stdout, daemon_restart_stderr = daemon_restart_proc.communicate(timeout=8)
+            if daemon_restart_proc.returncode not in (0, -signal.SIGTERM):
+                print("restarted operator daemon exited unexpectedly", file=sys.stderr)
+                print(daemon_restart_stdout, file=sys.stderr)
+                print(daemon_restart_stderr, file=sys.stderr)
+                return 1
         finally:
+            if daemon_restart_proc is not None and daemon_restart_proc.poll() is None:
+                daemon_restart_proc.terminate()
+                try:
+                    daemon_restart_proc.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    daemon_restart_proc.kill()
+                    daemon_restart_proc.communicate(timeout=5)
             if daemon_proc.poll() is None:
                 daemon_proc.terminate()
                 try:
