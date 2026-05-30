@@ -4943,6 +4943,151 @@ def staged_record_summary(records):
     }
 
 
+def staged_file_workflow_action_records(cfg, staged_records):
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    base = "scripts/busierbox-server --config " + shquote(config_path)
+    records = []
+
+    def add(rec, action_id, category, label, command, workflow, action_state, action_reason,
+            available=True, requires_confirmation=False, requires_target=False,
+            queues_offline_work=False, can_run_from_curses_enter=False,
+            curses_enter_action=""):
+        request = str(rec.get("request_name") or rec.get("name") or "")
+        if not request:
+            return
+        target_id = str(rec.get("target_id") or "")
+        records.append({
+            "id": f"{request}:{action_id}",
+            "action_id": action_id,
+            "request_name": request,
+            "name": str(rec.get("name") or request),
+            "stage_kind": str(rec.get("stage_kind") or "file"),
+            "category": category,
+            "workflow": workflow,
+            "label": label,
+            "command": command,
+            "headless_command": command,
+            "target_id": target_id,
+            "target_label": str(rec.get("target_label") or ""),
+            "route_kind": str(rec.get("route_kind") or ""),
+            "bridge_profile": str(rec.get("bridge_profile") or ""),
+            "bridge_route_path": str(rec.get("bridge_route_path") or ""),
+            "source_path": str(rec.get("source_path") or ""),
+            "source_exists": bool(rec.get("source_exists")),
+            "release_path": str(rec.get("release_path") or ""),
+            "tuple_path": str(rec.get("tuple_path") or ""),
+            "payload_preset": str(rec.get("payload_preset") or ""),
+            "sha256": str(rec.get("sha256") or ""),
+            "size": rec.get("size", ""),
+            "fetch_command": str(rec.get("fetch_command") or ""),
+            "fetch_command_force": str(rec.get("fetch_command_force") or ""),
+            "available": bool(available),
+            "requires_input": False,
+            "requires_confirmation": bool(requires_confirmation),
+            "requires_target": bool(requires_target),
+            "queues_offline_work": bool(queues_offline_work),
+            "operator_action_state": action_state,
+            "operator_action_reason": action_reason,
+            "can_run_from_curses_enter": bool(can_run_from_curses_enter),
+            "curses_enter_action": curses_enter_action,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "tui_visible": True,
+            "safety_boundary": "operator-side staged file workflow; target fetch still requires explicit target-side command or poll",
+        })
+
+    for rec in staged_records or []:
+        if not isinstance(rec, dict):
+            continue
+        request = str(rec.get("request_name") or rec.get("name") or "")
+        if not request:
+            continue
+        target_id = str(rec.get("target_id") or "")
+        add(
+            rec, "inspect-staged", "inspect", f"Inspect staged request {request}",
+            base + " --list-staged", "file-service", "ready", "run-now",
+        )
+        add(
+            rec, "show-fetch-command", "file-transfer", f"Show target fetch command for {request}",
+            base + " --list-staged", "file-service", "ready", "show-command",
+            can_run_from_curses_enter=True, curses_enter_action="show-fetch-command",
+        )
+        if target_id:
+            queue_command = (
+                base + " --target-id " + shquote(target_id)
+                + " --run-target-workflow-action queue-staged-fetch --target-workflow-request-name "
+                + shquote(request)
+            )
+            add(
+                rec, "queue-staged-fetch", "mailbox", f"Queue staged fetch for {target_id}",
+                queue_command, "command-queue", "queueable-offline", "queues-until-phone-home",
+                requires_target=True, queues_offline_work=True,
+            )
+        else:
+            add(
+                rec, "queue-staged-fetch", "mailbox", "Queue staged fetch for a selected target",
+                base + " --target-id TARGET_ID --run-target-workflow-action queue-staged-fetch --target-workflow-request-name " + shquote(request),
+                "command-queue", "needs-target", "target-required",
+                available=False, requires_target=True, queues_offline_work=True,
+            )
+        add(
+            rec, "unstage", "configuration", f"Remove staged request {request}",
+            base + " --unstage " + shquote(request) + " --list-staged",
+            "file-service", "confirm-required", "confirmation-required",
+            requires_confirmation=True,
+        )
+    records.sort(key=lambda rec: (rec.get("request_name", ""), rec.get("category", ""), rec.get("action_id", "")))
+    return records
+
+
+def staged_file_workflow_action_indexes(records):
+    return {
+        "staged_file_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "staged_file_workflow_actions_by_action_id": records_by_key(records, "action_id"),
+        "staged_file_workflow_actions_by_request_name": records_by_key(records, "request_name"),
+        "staged_file_workflow_actions_by_stage_kind": records_by_key(records, "stage_kind"),
+        "staged_file_workflow_actions_by_category": records_by_key(records, "category"),
+        "staged_file_workflow_actions_by_workflow": records_by_key(records, "workflow"),
+        "staged_file_workflow_actions_by_target_id": records_by_key(records, "target_id"),
+        "staged_file_workflow_actions_by_route_kind": records_by_key(records, "route_kind"),
+        "staged_file_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
+        "staged_file_workflow_actions_by_source_exists": records_by_key(records, "source_exists"),
+        "staged_file_workflow_actions_by_available": records_by_key(records, "available"),
+        "staged_file_workflow_actions_by_requires_target": records_by_key(records, "requires_target"),
+        "staged_file_workflow_actions_by_queues_offline_work": records_by_key(records, "queues_offline_work"),
+        "staged_file_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
+        "staged_file_workflow_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "staged_file_workflow_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "staged_file_workflow_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
+        "staged_file_workflow_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
+    }
+
+
+def staged_file_workflow_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "request_counts": record_count_by_key(records, "request_name"),
+        "stage_kind_counts": record_count_by_key(records, "stage_kind"),
+        "category_counts": record_count_by_key(records, "category"),
+        "workflow_counts": record_count_by_key(records, "workflow"),
+        "target_counts": record_count_by_key(records, "target_id"),
+        "route_kind_counts": record_count_by_key(records, "route_kind"),
+        "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
+        "action_counts": record_count_by_key(records, "action_id"),
+        "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
+        "requires_target_count": len([rec for rec in records or [] if rec.get("requires_target") is True]),
+        "queues_offline_work_count": len([rec for rec in records or [] if rec.get("queues_offline_work") is True]),
+        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
+        "source_exists_counts": record_count_by_key(records, "source_exists"),
+        "available_counts": record_count_by_key(records, "available"),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
+        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
+    }
+
+
 def status_path_records(paths):
     records = {}
     dir_keys = {"operator_session_dir", "session_root"}
@@ -12071,6 +12216,9 @@ def status_document(cfg):
      staged_by_fetch_command_force,
      staged_by_source_exists,
      staged_by_kind_source_exists) = staged_record_indexes(staged_records)
+    staged_file_workflow_actions = staged_file_workflow_action_records(cfg, staged_records)
+    staged_file_workflow_action_index_maps = staged_file_workflow_action_indexes(staged_file_workflow_actions)
+    staged_file_workflow_action_stats = staged_file_workflow_action_summary(staged_file_workflow_actions)
     ips = local_ips()
     selected_local_ip = (ips or ["OPERATOR_IP"])[0]
     operator_network_records = [
@@ -13410,6 +13558,26 @@ def status_document(cfg):
         "staged_source_exists_kind_counts": staged_summary.get("source_exists_by_kind") or {},
         "staged_source_missing_kind_counts": staged_summary.get("source_missing_by_kind") or {},
         "latest_staged_at": latest_record_value(staged_records, ("staged_at",)),
+        "staged_file_workflow_action_count": staged_file_workflow_action_stats.get("total_count", 0),
+        "staged_file_workflow_action_available_count": staged_file_workflow_action_stats.get("available_count", 0),
+        "staged_file_workflow_action_requires_target_count": staged_file_workflow_action_stats.get("requires_target_count", 0),
+        "staged_file_workflow_action_queues_offline_work_count": staged_file_workflow_action_stats.get("queues_offline_work_count", 0),
+        "staged_file_workflow_action_requires_confirmation_count": staged_file_workflow_action_stats.get("requires_confirmation_count", 0),
+        "staged_file_workflow_action_can_run_from_curses_enter_count": staged_file_workflow_action_stats.get("can_run_from_curses_enter_count", 0),
+        "staged_file_workflow_action_request_counts": staged_file_workflow_action_stats.get("request_counts") or {},
+        "staged_file_workflow_action_stage_kind_counts": staged_file_workflow_action_stats.get("stage_kind_counts") or {},
+        "staged_file_workflow_action_category_counts": staged_file_workflow_action_stats.get("category_counts") or {},
+        "staged_file_workflow_action_workflow_counts": staged_file_workflow_action_stats.get("workflow_counts") or {},
+        "staged_file_workflow_action_target_counts": staged_file_workflow_action_stats.get("target_counts") or {},
+        "staged_file_workflow_action_route_kind_counts": staged_file_workflow_action_stats.get("route_kind_counts") or {},
+        "staged_file_workflow_action_bridge_profile_counts": staged_file_workflow_action_stats.get("bridge_profile_counts") or {},
+        "staged_file_workflow_action_action_counts": staged_file_workflow_action_stats.get("action_counts") or {},
+        "staged_file_workflow_action_source_exists_counts": staged_file_workflow_action_stats.get("source_exists_counts") or {},
+        "staged_file_workflow_action_available_counts": staged_file_workflow_action_stats.get("available_counts") or {},
+        "staged_file_workflow_action_operator_action_state_counts": staged_file_workflow_action_stats.get("operator_action_state_counts") or {},
+        "staged_file_workflow_action_operator_action_reason_counts": staged_file_workflow_action_stats.get("operator_action_reason_counts") or {},
+        "staged_file_workflow_action_can_run_from_curses_enter_counts": staged_file_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
+        "staged_file_workflow_action_curses_enter_action_counts": staged_file_workflow_action_stats.get("curses_enter_action_counts") or {},
         "service_actual_counts": record_count_by_key(services, "actual"),
         "service_configured_counts": record_count_by_key(services, "configured"),
         "service_bind_address_counts": record_count_by_key(services, "bind_address"),
@@ -14336,6 +14504,28 @@ def status_document(cfg):
                 "staged_by_source_exists", "staged_by_kind_source_exists",
             ), "staged_count",
         ),
+        "staged_file_workflow_actions": api_collection_record(
+            "staged_file_workflow_actions", staged_file_workflow_actions, "id", (
+                "staged_file_workflow_actions_by_id",
+                "staged_file_workflow_actions_by_action_id",
+                "staged_file_workflow_actions_by_request_name",
+                "staged_file_workflow_actions_by_stage_kind",
+                "staged_file_workflow_actions_by_category",
+                "staged_file_workflow_actions_by_workflow",
+                "staged_file_workflow_actions_by_target_id",
+                "staged_file_workflow_actions_by_route_kind",
+                "staged_file_workflow_actions_by_bridge_profile",
+                "staged_file_workflow_actions_by_source_exists",
+                "staged_file_workflow_actions_by_available",
+                "staged_file_workflow_actions_by_requires_target",
+                "staged_file_workflow_actions_by_queues_offline_work",
+                "staged_file_workflow_actions_by_requires_confirmation",
+                "staged_file_workflow_actions_by_operator_action_state",
+                "staged_file_workflow_actions_by_operator_action_reason",
+                "staged_file_workflow_actions_by_can_run_from_curses_enter",
+                "staged_file_workflow_actions_by_curses_enter_action",
+            ), "staged_file_workflow_action_count",
+        ),
         "target_file_transfer_records": api_collection_record(
             "target_file_transfer_records", target_file_transfer_records, "id", (
                 "target_file_transfer_records_by_id",
@@ -14806,7 +14996,7 @@ def status_document(cfg):
             "selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
             "applied_to": [
                 "targets", "uploads", "fetches", "sessions", "events",
-                "command_queue.commands", "staged_records",
+                "command_queue.commands", "staged_records", "staged_file_workflow_actions",
                 "target_command_records", "target_phone_home_records",
             ] if target_filter_id else [],
             "unfiltered_counts": unfiltered_counts,
@@ -14818,6 +15008,7 @@ def status_document(cfg):
                 "events": len(events),
                 "command_queue_commands": len(command_queue.get("commands") or []),
                 "staged_records": len(staged_records),
+                "staged_file_workflow_actions": len(staged_file_workflow_actions),
                 "target_command_records": len(target_command_records),
                 "target_phone_home_records": len(target_phone_home_records),
             },
@@ -15036,6 +15227,8 @@ def status_document(cfg):
         "staged_by_fetch_command_force": staged_by_fetch_command_force,
         "staged_by_source_exists": staged_by_source_exists,
         "staged_by_kind_source_exists": staged_by_kind_source_exists,
+        "staged_file_workflow_actions": staged_file_workflow_actions,
+        **staged_file_workflow_action_index_maps,
         "target_file_transfer_records": target_file_transfer_records,
         **target_file_transfer_index_maps,
         "target_activity_records": target_activity_records,
@@ -17617,6 +17810,18 @@ def run_line_tui(cfg):
                 print(exc)
         elif choice == "7":
             print_staged(cfg)
+            snap = workbench_snapshot(cfg)
+            staged_actions = snap.get("staged_file_workflow_actions") or []
+            if staged_actions:
+                print("Staged file workflow actions:")
+                for rec in staged_actions:
+                    print(
+                        f"  {rec.get('id', '')} "
+                        f"state={rec.get('operator_action_state', '') or '-'} "
+                        f"reason={rec.get('operator_action_reason', '') or '-'} "
+                        f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'}"
+                    )
+                    print(f"    command: {rec.get('headless_command', rec.get('command', ''))}")
             headless = (
                 "scripts/busierbox-server --config "
                 + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
@@ -17625,7 +17830,8 @@ def run_line_tui(cfg):
             print(f"headless_command: {headless}")
             append_event(cfg, "workbench", "workbench_staged_files_viewed", details={
                 "headless_command": headless,
-                "staged_count": len(staged_record_list(enriched_staged_records(cfg))),
+                "staged_count": len(snap.get("staged_records") or []),
+                "staged_file_workflow_action_count": len(staged_actions),
             })
         elif choice == "8" or choice == "d":
             name_line = line_input("target request name> ")
@@ -18544,6 +18750,8 @@ def run_curses_tui(cfg):
             }
             service_workflow_actions_by_service = snap.get("service_workflow_actions_by_service") or {}
             service_workflow_actions_by_id = snap.get("service_workflow_actions_by_id") or {}
+            staged_file_workflow_actions_by_request = snap.get("staged_file_workflow_actions_by_request_name") or {}
+            staged_file_workflow_actions_by_id = snap.get("staged_file_workflow_actions_by_id") or {}
             services_by_name = {str(row.get("name") or ""): row for row in services}
             daemon_service_names = configured_daemon_services(cfg, []) or ["file-service", "command-queue"]
             daemon_records = [{"kind": "daemon", "name": "operator-daemon", "row": services_by_name.get("operator-daemon") or {}}]
@@ -18611,7 +18819,11 @@ def run_curses_tui(cfg):
             for idx, name in enumerate(staged_names):
                 rec = snap["staged"][name]
                 prefix = ">" if pane == 1 and idx == selected else " "
-                staged_lines.append(f"{prefix} {name} {rec.get('stage_kind', 'file')} {rec.get('size', '')}B {str(rec.get('sha256', ''))[:8]}")
+                show_action = staged_file_workflow_actions_by_id.get(f"{name}:show-fetch-command") or {}
+                staged_lines.append(
+                    f"{prefix} {name} {rec.get('stage_kind', 'file')} {rec.get('size', '')}B "
+                    f"{str(rec.get('sha256', ''))[:8]} enter={show_action.get('curses_enter_action', '') or '-'}"
+                )
             staged_lines = staged_lines or [" none"]
             detail_lines = []
             if pane == 0 and services:
@@ -18643,6 +18855,10 @@ def run_curses_tui(cfg):
             elif pane == 1 and staged_names:
                 name = staged_names[min(selected, len(staged_names) - 1)]
                 rec = snap["staged"][name]
+                staged_actions = staged_file_workflow_actions_by_request.get(name) or []
+                show_action = staged_file_workflow_actions_by_id.get(f"{name}:show-fetch-command") or {}
+                queue_action = staged_file_workflow_actions_by_id.get(f"{name}:queue-staged-fetch") or {}
+                unstage_action = staged_file_workflow_actions_by_id.get(f"{name}:unstage") or {}
                 detail_lines = [
                     f"request: {name}",
                     f"kind: {rec.get('stage_kind', 'file')}",
@@ -18656,8 +18872,16 @@ def run_curses_tui(cfg):
                     f"source_exists: {rec.get('source_exists', False)}",
                     f"target_id: {rec.get('target_id', '') or '-'}",
                     f"target_label: {rec.get('target_label', '') or '-'}",
+                    f"staged_file_workflow_actions: {len(staged_actions)}",
+                    f"show_fetch_action_state: {show_action.get('operator_action_state', '') or '-'} reason={show_action.get('operator_action_reason', '') or '-'}",
+                    f"queue_action_state: {queue_action.get('operator_action_state', '') or '-'} reason={queue_action.get('operator_action_reason', '') or '-'}",
+                    f"unstage_action_state: {unstage_action.get('operator_action_state', '') or '-'} reason={unstage_action.get('operator_action_reason', '') or '-'}",
+                    f"queue_command: {queue_action.get('headless_command', queue_action.get('command', '')) or '-'}",
+                    f"unstage_command: {unstage_action.get('headless_command', unstage_action.get('command', '')) or '-'}",
                     rec.get("fetch_command") or render_fetch_command(name, cfg, host=snap["selected_local_ip"]),
                     rec.get("fetch_command_force") or render_fetch_command(name, cfg, host=snap["selected_local_ip"], force=True),
+                    "enter shows staged fetch command",
+                    "action 7 lists staged workflow actions",
                     "v opens source in pager",
                 ]
             elif pane == 2 and target_file_transfer_records:
@@ -19139,6 +19363,14 @@ def run_curses_tui(cfg):
                             service,
                             headless_command=action.get("headless_command", action.get("command", "")),
                         )
+                elif pane == 1 and staged_names:
+                    name = staged_names[min(selected, len(staged_names) - 1)]
+                    rec = snap["staged"][name]
+                    action = staged_file_workflow_actions_by_id.get(f"{name}:show-fetch-command") or {}
+                    command = rec.get("fetch_command") or render_fetch_command(name, cfg, host=snap["selected_local_ip"])
+                    safe_add(stdscr, height - 3, 0, f"staged action: {action.get('operator_action_state', '') or 'ready'} {action.get('operator_action_reason', '') or 'show-command'}")
+                    safe_add(stdscr, height - 2, 0, command)
+                    stdscr.getch()
                 elif pane == 6 and release_artifacts:
                     rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
                     try:

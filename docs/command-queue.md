@@ -371,6 +371,20 @@ fields. Indexes such as `target_file_transfer_records_by_target_id`,
 files pane without stitching together `staged_records`, `uploads`, and
 `fetches` itself.
 
+Status JSON also exposes `staged_file_workflow_actions`, a per-request action
+catalog for staged files and staged release artifacts. Each staged request gets
+records to inspect the staged entry, show the target-side fetch command, queue a
+staged fetch for a known target through the mailbox, and unstage the request.
+The records include `headless_command`, target/route fields, source existence,
+release tuple metadata, offline queueability, confirmation requirements, and
+`operator_action_state` / `operator_action_reason`. Indexes such as
+`staged_file_workflow_actions_by_request_name`,
+`staged_file_workflow_actions_by_target_id`,
+`staged_file_workflow_actions_by_queues_offline_work`, and
+`staged_file_workflow_actions_by_can_run_from_curses_enter` let the TUI render
+the staged-files pane and Enter behavior from the same API contract used by
+headless operators.
+
 Status JSON also exposes `target_activity_records`, a combined per-target feed
 derived from heartbeat target records, mailbox records, phone-home attempts,
 file transfers, bridge records, sessions, and latest survey results. The feed is
