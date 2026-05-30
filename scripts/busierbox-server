@@ -5331,6 +5331,144 @@ def fetch_record_indexes(records):
     )
 
 
+def target_file_transfer_records_from_sources(staged_records, uploads, fetches):
+    records = []
+    for rec in staged_records or []:
+        if not isinstance(rec, dict):
+            continue
+        request_name = str(rec.get("request_name") or rec.get("name") or "")
+        timestamp = str(rec.get("staged_at") or rec.get("created_at") or rec.get("updated_at") or "")
+        source_path = str(rec.get("source_path") or "")
+        sha256_value = str(rec.get("sha256") or "")
+        records.append({
+            "id": f"staged:{request_name}" if request_name else f"staged:{len(records)}",
+            "operation": "staged-fetch",
+            "source_collection": "staged_records",
+            "status": "available" if rec.get("source_exists") is True else "source-missing",
+            "timestamp": timestamp,
+            "created_at": str(rec.get("created_at") or rec.get("staged_at") or ""),
+            "updated_at": str(rec.get("updated_at") or ""),
+            "request_name": request_name,
+            "name": str(rec.get("name") or request_name),
+            "filename": Path(source_path or request_name).name if (source_path or request_name) else "",
+            "stage_kind": str(rec.get("stage_kind") or "file"),
+            "target_id": str(rec.get("target_id") or ""),
+            "target_label": str(rec.get("target_label") or ""),
+            "source_path": source_path,
+            "stored_path": "",
+            "metadata_path": "",
+            "session_id": "",
+            "session_path": "",
+            "remote_addr": "",
+            "sha256": sha256_value,
+            "sha256_prefix": sha256_value[:12],
+            "size": rec.get("size", 0),
+            "route_kind": str(rec.get("route_kind") or "direct"),
+            "bridge_profile": str(rec.get("bridge_profile") or ""),
+            "bridge_route_path": str(rec.get("bridge_route_path") or ""),
+            "source_exists": rec.get("source_exists") is True,
+            "stored_exists": False,
+            "fetch_command": str(rec.get("fetch_command") or ""),
+            "fetch_command_force": str(rec.get("fetch_command_force") or ""),
+        })
+    for rec in uploads or []:
+        if not isinstance(rec, dict):
+            continue
+        metadata_path = str(rec.get("metadata_path") or rec.get("_metadata_path") or "")
+        timestamp = str(rec.get("timestamp") or rec.get("updated_at") or rec.get("created_at") or "")
+        sha256_value = str(rec.get("sha256") or "")
+        records.append({
+            "id": f"upload:{metadata_path}" if metadata_path else f"upload:{len(records)}",
+            "operation": "upload",
+            "source_collection": "uploads",
+            "status": str(rec.get("status") or rec.get("transfer_status") or ""),
+            "timestamp": timestamp,
+            "created_at": str(rec.get("created_at") or ""),
+            "updated_at": str(rec.get("updated_at") or ""),
+            "request_name": str(rec.get("request_name") or ""),
+            "name": str(rec.get("filename") or ""),
+            "filename": str(rec.get("filename") or ""),
+            "stage_kind": str(rec.get("upload_kind") or "file"),
+            "target_id": str(rec.get("target_id") or ""),
+            "target_label": str(rec.get("target_label") or ""),
+            "source_path": str(rec.get("source_path") or ""),
+            "stored_path": str(rec.get("stored_path") or ""),
+            "metadata_path": metadata_path,
+            "session_id": str(rec.get("session_id") or ""),
+            "session_path": str(rec.get("session_path") or ""),
+            "remote_addr": str(rec.get("remote_addr") or ""),
+            "sha256": sha256_value,
+            "sha256_prefix": sha256_value[:12],
+            "size": rec.get("size", 0),
+            "route_kind": str(rec.get("route_kind") or "direct"),
+            "bridge_profile": str(rec.get("bridge_profile") or ""),
+            "bridge_route_path": str(rec.get("bridge_route_path") or ""),
+            "source_exists": False,
+            "stored_exists": rec.get("stored_exists") is True,
+            "fetch_command": "",
+            "fetch_command_force": "",
+        })
+    for rec in fetches or []:
+        if not isinstance(rec, dict):
+            continue
+        metadata_path = str(rec.get("metadata_path") or "")
+        request_name = str(rec.get("request_name") or "")
+        timestamp = str(rec.get("timestamp") or rec.get("updated_at") or rec.get("created_at") or "")
+        source_path = str(rec.get("source_path") or "")
+        sha256_value = str(rec.get("sha256") or "")
+        records.append({
+            "id": f"fetch:{metadata_path}:{request_name}:{timestamp}" if metadata_path or request_name or timestamp else f"fetch:{len(records)}",
+            "operation": "fetch",
+            "source_collection": "fetches",
+            "status": str(rec.get("status") or ""),
+            "http_status": rec.get("http_status", ""),
+            "timestamp": timestamp,
+            "created_at": str(rec.get("created_at") or ""),
+            "updated_at": str(rec.get("updated_at") or ""),
+            "request_name": request_name,
+            "name": request_name,
+            "filename": Path(source_path or request_name).name if (source_path or request_name) else "",
+            "stage_kind": str(rec.get("stage_kind") or "file"),
+            "target_id": str(rec.get("target_id") or ""),
+            "target_label": str(rec.get("target_label") or ""),
+            "source_path": source_path,
+            "stored_path": "",
+            "metadata_path": metadata_path,
+            "session_id": str(rec.get("session_id") or ""),
+            "session_path": str(rec.get("session_path") or ""),
+            "remote_addr": str(rec.get("remote_addr") or ""),
+            "sha256": sha256_value,
+            "sha256_prefix": sha256_value[:12],
+            "size": rec.get("size", 0),
+            "route_kind": str(rec.get("route_kind") or "direct"),
+            "bridge_profile": str(rec.get("bridge_profile") or ""),
+            "bridge_route_path": str(rec.get("bridge_route_path") or ""),
+            "source_exists": rec.get("source_exists") is True,
+            "stored_exists": False,
+            "fetch_command": "",
+            "fetch_command_force": "",
+        })
+    records.sort(key=lambda item: (str(item.get("timestamp") or ""), str(item.get("id") or "")), reverse=True)
+    return records
+
+
+def target_file_transfer_record_indexes(records):
+    return {
+        "target_file_transfer_records_by_id": {rec.get("id", ""): rec for rec in records or [] if isinstance(rec, dict) and rec.get("id")},
+        "target_file_transfer_records_by_target_id": records_by_key(records, "target_id"),
+        "target_file_transfer_records_by_target_label": records_by_key(records, "target_label"),
+        "target_file_transfer_records_by_operation": records_by_key(records, "operation"),
+        "target_file_transfer_records_by_source_collection": records_by_key(records, "source_collection"),
+        "target_file_transfer_records_by_status": records_by_key(records, "status"),
+        "target_file_transfer_records_by_route_kind": records_by_key(records, "route_kind"),
+        "target_file_transfer_records_by_bridge_profile": records_by_key(records, "bridge_profile"),
+        "target_file_transfer_records_by_request_name": records_by_key(records, "request_name"),
+        "target_file_transfer_records_by_filename": records_by_key(records, "filename"),
+        "target_file_transfer_records_by_sha256": records_by_key(records, "sha256"),
+        "target_file_transfer_records_by_session_id": records_by_key(records, "session_id"),
+    }
+
+
 def session_record_indexes(records):
     by_id = {}
     by_service = {}
@@ -12263,6 +12401,8 @@ def status_document(cfg):
      fetches_by_status_source_exists,
      fetches_by_status_remote_addr,
      fetches_by_http_status_remote_addr) = fetch_record_indexes(fetches)
+    target_file_transfer_records = target_file_transfer_records_from_sources(staged_records, uploads, fetches)
+    target_file_transfer_index_maps = target_file_transfer_record_indexes(target_file_transfer_records)
     summary, warnings = status_summary_and_warnings(services)
     summary.update({
         "bridge_profile_count": len(bridge_profiles),
@@ -12778,6 +12918,14 @@ def status_document(cfg):
         "fetch_status_remote_counts": {key: len(value) for key, value in fetches_by_status_remote_addr.items()},
         "fetch_http_status_remote_counts": {key: len(value) for key, value in fetches_by_http_status_remote_addr.items()},
         "latest_fetch_at": latest_record_value(fetches, ("timestamp", "updated_at")),
+        "target_file_transfer_record_count": len(target_file_transfer_records),
+        "target_file_transfer_operation_counts": record_count_by_key(target_file_transfer_records, "operation"),
+        "target_file_transfer_source_collection_counts": record_count_by_key(target_file_transfer_records, "source_collection"),
+        "target_file_transfer_status_counts": record_count_by_key(target_file_transfer_records, "status"),
+        "target_file_transfer_target_counts": record_count_by_key(target_file_transfer_records, "target_id"),
+        "target_file_transfer_route_kind_counts": record_count_by_key(target_file_transfer_records, "route_kind"),
+        "target_file_transfer_bridge_profile_counts": record_count_by_key(target_file_transfer_records, "bridge_profile"),
+        "latest_target_file_transfer_at": latest_record_value(target_file_transfer_records, ("timestamp", "updated_at", "created_at")),
         **target_summary,
         "target_registry_state_record_count": len(target_registry_state_records),
         "target_registry_has_targets": bool(target_registry_state_record.get("has_targets", False)),
@@ -13532,6 +13680,22 @@ def status_document(cfg):
                 "staged_by_source_exists", "staged_by_kind_source_exists",
             ), "staged_count",
         ),
+        "target_file_transfer_records": api_collection_record(
+            "target_file_transfer_records", target_file_transfer_records, "id", (
+                "target_file_transfer_records_by_id",
+                "target_file_transfer_records_by_target_id",
+                "target_file_transfer_records_by_target_label",
+                "target_file_transfer_records_by_operation",
+                "target_file_transfer_records_by_source_collection",
+                "target_file_transfer_records_by_status",
+                "target_file_transfer_records_by_route_kind",
+                "target_file_transfer_records_by_bridge_profile",
+                "target_file_transfer_records_by_request_name",
+                "target_file_transfer_records_by_filename",
+                "target_file_transfer_records_by_sha256",
+                "target_file_transfer_records_by_session_id",
+            ), "target_file_transfer_record_count",
+        ),
         "staged_files_state_records": api_collection_record(
             "staged_files_state_records", staged_files_state_records, "path", (
                 "staged_files_state_records_by_path",
@@ -14189,6 +14353,8 @@ def status_document(cfg):
         "staged_by_fetch_command_force": staged_by_fetch_command_force,
         "staged_by_source_exists": staged_by_source_exists,
         "staged_by_kind_source_exists": staged_by_kind_source_exists,
+        "target_file_transfer_records": target_file_transfer_records,
+        **target_file_transfer_index_maps,
         "uploads": uploads,
         "uploads_by_session": records_by_session(uploads),
         "uploads_by_filename": uploads_by_filename,
@@ -14617,6 +14783,7 @@ def print_target_summary(doc, limit=8):
     )
     mailbox_by_target = doc.get("target_mailbox_records_by_target_id") or {}
     phone_home_by_target = doc.get("target_phone_home_records_by_target_id") or {}
+    file_transfers_by_target = doc.get("target_file_transfer_records_by_target_id") or {}
     for rec in records[:limit]:
         aliases = ",".join(str(item) for item in rec.get("aliases") or []) or "-"
         remotes = ",".join(str(item) for item in rec.get("remote_addresses") or []) or "-"
@@ -14705,6 +14872,18 @@ def print_target_summary(doc, limit=8):
                 f"at={rec.get('latest_file_transfer_at', '') or '-'} "
                 f"id={rec.get('latest_file_transfer_id', '') or '-'} "
                 f"route={file_route}"
+            )
+        target_id = str(rec.get("target_id") or "")
+        for item in (file_transfers_by_target.get(target_id) or [])[:3]:
+            transfer_route = str(item.get("route_kind") or "-")
+            if item.get("bridge_profile"):
+                transfer_route += f" bridge_profile={item.get('bridge_profile', '')}"
+            label = item.get("filename") or item.get("request_name") or item.get("source_path") or item.get("stored_path") or "-"
+            print(
+                f"      file_transfer {item.get('operation', '') or '-'} "
+                f"status={item.get('status', '') or '-'} "
+                f"at={item.get('timestamp', '') or '-'} "
+                f"name={label} route={transfer_route}"
             )
         if rec.get("latest_survey_result_at"):
             survey_route = f"{rec.get('latest_survey_result_route_kind', '') or '-'}"

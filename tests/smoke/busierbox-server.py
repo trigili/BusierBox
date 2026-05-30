@@ -6804,6 +6804,48 @@ def main():
             print("server api status missing target collection", file=sys.stderr)
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
+        target_transfer_api = (upload_doc.get("api_collections") or {}).get("target_file_transfer_records") or {}
+        target_transfer_records = upload_doc.get("target_file_transfer_records") or []
+        target_transfers_by_target = upload_doc.get("target_file_transfer_records_by_target_id") or {}
+        target_upload_transfers = target_transfers_by_target.get("target-alpha") or []
+        target_upload_transfer = next(
+            (rec for rec in target_upload_transfers if rec.get("operation") == "upload"),
+            {},
+        )
+        if (upload_summary.get("target_file_transfer_record_count") != 1 or
+                upload_summary.get("target_file_transfer_operation_counts", {}).get("upload") != 1 or
+                upload_summary.get("target_file_transfer_source_collection_counts", {}).get("uploads") != 1 or
+                upload_summary.get("target_file_transfer_status_counts", {}).get("ok") != 1 or
+                upload_summary.get("target_file_transfer_target_counts", {}).get("target-alpha") != 1 or
+                upload_summary.get("target_file_transfer_route_kind_counts", {}).get("direct") != 1 or
+                len(target_transfer_records) != 1 or
+                target_upload_transfer.get("target_id") != "target-alpha" or
+                target_upload_transfer.get("target_label") != "Alpha Router" or
+                target_upload_transfer.get("source_collection") != "uploads" or
+                target_upload_transfer.get("status") != "ok" or
+                target_upload_transfer.get("filename") != "evidence.txt" or
+                target_upload_transfer.get("stage_kind") != "evidence" or
+                target_upload_transfer.get("source_path") != "/tmp/evidence.txt" or
+                target_upload_transfer.get("stored_path") != str(uploaded[0]) or
+                target_upload_transfer.get("metadata_path") != str(metadata_path) or
+                target_upload_transfer.get("session_id") != session_json_paths[0].parent.name or
+                target_upload_transfer.get("sha256") != upload_sha256 or
+                target_upload_transfer.get("sha256_prefix") != upload_sha256[:12] or
+                target_upload_transfer.get("stored_exists") is not True or
+                target_upload_transfer.get("route_kind") != "direct" or
+                (upload_doc.get("target_file_transfer_records_by_operation") or {}).get("upload", [{}])[0].get("target_id") != "target-alpha" or
+                (upload_doc.get("target_file_transfer_records_by_source_collection") or {}).get("uploads", [{}])[0].get("target_id") != "target-alpha" or
+                (upload_doc.get("target_file_transfer_records_by_status") or {}).get("ok", [{}])[0].get("target_id") != "target-alpha" or
+                (upload_doc.get("target_file_transfer_records_by_route_kind") or {}).get("direct", [{}])[0].get("target_id") != "target-alpha" or
+                (upload_doc.get("target_file_transfer_records_by_filename") or {}).get("evidence.txt", [{}])[0].get("target_id") != "target-alpha" or
+                (upload_doc.get("target_file_transfer_records_by_sha256") or {}).get(upload_sha256, [{}])[0].get("target_id") != "target-alpha" or
+                "target_file_transfer_records_by_target_id" not in (target_transfer_api.get("indexes") or []) or
+                "target_file_transfer_records_by_operation" not in (target_transfer_api.get("indexes") or []) or
+                "target_file_transfer_records_by_status" not in (target_transfer_api.get("indexes") or []) or
+                "target_file_transfer_records" not in (upload_doc.get("api_resources_by_name") or {})):
+            print("server json status missing unified target file transfer records", file=sys.stderr)
+            print(upload_status_json.stdout, file=sys.stderr)
+            return 1
 
         action_operator_dir = Path(tmp) / "operator-session-target-actions"
         action_cfg = Path(tmp) / "server-config-target-actions.json"
@@ -6986,6 +7028,11 @@ def main():
             (event.get("details") or {}).get("action_id"): event.get("details") or {}
             for event in action_completed
         }
+        action_target_transfers = (action_doc.get("target_file_transfer_records_by_target_id") or {}).get("target-action") or []
+        action_staged_transfer = next(
+            (rec for rec in action_target_transfers if rec.get("operation") == "staged-fetch"),
+            {},
+        )
         line_workbench_state = (json.loads(line_action_state.read_text(encoding="utf-8")).get("services") or {}).get("workbench") or {}
         if (len(action_queue) != 3 or
                 len(queued_manual) != 1 or
@@ -7042,7 +7089,23 @@ def main():
                 action_doc.get("summary", {}).get("command_queue_target_counts", {}).get("target-action") != 3 or
                 action_doc.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 4 or
                 action_doc.get("summary", {}).get("target_workflow_action_target_phone_home_required_count") != 6 or
-                action_doc.get("summary", {}).get("staged_target_counts", {}).get("target-action") != 1):
+                action_doc.get("summary", {}).get("staged_target_counts", {}).get("target-action") != 1 or
+                action_doc.get("summary", {}).get("target_file_transfer_record_count") != 1 or
+                action_doc.get("summary", {}).get("target_file_transfer_operation_counts", {}).get("staged-fetch") != 1 or
+                action_doc.get("summary", {}).get("target_file_transfer_source_collection_counts", {}).get("staged_records") != 1 or
+                action_doc.get("summary", {}).get("target_file_transfer_status_counts", {}).get("available") != 1 or
+                action_doc.get("summary", {}).get("target_file_transfer_target_counts", {}).get("target-action") != 1 or
+                action_staged_transfer.get("target_id") != "target-action" or
+                action_staged_transfer.get("target_label") != "Action Router" or
+                action_staged_transfer.get("request_name") != "action-staged.txt" or
+                action_staged_transfer.get("filename") != "action-staged.txt" or
+                action_staged_transfer.get("source_path") != str(action_staged_source) or
+                action_staged_transfer.get("source_exists") is not True or
+                action_staged_transfer.get("status") != "available" or
+                action_staged_transfer.get("route_kind") != "direct" or
+                (action_doc.get("target_file_transfer_records_by_operation") or {}).get("staged-fetch", [{}])[0].get("target_id") != "target-action" or
+                (action_doc.get("target_file_transfer_records_by_request_name") or {}).get("action-staged.txt", [{}])[0].get("target_id") != "target-action" or
+                "target_file_transfer_records_by_request_name" not in ((action_doc.get("api_collections") or {}).get("target_file_transfer_records") or {}).get("indexes", [])):
             print("target workflow actions did not mutate target-scoped queue/staged state", file=sys.stderr)
             print(json.dumps(action_doc, indent=2, sort_keys=True), file=sys.stderr)
             print(json.dumps(line_workbench_state, indent=2, sort_keys=True), file=sys.stderr)

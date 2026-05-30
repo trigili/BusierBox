@@ -358,6 +358,19 @@ still waiting. Expired records expose `expired=true`, `status=expired`, and
 `target_mailbox_records_by_has_result` let TUI or API clients build per-target
 mailbox panes without scraping the raw command queue.
 
+For file workflows, status JSON exposes `target_file_transfer_records`, a
+unified target-scoped collection spanning staged target fetches, received
+uploads, and completed fetch attempts. Each record includes `operation`,
+`source_collection`, target id/label, request name or filename, source/stored
+paths, status, digest, session metadata when available, and direct/bridged route
+fields. Indexes such as `target_file_transfer_records_by_target_id`,
+`target_file_transfer_records_by_operation`,
+`target_file_transfer_records_by_status`,
+`target_file_transfer_records_by_route_kind`, and
+`target_file_transfer_records_by_request_name` let the TUI render a per-target
+files pane without stitching together `staged_records`, `uploads`, and
+`fetches` itself.
+
 Target status also exposes `targets_by_connectivity_state`,
 `targets_by_last_seen_via`, `targets_by_has_next_expected_poll`, and
 `targets_by_mailbox_pending_work`, plus workflow indexes such as
