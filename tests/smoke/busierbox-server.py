@@ -3761,6 +3761,26 @@ def main():
             "command_queue_file": str(daemon_queue),
             "targets_file": str(daemon_targets),
         }), encoding="utf-8")
+        daemon_labeled = run(
+            "scripts/busierbox-server", "--config", str(daemon_cfg),
+            "--set-target-label", "daemon-target",
+            "--target-label", "Daemon Target",
+        )
+        if daemon_labeled.returncode != 0:
+            print("operator daemon target label setup failed", file=sys.stderr)
+            print(daemon_labeled.stdout, file=sys.stderr)
+            print(daemon_labeled.stderr, file=sys.stderr)
+            return 1
+        daemon_queued = run(
+            "scripts/busierbox-server", "--config", str(daemon_cfg),
+            "--target-id", "daemon-target",
+            "--queue-command", "busierbox survey --json",
+        )
+        if daemon_queued.returncode != 0:
+            print("operator daemon queued work setup failed", file=sys.stderr)
+            print(daemon_queued.stdout, file=sys.stderr)
+            print(daemon_queued.stderr, file=sys.stderr)
+            return 1
         daemon_proc = subprocess.Popen(
             [
                 str(server),
@@ -3813,6 +3833,18 @@ def main():
                     daemon_actions_by_id.get("operator-daemon-start", {}).get("dry_run_command", "").find("--operator-daemon-workflow-dry-run") == -1 or
                     daemon_actions_by_id.get("operator-daemon-start", {}).get("daemon_attached") is not True or
                     daemon_actions_by_id.get("operator-daemon-start", {}).get("daemon_child_alive_count") != 1 or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("control_state_file") != str(daemon_state) or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("control_state_exists") is not True or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("command_queue_file") != str(daemon_queue) or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("command_queue_file_exists") is not True or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("command_queue_command_count") != 1 or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("command_queue_queued_count") != 1 or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("command_queue_target_count") != 1 or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("targets_file") != str(daemon_targets) or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("targets_file_exists") is not True or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("target_count") != 1 or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("staged_files_file") != str(daemon_staged) or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("workbench_jobs_file") != str(Path(tmp) / "operator-session" / "workbench-jobs.json") or
                     daemon_actions_by_id.get("operator-daemon-stop", {}).get("can_run_from_curses_enter") is not True or
                     daemon_actions_by_id.get("operator-daemon-stop", {}).get("operator_action_reason") != "confirmation-required" or
                     daemon_actions_by_id.get("operator-daemon-stop", {}).get("run_command", "").find("--confirm-operator-daemon-workflow-action") == -1 or
@@ -3822,7 +3854,13 @@ def main():
                     daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_attached_count") != 9 or
                     daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_workflow_counts", {}).get("operator-daemon") != 3 or
                     daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_workflow_counts", {}).get("systemd-user-service") != 6 or
-                    "operator_daemon_workflow_actions_by_daemon_attached" not in ((daemon_doc.get("api_collections") or {}).get("operator_daemon_workflow_actions") or {}).get("indexes", [])):
+                    daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_command_queue_command_count_counts", {}).get("1") != 9 or
+                    daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_target_count_counts", {}).get("1") != 9 or
+                    ((daemon_doc.get("operator_daemon_workflow_actions_by_command_queue_queued_count") or {}).get("1") or [{}])[0].get("id") != "operator-daemon-start" or
+                    ((daemon_doc.get("operator_daemon_workflow_actions_by_target_count") or {}).get("1") or [{}])[0].get("id") != "operator-daemon-start" or
+                    "operator_daemon_workflow_actions_by_daemon_attached" not in ((daemon_doc.get("api_collections") or {}).get("operator_daemon_workflow_actions") or {}).get("indexes", []) or
+                    "operator_daemon_workflow_actions_by_command_queue_command_count" not in ((daemon_doc.get("api_collections") or {}).get("operator_daemon_workflow_actions") or {}).get("indexes", []) or
+                    "operator_daemon_workflow_actions_by_target_count" not in ((daemon_doc.get("api_collections") or {}).get("operator_daemon_workflow_actions") or {}).get("indexes", [])):
                 print("operator daemon workflow actions missing attached daemon state", file=sys.stderr)
                 print(json.dumps(daemon_doc, indent=2, sort_keys=True), file=sys.stderr)
                 return 1

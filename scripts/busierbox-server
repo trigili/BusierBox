@@ -4218,6 +4218,53 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None):
         desired_services = ["file-service", "command-queue"]
     daemon_attached = daemon_status in ("starting", "listening") and bool(child_alive_count or child_pids)
     unit_name = systemd_user_unit_name("busierbox-operator.service")
+    queue_data = load_command_queue(cfg)
+    queue_commands = [
+        rec for rec in queue_data.get("commands") or []
+        if isinstance(rec, dict)
+    ]
+    command_queue_status_counts = {}
+    command_queue_target_ids = set()
+    for command_rec in queue_commands:
+        status = str(command_rec.get("status") or "")
+        if status:
+            command_queue_status_counts[status] = command_queue_status_counts.get(status, 0) + 1
+        target_id = str(command_rec.get("target_id") or "")
+        if target_id:
+            command_queue_target_ids.add(target_id)
+    targets_data = load_targets(cfg)
+    targets_map = targets_data.get("targets") if isinstance(targets_data, dict) else {}
+    if not isinstance(targets_map, dict):
+        targets_map = {}
+    staged_data = read_json_file(staged_file_path(cfg), {"schema": 1, "files": {}})
+    staged_files = staged_data.get("files") if isinstance(staged_data, dict) else {}
+    if not isinstance(staged_files, dict):
+        staged_files = {}
+    workbench_jobs_data = read_json_file(workbench_jobs_path(cfg), {"schema": 1, "jobs": {}})
+    workbench_jobs = workbench_jobs_data.get("jobs") if isinstance(workbench_jobs_data, dict) else {}
+    if not isinstance(workbench_jobs, dict):
+        workbench_jobs = {}
+    shared_state = {
+        "control_state_file": str(state_file_path(cfg)),
+        "control_state_exists": Path(state_file_path(cfg)).exists(),
+        "command_queue_file": str(command_queue_path(cfg)),
+        "command_queue_file_exists": Path(command_queue_path(cfg)).exists(),
+        "command_queue_command_count": len(queue_commands),
+        "command_queue_queued_count": int(command_queue_status_counts.get("queued", 0) or 0),
+        "command_queue_delivered_count": int(command_queue_status_counts.get("delivered", 0) or 0),
+        "command_queue_result_received_count": int(command_queue_status_counts.get("result-received", 0) or 0),
+        "command_queue_status_counts": command_queue_status_counts,
+        "command_queue_target_count": len(command_queue_target_ids),
+        "targets_file": str(targets_path(cfg)),
+        "targets_file_exists": Path(targets_path(cfg)).exists(),
+        "target_count": len(targets_map),
+        "staged_files_file": str(staged_file_path(cfg)),
+        "staged_files_file_exists": Path(staged_file_path(cfg)).exists(),
+        "staged_file_count": len(staged_files),
+        "workbench_jobs_file": str(workbench_jobs_path(cfg)),
+        "workbench_jobs_file_exists": Path(workbench_jobs_path(cfg)).exists(),
+        "workbench_job_count": len(workbench_jobs),
+    }
     records = []
 
     for action in actions:
@@ -4300,6 +4347,7 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None):
             "daemon_child_alive_count": child_alive_count,
             "daemon_child_pids": child_pids,
             "daemon_child_process_logs": daemon_state.get("child_process_logs") or {},
+            **shared_state,
             "systemd_user_unit_name": unit_name,
             "systemd_user_action": action_id.removeprefix("systemd-user-") if action_id.startswith("systemd-user-") else "",
             "background_supported": background_supported,
@@ -4331,6 +4379,16 @@ def operator_daemon_workflow_action_indexes(records):
         "operator_daemon_workflow_actions_by_workflow": records_by_key(records, "workflow"),
         "operator_daemon_workflow_actions_by_daemon_status": records_by_key(records, "daemon_status"),
         "operator_daemon_workflow_actions_by_daemon_attached": records_by_key(records, "daemon_attached"),
+        "operator_daemon_workflow_actions_by_control_state_exists": records_by_key(records, "control_state_exists"),
+        "operator_daemon_workflow_actions_by_command_queue_file_exists": records_by_key(records, "command_queue_file_exists"),
+        "operator_daemon_workflow_actions_by_command_queue_command_count": records_by_key(records, "command_queue_command_count"),
+        "operator_daemon_workflow_actions_by_command_queue_queued_count": records_by_key(records, "command_queue_queued_count"),
+        "operator_daemon_workflow_actions_by_command_queue_result_received_count": records_by_key(records, "command_queue_result_received_count"),
+        "operator_daemon_workflow_actions_by_command_queue_target_count": records_by_key(records, "command_queue_target_count"),
+        "operator_daemon_workflow_actions_by_targets_file_exists": records_by_key(records, "targets_file_exists"),
+        "operator_daemon_workflow_actions_by_target_count": records_by_key(records, "target_count"),
+        "operator_daemon_workflow_actions_by_staged_file_count": records_by_key(records, "staged_file_count"),
+        "operator_daemon_workflow_actions_by_workbench_job_count": records_by_key(records, "workbench_job_count"),
         "operator_daemon_workflow_actions_by_background_supported": records_by_key(records, "background_supported"),
         "operator_daemon_workflow_actions_by_foreground_runnable": records_by_key(records, "foreground_runnable"),
         "operator_daemon_workflow_actions_by_dry_run_supported": records_by_key(records, "dry_run_supported"),
@@ -4359,6 +4417,16 @@ def operator_daemon_workflow_action_summary(records):
         "workflow_counts": record_count_by_key(records, "workflow"),
         "daemon_status_counts": record_count_by_key(records, "daemon_status"),
         "daemon_attached_counts": record_count_by_key(records, "daemon_attached"),
+        "control_state_exists_counts": record_count_by_key(records, "control_state_exists"),
+        "command_queue_file_exists_counts": record_count_by_key(records, "command_queue_file_exists"),
+        "command_queue_command_count_counts": record_count_by_key(records, "command_queue_command_count"),
+        "command_queue_queued_count_counts": record_count_by_key(records, "command_queue_queued_count"),
+        "command_queue_result_received_count_counts": record_count_by_key(records, "command_queue_result_received_count"),
+        "command_queue_target_count_counts": record_count_by_key(records, "command_queue_target_count"),
+        "targets_file_exists_counts": record_count_by_key(records, "targets_file_exists"),
+        "target_count_counts": record_count_by_key(records, "target_count"),
+        "staged_file_count_counts": record_count_by_key(records, "staged_file_count"),
+        "workbench_job_count_counts": record_count_by_key(records, "workbench_job_count"),
         "background_supported_counts": record_count_by_key(records, "background_supported"),
         "foreground_runnable_counts": record_count_by_key(records, "foreground_runnable"),
         "dry_run_supported_counts": record_count_by_key(records, "dry_run_supported"),
@@ -15818,6 +15886,16 @@ def status_document(cfg):
         "operator_daemon_workflow_action_workflow_counts": operator_daemon_workflow_action_stats.get("workflow_counts") or {},
         "operator_daemon_workflow_action_daemon_status_counts": operator_daemon_workflow_action_stats.get("daemon_status_counts") or {},
         "operator_daemon_workflow_action_daemon_attached_counts": operator_daemon_workflow_action_stats.get("daemon_attached_counts") or {},
+        "operator_daemon_workflow_action_control_state_exists_counts": operator_daemon_workflow_action_stats.get("control_state_exists_counts") or {},
+        "operator_daemon_workflow_action_command_queue_file_exists_counts": operator_daemon_workflow_action_stats.get("command_queue_file_exists_counts") or {},
+        "operator_daemon_workflow_action_command_queue_command_count_counts": operator_daemon_workflow_action_stats.get("command_queue_command_count_counts") or {},
+        "operator_daemon_workflow_action_command_queue_queued_count_counts": operator_daemon_workflow_action_stats.get("command_queue_queued_count_counts") or {},
+        "operator_daemon_workflow_action_command_queue_result_received_count_counts": operator_daemon_workflow_action_stats.get("command_queue_result_received_count_counts") or {},
+        "operator_daemon_workflow_action_command_queue_target_count_counts": operator_daemon_workflow_action_stats.get("command_queue_target_count_counts") or {},
+        "operator_daemon_workflow_action_targets_file_exists_counts": operator_daemon_workflow_action_stats.get("targets_file_exists_counts") or {},
+        "operator_daemon_workflow_action_target_count_counts": operator_daemon_workflow_action_stats.get("target_count_counts") or {},
+        "operator_daemon_workflow_action_staged_file_count_counts": operator_daemon_workflow_action_stats.get("staged_file_count_counts") or {},
+        "operator_daemon_workflow_action_workbench_job_count_counts": operator_daemon_workflow_action_stats.get("workbench_job_count_counts") or {},
         "operator_daemon_workflow_action_background_supported_counts": operator_daemon_workflow_action_stats.get("background_supported_counts") or {},
         "operator_daemon_workflow_action_foreground_runnable_counts": operator_daemon_workflow_action_stats.get("foreground_runnable_counts") or {},
         "operator_daemon_workflow_action_dry_run_supported_counts": operator_daemon_workflow_action_stats.get("dry_run_supported_counts") or {},
@@ -16769,6 +16847,16 @@ def status_document(cfg):
                 "operator_daemon_workflow_actions_by_workflow",
                 "operator_daemon_workflow_actions_by_daemon_status",
                 "operator_daemon_workflow_actions_by_daemon_attached",
+                "operator_daemon_workflow_actions_by_control_state_exists",
+                "operator_daemon_workflow_actions_by_command_queue_file_exists",
+                "operator_daemon_workflow_actions_by_command_queue_command_count",
+                "operator_daemon_workflow_actions_by_command_queue_queued_count",
+                "operator_daemon_workflow_actions_by_command_queue_result_received_count",
+                "operator_daemon_workflow_actions_by_command_queue_target_count",
+                "operator_daemon_workflow_actions_by_targets_file_exists",
+                "operator_daemon_workflow_actions_by_target_count",
+                "operator_daemon_workflow_actions_by_staged_file_count",
+                "operator_daemon_workflow_actions_by_workbench_job_count",
                 "operator_daemon_workflow_actions_by_background_supported",
                 "operator_daemon_workflow_actions_by_foreground_runnable",
                 "operator_daemon_workflow_actions_by_dry_run_supported",
@@ -21995,6 +22083,19 @@ def run_curses_tui(cfg):
                         f"process_log: {row.get('process_log') or '-'}",
                         f"session_log: {row.get('session_log') or '-'}",
                         f"error: {row.get('error') or '-'}",
+                        f"control_state_file: {start_action.get('control_state_file', '') or '-'} exists={'yes' if start_action.get('control_state_exists') else 'no'}",
+                        f"command_queue_file: {start_action.get('command_queue_file', '') or '-'} exists={'yes' if start_action.get('command_queue_file_exists') else 'no'}",
+                        (
+                            "command_queue_counts: "
+                            f"total={start_action.get('command_queue_command_count', 0)} "
+                            f"queued={start_action.get('command_queue_queued_count', 0)} "
+                            f"delivered={start_action.get('command_queue_delivered_count', 0)} "
+                            f"results={start_action.get('command_queue_result_received_count', 0)} "
+                            f"targets={start_action.get('command_queue_target_count', 0)}"
+                        ),
+                        f"targets_file: {start_action.get('targets_file', '') or '-'} exists={'yes' if start_action.get('targets_file_exists') else 'no'} targets={start_action.get('target_count', 0)}",
+                        f"staged_files_file: {start_action.get('staged_files_file', '') or '-'} exists={'yes' if start_action.get('staged_files_file_exists') else 'no'} staged={start_action.get('staged_file_count', 0)}",
+                        f"workbench_jobs_file: {start_action.get('workbench_jobs_file', '') or '-'} exists={'yes' if start_action.get('workbench_jobs_file_exists') else 'no'} jobs={start_action.get('workbench_job_count', 0)}",
                         f"start_action_state: {start_action.get('operator_action_state', '') or '-'} reason={start_action.get('operator_action_reason', '') or '-'}",
                         f"status_action_state: {status_action.get('operator_action_state', '') or '-'} reason={status_action.get('operator_action_reason', '') or '-'}",
                         f"stop_action_state: {stop_action.get('operator_action_state', '') or '-'} reason={stop_action.get('operator_action_reason', '') or '-'}",
