@@ -431,6 +431,10 @@ pane. It lists known targets with connectivity state, pending mailbox work,
 poll-overdue state, and last-seen time; selecting a target and pressing Enter
 sets the current target filter, while the details pane shows heartbeat, mailbox,
 latest result, latest survey/file activity, and bridge context for that device.
+It keeps a persistent group navigation row above the main panes, with shortcuts
+for targets, target actions, mailbox, bridges, daemon, files, workflows, and
+events. This makes the curses view behave more like target/workflow submenus
+while keeping all panes backed by the same status JSON records.
 The adjacent `Target Actions` pane lists the per-target workflow actions exposed
 by status JSON, including whether each action queues offline work, requires
 input, or needs a later phone-home. Pressing Enter runs no-input actions such as
