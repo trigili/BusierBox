@@ -5705,6 +5705,7 @@ def staged_file_workflow_action_records(cfg, staged_records):
             "label": label,
             "command": command,
             "headless_command": command,
+            "run_command": base + " --run-staged-file-workflow-action " + shquote(f"{request}:{action_id}"),
             "target_id": target_id,
             "target_label": str(rec.get("target_label") or ""),
             "route_kind": str(rec.get("route_kind") or ""),
@@ -5761,6 +5762,8 @@ def staged_file_workflow_action_records(cfg, staged_records):
                 queue_command, "command-queue", "queueable-offline", "queues-until-phone-home",
                 requires_target=True, queues_offline_work=True,
             )
+            if records:
+                records[-1]["run_command"] = base + " --run-staged-file-workflow-action " + shquote(f"{request}:queue-staged-fetch")
         else:
             add(
                 rec, "queue-staged-fetch", "mailbox", "Queue staged fetch for a selected target",
@@ -5768,12 +5771,16 @@ def staged_file_workflow_action_records(cfg, staged_records):
                 "command-queue", "needs-target", "target-required",
                 available=False, requires_target=True, queues_offline_work=True,
             )
+            if records:
+                records[-1]["run_command"] = base + " --target-id TARGET_ID --run-staged-file-workflow-action " + shquote(f"{request}:queue-staged-fetch")
         add(
             rec, "unstage", "configuration", f"Remove staged request {request}",
             base + " --unstage " + shquote(request) + " --list-staged",
             "file-service", "confirm-required", "confirmation-required",
             requires_confirmation=True,
         )
+        if records:
+            records[-1]["run_command"] = base + " --run-staged-file-workflow-action " + shquote(f"{request}:unstage") + " --confirm-staged-file-workflow-action"
     records.sort(key=lambda rec: (rec.get("request_name", ""), rec.get("category", ""), rec.get("action_id", "")))
     return records
 
@@ -5861,6 +5868,7 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
             "label": label,
             "command": command,
             "headless_command": command,
+            "run_command": base + target_arg + " --run-file-service-workflow-action " + shquote(f"file-service:{action_id}"),
             "target_id_filter": target_filter_id,
             "target_filter_active": bool(target_filter_id),
             "route_kind": str(route.get("route_kind") or "direct"),
@@ -5926,6 +5934,8 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
         "input-required",
         requires_input=True,
     )
+    if records:
+        records[-1]["run_command"] = base + target_arg + " --run-file-service-workflow-action file-service:stage-file --file-service-workflow-local-file LOCAL_PATH --file-service-workflow-request-name REQUEST_NAME"
     add(
         "show-upload-command",
         "upload",
@@ -5938,6 +5948,7 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
     )
     if records:
         records[-1]["target_command_template"] = render_file_service_command(["put", "TARGET_PATH"], cfg, host=route.get("host"))
+        records[-1]["run_command"] = base + target_arg + " --run-file-service-workflow-action file-service:show-upload-command --file-service-workflow-target-path TARGET_PATH"
     add(
         "start-file-service",
         "service",
@@ -5961,6 +5972,8 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
         can_run_from_curses_enter=stop_ready,
         curses_enter_action="stop-file-service" if stop_ready else "start-file-service",
     )
+    if records:
+        records[-1]["run_command"] = base + target_arg + " --run-file-service-workflow-action file-service:stop-file-service --confirm-file-service-workflow-action"
     records.sort(key=lambda rec: (rec.get("category", ""), rec.get("action_id", "")))
     return records
 
@@ -19195,6 +19208,259 @@ def run_command_queue_workflow_action(cfg, selector, command_input="", dry_run=F
     return rc
 
 
+def find_file_service_workflow_action(cfg, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("file service workflow action is required")
+    snap = workbench_snapshot(cfg)
+    actions = snap.get("file_service_workflow_actions") or []
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(actions):
+            raise ValueError(f"file service workflow action number out of range: {text}")
+        return actions[idx]
+    for rec in actions:
+        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
+            return rec
+    raise ValueError(f"file service workflow action not found: {text}")
+
+
+def run_file_service_workflow_action(cfg, selector, local_file="", request_name="", target_path="", dry_run=False, confirmed=False):
+    rec = find_file_service_workflow_action(cfg, selector)
+    rec_id = str(rec.get("id") or "")
+    action_id = str(rec.get("action_id") or "")
+    command = str(rec.get("command") or rec.get("headless_command") or "")
+    run_command = str(rec.get("run_command") or "")
+    print(f"file service workflow action: {rec_id}")
+    print(f"headless_command={run_command or command}")
+    print(f"command={command}")
+    append_event(cfg, "workbench", "file_service_workflow_action_selected", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "route_kind": rec.get("route_kind", ""),
+        "bridge_profile": rec.get("bridge_profile", ""),
+        "requires_input": bool(rec.get("requires_input")),
+        "requires_confirmation": bool(rec.get("requires_confirmation")),
+        "operator_action_state": rec.get("operator_action_state", ""),
+        "operator_action_reason": rec.get("operator_action_reason", ""),
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or command,
+        "command": command,
+    })
+    if dry_run:
+        print("dry_run=yes")
+        append_event(cfg, "workbench", "file_service_workflow_action_dry_run", details={
+            "id": rec_id,
+            "action_id": action_id,
+            "headless_command": run_command or command,
+            "command": command,
+        })
+        return 0
+    if action_id == "inspect-file-workflows":
+        return print_status(cfg, json_output=False)
+    if action_id == "list-staged-files":
+        print_staged(cfg)
+        rc = 0
+    elif action_id == "stage-file":
+        path = str(local_file or "").strip()
+        if not path:
+            raise ValueError("stage-file workflow action requires --file-service-workflow-local-file")
+        request = str(request_name or "").strip() or Path(path).name
+        staged = stage_file(cfg, path, request)
+        print(f"staged {staged['request_name']} <- {staged['source_path']}")
+        if staged.get("target_id"):
+            print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
+        print(render_fetch_command(staged["request_name"], cfg))
+        rc = 0
+        append_event(cfg, "workbench", "file_service_workflow_action_completed", details={
+            "id": rec_id,
+            "action_id": action_id,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "result": "staged-file",
+            "request_name": staged.get("request_name", ""),
+            "source_path": staged.get("source_path", ""),
+            "sha256": staged.get("sha256", ""),
+            "headless_command": run_command or command,
+            "command": command,
+            "returncode": rc,
+        })
+        return rc
+    elif action_id == "show-upload-command":
+        path = str(target_path or "").strip()
+        if not path:
+            raise ValueError("show-upload-command workflow action requires --file-service-workflow-target-path")
+        target_command = render_file_service_command(["put", path], cfg, host=rec.get("route_host"))
+        print(f"target_upload_path={path}")
+        print(f"target_command={target_command}")
+        rc = 0
+    elif action_id == "start-file-service":
+        start_service_process(cfg, "file-service", headless_command=run_command or command)
+        rc = 0
+    elif action_id == "stop-file-service":
+        if rec.get("requires_confirmation") is True and not confirmed:
+            raise ValueError(f"file service workflow action requires --confirm-file-service-workflow-action: {rec_id}")
+        stop_recorded_service(
+            cfg,
+            "file-service",
+            via="file-service-workflow-action",
+            headless_command=run_command or command,
+        )
+        rc = 0
+    else:
+        raise ValueError(f"unsupported file service workflow action: {action_id}")
+    append_event(cfg, "workbench", "file_service_workflow_action_completed", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "route_kind": rec.get("route_kind", ""),
+        "bridge_profile": rec.get("bridge_profile", ""),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or command,
+        "command": command,
+        "target_upload_path": str(target_path or "").strip() if action_id == "show-upload-command" else "",
+        "target_command": target_command if action_id == "show-upload-command" else "",
+        "target_command_sha256": hashlib.sha256(target_command.encode("utf-8")).hexdigest() if action_id == "show-upload-command" and target_command else "",
+        "returncode": rc,
+    })
+    return rc
+
+
+def find_staged_file_workflow_action(cfg, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("staged file workflow action is required")
+    snap = workbench_snapshot(cfg)
+    actions = snap.get("staged_file_workflow_actions") or []
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(actions):
+            raise ValueError(f"staged file workflow action number out of range: {text}")
+        return actions[idx]
+    for rec in actions:
+        if text in (
+            str(rec.get("id") or ""),
+            str(rec.get("action_id") or ""),
+            str(rec.get("request_name") or ""),
+        ):
+            return rec
+    raise ValueError(f"staged file workflow action not found: {text}")
+
+
+def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=False):
+    rec = find_staged_file_workflow_action(cfg, selector)
+    rec_id = str(rec.get("id") or "")
+    action_id = str(rec.get("action_id") or "")
+    request = str(rec.get("request_name") or "")
+    command = str(rec.get("command") or rec.get("headless_command") or "")
+    run_command = str(rec.get("run_command") or "")
+    print(f"staged file workflow action: {rec_id}")
+    print(f"headless_command={run_command or command}")
+    print(f"command={command}")
+    append_event(cfg, "workbench", "staged_file_workflow_action_selected", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "request_name": request,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "target_id": rec.get("target_id", ""),
+        "target_label": rec.get("target_label", ""),
+        "requires_target": bool(rec.get("requires_target")),
+        "requires_confirmation": bool(rec.get("requires_confirmation")),
+        "queues_offline_work": bool(rec.get("queues_offline_work")),
+        "operator_action_state": rec.get("operator_action_state", ""),
+        "operator_action_reason": rec.get("operator_action_reason", ""),
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or command,
+        "command": command,
+    })
+    if dry_run:
+        print("dry_run=yes")
+        append_event(cfg, "workbench", "staged_file_workflow_action_dry_run", details={
+            "id": rec_id,
+            "action_id": action_id,
+            "request_name": request,
+            "headless_command": run_command or command,
+            "command": command,
+        })
+        return 0
+    if not request:
+        raise ValueError(f"staged file workflow action is missing request name: {rec_id}")
+    if action_id == "inspect-staged":
+        print_staged(cfg)
+        rc = 0
+    elif action_id == "show-fetch-command":
+        fetch_command = str(rec.get("fetch_command") or render_fetch_command(request, cfg))
+        print(f"request_name={request}")
+        if rec.get("target_id"):
+            print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
+        print(f"target_command={fetch_command}")
+        rc = 0
+    elif action_id == "queue-staged-fetch":
+        target_id = str(rec.get("target_id") or configured_target_filter(cfg) or "").strip()
+        if not target_id:
+            raise ValueError("queue-staged-fetch staged file workflow action requires --target-id")
+        scoped = scoped_target_cfg(cfg, target_id, target_label=str(rec.get("target_label") or cfg.get("_target_label_filter") or ""))
+        staged = (load_staged(cfg).get("staged") or {}).get(request) or {}
+        if not isinstance(staged, dict) or not staged:
+            raise ValueError(f"staged request not found: {request}")
+        staged_target = str(staged.get("target_id") or "")
+        if staged_target and staged_target != target_id:
+            raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
+        fetch_command = render_fetch_command(request, scoped)
+        queued = queue_command(scoped, fetch_command)
+        print(f"queued {queued['id']}: {queued['command']}")
+        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        rc = 0
+        append_event(cfg, "workbench", "staged_file_workflow_action_completed", details={
+            "id": rec_id,
+            "action_id": action_id,
+            "request_name": request,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "target_id": target_id,
+            "target_label": queued.get("target_label", ""),
+            "result": "queued-staged-fetch",
+            "command_id": queued.get("id", ""),
+            "command_sha256": queued.get("command_sha256", ""),
+            "queued_command": queued.get("command", ""),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": True,
+            "headless_command": run_command or command,
+            "command": command,
+            "returncode": rc,
+        })
+        return rc
+    elif action_id == "unstage":
+        if rec.get("requires_confirmation") is True and not confirmed:
+            raise ValueError(f"staged file workflow action requires --confirm-staged-file-workflow-action: {rec_id}")
+        existed = unstage_file(cfg, request)
+        print(f"unstaged {request}" if existed else f"not staged {request}")
+        rc = 0
+    else:
+        raise ValueError(f"unsupported staged file workflow action: {action_id}")
+    append_event(cfg, "workbench", "staged_file_workflow_action_completed", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "request_name": request,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "target_id": rec.get("target_id", ""),
+        "target_label": rec.get("target_label", ""),
+        "queues_offline_work": bool(rec.get("queues_offline_work")),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or command,
+        "command": command,
+        "returncode": rc,
+    })
+    return rc
+
+
 def scoped_target_cfg(cfg, target_id, target_label=""):
     scoped = dict(cfg)
     scoped["_target_id_filter"] = str(target_id or "").strip()
@@ -21896,6 +22162,24 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="preview a command queue workflow action without changing queue or listener state")
     parser.add_argument("--confirm-command-queue-workflow-action", action="store_true",
                         help="confirm execution of a command queue workflow action that requires confirmation")
+    parser.add_argument("--run-file-service-workflow-action",
+                        help="run a file-service workflow action by id or visible number")
+    parser.add_argument("--file-service-workflow-local-file",
+                        help="local file path for the stage-file file-service workflow action")
+    parser.add_argument("--file-service-workflow-request-name",
+                        help="request name for the stage-file file-service workflow action")
+    parser.add_argument("--file-service-workflow-target-path",
+                        help="target path for the show-upload-command file-service workflow action")
+    parser.add_argument("--file-service-workflow-dry-run", action="store_true",
+                        help="preview a file-service workflow action without changing staged files or listener state")
+    parser.add_argument("--confirm-file-service-workflow-action", action="store_true",
+                        help="confirm execution of a file-service workflow action that requires confirmation")
+    parser.add_argument("--run-staged-file-workflow-action",
+                        help="run a staged-file workflow action by id, request name, or visible number")
+    parser.add_argument("--staged-file-workflow-dry-run", action="store_true",
+                        help="preview a staged-file workflow action without queueing or unstaging")
+    parser.add_argument("--confirm-staged-file-workflow-action", action="store_true",
+                        help="confirm execution of a staged-file workflow action that requires confirmation")
     parser.add_argument("--run-release-artifact-workflow-action",
                         help="run a release/artifact workflow action by id, selector, or visible number")
     parser.add_argument("--release-artifact-workflow-dry-run", action="store_true",
@@ -22123,6 +22407,23 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                 command_input=args.command_queue_workflow_command or "",
                 dry_run=args.command_queue_workflow_dry_run,
                 confirmed=args.confirm_command_queue_workflow_action,
+            )
+        if args.run_file_service_workflow_action:
+            return run_file_service_workflow_action(
+                cfg,
+                args.run_file_service_workflow_action,
+                local_file=args.file_service_workflow_local_file or "",
+                request_name=args.file_service_workflow_request_name or "",
+                target_path=args.file_service_workflow_target_path or "",
+                dry_run=args.file_service_workflow_dry_run,
+                confirmed=args.confirm_file_service_workflow_action,
+            )
+        if args.run_staged_file_workflow_action:
+            return run_staged_file_workflow_action(
+                cfg,
+                args.run_staged_file_workflow_action,
+                dry_run=args.staged_file_workflow_dry_run,
+                confirmed=args.confirm_staged_file_workflow_action,
             )
         if args.run_target_workflow_action:
             return run_target_workflow_action(

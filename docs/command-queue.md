@@ -402,8 +402,12 @@ catalog for staged files and staged release artifacts. Each staged request gets
 records to inspect the staged entry, show the target-side fetch command, queue a
 staged fetch for a known target through the mailbox, and unstage the request.
 The records include `headless_command`, target/route fields, source existence,
-release tuple metadata, offline queueability, confirmation requirements, and
-`operator_action_state` / `operator_action_reason`. Indexes such as
+release tuple metadata, offline queueability, confirmation requirements,
+`operator_action_state` / `operator_action_reason`, and a stable `run_command`.
+Operators can run the same staged-file records headlessly with
+`--run-staged-file-workflow-action ACTION_OR_NUMBER`; destructive unstage
+actions require `--confirm-staged-file-workflow-action`, and target-scoped
+staged fetches queue mailbox work for the next phone-home window. Indexes such as
 `staged_file_workflow_actions_by_request_name`,
 `staged_file_workflow_actions_by_target_id`,
 `staged_file_workflow_actions_by_queues_offline_work`, and
@@ -417,7 +421,13 @@ files, staging a local file, showing a target upload command template, starting
 the file-service listener, and stopping it. Records include the equivalent
 `headless_command`, current listener state, route/bridge fields, staged/upload/
 fetch/target-file counts, input and confirmation requirements, Enter behavior,
-and a `target_command_template` for upload prompts. Indexes such as
+`run_command`, and a `target_command_template` for upload prompts. Operators can
+run these records with `--run-file-service-workflow-action ACTION_OR_NUMBER`;
+`stage-file` accepts `--file-service-workflow-local-file` and
+`--file-service-workflow-request-name`, `show-upload-command` accepts
+`--file-service-workflow-target-path`, dry runs use
+`--file-service-workflow-dry-run`, and listener stop requires
+`--confirm-file-service-workflow-action`. Indexes such as
 `file_service_workflow_actions_by_action_id`,
 `file_service_workflow_actions_by_route_kind`,
 `file_service_workflow_actions_by_requires_input`, and

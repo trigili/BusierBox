@@ -130,6 +130,8 @@ def main():
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
                  "--run-service-workflow-action", "--service-workflow-dry-run", "--confirm-service-workflow-action",
                  "--run-command-queue-workflow-action", "--command-queue-workflow-command", "--confirm-command-queue-workflow-action",
+                 "--run-file-service-workflow-action", "--file-service-workflow-local-file", "--file-service-workflow-target-path", "--confirm-file-service-workflow-action",
+                 "--run-staged-file-workflow-action", "--confirm-staged-file-workflow-action",
                  "--build-config", "--list-build-config", "--set-build-config"):
         if word not in combined:
             print(f"busierbox-server help missing operator workbench flag: {word}", file=sys.stderr)
@@ -191,8 +193,10 @@ def main():
                  "Command queue workflow actions:",
                  "command_queue_workflow_action_selected", "command_queue_workflow_action_completed",
                  "File service workflow action summary:", "file_service_workflow_actions_by_action_id",
+                 "file_service_workflow_action_selected", "file_service_workflow_action_completed",
                  "File service workflow actions:",
                  "staged_file_workflow_actions:", "staged_file_workflow_actions_by_request_name",
+                 "staged_file_workflow_action_selected", "staged_file_workflow_action_completed",
                  "enter shows staged fetch command", "action 7 lists staged workflow actions",
                  "Bridge Routes", "bridge_profile_workflow_actions:", "bridge_profile_workflow_actions_by_bridge_profile",
                  "enter starts/stops this bridge profile", "--bridge-profile",
@@ -9342,6 +9346,116 @@ def main():
             print("line-oriented TUI stage/unstage final state was incorrect", file=sys.stderr)
             print(json.dumps(line_stage_doc, indent=2), file=sys.stderr)
             print(line_stage_staged.read_text(encoding="utf-8"), file=sys.stderr)
+            return 1
+
+        file_workflow_dir = Path(tmp) / "operator-session-file-workflow-actions"
+        file_workflow_cfg = Path(tmp) / "file-workflow-actions.json"
+        file_workflow_source = Path(tmp) / "workflow-source.txt"
+        file_workflow_source.write_text("workflow staged payload\n", encoding="utf-8")
+        file_workflow_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(file_workflow_dir),
+            "server_state": str(file_workflow_dir / "state.json"),
+            "staged_files": str(file_workflow_dir / "staged-files.json"),
+            "command_queue_file": str(file_workflow_dir / "command-queue.json"),
+            "targets_file": str(file_workflow_dir / "targets.json"),
+            "file_service_port": free_port(),
+        }), encoding="utf-8")
+        file_action_stage = run(
+            "scripts/busierbox-server",
+            "--config", str(file_workflow_cfg),
+            "--target-id", "file-workflow-target",
+            "--target-label", "File Workflow Target",
+            "--run-file-service-workflow-action", "file-service:stage-file",
+            "--file-service-workflow-local-file", str(file_workflow_source),
+            "--file-service-workflow-request-name", "workflow-staged.txt",
+        )
+        if (file_action_stage.returncode != 0 or
+                "file service workflow action: file-service:stage-file" not in file_action_stage.stdout or
+                "staged workflow-staged.txt <- " not in file_action_stage.stdout or
+                "target=file-workflow-target label=File Workflow Target" not in file_action_stage.stdout):
+            print("headless file-service workflow stage action failed", file=sys.stderr)
+            print(file_action_stage.stdout, file=sys.stderr)
+            print(file_action_stage.stderr, file=sys.stderr)
+            return 1
+        file_action_upload = run(
+            "scripts/busierbox-server",
+            "--config", str(file_workflow_cfg),
+            "--target-id", "file-workflow-target",
+            "--target-label", "File Workflow Target",
+            "--run-file-service-workflow-action", "file-service:show-upload-command",
+            "--file-service-workflow-target-path", "/etc/config/network",
+        )
+        if (file_action_upload.returncode != 0 or
+                "file service workflow action: file-service:show-upload-command" not in file_action_upload.stdout or
+                "target_upload_path=/etc/config/network" not in file_action_upload.stdout or
+                "./busierbox put /etc/config/network" not in file_action_upload.stdout):
+            print("headless file-service workflow upload command action failed", file=sys.stderr)
+            print(file_action_upload.stdout, file=sys.stderr)
+            print(file_action_upload.stderr, file=sys.stderr)
+            return 1
+        staged_action_show = run(
+            "scripts/busierbox-server",
+            "--config", str(file_workflow_cfg),
+            "--run-staged-file-workflow-action", "workflow-staged.txt:show-fetch-command",
+        )
+        if (staged_action_show.returncode != 0 or
+                "staged file workflow action: workflow-staged.txt:show-fetch-command" not in staged_action_show.stdout or
+                "target_command=" not in staged_action_show.stdout or
+                "busierbox fetch workflow-staged.txt" not in staged_action_show.stdout):
+            print("headless staged-file workflow show-fetch action failed", file=sys.stderr)
+            print(staged_action_show.stdout, file=sys.stderr)
+            print(staged_action_show.stderr, file=sys.stderr)
+            return 1
+        staged_action_queue = run(
+            "scripts/busierbox-server",
+            "--config", str(file_workflow_cfg),
+            "--run-staged-file-workflow-action", "workflow-staged.txt:queue-staged-fetch",
+        )
+        if (staged_action_queue.returncode != 0 or
+                "staged file workflow action: workflow-staged.txt:queue-staged-fetch" not in staged_action_queue.stdout or
+                "queued " not in staged_action_queue.stdout or
+                "busierbox fetch workflow-staged.txt" not in staged_action_queue.stdout or
+                "target=file-workflow-target label=File Workflow Target" not in staged_action_queue.stdout):
+            print("headless staged-file workflow queue action failed", file=sys.stderr)
+            print(staged_action_queue.stdout, file=sys.stderr)
+            print(staged_action_queue.stderr, file=sys.stderr)
+            return 1
+        staged_action_unstage = run(
+            "scripts/busierbox-server",
+            "--config", str(file_workflow_cfg),
+            "--run-staged-file-workflow-action", "workflow-staged.txt:unstage",
+            "--confirm-staged-file-workflow-action",
+        )
+        if (staged_action_unstage.returncode != 0 or
+                "staged file workflow action: workflow-staged.txt:unstage" not in staged_action_unstage.stdout or
+                "unstaged workflow-staged.txt" not in staged_action_unstage.stdout):
+            print("headless staged-file workflow unstage action failed", file=sys.stderr)
+            print(staged_action_unstage.stdout, file=sys.stderr)
+            print(staged_action_unstage.stderr, file=sys.stderr)
+            return 1
+        file_workflow_doc = json.loads(run(
+            "scripts/busierbox-server",
+            "--config", str(file_workflow_cfg),
+            "--event-limit", "24",
+            "--json-status",
+        ).stdout)
+        file_workflow_events = file_workflow_doc.get("events_by_event") or {}
+        file_workflow_queue = (file_workflow_doc.get("command_queue") or {}).get("commands_by_target_id", {}).get("file-workflow-target") or []
+        if (len(file_workflow_queue) != 1 or
+                "busierbox fetch workflow-staged.txt" not in str(file_workflow_queue[0].get("command") or "") or
+                (file_workflow_doc.get("staged") or {}) or
+                not file_workflow_events.get("file_service_workflow_action_selected") or
+                not file_workflow_events.get("file_service_workflow_action_completed") or
+                not file_workflow_events.get("staged_file_workflow_action_selected") or
+                not any(
+                    (event.get("details") or {}).get("request_name") == "workflow-staged.txt" and
+                    (event.get("details") or {}).get("action_id") == "queue-staged-fetch" and
+                    (event.get("details") or {}).get("queues_offline_work") is True
+                    for event in file_workflow_events.get("staged_file_workflow_action_completed", [])
+                )):
+            print("headless file/staged workflow actions did not persist expected events and mailbox state", file=sys.stderr)
+            print(json.dumps(file_workflow_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
         staged_source = Path(tmp) / "operator-file.bin"
