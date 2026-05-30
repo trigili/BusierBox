@@ -209,12 +209,25 @@ assert "busierbox survey --json" in tui_queued_commands
 assert "survey.sh" in tui_queued_commands
 assert "busierbox fetch tui-payload.txt" in tui_queued_commands
 assert "busierbox rshell start" in tui_queued_commands
+survey_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if "survey.sh" in rec["command"])
+fetch_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if "busierbox fetch tui-payload.txt" in rec["command"])
 bridge_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if rec["command"] == "busierbox rshell start")
+assert survey_mailbox["work_kind"] == "survey-bootstrap"
+assert survey_mailbox["workflow"] == "survey-bootstrap"
+assert survey_mailbox["request_name"] == "survey.sh"
+assert fetch_mailbox["work_kind"] == "staged-fetch"
+assert fetch_mailbox["workflow"] == "file-service"
+assert fetch_mailbox["request_name"] == "tui-payload.txt"
 assert bridge_mailbox["work_kind"] == "bridge-start"
 assert bridge_mailbox["workflow"] == "bridge"
 assert bridge_mailbox["bridge_profile"] == "tui-bridge"
 assert bridge_mailbox["bridge_route_path"]
 assert bridge_mailbox["route_kind"] == "bridge"
+assert tui_queue["after"]["target_mailbox_work_kind_counts"]["survey-bootstrap"] == 1
+assert tui_queue["after"]["target_mailbox_work_kind_counts"]["staged-fetch"] == 1
+assert tui_queue["after"]["target_mailbox_work_kind_counts"]["bridge-start"] == 1
+assert tui_queue["after"]["target_mailbox_request_name_counts"]["survey.sh"] == 1
+assert tui_queue["after"]["target_mailbox_request_name_counts"]["tui-payload.txt"] == 1
 assert tui_queue["after"]["target_mailbox_bridge_profile_counts"]["tui-bridge"] == 1
 assert any((rec.get("details") or {}).get("action_id") == "queue-command" for rec in tui_queue["target_workflow_events"])
 assert any((rec.get("details") or {}).get("action_id") == "queue-survey-bootstrap" for rec in tui_queue["target_workflow_events"])
@@ -230,8 +243,12 @@ assert len(tui_queue_drain["target_mailbox_records"]) == 4
 assert all(rec["status"] == "delivered" for rec in tui_queue_drain["target_mailbox_records"])
 assert all(rec["pending_work"] is False for rec in tui_queue_drain["target_mailbox_records"])
 drained_bridge_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if rec["command"] == "busierbox rshell start")
+drained_survey_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if "survey.sh" in rec["command"])
+drained_fetch_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if "busierbox fetch tui-payload.txt" in rec["command"])
 assert drained_bridge_mailbox["work_kind"] == "bridge-start"
 assert drained_bridge_mailbox["bridge_profile"] == "tui-bridge"
+assert drained_survey_mailbox["work_kind"] == "survey-bootstrap"
+assert drained_fetch_mailbox["work_kind"] == "staged-fetch"
 assert tui_queue_drain["target"]["mailbox_pending_work_count"] == 0
 assert tui_queue_drain["target"]["last_seen_via"] == "command-queue:command_queue_poll"
 assert tui_queue_drain["target"]["latest_phone_home_status"] == "delivered"

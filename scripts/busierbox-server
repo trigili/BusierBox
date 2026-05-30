@@ -20129,7 +20129,14 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
         if staged_target and staged_target != target_id:
             raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
         fetch_command = render_fetch_command(request, scoped)
-        queued = queue_command(scoped, fetch_command)
+        queued = queue_command(scoped, fetch_command, metadata={
+            "work_kind": "staged-fetch",
+            "workflow": "file-service",
+            "request_name": request,
+            "route_kind": str(staged.get("route_kind") or "direct"),
+            "bridge_profile": str(staged.get("bridge_profile") or ""),
+            "bridge_route_path": str(staged.get("bridge_route_path") or ""),
+        })
         print(f"queued {queued['id']}: {queued['command']}")
         print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
         rc = 0
@@ -20259,7 +20266,13 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         return 0
     if action_id == "queue-survey-bootstrap":
         command = render_survey_bootstrap_command(scoped)
-        queued = queue_command(scoped, command)
+        queued = queue_command(scoped, command, metadata={
+            "work_kind": "survey-bootstrap",
+            "workflow": "survey-bootstrap",
+            "request_name": str(scoped.get("survey_bootstrap_name") or "survey.sh"),
+            "route_kind": "bridge" if scoped.get("bridge_profile") else "direct",
+            "bridge_profile": str(scoped.get("bridge_profile") or ""),
+        })
         print(f"queued {queued['id']}: {queued['command']}")
         print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
         append_event(cfg, "workbench", "target_workflow_action_completed", details={
@@ -20394,7 +20407,14 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         if staged_target and staged_target != target_id:
             raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
         command = render_fetch_command(request, scoped)
-        queued = queue_command(scoped, command)
+        queued = queue_command(scoped, command, metadata={
+            "work_kind": "staged-fetch",
+            "workflow": "file-service",
+            "request_name": request,
+            "route_kind": str(staged.get("route_kind") or "direct"),
+            "bridge_profile": str(staged.get("bridge_profile") or ""),
+            "bridge_route_path": str(staged.get("bridge_route_path") or ""),
+        })
         print(f"queued {queued['id']}: {queued['command']}")
         print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
         append_event(cfg, "workbench", "target_workflow_action_completed", details={
