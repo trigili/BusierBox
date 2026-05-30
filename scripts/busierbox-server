@@ -3818,12 +3818,42 @@ def workbench_action_records(cfg):
         has_placeholder = any(token in command for token in (" NAME ", " ARTIFACT ", "KEY=VALUE", "VALUE"))
         background = rec.get("background_supported") is True
         foreground_runnable = bool(command and not background and not has_placeholder)
+        requires_confirmation = rec.get("requires_confirmation") is True
+        if has_placeholder:
+            operator_action_state = "needs-input"
+            operator_action_reason = "input-placeholder"
+            can_run_from_curses_enter = False
+            curses_enter_action = "use-action-11"
+        elif background:
+            operator_action_state = "background-ready"
+            operator_action_reason = "start-background-job"
+            can_run_from_curses_enter = True
+            curses_enter_action = "start-job"
+        elif requires_confirmation:
+            operator_action_state = "confirm-required"
+            operator_action_reason = "confirmation-required"
+            can_run_from_curses_enter = False
+            curses_enter_action = "use-action-11"
+        elif foreground_runnable:
+            operator_action_state = "ready"
+            operator_action_reason = "run-now"
+            can_run_from_curses_enter = False
+            curses_enter_action = "use-action-11"
+        else:
+            operator_action_state = "unavailable"
+            operator_action_reason = "no-runnable-command"
+            can_run_from_curses_enter = False
+            curses_enter_action = "none"
         rec["has_placeholder"] = bool(has_placeholder)
         rec["foreground_runnable"] = foreground_runnable
         rec["dry_run_supported"] = foreground_runnable
         rec["has_run_command"] = foreground_runnable
         rec["has_dry_run_command"] = foreground_runnable
         rec["has_start_job_command"] = background
+        rec["operator_action_state"] = operator_action_state
+        rec["operator_action_reason"] = operator_action_reason
+        rec["can_run_from_curses_enter"] = bool(can_run_from_curses_enter)
+        rec["curses_enter_action"] = curses_enter_action
         rec["run_command"] = run_workbench_action_headless_command(cfg, action_id) if foreground_runnable else ""
         rec["dry_run_command"] = run_workbench_action_headless_command(cfg, action_id, dry_run=True) if foreground_runnable else ""
         rec["start_job_command"] = start_workbench_job_headless_command(cfg, action_id) if background else ""
@@ -3850,6 +3880,10 @@ def workbench_action_indexes(records):
         "workbench_actions_by_has_run_command": records_by_key(records, "has_run_command"),
         "workbench_actions_by_has_dry_run_command": records_by_key(records, "has_dry_run_command"),
         "workbench_actions_by_has_start_job_command": records_by_key(records, "has_start_job_command"),
+        "workbench_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "workbench_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "workbench_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
+        "workbench_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
     }
 
 
@@ -3868,6 +3902,7 @@ def workbench_action_summary(records):
         "has_run_command_count": len([rec for rec in records or [] if rec.get("has_run_command") is True]),
         "has_dry_run_command_count": len([rec for rec in records or [] if rec.get("has_dry_run_command") is True]),
         "has_start_job_command_count": len([rec for rec in records or [] if rec.get("has_start_job_command") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
         "category_counts": record_count_by_key(records, "category"),
         "script_counts": record_count_by_key(records, "script"),
         "execution_default_counts": record_count_by_key(records, "execution_default"),
@@ -3879,6 +3914,10 @@ def workbench_action_summary(records):
         "has_run_command_counts": record_count_by_key(records, "has_run_command"),
         "has_dry_run_command_counts": record_count_by_key(records, "has_dry_run_command"),
         "has_start_job_command_counts": record_count_by_key(records, "has_start_job_command"),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
+        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
     }
 
 
@@ -13531,6 +13570,7 @@ def status_document(cfg):
         "workbench_action_has_run_command_count": workbench_action_stats.get("has_run_command_count", 0),
         "workbench_action_has_dry_run_command_count": workbench_action_stats.get("has_dry_run_command_count", 0),
         "workbench_action_has_start_job_command_count": workbench_action_stats.get("has_start_job_command_count", 0),
+        "workbench_action_can_run_from_curses_enter_count": workbench_action_stats.get("can_run_from_curses_enter_count", 0),
         "workbench_action_category_counts": workbench_action_stats.get("category_counts") or {},
         "workbench_action_script_counts": workbench_action_stats.get("script_counts") or {},
         "workbench_action_execution_default_counts": workbench_action_stats.get("execution_default_counts") or {},
@@ -13542,6 +13582,10 @@ def status_document(cfg):
         "workbench_action_has_run_command_counts": workbench_action_stats.get("has_run_command_counts") or {},
         "workbench_action_has_dry_run_command_counts": workbench_action_stats.get("has_dry_run_command_counts") or {},
         "workbench_action_has_start_job_command_counts": workbench_action_stats.get("has_start_job_command_counts") or {},
+        "workbench_action_operator_action_state_counts": workbench_action_stats.get("operator_action_state_counts") or {},
+        "workbench_action_operator_action_reason_counts": workbench_action_stats.get("operator_action_reason_counts") or {},
+        "workbench_action_can_run_from_curses_enter_counts": workbench_action_stats.get("can_run_from_curses_enter_counts") or {},
+        "workbench_action_curses_enter_action_counts": workbench_action_stats.get("curses_enter_action_counts") or {},
         "workbench_job_count": workbench_job_stats.get("total_count", 0),
         "workbench_job_running_count": workbench_job_stats.get("running_count", 0),
         "workbench_job_pid_managed_count": workbench_job_stats.get("pid_managed_count", 0),
@@ -14241,6 +14285,10 @@ def status_document(cfg):
                 "workbench_actions_by_has_run_command",
                 "workbench_actions_by_has_dry_run_command",
                 "workbench_actions_by_has_start_job_command",
+                "workbench_actions_by_operator_action_state",
+                "workbench_actions_by_operator_action_reason",
+                "workbench_actions_by_can_run_from_curses_enter",
+                "workbench_actions_by_curses_enter_action",
             ), "workbench_action_count",
         ),
         "workbench_config_fields": api_collection_record(
@@ -15292,11 +15340,13 @@ def print_workbench_action_summary(doc):
         f"requires_confirmation={summary.get('workbench_action_requires_confirmation_count', 0)} "
         f"target_execution={summary.get('workbench_action_target_execution_count', 0)} "
         f"foreground_runnable={summary.get('workbench_action_foreground_runnable_count', 0)} "
-        f"dry_run_supported={summary.get('workbench_action_dry_run_supported_count', 0)}"
+        f"dry_run_supported={summary.get('workbench_action_dry_run_supported_count', 0)} "
+        f"enter_runnable={summary.get('workbench_action_can_run_from_curses_enter_count', 0)}"
     )
     print(f"  categories: {format_counts(summary.get('workbench_action_category_counts') or {})}")
     print(f"  execution defaults: {format_counts(summary.get('workbench_action_execution_default_counts') or {})}")
     print(f"  events: {format_counts(summary.get('workbench_action_event_counts') or {})}")
+    print(f"  action states: {format_counts(summary.get('workbench_action_operator_action_state_counts') or {})}")
     print(
         "Target workflow action summary: "
         f"total={summary.get('target_workflow_action_count', 0)} "
@@ -17139,7 +17189,15 @@ def run_line_tui(cfg):
             for idx, rec in enumerate(snap.get("workbench_actions") or [], 1):
                 print(f"{idx}: {rec.get('id', '')} {rec.get('label', '')}")
                 print(f"   command: {rec.get('headless_command', rec.get('command', ''))}")
-                print(f"   category={rec.get('category', '')} background_supported={'yes' if rec.get('background_supported') else 'no'} confirm={'yes' if rec.get('requires_confirmation') else 'no'} foreground_runnable={'yes' if rec.get('foreground_runnable') else 'no'}")
+                print(
+                    f"   category={rec.get('category', '')} background_supported={'yes' if rec.get('background_supported') else 'no'} "
+                    f"confirm={'yes' if rec.get('requires_confirmation') else 'no'} "
+                    f"foreground_runnable={'yes' if rec.get('foreground_runnable') else 'no'} "
+                    f"state={rec.get('operator_action_state', '') or '-'} "
+                    f"reason={rec.get('operator_action_reason', '') or '-'} "
+                    f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
+                    f"enter_action={rec.get('curses_enter_action', '') or '-'}"
+                )
                 if rec.get("dry_run_command"):
                     print(f"   dry_run: {rec.get('dry_run_command', '')}")
                 if rec.get("run_command"):
@@ -18327,6 +18385,10 @@ def run_curses_tui(cfg):
                     f"foreground_runnable: {'yes' if rec.get('foreground_runnable') else 'no'}",
                     f"dry_run_supported: {'yes' if rec.get('dry_run_supported') else 'no'}",
                     f"requires_confirmation: {'yes' if rec.get('requires_confirmation') else 'no'}",
+                    f"operator_action_state: {rec.get('operator_action_state', '') or '-'}",
+                    f"operator_action_reason: {rec.get('operator_action_reason', '') or '-'}",
+                    f"can_run_from_curses_enter: {'yes' if rec.get('can_run_from_curses_enter') else 'no'}",
+                    f"curses_enter_action: {rec.get('curses_enter_action', '') or '-'}",
                     f"writes_config: {'yes' if rec.get('writes_config') else 'no'} runs_build={'yes' if rec.get('runs_build') else 'no'}",
                     f"config_path: {rec.get('config_path', '') or '-'}",
                     f"command: {rec.get('command', '') or '-'}",

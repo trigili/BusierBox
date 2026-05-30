@@ -51,6 +51,11 @@ them from `workbench_actions`, group them through
 `workbench_actions_by_category.daemon`, and use each record's `run_command`,
 `dry_run_command`, or `start_job_command` without inferring the right invocation
 from the lower-level command string.
+Workbench action records also expose `operator_action_state`,
+`operator_action_reason`, `can_run_from_curses_enter`, and
+`curses_enter_action` so TUI/API clients can distinguish background-ready jobs,
+foreground-safe actions, confirmation-gated actions, and prompted placeholder
+commands without parsing command text.
 Foreground-safe actions can also be run through the workbench action API:
 
 ```sh
