@@ -128,6 +128,7 @@ def main():
     for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--list-staged", "--status", "--stop", "--stop-service", "--view-path", "--json-status", "--api-status", "--event-limit",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
+                 "--run-service-workflow-action", "--service-workflow-dry-run", "--confirm-service-workflow-action",
                  "--build-config", "--list-build-config", "--set-build-config"):
         if word not in combined:
             print(f"busierbox-server help missing operator workbench flag: {word}", file=sys.stderr)
@@ -4513,6 +4514,8 @@ def main():
                 service_actions_by_id.get("file-service:start-service", {}).get("operator_action_state") != "ready" or
                 service_actions_by_id.get("file-service:start-service", {}).get("can_run_from_curses_enter") is not True or
                 "--transport file-service" not in service_actions_by_id.get("file-service:start-service", {}).get("command", "") or
+                service_actions_by_id.get("file-service:start-service", {}).get("run_command") != f"scripts/busierbox-server --config {str(cfg)} --run-service-workflow-action file-service:start-service" or
+                service_actions_by_id.get("file-service:start-service", {}).get("dry_run_command") != f"scripts/busierbox-server --config {str(cfg)} --run-service-workflow-action file-service:start-service --service-workflow-dry-run" or
                 service_actions_by_id.get("file-service:stop-service", {}).get("operator_action_state") != "not-running" or
                 service_actions_by_id.get("file-service:stop-service", {}).get("requires_confirmation") is not True or
                 service_actions_by_id.get("file-service:inspect-status", {}).get("command") != f"scripts/busierbox-server --config {str(cfg)} --status" or
@@ -4526,6 +4529,52 @@ def main():
                 "service_workflow_actions_by_can_run_from_curses_enter" not in ((queue_status_json.get("api_collections") or {}).get("service_workflow_actions") or {}).get("indexes", [])):
             print("server json status missing service workflow action descriptors", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
+            return 1
+        service_action_dry_run = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--run-service-workflow-action", "file-service:start-service",
+            "--service-workflow-dry-run",
+        )
+        if (service_action_dry_run.returncode != 0 or
+                "service workflow action: file-service:start-service" not in service_action_dry_run.stdout or
+                "--run-service-workflow-action file-service:start-service --service-workflow-dry-run" not in service_action_dry_run.stdout or
+                "dry_run=yes" not in service_action_dry_run.stdout or
+                "--transport file-service" not in service_action_dry_run.stdout):
+            print("service workflow action dry-run did not expose generated start command", file=sys.stderr)
+            print(service_action_dry_run.stdout, file=sys.stderr)
+            print(service_action_dry_run.stderr, file=sys.stderr)
+            return 1
+        service_action_status = run(
+            "scripts/busierbox-server",
+            "--config", str(cfg),
+            "--run-service-workflow-action", "file-service:inspect-status",
+        )
+        if (service_action_status.returncode != 0 or
+                "service workflow action: file-service:inspect-status" not in service_action_status.stdout or
+                "--run-service-workflow-action file-service:inspect-status" not in service_action_status.stdout or
+                "Services:" not in service_action_status.stdout):
+            print("service workflow action inspect-status did not run status view", file=sys.stderr)
+            print(service_action_status.stdout, file=sys.stderr)
+            print(service_action_status.stderr, file=sys.stderr)
+            return 1
+        service_action_events = [
+            json.loads(line)
+            for line in Path(queue_status_json.get("event_log", "")).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if (not any(
+                    event.get("event") == "service_workflow_action_dry_run" and
+                    (event.get("details") or {}).get("id") == "file-service:start-service" and
+                    "--service-workflow-dry-run" in ((event.get("details") or {}).get("headless_command") or "")
+                    for event in service_action_events) or
+                not any(
+                    event.get("event") == "service_workflow_action_completed" and
+                    (event.get("details") or {}).get("id") == "file-service:inspect-status" and
+                    (event.get("details") or {}).get("returncode") == 0
+                    for event in service_action_events)):
+            print("service workflow action runner did not record selected/completed events", file=sys.stderr)
+            print(json.dumps(service_action_events[-12:], indent=2, sort_keys=True), file=sys.stderr)
             return 1
         services_by_actual = queue_status_json.get("services_by_actual") or {}
         services_by_configured = queue_status_json.get("services_by_configured") or {}

@@ -5194,6 +5194,8 @@ def service_workflow_action_records(cfg, services):
             "label": label,
             "command": command,
             "headless_command": command,
+            "run_command": run_service_workflow_action_headless_command(cfg, f"{name}:{action_id}"),
+            "dry_run_command": run_service_workflow_action_headless_command(cfg, f"{name}:{action_id}", dry_run=True),
             "actual": actual,
             "configured": configured,
             "port": service.get("port", ""),
@@ -16669,6 +16671,21 @@ def service_stop_headless_command(cfg, service):
     )
 
 
+def run_service_workflow_action_headless_command(cfg, action_id, dry_run=False, confirmed=False):
+    parts = [
+        "scripts/busierbox-server",
+        "--config",
+        str(cfg.get("_config_path", DEFAULT_CONFIG)),
+        "--run-service-workflow-action",
+        str(action_id or ""),
+    ]
+    if dry_run:
+        parts.append("--service-workflow-dry-run")
+    if confirmed:
+        parts.append("--confirm-service-workflow-action")
+    return " ".join(shquote(str(part)) for part in parts)
+
+
 def stop_recorded_service(cfg, service, via="workbench-stop", headless_command=""):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     rec = (state.get("services") or {}).get(service, {})
@@ -16720,6 +16737,97 @@ def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="
         mark_service_error(cfg, service, exc)
         append_event(cfg, service, "service_stop_failed", "error", details={**details_base, "pid": pid, "reason": "port-still-bound", "error": str(exc)})
         print(f"{service}: unable to stop pid {pid}: {exc}", file=sys.stderr)
+
+
+def find_service_workflow_action(cfg, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("service workflow action is required")
+    snap = workbench_snapshot(cfg)
+    actions = snap.get("service_workflow_actions") or []
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(actions):
+            raise ValueError(f"service workflow action number out of range: {text}")
+        return actions[idx]
+    for rec in actions:
+        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
+            return rec
+    raise ValueError(f"service workflow action not found: {text}")
+
+
+def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
+    rec = find_service_workflow_action(cfg, selector)
+    rec_id = str(rec.get("id") or "")
+    action_id = str(rec.get("action_id") or "")
+    service = str(rec.get("service") or "")
+    if not service:
+        raise ValueError("service workflow action is missing service name")
+    headless = run_service_workflow_action_headless_command(
+        cfg,
+        rec_id,
+        dry_run=dry_run,
+        confirmed=confirmed,
+    )
+    command = str(rec.get("headless_command") or rec.get("command") or "")
+    print(f"service workflow action: {rec_id}")
+    print(f"headless_command={headless}")
+    print(f"command={command}")
+    append_event(cfg, "workbench", "service_workflow_action_selected", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "service": service,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "operator_action_state": rec.get("operator_action_state", ""),
+        "operator_action_reason": rec.get("operator_action_reason", ""),
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "headless_command": headless,
+        "command": command,
+    })
+    if dry_run:
+        print("dry_run=yes")
+        append_event(cfg, "workbench", "service_workflow_action_dry_run", details={
+            "id": rec_id,
+            "action_id": action_id,
+            "service": service,
+            "headless_command": headless,
+            "command": command,
+        })
+        return 0
+    if action_id == "inspect-status":
+        rc = print_status(cfg, json_output=False)
+    elif action_id == "start-service":
+        start_service_process(cfg, service, headless_command=headless)
+        rc = 0
+    elif action_id == "stop-service":
+        if rec.get("requires_confirmation") is True and not confirmed:
+            raise ValueError(f"service workflow action requires --confirm-service-workflow-action: {rec_id}")
+        stop_recorded_service(
+            cfg,
+            service,
+            via="service-workflow-action",
+            headless_command=headless,
+        )
+        rc = 0
+    else:
+        raise ValueError(f"unsupported service workflow action: {action_id}")
+    append_event(cfg, "workbench", "service_workflow_action_completed", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "service": service,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "operator_action_state": rec.get("operator_action_state", ""),
+        "operator_action_reason": rec.get("operator_action_reason", ""),
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "headless_command": headless,
+        "command": command,
+        "returncode": rc,
+    })
+    return rc
 
 
 def scoped_target_cfg(cfg, target_id, target_label=""):
@@ -19196,6 +19304,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="preview a foreground operator workflow action without changing host state where supported")
     parser.add_argument("--confirm-workbench-action", action="store_true",
                         help="confirm execution of a foreground operator workflow action that requires confirmation")
+    parser.add_argument("--run-service-workflow-action",
+                        help="run a service lifecycle workflow action by id or visible number")
+    parser.add_argument("--service-workflow-dry-run", action="store_true",
+                        help="preview a service lifecycle workflow action without starting/stopping services")
+    parser.add_argument("--confirm-service-workflow-action", action="store_true",
+                        help="confirm execution of a service lifecycle workflow action that requires confirmation")
     parser.add_argument("--job-command", help=argparse.SUPPRESS)
     parser.add_argument("--run-target-workflow-action",
                         help="run a target workflow action by id or visible number")
@@ -19398,6 +19512,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                 args.run_workbench_action,
                 dry_run=args.workbench_action_dry_run,
                 confirmed=args.confirm_workbench_action,
+            )
+        if args.run_service_workflow_action:
+            return run_service_workflow_action(
+                cfg,
+                args.run_service_workflow_action,
+                dry_run=args.service_workflow_dry_run,
+                confirmed=args.confirm_service_workflow_action,
             )
         if args.run_target_workflow_action:
             return run_target_workflow_action(

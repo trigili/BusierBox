@@ -63,6 +63,14 @@ requirements, and curses Enter readiness. API clients can group these through
 `service_workflow_actions_by_service` or
 `service_workflow_actions_by_operator_action_state` to render service controls
 without inferring start/stop state from command text.
+The same records include selector-based `run_command` and `dry_run_command`
+values for headless parity:
+
+```sh
+scripts/busierbox-server --run-service-workflow-action file-service:start-service \
+  --service-workflow-dry-run
+```
+
 Foreground-safe actions can also be run through the workbench action API:
 
 ```sh
