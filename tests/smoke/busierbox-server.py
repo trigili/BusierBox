@@ -22,6 +22,51 @@ def run(*args):
     return subprocess.run(args, cwd=ROOT, text=True, capture_output=True)
 
 
+def run_pty_script(proc, master_fd, input_bytes, timeout=8):
+    output = bytearray()
+    done = threading.Event()
+
+    def drain():
+        while not done.is_set():
+            try:
+                ready, _w, _x = select.select([master_fd], [], [], 0.05)
+            except (OSError, ValueError):
+                break
+            if not ready:
+                continue
+            try:
+                chunk = os.read(master_fd, 65536)
+            except OSError:
+                break
+            if not chunk:
+                break
+            output.extend(chunk)
+
+    reader = threading.Thread(target=drain, daemon=True)
+    reader.start()
+    os.write(master_fd, input_bytes)
+    try:
+        _stdout, stderr = proc.communicate(timeout=timeout)
+    finally:
+        done.set()
+        reader.join(timeout=1)
+        while True:
+            try:
+                ready, _w, _x = select.select([master_fd], [], [], 0)
+            except (OSError, ValueError):
+                break
+            if not ready:
+                break
+            try:
+                chunk = os.read(master_fd, 65536)
+            except OSError:
+                break
+            if not chunk:
+                break
+            output.extend(chunk)
+    return bytes(output), stderr
+
+
 def free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
@@ -3606,13 +3651,32 @@ def main():
                 alpha_mailbox_activity.get("status") != "result-received" or
                 alpha_mailbox_activity.get("waiting_for") != "none" or
                 alpha_mailbox_activity.get("pending_work") is not False or
+                alpha_mailbox_activity.get("target_connectivity_state") != "online" or
+                alpha_mailbox_activity.get("target_offline_age_bucket") != "under-minute" or
                 bravo_mailbox_activity.get("status") != "queued" or
                 bravo_mailbox_activity.get("waiting_for") != "target-poll" or
                 bravo_mailbox_activity.get("pending_work") is not True or
+                bravo_mailbox_activity.get("target_connectivity_state") != "offline" or
+                bravo_mailbox_activity.get("target_offline_age_bucket") != "day-plus" or
+                bravo_mailbox_activity.get("target_poll_overdue") is not True or
+                bravo_mailbox_activity.get("target_mailbox_pending_work_count") != 1 or
                 alpha_phone_activity.get("status") != "result-received" or
+                alpha_phone_activity.get("target_connectivity_state") != "online" or
+                alpha_phone_activity.get("target_offline_age_bucket") != "under-minute" or
+                result_status.get("summary", {}).get("target_activity_target_connectivity_state_counts", {}).get("online", 0) < len(result_activity_alpha) or
+                result_status.get("summary", {}).get("target_activity_target_connectivity_state_counts", {}).get("offline", 0) < len(result_activity_bravo) or
+                result_status.get("summary", {}).get("target_activity_target_offline_age_bucket_counts", {}).get("under-minute", 0) < len(result_activity_alpha) or
+                result_status.get("summary", {}).get("target_activity_target_offline_age_bucket_counts", {}).get("day-plus", 0) < len(result_activity_bravo) or
+                result_status.get("summary", {}).get("target_activity_target_poll_overdue_counts", {}).get("True", 0) < len(result_activity_bravo) or
                 not any(rec.get("target_id") == "target-alpha" for rec in (result_status.get("target_activity_records_by_command_id") or {}).get(alpha_id, [])) or
                 (result_status.get("target_activity_records_by_waiting_for") or {}).get("target-poll", [{}])[0].get("target_id") != "target-bravo" or
-                "target_activity_records_by_pending_work" not in (((result_status.get("api_collections") or {}).get("target_activity_records") or {}).get("indexes") or [])):
+                ((result_status.get("target_activity_records_by_target_offline_age_bucket") or {}).get("day-plus") or [{}])[0].get("target_id") != "target-bravo" or
+                ((result_status.get("target_activity_records_by_target_mailbox_pending_work_count") or {}).get("1") or [{}])[0].get("target_id") != "target-bravo" or
+                "target_activity_records_by_pending_work" not in (((result_status.get("api_collections") or {}).get("target_activity_records") or {}).get("indexes") or []) or
+                "target_activity_records_by_target_connectivity_state" not in (((result_status.get("api_collections") or {}).get("target_activity_records") or {}).get("indexes") or []) or
+                "target_activity_records_by_target_offline_age_bucket" not in (((result_status.get("api_collections") or {}).get("target_activity_records") or {}).get("indexes") or []) or
+                "target_activity_records_by_target_poll_overdue" not in (((result_status.get("api_collections") or {}).get("target_activity_records") or {}).get("indexes") or []) or
+                "target_activity_records_by_target_mailbox_pending_work_count" not in (((result_status.get("api_collections") or {}).get("target_activity_records") or {}).get("indexes") or [])):
             print("target activity feed did not combine mailbox, phone-home, and heartbeat state", file=sys.stderr)
             print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
@@ -3625,6 +3689,7 @@ def main():
                 "heartbeat_via=command-queue:command_queue_result" not in result_status_text.stdout or
                 "mailbox queued=0 delivered=0 results=1 expired=0 pending=0" not in result_status_text.stdout or
                 "activity mailbox none status=result-received" not in result_status_text.stdout or
+                "activity mailbox none status=result-received target_state=online offline_age=under-minute" not in result_status_text.stdout or
                 f"mailbox_command {alpha_id} status=result-received" not in result_status_text.stdout or
                 "waiting_for=none" not in result_status_text.stdout or
                 "result=completed exit=0" not in result_status_text.stdout or
@@ -3635,6 +3700,7 @@ def main():
                 "poll_overdue=yes" not in result_status_text.stdout or
                 "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in result_status_text.stdout or
                 "activity mailbox target-poll status=queued" not in result_status_text.stdout or
+                "activity mailbox target-poll status=queued target_state=offline offline_age=day-plus" not in result_status_text.stdout or
                 f"mailbox_command {bravo_id} status=queued" not in result_status_text.stdout or
                 "waiting_for=target-poll reason=target-poll-overdue" not in result_status_text.stdout):
             print("text status missing intermittent mailbox heartbeat/result summary", file=sys.stderr)
@@ -3673,17 +3739,12 @@ def main():
             os.close(queue_tui_slave)
             queue_tui_slave = -1
             time.sleep(0.5)
-            os.write(queue_tui_master, b"20\n16\ntarget-alpha\n18\ntarget-alpha\nq\n")
-            _queue_tui_stdout, queue_tui_stderr = queue_tui_proc.communicate(timeout=8)
-            queue_tui_output = b""
-            while True:
-                try:
-                    chunk = os.read(queue_tui_master, 65536)
-                except OSError:
-                    break
-                if not chunk:
-                    break
-                queue_tui_output += chunk
+            queue_tui_output, queue_tui_stderr = run_pty_script(
+                queue_tui_proc,
+                queue_tui_master,
+                b"20\n16\ntarget-alpha\n18\ntarget-alpha\nq\n",
+                timeout=8,
+            )
         finally:
             if queue_tui_slave != -1:
                 os.close(queue_tui_slave)
@@ -7713,17 +7774,12 @@ def main():
             os.close(line_slave)
             line_slave = -1
             time.sleep(0.5)
-            os.write(line_master, b"16\ntarget-action\n15\ntarget-action:queue-command\nbusierbox survey --json\n18\ncurrent\n18\nall\nq\n")
-            _line_stdout, line_stderr = line_proc.communicate(timeout=15)
-            line_output = b""
-            while True:
-                try:
-                    chunk = os.read(line_master, 65536)
-                except OSError:
-                    break
-                if not chunk:
-                    break
-                line_output += chunk
+            line_output, line_stderr = run_pty_script(
+                line_proc,
+                line_master,
+                b"16\ntarget-action\n15\ntarget-action:queue-command\nbusierbox survey --json\n18\ncurrent\n18\nall\nq\n",
+                timeout=15,
+            )
         finally:
             if line_slave != -1:
                 os.close(line_slave)
@@ -7759,6 +7815,7 @@ def main():
                 "Target activity records:" not in line_text or
                 "activity_record " not in line_text or
                 "target=target-action category=mailbox operation=target-poll status=queued" not in line_text or
+                "target=target-action category=mailbox operation=target-poll status=queued target_state=online offline_age=under-minute" not in line_text or
                 "mailbox_pending=1 poll_overdue=no" not in line_text or
                 "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in line_text or
                 "Target workflow actions:" not in line_text):
@@ -7784,17 +7841,12 @@ def main():
             os.close(activity_slave)
             activity_slave = -1
             time.sleep(0.5)
-            os.write(activity_master, b"21\ntarget-action\nq\n")
-            _activity_stdout, activity_stderr = activity_proc.communicate(timeout=8)
-            activity_output = b""
-            while True:
-                try:
-                    chunk = os.read(activity_master, 65536)
-                except OSError:
-                    break
-                if not chunk:
-                    break
-                activity_output += chunk
+            activity_output, activity_stderr = run_pty_script(
+                activity_proc,
+                activity_master,
+                b"21\ntarget-action\nq\n",
+                timeout=8,
+            )
         finally:
             if activity_slave != -1:
                 os.close(activity_slave)
@@ -7809,6 +7861,7 @@ def main():
                 "Target activity records:" not in activity_text or
                 "activity_record " not in activity_text or
                 "target=target-action category=mailbox operation=target-poll status=queued" not in activity_text or
+                "target=target-action category=mailbox operation=target-poll status=queued target_state=online offline_age=under-minute" not in activity_text or
                 "--target-id target-action --json-status" not in activity_text):
             print("line TUI target activity feed did not show scoped activity records", file=sys.stderr)
             print(activity_text, file=sys.stderr)

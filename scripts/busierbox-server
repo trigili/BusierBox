@@ -7245,6 +7245,11 @@ def target_file_transfer_record_indexes(records):
 
 def target_activity_records_from_sources(targets, mailbox_records, phone_home_records, file_transfer_records, bridge_profiles, sessions):
     records = []
+    targets_by_id = {
+        str(rec.get("target_id") or ""): rec
+        for rec in targets or []
+        if isinstance(rec, dict) and str(rec.get("target_id") or "")
+    }
 
     def add(record):
         if not isinstance(record, dict):
@@ -7252,6 +7257,26 @@ def target_activity_records_from_sources(targets, mailbox_records, phone_home_re
         target_id = str(record.get("target_id") or "")
         if not target_id:
             return
+        target_rec = targets_by_id.get(target_id) or {}
+        if not str(record.get("target_label") or ""):
+            record["target_label"] = str(target_rec.get("label") or target_rec.get("target_label") or "")
+        for field in (
+            "target_connectivity_state",
+            "target_last_seen",
+            "target_last_seen_via",
+            "target_offline_age_bucket",
+            "target_next_expected_poll",
+        ):
+            source_field = field.replace("target_", "", 1)
+            if not str(record.get(field) or ""):
+                record[field] = str(target_rec.get(source_field) or "")
+        if not str(record.get("target_offline_for_sec") or ""):
+            record["target_offline_for_sec"] = target_rec.get("offline_for_sec", "")
+        record["target_poll_overdue"] = bool(record.get("target_poll_overdue") is True or target_rec.get("poll_overdue") is True)
+        if not str(record.get("target_poll_overdue_for_sec") or ""):
+            record["target_poll_overdue_for_sec"] = target_rec.get("poll_overdue_for_sec", "")
+        if not str(record.get("target_mailbox_pending_work_count") or ""):
+            record["target_mailbox_pending_work_count"] = int_value(target_rec.get("mailbox_pending_work_count", 0))
         records.append(record)
 
     for rec in targets or []:
@@ -7423,6 +7448,10 @@ def target_activity_record_indexes(records):
         "target_activity_records_by_filename": records_by_key(records, "filename"),
         "target_activity_records_by_pending_work": records_by_key(records, "pending_work"),
         "target_activity_records_by_waiting_for": records_by_key(records, "waiting_for"),
+        "target_activity_records_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
+        "target_activity_records_by_target_offline_age_bucket": records_by_key(records, "target_offline_age_bucket"),
+        "target_activity_records_by_target_poll_overdue": records_by_key(records, "target_poll_overdue"),
+        "target_activity_records_by_target_mailbox_pending_work_count": records_by_key(records, "target_mailbox_pending_work_count"),
     }
 
 
@@ -15543,6 +15572,10 @@ def status_document(cfg):
         "target_activity_waiting_for_counts": record_count_by_key(target_activity_records, "waiting_for"),
         "target_activity_route_kind_counts": record_count_by_key(target_activity_records, "route_kind"),
         "target_activity_bridge_profile_counts": record_count_by_key(target_activity_records, "bridge_profile"),
+        "target_activity_target_connectivity_state_counts": record_count_by_key(target_activity_records, "target_connectivity_state"),
+        "target_activity_target_offline_age_bucket_counts": record_count_by_key(target_activity_records, "target_offline_age_bucket"),
+        "target_activity_target_poll_overdue_counts": record_count_by_key(target_activity_records, "target_poll_overdue"),
+        "target_activity_target_mailbox_pending_work_count_counts": record_count_by_key(target_activity_records, "target_mailbox_pending_work_count"),
         "latest_target_activity_record_at": latest_record_value(target_activity_records, ("timestamp",)),
         **target_summary,
         "target_registry_state_record_count": len(target_registry_state_records),
@@ -16612,6 +16645,10 @@ def status_document(cfg):
                 "target_activity_records_by_filename",
                 "target_activity_records_by_pending_work",
                 "target_activity_records_by_waiting_for",
+                "target_activity_records_by_target_connectivity_state",
+                "target_activity_records_by_target_offline_age_bucket",
+                "target_activity_records_by_target_poll_overdue",
+                "target_activity_records_by_target_mailbox_pending_work_count",
             ), "target_activity_record_count",
         ),
         "staged_files_state_records": api_collection_record(
@@ -18056,6 +18093,8 @@ def print_target_summary(doc, limit=8):
             print(
                 f"      activity {item.get('category', '') or '-'} "
                 f"{item.get('operation', '') or '-'} status={item.get('status', '') or '-'} "
+                f"target_state={item.get('target_connectivity_state', '') or '-'} "
+                f"offline_age={item.get('target_offline_age_bucket', '') or '-'} "
                 f"at={item.get('timestamp', '') or '-'} waiting_for={item.get('waiting_for', '') or '-'}"
             )
         if rec.get("latest_survey_result_at"):
@@ -18130,6 +18169,8 @@ def print_target_activity_records(doc, target_id=None, limit=8):
             f"category={rec.get('category', '') or '-'} "
             f"operation={rec.get('operation', '') or '-'} "
             f"status={rec.get('status', '') or '-'} "
+            f"target_state={rec.get('target_connectivity_state', '') or '-'} "
+            f"offline_age={rec.get('target_offline_age_bucket', '') or '-'} "
             f"waiting_for={rec.get('waiting_for', '') or '-'} "
             f"pending={'yes' if rec.get('pending_work') else 'no'} "
             f"source={rec.get('source_collection', '') or '-'} "
@@ -21898,6 +21939,8 @@ def run_curses_tui(cfg):
                     f"{rec.get('target_id', '') or '-'} "
                     f"{rec.get('category', '') or '-'}:{rec.get('operation', '') or '-'} "
                     f"status={rec.get('status', '') or '-'} "
+                    f"target_state={rec.get('target_connectivity_state', '') or '-'} "
+                    f"offline_age={rec.get('target_offline_age_bucket', '') or '-'} "
                     f"pending={'yes' if rec.get('pending_work') else 'no'} "
                     f"at={rec.get('timestamp', '') or '-'}"
                 )
@@ -22396,6 +22439,8 @@ def run_curses_tui(cfg):
                     f"target: {rec.get('target_id', '') or '-'} label={rec.get('target_label', '') or '-'}",
                     f"category: {rec.get('category', '') or '-'}",
                     f"operation: {rec.get('operation', '') or '-'} status={rec.get('status', '') or '-'}",
+                    f"target_state: {rec.get('target_connectivity_state', '') or '-'} offline_age={rec.get('target_offline_age_bucket', '') or '-'}",
+                    f"target_mailbox_pending: {rec.get('target_mailbox_pending_work_count', '') if rec.get('target_mailbox_pending_work_count', '') != '' else '-'} poll_overdue={'yes' if rec.get('target_poll_overdue') else 'no'}",
                     f"source_collection: {rec.get('source_collection', '') or '-'}",
                     f"pending_work: {'yes' if rec.get('pending_work') else 'no'} waiting_for={rec.get('waiting_for', '') or '-'}",
                     f"timestamp: {rec.get('timestamp', '') or '-'}",
