@@ -627,6 +627,8 @@ def main():
                 bridge_status.get("summary", {}).get("bridge_profile_workflow_action_action_counts", {}).get("stop-profile") != 2 or
                 bridge_status.get("summary", {}).get("bridge_profile_workflow_action_action_counts", {}).get("delete-profile") != 2 or
                 bridge_status.get("summary", {}).get("bridge_profile_workflow_action_bridge_profile_counts", {}).get("lab-http") != 4 or
+                bridge_status.get("summary", {}).get("bridge_profile_workflow_action_fleet_target_count_counts", {}).get("1") != 8 or
+                bridge_status.get("summary", {}).get("bridge_profile_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get("0") != 8 or
                 bridge_status.get("summary", {}).get("target_workflow_action_count") != 13 or
                 bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("lab-http") != 2 or
                 bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("chain-http") != 2 or
@@ -658,6 +660,9 @@ def main():
                 lab_profile_actions.get("start-profile", {}).get("dry_run_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --run-bridge-profile-workflow-action lab-http:start-profile --bridge-profile-workflow-dry-run" or
                 lab_profile_actions.get("start-profile", {}).get("operator_action_state") != "ready" or
                 lab_profile_actions.get("start-profile", {}).get("can_run_from_curses_enter") is not True or
+                lab_profile_actions.get("start-profile", {}).get("fleet_target_count") != 1 or
+                lab_profile_actions.get("start-profile", {}).get("fleet_mailbox_pending_work_count") != 0 or
+                lab_profile_actions.get("start-profile", {}).get("fleet_has_mailbox_pending_work") is not False or
                 lab_profile_actions.get("stop-profile", {}).get("operator_action_state") != "not-running" or
                 lab_profile_actions.get("stop-profile", {}).get("run_command", "").find("--confirm-bridge-profile-workflow-action") == -1 or
                 lab_profile_actions.get("delete-profile", {}).get("requires_confirmation") is not True or
@@ -701,6 +706,7 @@ def main():
                 "bridge_hops_by_profile" not in ((bridge_status.get("api_collections") or {}).get("bridge_hop_records") or {}).get("indexes", []) or
                 "bridge_hops_by_to" not in ((bridge_status.get("api_collections") or {}).get("bridge_hop_records") or {}).get("indexes", []) or
                 "bridge_profile_workflow_actions_by_operator_action_state" not in ((bridge_status.get("api_collections") or {}).get("bridge_profile_workflow_actions") or {}).get("indexes", []) or
+                "bridge_profile_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((bridge_status.get("api_collections") or {}).get("bridge_profile_workflow_actions") or {}).get("indexes", []) or
                 not bridge_events.get("workbench_bridge_profile_inspected") or
                 not bridge_events.get("workbench_bridge_profile_saved") or
                 not bridge_events.get("workbench_bridge_profile_deleted") or
@@ -836,6 +842,11 @@ def main():
             "--json-status",
         ).stdout)
         bridge_queue_records = ((bridge_queue_status.get("command_queue") or {}).get("commands_by_target_id") or {}).get("target-bridge") or []
+        bridge_queue_actions_by_profile = bridge_queue_status.get("bridge_profile_workflow_actions_by_bridge_profile") or {}
+        bridge_queue_lab_actions = {
+            rec.get("action_id"): rec
+            for rec in bridge_queue_actions_by_profile.get("lab-http", [])
+        }
         bridge_queue_events = bridge_queue_status.get("events_by_event") or {}
         bridge_completed = [
             event.get("details") or {}
@@ -846,11 +857,17 @@ def main():
                 bridge_queue_records[0].get("command") != "busierbox rshell start" or
                 bridge_queue_status.get("summary", {}).get("target_mailbox_pending_work_count") != 1 or
                 bridge_queue_status.get("summary", {}).get("target_mailbox_status_counts", {}).get("queued") != 1 or
+                bridge_queue_status.get("summary", {}).get("bridge_profile_workflow_action_fleet_target_count_counts", {}).get("1") != 8 or
+                bridge_queue_status.get("summary", {}).get("bridge_profile_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get("1") != 8 or
+                bridge_queue_lab_actions.get("inspect-profile", {}).get("fleet_target_count") != 1 or
+                bridge_queue_lab_actions.get("inspect-profile", {}).get("fleet_mailbox_pending_work_count") != 1 or
+                bridge_queue_lab_actions.get("inspect-profile", {}).get("fleet_has_mailbox_pending_work") is not True or
                 ((bridge_queue_status.get("target_mailbox_records_by_target_id") or {}).get("target-bridge") or [{}])[0].get("waiting_for") != "target-poll" or
                 not bridge_completed or
                 not bridge_queue_events.get("bridge_profile_workflow_action_selected") or
                 not bridge_queue_events.get("bridge_profile_workflow_action_completed") or
                 not bridge_queue_events.get("bridge_profile_workflow_action_dry_run") or
+                bridge_queue_events.get("bridge_profile_workflow_action_dry_run", [{}])[-1].get("details", {}).get("fleet_mailbox_pending_work_count") != 0 or
                 not any(
                     (event.get("details") or {}).get("action_id") == "delete-profile" and
                     (event.get("details") or {}).get("bridge_profile") == "delete-http"

@@ -3004,9 +3004,30 @@ def bridge_profile_indexes(records):
     }
 
 
-def bridge_profile_workflow_action_records(cfg, bridge_profiles):
+def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/busierbox-server --config " + shquote(config_path)
+    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    fleet_mailbox_pending_work_count = sum(
+        int_value(rec.get("mailbox_pending_work_count", 0))
+        for rec in target_records
+    )
+    fleet_offline_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "offline"
+    ])
+    fleet_stale_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "stale"
+    ])
+    fleet_mailbox_pending_target_count = len([
+        rec for rec in target_records
+        if int_value(rec.get("mailbox_pending_work_count", 0)) > 0
+    ])
+    fleet_poll_overdue_target_count = len([
+        rec for rec in target_records
+        if rec.get("poll_overdue") is True
+    ])
     records = []
 
     def command_for(action_id, name):
@@ -3052,6 +3073,17 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles):
             "has_last_successful_relay": bool(profile.get("has_last_successful_relay")),
             "has_last_failure": bool(profile.get("has_last_failure")),
             "last_failure_reason": str(profile.get("last_failure_reason") or ""),
+            "fleet_target_count": len(target_records),
+            "fleet_connectivity_state_counts": record_count_by_key(target_records, "connectivity_state"),
+            "fleet_offline_target_count": fleet_offline_target_count,
+            "fleet_stale_target_count": fleet_stale_target_count,
+            "fleet_mailbox_pending_target_count": fleet_mailbox_pending_target_count,
+            "fleet_mailbox_pending_work_count": fleet_mailbox_pending_work_count,
+            "fleet_poll_overdue_target_count": fleet_poll_overdue_target_count,
+            "fleet_has_offline_targets": fleet_offline_target_count > 0,
+            "fleet_has_stale_targets": fleet_stale_target_count > 0,
+            "fleet_has_mailbox_pending_work": fleet_mailbox_pending_work_count > 0,
+            "fleet_has_poll_overdue_targets": fleet_poll_overdue_target_count > 0,
             "available": True,
             "requires_input": False,
             "requires_confirmation": bool(requires_confirmation),
@@ -3146,6 +3178,16 @@ def bridge_profile_workflow_action_indexes(records):
         "bridge_profile_workflow_actions_by_requires_target_online": records_by_key(records, "requires_target_online"),
         "bridge_profile_workflow_actions_by_multi_hop": records_by_key(records, "multi_hop"),
         "bridge_profile_workflow_actions_by_hop_count": records_by_key(records, "hop_count"),
+        "bridge_profile_workflow_actions_by_fleet_target_count": records_by_key(records, "fleet_target_count"),
+        "bridge_profile_workflow_actions_by_fleet_offline_target_count": records_by_key(records, "fleet_offline_target_count"),
+        "bridge_profile_workflow_actions_by_fleet_stale_target_count": records_by_key(records, "fleet_stale_target_count"),
+        "bridge_profile_workflow_actions_by_fleet_mailbox_pending_target_count": records_by_key(records, "fleet_mailbox_pending_target_count"),
+        "bridge_profile_workflow_actions_by_fleet_mailbox_pending_work_count": records_by_key(records, "fleet_mailbox_pending_work_count"),
+        "bridge_profile_workflow_actions_by_fleet_poll_overdue_target_count": records_by_key(records, "fleet_poll_overdue_target_count"),
+        "bridge_profile_workflow_actions_by_fleet_has_offline_targets": records_by_key(records, "fleet_has_offline_targets"),
+        "bridge_profile_workflow_actions_by_fleet_has_stale_targets": records_by_key(records, "fleet_has_stale_targets"),
+        "bridge_profile_workflow_actions_by_fleet_has_mailbox_pending_work": records_by_key(records, "fleet_has_mailbox_pending_work"),
+        "bridge_profile_workflow_actions_by_fleet_has_poll_overdue_targets": records_by_key(records, "fleet_has_poll_overdue_targets"),
         "bridge_profile_workflow_actions_by_has_last_successful_relay": records_by_key(records, "has_last_successful_relay"),
         "bridge_profile_workflow_actions_by_has_last_failure": records_by_key(records, "has_last_failure"),
         "bridge_profile_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
@@ -3166,6 +3208,16 @@ def bridge_profile_workflow_action_summary(records):
         "workflow_counts": record_count_by_key(records, "workflow"),
         "current_state_counts": record_count_by_key(records, "current_state"),
         "active_counts": record_count_by_key(records, "active"),
+        "fleet_target_count_counts": record_count_by_key(records, "fleet_target_count"),
+        "fleet_offline_target_count_counts": record_count_by_key(records, "fleet_offline_target_count"),
+        "fleet_stale_target_count_counts": record_count_by_key(records, "fleet_stale_target_count"),
+        "fleet_mailbox_pending_target_count_counts": record_count_by_key(records, "fleet_mailbox_pending_target_count"),
+        "fleet_mailbox_pending_work_count_counts": record_count_by_key(records, "fleet_mailbox_pending_work_count"),
+        "fleet_poll_overdue_target_count_counts": record_count_by_key(records, "fleet_poll_overdue_target_count"),
+        "fleet_has_offline_targets_counts": record_count_by_key(records, "fleet_has_offline_targets"),
+        "fleet_has_stale_targets_counts": record_count_by_key(records, "fleet_has_stale_targets"),
+        "fleet_has_mailbox_pending_work_counts": record_count_by_key(records, "fleet_has_mailbox_pending_work"),
+        "fleet_has_poll_overdue_targets_counts": record_count_by_key(records, "fleet_has_poll_overdue_targets"),
         "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
         "requires_input_count": len([rec for rec in records or [] if rec.get("requires_input") is True]),
         "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
@@ -14182,9 +14234,6 @@ def status_document(cfg):
     services = service_status_rows(cfg)
     bridge_profiles = bridge_profile_records(cfg)
     bridge_profile_index_maps = bridge_profile_indexes(bridge_profiles)
-    bridge_profile_workflow_actions = bridge_profile_workflow_action_records(cfg, bridge_profiles)
-    bridge_profile_workflow_action_index_maps = bridge_profile_workflow_action_indexes(bridge_profile_workflow_actions)
-    bridge_profile_workflow_action_stats = bridge_profile_workflow_action_summary(bridge_profile_workflow_actions)
     bridge_hop_records = bridge_hop_records_from_profiles(bridge_profiles)
     bridge_hop_index_maps = bridge_hop_indexes(bridge_hop_records)
     service_manager = SERVICE_MANAGER.snapshot()
@@ -14278,6 +14327,9 @@ def status_document(cfg):
      targets_by_missing_capability,
      targets_by_observed_constraint) = target_record_indexes(targets)
     target_summary = target_record_summary(targets)
+    bridge_profile_workflow_actions = bridge_profile_workflow_action_records(cfg, bridge_profiles, targets)
+    bridge_profile_workflow_action_index_maps = bridge_profile_workflow_action_indexes(bridge_profile_workflow_actions)
+    bridge_profile_workflow_action_stats = bridge_profile_workflow_action_summary(bridge_profile_workflow_actions)
     selected_target = dict(targets_by_id.get(target_filter_id) or {}) if target_filter_id else {}
     selected_target_sources = selected_target.get("identity_sources") or []
     selected_target_capability_summary = selected_target.get("latest_capability_summary") or {}
@@ -15103,6 +15155,16 @@ def status_document(cfg):
         "bridge_profile_workflow_action_workflow_counts": bridge_profile_workflow_action_stats.get("workflow_counts") or {},
         "bridge_profile_workflow_action_current_state_counts": bridge_profile_workflow_action_stats.get("current_state_counts") or {},
         "bridge_profile_workflow_action_active_counts": bridge_profile_workflow_action_stats.get("active_counts") or {},
+        "bridge_profile_workflow_action_fleet_target_count_counts": bridge_profile_workflow_action_stats.get("fleet_target_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_offline_target_count_counts": bridge_profile_workflow_action_stats.get("fleet_offline_target_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_stale_target_count_counts": bridge_profile_workflow_action_stats.get("fleet_stale_target_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_mailbox_pending_target_count_counts": bridge_profile_workflow_action_stats.get("fleet_mailbox_pending_target_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_mailbox_pending_work_count_counts": bridge_profile_workflow_action_stats.get("fleet_mailbox_pending_work_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_poll_overdue_target_count_counts": bridge_profile_workflow_action_stats.get("fleet_poll_overdue_target_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_has_offline_targets_counts": bridge_profile_workflow_action_stats.get("fleet_has_offline_targets_counts") or {},
+        "bridge_profile_workflow_action_fleet_has_stale_targets_counts": bridge_profile_workflow_action_stats.get("fleet_has_stale_targets_counts") or {},
+        "bridge_profile_workflow_action_fleet_has_mailbox_pending_work_counts": bridge_profile_workflow_action_stats.get("fleet_has_mailbox_pending_work_counts") or {},
+        "bridge_profile_workflow_action_fleet_has_poll_overdue_targets_counts": bridge_profile_workflow_action_stats.get("fleet_has_poll_overdue_targets_counts") or {},
         "bridge_profile_workflow_action_operator_action_state_counts": bridge_profile_workflow_action_stats.get("operator_action_state_counts") or {},
         "bridge_profile_workflow_action_operator_action_reason_counts": bridge_profile_workflow_action_stats.get("operator_action_reason_counts") or {},
         "bridge_profile_workflow_action_can_run_from_curses_enter_counts": bridge_profile_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
@@ -16481,6 +16543,16 @@ def status_document(cfg):
                 "bridge_profile_workflow_actions_by_requires_target_online",
                 "bridge_profile_workflow_actions_by_multi_hop",
                 "bridge_profile_workflow_actions_by_hop_count",
+                "bridge_profile_workflow_actions_by_fleet_target_count",
+                "bridge_profile_workflow_actions_by_fleet_offline_target_count",
+                "bridge_profile_workflow_actions_by_fleet_stale_target_count",
+                "bridge_profile_workflow_actions_by_fleet_mailbox_pending_target_count",
+                "bridge_profile_workflow_actions_by_fleet_mailbox_pending_work_count",
+                "bridge_profile_workflow_actions_by_fleet_poll_overdue_target_count",
+                "bridge_profile_workflow_actions_by_fleet_has_offline_targets",
+                "bridge_profile_workflow_actions_by_fleet_has_stale_targets",
+                "bridge_profile_workflow_actions_by_fleet_has_mailbox_pending_work",
+                "bridge_profile_workflow_actions_by_fleet_has_poll_overdue_targets",
                 "bridge_profile_workflow_actions_by_has_last_successful_relay",
                 "bridge_profile_workflow_actions_by_has_last_failure",
                 "bridge_profile_workflow_actions_by_requires_confirmation",
@@ -20449,6 +20521,18 @@ def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=F
     print(f"headless_command={run_command or command}")
     print(f"command={command}")
     print(f"bridge_profile={profile} route={rec.get('route_path', '')}")
+    fleet_details = {
+        "fleet_target_count": rec.get("fleet_target_count", 0),
+        "fleet_offline_target_count": rec.get("fleet_offline_target_count", 0),
+        "fleet_stale_target_count": rec.get("fleet_stale_target_count", 0),
+        "fleet_mailbox_pending_target_count": rec.get("fleet_mailbox_pending_target_count", 0),
+        "fleet_mailbox_pending_work_count": rec.get("fleet_mailbox_pending_work_count", 0),
+        "fleet_poll_overdue_target_count": rec.get("fleet_poll_overdue_target_count", 0),
+        "fleet_has_offline_targets": bool(rec.get("fleet_has_offline_targets")),
+        "fleet_has_stale_targets": bool(rec.get("fleet_has_stale_targets")),
+        "fleet_has_mailbox_pending_work": bool(rec.get("fleet_has_mailbox_pending_work")),
+        "fleet_has_poll_overdue_targets": bool(rec.get("fleet_has_poll_overdue_targets")),
+    }
     append_event(cfg, "workbench", "bridge_profile_workflow_action_selected", details={
         "id": rec_id,
         "action_id": action_id,
@@ -20468,6 +20552,7 @@ def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=F
         "confirmed": bool(confirmed),
         "headless_command": run_command or command,
         "command": command,
+        **fleet_details,
     })
     if dry_run:
         print("dry_run=yes")
@@ -20477,6 +20562,7 @@ def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=F
             "bridge_profile": profile,
             "headless_command": run_command or command,
             "command": command,
+            **fleet_details,
         })
         return 0
     if not profile:
@@ -20521,6 +20607,7 @@ def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=F
         "headless_command": run_command or command,
         "command": command,
         "returncode": rc,
+        **fleet_details,
     })
     return rc
 
@@ -21666,7 +21753,10 @@ def run_line_tui(cfg):
                         print(
                             f"  {action_id}: state={action_rec.get('operator_action_state', '') or '-'} "
                             f"reason={action_rec.get('operator_action_reason', '') or '-'} "
-                            f"enter={'yes' if action_rec.get('can_run_from_curses_enter') else 'no'}"
+                            f"enter={'yes' if action_rec.get('can_run_from_curses_enter') else 'no'} "
+                            f"pending_work={action_rec.get('fleet_mailbox_pending_work_count', 0)} "
+                            f"offline_targets={action_rec.get('fleet_offline_target_count', 0)} "
+                            f"poll_overdue={action_rec.get('fleet_poll_overdue_target_count', 0)}"
                         )
                         print(f"    command: {action_rec.get('headless_command', action_rec.get('command', ''))}")
                 action_line = line_input("bridge action inspect/start/stop/delete, or blank> ")
@@ -22734,6 +22824,9 @@ def run_curses_tui(cfg):
                     f"bytes: client={rec.get('last_bytes_from_client', 0)} upstream={rec.get('last_bytes_from_upstream', 0)}",
                     f"last_failure: {rec.get('last_failure_at', '') or '-'} reason={rec.get('last_failure_reason', '') or '-'}",
                     f"bridge_profile_workflow_actions: {len(profile_actions)}",
+                    f"fleet_pending_work: {inspect_action.get('fleet_mailbox_pending_work_count', 0)}",
+                    f"fleet_offline_targets: {inspect_action.get('fleet_offline_target_count', 0)}",
+                    f"fleet_poll_overdue: {inspect_action.get('fleet_poll_overdue_target_count', 0)}",
                     f"inspect_action_state: {inspect_action.get('operator_action_state', '') or '-'} reason={inspect_action.get('operator_action_reason', '') or '-'}",
                     f"start_action_state: {start_action.get('operator_action_state', '') or '-'} reason={start_action.get('operator_action_reason', '') or '-'}",
                     f"stop_action_state: {stop_action.get('operator_action_state', '') or '-'} reason={stop_action.get('operator_action_reason', '') or '-'}",
