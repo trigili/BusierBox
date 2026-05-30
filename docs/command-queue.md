@@ -362,11 +362,17 @@ Status JSON also exposes `command_queue_workflow_actions`, a small action
 catalog for the command-queue/mailbox workflow itself. The records cover
 inspect, list, queue command, clear queue, start listener, and stop listener
 actions. Each record includes the equivalent `headless_command`, current queue
-and mailbox counts, policy/support booleans, input or confirmation
-requirements, offline queueability, and `operator_action_state` /
-`operator_action_reason`. The `queue-command` action is explicitly marked
-`queues_offline_work=true` and `target_phone_home_required=true`, while the
-list action is marked as runnable from curses Enter. Indexes such as
+and `run_command`, current queue and mailbox counts, policy/support booleans,
+input or confirmation requirements, offline queueability, and
+`operator_action_state` / `operator_action_reason`. Operators can run those
+same records headlessly by passing an action id or visible number to
+`--run-command-queue-workflow-action`. The `queue-command` action accepts
+`--command-queue-workflow-command COMMAND`, dry runs use
+`--command-queue-workflow-dry-run`, and destructive actions require
+`--confirm-command-queue-workflow-action`. The `queue-command` action is
+explicitly marked `queues_offline_work=true` and
+`target_phone_home_required=true`, while the list action is marked as runnable
+from curses Enter. Indexes such as
 `command_queue_workflow_actions_by_action_id`,
 `command_queue_workflow_actions_by_category`,
 `command_queue_workflow_actions_by_requires_input`,

@@ -129,6 +129,7 @@ def main():
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
                  "--run-service-workflow-action", "--service-workflow-dry-run", "--confirm-service-workflow-action",
+                 "--run-command-queue-workflow-action", "--command-queue-workflow-command", "--confirm-command-queue-workflow-action",
                  "--build-config", "--list-build-config", "--set-build-config"):
         if word not in combined:
             print(f"busierbox-server help missing operator workbench flag: {word}", file=sys.stderr)
@@ -188,6 +189,7 @@ def main():
                  "survey_bootstrap_workflow_actions:",
                  "Command queue workflow action summary:", "command_queue_workflow_actions_by_action_id",
                  "Command queue workflow actions:",
+                 "command_queue_workflow_action_selected", "command_queue_workflow_action_completed",
                  "File service workflow action summary:", "file_service_workflow_actions_by_action_id",
                  "File service workflow actions:",
                  "staged_file_workflow_actions:", "staged_file_workflow_actions_by_request_name",
@@ -3474,9 +3476,11 @@ def main():
         queue_target_events = (queue_tui_status.get("events_by_event") or {}).get("workbench_target_inspected") or []
         if (len(queue_workflow_actions) != 6 or
                 queue_workflow_actions_by_id.get("command-queue:list-command-queue", {}).get("can_run_from_curses_enter") is not True or
+                queue_workflow_actions_by_id.get("command-queue:list-command-queue", {}).get("run_command", "").find("--run-command-queue-workflow-action") < 0 or
                 queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("requires_input") is not True or
                 queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("queues_offline_work") is not True or
                 queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("target_phone_home_required") is not True or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("run_command", "").find("--command-queue-workflow-command COMMAND") < 0 or
                 queue_workflow_actions_by_id.get("command-queue:clear-command-queue", {}).get("requires_confirmation") is not True or
                 queue_tui_status.get("summary", {}).get("command_queue_workflow_action_count") != 6 or
                 queue_tui_status.get("summary", {}).get("command_queue_workflow_action_queues_offline_work_count") != 1 or
@@ -3495,6 +3499,32 @@ def main():
                 )):
             print("line TUI command queue inspection did not record event", file=sys.stderr)
             print(json.dumps(queue_tui_status, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        queue_action_run = run(
+            "scripts/busierbox-server",
+            "--config", str(poll_target_cfg),
+            "--run-command-queue-workflow-action", "command-queue:queue-command",
+            "--command-queue-workflow-command", "busierbox survey --json",
+        )
+        if (queue_action_run.returncode != 0 or
+                "command queue workflow action: command-queue:queue-command" not in queue_action_run.stdout or
+                "queued " not in queue_action_run.stdout or
+                "busierbox survey --json" not in queue_action_run.stdout):
+            print("headless command queue workflow queue action failed", file=sys.stderr)
+            print(queue_action_run.stdout, file=sys.stderr)
+            print(queue_action_run.stderr, file=sys.stderr)
+            return 1
+        queue_action_list = run(
+            "scripts/busierbox-server",
+            "--config", str(poll_target_cfg),
+            "--run-command-queue-workflow-action", "command-queue:list-command-queue",
+        )
+        if (queue_action_list.returncode != 0 or
+                "command queue workflow action: command-queue:list-command-queue" not in queue_action_list.stdout or
+                "busierbox survey --json" not in queue_action_list.stdout):
+            print("headless command queue workflow list action failed", file=sys.stderr)
+            print(queue_action_list.stdout, file=sys.stderr)
+            print(queue_action_list.stderr, file=sys.stderr)
             return 1
 
         daemon_file_port = free_port()

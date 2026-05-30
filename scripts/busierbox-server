@@ -8845,6 +8845,7 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
             "label": label,
             "command": command,
             "headless_command": command,
+            "run_command": base + target_arg + " --run-command-queue-workflow-action " + shquote(f"command-queue:{action_id}"),
             "target_id_filter": target_filter_id,
             "target_filter_active": bool(target_filter_id),
             "queue_path": str(command_queue.get("path") or command_queue_path(cfg)),
@@ -8909,6 +8910,8 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
         queues_offline_work=True,
         target_phone_home_required=True,
     )
+    if records:
+        records[-1]["run_command"] = base + target_arg + " --run-command-queue-workflow-action command-queue:queue-command --command-queue-workflow-command COMMAND"
     add(
         "clear-command-queue",
         "mailbox",
@@ -8919,6 +8922,8 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
         "confirmation-required" if total_count else "queue-empty",
         requires_confirmation=True,
     )
+    if records:
+        records[-1]["run_command"] = base + target_arg + " --run-command-queue-workflow-action command-queue:clear-command-queue --confirm-command-queue-workflow-action"
     add(
         "start-command-queue-listener",
         "service",
@@ -19074,6 +19079,122 @@ def run_release_artifact_workflow_action(cfg, selector, dry_run=False):
     raise ValueError(f"unsupported release artifact workflow action: {action_id}")
 
 
+def find_command_queue_workflow_action(cfg, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("command queue workflow action is required")
+    snap = workbench_snapshot(cfg)
+    actions = snap.get("command_queue_workflow_actions") or []
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(actions):
+            raise ValueError(f"command queue workflow action number out of range: {text}")
+        return actions[idx]
+    for rec in actions:
+        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
+            return rec
+    raise ValueError(f"command queue workflow action not found: {text}")
+
+
+def run_command_queue_workflow_action(cfg, selector, command_input="", dry_run=False, confirmed=False):
+    rec = find_command_queue_workflow_action(cfg, selector)
+    rec_id = str(rec.get("id") or "")
+    action_id = str(rec.get("action_id") or "")
+    command = str(rec.get("command") or rec.get("headless_command") or "")
+    run_command = str(rec.get("run_command") or "")
+    print(f"command queue workflow action: {rec_id}")
+    print(f"headless_command={run_command or command}")
+    print(f"command={command}")
+    append_event(cfg, "workbench", "command_queue_workflow_action_selected", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "requires_input": bool(rec.get("requires_input")),
+        "requires_confirmation": bool(rec.get("requires_confirmation")),
+        "queues_offline_work": bool(rec.get("queues_offline_work")),
+        "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        "operator_action_state": rec.get("operator_action_state", ""),
+        "operator_action_reason": rec.get("operator_action_reason", ""),
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or command,
+        "command": command,
+    })
+    if dry_run:
+        print("dry_run=yes")
+        append_event(cfg, "workbench", "command_queue_workflow_action_dry_run", details={
+            "id": rec_id,
+            "action_id": action_id,
+            "headless_command": run_command or command,
+            "command": command,
+        })
+        return 0
+    if action_id == "inspect-command-queue":
+        return print_status(cfg, json_output=False)
+    if action_id == "list-command-queue":
+        print_command_queue(cfg, json_output=False)
+        rc = 0
+    elif action_id == "queue-command":
+        text = str(command_input or "").strip()
+        if not text:
+            raise ValueError("queue-command workflow action requires --command-queue-workflow-command")
+        queued = queue_command(cfg, text)
+        print(f"queued {queued['id']}: {queued['command']}")
+        if queued.get("target_id"):
+            print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        rc = 0
+        append_event(cfg, "workbench", "command_queue_workflow_action_completed", details={
+            "id": rec_id,
+            "action_id": action_id,
+            "workflow": rec.get("workflow", ""),
+            "category": rec.get("category", ""),
+            "result": "queued-command",
+            "command_id": queued.get("id", ""),
+            "command_sha256": queued.get("command_sha256", ""),
+            "queues_offline_work": bool(rec.get("queues_offline_work")),
+            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+            "headless_command": run_command or command,
+            "command": command,
+            "returncode": rc,
+        })
+        return rc
+    elif action_id == "clear-command-queue":
+        if rec.get("requires_confirmation") is True and not confirmed:
+            raise ValueError(f"command queue workflow action requires --confirm-command-queue-workflow-action: {rec_id}")
+        count = clear_command_queue(cfg)
+        print(f"cleared {count} command queue entr{'y' if count == 1 else 'ies'}")
+        rc = 0
+    elif action_id == "start-command-queue-listener":
+        start_service_process(cfg, "command-queue", headless_command=run_command or command)
+        rc = 0
+    elif action_id == "stop-command-queue-listener":
+        if rec.get("requires_confirmation") is True and not confirmed:
+            raise ValueError(f"command queue workflow action requires --confirm-command-queue-workflow-action: {rec_id}")
+        stop_recorded_service(
+            cfg,
+            "command-queue",
+            via="command-queue-workflow-action",
+            headless_command=run_command or command,
+        )
+        rc = 0
+    else:
+        raise ValueError(f"unsupported command queue workflow action: {action_id}")
+    append_event(cfg, "workbench", "command_queue_workflow_action_completed", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "queues_offline_work": bool(rec.get("queues_offline_work")),
+        "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or command,
+        "command": command,
+        "returncode": rc,
+    })
+    return rc
+
+
 def scoped_target_cfg(cfg, target_id, target_label=""):
     scoped = dict(cfg)
     scoped["_target_id_filter"] = str(target_id or "").strip()
@@ -21767,6 +21888,14 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="preview a service lifecycle workflow action without starting/stopping services")
     parser.add_argument("--confirm-service-workflow-action", action="store_true",
                         help="confirm execution of a service lifecycle workflow action that requires confirmation")
+    parser.add_argument("--run-command-queue-workflow-action",
+                        help="run a command queue workflow action by id or visible number")
+    parser.add_argument("--command-queue-workflow-command",
+                        help="command text for the queue-command command queue workflow action")
+    parser.add_argument("--command-queue-workflow-dry-run", action="store_true",
+                        help="preview a command queue workflow action without changing queue or listener state")
+    parser.add_argument("--confirm-command-queue-workflow-action", action="store_true",
+                        help="confirm execution of a command queue workflow action that requires confirmation")
     parser.add_argument("--run-release-artifact-workflow-action",
                         help="run a release/artifact workflow action by id, selector, or visible number")
     parser.add_argument("--release-artifact-workflow-dry-run", action="store_true",
@@ -21986,6 +22115,14 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                 cfg,
                 args.run_release_artifact_workflow_action,
                 dry_run=args.release_artifact_workflow_dry_run,
+            )
+        if args.run_command_queue_workflow_action:
+            return run_command_queue_workflow_action(
+                cfg,
+                args.run_command_queue_workflow_action,
+                command_input=args.command_queue_workflow_command or "",
+                dry_run=args.command_queue_workflow_dry_run,
+                confirmed=args.confirm_command_queue_workflow_action,
             )
         if args.run_target_workflow_action:
             return run_target_workflow_action(
