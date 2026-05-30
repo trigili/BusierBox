@@ -3881,6 +3881,20 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             bridge_by_target.setdefault(target_id, []).append(profile)
     records = []
 
+    def action_readiness(target, requires_input=False, available=True,
+                         requires_target_online=False, queues_offline_work=False,
+                         target_phone_home_required=False):
+        target_state = str((target or {}).get("connectivity_state") or "")
+        if not available:
+            return "unavailable", "unavailable", False
+        if requires_target_online and target_state not in ("online", "recent"):
+            return "blocked", "target-not-online", False
+        if requires_input:
+            return "needs-input", "input-required", False
+        if queues_offline_work and target_phone_home_required:
+            return "queueable-offline", "queues-until-phone-home", True
+        return "ready", "run-now", True
+
     def add(target, action_id, category, label, command, workflow, requires_input=False,
             available=True, bridge_profile="", offline_supported=True,
             requires_target_online=False, queues_offline_work=False,
@@ -3888,6 +3902,14 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
         target_id = str(target.get("target_id") or "")
         if not target_id:
             return
+        action_state, action_reason, can_run_from_curses_enter = action_readiness(
+            target,
+            requires_input=requires_input,
+            available=available,
+            requires_target_online=requires_target_online,
+            queues_offline_work=queues_offline_work,
+            target_phone_home_required=target_phone_home_required,
+        )
         records.append({
             "id": f"{target_id}:{action_id}",
             "action_id": action_id,
@@ -3906,6 +3928,9 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "requires_target_online": bool(requires_target_online),
             "queues_offline_work": bool(queues_offline_work),
             "target_phone_home_required": bool(target_phone_home_required),
+            "operator_action_state": action_state,
+            "operator_action_reason": action_reason,
+            "can_run_from_curses_enter": bool(can_run_from_curses_enter),
             "execution_default": "show-command",
             "target_execution": False,
             "tui_visible": True,
@@ -4068,6 +4093,9 @@ def target_workflow_action_indexes(records):
         "target_workflow_actions_by_target_phone_home_required": records_by_key(records, "target_phone_home_required"),
         "target_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
         "target_workflow_actions_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
+        "target_workflow_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "target_workflow_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "target_workflow_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
     }
 
 
@@ -4083,12 +4111,16 @@ def target_workflow_action_summary(records):
         "requires_target_online_count": len([rec for rec in records or [] if rec.get("requires_target_online") is True]),
         "queues_offline_work_count": len([rec for rec in records or [] if rec.get("queues_offline_work") is True]),
         "target_phone_home_required_count": len([rec for rec in records or [] if rec.get("target_phone_home_required") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
         "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
         "target_connectivity_state_counts": record_count_by_key(records, "target_connectivity_state"),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
         "offline_supported_counts": record_count_by_key(records, "offline_supported"),
         "requires_target_online_counts": record_count_by_key(records, "requires_target_online"),
         "queues_offline_work_counts": record_count_by_key(records, "queues_offline_work"),
         "target_phone_home_required_counts": record_count_by_key(records, "target_phone_home_required"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
     }
 
 
@@ -12858,15 +12890,19 @@ def status_document(cfg):
         "target_workflow_action_requires_target_online_count": target_workflow_action_stats.get("requires_target_online_count", 0),
         "target_workflow_action_queues_offline_work_count": target_workflow_action_stats.get("queues_offline_work_count", 0),
         "target_workflow_action_target_phone_home_required_count": target_workflow_action_stats.get("target_phone_home_required_count", 0),
+        "target_workflow_action_can_run_from_curses_enter_count": target_workflow_action_stats.get("can_run_from_curses_enter_count", 0),
         "target_workflow_action_target_counts": target_workflow_action_stats.get("target_counts") or {},
         "target_workflow_action_category_counts": target_workflow_action_stats.get("category_counts") or {},
         "target_workflow_action_workflow_counts": target_workflow_action_stats.get("workflow_counts") or {},
         "target_workflow_action_bridge_profile_counts": target_workflow_action_stats.get("bridge_profile_counts") or {},
         "target_workflow_action_connectivity_state_counts": target_workflow_action_stats.get("target_connectivity_state_counts") or {},
+        "target_workflow_action_operator_action_state_counts": target_workflow_action_stats.get("operator_action_state_counts") or {},
+        "target_workflow_action_operator_action_reason_counts": target_workflow_action_stats.get("operator_action_reason_counts") or {},
         "target_workflow_action_offline_supported_counts": target_workflow_action_stats.get("offline_supported_counts") or {},
         "target_workflow_action_requires_target_online_counts": target_workflow_action_stats.get("requires_target_online_counts") or {},
         "target_workflow_action_queues_offline_work_counts": target_workflow_action_stats.get("queues_offline_work_counts") or {},
         "target_workflow_action_target_phone_home_required_counts": target_workflow_action_stats.get("target_phone_home_required_counts") or {},
+        "target_workflow_action_can_run_from_curses_enter_counts": target_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
         "event_count": event_summary_stats["total_count"],
         "event_log_total_count": event_stats["total_count"],
         "event_log_exists": bool(event_log_state.get("exists", False)),
@@ -13333,6 +13369,9 @@ def status_document(cfg):
                 "target_workflow_actions_by_target_phone_home_required",
                 "target_workflow_actions_by_bridge_profile",
                 "target_workflow_actions_by_target_connectivity_state",
+                "target_workflow_actions_by_operator_action_state",
+                "target_workflow_actions_by_operator_action_reason",
+                "target_workflow_actions_by_can_run_from_curses_enter",
             ), "target_workflow_action_count",
         ),
         "target_command_state_records": api_collection_record(
@@ -14793,11 +14832,13 @@ def print_workbench_action_summary(doc):
         f"available={summary.get('target_workflow_action_available_count', 0)} "
         f"requires_input={summary.get('target_workflow_action_requires_input_count', 0)} "
         f"offline_supported={summary.get('target_workflow_action_offline_supported_count', 0)} "
-        f"requires_online={summary.get('target_workflow_action_requires_target_online_count', 0)}"
+        f"requires_online={summary.get('target_workflow_action_requires_target_online_count', 0)} "
+        f"enter_runnable={summary.get('target_workflow_action_can_run_from_curses_enter_count', 0)}"
     )
     print(f"  target workflow categories: {format_counts(summary.get('target_workflow_action_category_counts') or {})}")
     print(f"  target workflows: {format_counts(summary.get('target_workflow_action_workflow_counts') or {})}")
     print(f"  offline work: {format_counts(summary.get('target_workflow_action_queues_offline_work_counts') or {})}")
+    print(f"  action states: {format_counts(summary.get('target_workflow_action_operator_action_state_counts') or {})}")
 
 
 def print_workbench_job_summary(doc):
@@ -15323,7 +15364,9 @@ def print_status(cfg, json_output=False):
                 f"  {rec.get('id', '')} target={rec.get('target_id', '')} "
                 f"category={rec.get('category', '')} workflow={rec.get('workflow', '')} "
                 f"available={available} input={requires_input} offline={offline} "
-                f"requires_online={requires_online}{bridge}"
+                f"requires_online={requires_online} state={rec.get('operator_action_state', '') or '-'} "
+                f"reason={rec.get('operator_action_reason', '') or '-'} "
+                f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'}{bridge}"
             )
             print(f"    {rec.get('headless_command', rec.get('command', ''))}")
     print_workbench_job_summary(doc)
@@ -15689,7 +15732,9 @@ def print_workbench(cfg, include_api_summary=True):
                 f"  {rec.get('id', '')} target={rec.get('target_id', '')} "
                 f"category={rec.get('category', '')} workflow={rec.get('workflow', '')} "
                 f"available={available} input={requires_input} offline={offline} "
-                f"requires_online={requires_online}{bridge}"
+                f"requires_online={requires_online} state={rec.get('operator_action_state', '') or '-'} "
+                f"reason={rec.get('operator_action_reason', '') or '-'} "
+                f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'}{bridge}"
             )
             print(f"    {rec.get('headless_command', rec.get('command', ''))}")
         if len(actions) > 3:
@@ -16629,7 +16674,10 @@ def run_line_tui(cfg):
                     f"workflow={rec.get('workflow', '')} input={'yes' if rec.get('requires_input') else 'no'} "
                     f"offline={'yes' if rec.get('offline_supported') else 'no'} "
                     f"requires_online={'yes' if rec.get('requires_target_online') else 'no'} "
-                    f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'}"
+                    f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'} "
+                    f"state={rec.get('operator_action_state', '') or '-'} "
+                    f"reason={rec.get('operator_action_reason', '') or '-'} "
+                    f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'}"
                 )
             append_event(cfg, "workbench", "workbench_actions_viewed", details={
                 "headless_command": headless,
@@ -16961,7 +17009,10 @@ def run_line_tui(cfg):
                         print(
                             f"     offline={'yes' if rec.get('offline_supported') else 'no'} "
                             f"requires_online={'yes' if rec.get('requires_target_online') else 'no'} "
-                            f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'}"
+                            f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'} "
+                            f"state={rec.get('operator_action_state', '') or '-'} "
+                            f"reason={rec.get('operator_action_reason', '') or '-'} "
+                            f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'}"
                         )
                 append_event(cfg, "workbench", "workbench_target_inspected", details={
                     "target_id": target_id,
@@ -17196,8 +17247,8 @@ def run_curses_tui(cfg):
                     f"{'>' if pane == 14 and idx == selected else ' '} "
                     f"{rec.get('target_id', '') or '-'}:{rec.get('action_id', '') or '-'} "
                     f"wf={rec.get('workflow', '') or '-'} "
-                    f"queue={'yes' if rec.get('queues_offline_work') else 'no'} "
-                    f"input={'yes' if rec.get('requires_input') else 'no'}"
+                    f"state={rec.get('operator_action_state', '') or '-'} "
+                    f"reason={rec.get('operator_action_reason', '') or '-'}"
                 )
                 for idx, rec in enumerate(target_workflow_actions)
             ] or ["none"]
@@ -17503,6 +17554,9 @@ def run_curses_tui(cfg):
                     f"requires_target_online: {'yes' if rec.get('requires_target_online') else 'no'}",
                     f"queues_offline_work: {'yes' if rec.get('queues_offline_work') else 'no'}",
                     f"target_phone_home_required: {'yes' if rec.get('target_phone_home_required') else 'no'}",
+                    f"operator_action_state: {rec.get('operator_action_state', '') or '-'}",
+                    f"operator_action_reason: {rec.get('operator_action_reason', '') or '-'}",
+                    f"can_run_from_curses_enter: {'yes' if rec.get('can_run_from_curses_enter') else 'no'}",
                     f"requires_input: {'yes' if rec.get('requires_input') else 'no'}",
                     f"bridge_profile: {rec.get('bridge_profile', '') or '-'}",
                     f"command: {rec.get('command', '') or '-'}",
@@ -17836,8 +17890,9 @@ def run_curses_tui(cfg):
                 elif pane == 14 and target_workflow_actions:
                     rec = target_workflow_actions[min(selected, len(target_workflow_actions) - 1)]
                     action_id = str(rec.get("action_id") or "")
-                    if rec.get("requires_input") or action_id in ("inspect-status", "open-workbench"):
-                        safe_add(stdscr, height - 2, 0, "Prompted/view target actions use action 15 or the shown headless command.")
+                    if not rec.get("can_run_from_curses_enter") or action_id in ("inspect-status", "open-workbench"):
+                        reason = rec.get("operator_action_reason", "") or "use-line-action"
+                        safe_add(stdscr, height - 2, 0, f"Target action {rec.get('operator_action_state', '') or 'not-runnable'}: {reason}; use action 15 or the shown headless command.")
                         stdscr.getch()
                     else:
                         output = io.StringIO()

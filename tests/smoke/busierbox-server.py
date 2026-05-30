@@ -171,6 +171,7 @@ def main():
                  "capability=", "compatibility=", "tail_status = event_tail_availability_text(snap)",
                  "Target Fleet", "enter selects this target filter", "set_workbench_target_filter(cfg",
                  "Target Actions", "enter runs no-input target workflow actions", "action 15 opens prompted target workflow list",
+                 "operator_action_state:", "operator_action_reason:", "can_run_from_curses_enter:",
                  "Bridge Routes", "enter starts/stops this bridge profile", "--bridge-profile",
                  "Mailbox", "mailbox_command:", "pending_reason:", "action 20 opens command queue/results",
                  "Build Config", "enter sets this build config field", "action 14 opens guided build config",
@@ -6707,6 +6708,12 @@ def main():
                 upload_summary.get("target_workflow_action_requires_target_online_count") != 0 or
                 upload_summary.get("target_workflow_action_queues_offline_work_count") != 4 or
                 upload_summary.get("target_workflow_action_target_phone_home_required_count") != 6 or
+                upload_summary.get("target_workflow_action_can_run_from_curses_enter_count") != 5 or
+                upload_summary.get("target_workflow_action_operator_action_state_counts", {}).get("ready") != 4 or
+                upload_summary.get("target_workflow_action_operator_action_state_counts", {}).get("needs-input") != 4 or
+                upload_summary.get("target_workflow_action_operator_action_state_counts", {}).get("queueable-offline") != 1 or
+                upload_summary.get("target_workflow_action_operator_action_reason_counts", {}).get("input-required") != 4 or
+                upload_summary.get("target_workflow_action_operator_action_reason_counts", {}).get("queues-until-phone-home") != 1 or
                 len(targets) != 1 or
                 target_alpha.get("label") != "Alpha Router" or
                 "lab-alpha" not in (target_alpha.get("aliases") or []) or
@@ -6720,9 +6727,15 @@ def main():
                 target_alpha.get("latest_session_id") != session_json_paths[0].parent.name or
                 len(alpha_workflow_actions) != 9 or
                 alpha_actions_by_action.get("queue-command", {}).get("headless_command") != f"scripts/busierbox-server --config {str(upload_cfg)} --target-id target-alpha --queue-command COMMAND" or
+                alpha_actions_by_action.get("queue-command", {}).get("operator_action_state") != "needs-input" or
+                alpha_actions_by_action.get("queue-command", {}).get("operator_action_reason") != "input-required" or
+                alpha_actions_by_action.get("queue-command", {}).get("can_run_from_curses_enter") is not False or
                 alpha_actions_by_action.get("queue-command", {}).get("queues_offline_work") is not True or
                 alpha_actions_by_action.get("queue-command", {}).get("target_phone_home_required") is not True or
                 alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("queues_offline_work") is not True or
+                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("operator_action_state") != "queueable-offline" or
+                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("operator_action_reason") != "queues-until-phone-home" or
+                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("can_run_from_curses_enter") is not True or
                 alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("target_phone_home_required") is not True or
                 alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("headless_command") != f"scripts/busierbox-server --config {str(upload_cfg)} --run-target-workflow-action target-alpha:queue-survey-bootstrap" or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("requires_input") is not True or
@@ -6736,9 +6749,13 @@ def main():
                 alpha_actions_by_action.get("queue-staged-fetch", {}).get("queues_offline_work") is not True or
                 alpha_actions_by_action.get("queue-staged-fetch", {}).get("target_phone_home_required") is not True or
                 alpha_actions_by_action.get("inspect-status", {}).get("workflow") != "status" or
+                alpha_actions_by_action.get("inspect-status", {}).get("operator_action_state") != "ready" or
+                alpha_actions_by_action.get("inspect-status", {}).get("operator_action_reason") != "run-now" or
                 ((upload_doc.get("target_workflow_actions_by_workflow") or {}).get("command-queue") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("target_workflow_actions_by_requires_input") or {}).get("True") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("target_workflow_actions_by_queues_offline_work") or {}).get("True") or [{}])[0].get("target_id") != "target-alpha" or
+                ((upload_doc.get("target_workflow_actions_by_operator_action_state") or {}).get("queueable-offline") or [{}])[0].get("action_id") != "queue-survey-bootstrap" or
+                ((upload_doc.get("target_workflow_actions_by_operator_action_reason") or {}).get("input-required") or [{}])[0].get("target_id") != "target-alpha" or
                 "file-service" not in (target_alpha.get("services_seen") or []) or
                 "http-header" not in (target_alpha.get("identity_sources") or [])):
             print("server json status missing target ledger records", file=sys.stderr)
@@ -6759,6 +6776,8 @@ def main():
                 "target_workflow_actions_by_target_id" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
                 "target_workflow_actions_by_queues_offline_work" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
                 "target_workflow_actions_by_requires_target_online" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
+                "target_workflow_actions_by_operator_action_state" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
+                "target_workflow_actions_by_can_run_from_curses_enter" not in ((upload_doc.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes", []) or
                 ((upload_doc.get("targets_by_identity_source") or {}).get("http-header") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("targets_by_latest_activity_service") or {}).get("file-service") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("targets_by_latest_activity_operation") or {}).get("upload") or [{}])[0].get("target_id") != "target-alpha" or
@@ -6868,6 +6887,8 @@ def main():
                 " --status" not in line_text or
                 "queues_offline_work=yes" not in line_text or
                 "offline=yes requires_online=no" not in line_text or
+                "state=needs-input reason=input-required enter=no" not in line_text or
+                "state=queueable-offline reason=queues-until-phone-home enter=yes" not in line_text or
                 "target_workflow_action_returncode=0" not in line_text or
                 "Target activity after action:" not in line_text or
                 "mailbox_pending=1 poll_overdue=no" not in line_text or

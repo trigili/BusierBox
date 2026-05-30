@@ -386,11 +386,12 @@ target mailbox.
 Each action carries a `headless_command` so the TUI can show the exact CLI path
 instead of hiding automation behind an interactive-only flow. Action records
 also expose `offline_supported`, `requires_target_online`,
-`queues_offline_work`, and `target_phone_home_required`, with matching status
+`queues_offline_work`, `target_phone_home_required`, `operator_action_state`,
+`operator_action_reason`, and `can_run_from_curses_enter`, with matching status
 summary counts and lookup maps. TUI and API clients can use those fields to show
-which target workflows can be prepared while a target is offline, which bridge
-actions need the target online now, and which bridge actions leave mailbox work
-waiting for the next phone-home window.
+which target workflows can be prepared while a target is offline, which actions
+need prompted input, which bridge actions need the target online now, and which
+actions leave mailbox work waiting for the next phone-home window.
 
 The same actions can be run headlessly or from the line-oriented TUI. For
 automation, use the stable action id:
@@ -444,10 +445,11 @@ stale, offline, and unknown target counts, pending mailbox work, overdue polls,
 and the latest phone-home timestamp.
 The adjacent `Target Actions` pane lists the per-target workflow actions exposed
 by status JSON, including whether each action queues offline work, requires
-input, or needs a later phone-home. Pressing Enter runs no-input actions such as
-queueing survey bootstrap work or starting target-scoped services; actions that
-need operator input keep pointing at line-mode action `15` and the shown
-headless command.
+input, can run from curses Enter, or needs a later phone-home. Pressing Enter
+runs no-input actions whose `operator_action_state` is ready or
+queueable-offline, such as queueing survey bootstrap work or starting
+target-scoped services; actions that need operator input keep pointing at
+line-mode action `15` and the shown headless command.
 It also includes a persistent `Mailbox` pane for target-scoped queued work. The
 pane shows command id, target, delivery/result status, pending state, and the
 current pending reason; the details view expands the selected mailbox record
