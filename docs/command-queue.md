@@ -431,6 +431,12 @@ pane. It lists known targets with connectivity state, pending mailbox work,
 poll-overdue state, and last-seen time; selecting a target and pressing Enter
 sets the current target filter, while the details pane shows heartbeat, mailbox,
 latest result, latest survey/file activity, and bridge context for that device.
+The adjacent `Target Actions` pane lists the per-target workflow actions exposed
+by status JSON, including whether each action queues offline work, requires
+input, or needs a later phone-home. Pressing Enter runs no-input actions such as
+queueing survey bootstrap work or starting target-scoped services; actions that
+need operator input keep pointing at line-mode action `15` and the shown
+headless command.
 It also includes a persistent `Mailbox` pane for target-scoped queued work. The
 pane shows command id, target, delivery/result status, and pending state; the
 details view expands the selected mailbox record with connectivity state,

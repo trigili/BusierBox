@@ -14,6 +14,8 @@ import argparse
 import atexit
 import base64
 import calendar
+import contextlib
+import io
 import itertools
 import hashlib
 import json
@@ -17109,6 +17111,17 @@ def run_curses_tui(cfg):
                 )
                 for idx, rec in enumerate(targets)
             ] or ["none"]
+            target_workflow_actions = snap.get("target_workflow_actions") or []
+            target_action_lines = [
+                (
+                    f"{'>' if pane == 14 and idx == selected else ' '} "
+                    f"{rec.get('target_id', '') or '-'}:{rec.get('action_id', '') or '-'} "
+                    f"wf={rec.get('workflow', '') or '-'} "
+                    f"queue={'yes' if rec.get('queues_offline_work') else 'no'} "
+                    f"input={'yes' if rec.get('requires_input') else 'no'}"
+                )
+                for idx, rec in enumerate(target_workflow_actions)
+            ] or ["none"]
             bridge_profiles = snap.get("bridge_profiles") or []
             bridge_lines = [
                 (
@@ -17371,6 +17384,26 @@ def run_curses_tui(cfg):
                     "enter selects this target filter",
                     "action 18 opens target mailbox/activity",
                 ]
+            elif pane == 14 and target_workflow_actions:
+                rec = target_workflow_actions[min(selected, len(target_workflow_actions) - 1)]
+                detail_lines = [
+                    f"target_workflow_action: {rec.get('id', '') or '-'}",
+                    f"target: {rec.get('target_id', '') or '-'} label={rec.get('target_label', '') or '-'}",
+                    f"action: {rec.get('action_id', '') or '-'}",
+                    f"label: {rec.get('label', '')}",
+                    f"workflow: {rec.get('workflow', '')} category={rec.get('category', '')}",
+                    f"target_state: {rec.get('target_connectivity_state', '') or '-'}",
+                    f"offline_supported: {'yes' if rec.get('offline_supported') else 'no'}",
+                    f"requires_target_online: {'yes' if rec.get('requires_target_online') else 'no'}",
+                    f"queues_offline_work: {'yes' if rec.get('queues_offline_work') else 'no'}",
+                    f"target_phone_home_required: {'yes' if rec.get('target_phone_home_required') else 'no'}",
+                    f"requires_input: {'yes' if rec.get('requires_input') else 'no'}",
+                    f"bridge_profile: {rec.get('bridge_profile', '') or '-'}",
+                    f"command: {rec.get('command', '') or '-'}",
+                    f"headless_command: {rec.get('headless_command', '') or '-'}",
+                    "enter runs no-input target workflow actions",
+                    "action 15 opens prompted target workflow list",
+                ]
             elif pane == 9 and bridge_profiles:
                 rec = bridge_profiles[min(selected, len(bridge_profiles) - 1)]
                 name = str(rec.get("name") or "")
@@ -17530,12 +17563,13 @@ def run_curses_tui(cfg):
             top_bottom_h = max(4, bottom_h // 2)
             lower_bottom_y = bottom_y + top_bottom_h
             lower_bottom_h = max(1, height - lower_bottom_y - 1)
-            top_fifth = max(13, width // 5)
-            draw_list(stdscr, f"Event Log | {event_tail_status_line}", event_lines, bottom_y, 0, top_bottom_h, top_fifth, pane == 4)
-            draw_list(stdscr, "Target Fleet", target_lines, bottom_y, top_fifth + 1, top_bottom_h, top_fifth, pane == 8)
-            draw_list(stdscr, "Mailbox", mailbox_lines, bottom_y, (top_fifth + 1) * 2, top_bottom_h, top_fifth, pane == 10)
-            draw_list(stdscr, "Bridge Routes", bridge_lines, bottom_y, (top_fifth + 1) * 3, top_bottom_h, top_fifth, pane == 9)
-            draw_list(stdscr, "Workflow Actions", action_lines, bottom_y, (top_fifth + 1) * 4, top_bottom_h, width - ((top_fifth + 1) * 4), pane == 13)
+            top_sixth = max(11, width // 6)
+            draw_list(stdscr, f"Event Log | {event_tail_status_line}", event_lines, bottom_y, 0, top_bottom_h, top_sixth, pane == 4)
+            draw_list(stdscr, "Target Fleet", target_lines, bottom_y, top_sixth + 1, top_bottom_h, top_sixth, pane == 8)
+            draw_list(stdscr, "Target Actions", target_action_lines, bottom_y, (top_sixth + 1) * 2, top_bottom_h, top_sixth, pane == 14)
+            draw_list(stdscr, "Mailbox", mailbox_lines, bottom_y, (top_sixth + 1) * 3, top_bottom_h, top_sixth, pane == 10)
+            draw_list(stdscr, "Bridge Routes", bridge_lines, bottom_y, (top_sixth + 1) * 4, top_bottom_h, top_sixth, pane == 9)
+            draw_list(stdscr, "Workflow Actions", action_lines, bottom_y, (top_sixth + 1) * 5, top_bottom_h, width - ((top_sixth + 1) * 5), pane == 13)
             lower_fifth = max(13, width // 5)
             draw_list(stdscr, "Target Commands", command_lines, lower_bottom_y, 0, lower_bottom_h, lower_fifth, pane == 5)
             draw_list(stdscr, "Build Config", config_lines, lower_bottom_y, lower_fifth + 1, lower_bottom_h, lower_fifth, pane == 11)
@@ -17550,10 +17584,10 @@ def run_curses_tui(cfg):
             elif key in (curses.KEY_UP, ord("k")):
                 selected = max(0, selected - 1)
             elif key == ord("\t"):
-                pane = (pane + 1) % 14
+                pane = (pane + 1) % 15
                 selected = 0
             elif key == curses.KEY_BTAB:
-                pane = (pane - 1) % 14
+                pane = (pane - 1) % 15
                 selected = 0
             elif key in (ord("1"), ord("2"), ord("3"), ord("4")):
                 service = {ord("1"): "ssh", ord("2"): "tls-shell", ord("3"): "plain-shell", ord("4"): "file-service"}[key]
@@ -17630,6 +17664,24 @@ def run_curses_tui(cfg):
                     else:
                         safe_add(stdscr, height - 2, 0, "Foreground actions use action 11 for preview/run confirmation.")
                         stdscr.getch()
+                elif pane == 14 and target_workflow_actions:
+                    rec = target_workflow_actions[min(selected, len(target_workflow_actions) - 1)]
+                    action_id = str(rec.get("action_id") or "")
+                    if rec.get("requires_input") or action_id in ("inspect-status", "open-workbench"):
+                        safe_add(stdscr, height - 2, 0, "Prompted/view target actions use action 15 or the shown headless command.")
+                        stdscr.getch()
+                    else:
+                        output = io.StringIO()
+                        try:
+                            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                                rc = run_target_workflow_action(cfg, str(rec.get("id") or ""))
+                            lines = [line for line in output.getvalue().splitlines() if line.strip()]
+                            message = lines[-1] if lines else f"target workflow action exited {rc}"
+                            safe_add(stdscr, height - 2, 0, f"target action rc={rc}: {message}")
+                            stdscr.getch()
+                        except ValueError as exc:
+                            safe_add(stdscr, height - 2, 0, str(exc))
+                            stdscr.getch()
             elif key == ord("5"):
                 curses.echo()
                 safe_add(stdscr, height - 2, 0, "service> ")
@@ -17714,6 +17766,7 @@ def run_curses_tui(cfg):
                 len(config_fields) if pane == 11 else
                 len(workbench_jobs) if pane == 12 else
                 len(workbench_actions) if pane == 13 else
+                len(target_workflow_actions) if pane == 14 else
                 1
             )
             selected = min(max(0, selected), max(0, max_items - 1))
