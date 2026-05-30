@@ -3804,13 +3804,32 @@ def main():
                 queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("requires_input") is not True or
                 queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("queues_offline_work") is not True or
                 queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("target_phone_home_required") is not True or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("fleet_target_count") != 2 or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("fleet_offline_target_count") != 1 or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("fleet_mailbox_pending_target_count") != 1 or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("fleet_mailbox_pending_work_count") != 1 or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("fleet_poll_overdue_target_count") != 1 or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("fleet_has_offline_targets") is not True or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("fleet_has_mailbox_pending_work") is not True or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("fleet_has_poll_overdue_targets") is not True or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("target_mailbox_pending_target_count") != 1 or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("target_mailbox_pending_work_count") != 1 or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("target_mailbox_pending_poll_overdue_count") != 1 or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("target_mailbox_pending_connectivity_state_counts", {}).get("offline") != 1 or
+                queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("target_mailbox_pending_offline_age_bucket_counts", {}).get("day-plus") != 1 or
                 queue_workflow_actions_by_id.get("command-queue:queue-command", {}).get("run_command", "").find("--command-queue-workflow-command COMMAND") < 0 or
                 queue_workflow_actions_by_id.get("command-queue:clear-command-queue", {}).get("requires_confirmation") is not True or
                 queue_tui_status.get("summary", {}).get("command_queue_workflow_action_count") != 6 or
                 queue_tui_status.get("summary", {}).get("command_queue_workflow_action_queues_offline_work_count") != 1 or
                 queue_tui_status.get("summary", {}).get("command_queue_workflow_action_target_phone_home_required_count") != 1 or
                 queue_tui_status.get("summary", {}).get("command_queue_workflow_action_requires_confirmation_count") != 2 or
+                queue_tui_status.get("summary", {}).get("command_queue_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get("1") != 6 or
+                queue_tui_status.get("summary", {}).get("command_queue_workflow_action_fleet_offline_target_count_counts", {}).get("1") != 6 or
+                queue_tui_status.get("summary", {}).get("command_queue_workflow_action_fleet_poll_overdue_target_count_counts", {}).get("1") != 6 or
                 "command_queue_workflow_actions_by_queues_offline_work" not in ((queue_tui_status.get("api_collections") or {}).get("command_queue_workflow_actions") or {}).get("indexes", []) or
+                "command_queue_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((queue_tui_status.get("api_collections") or {}).get("command_queue_workflow_actions") or {}).get("indexes", []) or
+                "command_queue_workflow_actions_by_fleet_has_poll_overdue_targets" not in ((queue_tui_status.get("api_collections") or {}).get("command_queue_workflow_actions") or {}).get("indexes", []) or
+                "pending_targets=1 pending_work=1 offline_targets=1 poll_overdue=1" not in queue_tui_text or
                 not (queue_tui_status.get("events_by_event") or {}).get("workbench_command_queue_inspected") or
                 not any(
                     (event.get("details") or {}).get("command_queue_workflow_action_count") == 6
