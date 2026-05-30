@@ -178,6 +178,8 @@ def main():
                  "operator_action_state:", "operator_action_reason:", "can_run_from_curses_enter:",
                  "service_workflow_actions:", "service_workflow_actions_by_service", "enter follows service workflow action readiness",
                  "action 11 includes service workflow actions",
+                 "Survey bootstrap workflow action summary:", "survey_bootstrap_workflow_actions_by_route_kind",
+                 "survey_bootstrap_workflow_actions:",
                  "staged_file_workflow_actions:", "staged_file_workflow_actions_by_request_name",
                  "enter shows staged fetch command", "action 7 lists staged workflow actions",
                  "Bridge Routes", "bridge_profile_workflow_actions:", "bridge_profile_workflow_actions_by_bridge_profile",
@@ -953,6 +955,8 @@ def main():
         ).stdout)
         bridged_survey_command = ((bridged_survey_status.get("target_commands_by_service") or {}).get("survey-bootstrap") or [{}])[0]
         bridged_service = (bridged_survey_status.get("services_by_name") or {}).get("survey-bootstrap") or {}
+        bridged_survey_actions = bridged_survey_status.get("survey_bootstrap_workflow_actions") or []
+        bridged_survey_actions_by_id = bridged_survey_status.get("survey_bootstrap_workflow_actions_by_id") or {}
         if (bridged_service.get("port") != survey_port or
                 bridged_service.get("route_kind") != "bridge" or
                 bridged_service.get("route_port") != survey_route_port or
@@ -960,6 +964,15 @@ def main():
                 bridged_survey_command.get("bridge_profile") != "survey-route" or
                 bridged_survey_command.get("route_port") != survey_route_port or
                 bridged_survey_command.get("command") != expected_survey_command or
+                len(bridged_survey_actions) != 4 or
+                bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("target_command") != expected_survey_command or
+                bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("route_kind") != "bridge" or
+                bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("bridge_profile") != "survey-route" or
+                bridged_survey_actions_by_id.get("survey-bootstrap:start-survey-bootstrap", {}).get("headless_command", "").find("--bridge-profile survey-route") == -1 or
+                bridged_survey_status.get("summary", {}).get("survey_bootstrap_workflow_action_count") != 4 or
+                bridged_survey_status.get("summary", {}).get("survey_bootstrap_workflow_action_route_kind_counts", {}).get("bridge") != 4 or
+                bridged_survey_status.get("summary", {}).get("survey_bootstrap_workflow_action_bridge_profile_counts", {}).get("survey-route") != 4 or
+                "survey_bootstrap_workflow_actions_by_bridge_profile" not in ((bridged_survey_status.get("api_collections") or {}).get("survey_bootstrap_workflow_actions") or {}).get("indexes", []) or
                 "target_commands_by_route_kind" not in ((bridged_survey_status.get("api_collections") or {}).get("target_command_records") or {}).get("indexes", [])):
             print("json status missing bridged survey bootstrap route metadata", file=sys.stderr)
             print(json.dumps(bridged_survey_status, indent=2, sort_keys=True), file=sys.stderr)
@@ -972,6 +985,8 @@ def main():
         )
         if ("Generated target commands:" not in bridged_survey_text_status.stdout or
                 "routes: bridge=" not in bridged_survey_text_status.stdout or
+                "Survey bootstrap workflow action summary:" not in bridged_survey_text_status.stdout or
+                "survey routes: bridge=4" not in bridged_survey_text_status.stdout or
                 "bridge profiles: survey-route=" not in bridged_survey_text_status.stdout or
                 f"route=bridge bridge_profile=survey-route path=operator:{survey_route_port} -> rack-host:19001" not in bridged_survey_text_status.stdout or
                 f"command={expected_survey_command}" not in bridged_survey_text_status.stdout):
@@ -1033,6 +1048,8 @@ def main():
                 "Traceback" in (survey_line_stderr or "") or
                 "Survey bootstrap:" not in survey_line_text or
                 f"target_command: {expected_survey_command}" not in survey_line_text or
+                "survey_bootstrap_workflow_actions: 4" not in survey_line_text or
+                "show_action_state=ready reason=show-command" not in survey_line_text or
                 "--transport survey-bootstrap" not in survey_line_text or
                 "bridge_profile=survey-route" not in survey_line_text):
             print("line TUI survey bootstrap action did not show bridged command", file=sys.stderr)
@@ -1054,6 +1071,10 @@ def main():
                     "--transport survey-bootstrap" in event.get("details", {}).get("headless_command", "") and
                     "--bridge-profile survey-route" in event.get("details", {}).get("headless_command", "")
                     for event in (survey_tui_status.get("events_by_event") or {}).get("service_start_requested", [])
+                ) or
+                not any(
+                    event.get("details", {}).get("survey_bootstrap_workflow_action_count") == 4
+                    for event in (survey_tui_status.get("events_by_event") or {}).get("workbench_survey_bootstrap_started", [])
                 ) or
                 not (survey_tui_status.get("events_by_event") or {}).get("service_stop")):
             print("line TUI survey bootstrap listener was not workbench-owned/stopped", file=sys.stderr)
@@ -4068,6 +4089,7 @@ def main():
         for collection_name, expected_count, expected_index in (
                 ("services", len(queue_status_json.get("services") or []), "services_by_has_error"),
                 ("service_workflow_actions", len(queue_status_json.get("service_workflow_actions") or []), "service_workflow_actions_by_service"),
+                ("survey_bootstrap_workflow_actions", len(queue_status_json.get("survey_bootstrap_workflow_actions") or []), "survey_bootstrap_workflow_actions_by_route_kind"),
                 ("service_manager_state_records", len(queue_status_json.get("service_manager_state_records") or []), "service_manager_state_records_by_shutdown_requested"),
                 ("ports", len(queue_status_json.get("ports") or []), "ports_by_number"),
                 ("path_status_records", len(path_status_records), "path_status_by_name"),
@@ -4164,6 +4186,9 @@ def main():
                 api_resources_by_name.get("service_workflow_actions", {}).get("records_key") != "service_workflow_actions" or
                 api_resources_by_summary_key.get("service_workflow_action_count", [{}])[0].get("name") != "service_workflow_actions" or
                 not any(rec.get("name") == "service_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("survey_bootstrap_workflow_actions", {}).get("records_key") != "survey_bootstrap_workflow_actions" or
+                api_resources_by_summary_key.get("survey_bootstrap_workflow_action_count", [{}])[0].get("name") != "survey_bootstrap_workflow_actions" or
+                not any(rec.get("name") == "survey_bootstrap_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("bridge_profile_workflow_actions", {}).get("records_key") != "bridge_profile_workflow_actions" or
                 api_resources_by_summary_key.get("bridge_profile_workflow_action_count", [{}])[0].get("name") != "bridge_profile_workflow_actions" or
                 not any(rec.get("name") == "bridge_profile_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or

@@ -47,6 +47,13 @@ equivalent headless `--transport survey-bootstrap` command. It can also start
 the survey bootstrap listener as a workbench-owned service, so quitting the
 workbench stops the listener it started.
 
+Status JSON also exposes `survey_bootstrap_workflow_actions`, a stable action
+catalog for the current survey bootstrap route. The records cover inspecting the
+route, showing the target-side command, starting the listener, and stopping it.
+Each record includes the equivalent `headless_command`, the generated
+`target_command`, direct or bridged route metadata, current service state,
+operator readiness fields, and Enter-key hints for TUI clients.
+
 The script collects `uname -s`, `uname -m`, `uname -r`, word size from
 `getconf LONG_BIT` when available, and a simple endian probe using `od` and
 `awk` when available. It posts those values back to
