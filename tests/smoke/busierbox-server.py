@@ -3995,6 +3995,9 @@ def main():
                     daemon_actions_by_id.get("operator-daemon-start", {}).get("targets_file") != str(daemon_targets) or
                     daemon_actions_by_id.get("operator-daemon-start", {}).get("targets_file_exists") is not True or
                     daemon_actions_by_id.get("operator-daemon-start", {}).get("target_count") != 1 or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("fleet_target_count") != 1 or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("fleet_mailbox_pending_work_count") != 1 or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("fleet_has_mailbox_pending_work") is not True or
                     daemon_actions_by_id.get("operator-daemon-start", {}).get("staged_files_file") != str(daemon_staged) or
                     daemon_actions_by_id.get("operator-daemon-start", {}).get("workbench_jobs_file") != str(Path(tmp) / "operator-session" / "workbench-jobs.json") or
                     daemon_actions_by_id.get("operator-daemon-stop", {}).get("can_run_from_curses_enter") is not True or
@@ -4008,10 +4011,15 @@ def main():
                     daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_workflow_counts", {}).get("systemd-user-service") != 6 or
                     daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_command_queue_command_count_counts", {}).get("1") != 9 or
                     daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_target_count_counts", {}).get("1") != 9 or
+                    daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_fleet_target_count_counts", {}).get("1") != 9 or
+                    daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get("1") != 9 or
+                    daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_fleet_has_mailbox_pending_work_counts", {}).get("True") != 9 or
                     ((daemon_doc.get("operator_daemon_workflow_actions_by_command_queue_queued_count") or {}).get("1") or [{}])[0].get("id") != "operator-daemon-start" or
                     ((daemon_doc.get("operator_daemon_workflow_actions_by_target_count") or {}).get("1") or [{}])[0].get("id") != "operator-daemon-start" or
+                    ((daemon_doc.get("operator_daemon_workflow_actions_by_fleet_mailbox_pending_work_count") or {}).get("1") or [{}])[0].get("id") != "operator-daemon-start" or
                     "operator_daemon_workflow_actions_by_daemon_attached" not in ((daemon_doc.get("api_collections") or {}).get("operator_daemon_workflow_actions") or {}).get("indexes", []) or
                     "operator_daemon_workflow_actions_by_command_queue_command_count" not in ((daemon_doc.get("api_collections") or {}).get("operator_daemon_workflow_actions") or {}).get("indexes", []) or
+                    "operator_daemon_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((daemon_doc.get("api_collections") or {}).get("operator_daemon_workflow_actions") or {}).get("indexes", []) or
                     "operator_daemon_workflow_actions_by_target_count" not in ((daemon_doc.get("api_collections") or {}).get("operator_daemon_workflow_actions") or {}).get("indexes", [])):
                 print("operator daemon workflow actions missing attached daemon state", file=sys.stderr)
                 print(json.dumps(daemon_doc, indent=2, sort_keys=True), file=sys.stderr)
@@ -4104,6 +4112,17 @@ def main():
                 print(json.dumps(daemon_state_after, indent=2, sort_keys=True), file=sys.stderr)
                 return 1
             if (not any(
+                        event.get("event") == "operator_daemon_workflow_action_completed" and
+                        event.get("details", {}).get("id") == "operator-daemon-status" and
+                        event.get("details", {}).get("fleet_mailbox_pending_work_count") == 1 and
+                        event.get("details", {}).get("returncode") == 0
+                        for event in daemon_events) or
+                    not any(
+                        event.get("event") == "operator_daemon_workflow_action_dry_run" and
+                        event.get("details", {}).get("id") == "operator-daemon-start" and
+                        event.get("details", {}).get("fleet_has_mailbox_pending_work") is True
+                        for event in daemon_events) or
+                    not any(
                         event.get("event") == "daemon_starting" and
                         "--daemon --daemon-service file-service" in event.get("details", {}).get("headless_command", "")
                         for event in daemon_events) or
@@ -4165,6 +4184,8 @@ def main():
                     restarted_actions_by_id.get("operator-daemon-start", {}).get("command_queue_queued_count") != 1 or
                     restarted_actions_by_id.get("operator-daemon-start", {}).get("command_queue_target_count") != 1 or
                     restarted_actions_by_id.get("operator-daemon-start", {}).get("target_count") != 1 or
+                    restarted_actions_by_id.get("operator-daemon-start", {}).get("fleet_mailbox_pending_work_count") != 1 or
+                    restarted_doc.get("summary", {}).get("operator_daemon_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get("1") != 9 or
                     not restarted_target_commands or
                     restarted_target_commands[0].get("command") != "busierbox survey --json"):
                 print("operator daemon restart did not preserve queued target work", file=sys.stderr)
