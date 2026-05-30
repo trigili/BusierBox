@@ -80,6 +80,12 @@ view. Pressing Enter starts actions that are already background-safe as managed
 jobs; foreground or confirmation-sensitive actions remain routed through
 line-mode action `11` for explicit preview and confirmation.
 
+An `Operator Daemon` pane makes attach-style operation visible in curses. It
+reads daemon and daemon-owned child listener state from the same status files as
+headless `--json-status`, shows the equivalent daemon start/status/stop
+commands, and pressing Enter starts the daemon as a managed job or stops the
+currently attached daemon when it is already running.
+
 ## Systemd User Service
 
 The same daemon command can be rendered or installed as a systemd user service:
