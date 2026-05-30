@@ -81,6 +81,16 @@ assert phone_home["summary"]["target_phone_home_anonymous_counts"]["True"] >= 1
 assert any(rec["pending_reason"] == "queued work requires a target identity" for rec in phone_home["target_phone_home_records"])
 assert transfer["kind"] == "transfer-log-artifact"
 assert transfer["latest_file_transfer_status"] == "truncated"
+assert transfer["target"]["latest_file_transfer_status"] == "truncated"
+assert transfer["upload_record"]["status"] == "truncated"
+assert transfer["upload_record"]["stored_exists"] is True
+assert transfer["summary"]["upload_status_counts"]["truncated"] == 1
+assert transfer["summary"]["upload_kind_status_counts"]["evidence:truncated"] == 1
+assert transfer["summary"]["upload_status_stored_exists_counts"]["truncated:yes"] == 1
+assert "uploads_by_status" in transfer["api_indexes"]["uploads"]
+assert "targets_by_latest_file_transfer_status" in transfer["api_indexes"]["targets"]
+assert any(rec["event"] == "upload_complete" and (rec["details"] or {}).get("status") == "truncated" for rec in transfer["upload_events"])
+assert "latest_file_transfer=upload status=truncated" in transfer["status_text"]
 assert bridge_events
 assert any((rec.get("details") or {}).get("bridge_profile") == "flaky-bridge" for rec in bridge_events)
 manifest_names = {item["name"] for item in manifest["artifacts"]}

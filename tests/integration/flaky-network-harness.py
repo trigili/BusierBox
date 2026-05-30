@@ -436,20 +436,41 @@ def write_target_mismatch_phone_home_artifact(artifact_dir, doc, command_id):
     })
 
 
-def write_transfer_log_artifact(artifact_dir, doc, response):
+def write_transfer_log_artifact(artifact_dir, doc, response, status_text=""):
     alpha = (doc.get("targets_by_id") or {}).get("target-alpha") or {}
     uploads = doc.get("uploads") or []
+    upload_record = ((doc.get("uploads_by_target_id") or {}).get("target-alpha") or [{}])[0]
+    upload_events = [
+        rec for rec in (doc.get("events") or [])
+        if str(rec.get("service") or "") == "file-service"
+        and (str(rec.get("event") or "").startswith("upload_") or rec.get("event") == "connection_close")
+        and (rec.get("details") or {}).get("target_id") == "target-alpha"
+    ]
     write_json(artifact_dir / "transfer.log", {
         "schema": 1,
         "kind": "transfer-log-artifact",
         "http_status": http_status_line(response),
         "target_id": "target-alpha",
         "target_label": alpha.get("label", ""),
+        "target": alpha,
         "latest_file_transfer_status": alpha.get("latest_file_transfer_status", ""),
         "latest_file_transfer_operation": alpha.get("latest_file_transfer_operation", ""),
         "latest_file_transfer_at": alpha.get("latest_file_transfer_at", ""),
         "latest_file_transfer_id": alpha.get("latest_file_transfer_id", ""),
+        "summary": {
+            "upload_status_counts": (doc.get("summary") or {}).get("upload_status_counts") or {},
+            "upload_kind_status_counts": (doc.get("summary") or {}).get("upload_kind_status_counts") or {},
+            "upload_status_stored_exists_counts": (doc.get("summary") or {}).get("upload_status_stored_exists_counts") or {},
+            "target_latest_file_transfer_status_counts": (doc.get("summary") or {}).get("target_latest_file_transfer_status_counts") or {},
+        },
+        "api_indexes": {
+            "uploads": ((doc.get("api_collections") or {}).get("uploads") or {}).get("indexes") or [],
+            "targets": ((doc.get("api_collections") or {}).get("targets") or {}).get("indexes") or [],
+        },
+        "upload_record": upload_record,
         "uploads": uploads,
+        "upload_events": upload_events,
+        "status_text": status_text,
     })
 
 
@@ -1002,7 +1023,28 @@ def run_harness(artifact_dir):
     partial_status = status(cfg, artifact_dir, "after-partial-upload")
     assert_condition(b"HTTP/1.1 400 Bad Request" in partial_response, "partial upload should return HTTP 400")
     assert_condition(partial_status["targets_by_id"]["target-alpha"]["latest_file_transfer_status"] == "truncated", "partial transfer not tracked")
-    write_transfer_log_artifact(artifact_dir, partial_status, partial_response)
+    partial_upload = ((partial_status.get("uploads_by_target_id") or {}).get("target-alpha") or [{}])[0]
+    partial_text = run(str(SERVER), "--config", str(cfg), "--target-id", "target-alpha", "--status")
+    assert_condition(partial_text.returncode == 0, "partial transfer status text failed", partial_text.stderr)
+    assert_condition(
+        "latest_file_transfer=upload status=truncated" in partial_text.stdout,
+        "partial transfer missing from target status text",
+        partial_text.stdout,
+    )
+    assert_condition(partial_upload.get("status") == "truncated", "partial upload record status missing", partial_upload)
+    assert_condition(partial_upload.get("stored_exists") is True, "partial upload should retain forensic payload", partial_upload)
+    assert_condition(partial_status["summary"]["upload_status_counts"].get("truncated") == 1, "partial upload status summary missing")
+    assert_condition(partial_status["summary"]["upload_kind_status_counts"].get("evidence:truncated") == 1, "partial upload kind/status summary missing")
+    assert_condition(partial_status["summary"]["upload_status_stored_exists_counts"].get("truncated:yes") == 1, "partial upload stored-exists summary missing")
+    assert_condition(
+        ((partial_status.get("targets_by_latest_file_transfer_status") or {}).get("truncated") or [{}])[0].get("target_id") == "target-alpha",
+        "partial transfer target status index missing",
+    )
+    assert_condition(
+        "uploads_by_status" in (((partial_status.get("api_collections") or {}).get("uploads") or {}).get("indexes") or []),
+        "partial transfer uploads API index missing",
+    )
+    write_transfer_log_artifact(artifact_dir, partial_status, partial_response, partial_text.stdout)
     phases.append({"name": "partial-transfer", "status": "pass", "artifact": "after-partial-upload.json"})
 
     echo, done, thread = start_echo_server()

@@ -15035,7 +15035,7 @@ def print_status(cfg, json_output=False):
     print("Target phone-home attempts:")
     phone_home = doc.get("target_phone_home_records") or []
     if phone_home:
-        print(f"  total={len(phone_home)} statuses={format_counts(doc.get('target_phone_home_records_by_status') or {})} failed={format_counts(doc.get('target_phone_home_records_by_failed') or {})}")
+        print(f"  total={len(phone_home)} statuses={format_counts((doc.get('summary') or {}).get('target_phone_home_status_counts') or {})} failed={format_counts((doc.get('summary') or {}).get('target_phone_home_failed_counts') or {})}")
         for rec in phone_home[:8]:
             target = rec.get("target_id", "") or "anonymous"
             reason = rec.get("pending_reason") or rec.get("reason") or ""

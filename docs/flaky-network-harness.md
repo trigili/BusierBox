@@ -25,6 +25,9 @@ virtual network boundaries:
 - target result upload updates `last_seen`, mailbox, and latest-result state
 - survey bootstrap script/result flows refresh target survey state
 - interrupted file uploads are recorded as truncated target file activity
+- interrupted file uploads are exposed through upload status indexes, target
+  latest-file-transfer indexes, retained forensic payload metadata, event
+  records, and headless target status text
 - bridge relay activity is attributed back to the selected target
 
 Run it directly when debugging:
