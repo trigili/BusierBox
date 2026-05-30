@@ -67,6 +67,9 @@ assert workflow["kind"] == "offline-workflow-mailbox-artifact"
 assert workflow["target"]["target_id"] == "target-workflow"
 assert workflow["target"]["mailbox_pending_work_count"] == 2
 assert workflow["summary"]["target_mailbox_waiting_for_counts"]["target-poll"] == 2
+assert any((rec.get("details") or {}).get("action_id") == "queue-survey-bootstrap" for rec in workflow["target_workflow_action_events"])
+assert any((rec.get("details") or {}).get("action_id") == "queue-staged-fetch" for rec in workflow["staged_file_workflow_action_events"])
+assert any((rec.get("details") or {}).get("queues_offline_work") is True for rec in workflow["staged_file_workflow_action_events"])
 workflow_commands = "\n".join(rec.get("command") or "" for rec in workflow["target_mailbox_records"])
 assert "wget -O-" in workflow_commands and "survey.sh" in workflow_commands
 assert "busierbox fetch workflow-payload.txt" in workflow_commands

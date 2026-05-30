@@ -8,7 +8,8 @@ virtual network boundaries:
 - queued target mailbox work survives while targets are offline
 - queued target mailbox work survives operator-daemon stop/start boundaries
 - queued survey bootstrap and staged-file fetch work can be prepared before any
-  target reconnect
+  target reconnect, including the staged-file workflow runner path used by the
+  TUI and headless API
 - the line-mode TUI can inspect the same queued offline workflow mailbox state
   and target detail that headless status exposes
 - queued survey bootstrap and staged-file fetch work drains when the workflow
