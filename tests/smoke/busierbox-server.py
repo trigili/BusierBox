@@ -3471,6 +3471,35 @@ def main():
             print("target mailbox result upload did not update heartbeat and result status", file=sys.stderr)
             print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        result_alpha_filtered = json.loads(run(
+            "scripts/busierbox-server", "--config", str(poll_target_cfg),
+            "--target-id", "target-alpha", "--json-status",
+        ).stdout)
+        result_bravo_filtered = json.loads(run(
+            "scripts/busierbox-server", "--config", str(poll_target_cfg),
+            "--target-id", "target-bravo", "--json-status",
+        ).stdout)
+        result_alpha_filter = result_alpha_filtered.get("target_filter") or {}
+        result_bravo_filter = result_bravo_filtered.get("target_filter") or {}
+        if (result_alpha_filter.get("selected_target_latest_phone_home_status") != "result-received" or
+                result_alpha_filter.get("selected_target_latest_successful_phone_home_status") != "result-received" or
+                result_alpha_filter.get("selected_target_last_failed_phone_home_status") != "" or
+                result_alpha_filtered.get("api", {}).get("target_filter_selected_target_latest_successful_phone_home_status") != "result-received" or
+                result_bravo_filter.get("selected_target_last_failed_phone_home_status") != "rejected" or
+                not result_bravo_filter.get("selected_target_last_failed_phone_home_at") or
+                "command result target mismatch" not in result_bravo_filter.get("selected_target_last_failed_phone_home_reason", "") or
+                result_bravo_filtered.get("api", {}).get("target_filter_selected_target_last_failed_phone_home_status") != "rejected" or
+                "command result target mismatch" not in result_bravo_filtered.get("api", {}).get("target_filter_selected_target_last_failed_phone_home_reason", "") or
+                "target_filter_records_by_selected_target_latest_successful_phone_home_status" not in (((result_alpha_filtered.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes") or []) or
+                "target_filter_records_by_selected_target_last_failed_phone_home_status" not in (((result_bravo_filtered.get("api_collections") or {}).get("target_filter_records") or {}).get("indexes") or [])):
+            print("target-filter JSON missing selected target phone-home state", file=sys.stderr)
+            print(json.dumps({
+                "alpha_filter": result_alpha_filter,
+                "alpha_api": result_alpha_filtered.get("api", {}),
+                "bravo_filter": result_bravo_filter,
+                "bravo_api": result_bravo_filtered.get("api", {}),
+            }, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
         result_activity_alpha = (result_status.get("target_activity_records_by_target_id") or {}).get("target-alpha") or []
         result_activity_bravo = (result_status.get("target_activity_records_by_target_id") or {}).get("target-bravo") or []
         result_alpha_activity_categories = {rec.get("category") for rec in result_activity_alpha}
@@ -3535,6 +3564,21 @@ def main():
             print("text status missing intermittent mailbox heartbeat/result summary", file=sys.stderr)
             print(result_status_text.stdout, file=sys.stderr)
             return 1
+        result_bravo_filter_text = run(
+            "scripts/busierbox-server", "--config", str(poll_target_cfg),
+            "--target-id", "target-bravo", "--status",
+        )
+        if (result_bravo_filter_text.returncode != 0 or
+                "target_filter: target-bravo" not in result_bravo_filter_text.stdout or
+                "phone_home=" not in result_bravo_filter_text.stdout or
+                "successful_phone_home=" not in result_bravo_filter_text.stdout or
+                "failed_phone_home=rejected@" not in result_bravo_filter_text.stdout or
+                "selected_target_phone_home=" not in result_bravo_filter_text.stdout or
+                "selected_target_failed_phone_home=" not in result_bravo_filter_text.stdout or
+                "reason=command result target mismatch" not in result_bravo_filter_text.stdout):
+            print("target-filtered text status missing selected target phone-home state", file=sys.stderr)
+            print(result_bravo_filter_text.stdout, file=sys.stderr)
+            return 1
         queue_tui_master, queue_tui_slave = pty.openpty()
         try:
             queue_tui_proc = subprocess.Popen(
@@ -3553,7 +3597,7 @@ def main():
             os.close(queue_tui_slave)
             queue_tui_slave = -1
             time.sleep(0.5)
-            os.write(queue_tui_master, b"20\n18\ntarget-alpha\nq\n")
+            os.write(queue_tui_master, b"20\n16\ntarget-alpha\n18\ntarget-alpha\nq\n")
             _queue_tui_stdout, queue_tui_stderr = queue_tui_proc.communicate(timeout=8)
             queue_tui_output = b""
             while True:
@@ -3590,6 +3634,8 @@ def main():
                 "activity_record " not in queue_tui_text or
                 "target=target-alpha category=mailbox operation=none status=result-received" not in queue_tui_text or
                 "target=target-alpha category=phone-home operation=result status=result-received" not in queue_tui_text or
+                "selected target target-alpha label=Alpha Router" not in queue_tui_text or
+                "selected_target=target-alpha" not in queue_tui_text or
                 "phone_home " not in queue_tui_text or
                 "queued_remaining=" not in queue_tui_text or
                 "poll status=delivered" not in queue_tui_text or
