@@ -16,6 +16,7 @@ test -s "$tmp/flaky-network/systemd-user-service.json"
 test -s "$tmp/flaky-network/target-mismatch-phone-home.json"
 test -s "$tmp/flaky-network/command-result.json"
 test -s "$tmp/flaky-network/phone-home-attempts.json"
+test -s "$tmp/flaky-network/multi-target-isolation.json"
 test -s "$tmp/flaky-network/transfer.log"
 test -s "$tmp/flaky-network/bridge-events.jsonl"
 test -s "$tmp/flaky-network/bridge-interruption.json"
@@ -37,6 +38,7 @@ systemd = json.loads((artifact_dir / "systemd-user-service.json").read_text(enco
 mismatch = json.loads((artifact_dir / "target-mismatch-phone-home.json").read_text(encoding="utf-8"))
 result = json.loads((artifact_dir / "command-result.json").read_text(encoding="utf-8"))
 phone_home = json.loads((artifact_dir / "phone-home-attempts.json").read_text(encoding="utf-8"))
+multi_target = json.loads((artifact_dir / "multi-target-isolation.json").read_text(encoding="utf-8"))
 transfer = json.loads((artifact_dir / "transfer.log").read_text(encoding="utf-8"))
 manifest = json.loads((artifact_dir / "artifact-manifest.json").read_text(encoding="utf-8"))
 bridge_events = [
@@ -111,6 +113,22 @@ assert phone_home["summary"]["target_phone_home_status_counts"]["result-received
 assert phone_home["summary"]["target_phone_home_failed_counts"]["True"] >= 1
 assert phone_home["summary"]["target_phone_home_anonymous_counts"]["True"] >= 1
 assert any(rec["pending_reason"] == "queued work requires a target identity" for rec in phone_home["target_phone_home_records"])
+assert multi_target["kind"] == "multi-target-isolation-artifact"
+assert multi_target["alpha_target"]["target_id"] == "target-alpha"
+assert multi_target["bravo_target"]["target_id"] == "target-bravo"
+assert multi_target["alpha_mailbox_record"]["status"] == "result-received"
+assert multi_target["alpha_mailbox_record"]["target_id"] == "target-alpha"
+assert multi_target["bravo_mailbox_record"]["status"] == "queued"
+assert multi_target["bravo_mailbox_record"]["target_id"] == "target-bravo"
+assert multi_target["bravo_mailbox_record"]["waiting_for"] == "target-poll"
+assert multi_target["bravo_mailbox_record"]["pending_work"] is True
+assert multi_target["bravo_target"]["mailbox_pending_work_count"] == 1
+assert multi_target["summary"]["target_mailbox_pending_work_count"] == 1
+assert multi_target["summary"]["target_mailbox_status_counts"]["result-received"] == 1
+assert multi_target["summary"]["target_mailbox_status_counts"]["queued"] == 1
+assert len(multi_target["target_mailbox_records_by_target_id"]["target-alpha"]) == 1
+assert len(multi_target["target_mailbox_records_by_target_id"]["target-bravo"]) == 1
+assert any(rec["status"] == "result-received" and rec["target_id"] == "target-alpha" for rec in multi_target["phone_home_records"])
 assert transfer["kind"] == "transfer-log-artifact"
 assert transfer["latest_file_transfer_status"] == "truncated"
 assert transfer["target"]["latest_file_transfer_status"] == "truncated"
@@ -150,6 +168,7 @@ for name in (
     "target-mismatch-phone-home.json",
     "command-result.json",
     "phone-home-attempts.json",
+    "multi-target-isolation.json",
     "transfer.log",
     "bridge-events.jsonl",
     "bridge-interruption.json",

@@ -19,6 +19,8 @@ virtual network boundaries:
 - systemd user-service rendering and dry-run lifecycle commands are captured
   without requiring a live user systemd session
 - a short phone-home window delivers only the reconnecting target's work
+- multi-target isolation evidence proves `target-bravo` stays queued while
+  `target-alpha` reconnects, drains work, and uploads results
 - duplicate polls do not redeliver already delivered commands
 - target-mismatched result uploads are rejected, recorded with the mismatch
   reason, and do not mutate the delivered command
@@ -47,7 +49,8 @@ JSON, dropped-result evidence, bridge response data, and `summary.json`. It also
 writes focused debug artifacts that mirror the QEMU lab contract:
 `target-mailbox.json`, `offline-workflow-mailbox.json`,
 `offline-workflow-tui.json`, `command-result.json`,
-`phone-home-attempts.json`, `mailbox-lifecycle.json`,
+`phone-home-attempts.json`, `multi-target-isolation.json`,
+`mailbox-lifecycle.json`,
 `restart-persistence.json`, `bad-token-phone-home.json`,
 `systemd-user-service.json`, `target-mismatch-phone-home.json`, `transfer.log`,
 `bridge-events.jsonl`, `bridge-interruption.json`, and

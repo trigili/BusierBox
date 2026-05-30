@@ -458,6 +458,36 @@ def write_phone_home_artifact(artifact_dir, doc):
     })
 
 
+def write_multi_target_isolation_artifact(artifact_dir, doc, alpha_id, bravo_id):
+    by_command = doc.get("target_mailbox_records_by_command_id") or {}
+    alpha = (doc.get("targets_by_id") or {}).get("target-alpha") or {}
+    bravo = (doc.get("targets_by_id") or {}).get("target-bravo") or {}
+    write_json(artifact_dir / "multi-target-isolation.json", {
+        "schema": 1,
+        "kind": "multi-target-isolation-artifact",
+        "alpha_command_id": alpha_id,
+        "bravo_command_id": bravo_id,
+        "alpha_target": alpha,
+        "bravo_target": bravo,
+        "alpha_mailbox_record": by_command.get(alpha_id) or {},
+        "bravo_mailbox_record": by_command.get(bravo_id) or {},
+        "summary": {
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_mailbox_status_counts": doc.get("summary", {}).get("target_mailbox_status_counts", {}),
+            "target_mailbox_waiting_for_counts": doc.get("summary", {}).get("target_mailbox_waiting_for_counts", {}),
+            "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+        },
+        "target_mailbox_records_by_target_id": {
+            "target-alpha": (doc.get("target_mailbox_records_by_target_id") or {}).get("target-alpha") or [],
+            "target-bravo": (doc.get("target_mailbox_records_by_target_id") or {}).get("target-bravo") or [],
+        },
+        "phone_home_records": [
+            rec for rec in (doc.get("target_phone_home_records") or [])
+            if rec.get("target_id") in ("target-alpha", "target-bravo")
+        ],
+    })
+
+
 def write_bad_token_phone_home_artifact(artifact_dir, doc, command_id):
     write_json(artifact_dir / "bad-token-phone-home.json", {
         "schema": 1,
@@ -1204,10 +1234,16 @@ def run_harness(artifact_dir):
     assert_condition(b"HTTP/1.1 200 OK" in result_response, "target result upload failed")
     assert_condition(after_result["targets_by_id"]["target-alpha"]["mailbox_result_received_command_count"] == 1, "alpha result was not recorded")
     assert_condition(after_result["targets_by_id"]["target-bravo"]["mailbox_pending_work_count"] == 1, "bravo offline mailbox was not preserved")
+    alpha_record = (after_result.get("target_mailbox_records_by_command_id") or {}).get(alpha_id) or {}
+    bravo_record = (after_result.get("target_mailbox_records_by_command_id") or {}).get(bravo_id) or {}
+    assert_condition(alpha_record.get("target_id") == "target-alpha" and alpha_record.get("status") == "result-received", "alpha mailbox did not complete in isolation", alpha_record)
+    assert_condition(bravo_record.get("target_id") == "target-bravo" and bravo_record.get("status") == "queued", "bravo mailbox leaked during alpha reconnect", bravo_record)
+    assert_condition(bravo_record.get("waiting_for") == "target-poll" and bravo_record.get("pending_work") is True, "bravo mailbox pending reason missing after alpha reconnect", bravo_record)
     assert_condition(after_result["summary"]["target_phone_home_record_count"] >= 5, "phone-home attempts missing from status summary")
     assert_condition(after_result["summary"]["target_phone_home_status_counts"].get("result-received", 0) >= 1, "result phone-home success missing")
     write_command_result_artifact(artifact_dir, after_result, alpha_id, result_response)
     write_phone_home_artifact(artifact_dir, after_result)
+    write_multi_target_isolation_artifact(artifact_dir, after_result, alpha_id, bravo_id)
     phases.append({"name": "result-upload", "status": "pass", "artifact": "after-alpha-result.json"})
 
     proc = start_one_shot(cfg, "survey-bootstrap")
