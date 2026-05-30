@@ -2886,13 +2886,22 @@ def main():
                 offline_bravo.get("mailbox_pending_work_count") != 1 or
                 offline_bravo.get("last_seen") != old_seen or
                 offline_bravo.get("last_seen_via") != "command-queue:command_queue_poll" or
+                offline_bravo.get("poll_overdue") is not True or
+                not isinstance(offline_bravo.get("poll_overdue_for_sec"), int) or
                 offline_bravo_mailbox.get("waiting_for") != "target-poll" or
+                offline_bravo_mailbox.get("target_poll_overdue") is not True or
+                not isinstance(offline_bravo_mailbox.get("target_poll_overdue_for_sec"), int) or
                 not isinstance(offline_bravo_mailbox.get("age_sec"), int) or
                 not isinstance(offline_bravo_mailbox.get("pending_delivery_for_sec"), int) or
                 offline_status.get("summary", {}).get("target_mailbox_waiting_for_counts", {}).get("target-poll") != 2 or
                 ((offline_status.get("target_mailbox_records_by_waiting_for") or {}).get("target-poll") or [{}])[0].get("target_id") not in {"target-alpha", "target-bravo"} or
                 offline_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("offline") != 1 or
+                offline_status.get("summary", {}).get("target_poll_overdue_count") != 1 or
+                offline_status.get("summary", {}).get("target_poll_overdue_counts", {}).get("True") != 1 or
+                offline_status.get("summary", {}).get("target_mailbox_target_poll_overdue_counts", {}).get("True") != 1 or
                 offline_status.get("summary", {}).get("target_mailbox_pending_work_count") != 2 or
+                ((offline_status.get("targets_by_poll_overdue") or {}).get("yes") or [{}])[0].get("target_id") != "target-bravo" or
+                ((offline_status.get("target_mailbox_records_by_target_poll_overdue") or {}).get("True") or [{}])[0].get("target_id") != "target-bravo" or
                 ((offline_status.get("targets_by_mailbox_pending_work") or {}).get("yes") or [{}])[0].get("target_id") not in {"target-alpha", "target-bravo"}):
             print("offline mailbox status did not preserve queued work and stale heartbeat", file=sys.stderr)
             print(json.dumps(offline_status, indent=2, sort_keys=True), file=sys.stderr)
@@ -3103,9 +3112,12 @@ def main():
                 result_alpha.get("latest_command_result_id") != alpha_id or
                 not result_alpha.get("latest_command_result_at") or
                 result_bravo.get("connectivity_state") != "offline" or
+                result_bravo.get("poll_overdue") is not True or
+                not isinstance(result_bravo.get("poll_overdue_for_sec"), int) or
                 result_bravo.get("mailbox_pending_work_count") != 1 or
                 result_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("online") != 1 or
                 result_status.get("summary", {}).get("target_connectivity_state_counts", {}).get("offline") != 1 or
+                result_status.get("summary", {}).get("target_poll_overdue_count") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_pending_work_count") != 1 or
                 result_status.get("summary", {}).get("target_last_seen_via_counts", {}).get("command-queue:command_queue_result") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_record_count") != 2 or
@@ -3141,6 +3153,8 @@ def main():
                 result_bravo_mailbox.get("target_last_seen") != old_seen or
                 result_bravo_mailbox.get("target_last_seen_via") != "command-queue:command_queue_poll" or
                 result_bravo_mailbox.get("has_target_next_expected_poll") is not True or
+                result_bravo_mailbox.get("target_poll_overdue") is not True or
+                not isinstance(result_bravo_mailbox.get("target_poll_overdue_for_sec"), int) or
                 not result_bravo_mailbox.get("target_next_expected_poll") or
                 ((result_status.get("target_mailbox_records_by_target_id") or {}).get("target-alpha") or [{}])[0].get("command_id") != alpha_id or
                 ((result_status.get("target_mailbox_records_by_target_id") or {}).get("target-bravo") or [{}])[0].get("command_id") != bravo_id or
@@ -3155,8 +3169,11 @@ def main():
                 ((result_status.get("targets_by_last_seen_via") or {}).get("command-queue:command_queue_result") or [{}])[0].get("target_id") != "target-alpha" or
                 result_status.get("summary", {}).get("target_mailbox_target_connectivity_state_counts", {}).get("offline") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_has_target_next_expected_poll_counts", {}).get("True") != 1 or
+                result_status.get("summary", {}).get("target_mailbox_target_poll_overdue_counts", {}).get("True") != 1 or
                 not result_status.get("summary", {}).get("target_mailbox_age_bucket_counts") or
                 "target_mailbox_records_by_target_connectivity_state" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
+                "targets_by_poll_overdue" not in (((result_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or []) or
+                "target_mailbox_records_by_target_poll_overdue" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
                 "target_mailbox_records_by_result_latency_bucket" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_result_upload_received" for event in result_status.get("events") or [])):
             print("target mailbox result upload did not update heartbeat and result status", file=sys.stderr)
@@ -3175,6 +3192,7 @@ def main():
                 "result=completed exit=0" not in result_status_text.stdout or
                 "target-bravo label=Bravo Router" not in result_status_text.stdout or
                 "state=offline" not in result_status_text.stdout or
+                "poll_overdue=yes" not in result_status_text.stdout or
                 "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in result_status_text.stdout or
                 f"mailbox_command {bravo_id} status=queued" not in result_status_text.stdout or
                 "waiting_for=target-poll" not in result_status_text.stdout):
@@ -3234,6 +3252,7 @@ def main():
                 f"{bravo_id} target=target-bravo state=offline status=queued waiting_for=target-poll expired=no pending=yes result=- exit=-" not in queue_tui_text or
                 f"last_seen={old_seen} via=command-queue:command_queue_poll" not in queue_tui_text or
                 "next_expected_poll=" not in queue_tui_text or
+                "poll_overdue=yes" not in queue_tui_text or
                 "created=" not in queue_tui_text or
                 "delivered=" not in queue_tui_text or
                 "pending_delivery_for_sec=" not in queue_tui_text or

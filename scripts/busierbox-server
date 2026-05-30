@@ -1024,16 +1024,23 @@ def target_last_seen_via(rec):
     return service or operation
 
 
-def target_next_expected_poll(rec):
+def target_next_expected_poll_epoch(rec):
     if str((rec or {}).get("latest_activity_operation") or "") != "command_queue_poll":
-        return ""
+        return None
     interval = str((rec or {}).get("latest_command_queue_poll_interval_sec") or "")
     if not interval.isdigit() or int(interval) <= 0:
-        return ""
+        return None
     last_seen_epoch = parse_utc_timestamp((rec or {}).get("last_seen_at") or (rec or {}).get("latest_activity_at"))
     if last_seen_epoch is None:
+        return None
+    return last_seen_epoch + int(interval)
+
+
+def target_next_expected_poll(rec):
+    epoch = target_next_expected_poll_epoch(rec)
+    if epoch is None:
         return ""
-    return utc_from_epoch(last_seen_epoch + int(interval))
+    return utc_from_epoch(epoch)
 
 
 def atomic_write_json(path, data):
@@ -1869,6 +1876,8 @@ def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
         "target_connectivity_state": str(target_rec.get("connectivity_state") or ""),
         "target_next_expected_poll": str(target_rec.get("next_expected_poll") or ""),
         "has_target_next_expected_poll": bool(str(target_rec.get("next_expected_poll") or "")),
+        "target_poll_overdue": bool(target_rec.get("poll_overdue") is True),
+        "target_poll_overdue_for_sec": target_rec.get("poll_overdue_for_sec", ""),
         "status": status,
         "waiting_for": waiting_for,
         "command": command_text,
@@ -1930,6 +1939,7 @@ def target_mailbox_record_indexes(records):
         "target_mailbox_records_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
         "target_mailbox_records_by_target_last_seen_via": records_by_key(records, "target_last_seen_via"),
         "target_mailbox_records_by_has_target_next_expected_poll": records_by_key(records, "has_target_next_expected_poll"),
+        "target_mailbox_records_by_target_poll_overdue": records_by_key(records, "target_poll_overdue"),
         "target_mailbox_records_by_status": records_by_key(records, "status"),
         "target_mailbox_records_by_waiting_for": records_by_key(records, "waiting_for"),
         "target_mailbox_records_by_expired": records_by_key(records, "expired"),
@@ -2079,6 +2089,11 @@ def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
     last_seen = str(rec.get("last_seen_at") or rec.get("latest_activity_at") or "")
     last_seen_epoch = parse_utc_timestamp(last_seen)
     offline_for_sec = None if last_seen_epoch is None else max(int(now_epoch - last_seen_epoch), 0)
+    next_expected_poll_epoch = target_next_expected_poll_epoch(rec)
+    poll_overdue_for_sec = (
+        None if next_expected_poll_epoch is None
+        else max(int(now_epoch - next_expected_poll_epoch), 0)
+    )
     counts = mailbox_counts.get(str(rec.get("target_id") or ""), {})
     latest_result_rec = latest_result.get(str(rec.get("target_id") or ""), {})
     rec["last_seen"] = last_seen
@@ -2088,7 +2103,9 @@ def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
     rec["connectivity_online_window_sec"] = TARGET_ONLINE_WINDOW_SEC
     rec["connectivity_recent_window_sec"] = TARGET_RECENT_WINDOW_SEC
     rec["connectivity_stale_window_sec"] = TARGET_STALE_WINDOW_SEC
-    rec["next_expected_poll"] = target_next_expected_poll(rec)
+    rec["next_expected_poll"] = "" if next_expected_poll_epoch is None else utc_from_epoch(next_expected_poll_epoch)
+    rec["poll_overdue"] = bool(poll_overdue_for_sec and poll_overdue_for_sec > 0)
+    rec["poll_overdue_for_sec"] = poll_overdue_for_sec if poll_overdue_for_sec is not None else ""
     rec["mailbox_queued_command_count"] = int(counts.get("queued", 0) or 0)
     rec["mailbox_delivered_command_count"] = int(counts.get("delivered", 0) or 0)
     rec["mailbox_result_received_command_count"] = int(counts.get("result-received", 0) or 0)
@@ -2123,6 +2140,7 @@ def target_record_indexes(records):
     by_connectivity_state = {}
     by_last_seen_via = {}
     by_has_next_expected_poll = {}
+    by_poll_overdue = {}
     by_mailbox_pending_work = {}
     by_latest_file_transfer_operation = {}
     by_latest_file_transfer_status = {}
@@ -2175,6 +2193,7 @@ def target_record_indexes(records):
         if last_seen_via:
             by_last_seen_via.setdefault(last_seen_via, []).append(rec)
         by_has_next_expected_poll.setdefault("yes" if str(rec.get("next_expected_poll") or "") else "no", []).append(rec)
+        by_poll_overdue.setdefault("yes" if rec.get("poll_overdue") is True else "no", []).append(rec)
         by_mailbox_pending_work.setdefault("yes" if int(rec.get("mailbox_pending_work_count") or 0) > 0 else "no", []).append(rec)
         by_has_latest_bridge_activity.setdefault("yes" if str(rec.get("latest_bridge_activity_at") or "") else "no", []).append(rec)
         file_op = str(rec.get("latest_file_transfer_operation") or "")
@@ -2255,7 +2274,7 @@ def target_record_indexes(records):
         by_identity_confidence, by_identity_source,
         by_latest_activity_service, by_latest_activity_operation,
         by_connectivity_state, by_last_seen_via,
-        by_has_next_expected_poll, by_mailbox_pending_work,
+        by_has_next_expected_poll, by_poll_overdue, by_mailbox_pending_work,
         by_latest_file_transfer_operation, by_latest_file_transfer_status,
         by_latest_file_transfer_route_kind, by_latest_file_transfer_bridge_profile,
         by_latest_survey_result_kind, by_latest_survey_result_status,
@@ -2301,6 +2320,7 @@ def target_record_summary(records):
     report_count = 0
     notes_count = 0
     next_expected_poll_count = 0
+    poll_overdue_count = 0
     mailbox_pending_target_count = 0
     mailbox_pending_work_count = 0
     latest_file_transfer_count = 0
@@ -2334,6 +2354,8 @@ def target_record_summary(records):
             last_seen_via_counts[last_seen_via] = last_seen_via_counts.get(last_seen_via, 0) + 1
         if str(rec.get("next_expected_poll") or ""):
             next_expected_poll_count += 1
+        if rec.get("poll_overdue") is True:
+            poll_overdue_count += 1
         pending_work = int(rec.get("mailbox_pending_work_count") or 0)
         mailbox_pending_work_count += pending_work
         if pending_work > 0:
@@ -2425,6 +2447,8 @@ def target_record_summary(records):
         "target_connectivity_state_counts": connectivity_state_counts,
         "target_last_seen_via_counts": last_seen_via_counts,
         "target_next_expected_poll_count": next_expected_poll_count,
+        "target_poll_overdue_count": poll_overdue_count,
+        "target_poll_overdue_counts": record_count_by_key(records, "poll_overdue"),
         "target_mailbox_pending_target_count": mailbox_pending_target_count,
         "target_mailbox_pending_work_count": mailbox_pending_work_count,
         "target_latest_file_transfer_count": latest_file_transfer_count,
@@ -11203,6 +11227,7 @@ def status_document(cfg):
      targets_by_connectivity_state,
      targets_by_last_seen_via,
      targets_by_has_next_expected_poll,
+     targets_by_poll_overdue,
      targets_by_mailbox_pending_work,
      targets_by_latest_file_transfer_operation,
      targets_by_latest_file_transfer_status,
@@ -11282,6 +11307,8 @@ def status_document(cfg):
         "connectivity_state_counts": target_summary.get("target_connectivity_state_counts") or {},
         "last_seen_via_counts": target_summary.get("target_last_seen_via_counts") or {},
         "next_expected_poll_count": int_value(target_summary.get("target_next_expected_poll_count", 0)),
+        "poll_overdue_count": int_value(target_summary.get("target_poll_overdue_count", 0)),
+        "poll_overdue_counts": target_summary.get("target_poll_overdue_counts") or {},
         "mailbox_pending_target_count": int_value(target_summary.get("target_mailbox_pending_target_count", 0)),
         "mailbox_pending_work_count": int_value(target_summary.get("target_mailbox_pending_work_count", 0)),
         "latest_file_transfer_count": int_value(target_summary.get("target_latest_file_transfer_count", 0)),
@@ -11303,6 +11330,7 @@ def status_document(cfg):
             target_registry_state_record.get("latest_activity_operation_counts")
         ),
         "has_next_expected_polls": target_registry_state_record.get("next_expected_poll_count", 0) > 0,
+        "has_poll_overdue": target_registry_state_record.get("poll_overdue_count", 0) > 0,
         "has_mailbox_pending_work": target_registry_state_record.get("mailbox_pending_work_count", 0) > 0,
         "has_latest_file_transfer": target_registry_state_record.get("latest_file_transfer_count", 0) > 0,
         "has_latest_survey_result": target_registry_state_record.get("latest_survey_result_count", 0) > 0,
@@ -11331,6 +11359,7 @@ def status_document(cfg):
         "target_registry_state_records_by_selected_target_latest_compatibility_release_name": records_by_key(target_registry_state_records, "selected_target_latest_compatibility_release_name"),
         "target_registry_state_records_by_has_latest_activity": records_by_key(target_registry_state_records, "has_latest_activity"),
         "target_registry_state_records_by_has_next_expected_polls": records_by_key(target_registry_state_records, "has_next_expected_polls"),
+        "target_registry_state_records_by_has_poll_overdue": records_by_key(target_registry_state_records, "has_poll_overdue"),
         "target_registry_state_records_by_has_mailbox_pending_work": records_by_key(target_registry_state_records, "has_mailbox_pending_work"),
         "target_registry_state_records_by_has_latest_file_transfer": records_by_key(target_registry_state_records, "has_latest_file_transfer"),
         "target_registry_state_records_by_has_latest_survey_result": records_by_key(target_registry_state_records, "has_latest_survey_result"),
@@ -12444,6 +12473,7 @@ def status_document(cfg):
         "target_registry_has_selected_target": bool(target_registry_state_record.get("has_selected_target", False)),
         "target_registry_has_latest_activity": bool(target_registry_state_record.get("has_latest_activity", False)),
         "target_registry_has_next_expected_polls": bool(target_registry_state_record.get("has_next_expected_polls", False)),
+        "target_registry_has_poll_overdue": bool(target_registry_state_record.get("has_poll_overdue", False)),
         "target_registry_has_mailbox_pending_work": bool(target_registry_state_record.get("has_mailbox_pending_work", False)),
         "target_registry_has_identity_sources": bool(target_registry_state_record.get("has_identity_sources", False)),
         "target_registry_has_capability_reports": bool(target_registry_state_record.get("has_capability_reports", False)),
@@ -12711,6 +12741,7 @@ def status_document(cfg):
         "target_mailbox_target_connectivity_state_counts": record_count_by_key(target_mailbox_records, "target_connectivity_state"),
         "target_mailbox_target_last_seen_via_counts": record_count_by_key(target_mailbox_records, "target_last_seen_via"),
         "target_mailbox_has_target_next_expected_poll_counts": record_count_by_key(target_mailbox_records, "has_target_next_expected_poll"),
+        "target_mailbox_target_poll_overdue_counts": record_count_by_key(target_mailbox_records, "target_poll_overdue"),
         "target_phone_home_record_count": len(target_phone_home_records),
         "target_phone_home_kind_counts": record_count_by_key(target_phone_home_records, "kind"),
         "target_phone_home_status_counts": record_count_by_key(target_phone_home_records, "status"),
@@ -13042,6 +13073,7 @@ def status_document(cfg):
                 "targets_by_connectivity_state",
                 "targets_by_last_seen_via",
                 "targets_by_has_next_expected_poll",
+                "targets_by_poll_overdue",
                 "targets_by_mailbox_pending_work",
                 "targets_by_latest_file_transfer_operation",
                 "targets_by_latest_file_transfer_status",
@@ -13086,6 +13118,7 @@ def status_document(cfg):
                 "target_registry_state_records_by_selected_target_latest_compatibility_release_name",
                 "target_registry_state_records_by_has_latest_activity",
                 "target_registry_state_records_by_has_next_expected_polls",
+                "target_registry_state_records_by_has_poll_overdue",
                 "target_registry_state_records_by_has_mailbox_pending_work",
                 "target_registry_state_records_by_has_latest_file_transfer",
                 "target_registry_state_records_by_has_latest_survey_result",
@@ -13188,6 +13221,7 @@ def status_document(cfg):
                 "target_mailbox_records_by_target_connectivity_state",
                 "target_mailbox_records_by_target_last_seen_via",
                 "target_mailbox_records_by_has_target_next_expected_poll",
+                "target_mailbox_records_by_target_poll_overdue",
                 "target_mailbox_records_by_status",
                 "target_mailbox_records_by_waiting_for",
                 "target_mailbox_records_by_expired",
@@ -13734,6 +13768,7 @@ def status_document(cfg):
         "targets_by_connectivity_state": targets_by_connectivity_state,
         "targets_by_last_seen_via": targets_by_last_seen_via,
         "targets_by_has_next_expected_poll": targets_by_has_next_expected_poll,
+        "targets_by_poll_overdue": targets_by_poll_overdue,
         "targets_by_mailbox_pending_work": targets_by_mailbox_pending_work,
         "targets_by_latest_file_transfer_operation": targets_by_latest_file_transfer_operation,
         "targets_by_latest_file_transfer_status": targets_by_latest_file_transfer_status,
@@ -14210,7 +14245,9 @@ def print_target_summary(doc, limit=8):
             print(
                 f"    heartbeat_via={rec.get('last_seen_via', '') or '-'} "
                 f"offline_for_sec={rec.get('offline_for_sec', '') if rec.get('offline_for_sec') != '' else '-'} "
-                f"next_expected_poll={rec.get('next_expected_poll', '') or '-'}"
+                f"next_expected_poll={rec.get('next_expected_poll', '') or '-'} "
+                f"poll_overdue={'yes' if rec.get('poll_overdue') else 'no'} "
+                f"poll_overdue_for_sec={rec.get('poll_overdue_for_sec', '') if rec.get('poll_overdue_for_sec') != '' else '-'}"
             )
         if int(rec.get("mailbox_command_count") or 0) > 0:
             print(
@@ -16565,7 +16602,9 @@ def run_line_tui(cfg):
                         f"    last_seen={rec.get('target_last_seen', '') or '-'} "
                         f"via={rec.get('target_last_seen_via', '') or '-'} "
                         f"offline_for_sec={rec.get('target_offline_for_sec', '') if rec.get('target_offline_for_sec') != '' else '-'} "
-                        f"next_expected_poll={rec.get('target_next_expected_poll', '') or '-'}"
+                        f"next_expected_poll={rec.get('target_next_expected_poll', '') or '-'} "
+                        f"poll_overdue={'yes' if rec.get('target_poll_overdue') else 'no'} "
+                        f"poll_overdue_for_sec={rec.get('target_poll_overdue_for_sec', '') if rec.get('target_poll_overdue_for_sec') != '' else '-'}"
                     )
                     print(
                         f"    created={rec.get('created_at', '') or '-'} "
