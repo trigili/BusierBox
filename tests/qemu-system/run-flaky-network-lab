@@ -667,6 +667,23 @@ for phase in phases:
         if command not in target_commands:
             target_commands.append(command)
 
+phase_runbook_summary = {
+    "phase_count": len(phases),
+    "phase_names": [phase["name"] for phase in phases],
+    "operator_command_phase_count": len([phase for phase in phases if phase["operator_commands"]]),
+    "target_command_phase_count": len([phase for phase in phases if phase["target_commands"]]),
+    "operator_command_count": sum(len(phase["operator_commands"]) for phase in phases),
+    "target_command_count": sum(len(phase["target_commands"]) for phase in phases),
+    "unique_operator_command_count": len(operator_commands),
+    "unique_target_command_count": len(target_commands),
+    "phases_without_operator_commands": [phase["name"] for phase in phases if not phase["operator_commands"]],
+    "phases_without_target_commands": [phase["name"] for phase in phases if not phase["target_commands"]],
+    "phases_with_both_operator_and_target_commands": [
+        phase["name"] for phase in phases
+        if phase["operator_commands"] and phase["target_commands"]
+    ],
+}
+
 plan = {
     "schema": 1,
     "kind": "qemu-flaky-network-lab-plan",
@@ -681,6 +698,7 @@ plan = {
     "phase_count": len(phases),
     "phases": phases,
     "phase_validation_contracts": phase_validation_contracts,
+    "phase_runbook_summary": phase_runbook_summary,
     "operator_commands": operator_commands,
     "target_commands": target_commands,
     "qemu_command_template": base_qemu,
@@ -739,6 +757,7 @@ summary = {
     "support_artifacts": plan["support_artifacts"],
     "support_artifact_modes": plan["support_artifact_modes"],
     "phase_contract_count": len(phase_validation_contracts),
+    "phase_runbook_summary": phase_runbook_summary,
     "phase_validation_status": phase_validation_report["status"],
     "phase_validation_missing_evidence_artifact_count": phase_validation_report["missing_evidence_artifact_count"],
     "requirements": requirements,

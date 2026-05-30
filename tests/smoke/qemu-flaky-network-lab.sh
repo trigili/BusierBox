@@ -144,6 +144,8 @@ assert summary["phase_validation_report"] == str(artifact_dir / "validation-repo
 assert summary["phase_validation_status"] == "pending-evidence"
 assert summary["phase_validation_missing_evidence_artifact_count"] > 0
 assert summary["phase_contract_count"] == summary["phase_count"]
+assert summary["phase_runbook_summary"]["phase_count"] == summary["phase_count"]
+assert summary["phase_runbook_summary"] == plan["phase_runbook_summary"]
 assert summary["artifact_manifest"] == str(artifact_dir / "artifact-manifest.json")
 manifest_by_name = {item["name"]: item for item in manifest["artifacts"]}
 assert manifest_by_name["host-network-setup.sh"]["executable"] is True
@@ -242,6 +244,16 @@ assert "bridge-events.jsonl" in plan["required_artifacts"]
 assert "bridge-interruption.json" in plan["required_artifacts"]
 assert "return-offline.json" in plan["required_artifacts"]
 phases_by_name = {item["name"]: item for item in plan["phases"]}
+runbooks = plan["phase_runbook_summary"]
+assert runbooks["operator_command_phase_count"] >= 10
+assert runbooks["target_command_phase_count"] >= 8
+assert runbooks["unique_operator_command_count"] == len(plan["operator_commands"])
+assert runbooks["unique_target_command_count"] == len(plan["target_commands"])
+assert runbooks["phases_without_operator_commands"] == []
+assert "offline-queue" in runbooks["phases_without_target_commands"]
+assert "systemd-user-service" in runbooks["phases_without_target_commands"]
+assert "offline-workflow-drain" in runbooks["phases_with_both_operator_and_target_commands"]
+assert "bridge-interruption" in runbooks["phases_with_both_operator_and_target_commands"]
 assert any("--queue-command 'busierbox survey --json'" in item for item in phases_by_name["offline-queue"]["operator_commands"])
 assert any("--line-tui" in item for item in phases_by_name["offline-queue"]["operator_commands"])
 assert any("systemd-user-dry-run" in item for item in phases_by_name["systemd-user-service"]["operator_commands"])
