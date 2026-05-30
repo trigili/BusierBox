@@ -166,7 +166,8 @@ def main():
                  "observed_seen=", "tail_status:", "Event Log |", "selected target evidence:",
                  "capability=", "compatibility=", "tail_status = event_tail_availability_text(snap)",
                  "Target Fleet", "enter selects this target filter", "set_workbench_target_filter(cfg",
-                 "Bridge Routes", "enter starts/stops this bridge profile", "--bridge-profile"):
+                 "Bridge Routes", "enter starts/stops this bridge profile", "--bridge-profile",
+                 "Mailbox", "mailbox_command:", "action 20 opens command queue/results"):
         if word not in src:
             print(f"busierbox-server: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1

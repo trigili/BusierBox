@@ -431,6 +431,12 @@ pane. It lists known targets with connectivity state, pending mailbox work,
 poll-overdue state, and last-seen time; selecting a target and pressing Enter
 sets the current target filter, while the details pane shows heartbeat, mailbox,
 latest result, latest survey/file activity, and bridge context for that device.
+It also includes a persistent `Mailbox` pane for target-scoped queued work. The
+pane shows command id, target, delivery/result status, and pending state; the
+details view expands the selected mailbox record with connectivity state,
+timestamps, result status/exit code, last phone-home path, next expected poll,
+and the queued command. Use line-mode action `20` for the full command queue and
+result listing.
 Mutating target workflow actions record `target_workflow_action_completed`
 events with the target id, action id, headless command, and result-specific
 metadata such as queued command id or staged request name, so headless and TUI
