@@ -5386,6 +5386,198 @@ def staged_file_workflow_action_summary(records):
     }
 
 
+def file_service_workflow_action_records(cfg, service_row, staged_records=None, uploads=None, fetches=None, transfer_records=None):
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    base = "scripts/busierbox-server --config " + shquote(config_path)
+    service_row = service_row if isinstance(service_row, dict) else {}
+    actual = str(service_row.get("actual") or "unknown")
+    configured = str(service_row.get("configured") or "")
+    target_filter_id = configured_target_filter(cfg)
+    target_arg = (" --target-id " + shquote(target_filter_id)) if target_filter_id else ""
+    route = target_route_context(
+        cfg,
+        "file-service",
+        direct_host=(local_ips() or ["OPERATOR_IP"])[0],
+        direct_port=cfg.get("file_service_port", 22204),
+    )
+    staged_count = len([rec for rec in staged_records or [] if isinstance(rec, dict)])
+    upload_count = len([rec for rec in uploads or [] if isinstance(rec, dict)])
+    fetch_count = len([rec for rec in fetches or [] if isinstance(rec, dict)])
+    transfer_count = len([rec for rec in transfer_records or [] if isinstance(rec, dict)])
+    records = []
+
+    def add(action_id, category, label, command, workflow, action_state, action_reason,
+            available=True, requires_input=False, requires_confirmation=False,
+            queues_offline_work=False, target_phone_home_required=False,
+            can_run_from_curses_enter=False, curses_enter_action=""):
+        records.append({
+            "id": f"file-service:{action_id}",
+            "action_id": action_id,
+            "service": "file-service",
+            "actual": actual,
+            "configured": configured,
+            "category": category,
+            "workflow": workflow,
+            "label": label,
+            "command": command,
+            "headless_command": command,
+            "target_id_filter": target_filter_id,
+            "target_filter_active": bool(target_filter_id),
+            "route_kind": str(route.get("route_kind") or "direct"),
+            "route_host": str(route.get("host") or ""),
+            "route_port": route.get("port", ""),
+            "bridge_profile": str(route.get("bridge_profile") or ""),
+            "bridge_route_path": str(route.get("bridge_route_path") or ""),
+            "requires_bridge": bool(route.get("requires_bridge", False)),
+            "port": service_row.get("port", cfg.get("file_service_port", 22204)),
+            "bind_address": str(service_row.get("bind_address") or cfg.get("listen_host", "")),
+            "tls": bool(service_row.get("tls", False)),
+            "pid": service_row.get("pid", ""),
+            "pid_alive": bool(service_row.get("pid_alive", False)),
+            "staged_count": staged_count,
+            "upload_count": upload_count,
+            "fetch_count": fetch_count,
+            "target_file_transfer_record_count": transfer_count,
+            "available": bool(available),
+            "requires_input": bool(requires_input),
+            "requires_confirmation": bool(requires_confirmation),
+            "requires_target_online": False,
+            "queues_offline_work": bool(queues_offline_work),
+            "target_phone_home_required": bool(target_phone_home_required),
+            "operator_action_state": action_state,
+            "operator_action_reason": action_reason,
+            "can_run_from_curses_enter": bool(can_run_from_curses_enter),
+            "curses_enter_action": curses_enter_action,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "tui_visible": True,
+            "safety_boundary": "operator-side file workflow metadata; target upload/fetch still requires explicit target-side command or poll",
+        })
+
+    start_ready = actual != "listening"
+    stop_ready = actual == "listening" or configured in ("listening", "starting", "error") or bool(service_row.get("pid"))
+    add(
+        "inspect-file-workflows",
+        "inspect",
+        "Inspect file service, staged files, uploads, fetches, and target file records",
+        base + target_arg + " --status",
+        "file-service",
+        "ready",
+        "run-now",
+    )
+    add(
+        "list-staged-files",
+        "staged",
+        "List staged files and target fetch commands",
+        base + target_arg + " --list-staged",
+        "staged-files",
+        "ready",
+        "run-now",
+        can_run_from_curses_enter=True,
+        curses_enter_action="list-staged-files",
+    )
+    add(
+        "stage-file",
+        "staged",
+        "Stage a local file for target fetch",
+        base + target_arg + " --serve-file LOCAL_PATH --as REQUEST_NAME --list-staged",
+        "staged-files",
+        "needs-input",
+        "input-required",
+        requires_input=True,
+    )
+    add(
+        "show-upload-command",
+        "upload",
+        "Show target upload command for a target path",
+        base + target_arg + " --status",
+        "target-upload",
+        "needs-input",
+        "input-required",
+        requires_input=True,
+    )
+    if records:
+        records[-1]["target_command_template"] = render_file_service_command(["put", "TARGET_PATH"], cfg, host=route.get("host"))
+    add(
+        "start-file-service",
+        "service",
+        "Start file service listener",
+        service_start_headless_command(cfg, "file-service"),
+        "service-lifecycle",
+        "ready" if start_ready else "already-running",
+        "start-listener" if start_ready else "already-listening",
+        can_run_from_curses_enter=start_ready,
+        curses_enter_action="start-file-service" if start_ready else "stop-file-service",
+    )
+    add(
+        "stop-file-service",
+        "service",
+        "Stop file service listener",
+        service_stop_headless_command(cfg, "file-service"),
+        "service-lifecycle",
+        "ready" if stop_ready else "not-running",
+        "stop-listener" if stop_ready else "no-recorded-listener",
+        requires_confirmation=True,
+        can_run_from_curses_enter=stop_ready,
+        curses_enter_action="stop-file-service" if stop_ready else "start-file-service",
+    )
+    records.sort(key=lambda rec: (rec.get("category", ""), rec.get("action_id", "")))
+    return records
+
+
+def file_service_workflow_action_indexes(records):
+    return {
+        "file_service_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "file_service_workflow_actions_by_action_id": records_by_key(records, "action_id"),
+        "file_service_workflow_actions_by_service": records_by_key(records, "service"),
+        "file_service_workflow_actions_by_category": records_by_key(records, "category"),
+        "file_service_workflow_actions_by_workflow": records_by_key(records, "workflow"),
+        "file_service_workflow_actions_by_actual": records_by_key(records, "actual"),
+        "file_service_workflow_actions_by_configured": records_by_key(records, "configured"),
+        "file_service_workflow_actions_by_target_filter_active": records_by_key(records, "target_filter_active"),
+        "file_service_workflow_actions_by_route_kind": records_by_key(records, "route_kind"),
+        "file_service_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
+        "file_service_workflow_actions_by_requires_bridge": records_by_key(records, "requires_bridge"),
+        "file_service_workflow_actions_by_available": records_by_key(records, "available"),
+        "file_service_workflow_actions_by_requires_input": records_by_key(records, "requires_input"),
+        "file_service_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
+        "file_service_workflow_actions_by_queues_offline_work": records_by_key(records, "queues_offline_work"),
+        "file_service_workflow_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "file_service_workflow_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "file_service_workflow_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
+        "file_service_workflow_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
+    }
+
+
+def file_service_workflow_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
+        "requires_input_count": len([rec for rec in records or [] if rec.get("requires_input") is True]),
+        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
+        "queues_offline_work_count": len([rec for rec in records or [] if rec.get("queues_offline_work") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
+        "action_counts": record_count_by_key(records, "action_id"),
+        "service_counts": record_count_by_key(records, "service"),
+        "category_counts": record_count_by_key(records, "category"),
+        "workflow_counts": record_count_by_key(records, "workflow"),
+        "actual_counts": record_count_by_key(records, "actual"),
+        "configured_counts": record_count_by_key(records, "configured"),
+        "target_filter_active_counts": record_count_by_key(records, "target_filter_active"),
+        "route_kind_counts": record_count_by_key(records, "route_kind"),
+        "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
+        "requires_bridge_counts": record_count_by_key(records, "requires_bridge"),
+        "available_counts": record_count_by_key(records, "available"),
+        "requires_input_counts": record_count_by_key(records, "requires_input"),
+        "requires_confirmation_counts": record_count_by_key(records, "requires_confirmation"),
+        "queues_offline_work_counts": record_count_by_key(records, "queues_offline_work"),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
+        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
+    }
+
+
 def status_path_records(paths):
     records = {}
     dir_keys = {"operator_session_dir", "session_root"}
@@ -13589,6 +13781,17 @@ def status_document(cfg):
      fetches_by_http_status_remote_addr) = fetch_record_indexes(fetches)
     target_file_transfer_records = target_file_transfer_records_from_sources(staged_records, uploads, fetches)
     target_file_transfer_index_maps = target_file_transfer_record_indexes(target_file_transfer_records)
+    file_service_row = next((row for row in services if row.get("name") == "file-service"), {})
+    file_service_workflow_actions = file_service_workflow_action_records(
+        cfg,
+        file_service_row,
+        staged_records,
+        uploads,
+        fetches,
+        target_file_transfer_records,
+    )
+    file_service_workflow_action_index_maps = file_service_workflow_action_indexes(file_service_workflow_actions)
+    file_service_workflow_action_stats = file_service_workflow_action_summary(file_service_workflow_actions)
     target_activity_records = target_activity_records_from_sources(
         targets,
         target_mailbox_records,
@@ -14207,6 +14410,30 @@ def status_document(cfg):
         "target_file_transfer_route_kind_counts": record_count_by_key(target_file_transfer_records, "route_kind"),
         "target_file_transfer_bridge_profile_counts": record_count_by_key(target_file_transfer_records, "bridge_profile"),
         "latest_target_file_transfer_at": latest_record_value(target_file_transfer_records, ("timestamp", "updated_at", "created_at")),
+        "file_service_workflow_action_count": file_service_workflow_action_stats.get("total_count", 0),
+        "file_service_workflow_action_available_count": file_service_workflow_action_stats.get("available_count", 0),
+        "file_service_workflow_action_requires_input_count": file_service_workflow_action_stats.get("requires_input_count", 0),
+        "file_service_workflow_action_requires_confirmation_count": file_service_workflow_action_stats.get("requires_confirmation_count", 0),
+        "file_service_workflow_action_queues_offline_work_count": file_service_workflow_action_stats.get("queues_offline_work_count", 0),
+        "file_service_workflow_action_can_run_from_curses_enter_count": file_service_workflow_action_stats.get("can_run_from_curses_enter_count", 0),
+        "file_service_workflow_action_action_counts": file_service_workflow_action_stats.get("action_counts") or {},
+        "file_service_workflow_action_service_counts": file_service_workflow_action_stats.get("service_counts") or {},
+        "file_service_workflow_action_category_counts": file_service_workflow_action_stats.get("category_counts") or {},
+        "file_service_workflow_action_workflow_counts": file_service_workflow_action_stats.get("workflow_counts") or {},
+        "file_service_workflow_action_actual_counts": file_service_workflow_action_stats.get("actual_counts") or {},
+        "file_service_workflow_action_configured_counts": file_service_workflow_action_stats.get("configured_counts") or {},
+        "file_service_workflow_action_target_filter_active_counts": file_service_workflow_action_stats.get("target_filter_active_counts") or {},
+        "file_service_workflow_action_route_kind_counts": file_service_workflow_action_stats.get("route_kind_counts") or {},
+        "file_service_workflow_action_bridge_profile_counts": file_service_workflow_action_stats.get("bridge_profile_counts") or {},
+        "file_service_workflow_action_requires_bridge_counts": file_service_workflow_action_stats.get("requires_bridge_counts") or {},
+        "file_service_workflow_action_available_counts": file_service_workflow_action_stats.get("available_counts") or {},
+        "file_service_workflow_action_requires_input_counts": file_service_workflow_action_stats.get("requires_input_counts") or {},
+        "file_service_workflow_action_requires_confirmation_counts": file_service_workflow_action_stats.get("requires_confirmation_counts") or {},
+        "file_service_workflow_action_queues_offline_work_counts": file_service_workflow_action_stats.get("queues_offline_work_counts") or {},
+        "file_service_workflow_action_operator_action_state_counts": file_service_workflow_action_stats.get("operator_action_state_counts") or {},
+        "file_service_workflow_action_operator_action_reason_counts": file_service_workflow_action_stats.get("operator_action_reason_counts") or {},
+        "file_service_workflow_action_can_run_from_curses_enter_counts": file_service_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
+        "file_service_workflow_action_curses_enter_action_counts": file_service_workflow_action_stats.get("curses_enter_action_counts") or {},
         "target_activity_record_count": len(target_activity_records),
         "target_activity_target_counts": record_count_by_key(target_activity_records, "target_id"),
         "target_activity_category_counts": record_count_by_key(target_activity_records, "category"),
@@ -15116,6 +15343,29 @@ def status_document(cfg):
                 "staged_file_workflow_actions_by_curses_enter_action",
             ), "staged_file_workflow_action_count",
         ),
+        "file_service_workflow_actions": api_collection_record(
+            "file_service_workflow_actions", file_service_workflow_actions, "id", (
+                "file_service_workflow_actions_by_id",
+                "file_service_workflow_actions_by_action_id",
+                "file_service_workflow_actions_by_service",
+                "file_service_workflow_actions_by_category",
+                "file_service_workflow_actions_by_workflow",
+                "file_service_workflow_actions_by_actual",
+                "file_service_workflow_actions_by_configured",
+                "file_service_workflow_actions_by_target_filter_active",
+                "file_service_workflow_actions_by_route_kind",
+                "file_service_workflow_actions_by_bridge_profile",
+                "file_service_workflow_actions_by_requires_bridge",
+                "file_service_workflow_actions_by_available",
+                "file_service_workflow_actions_by_requires_input",
+                "file_service_workflow_actions_by_requires_confirmation",
+                "file_service_workflow_actions_by_queues_offline_work",
+                "file_service_workflow_actions_by_operator_action_state",
+                "file_service_workflow_actions_by_operator_action_reason",
+                "file_service_workflow_actions_by_can_run_from_curses_enter",
+                "file_service_workflow_actions_by_curses_enter_action",
+            ), "file_service_workflow_action_count",
+        ),
         "target_file_transfer_records": api_collection_record(
             "target_file_transfer_records", target_file_transfer_records, "id", (
                 "target_file_transfer_records_by_id",
@@ -15868,6 +16118,8 @@ def status_document(cfg):
         "staged_by_kind_source_exists": staged_by_kind_source_exists,
         "staged_file_workflow_actions": staged_file_workflow_actions,
         **staged_file_workflow_action_index_maps,
+        "file_service_workflow_actions": file_service_workflow_actions,
+        **file_service_workflow_action_index_maps,
         "target_file_transfer_records": target_file_transfer_records,
         **target_file_transfer_index_maps,
         "target_activity_records": target_activity_records,
@@ -16642,6 +16894,16 @@ def print_workbench_action_summary(doc):
     )
     print(f"  command queue categories: {format_counts(summary.get('command_queue_workflow_action_category_counts') or {})}")
     print(f"  command queue action states: {format_counts(summary.get('command_queue_workflow_action_operator_action_state_counts') or {})}")
+    print(
+        "File service workflow action summary: "
+        f"total={summary.get('file_service_workflow_action_count', 0)} "
+        f"available={summary.get('file_service_workflow_action_available_count', 0)} "
+        f"requires_input={summary.get('file_service_workflow_action_requires_input_count', 0)} "
+        f"requires_confirmation={summary.get('file_service_workflow_action_requires_confirmation_count', 0)} "
+        f"enter_runnable={summary.get('file_service_workflow_action_can_run_from_curses_enter_count', 0)}"
+    )
+    print(f"  file workflows: {format_counts(summary.get('file_service_workflow_action_workflow_counts') or {})}")
+    print(f"  file action states: {format_counts(summary.get('file_service_workflow_action_operator_action_state_counts') or {})}")
 
 
 def print_workbench_job_summary(doc):
@@ -18487,6 +18749,19 @@ def run_line_tui(cfg):
         elif choice == "7":
             print_staged(cfg)
             snap = workbench_snapshot(cfg)
+            file_actions = snap.get("file_service_workflow_actions") or []
+            if file_actions:
+                print("File service workflow actions:")
+                for rec in file_actions:
+                    print(
+                        f"  {rec.get('id', '')} "
+                        f"state={rec.get('operator_action_state', '') or '-'} "
+                        f"reason={rec.get('operator_action_reason', '') or '-'} "
+                        f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'}"
+                    )
+                    print(f"    command: {rec.get('headless_command', rec.get('command', ''))}")
+                    if rec.get("target_command_template"):
+                        print(f"    target_command_template: {rec.get('target_command_template', '')}")
             staged_actions = snap.get("staged_file_workflow_actions") or []
             if staged_actions:
                 print("Staged file workflow actions:")
@@ -18507,6 +18782,7 @@ def run_line_tui(cfg):
             append_event(cfg, "workbench", "workbench_staged_files_viewed", details={
                 "headless_command": headless,
                 "staged_count": len(snap.get("staged_records") or []),
+                "file_service_workflow_action_count": len(file_actions),
                 "staged_file_workflow_action_count": len(staged_actions),
             })
         elif choice == "8" or choice == "d":
@@ -19469,6 +19745,8 @@ def run_curses_tui(cfg):
             service_workflow_actions_by_id = snap.get("service_workflow_actions_by_id") or {}
             staged_file_workflow_actions_by_request = snap.get("staged_file_workflow_actions_by_request_name") or {}
             staged_file_workflow_actions_by_id = snap.get("staged_file_workflow_actions_by_id") or {}
+            file_service_workflow_actions = snap.get("file_service_workflow_actions") or []
+            file_service_workflow_actions_by_id = snap.get("file_service_workflow_actions_by_id") or {}
             command_queue_workflow_actions = snap.get("command_queue_workflow_actions") or []
             command_queue_workflow_actions_by_id = snap.get("command_queue_workflow_actions_by_id") or {}
             operator_daemon_workflow_actions = snap.get("operator_daemon_workflow_actions") or []
@@ -19589,6 +19867,8 @@ def run_curses_tui(cfg):
                 show_action = staged_file_workflow_actions_by_id.get(f"{name}:show-fetch-command") or {}
                 queue_action = staged_file_workflow_actions_by_id.get(f"{name}:queue-staged-fetch") or {}
                 unstage_action = staged_file_workflow_actions_by_id.get(f"{name}:unstage") or {}
+                list_action = file_service_workflow_actions_by_id.get("file-service:list-staged-files") or {}
+                stage_action = file_service_workflow_actions_by_id.get("file-service:stage-file") or {}
                 detail_lines = [
                     f"request: {name}",
                     f"kind: {rec.get('stage_kind', 'file')}",
@@ -19603,9 +19883,12 @@ def run_curses_tui(cfg):
                     f"target_id: {rec.get('target_id', '') or '-'}",
                     f"target_label: {rec.get('target_label', '') or '-'}",
                     f"staged_file_workflow_actions: {len(staged_actions)}",
+                    f"file_service_workflow_actions: {len(file_service_workflow_actions)}",
                     f"show_fetch_action_state: {show_action.get('operator_action_state', '') or '-'} reason={show_action.get('operator_action_reason', '') or '-'}",
                     f"queue_action_state: {queue_action.get('operator_action_state', '') or '-'} reason={queue_action.get('operator_action_reason', '') or '-'}",
                     f"unstage_action_state: {unstage_action.get('operator_action_state', '') or '-'} reason={unstage_action.get('operator_action_reason', '') or '-'}",
+                    f"list_staged_action_state: {list_action.get('operator_action_state', '') or '-'} reason={list_action.get('operator_action_reason', '') or '-'}",
+                    f"stage_file_action_state: {stage_action.get('operator_action_state', '') or '-'} reason={stage_action.get('operator_action_reason', '') or '-'}",
                     f"queue_command: {queue_action.get('headless_command', queue_action.get('command', '')) or '-'}",
                     f"unstage_command: {unstage_action.get('headless_command', unstage_action.get('command', '')) or '-'}",
                     rec.get("fetch_command") or render_fetch_command(name, cfg, host=snap["selected_local_ip"]),
@@ -19616,6 +19899,8 @@ def run_curses_tui(cfg):
                 ]
             elif pane == 2 and target_file_transfer_records:
                 rec = target_file_transfer_records[min(selected, len(target_file_transfer_records) - 1)]
+                inspect_action = file_service_workflow_actions_by_id.get("file-service:inspect-file-workflows") or {}
+                upload_action = file_service_workflow_actions_by_id.get("file-service:show-upload-command") or {}
                 detail_lines = [
                     f"target_file_transfer: {rec.get('id', '') or '-'}",
                     f"operation: {rec.get('operation', '') or '-'} source_collection={rec.get('source_collection', '') or '-'}",
@@ -19636,6 +19921,10 @@ def run_curses_tui(cfg):
                     f"remote: {rec.get('remote_addr', '')}",
                     f"route: {rec.get('route_kind', '') or '-'} bridge_profile={rec.get('bridge_profile', '') or '-'}",
                     f"fetch_command: {rec.get('fetch_command', '') or '-'}",
+                    f"file_service_workflow_actions: {len(file_service_workflow_actions)}",
+                    f"inspect_action_state: {inspect_action.get('operator_action_state', '') or '-'} reason={inspect_action.get('operator_action_reason', '') or '-'}",
+                    f"upload_action_state: {upload_action.get('operator_action_state', '') or '-'} reason={upload_action.get('operator_action_reason', '') or '-'}",
+                    f"upload_command_template: {upload_action.get('target_command_template', '') or '-'}",
                     "v opens metadata, stored file, or source in pager",
                 ]
             elif pane == 3 and snap["sessions"]:

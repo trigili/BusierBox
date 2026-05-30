@@ -405,6 +405,20 @@ release tuple metadata, offline queueability, confirmation requirements, and
 the staged-files pane and Enter behavior from the same API contract used by
 headless operators.
 
+The file-service workflow itself is exposed as `file_service_workflow_actions`.
+Those top-level records cover inspecting file workflow state, listing staged
+files, staging a local file, showing a target upload command template, starting
+the file-service listener, and stopping it. Records include the equivalent
+`headless_command`, current listener state, route/bridge fields, staged/upload/
+fetch/target-file counts, input and confirmation requirements, Enter behavior,
+and a `target_command_template` for upload prompts. Indexes such as
+`file_service_workflow_actions_by_action_id`,
+`file_service_workflow_actions_by_route_kind`,
+`file_service_workflow_actions_by_requires_input`, and
+`file_service_workflow_actions_by_operator_action_state` let the TUI and API
+clients render file-service controls without scraping `staged_records`,
+`uploads`, or `fetches`.
+
 Status JSON also exposes `target_activity_records`, a combined per-target feed
 derived from heartbeat target records, mailbox records, phone-home attempts,
 file transfers, bridge records, sessions, and latest survey results. The feed is

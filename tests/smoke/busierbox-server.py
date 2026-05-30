@@ -184,6 +184,8 @@ def main():
                  "survey_bootstrap_workflow_actions:",
                  "Command queue workflow action summary:", "command_queue_workflow_actions_by_action_id",
                  "Command queue workflow actions:",
+                 "File service workflow action summary:", "file_service_workflow_actions_by_action_id",
+                 "File service workflow actions:",
                  "staged_file_workflow_actions:", "staged_file_workflow_actions_by_request_name",
                  "enter shows staged fetch command", "action 7 lists staged workflow actions",
                  "Bridge Routes", "bridge_profile_workflow_actions:", "bridge_profile_workflow_actions_by_bridge_profile",
@@ -4150,6 +4152,7 @@ def main():
                 ("rshell_session_policy_records", len(queue_status_json.get("rshell_session_policy_records") or []), "rshell_session_policy_records_by_session_policy_valid"),
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
                 ("staged_file_workflow_actions", len(queue_status_json.get("staged_file_workflow_actions") or []), "staged_file_workflow_actions_by_request_name"),
+                ("file_service_workflow_actions", len(queue_status_json.get("file_service_workflow_actions") or []), "file_service_workflow_actions_by_action_id"),
                 ("staged_files_state_records", len(queue_status_json.get("staged_files_state_records") or []), "staged_files_state_records_by_valid"),
                 ("command_copy_records", len(queue_status_json.get("command_copy_records") or []), "command_copy_records_by_has_command"),
                 ("command_copy_state_records", len(queue_status_json.get("command_copy_state_records") or []), "command_copy_state_records_by_empty_or_missing"),
@@ -4207,6 +4210,9 @@ def main():
                 api_resources_by_name.get("operator_daemon_workflow_actions", {}).get("records_key") != "operator_daemon_workflow_actions" or
                 api_resources_by_summary_key.get("operator_daemon_workflow_action_count", [{}])[0].get("name") != "operator_daemon_workflow_actions" or
                 not any(rec.get("name") == "operator_daemon_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("file_service_workflow_actions", {}).get("records_key") != "file_service_workflow_actions" or
+                api_resources_by_summary_key.get("file_service_workflow_action_count", [{}])[0].get("name") != "file_service_workflow_actions" or
+                not any(rec.get("name") == "file_service_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("command_queue_policy_records", {}).get("records_key") != "command_queue_policy_records" or
                 api_resources_by_summary_key.get("command_queue_policy_record_count", [{}])[0].get("name") != "command_queue_policy_records" or
                 not any(rec.get("name") == "command_queue_policy_records" for rec in api_resources_by_primary_key.get("id", [])) or
@@ -7410,6 +7416,7 @@ def main():
         action_staged = (action_doc.get("staged_by_target_id") or {}).get("target-action") or []
         action_staged_file_actions = (action_doc.get("staged_file_workflow_actions_by_request_name") or {}).get("action-staged.txt") or []
         action_staged_file_action_by_id = action_doc.get("staged_file_workflow_actions_by_id") or {}
+        action_file_service_actions_by_id = action_doc.get("file_service_workflow_actions_by_id") or {}
         action_events = action_doc.get("events_by_event") or {}
         activity_inspected_events = action_events.get("workbench_target_activity_inspected") or []
         selected_events = action_events.get("workbench_target_selected") or []
@@ -7517,6 +7524,11 @@ def main():
                 action_doc.get("summary", {}).get("staged_file_workflow_action_queues_offline_work_count") != 1 or
                 action_doc.get("summary", {}).get("staged_file_workflow_action_requires_confirmation_count") != 1 or
                 action_doc.get("summary", {}).get("staged_file_workflow_action_can_run_from_curses_enter_count") != 1 or
+                action_doc.get("summary", {}).get("file_service_workflow_action_count") != 6 or
+                action_doc.get("summary", {}).get("file_service_workflow_action_requires_input_count") != 2 or
+                action_file_service_actions_by_id.get("file-service:list-staged-files", {}).get("can_run_from_curses_enter") is not True or
+                action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("requires_input") is not True or
+                "put TARGET_PATH" not in action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("target_command_template", "") or
                 action_doc.get("summary", {}).get("target_file_transfer_record_count") != 1 or
                 action_doc.get("summary", {}).get("target_file_transfer_operation_counts", {}).get("staged-fetch") != 1 or
                 action_doc.get("summary", {}).get("target_file_transfer_source_collection_counts", {}).get("staged_records") != 1 or
@@ -7533,6 +7545,7 @@ def main():
                 (action_doc.get("target_file_transfer_records_by_operation") or {}).get("staged-fetch", [{}])[0].get("target_id") != "target-action" or
                 (action_doc.get("target_file_transfer_records_by_request_name") or {}).get("action-staged.txt", [{}])[0].get("target_id") != "target-action" or
                 "staged_file_workflow_actions_by_request_name" not in ((action_doc.get("api_collections") or {}).get("staged_file_workflow_actions") or {}).get("indexes", []) or
+                "file_service_workflow_actions_by_route_kind" not in ((action_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", []) or
                 "target_file_transfer_records_by_request_name" not in ((action_doc.get("api_collections") or {}).get("target_file_transfer_records") or {}).get("indexes", [])):
             print("target workflow actions did not mutate target-scoped queue/staged state", file=sys.stderr)
             print(json.dumps(action_doc, indent=2, sort_keys=True), file=sys.stderr)
@@ -9205,6 +9218,10 @@ def main():
                 "--serve-file " not in line_stage_stdout or
                 "--as /tmp/line-stage --list-staged" not in line_stage_stdout or
                 "--config " + str(upload_cfg) + " --list-staged" not in line_stage_stdout or
+                "File service workflow actions:" not in line_stage_stdout or
+                "file-service:list-staged-files state=ready reason=run-now enter=yes" not in line_stage_stdout or
+                "file-service:stage-file state=needs-input reason=input-required" not in line_stage_stdout or
+                "file-service:show-upload-command state=needs-input reason=input-required" not in line_stage_stdout or
                 "Staged file workflow actions:" not in line_stage_stdout or
                 "/tmp/line-stage:show-fetch-command" not in line_stage_stdout or
                 "/tmp/line-stage:queue-staged-fetch state=needs-target reason=target-required" not in line_stage_stdout or
@@ -9232,6 +9249,18 @@ def main():
             print(line_stage_status.stderr, file=sys.stderr)
             return 1
         line_stage_status_doc = json.loads(line_stage_status.stdout)
+        line_file_actions = line_stage_status_doc.get("file_service_workflow_actions") or []
+        line_file_actions_by_id = line_stage_status_doc.get("file_service_workflow_actions_by_id") or {}
+        if (len(line_file_actions) != 6 or
+                line_file_actions_by_id.get("file-service:list-staged-files", {}).get("can_run_from_curses_enter") is not True or
+                line_file_actions_by_id.get("file-service:stage-file", {}).get("requires_input") is not True or
+                line_file_actions_by_id.get("file-service:show-upload-command", {}).get("target_command_template", "").find("put TARGET_PATH") == -1 or
+                line_stage_status_doc.get("summary", {}).get("file_service_workflow_action_count") != 6 or
+                line_stage_status_doc.get("summary", {}).get("file_service_workflow_action_requires_input_count") != 2 or
+                "file_service_workflow_actions_by_operator_action_state" not in ((line_stage_status_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", [])):
+            print("line-oriented TUI file-service workflow actions missing status/API contract", file=sys.stderr)
+            print(json.dumps(line_stage_status_doc, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
         line_stage_events = [
             json.loads(line)
             for line in Path(line_stage_status_doc.get("event_log", "")).read_text(encoding="utf-8").splitlines()
@@ -9255,6 +9284,7 @@ def main():
                     for event in file_stage_events) or
                 not any(
                     (event.get("details") or {}).get("staged_count", 0) >= 1 and
+                    (event.get("details") or {}).get("file_service_workflow_action_count", 0) == 6 and
                     (event.get("details") or {}).get("staged_file_workflow_action_count", 0) >= 4 and
                     "--list-staged" in ((event.get("details") or {}).get("headless_command") or "")
                     for event in file_view_events) or
