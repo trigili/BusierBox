@@ -4863,10 +4863,39 @@ def operator_console_workflow_records(
             "offline_queue_supported": True,
         },
     ]
+    fleet_connectivity_state_counts = record_count_by_key(target_records, "connectivity_state")
+    fleet_offline_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "offline"
+    ])
+    fleet_stale_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "stale"
+    ])
+    fleet_mailbox_pending_target_count = len([
+        rec for rec in target_records
+        if int(rec.get("mailbox_pending_work_count") or 0) > 0
+    ])
+    fleet_mailbox_pending_work_count = sum(
+        int(rec.get("mailbox_pending_work_count") or 0)
+        for rec in target_records
+    )
+    fleet_poll_overdue_target_count = len(overdue_targets)
     for idx, rec in enumerate(records):
         pending = int(rec.get("pending_work_count") or 0)
         warning_count = int(rec.get("warning_count") or 0)
         rec["ordinal"] = idx
+        rec["fleet_target_count"] = len(target_records)
+        rec["fleet_connectivity_state_counts"] = fleet_connectivity_state_counts
+        rec["fleet_offline_target_count"] = fleet_offline_target_count
+        rec["fleet_stale_target_count"] = fleet_stale_target_count
+        rec["fleet_mailbox_pending_target_count"] = fleet_mailbox_pending_target_count
+        rec["fleet_mailbox_pending_work_count"] = fleet_mailbox_pending_work_count
+        rec["fleet_poll_overdue_target_count"] = fleet_poll_overdue_target_count
+        rec["fleet_has_offline_targets"] = fleet_offline_target_count > 0
+        rec["fleet_has_stale_targets"] = fleet_stale_target_count > 0
+        rec["fleet_has_mailbox_pending_work"] = fleet_mailbox_pending_work_count > 0
+        rec["fleet_has_poll_overdue_targets"] = fleet_poll_overdue_target_count > 0
         rec["has_records"] = int(rec.get("record_count") or 0) > 0
         rec["has_actions"] = int(rec.get("action_count") or 0) > 0
         rec["has_enter_runnable_actions"] = int(rec.get("enter_runnable_action_count") or 0) > 0
@@ -4893,6 +4922,16 @@ def operator_console_workflow_indexes(records):
         "operator_console_workflows_by_has_enter_runnable_actions": records_by_key(records, "has_enter_runnable_actions"),
         "operator_console_workflows_by_has_pending_work": records_by_key(records, "has_pending_work"),
         "operator_console_workflows_by_has_warnings": records_by_key(records, "has_warnings"),
+        "operator_console_workflows_by_fleet_target_count": records_by_key(records, "fleet_target_count"),
+        "operator_console_workflows_by_fleet_offline_target_count": records_by_key(records, "fleet_offline_target_count"),
+        "operator_console_workflows_by_fleet_stale_target_count": records_by_key(records, "fleet_stale_target_count"),
+        "operator_console_workflows_by_fleet_mailbox_pending_target_count": records_by_key(records, "fleet_mailbox_pending_target_count"),
+        "operator_console_workflows_by_fleet_mailbox_pending_work_count": records_by_key(records, "fleet_mailbox_pending_work_count"),
+        "operator_console_workflows_by_fleet_poll_overdue_target_count": records_by_key(records, "fleet_poll_overdue_target_count"),
+        "operator_console_workflows_by_fleet_has_offline_targets": records_by_key(records, "fleet_has_offline_targets"),
+        "operator_console_workflows_by_fleet_has_stale_targets": records_by_key(records, "fleet_has_stale_targets"),
+        "operator_console_workflows_by_fleet_has_mailbox_pending_work": records_by_key(records, "fleet_has_mailbox_pending_work"),
+        "operator_console_workflows_by_fleet_has_poll_overdue_targets": records_by_key(records, "fleet_has_poll_overdue_targets"),
         "operator_console_workflows_by_operator_action_state": records_by_key(records, "operator_action_state"),
         "operator_console_workflows_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
         "operator_console_workflows_by_tui_shortcut": records_by_key(records, "tui_shortcut"),
@@ -4926,6 +4965,16 @@ def operator_console_workflow_summary(records):
         "has_enter_runnable_actions_counts": record_count_by_key(records, "has_enter_runnable_actions"),
         "has_pending_work_counts": record_count_by_key(records, "has_pending_work"),
         "has_warnings_counts": record_count_by_key(records, "has_warnings"),
+        "fleet_target_count_counts": record_count_by_key(records, "fleet_target_count"),
+        "fleet_offline_target_count_counts": record_count_by_key(records, "fleet_offline_target_count"),
+        "fleet_stale_target_count_counts": record_count_by_key(records, "fleet_stale_target_count"),
+        "fleet_mailbox_pending_target_count_counts": record_count_by_key(records, "fleet_mailbox_pending_target_count"),
+        "fleet_mailbox_pending_work_count_counts": record_count_by_key(records, "fleet_mailbox_pending_work_count"),
+        "fleet_poll_overdue_target_count_counts": record_count_by_key(records, "fleet_poll_overdue_target_count"),
+        "fleet_has_offline_targets_counts": record_count_by_key(records, "fleet_has_offline_targets"),
+        "fleet_has_stale_targets_counts": record_count_by_key(records, "fleet_has_stale_targets"),
+        "fleet_has_mailbox_pending_work_counts": record_count_by_key(records, "fleet_has_mailbox_pending_work"),
+        "fleet_has_poll_overdue_targets_counts": record_count_by_key(records, "fleet_has_poll_overdue_targets"),
         "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
         "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
         "tui_shortcut_counts": record_count_by_key(records, "tui_shortcut"),
@@ -15943,6 +15992,16 @@ def status_document(cfg):
         "operator_console_workflow_has_enter_runnable_actions_counts": operator_console_workflow_stats.get("has_enter_runnable_actions_counts") or {},
         "operator_console_workflow_has_pending_work_counts": operator_console_workflow_stats.get("has_pending_work_counts") or {},
         "operator_console_workflow_has_warnings_counts": operator_console_workflow_stats.get("has_warnings_counts") or {},
+        "operator_console_workflow_fleet_target_count_counts": operator_console_workflow_stats.get("fleet_target_count_counts") or {},
+        "operator_console_workflow_fleet_offline_target_count_counts": operator_console_workflow_stats.get("fleet_offline_target_count_counts") or {},
+        "operator_console_workflow_fleet_stale_target_count_counts": operator_console_workflow_stats.get("fleet_stale_target_count_counts") or {},
+        "operator_console_workflow_fleet_mailbox_pending_target_count_counts": operator_console_workflow_stats.get("fleet_mailbox_pending_target_count_counts") or {},
+        "operator_console_workflow_fleet_mailbox_pending_work_count_counts": operator_console_workflow_stats.get("fleet_mailbox_pending_work_count_counts") or {},
+        "operator_console_workflow_fleet_poll_overdue_target_count_counts": operator_console_workflow_stats.get("fleet_poll_overdue_target_count_counts") or {},
+        "operator_console_workflow_fleet_has_offline_targets_counts": operator_console_workflow_stats.get("fleet_has_offline_targets_counts") or {},
+        "operator_console_workflow_fleet_has_stale_targets_counts": operator_console_workflow_stats.get("fleet_has_stale_targets_counts") or {},
+        "operator_console_workflow_fleet_has_mailbox_pending_work_counts": operator_console_workflow_stats.get("fleet_has_mailbox_pending_work_counts") or {},
+        "operator_console_workflow_fleet_has_poll_overdue_targets_counts": operator_console_workflow_stats.get("fleet_has_poll_overdue_targets_counts") or {},
         "operator_console_workflow_operator_action_state_counts": operator_console_workflow_stats.get("operator_action_state_counts") or {},
         "operator_console_workflow_operator_action_reason_counts": operator_console_workflow_stats.get("operator_action_reason_counts") or {},
         "operator_console_workflow_tui_shortcut_counts": operator_console_workflow_stats.get("tui_shortcut_counts") or {},
@@ -16947,6 +17006,16 @@ def status_document(cfg):
                 "operator_console_workflows_by_has_enter_runnable_actions",
                 "operator_console_workflows_by_has_pending_work",
                 "operator_console_workflows_by_has_warnings",
+                "operator_console_workflows_by_fleet_target_count",
+                "operator_console_workflows_by_fleet_offline_target_count",
+                "operator_console_workflows_by_fleet_stale_target_count",
+                "operator_console_workflows_by_fleet_mailbox_pending_target_count",
+                "operator_console_workflows_by_fleet_mailbox_pending_work_count",
+                "operator_console_workflows_by_fleet_poll_overdue_target_count",
+                "operator_console_workflows_by_fleet_has_offline_targets",
+                "operator_console_workflows_by_fleet_has_stale_targets",
+                "operator_console_workflows_by_fleet_has_mailbox_pending_work",
+                "operator_console_workflows_by_fleet_has_poll_overdue_targets",
                 "operator_console_workflows_by_operator_action_state",
                 "operator_console_workflows_by_operator_action_reason",
                 "operator_console_workflows_by_tui_shortcut",

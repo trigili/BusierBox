@@ -3401,6 +3401,9 @@ def main():
         result_alpha_command = ((result_status.get("command_queue") or {}).get("commands_by_result_status") or {}).get("completed", [{}])[0]
         result_alpha_mailbox = (result_status.get("target_mailbox_records_by_command_id") or {}).get(alpha_id) or {}
         result_bravo_mailbox = (result_status.get("target_mailbox_records_by_command_id") or {}).get(bravo_id) or {}
+        result_workflows = result_status.get("operator_console_workflows") or []
+        result_workflows_by_id = result_status.get("operator_console_workflows_by_id") or {}
+        result_mailbox_workflow = result_workflows_by_id.get("mailbox") or {}
         if (result_alpha.get("connectivity_state") != "online" or
                 result_alpha.get("last_seen_via") != "command-queue:command_queue_result" or
                 result_alpha.get("offline_age_bucket") != "under-minute" or
@@ -3510,6 +3513,17 @@ def main():
                 result_status.get("summary", {}).get("target_phone_home_target_connectivity_state_counts", {}).get("offline") != 1 or
                 result_status.get("summary", {}).get("target_phone_home_target_offline_age_bucket_counts", {}).get("under-minute") != 2 or
                 result_status.get("summary", {}).get("target_phone_home_target_offline_age_bucket_counts", {}).get("day-plus") != 1 or
+                result_mailbox_workflow.get("fleet_target_count") != 2 or
+                result_mailbox_workflow.get("fleet_connectivity_state_counts", {}).get("online") != 1 or
+                result_mailbox_workflow.get("fleet_connectivity_state_counts", {}).get("offline") != 1 or
+                result_mailbox_workflow.get("fleet_mailbox_pending_target_count") != 1 or
+                result_mailbox_workflow.get("fleet_mailbox_pending_work_count") != 1 or
+                result_mailbox_workflow.get("fleet_poll_overdue_target_count") != 1 or
+                result_mailbox_workflow.get("fleet_has_offline_targets") is not True or
+                result_mailbox_workflow.get("fleet_has_mailbox_pending_work") is not True or
+                result_mailbox_workflow.get("fleet_has_poll_overdue_targets") is not True or
+                result_status.get("summary", {}).get("operator_console_workflow_fleet_target_count_counts", {}).get("2") != len(result_workflows) or
+                result_status.get("summary", {}).get("operator_console_workflow_fleet_mailbox_pending_work_count_counts", {}).get("1") != len(result_workflows) or
                 result_status.get("summary", {}).get("target_mailbox_has_target_next_expected_poll_counts", {}).get("True") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_target_poll_overdue_counts", {}).get("True") != 1 or
                 not result_status.get("summary", {}).get("target_mailbox_age_bucket_counts") or
@@ -3527,6 +3541,8 @@ def main():
                 "target_workflow_actions_by_target_last_failed_phone_home_status" not in (((result_status.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes") or []) or
                 "target_phone_home_records_by_target_connectivity_state" not in (((result_status.get("api_collections") or {}).get("target_phone_home_records") or {}).get("indexes") or []) or
                 "target_phone_home_records_by_target_offline_age_bucket" not in (((result_status.get("api_collections") or {}).get("target_phone_home_records") or {}).get("indexes") or []) or
+                "operator_console_workflows_by_fleet_mailbox_pending_work_count" not in (((result_status.get("api_collections") or {}).get("operator_console_workflows") or {}).get("indexes") or []) or
+                "operator_console_workflows_by_fleet_has_poll_overdue_targets" not in (((result_status.get("api_collections") or {}).get("operator_console_workflows") or {}).get("indexes") or []) or
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_result_upload_received" for event in result_status.get("events") or [])):
             print("target mailbox result upload did not update heartbeat and result status", file=sys.stderr)
             print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
