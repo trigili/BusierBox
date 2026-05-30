@@ -6909,9 +6909,30 @@ def service_record_indexes(records):
     )
 
 
-def service_workflow_action_records(cfg, services):
+def service_workflow_action_records(cfg, services, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     status_command = "scripts/busierbox-server --config " + shquote(config_path) + " --status"
+    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    fleet_mailbox_pending_work_count = sum(
+        int_value(rec.get("mailbox_pending_work_count", 0))
+        for rec in target_records
+    )
+    fleet_offline_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "offline"
+    ])
+    fleet_stale_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "stale"
+    ])
+    fleet_mailbox_pending_target_count = len([
+        rec for rec in target_records
+        if int_value(rec.get("mailbox_pending_work_count", 0)) > 0
+    ])
+    fleet_poll_overdue_target_count = len([
+        rec for rec in target_records
+        if rec.get("poll_overdue") is True
+    ])
     records = []
 
     def add(service, action_id, category, label, command, action_state, action_reason,
@@ -6944,6 +6965,17 @@ def service_workflow_action_records(cfg, services):
             "stale": bool(service.get("stale", False)),
             "has_error": bool(service.get("error")),
             "has_warnings": bool(service.get("warning_count", 0)),
+            "fleet_target_count": len(target_records),
+            "fleet_connectivity_state_counts": record_count_by_key(target_records, "connectivity_state"),
+            "fleet_offline_target_count": fleet_offline_target_count,
+            "fleet_stale_target_count": fleet_stale_target_count,
+            "fleet_mailbox_pending_target_count": fleet_mailbox_pending_target_count,
+            "fleet_mailbox_pending_work_count": fleet_mailbox_pending_work_count,
+            "fleet_poll_overdue_target_count": fleet_poll_overdue_target_count,
+            "fleet_has_offline_targets": fleet_offline_target_count > 0,
+            "fleet_has_stale_targets": fleet_stale_target_count > 0,
+            "fleet_has_mailbox_pending_work": fleet_mailbox_pending_work_count > 0,
+            "fleet_has_poll_overdue_targets": fleet_poll_overdue_target_count > 0,
             "available": True,
             "requires_input": False,
             "requires_confirmation": bool(requires_confirmation),
@@ -7030,6 +7062,16 @@ def service_workflow_action_indexes(records):
         "service_workflow_actions_by_workflow": records_by_key(records, "workflow"),
         "service_workflow_actions_by_actual": records_by_key(records, "actual"),
         "service_workflow_actions_by_configured": records_by_key(records, "configured"),
+        "service_workflow_actions_by_fleet_target_count": records_by_key(records, "fleet_target_count"),
+        "service_workflow_actions_by_fleet_offline_target_count": records_by_key(records, "fleet_offline_target_count"),
+        "service_workflow_actions_by_fleet_stale_target_count": records_by_key(records, "fleet_stale_target_count"),
+        "service_workflow_actions_by_fleet_mailbox_pending_target_count": records_by_key(records, "fleet_mailbox_pending_target_count"),
+        "service_workflow_actions_by_fleet_mailbox_pending_work_count": records_by_key(records, "fleet_mailbox_pending_work_count"),
+        "service_workflow_actions_by_fleet_poll_overdue_target_count": records_by_key(records, "fleet_poll_overdue_target_count"),
+        "service_workflow_actions_by_fleet_has_offline_targets": records_by_key(records, "fleet_has_offline_targets"),
+        "service_workflow_actions_by_fleet_has_stale_targets": records_by_key(records, "fleet_has_stale_targets"),
+        "service_workflow_actions_by_fleet_has_mailbox_pending_work": records_by_key(records, "fleet_has_mailbox_pending_work"),
+        "service_workflow_actions_by_fleet_has_poll_overdue_targets": records_by_key(records, "fleet_has_poll_overdue_targets"),
         "service_workflow_actions_by_available": records_by_key(records, "available"),
         "service_workflow_actions_by_requires_input": records_by_key(records, "requires_input"),
         "service_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
@@ -7051,6 +7093,16 @@ def service_workflow_action_summary(records):
         "workflow_counts": record_count_by_key(records, "workflow"),
         "actual_counts": record_count_by_key(records, "actual"),
         "configured_counts": record_count_by_key(records, "configured"),
+        "fleet_target_count_counts": record_count_by_key(records, "fleet_target_count"),
+        "fleet_offline_target_count_counts": record_count_by_key(records, "fleet_offline_target_count"),
+        "fleet_stale_target_count_counts": record_count_by_key(records, "fleet_stale_target_count"),
+        "fleet_mailbox_pending_target_count_counts": record_count_by_key(records, "fleet_mailbox_pending_target_count"),
+        "fleet_mailbox_pending_work_count_counts": record_count_by_key(records, "fleet_mailbox_pending_work_count"),
+        "fleet_poll_overdue_target_count_counts": record_count_by_key(records, "fleet_poll_overdue_target_count"),
+        "fleet_has_offline_targets_counts": record_count_by_key(records, "fleet_has_offline_targets"),
+        "fleet_has_stale_targets_counts": record_count_by_key(records, "fleet_has_stale_targets"),
+        "fleet_has_mailbox_pending_work_counts": record_count_by_key(records, "fleet_has_mailbox_pending_work"),
+        "fleet_has_poll_overdue_targets_counts": record_count_by_key(records, "fleet_has_poll_overdue_targets"),
         "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
         "requires_input_count": len([rec for rec in records or [] if rec.get("requires_input") is True]),
         "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
@@ -15551,7 +15603,7 @@ def status_document(cfg):
             mapped["warning_types"] = row.get("warning_types", [])
     services_by_has_warnings, services_by_warning_type = warning_health_indexes(services)
     ports_by_has_warnings, ports_by_warning_type = warning_health_indexes(ports)
-    service_workflow_actions = service_workflow_action_records(cfg, services)
+    service_workflow_actions = service_workflow_action_records(cfg, services, targets)
     service_workflow_action_index_maps = service_workflow_action_indexes(service_workflow_actions)
     service_workflow_action_stats = service_workflow_action_summary(service_workflow_actions)
     survey_bootstrap_workflow_actions = survey_bootstrap_workflow_action_records(
@@ -16383,6 +16435,16 @@ def status_document(cfg):
         "service_workflow_action_workflow_counts": service_workflow_action_stats.get("workflow_counts") or {},
         "service_workflow_action_actual_counts": service_workflow_action_stats.get("actual_counts") or {},
         "service_workflow_action_configured_counts": service_workflow_action_stats.get("configured_counts") or {},
+        "service_workflow_action_fleet_target_count_counts": service_workflow_action_stats.get("fleet_target_count_counts") or {},
+        "service_workflow_action_fleet_offline_target_count_counts": service_workflow_action_stats.get("fleet_offline_target_count_counts") or {},
+        "service_workflow_action_fleet_stale_target_count_counts": service_workflow_action_stats.get("fleet_stale_target_count_counts") or {},
+        "service_workflow_action_fleet_mailbox_pending_target_count_counts": service_workflow_action_stats.get("fleet_mailbox_pending_target_count_counts") or {},
+        "service_workflow_action_fleet_mailbox_pending_work_count_counts": service_workflow_action_stats.get("fleet_mailbox_pending_work_count_counts") or {},
+        "service_workflow_action_fleet_poll_overdue_target_count_counts": service_workflow_action_stats.get("fleet_poll_overdue_target_count_counts") or {},
+        "service_workflow_action_fleet_has_offline_targets_counts": service_workflow_action_stats.get("fleet_has_offline_targets_counts") or {},
+        "service_workflow_action_fleet_has_stale_targets_counts": service_workflow_action_stats.get("fleet_has_stale_targets_counts") or {},
+        "service_workflow_action_fleet_has_mailbox_pending_work_counts": service_workflow_action_stats.get("fleet_has_mailbox_pending_work_counts") or {},
+        "service_workflow_action_fleet_has_poll_overdue_targets_counts": service_workflow_action_stats.get("fleet_has_poll_overdue_targets_counts") or {},
         "service_workflow_action_operator_action_state_counts": service_workflow_action_stats.get("operator_action_state_counts") or {},
         "service_workflow_action_operator_action_reason_counts": service_workflow_action_stats.get("operator_action_reason_counts") or {},
         "service_workflow_action_can_run_from_curses_enter_counts": service_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
@@ -16460,6 +16522,16 @@ def status_document(cfg):
                 "service_workflow_actions_by_workflow",
                 "service_workflow_actions_by_actual",
                 "service_workflow_actions_by_configured",
+                "service_workflow_actions_by_fleet_target_count",
+                "service_workflow_actions_by_fleet_offline_target_count",
+                "service_workflow_actions_by_fleet_stale_target_count",
+                "service_workflow_actions_by_fleet_mailbox_pending_target_count",
+                "service_workflow_actions_by_fleet_mailbox_pending_work_count",
+                "service_workflow_actions_by_fleet_poll_overdue_target_count",
+                "service_workflow_actions_by_fleet_has_offline_targets",
+                "service_workflow_actions_by_fleet_has_stale_targets",
+                "service_workflow_actions_by_fleet_has_mailbox_pending_work",
+                "service_workflow_actions_by_fleet_has_poll_overdue_targets",
                 "service_workflow_actions_by_available",
                 "service_workflow_actions_by_requires_input",
                 "service_workflow_actions_by_requires_confirmation",
@@ -18619,6 +18691,18 @@ def print_workbench_action_summary(doc):
     print(f"  daemon workflows: {format_counts(summary.get('operator_daemon_workflow_action_workflow_counts') or {})}")
     print(f"  daemon action states: {format_counts(summary.get('operator_daemon_workflow_action_operator_action_state_counts') or {})}")
     print(
+        "Service workflow action summary: "
+        f"total={summary.get('service_workflow_action_count', 0)} "
+        f"available={summary.get('service_workflow_action_available_count', 0)} "
+        f"requires_confirmation={summary.get('service_workflow_action_requires_confirmation_count', 0)} "
+        f"enter_runnable={summary.get('service_workflow_action_can_run_from_curses_enter_count', 0)} "
+        f"fleet_pending_work={format_counts(summary.get('service_workflow_action_fleet_mailbox_pending_work_count_counts') or {})} "
+        f"fleet_offline={format_counts(summary.get('service_workflow_action_fleet_offline_target_count_counts') or {})} "
+        f"fleet_poll_overdue={format_counts(summary.get('service_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
+    )
+    print(f"  service workflows: {format_counts(summary.get('service_workflow_action_workflow_counts') or {})}")
+    print(f"  service action states: {format_counts(summary.get('service_workflow_action_operator_action_state_counts') or {})}")
+    print(
         "Target workflow action summary: "
         f"total={summary.get('target_workflow_action_count', 0)} "
         f"available={summary.get('target_workflow_action_available_count', 0)} "
@@ -19903,6 +19987,18 @@ def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
     print(f"service workflow action: {rec_id}")
     print(f"headless_command={headless}")
     print(f"command={command}")
+    fleet_details = {
+        "fleet_target_count": rec.get("fleet_target_count", 0),
+        "fleet_offline_target_count": rec.get("fleet_offline_target_count", 0),
+        "fleet_stale_target_count": rec.get("fleet_stale_target_count", 0),
+        "fleet_mailbox_pending_target_count": rec.get("fleet_mailbox_pending_target_count", 0),
+        "fleet_mailbox_pending_work_count": rec.get("fleet_mailbox_pending_work_count", 0),
+        "fleet_poll_overdue_target_count": rec.get("fleet_poll_overdue_target_count", 0),
+        "fleet_has_offline_targets": bool(rec.get("fleet_has_offline_targets")),
+        "fleet_has_stale_targets": bool(rec.get("fleet_has_stale_targets")),
+        "fleet_has_mailbox_pending_work": bool(rec.get("fleet_has_mailbox_pending_work")),
+        "fleet_has_poll_overdue_targets": bool(rec.get("fleet_has_poll_overdue_targets")),
+    }
     append_event(cfg, "workbench", "service_workflow_action_selected", details={
         "id": rec_id,
         "action_id": action_id,
@@ -19915,6 +20011,7 @@ def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
         "confirmed": bool(confirmed),
         "headless_command": headless,
         "command": command,
+        **fleet_details,
     })
     if dry_run:
         print("dry_run=yes")
@@ -19924,6 +20021,7 @@ def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
             "service": service,
             "headless_command": headless,
             "command": command,
+            **fleet_details,
         })
         return 0
     if action_id == "inspect-status":
@@ -19956,6 +20054,7 @@ def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
         "headless_command": headless,
         "command": command,
         "returncode": rc,
+        **fleet_details,
     })
     return rc
 
@@ -21498,7 +21597,10 @@ def run_line_tui(cfg):
                     f"state={rec.get('operator_action_state', '') or '-'} "
                     f"reason={rec.get('operator_action_reason', '') or '-'} "
                     f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
-                    f"enter_action={rec.get('curses_enter_action', '') or '-'}"
+                    f"enter_action={rec.get('curses_enter_action', '') or '-'} "
+                    f"pending_work={rec.get('fleet_mailbox_pending_work_count', 0)} "
+                    f"offline_targets={rec.get('fleet_offline_target_count', 0)} "
+                    f"poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}"
                 )
                 if rec.get("dry_run_command"):
                     print(f"   dry_run: {rec.get('dry_run_command', '')}")
@@ -22473,6 +22575,9 @@ def run_curses_tui(cfg):
                     f"process_log: {row['process_log'] or '-'}",
                     f"error: {row['error'] or '-'}",
                     f"service_workflow_actions: {len(service_actions)}",
+                    f"fleet_pending_work: {inspect_action.get('fleet_mailbox_pending_work_count', 0)}",
+                    f"fleet_offline_targets: {inspect_action.get('fleet_offline_target_count', 0)}",
+                    f"fleet_poll_overdue: {inspect_action.get('fleet_poll_overdue_target_count', 0)}",
                     f"inspect_action_state: {inspect_action.get('operator_action_state', '') or '-'} reason={inspect_action.get('operator_action_reason', '') or '-'}",
                     f"start_action_state: {start_action.get('operator_action_state', '') or '-'} reason={start_action.get('operator_action_reason', '') or '-'}",
                     f"stop_action_state: {stop_action.get('operator_action_state', '') or '-'} reason={stop_action.get('operator_action_reason', '') or '-'}",

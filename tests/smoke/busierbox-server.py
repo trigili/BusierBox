@@ -5168,6 +5168,8 @@ def main():
         service_actions_by_state = queue_status_json.get("service_workflow_actions_by_operator_action_state") or {}
         service_actions_by_reason = queue_status_json.get("service_workflow_actions_by_operator_action_reason") or {}
         service_actions_by_enter = queue_status_json.get("service_workflow_actions_by_can_run_from_curses_enter") or {}
+        service_fleet_target_count = queue_status_json["summary"].get("target_count", 0)
+        service_fleet_pending_work_count = queue_status_json["summary"].get("target_mailbox_pending_work_count", 0)
         if (len(service_workflow_actions) != 21 or
                 queue_status_json["summary"].get("service_workflow_action_count") != len(service_workflow_actions) or
                 queue_status_json["summary"].get("service_workflow_action_available_count") != len(service_workflow_actions) or
@@ -5182,8 +5184,12 @@ def main():
                 queue_status_json["summary"].get("service_workflow_action_operator_action_state_counts", {}).get("not-running") != 7 or
                 queue_status_json["summary"].get("service_workflow_action_operator_action_reason_counts", {}).get("start-listener") != 7 or
                 queue_status_json["summary"].get("service_workflow_action_operator_action_reason_counts", {}).get("no-recorded-listener") != 7 or
+                queue_status_json["summary"].get("service_workflow_action_fleet_target_count_counts", {}).get(str(service_fleet_target_count)) != len(service_workflow_actions) or
+                queue_status_json["summary"].get("service_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get(str(service_fleet_pending_work_count)) != len(service_workflow_actions) or
                 service_actions_by_id.get("file-service:start-service", {}).get("operator_action_state") != "ready" or
                 service_actions_by_id.get("file-service:start-service", {}).get("can_run_from_curses_enter") is not True or
+                service_actions_by_id.get("file-service:start-service", {}).get("fleet_target_count") != service_fleet_target_count or
+                service_actions_by_id.get("file-service:start-service", {}).get("fleet_mailbox_pending_work_count") != service_fleet_pending_work_count or
                 "--transport file-service" not in service_actions_by_id.get("file-service:start-service", {}).get("command", "") or
                 service_actions_by_id.get("file-service:start-service", {}).get("run_command") != f"scripts/busierbox-server --config {str(cfg)} --run-service-workflow-action file-service:start-service" or
                 service_actions_by_id.get("file-service:start-service", {}).get("dry_run_command") != f"scripts/busierbox-server --config {str(cfg)} --run-service-workflow-action file-service:start-service --service-workflow-dry-run" or
@@ -5197,6 +5203,7 @@ def main():
                 len(service_actions_by_reason.get("start-listener", [])) != 7 or
                 len(service_actions_by_enter.get("True", [])) != 7 or
                 "service_workflow_actions_by_operator_action_state" not in ((queue_status_json.get("api_collections") or {}).get("service_workflow_actions") or {}).get("indexes", []) or
+                "service_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((queue_status_json.get("api_collections") or {}).get("service_workflow_actions") or {}).get("indexes", []) or
                 "service_workflow_actions_by_can_run_from_curses_enter" not in ((queue_status_json.get("api_collections") or {}).get("service_workflow_actions") or {}).get("indexes", [])):
             print("server json status missing service workflow action descriptors", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
@@ -5242,7 +5249,8 @@ def main():
                 not any(
                     event.get("event") == "service_workflow_action_completed" and
                     (event.get("details") or {}).get("id") == "file-service:inspect-status" and
-                    (event.get("details") or {}).get("returncode") == 0
+                    (event.get("details") or {}).get("returncode") == 0 and
+                    (event.get("details") or {}).get("fleet_mailbox_pending_work_count") == service_fleet_pending_work_count
                     for event in service_action_events)):
             print("service workflow action runner did not record selected/completed events", file=sys.stderr)
             print(json.dumps(service_action_events[-12:], indent=2, sort_keys=True), file=sys.stderr)
