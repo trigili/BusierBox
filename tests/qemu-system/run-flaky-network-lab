@@ -170,7 +170,7 @@ phases = [
         "name": "return-offline",
         "link_state": "target-links-down",
         "operator_expectation": "targets age back to stale/offline while queued target-bravo work remains visible",
-        "artifacts": ["final-status.json", "summary.json"],
+        "artifacts": ["return-offline.json", "return-offline-status.json", "final-status.json", "summary.json"],
     },
 ]
 

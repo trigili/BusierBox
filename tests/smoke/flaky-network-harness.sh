@@ -24,6 +24,7 @@ test -s "$tmp/flaky-network/multi-target-isolation.json"
 test -s "$tmp/flaky-network/transfer.log"
 test -s "$tmp/flaky-network/bridge-events.jsonl"
 test -s "$tmp/flaky-network/bridge-interruption.json"
+test -s "$tmp/flaky-network/return-offline.json"
 test -s "$tmp/flaky-network/artifact-manifest.json"
 python3 -m json.tool "$tmp/flaky-network/summary.json" >/dev/null
 python3 - "$tmp/flaky-network" <<'PY'
@@ -55,6 +56,7 @@ bridge_events = [
     if line.strip()
 ]
 bridge_interruption = json.loads((artifact_dir / "bridge-interruption.json").read_text(encoding="utf-8"))
+return_offline = json.loads((artifact_dir / "return-offline.json").read_text(encoding="utf-8"))
 
 assert mailbox["kind"] == "target-mailbox-artifact"
 assert mailbox["summary"]["target_mailbox_pending_work_count"] == 2
@@ -195,6 +197,16 @@ assert bridge_interruption["summary"]["target_latest_bridge_status_counts"]["err
 assert "bridge_profiles_by_has_last_failure" in bridge_interruption["api_indexes"]["bridge_profiles"]
 assert "targets_by_latest_bridge_status" in bridge_interruption["api_indexes"]["targets"]
 assert bridge_interruption["bridge_error_events"]
+assert return_offline["kind"] == "return-offline-artifact"
+assert return_offline["targets"]["target-alpha"]["connectivity_state"] == "offline"
+assert return_offline["targets"]["target-bravo"]["connectivity_state"] == "offline"
+assert return_offline["targets"]["target-bravo"]["mailbox_pending_work_count"] == 1
+assert return_offline["summary"]["target_connectivity_state_counts"]["offline"] >= 2
+assert return_offline["summary"]["target_mailbox_pending_work_count"] >= 1
+assert any(rec["target_id"] == "target-bravo" and rec["pending_work"] is True and rec["target_connectivity_state"] == "offline" for rec in return_offline["mailbox_records"])
+assert "state=offline" in return_offline["status_text"]
+assert "targets_by_connectivity_state" in return_offline["api_indexes"]["targets"]
+assert "target_mailbox_records_by_target_connectivity_state" in return_offline["api_indexes"]["target_mailbox_records"]
 manifest_names = {item["name"] for item in manifest["artifacts"]}
 for name in (
     "target-mailbox.json",
@@ -215,6 +227,7 @@ for name in (
     "transfer.log",
     "bridge-events.jsonl",
     "bridge-interruption.json",
+    "return-offline.json",
     "summary.json",
 ):
     assert name in manifest_names, name

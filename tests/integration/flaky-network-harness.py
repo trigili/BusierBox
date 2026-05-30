@@ -694,6 +694,34 @@ def write_bridge_interruption_artifact(artifact_dir, doc, profile_name):
     })
 
 
+def write_return_offline_artifact(artifact_dir, doc, target_ids, status_text):
+    write_json(artifact_dir / "return-offline.json", {
+        "schema": 1,
+        "kind": "return-offline-artifact",
+        "target_ids": target_ids,
+        "targets": {
+            target_id: (doc.get("targets_by_id") or {}).get(target_id) or {}
+            for target_id in target_ids
+        },
+        "mailbox_records": [
+            rec for rec in (doc.get("target_mailbox_records") or [])
+            if rec.get("target_id") in target_ids
+        ],
+        "summary": {
+            "target_connectivity_state_counts": doc.get("summary", {}).get("target_connectivity_state_counts", {}),
+            "target_poll_overdue_counts": doc.get("summary", {}).get("target_poll_overdue_counts", {}),
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_mailbox_target_connectivity_state_counts": doc.get("summary", {}).get("target_mailbox_target_connectivity_state_counts", {}),
+            "target_mailbox_target_poll_overdue_counts": doc.get("summary", {}).get("target_mailbox_target_poll_overdue_counts", {}),
+        },
+        "status_text": status_text,
+        "api_indexes": {
+            "targets": ((doc.get("api_collections") or {}).get("targets") or {}).get("indexes") or [],
+            "target_mailbox_records": ((doc.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or [],
+        },
+    })
+
+
 def write_offline_workflow_artifact(artifact_dir, doc):
     target = (doc.get("targets_by_id") or {}).get("target-workflow") or {}
     records = [
@@ -1539,6 +1567,33 @@ def run_harness(artifact_dir):
     write_bridge_interruption_artifact(artifact_dir, bridge_failure_status, "flaky-bad-bridge")
     write_bridge_events_artifact(artifact_dir, bridge_failure_status)
     phases.append({"name": "bridge-interruption", "status": "pass", "artifact": "after-bridge-interruption.json"})
+
+    cfg_doc = json.loads(Path(cfg).read_text(encoding="utf-8"))
+    targets_file = Path(str(cfg_doc["targets_file"]))
+    targets_doc = json.loads(targets_file.read_text(encoding="utf-8"))
+    old_seen = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - (2 * 86400)))
+    for target_id in ("target-alpha", "target-bravo"):
+        rec = (targets_doc.get("targets") or {}).get(target_id)
+        if not isinstance(rec, dict):
+            continue
+        rec["last_seen_at"] = old_seen
+        rec["latest_activity_at"] = old_seen
+    write_json(targets_file, targets_doc)
+    return_offline_status = status(cfg, artifact_dir, "return-offline-status")
+    return_offline_text = run(str(SERVER), "--config", str(cfg), "--status")
+    assert_condition(return_offline_text.returncode == 0, "return-offline status text failed", return_offline_text.stderr)
+    alpha_offline = return_offline_status["targets_by_id"]["target-alpha"]
+    bravo_offline = return_offline_status["targets_by_id"]["target-bravo"]
+    bravo_mailbox = (return_offline_status.get("target_mailbox_records_by_target_id") or {}).get("target-bravo") or []
+    assert_condition(alpha_offline["connectivity_state"] == "offline", "alpha did not age back offline", alpha_offline)
+    assert_condition(bravo_offline["connectivity_state"] == "offline", "bravo did not age back offline", bravo_offline)
+    assert_condition(bravo_offline["mailbox_pending_work_count"] == 1, "bravo pending mailbox disappeared after return-offline", bravo_offline)
+    assert_condition(bravo_mailbox and bravo_mailbox[0].get("pending_work") is True, "bravo pending mailbox record missing after return-offline", bravo_mailbox)
+    assert_condition(bravo_mailbox[0].get("target_connectivity_state") == "offline", "bravo mailbox did not inherit offline state", bravo_mailbox[0])
+    assert_condition(return_offline_status["summary"]["target_connectivity_state_counts"].get("offline", 0) >= 2, "return-offline summary missing offline targets")
+    assert_condition("state=offline" in return_offline_text.stdout and "target-bravo" in return_offline_text.stdout, "return-offline status text missing offline target state", return_offline_text.stdout)
+    write_return_offline_artifact(artifact_dir, return_offline_status, ["target-alpha", "target-bravo"], return_offline_text.stdout)
+    phases.append({"name": "return-offline", "status": "pass", "artifact": "return-offline-status.json"})
 
     summary = {
         "schema": 1,

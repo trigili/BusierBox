@@ -62,6 +62,7 @@ assert "target-mismatch-phone-home.json" in plan["required_artifacts"]
 assert "malformed-result-upload.json" in plan["required_artifacts"]
 assert "bridge-events.jsonl" in plan["required_artifacts"]
 assert "bridge-interruption.json" in plan["required_artifacts"]
+assert "return-offline.json" in plan["required_artifacts"]
 assert any("systemd-dry-run" in item for item in plan["operator_commands"])
 assert any("line-tui" in item for item in plan["operator_commands"])
 PY

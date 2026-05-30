@@ -33,6 +33,8 @@ virtual network boundaries:
   rejection reason
 - failed command results and expired queued work remain visible in mailbox state
 - target result upload updates `last_seen`, mailbox, and latest-result state
+- targets age back to offline after the short reconnect window while pending
+  target-scoped mailbox work remains visible
 - survey bootstrap script/result flows refresh target survey state
 - interrupted file uploads are recorded as truncated target file activity
 - interrupted file uploads are exposed through upload status indexes, target
@@ -60,7 +62,7 @@ writes focused debug artifacts that mirror the QEMU lab contract:
 `duplicate-poll.json`, `malformed-result-upload.json`,
 `dropped-result-upload.json`,
 `systemd-user-service.json`, `target-mismatch-phone-home.json`, `transfer.log`,
-`bridge-events.jsonl`, `bridge-interruption.json`, and
+`bridge-events.jsonl`, `bridge-interruption.json`, `return-offline.json`, and
 `artifact-manifest.json`. The smoke wrapper
 `tests/smoke/flaky-network-harness.sh` runs the same scenario from
 `make smoke-test` with a temporary artifact directory and validates those
