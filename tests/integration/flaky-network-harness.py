@@ -1059,6 +1059,7 @@ def write_topology_artifact(artifact_dir, cfg, ports, phases):
             "support_artifacts": [
                 "artifact-manifest.json",
                 "phase-contracts.json",
+                "validation-report.json",
                 "validate-phase-artifacts.py",
                 "host-network-setup.sh",
                 "qemu-commands.sh",
@@ -1070,6 +1071,7 @@ def write_topology_artifact(artifact_dir, cfg, ports, phases):
                 "topology.json",
                 "plan.json",
                 "phase-contracts.json",
+                "validation-report.json",
                 "artifact-manifest.json",
                 "target-mailbox.json",
                 "restart-persistence.json",
