@@ -48,6 +48,7 @@ for name in (
     "qemu-commands.sh",
     "operator-commands.sh",
     "target-commands.sh",
+    "artifact-manifest.json",
     "summary.json",
 ):
     assert (artifact_dir / name).is_file(), name
@@ -62,8 +63,17 @@ for name in (
     subprocess.run(["sh", "-n", str(path)], check=True)
 plan = json.loads((artifact_dir / "plan.json").read_text(encoding="utf-8"))
 topology = json.loads((artifact_dir / "topology.json").read_text(encoding="utf-8"))
+manifest = json.loads((artifact_dir / "artifact-manifest.json").read_text(encoding="utf-8"))
 assert plan["kind"] == "qemu-flaky-network-lab-plan"
 assert topology["kind"] == "qemu-flaky-network-topology"
+assert manifest["kind"] == "qemu-flaky-network-artifact-manifest"
+assert plan["artifact_manifest"] == str(artifact_dir / "artifact-manifest.json")
+assert summary["artifact_manifest"] == str(artifact_dir / "artifact-manifest.json")
+manifest_by_name = {item["name"]: item for item in manifest["artifacts"]}
+assert manifest_by_name["host-network-setup.sh"]["executable"] is True
+assert manifest_by_name["host-network-setup.sh"]["mode"] == "0755"
+assert len(manifest_by_name["topology.json"]["sha256"]) == 64
+assert manifest_by_name["summary.json"]["size"] > 0
 assert len(topology["target_nodes"]) >= 3
 assert topology["environment_paths"]["kernel"]
 assert topology["environment_paths"]["rootfs"]
@@ -121,6 +131,7 @@ PY
 
 "$ROOT/tests/qemu-system/run-flaky-network-lab" --artifact-root "$tmp/qemu-flaky-run" --run >/dev/null
 test -s "$tmp/qemu-flaky-run/summary.json"
+test -s "$tmp/qemu-flaky-run"/openwrt-mipsel-minimal/artifact-manifest.json
 
 python3 - "$tmp/qemu-flaky-run/summary.json" <<'PY'
 import json
@@ -132,6 +143,7 @@ assert summary["kind"] == "qemu-flaky-network-lab"
 assert summary["mode"] == "run"
 assert summary["status"] == "skip"
 assert summary["missing_requirements"]
+assert summary["artifact_manifest"].endswith("/artifact-manifest.json")
 assert "host-network-setup.sh" in summary["support_artifacts"]
 assert "qemu-commands.sh" in summary["support_artifacts"]
 assert summary["support_artifact_modes"]["qemu-commands.sh"] == "0755"
