@@ -178,6 +178,8 @@ def main():
                  "operator_action_state:", "operator_action_reason:", "can_run_from_curses_enter:",
                  "service_workflow_actions:", "service_workflow_actions_by_service", "enter follows service workflow action readiness",
                  "action 11 includes service workflow actions",
+                 "Operator daemon workflow action summary:", "operator_daemon_workflow_actions_by_workflow",
+                 "operator_daemon_workflow_actions:",
                  "Survey bootstrap workflow action summary:", "survey_bootstrap_workflow_actions_by_route_kind",
                  "survey_bootstrap_workflow_actions:",
                  "Command queue workflow action summary:", "command_queue_workflow_actions_by_action_id",
@@ -3546,6 +3548,8 @@ def main():
             services_by_name = daemon_doc.get("services_by_name") or {}
             daemon_state_doc = json.loads(daemon_state.read_text(encoding="utf-8"))
             operator_daemon_state = (daemon_state_doc.get("services") or {}).get("operator-daemon") or {}
+            daemon_actions = daemon_doc.get("operator_daemon_workflow_actions") or []
+            daemon_actions_by_id = daemon_doc.get("operator_daemon_workflow_actions_by_id") or {}
             if (services_by_name.get("file-service", {}).get("actual") != "listening" or
                     services_by_name.get("file-service", {}).get("configured") != "listening" or
                     operator_daemon_state.get("status") != "listening" or
@@ -3557,6 +3561,21 @@ def main():
                 for log_path in sorted((Path(tmp) / "operator-session" / "daemon-logs").glob("*.log")):
                     print(f"{log_path.name}:", file=sys.stderr)
                     print(log_path.read_text(encoding="utf-8", errors="replace"), file=sys.stderr)
+                return 1
+            if (len(daemon_actions) != 9 or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("operator_action_state") != "already-running" or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("daemon_attached") is not True or
+                    daemon_actions_by_id.get("operator-daemon-start", {}).get("daemon_child_alive_count") != 1 or
+                    daemon_actions_by_id.get("operator-daemon-stop", {}).get("can_run_from_curses_enter") is not True or
+                    daemon_actions_by_id.get("operator-daemon-stop", {}).get("operator_action_reason") != "confirmation-required" or
+                    daemon_actions_by_id.get("systemd-user-status", {}).get("workflow") != "systemd-user-service" or
+                    daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_count") != 9 or
+                    daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_attached_count") != 9 or
+                    daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_workflow_counts", {}).get("operator-daemon") != 3 or
+                    daemon_doc.get("summary", {}).get("operator_daemon_workflow_action_workflow_counts", {}).get("systemd-user-service") != 6 or
+                    "operator_daemon_workflow_actions_by_daemon_attached" not in ((daemon_doc.get("api_collections") or {}).get("operator_daemon_workflow_actions") or {}).get("indexes", [])):
+                print("operator daemon workflow actions missing attached daemon state", file=sys.stderr)
+                print(json.dumps(daemon_doc, indent=2, sort_keys=True), file=sys.stderr)
                 return 1
             daemon_upload_response = connect_with_retry(daemon_file_port, (
                 b"PUT /upload/daemon.txt HTTP/1.1\r\n"
@@ -4141,6 +4160,7 @@ def main():
                 ("command_queue_modes", len(queue_status_json.get("command_queue_mode_records") or []), "command_queue_modes_by_result_upload_supported"),
                 ("release_state_records", len(queue_status_json.get("release_state_records") or []), "release_state_records_by_detection_source"),
                 ("workbench_actions", len(queue_status_json.get("workbench_actions") or []), "workbench_actions_by_id"),
+                ("operator_daemon_workflow_actions", len(queue_status_json.get("operator_daemon_workflow_actions") or []), "operator_daemon_workflow_actions_by_workflow"),
                 ("workbench_config_fields", len(queue_status_json.get("workbench_config_fields") or []), "workbench_config_fields_by_key"),
                 ("workbench_jobs_state_records", len(queue_status_json.get("workbench_jobs_state_records") or []), "workbench_jobs_state_records_by_valid"),
                 ("workbench_jobs", len(queue_status_json.get("workbench_jobs") or []), "workbench_jobs_by_id"),
@@ -4184,6 +4204,9 @@ def main():
                 api_resources_by_name.get("command_queue_workflow_actions", {}).get("records_key") != "command_queue_workflow_actions" or
                 api_resources_by_summary_key.get("command_queue_workflow_action_count", [{}])[0].get("name") != "command_queue_workflow_actions" or
                 not any(rec.get("name") == "command_queue_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("operator_daemon_workflow_actions", {}).get("records_key") != "operator_daemon_workflow_actions" or
+                api_resources_by_summary_key.get("operator_daemon_workflow_action_count", [{}])[0].get("name") != "operator_daemon_workflow_actions" or
+                not any(rec.get("name") == "operator_daemon_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("command_queue_policy_records", {}).get("records_key") != "command_queue_policy_records" or
                 api_resources_by_summary_key.get("command_queue_policy_record_count", [{}])[0].get("name") != "command_queue_policy_records" or
                 not any(rec.get("name") == "command_queue_policy_records" for rec in api_resources_by_primary_key.get("id", [])) or

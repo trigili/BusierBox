@@ -56,6 +56,17 @@ Workbench action records also expose `operator_action_state`,
 `curses_enter_action` so TUI/API clients can distinguish background-ready jobs,
 foreground-safe actions, confirmation-gated actions, and prompted placeholder
 commands without parsing command text.
+Status JSON also exposes the daemon subset as
+`operator_daemon_workflow_actions`. These records keep the workbench action id
+but add daemon-specific fields such as `workflow`,
+`daemon_status`, `daemon_attached`, selected daemon services, child PIDs,
+alive child count, systemd user action, and the daemon-specific Enter action.
+Indexes such as `operator_daemon_workflow_actions_by_workflow`,
+`operator_daemon_workflow_actions_by_daemon_attached`,
+`operator_daemon_workflow_actions_by_systemd_user_action`, and
+`operator_daemon_workflow_actions_by_operator_action_state` let the curses
+daemon pane and API clients render daemon lifecycle controls without
+special-casing the broader `workbench_actions` list.
 Individual listener controls are also exposed through `service_workflow_actions`.
 Each service has `inspect-status`, `start-service`, and `stop-service` records
 with the generated headless command, current listener state, confirmation
