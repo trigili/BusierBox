@@ -170,6 +170,7 @@ def main():
                  "active={active_group}/{active_pane_title}", "pane_shortcuts",
                  "capability=", "compatibility=", "tail_status = event_tail_availability_text(snap)",
                  "Target Fleet", "enter selects this target filter", "set_workbench_target_filter(cfg",
+                 "Target Files", "target_file_transfer:", "source_collection=", "v opens metadata, stored file, or source in pager",
                  "Target Actions", "enter runs no-input target workflow actions", "action 15 opens prompted target workflow list",
                  "operator_action_state:", "operator_action_reason:", "can_run_from_curses_enter:",
                  "Bridge Routes", "enter starts/stops this bridge profile", "--bridge-profile",

@@ -17332,7 +17332,7 @@ def run_curses_tui(cfg):
     pane_titles = {
         0: "Services",
         1: "Staged Files",
-        2: "Recent Uploads",
+        2: "Target Files",
         3: "Recent Sessions",
         4: "Event Log",
         5: "Target Commands",
@@ -17371,7 +17371,7 @@ def run_curses_tui(cfg):
         ord("m"): 10,
         ord("b"): 9,
         ord("o"): 15,
-        ord("f"): 1,
+        ord("f"): 2,
         ord("w"): 13,
         ord("e"): 4,
     }
@@ -17398,9 +17398,9 @@ def run_curses_tui(cfg):
         if pane == 1 and staged_names:
             rec = snap["staged"][staged_names[min(selected, len(staged_names) - 1)]]
             return rec.get("source_path", "")
-        if pane == 2 and snap["uploads"]:
-            rec = snap["uploads"][min(selected, len(snap["uploads"]) - 1)]
-            return rec.get("metadata_path") or rec.get("_metadata_path") or rec.get("stored_path") or ""
+        if pane == 2 and snap.get("target_file_transfer_records"):
+            rec = snap["target_file_transfer_records"][min(selected, len(snap["target_file_transfer_records"]) - 1)]
+            return rec.get("metadata_path") or rec.get("stored_path") or rec.get("source_path") or ""
         if pane == 3 and snap["sessions"]:
             rec = snap["sessions"][min(selected, len(snap["sessions"]) - 1)]
             return rec.get("path", "")
@@ -17431,9 +17431,17 @@ def run_curses_tui(cfg):
             snap = workbench_snapshot(cfg)
             services = [row["status_row"] for row in snap["services"].values()]
             staged_names = sorted(snap["staged"])
-            upload_lines = [
-                f"{'>' if pane == 2 and idx == selected else ' '} {m.get('filename', '')} {m.get('size', '')}B {m.get('sha256_prefix', str(m.get('sha256', ''))[:12])} status={m.get('status', '')}"
-                for idx, m in enumerate(snap["uploads"])
+            target_file_transfer_records = snap.get("target_file_transfer_records") or []
+            target_file_lines = [
+                (
+                    f"{'>' if pane == 2 and idx == selected else ' '} "
+                    f"{m.get('target_id', '') or '-'} "
+                    f"{m.get('operation', '') or '-'} "
+                    f"{m.get('filename') or m.get('request_name') or '-'} "
+                    f"status={m.get('status', '') or '-'} "
+                    f"route={m.get('route_kind', '') or '-'}"
+                )
+                for idx, m in enumerate(target_file_transfer_records)
             ] or ["none"]
             session_lines = [
                 f"{'>' if pane == 3 and idx == selected else ' '} {s.get('service', '')} {Path(s.get('path', '')).name} up={s.get('upload_count', 0)} fetch={s.get('fetch_count', 0)} ev={s.get('event_count', 0)} exit={s.get('exit_reason', '') or '-'}"
@@ -17619,23 +17627,29 @@ def run_curses_tui(cfg):
                     rec.get("fetch_command_force") or render_fetch_command(name, cfg, host=snap["selected_local_ip"], force=True),
                     "v opens source in pager",
                 ]
-            elif pane == 2 and snap["uploads"]:
-                rec = snap["uploads"][min(selected, len(snap["uploads"]) - 1)]
+            elif pane == 2 and target_file_transfer_records:
+                rec = target_file_transfer_records[min(selected, len(target_file_transfer_records) - 1)]
                 detail_lines = [
-                    f"upload: {rec.get('filename', '')}",
-                    f"kind: {rec.get('upload_kind', 'file')}",
+                    f"target_file_transfer: {rec.get('id', '') or '-'}",
+                    f"operation: {rec.get('operation', '') or '-'} source_collection={rec.get('source_collection', '') or '-'}",
+                    f"target: {rec.get('target_id', '') or '-'} label={rec.get('target_label', '') or '-'}",
+                    f"target_confidence: {rec.get('target_identity_confidence', '') or '-'}",
+                    f"status: {rec.get('status', '') or '-'}",
+                    f"request: {rec.get('request_name', '') or '-'}",
+                    f"filename: {rec.get('filename', '') or '-'}",
+                    f"kind: {rec.get('stage_kind', 'file')}",
                     f"source: {rec.get('source_path', '')}",
                     f"stored: {rec.get('stored_path', '')}",
-                    f"metadata: {rec.get('metadata_path', rec.get('_metadata_path', ''))}",
+                    f"metadata: {rec.get('metadata_path', '') or '-'}",
                     f"session: {rec.get('session_id', '')}",
                     f"session_path: {rec.get('session_path', '')}",
                     f"stored_exists: {rec.get('stored_exists', False)}",
+                    f"source_exists: {rec.get('source_exists', False)}",
                     f"sha256: {rec.get('sha256', '')}",
                     f"remote: {rec.get('remote_addr', '')}",
-                    f"target_id: {rec.get('target_id', '') or '-'}",
-                    f"target_label: {rec.get('target_label', '') or '-'}",
-                    f"target_confidence: {rec.get('target_identity_confidence', '') or '-'}",
-                    "v opens metadata in pager",
+                    f"route: {rec.get('route_kind', '') or '-'} bridge_profile={rec.get('bridge_profile', '') or '-'}",
+                    f"fetch_command: {rec.get('fetch_command', '') or '-'}",
+                    "v opens metadata, stored file, or source in pager",
                 ]
             elif pane == 3 and snap["sessions"]:
                 rec = snap["sessions"][min(selected, len(snap["sessions"]) - 1)]
@@ -17984,7 +17998,7 @@ def run_curses_tui(cfg):
             draw_list(stdscr, "Details", detail_lines, 4, left_w + 1, lower_y - 4, right_w, False)
             third = max(20, width // 3)
             draw_list(stdscr, "Staged Files", staged_lines, lower_y, 0, 7, third, pane == 1)
-            draw_list(stdscr, "Recent Uploads", upload_lines, lower_y, third + 1, 7, third, pane == 2)
+            draw_list(stdscr, "Target Files", target_file_lines, lower_y, third + 1, 7, third, pane == 2)
             draw_list(stdscr, "Recent Sessions", session_lines, lower_y, (third + 1) * 2, 7, width - ((third + 1) * 2), pane == 3)
             events_y = min(height - 8, lower_y + 8)
             bottom_y = events_y
@@ -18208,7 +18222,7 @@ def run_curses_tui(cfg):
             max_items = (
                 len(services) if pane == 0 else
                 len(staged_names) if pane == 1 else
-                len(snap["uploads"]) if pane == 2 else
+                len(target_file_transfer_records) if pane == 2 else
                 len(snap["sessions"]) if pane == 3 else
                 len(recent_events) if pane == 4 else
                 len(snap.get("target_command_records") or []) if pane == 5 else

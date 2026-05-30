@@ -449,9 +449,13 @@ pane. It lists known targets with connectivity state, pending mailbox work,
 poll-overdue state, and last-seen time; selecting a target and pressing Enter
 sets the current target filter, while the details pane shows heartbeat, mailbox,
 latest result, latest survey/file activity, and bridge context for that device.
+The adjacent `Target Files` pane is backed by `target_file_transfer_records`, so
+staged fetches, received uploads, and fetch attempts appear together with their
+target id, operation, status, route, digest, session metadata, and local paths.
 It keeps a persistent group navigation row above the main panes, with shortcuts
 for targets, target actions, mailbox, bridges, daemon, files, workflows, and
-events. This makes the curses view behave more like target/workflow submenus
+events; the files shortcut opens the unified `Target Files` view. This makes the
+curses view behave more like target/workflow submenus
 while keeping all panes backed by the same status JSON records.
 The header also keeps fleet connectivity visible across panes: online, recent,
 stale, offline, and unknown target counts, pending mailbox work, overdue polls,
