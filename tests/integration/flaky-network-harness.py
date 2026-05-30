@@ -809,6 +809,9 @@ def write_offline_workflow_drain_tui_artifact(artifact_dir, doc, tui_result):
         "summary": {
             "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
             "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+            "target_phone_home_work_kind_counts": doc.get("summary", {}).get("target_phone_home_work_kind_counts", {}),
+            "target_phone_home_bridge_profile_counts": doc.get("summary", {}).get("target_phone_home_bridge_profile_counts", {}),
+            "target_phone_home_route_kind_counts": doc.get("summary", {}).get("target_phone_home_route_kind_counts", {}),
         },
         "workbench_events": events,
     })
@@ -958,6 +961,9 @@ def write_tui_offline_queue_drain_artifact(artifact_dir, doc, command_ids, respo
         "summary": {
             "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
             "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+            "target_phone_home_work_kind_counts": doc.get("summary", {}).get("target_phone_home_work_kind_counts", {}),
+            "target_phone_home_bridge_profile_counts": doc.get("summary", {}).get("target_phone_home_bridge_profile_counts", {}),
+            "target_phone_home_route_kind_counts": doc.get("summary", {}).get("target_phone_home_route_kind_counts", {}),
         },
         "phone_home_records": [
             rec for rec in (doc.get("target_phone_home_records") or [])
@@ -1674,6 +1680,27 @@ def run_tui_offline_queue_scenario(artifact_dir):
     assert_condition(target.get("last_seen_via") == "command-queue:command_queue_poll", "TUI offline queue drain last_seen_via mismatch", target)
     assert_condition(target.get("mailbox_pending_work_count") == 0, "TUI offline queue drain left pending work", target)
     assert_condition(target.get("latest_phone_home_status") == "delivered", "TUI offline queue drain phone-home status mismatch", target)
+    delivered_phone_home = [
+        rec for rec in (drain_doc.get("target_phone_home_records") or [])
+        if rec.get("target_id") == "target-tui" and rec.get("status") == "delivered"
+    ]
+    phone_home_by_work_kind = {
+        rec.get("work_kind"): rec for rec in delivered_phone_home
+        if rec.get("work_kind")
+    }
+    assert_condition(phone_home_by_work_kind.get("survey-bootstrap"), "TUI offline survey delivery phone-home work metadata missing", delivered_phone_home)
+    assert_condition(phone_home_by_work_kind.get("staged-fetch"), "TUI offline fetch delivery phone-home work metadata missing", delivered_phone_home)
+    assert_condition(phone_home_by_work_kind.get("bridge-start"), "TUI offline bridge delivery phone-home work metadata missing", delivered_phone_home)
+    assert_condition(phone_home_by_work_kind["survey-bootstrap"].get("request_name") == "survey.sh", "TUI offline survey delivery request name missing", phone_home_by_work_kind["survey-bootstrap"])
+    assert_condition(phone_home_by_work_kind["staged-fetch"].get("request_name") == "tui-payload.txt", "TUI offline fetch delivery request name missing", phone_home_by_work_kind["staged-fetch"])
+    assert_condition(phone_home_by_work_kind["bridge-start"].get("bridge_profile") == "tui-bridge", "TUI offline bridge delivery phone-home profile missing", phone_home_by_work_kind["bridge-start"])
+    assert_condition(phone_home_by_work_kind["bridge-start"].get("route_kind") == "bridge", "TUI offline bridge delivery route kind missing", phone_home_by_work_kind["bridge-start"])
+    assert_condition(drain_doc["summary"]["target_phone_home_work_kind_counts"].get("survey-bootstrap") == 1, "TUI offline survey phone-home work-kind summary missing")
+    assert_condition(drain_doc["summary"]["target_phone_home_work_kind_counts"].get("staged-fetch") == 1, "TUI offline fetch phone-home work-kind summary missing")
+    assert_condition(drain_doc["summary"]["target_phone_home_work_kind_counts"].get("bridge-start") == 1, "TUI offline bridge phone-home work-kind summary missing")
+    assert_condition(drain_doc["summary"]["target_phone_home_bridge_profile_counts"].get("tui-bridge") == 1, "TUI offline bridge phone-home profile summary missing")
+    assert_condition("target_phone_home_records_by_work_kind" in (((drain_doc.get("api_collections") or {}).get("target_phone_home_records") or {}).get("indexes") or []), "target phone-home work-kind index missing")
+    assert_condition(((drain_doc.get("target_phone_home_records_by_bridge_profile") or {}).get("tui-bridge") or [{}])[0].get("command_id") == drained_bridge.get("command_id"), "target phone-home bridge-profile index missing")
     write_tui_offline_queue_drain_artifact(artifact_dir, drain_doc, command_ids_to_drain, responses)
     return {"name": "tui-offline-queue", "status": "pass", "artifact": "tui-offline-queue-after.json"}
 

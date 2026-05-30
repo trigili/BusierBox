@@ -249,6 +249,16 @@ assert drained_bridge_mailbox["work_kind"] == "bridge-start"
 assert drained_bridge_mailbox["bridge_profile"] == "tui-bridge"
 assert drained_survey_mailbox["work_kind"] == "survey-bootstrap"
 assert drained_fetch_mailbox["work_kind"] == "staged-fetch"
+delivered_phone_home = [rec for rec in tui_queue_drain["phone_home_records"] if rec["status"] == "delivered"]
+phone_home_by_work_kind = {rec.get("work_kind"): rec for rec in delivered_phone_home if rec.get("work_kind")}
+assert phone_home_by_work_kind["survey-bootstrap"]["request_name"] == "survey.sh"
+assert phone_home_by_work_kind["staged-fetch"]["request_name"] == "tui-payload.txt"
+assert phone_home_by_work_kind["bridge-start"]["bridge_profile"] == "tui-bridge"
+assert phone_home_by_work_kind["bridge-start"]["route_kind"] == "bridge"
+assert tui_queue_drain["summary"]["target_phone_home_work_kind_counts"]["survey-bootstrap"] == 1
+assert tui_queue_drain["summary"]["target_phone_home_work_kind_counts"]["staged-fetch"] == 1
+assert tui_queue_drain["summary"]["target_phone_home_work_kind_counts"]["bridge-start"] == 1
+assert tui_queue_drain["summary"]["target_phone_home_bridge_profile_counts"]["tui-bridge"] == 1
 assert tui_queue_drain["target"]["mailbox_pending_work_count"] == 0
 assert tui_queue_drain["target"]["last_seen_via"] == "command-queue:command_queue_poll"
 assert tui_queue_drain["target"]["latest_phone_home_status"] == "delivered"
