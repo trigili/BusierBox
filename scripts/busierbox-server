@@ -2811,6 +2811,74 @@ def bridge_profile_indexes(records):
     }
 
 
+def bridge_hop_records_from_profiles(profiles):
+    records = []
+    for profile in profiles or []:
+        if not isinstance(profile, dict):
+            continue
+        profile_name = str(profile.get("name") or "")
+        route_path = str(profile.get("route_path") or "")
+        hops = profile.get("hops") if isinstance(profile.get("hops"), list) else []
+        hop_count = len(hops)
+        for idx, hop in enumerate(hops, 1):
+            if not isinstance(hop, dict):
+                continue
+            from_endpoint = str(hop.get("from") or "").strip()
+            to_endpoint = str(hop.get("to") or "").strip()
+            from_host, from_port = parse_endpoint_host_port(from_endpoint)
+            to_host, to_port = parse_endpoint_host_port(to_endpoint)
+            records.append({
+                "id": f"{profile_name}:{idx}",
+                "profile": profile_name,
+                "profile_name": profile_name,
+                "ordinal": idx,
+                "hop_index": idx,
+                "hop_count": hop_count,
+                "is_first_hop": idx == 1,
+                "is_last_hop": idx == hop_count,
+                "multi_hop": hop_count > 1,
+                "from": from_endpoint,
+                "to": to_endpoint,
+                "from_host": from_host,
+                "from_port": from_port,
+                "to_host": to_host,
+                "to_port": to_port,
+                "route_path": route_path,
+                "target_id": str(profile.get("target_id") or ""),
+                "target_label": str(profile.get("target_label") or ""),
+                "requires_target_online": bool(profile.get("requires_target_online")),
+                "current_state": str(profile.get("current_state") or ""),
+                "profile_active": bool(profile.get("active")),
+                "profile_has_last_successful_relay": bool(profile.get("has_last_successful_relay")),
+                "profile_has_last_failure": bool(profile.get("has_last_failure")),
+            })
+    return records
+
+
+def bridge_hop_indexes(records):
+    return {
+        "bridge_hops_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "bridge_hops_by_profile": records_by_key(records, "profile"),
+        "bridge_hops_by_profile_name": records_by_key(records, "profile_name"),
+        "bridge_hops_by_ordinal": records_by_key(records, "ordinal"),
+        "bridge_hops_by_from": records_by_key(records, "from"),
+        "bridge_hops_by_to": records_by_key(records, "to"),
+        "bridge_hops_by_from_host": records_by_key(records, "from_host"),
+        "bridge_hops_by_from_port": records_by_key(records, "from_port"),
+        "bridge_hops_by_to_host": records_by_key(records, "to_host"),
+        "bridge_hops_by_to_port": records_by_key(records, "to_port"),
+        "bridge_hops_by_route_path": records_by_key(records, "route_path"),
+        "bridge_hops_by_target_id": records_by_key(records, "target_id"),
+        "bridge_hops_by_multi_hop": records_by_key(records, "multi_hop"),
+        "bridge_hops_by_is_first_hop": records_by_key(records, "is_first_hop"),
+        "bridge_hops_by_is_last_hop": records_by_key(records, "is_last_hop"),
+        "bridge_hops_by_current_state": records_by_key(records, "current_state"),
+        "bridge_hops_by_profile_active": records_by_key(records, "profile_active"),
+        "bridge_hops_by_profile_has_last_successful_relay": records_by_key(records, "profile_has_last_successful_relay"),
+        "bridge_hops_by_profile_has_last_failure": records_by_key(records, "profile_has_last_failure"),
+    }
+
+
 def save_bridge_profile(cfg, name, purpose="", notes="", hop_args=None):
     name = str(name or "").strip()
     if not valid_profile_name(name):
@@ -2911,12 +2979,15 @@ def print_bridge_profile(cfg, name, json_output=False):
 
 def print_bridge_profiles(cfg, json_output=False):
     records = bridge_profile_records(cfg)
+    hop_records = bridge_hop_records_from_profiles(records)
     if json_output:
         payload = {
             "schema": 1,
             "path": str(bridge_profiles_path(cfg)),
             "profiles": records,
+            "bridge_hop_records": hop_records,
             **bridge_profile_indexes(records),
+            **bridge_hop_indexes(hop_records),
         }
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
@@ -11307,6 +11378,8 @@ def status_document(cfg):
     services = service_status_rows(cfg)
     bridge_profiles = bridge_profile_records(cfg)
     bridge_profile_index_maps = bridge_profile_indexes(bridge_profiles)
+    bridge_hop_records = bridge_hop_records_from_profiles(bridge_profiles)
+    bridge_hop_index_maps = bridge_hop_indexes(bridge_hop_records)
     service_manager = SERVICE_MANAGER.snapshot()
     service_manager_resources = service_manager_resource_records(service_manager)
     service_manager_state_record = {
@@ -12127,6 +12200,14 @@ def status_document(cfg):
         "bridge_profile_hop_count_counts": record_count_by_key(bridge_profiles, "hop_count"),
         "bridge_profile_has_last_successful_relay_counts": record_count_by_key(bridge_profiles, "has_last_successful_relay"),
         "bridge_profile_has_last_failure_counts": record_count_by_key(bridge_profiles, "has_last_failure"),
+        "bridge_hop_record_count": len(bridge_hop_records),
+        "bridge_hop_profile_counts": record_count_by_key(bridge_hop_records, "profile"),
+        "bridge_hop_multi_hop_counts": record_count_by_key(bridge_hop_records, "multi_hop"),
+        "bridge_hop_is_first_hop_counts": record_count_by_key(bridge_hop_records, "is_first_hop"),
+        "bridge_hop_is_last_hop_counts": record_count_by_key(bridge_hop_records, "is_last_hop"),
+        "bridge_hop_profile_active_counts": record_count_by_key(bridge_hop_records, "profile_active"),
+        "bridge_hop_profile_has_last_successful_relay_counts": record_count_by_key(bridge_hop_records, "profile_has_last_successful_relay"),
+        "bridge_hop_profile_has_last_failure_counts": record_count_by_key(bridge_hop_records, "profile_has_last_failure"),
     })
     (services_by_actual,
      services_by_configured,
@@ -13094,6 +13175,21 @@ def status_document(cfg):
                 "bridge_profiles_by_has_last_failure",
             ), "bridge_profile_count",
         ),
+        "bridge_hop_records": api_collection_record(
+            "bridge_hop_records", bridge_hop_records, "id", (
+                "bridge_hops_by_id", "bridge_hops_by_profile",
+                "bridge_hops_by_profile_name", "bridge_hops_by_ordinal",
+                "bridge_hops_by_from", "bridge_hops_by_to",
+                "bridge_hops_by_from_host", "bridge_hops_by_from_port",
+                "bridge_hops_by_to_host", "bridge_hops_by_to_port",
+                "bridge_hops_by_route_path", "bridge_hops_by_target_id",
+                "bridge_hops_by_multi_hop", "bridge_hops_by_is_first_hop",
+                "bridge_hops_by_is_last_hop", "bridge_hops_by_current_state",
+                "bridge_hops_by_profile_active",
+                "bridge_hops_by_profile_has_last_successful_relay",
+                "bridge_hops_by_profile_has_last_failure",
+            ), "bridge_hop_record_count",
+        ),
         "ports": api_collection_record(
             "ports", ports, "service", (
                 "ports_by_number", "ports_by_service", "ports_by_actual",
@@ -13870,6 +13966,8 @@ def status_document(cfg):
         **service_manager_resource_index_maps,
         "bridge_profiles": bridge_profiles,
         **bridge_profile_index_maps,
+        "bridge_hop_records": bridge_hop_records,
+        **bridge_hop_index_maps,
         "services": services,
         "services_by_name": services_by_name,
         "services_by_actual": services_by_actual,

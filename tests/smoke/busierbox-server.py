@@ -444,10 +444,19 @@ def main():
             "--json-bridge-profiles",
         ).stdout)
         chain_profile = (json_bridge_profiles.get("bridge_profiles_by_name") or {}).get("chain-http") or {}
+        chain_hops = (json_bridge_profiles.get("bridge_hops_by_profile") or {}).get("chain-http") or []
         if (chain_profile.get("multi_hop") is not True or
                 chain_profile.get("hop_count") != 2 or
                 chain_profile.get("route_path") != expected_chain_path or
                 len(chain_profile.get("hops") or []) != 2 or
+                len(chain_hops) != 2 or
+                chain_hops[0].get("from") != f"operator:{bridge_port}" or
+                chain_hops[0].get("to") != "rack-host:9001" or
+                chain_hops[1].get("from") != "rack-host:9001" or
+                chain_hops[1].get("to") != "target-lan-device:80" or
+                chain_hops[0].get("is_first_hop") is not True or
+                chain_hops[1].get("is_last_hop") is not True or
+                (json_bridge_profiles.get("bridge_hops_by_to") or {}).get("target-lan-device:80", [{}])[0].get("profile") != "chain-http" or
                 ((json_bridge_profiles.get("bridge_profiles_by_multi_hop") or {}).get("True") or [{}])[0].get("name") != "chain-http" or
                 ((json_bridge_profiles.get("bridge_profiles_by_hop_count") or {}).get("2") or [{}])[0].get("route_path") != expected_chain_path or
                 (json_bridge_profiles.get("bridge_profiles_by_route_path") or {}).get(expected_chain_path, [{}])[0].get("name") != "chain-http"):
@@ -497,6 +506,8 @@ def main():
         bridge_service = (bridge_status.get("services_by_name") or {}).get("bridge") or {}
         bridge_events = bridge_status.get("events_by_event", {})
         bridge_profile = (bridge_status.get("bridge_profiles_by_name") or {}).get("lab-http") or {}
+        bridge_hops = bridge_status.get("bridge_hop_records") or []
+        chain_status_hops = (bridge_status.get("bridge_hops_by_profile") or {}).get("chain-http") or []
         bridge_target = (bridge_status.get("targets_by_id") or {}).get("target-bridge") or {}
         bridge_workflow_actions = (bridge_status.get("target_workflow_actions_by_target_id") or {}).get("target-bridge") or []
         bridge_actions_by_action = {
@@ -544,6 +555,14 @@ def main():
                 ((bridge_status.get("targets_by_has_latest_bridge_activity") or {}).get("yes") or [{}])[0].get("target_id") != "target-bridge" or
                 ((bridge_status.get("bridge_profiles_by_name") or {}).get("chain-http") or {}).get("route_path") != expected_chain_path or
                 bridge_status.get("summary", {}).get("bridge_profile_hop_count_counts", {}).get("2") != 1 or
+                bridge_status.get("summary", {}).get("bridge_hop_record_count") != 3 or
+                bridge_status.get("summary", {}).get("bridge_hop_profile_counts", {}).get("chain-http") != 2 or
+                bridge_status.get("summary", {}).get("bridge_hop_profile_counts", {}).get("lab-http") != 1 or
+                bridge_status.get("summary", {}).get("bridge_hop_multi_hop_counts", {}).get("True") != 2 or
+                len(bridge_hops) != 3 or
+                len(chain_status_hops) != 2 or
+                ((bridge_status.get("bridge_hops_by_to") or {}).get("target-lan-device:80") or [{}])[0].get("profile") != "chain-http" or
+                ((bridge_status.get("bridge_hops_by_is_first_hop") or {}).get("True") or [{}])[0].get("from") not in {f"operator:{bridge_port}"} or
                 bridge_profile.get("has_last_successful_relay") is not True or
                 not bridge_profile.get("last_successful_relay_at") or
                 bridge_profile.get("has_last_failure") is not False or
@@ -558,6 +577,8 @@ def main():
                 "bridge_profiles_by_hop_count" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 "bridge_profiles_by_has_last_successful_relay" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 "bridge_profiles_by_has_last_failure" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
+                "bridge_hops_by_profile" not in ((bridge_status.get("api_collections") or {}).get("bridge_hop_records") or {}).get("indexes", []) or
+                "bridge_hops_by_to" not in ((bridge_status.get("api_collections") or {}).get("bridge_hop_records") or {}).get("indexes", []) or
                 not bridge_events.get("workbench_bridge_profile_inspected") or
                 not bridge_events.get("workbench_bridge_profile_saved") or
                 not bridge_events.get("workbench_bridge_profile_deleted") or

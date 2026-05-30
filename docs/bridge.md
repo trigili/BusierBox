@@ -103,6 +103,14 @@ failed relay lifecycle is indexed with
 the latest success/failure fields directly. The simple direct `--bridge-*`
 flags remain the easy one-hop path.
 
+Status JSON also exposes normalized `bridge_hop_records`, one record per
+profile hop. Each hop records its profile name, ordinal, source/destination
+endpoint, parsed host/port fields, route path, target association, profile
+state, and first/last-hop flags. Indexes such as `bridge_hops_by_profile`,
+`bridge_hops_by_from`, `bridge_hops_by_to`, `bridge_hops_by_route_path`, and
+`bridge_hops_by_profile_has_last_failure` let operator consoles render and
+filter chain segments without reparsing embedded profile data.
+
 When `--bridge-profile` is selected for other operator workflows, generated
 target commands are route-aware. File fetch/upload commands and survey bootstrap
 commands use the profile's target-visible first hop, while their status records
