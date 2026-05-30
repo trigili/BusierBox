@@ -168,7 +168,8 @@ def main():
                  "Target Fleet", "enter selects this target filter", "set_workbench_target_filter(cfg",
                  "Bridge Routes", "enter starts/stops this bridge profile", "--bridge-profile",
                  "Mailbox", "mailbox_command:", "action 20 opens command queue/results",
-                 "Build Config", "enter sets this build config field", "action 14 opens guided build config"):
+                 "Build Config", "enter sets this build config field", "action 14 opens guided build config",
+                 "Jobs", "enter cancels this job when supported", "action 12 starts jobs; action 13 cancels jobs"):
         if word not in src:
             print(f"busierbox-server: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1

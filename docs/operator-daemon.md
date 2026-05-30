@@ -67,6 +67,11 @@ The curses workbench keeps build and operator configuration visible in a
 safety boundary, fixed options, examples, and the equivalent `--set-build-config`
 command. Pressing Enter on a field prompts for a new value and applies the same
 validated config update used by line-mode action `14`.
+It also keeps managed background workflow state visible in a `Jobs` pane. The
+pane lists job ids, effective state, action id, and cancel support; the details
+view shows process ownership, outcome, exit status, timestamps, log path, output
+tail, and command. Pressing Enter cancels a selected managed job when the same
+ownership checks used by line-mode action `13` say cancellation is supported.
 
 ## Systemd User Service
 

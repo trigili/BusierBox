@@ -17075,6 +17075,9 @@ def run_curses_tui(cfg):
             record = rec.get("record") or {}
             artifact_paths = record.get("artifact_paths") or []
             return rec.get("path") or record.get("filesystem_path") or record.get("path") or (artifact_paths[0] if artifact_paths else "") or release.get("release_json", "")
+        if pane == 12 and snap.get("workbench_jobs"):
+            rec = snap["workbench_jobs"][min(selected, len(snap["workbench_jobs"]) - 1)]
+            return rec.get("log_path", "")
         return ""
 
     def draw(stdscr):
@@ -17139,6 +17142,17 @@ def run_curses_tui(cfg):
                     f"value={rec.get('value', '') or '-'}"
                 )
                 for idx, rec in enumerate(config_fields)
+            ] or ["none"]
+            workbench_jobs = snap.get("workbench_jobs") or []
+            job_lines = [
+                (
+                    f"{'>' if pane == 12 and idx == selected else ' '} "
+                    f"{rec.get('id', '') or '-'} "
+                    f"{rec.get('effective_state', '') or '-'} "
+                    f"action={rec.get('action_id', '') or '-'} "
+                    f"cancel={'yes' if rec.get('cancel_supported') else 'no'}"
+                )
+                for idx, rec in enumerate(workbench_jobs)
             ] or ["none"]
             release = snap.get("release") or {}
             release_artifacts = release.get("artifacts") or []
@@ -17401,6 +17415,29 @@ def run_curses_tui(cfg):
                     "enter sets this build config field",
                     "action 14 opens guided build config",
                 ]
+            elif pane == 12 and workbench_jobs:
+                rec = workbench_jobs[min(selected, len(workbench_jobs) - 1)]
+                exit_status = rec.get("exit_status", "")
+                detail_lines = [
+                    f"job: {rec.get('id', '') or '-'}",
+                    f"action: {rec.get('action_id', '') or '-'} {rec.get('action_label', '') or ''}",
+                    f"state: {rec.get('state', '') or '-'} effective={rec.get('effective_state', '') or '-'}",
+                    f"outcome: {rec.get('outcome', '') or '-'} exit={exit_status if exit_status != '' else '-'}",
+                    f"pid: {rec.get('pid', '') or '-'} alive={'yes' if rec.get('pid_alive') else 'no'} managed={'yes' if rec.get('pid_managed') else 'no'}",
+                    f"cancel_supported: {'yes' if rec.get('cancel_supported') else 'no'}",
+                    f"started: {rec.get('started_at', '') or '-'}",
+                    f"finished: {rec.get('finished_at', '') or '-'}",
+                    f"elapsed_sec: {rec.get('elapsed_sec', '') if rec.get('elapsed_sec') != '' else '-'}",
+                    f"duration_sec: {rec.get('duration_sec', '') if rec.get('duration_sec') != '' else '-'}",
+                    f"log: {rec.get('log_path', '') or '-'} exists={'yes' if rec.get('log_exists') else 'no'}",
+                    f"tail_truncated: {'yes' if rec.get('last_output_tail_truncated') else 'no'} lines={rec.get('last_output_tail_count', 0)}",
+                    f"command: {rec.get('command', '') or '-'}",
+                    "enter cancels this job when supported",
+                    "v opens job log in pager",
+                    "action 12 starts jobs; action 13 cancels jobs",
+                ]
+                for line in rec.get("last_output_tail") or []:
+                    detail_lines.append(f"| {line}")
             else:
                 detail_lines = [
                     f"state: {state_file_path(cfg)}",
@@ -17466,11 +17503,12 @@ def run_curses_tui(cfg):
             draw_list(stdscr, "Target Fleet", target_lines, bottom_y, quarter + 1, top_bottom_h, quarter, pane == 8)
             draw_list(stdscr, "Mailbox", mailbox_lines, bottom_y, (quarter + 1) * 2, top_bottom_h, quarter, pane == 10)
             draw_list(stdscr, "Bridge Routes", bridge_lines, bottom_y, (quarter + 1) * 3, top_bottom_h, width - ((quarter + 1) * 3), pane == 9)
-            lower_quarter = max(16, width // 4)
-            draw_list(stdscr, "Target Commands", command_lines, lower_bottom_y, 0, lower_bottom_h, lower_quarter, pane == 5)
-            draw_list(stdscr, "Build Config", config_lines, lower_bottom_y, lower_quarter + 1, lower_bottom_h, lower_quarter, pane == 11)
-            draw_list(stdscr, "Release Artifacts", release_lines, lower_bottom_y, (lower_quarter + 1) * 2, lower_bottom_h, lower_quarter, pane == 6)
-            draw_list(stdscr, "Devices / Tuples", device_tuple_lines, lower_bottom_y, (lower_quarter + 1) * 3, lower_bottom_h, width - ((lower_quarter + 1) * 3), pane == 7)
+            lower_fifth = max(13, width // 5)
+            draw_list(stdscr, "Target Commands", command_lines, lower_bottom_y, 0, lower_bottom_h, lower_fifth, pane == 5)
+            draw_list(stdscr, "Build Config", config_lines, lower_bottom_y, lower_fifth + 1, lower_bottom_h, lower_fifth, pane == 11)
+            draw_list(stdscr, "Jobs", job_lines, lower_bottom_y, (lower_fifth + 1) * 2, lower_bottom_h, lower_fifth, pane == 12)
+            draw_list(stdscr, "Release Artifacts", release_lines, lower_bottom_y, (lower_fifth + 1) * 3, lower_bottom_h, lower_fifth, pane == 6)
+            draw_list(stdscr, "Devices / Tuples", device_tuple_lines, lower_bottom_y, (lower_fifth + 1) * 4, lower_bottom_h, width - ((lower_fifth + 1) * 4), pane == 7)
             key = stdscr.getch()
             if key in (ord("q"), ord("Q")):
                 return 0
@@ -17479,10 +17517,10 @@ def run_curses_tui(cfg):
             elif key in (curses.KEY_UP, ord("k")):
                 selected = max(0, selected - 1)
             elif key == ord("\t"):
-                pane = (pane + 1) % 12
+                pane = (pane + 1) % 13
                 selected = 0
             elif key == curses.KEY_BTAB:
-                pane = (pane - 1) % 12
+                pane = (pane - 1) % 13
                 selected = 0
             elif key in (ord("1"), ord("2"), ord("3"), ord("4")):
                 service = {ord("1"): "ssh", ord("2"): "tls-shell", ord("3"): "plain-shell", ord("4"): "file-service"}[key]
@@ -17530,6 +17568,14 @@ def run_curses_tui(cfg):
                     if key_name and value:
                         try:
                             set_workbench_build_config(cfg, f"{key_name}={value}")
+                        except ValueError as exc:
+                            safe_add(stdscr, height - 2, 0, str(exc))
+                            stdscr.getch()
+                elif pane == 12 and workbench_jobs:
+                    rec = workbench_jobs[min(selected, len(workbench_jobs) - 1)]
+                    if rec.get("cancel_supported"):
+                        try:
+                            cancel_workbench_job(cfg, str(rec.get("id") or ""))
                         except ValueError as exc:
                             safe_add(stdscr, height - 2, 0, str(exc))
                             stdscr.getch()
@@ -17615,6 +17661,7 @@ def run_curses_tui(cfg):
                 len(bridge_profiles) if pane == 9 else
                 len(mailbox_records) if pane == 10 else
                 len(config_fields) if pane == 11 else
+                len(workbench_jobs) if pane == 12 else
                 1
             )
             selected = min(max(0, selected), max(0, max_items - 1))
