@@ -130,6 +130,7 @@ def main():
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
                  "--run-service-workflow-action", "--service-workflow-dry-run", "--confirm-service-workflow-action",
                  "--run-command-queue-workflow-action", "--command-queue-workflow-command", "--confirm-command-queue-workflow-action",
+                 "--run-survey-bootstrap-workflow-action", "--survey-bootstrap-workflow-dry-run", "--confirm-survey-bootstrap-workflow-action",
                  "--run-file-service-workflow-action", "--file-service-workflow-local-file", "--file-service-workflow-target-path", "--confirm-file-service-workflow-action",
                  "--run-staged-file-workflow-action", "--confirm-staged-file-workflow-action",
                  "--build-config", "--list-build-config", "--set-build-config"):
@@ -189,6 +190,7 @@ def main():
                  "operator_daemon_workflow_actions:",
                  "Survey bootstrap workflow action summary:", "survey_bootstrap_workflow_actions_by_route_kind",
                  "survey_bootstrap_workflow_actions:",
+                 "survey_bootstrap_workflow_action_selected", "survey_bootstrap_workflow_action_completed",
                  "Command queue workflow action summary:", "command_queue_workflow_actions_by_action_id",
                  "Command queue workflow actions:",
                  "command_queue_workflow_action_selected", "command_queue_workflow_action_completed",
@@ -984,6 +986,9 @@ def main():
                 bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("target_command") != expected_survey_command or
                 bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("route_kind") != "bridge" or
                 bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("bridge_profile") != "survey-route" or
+                bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("run_command", "").find("--run-survey-bootstrap-workflow-action") == -1 or
+                bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("run_command", "").find("--bridge-profile survey-route") == -1 or
+                bridged_survey_actions_by_id.get("survey-bootstrap:stop-survey-bootstrap", {}).get("run_command", "").find("--confirm-survey-bootstrap-workflow-action") == -1 or
                 bridged_survey_actions_by_id.get("survey-bootstrap:start-survey-bootstrap", {}).get("headless_command", "").find("--bridge-profile survey-route") == -1 or
                 bridged_survey_status.get("summary", {}).get("survey_bootstrap_workflow_action_count") != 4 or
                 bridged_survey_status.get("summary", {}).get("survey_bootstrap_workflow_action_route_kind_counts", {}).get("bridge") != 4 or
@@ -1072,6 +1077,20 @@ def main():
             print(survey_line_text, file=sys.stderr)
             print(survey_line_stderr or "", file=sys.stderr)
             return 1
+        survey_action_show = run(
+            "scripts/busierbox-server",
+            "--config", str(survey_cfg),
+            "--bridge-profile", "survey-route",
+            "--run-survey-bootstrap-workflow-action", "survey-bootstrap:show-target-command",
+        )
+        if (survey_action_show.returncode != 0 or
+                "survey bootstrap workflow action: survey-bootstrap:show-target-command" not in survey_action_show.stdout or
+                f"target_command={expected_survey_command}" not in survey_action_show.stdout or
+                "--run-survey-bootstrap-workflow-action survey-bootstrap:show-target-command" not in survey_action_show.stdout):
+            print("headless survey bootstrap workflow show action failed", file=sys.stderr)
+            print(survey_action_show.stdout, file=sys.stderr)
+            print(survey_action_show.stderr, file=sys.stderr)
+            return 1
         survey_tui_status = json.loads(run(
             "scripts/busierbox-server",
             "--config", str(survey_cfg),
@@ -1082,6 +1101,8 @@ def main():
         survey_tui_service = (survey_tui_status.get("services_by_name") or {}).get("survey-bootstrap") or {}
         if (survey_tui_service.get("actual") == "listening" or
                 not (survey_tui_status.get("events_by_event") or {}).get("workbench_survey_bootstrap_started") or
+                not (survey_tui_status.get("events_by_event") or {}).get("survey_bootstrap_workflow_action_selected") or
+                not (survey_tui_status.get("events_by_event") or {}).get("survey_bootstrap_workflow_action_completed") or
                 not any(
                     event.get("service") == "survey-bootstrap" and
                     "--transport survey-bootstrap" in event.get("details", {}).get("headless_command", "") and

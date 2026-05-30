@@ -4954,6 +4954,7 @@ def target_workflow_action_summary(records):
 def survey_bootstrap_workflow_action_records(cfg, service_row=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/busierbox-server --config " + shquote(config_path)
+    bridge_arg = (" --bridge-profile " + shquote(str(cfg.get("bridge_profile")))) if cfg.get("bridge_profile") else ""
     service_row = service_row if isinstance(service_row, dict) else {}
     actual = str(service_row.get("actual") or "unknown")
     port = int(cfg.get("survey_bootstrap_port", service_row.get("port", 22207)) or 22207)
@@ -4980,6 +4981,7 @@ def survey_bootstrap_workflow_action_records(cfg, service_row=None):
             "label": label,
             "command": command,
             "headless_command": command,
+            "run_command": base + bridge_arg + " --run-survey-bootstrap-workflow-action " + shquote(f"survey-bootstrap:{action_id}"),
             "target_command": target_command,
             "script_name": str(cfg.get("survey_bootstrap_name", "survey.sh")).lstrip("/") or "survey.sh",
             "listen_host": str(cfg.get("listen_host") or service_row.get("bind_address") or ""),
@@ -5039,6 +5041,8 @@ def survey_bootstrap_workflow_action_records(cfg, service_row=None):
         can_run_from_curses_enter=actual == "listening",
         curses_enter_action="stop-survey-bootstrap" if actual == "listening" else "start-survey-bootstrap",
     )
+    if records:
+        records[-1]["run_command"] = base + bridge_arg + " --run-survey-bootstrap-workflow-action survey-bootstrap:stop-survey-bootstrap --confirm-survey-bootstrap-workflow-action"
     records.sort(key=lambda rec: (rec.get("category", ""), rec.get("action_id", "")))
     return records
 
@@ -19330,6 +19334,99 @@ def run_file_service_workflow_action(cfg, selector, local_file="", request_name=
     return rc
 
 
+def find_survey_bootstrap_workflow_action(cfg, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("survey bootstrap workflow action is required")
+    snap = workbench_snapshot(cfg)
+    actions = snap.get("survey_bootstrap_workflow_actions") or []
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(actions):
+            raise ValueError(f"survey bootstrap workflow action number out of range: {text}")
+        return actions[idx]
+    for rec in actions:
+        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
+            return rec
+    raise ValueError(f"survey bootstrap workflow action not found: {text}")
+
+
+def run_survey_bootstrap_workflow_action(cfg, selector, dry_run=False, confirmed=False):
+    rec = find_survey_bootstrap_workflow_action(cfg, selector)
+    rec_id = str(rec.get("id") or "")
+    action_id = str(rec.get("action_id") or "")
+    command = str(rec.get("command") or rec.get("headless_command") or "")
+    run_command = str(rec.get("run_command") or "")
+    target_command = str(rec.get("target_command") or render_survey_bootstrap_command(cfg))
+    print(f"survey bootstrap workflow action: {rec_id}")
+    print(f"headless_command={run_command or command}")
+    print(f"command={command}")
+    print(f"target_command={target_command}")
+    append_event(cfg, "workbench", "survey_bootstrap_workflow_action_selected", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "route_kind": rec.get("route_kind", ""),
+        "bridge_profile": rec.get("bridge_profile", ""),
+        "bridge_route_path": rec.get("bridge_route_path", ""),
+        "requires_confirmation": bool(rec.get("requires_confirmation")),
+        "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        "operator_action_state": rec.get("operator_action_state", ""),
+        "operator_action_reason": rec.get("operator_action_reason", ""),
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or command,
+        "command": command,
+        "target_command": target_command,
+    })
+    if dry_run:
+        print("dry_run=yes")
+        append_event(cfg, "workbench", "survey_bootstrap_workflow_action_dry_run", details={
+            "id": rec_id,
+            "action_id": action_id,
+            "headless_command": run_command or command,
+            "command": command,
+            "target_command": target_command,
+        })
+        return 0
+    if action_id == "inspect-survey-bootstrap":
+        return print_status(cfg, json_output=False)
+    if action_id == "show-target-command":
+        rc = 0
+    elif action_id == "start-survey-bootstrap":
+        start_service_process(cfg, "survey-bootstrap", headless_command=run_command or command)
+        rc = 0
+    elif action_id == "stop-survey-bootstrap":
+        if rec.get("requires_confirmation") is True and not confirmed:
+            raise ValueError(f"survey bootstrap workflow action requires --confirm-survey-bootstrap-workflow-action: {rec_id}")
+        stop_recorded_service(
+            cfg,
+            "survey-bootstrap",
+            via="survey-bootstrap-workflow-action",
+            headless_command=run_command or command,
+        )
+        rc = 0
+    else:
+        raise ValueError(f"unsupported survey bootstrap workflow action: {action_id}")
+    append_event(cfg, "workbench", "survey_bootstrap_workflow_action_completed", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "route_kind": rec.get("route_kind", ""),
+        "bridge_profile": rec.get("bridge_profile", ""),
+        "bridge_route_path": rec.get("bridge_route_path", ""),
+        "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or command,
+        "command": command,
+        "target_command": target_command,
+        "returncode": rc,
+    })
+    return rc
+
+
 def find_staged_file_workflow_action(cfg, selector):
     text = str(selector or "").strip()
     if not text:
@@ -22162,6 +22259,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="preview a command queue workflow action without changing queue or listener state")
     parser.add_argument("--confirm-command-queue-workflow-action", action="store_true",
                         help="confirm execution of a command queue workflow action that requires confirmation")
+    parser.add_argument("--run-survey-bootstrap-workflow-action",
+                        help="run a survey bootstrap workflow action by id or visible number")
+    parser.add_argument("--survey-bootstrap-workflow-dry-run", action="store_true",
+                        help="preview a survey bootstrap workflow action without starting/stopping the listener")
+    parser.add_argument("--confirm-survey-bootstrap-workflow-action", action="store_true",
+                        help="confirm execution of a survey bootstrap workflow action that requires confirmation")
     parser.add_argument("--run-file-service-workflow-action",
                         help="run a file-service workflow action by id or visible number")
     parser.add_argument("--file-service-workflow-local-file",
@@ -22407,6 +22510,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                 command_input=args.command_queue_workflow_command or "",
                 dry_run=args.command_queue_workflow_dry_run,
                 confirmed=args.confirm_command_queue_workflow_action,
+            )
+        if args.run_survey_bootstrap_workflow_action:
+            return run_survey_bootstrap_workflow_action(
+                cfg,
+                args.run_survey_bootstrap_workflow_action,
+                dry_run=args.survey_bootstrap_workflow_dry_run,
+                confirmed=args.confirm_survey_bootstrap_workflow_action,
             )
         if args.run_file_service_workflow_action:
             return run_file_service_workflow_action(
