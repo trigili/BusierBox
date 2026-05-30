@@ -19,13 +19,16 @@ summary = json.loads(summary_path.read_text(encoding="utf-8"))
 assert summary["schema"] == 1
 assert summary["kind"] == "qemu-flaky-network-lab"
 assert summary["status"] == "planned"
-assert summary["phase_count"] == 9
+assert summary["phase_count"] == 12
 for required in (
     "offline-queue",
+    "systemd-user-service",
     "short-phone-home-window",
     "duplicate-poll",
     "dropped-result-upload",
     "result-upload",
+    "multi-target-isolation",
+    "target-mismatch-phone-home",
     "survey-window",
     "partial-transfer",
     "bridge-interruption",
@@ -48,8 +51,15 @@ assert plan["kind"] == "qemu-flaky-network-lab-plan"
 assert topology["kind"] == "qemu-flaky-network-topology"
 assert len(topology["target_nodes"]) >= 2
 assert "offline-status.json" in plan["required_artifacts"]
+assert "offline-workflow-tui.json" in plan["required_artifacts"]
+assert "systemd-user-service.json" in plan["required_artifacts"]
 assert "dropped-command-result.http" in plan["required_artifacts"]
+assert "multi-target-isolation.json" in plan["required_artifacts"]
+assert "target-mismatch-phone-home.json" in plan["required_artifacts"]
 assert "bridge-events.jsonl" in plan["required_artifacts"]
+assert "bridge-interruption.json" in plan["required_artifacts"]
+assert any("systemd-dry-run" in item for item in plan["operator_commands"])
+assert any("line-tui" in item for item in plan["operator_commands"])
 PY
 
 printf '%s\n' "qemu-flaky-network-lab ok"
