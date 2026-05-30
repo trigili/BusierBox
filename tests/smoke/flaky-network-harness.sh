@@ -12,6 +12,7 @@ test -s "$tmp/flaky-network/offline-workflow-tui.json"
 test -s "$tmp/flaky-network/mailbox-lifecycle.json"
 test -s "$tmp/flaky-network/restart-persistence.json"
 test -s "$tmp/flaky-network/bad-token-phone-home.json"
+test -s "$tmp/flaky-network/systemd-user-service.json"
 test -s "$tmp/flaky-network/target-mismatch-phone-home.json"
 test -s "$tmp/flaky-network/command-result.json"
 test -s "$tmp/flaky-network/phone-home-attempts.json"
@@ -32,6 +33,7 @@ workflow_tui = json.loads((artifact_dir / "offline-workflow-tui.json").read_text
 lifecycle = json.loads((artifact_dir / "mailbox-lifecycle.json").read_text(encoding="utf-8"))
 restart = json.loads((artifact_dir / "restart-persistence.json").read_text(encoding="utf-8"))
 bad_token = json.loads((artifact_dir / "bad-token-phone-home.json").read_text(encoding="utf-8"))
+systemd = json.loads((artifact_dir / "systemd-user-service.json").read_text(encoding="utf-8"))
 mismatch = json.loads((artifact_dir / "target-mismatch-phone-home.json").read_text(encoding="utf-8"))
 result = json.loads((artifact_dir / "command-result.json").read_text(encoding="utf-8"))
 phone_home = json.loads((artifact_dir / "phone-home-attempts.json").read_text(encoding="utf-8"))
@@ -83,6 +85,19 @@ assert bad_token["kind"] == "bad-token-phone-home-artifact"
 assert bad_token["mailbox_record"]["status"] == "queued"
 assert bad_token["summary"]["target_phone_home_http_status_counts"]["403"] == 1
 assert bad_token["phone_home_records"][0]["reason"] == "invalid token"
+assert systemd["kind"] == "systemd-user-service-artifact"
+assert systemd["unit_name"] == "busierbox-flaky.service"
+systemd_by_action = {rec["action"]: rec for rec in systemd["commands"]}
+assert "Description=BusierBox Operator Daemon" in systemd_by_action["print"]["stdout"]
+assert "--daemon --daemon-service file-service --daemon-service command-queue" in systemd_by_action["print"]["stdout"]
+assert "would write" in systemd_by_action["install"]["stdout"]
+for action in ("start", "stop", "restart", "status"):
+    assert systemd_by_action[action]["stdout"].strip() == f"systemctl --user {action} busierbox-flaky.service"
+assert any(rec["event"] == "systemd_user_unit_printed" for rec in systemd["events"])
+assert any(rec["event"] == "systemd_user_unit_install_dry_run" for rec in systemd["events"])
+for action in ("start", "stop", "restart", "status"):
+    assert any(rec["event"] == "systemd_user_action_dry_run" and (rec["details"] or {}).get("action") == action for rec in systemd["events"])
+assert all((rec["details"] or {}).get("headless_command") for rec in systemd["events"])
 assert mismatch["kind"] == "target-mismatch-phone-home-artifact"
 assert mismatch["mailbox_record"]["status"] == "delivered"
 assert mismatch["phone_home_records"][0]["failed"] is True
@@ -131,6 +146,7 @@ for name in (
     "mailbox-lifecycle.json",
     "restart-persistence.json",
     "bad-token-phone-home.json",
+    "systemd-user-service.json",
     "target-mismatch-phone-home.json",
     "command-result.json",
     "phone-home-attempts.json",

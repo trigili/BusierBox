@@ -663,6 +663,26 @@ def write_restart_persistence_artifact(artifact_dir, before_start, after_stop_qu
     })
 
 
+def write_systemd_user_service_artifact(artifact_dir, doc, unit_name, unit_dir, command_results):
+    events = [
+        rec for rec in (doc.get("events") or [])
+        if str(rec.get("service") or "") == "operator-daemon"
+        and str(rec.get("event") or "").startswith("systemd_user_")
+    ]
+    write_json(artifact_dir / "systemd-user-service.json", {
+        "schema": 1,
+        "kind": "systemd-user-service-artifact",
+        "unit_name": unit_name,
+        "unit_dir": str(unit_dir),
+        "commands": command_results,
+        "summary": {
+            "event_type_counts": (doc.get("summary") or {}).get("event_type_counts") or {},
+            "event_service_counts": (doc.get("summary") or {}).get("event_service_counts") or {},
+        },
+        "events": events,
+    })
+
+
 def write_artifact_manifest(artifact_dir, phases):
     records = []
     for path in sorted(artifact_dir.iterdir()):
@@ -960,6 +980,72 @@ def run_bad_token_phone_home_scenario(artifact_dir):
     return {"name": "bad-token-phone-home", "status": "pass", "artifact": "bad-token-phone-home-status.json"}
 
 
+def run_systemd_user_service_scenario(artifact_dir):
+    scenario_dir = artifact_dir / "systemd-user-session"
+    cfg = scenario_dir / "server-config.json"
+    unit_dir = scenario_dir / "systemd-user"
+    unit_name = "busierbox-flaky.service"
+    write_json(cfg, {
+        "listen_host": "127.0.0.1",
+        "operator_session_dir": str(scenario_dir),
+        "session_root": str(scenario_dir / "sessions"),
+        "server_state": str(scenario_dir / "server-state.json"),
+        "targets_file": str(scenario_dir / "targets.json"),
+        "command_queue_file": str(scenario_dir / "command-queue.json"),
+        "command_queue_enable": "yes",
+        "file_service_enable": "yes",
+    })
+
+    command_results = []
+    for action in ("print", "install", "start", "stop", "restart", "status"):
+        args = [
+            str(SERVER), "--config", str(cfg),
+            "--daemon-service", "file-service",
+            "--daemon-service", "command-queue",
+            "--systemd-user-action", action,
+            "--systemd-user-unit-name", unit_name,
+            "--systemd-user-unit-dir", str(unit_dir),
+        ]
+        if action != "print":
+            args.append("--systemd-user-dry-run")
+        result = run(*args)
+        assert_condition(result.returncode == 0, f"systemd user {action} command failed", result.stderr)
+        command_results.append({
+            "action": action,
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        })
+
+    by_action = {rec["action"]: rec for rec in command_results}
+    assert_condition("Description=BusierBox Operator Daemon" in by_action["print"]["stdout"], "systemd print missing unit description")
+    assert_condition("--daemon --daemon-service file-service --daemon-service command-queue" in by_action["print"]["stdout"], "systemd print missing daemon command")
+    assert_condition("would write" in by_action["install"]["stdout"], "systemd install dry-run missing write plan")
+    assert_condition("systemctl --user start busierbox-flaky.service" == by_action["start"]["stdout"].strip(), "systemd start dry-run mismatch")
+    assert_condition("systemctl --user stop busierbox-flaky.service" == by_action["stop"]["stdout"].strip(), "systemd stop dry-run mismatch")
+    assert_condition("systemctl --user restart busierbox-flaky.service" == by_action["restart"]["stdout"].strip(), "systemd restart dry-run mismatch")
+    assert_condition("systemctl --user status busierbox-flaky.service" == by_action["status"]["stdout"].strip(), "systemd status dry-run mismatch")
+
+    doc = status(cfg, artifact_dir, "systemd-user-service-status", "--event-limit", "64")
+    events = [
+        rec for rec in (doc.get("events") or [])
+        if str(rec.get("service") or "") == "operator-daemon"
+        and str(rec.get("event") or "").startswith("systemd_user_")
+    ]
+    assert_condition(any(rec.get("event") == "systemd_user_unit_printed" for rec in events), "systemd print event missing", events)
+    assert_condition(any(rec.get("event") == "systemd_user_unit_install_dry_run" for rec in events), "systemd install dry-run event missing", events)
+    for action in ("start", "stop", "restart", "status"):
+        assert_condition(any(
+            rec.get("event") == "systemd_user_action_dry_run"
+            and (rec.get("details") or {}).get("action") == action
+            and (rec.get("details") or {}).get("systemctl_command") == f"systemctl --user {action} {unit_name}"
+            for rec in events
+        ), f"systemd {action} dry-run event missing", events)
+    assert_condition(all((rec.get("details") or {}).get("headless_command") for rec in events), "systemd event headless command missing", events)
+    write_systemd_user_service_artifact(artifact_dir, doc, unit_name, unit_dir, command_results)
+    return {"name": "systemd-user-service", "status": "pass", "artifact": "systemd-user-service-status.json"}
+
+
 def assert_condition(condition, message, detail=None):
     if not condition:
         if detail is not None:
@@ -1007,6 +1093,7 @@ def run_harness(artifact_dir):
     phases.append(run_mailbox_lifecycle_scenario(artifact_dir))
     phases.append(run_restart_persistence_scenario(artifact_dir))
     phases.append(run_bad_token_phone_home_scenario(artifact_dir))
+    phases.append(run_systemd_user_service_scenario(artifact_dir))
 
     queue_command(cfg, "target-alpha", "Alpha Router", "busierbox survey --json")
     queue_command(cfg, "target-bravo", "Bravo Router", "busierbox survey --json")

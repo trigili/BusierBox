@@ -16,6 +16,8 @@ virtual network boundaries:
   reason when queued work requires target identity
 - bad-token polls are rejected, recorded as failed phone-home attempts, and do
   not drain queued mailbox work
+- systemd user-service rendering and dry-run lifecycle commands are captured
+  without requiring a live user systemd session
 - a short phone-home window delivers only the reconnecting target's work
 - duplicate polls do not redeliver already delivered commands
 - target-mismatched result uploads are rejected, recorded with the mismatch
@@ -47,8 +49,9 @@ writes focused debug artifacts that mirror the QEMU lab contract:
 `offline-workflow-tui.json`, `command-result.json`,
 `phone-home-attempts.json`, `mailbox-lifecycle.json`,
 `restart-persistence.json`, `bad-token-phone-home.json`,
-`target-mismatch-phone-home.json`, `transfer.log`, `bridge-events.jsonl`, and
-`bridge-interruption.json`, and `artifact-manifest.json`. The smoke wrapper
+`systemd-user-service.json`, `target-mismatch-phone-home.json`, `transfer.log`,
+`bridge-events.jsonl`, `bridge-interruption.json`, and
+`artifact-manifest.json`. The smoke wrapper
 `tests/smoke/flaky-network-harness.sh` runs the same scenario from
 `make smoke-test` with a temporary artifact directory and validates those
 focused artifacts.
