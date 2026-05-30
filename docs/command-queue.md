@@ -435,6 +435,9 @@ It keeps a persistent group navigation row above the main panes, with shortcuts
 for targets, target actions, mailbox, bridges, daemon, files, workflows, and
 events. This makes the curses view behave more like target/workflow submenus
 while keeping all panes backed by the same status JSON records.
+The header also keeps fleet connectivity visible across panes: online, recent,
+stale, offline, and unknown target counts, pending mailbox work, overdue polls,
+and the latest phone-home timestamp.
 The adjacent `Target Actions` pane lists the per-target workflow actions exposed
 by status JSON, including whether each action queues offline work, requires
 input, or needs a later phone-home. Pressing Enter runs no-input actions such as

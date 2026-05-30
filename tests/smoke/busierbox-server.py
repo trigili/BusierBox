@@ -164,6 +164,8 @@ def main():
                  "operator state health:", "legacy_without_id=", "legacy_single_target=",
                  "target_id:", "target_label:", "target_confidence:", "target_filter_summary_text",
                  "observed_seen=", "tail_status:", "Event Log |", "selected target evidence:",
+                 "Connectivity: ", "online={connectivity_counts.get('online', 0)}", "pending_work={summary.get('target_mailbox_pending_work_count', 0)}",
+                 "last_phone_home={summary.get('latest_target_seen_at', '') or '-'}",
                  "Groups: [t]argets [a]ctions [m]ailbox [b]ridges [o]daemon [f]iles [w]orkflows [e]vents",
                  "active={active_group}/{active_pane_title}", "pane_shortcuts",
                  "capability=", "compatibility=", "tail_status = event_tail_availability_text(snap)",
