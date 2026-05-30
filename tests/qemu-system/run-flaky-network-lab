@@ -191,6 +191,123 @@ phases = [
     },
 ]
 
+phase_validation_contracts = [
+    {
+        "phase": phase["name"],
+        "link_state": phase["link_state"],
+        "required_artifacts": phase["artifacts"],
+        "target_scope": (
+            ["target-alpha", "target-bravo", "target-workflow"]
+            if phase["name"] == "offline-queue"
+            else ["target-workflow"]
+            if phase["name"] == "offline-workflow-drain"
+            else ["target-alpha", "target-bravo"]
+            if phase["name"] == "multi-target-isolation"
+            else ["target-alpha"]
+            if phase["name"] in (
+                "short-phone-home-window",
+                "duplicate-poll",
+                "dropped-result-upload",
+                "malformed-result-upload",
+                "result-upload",
+                "target-mismatch-phone-home",
+                "survey-window",
+                "partial-transfer",
+                "bridge-interruption",
+            )
+            else []
+        ),
+        "assertions": (
+            [
+                "target-scoped mailbox work can be queued while all target links are down",
+                "headless and TUI views expose the same pending mailbox work",
+                "target-bravo queued work remains isolated from target-alpha",
+            ]
+            if phase["name"] == "offline-queue"
+            else [
+                "target-workflow reconnects during the short window",
+                "queued survey bootstrap and staged-file fetch work are delivered",
+                "last_seen, next_expected_poll, and phone-home status are refreshed",
+            ]
+            if phase["name"] == "offline-workflow-drain"
+            else [
+                "systemd user unit generation is deterministic",
+                "dry-run service commands do not start host services",
+            ]
+            if phase["name"] == "systemd-user-service"
+            else [
+                "target-alpha receives one queued command during the short window",
+                "queued work remaining count is recorded",
+                "target heartbeat metadata is refreshed",
+            ]
+            if phase["name"] == "short-phone-home-window"
+            else [
+                "duplicate poll does not redeliver a completed command",
+                "phone-home history records a no-command attempt",
+            ]
+            if phase["name"] == "duplicate-poll"
+            else [
+                "truncated command result upload is rejected",
+                "delivered mailbox work remains awaiting a valid result",
+                "phone-home history records the rejection reason",
+            ]
+            if phase["name"] == "dropped-result-upload"
+            else [
+                "malformed command result JSON is rejected",
+                "mailbox state remains consistent after the failed upload",
+                "phone-home history records the parse failure",
+            ]
+            if phase["name"] == "malformed-result-upload"
+            else [
+                "target-alpha result upload completes the delivered mailbox work",
+                "result status and output metadata are recorded",
+            ]
+            if phase["name"] == "result-upload"
+            else [
+                "target-alpha result completion does not mutate target-bravo mailbox work",
+                "target-scoped mailbox indexes keep both targets separate",
+            ]
+            if phase["name"] == "multi-target-isolation"
+            else [
+                "target-mismatched upload is rejected",
+                "another target's command is not completed",
+                "failed phone-home reason is auditable",
+            ]
+            if phase["name"] == "target-mismatch-phone-home"
+            else [
+                "survey bootstrap crosses the QEMU network boundary",
+                "survey result is associated with the target",
+            ]
+            if phase["name"] == "survey-window"
+            else [
+                "interrupted upload records transfer_status=truncated",
+                "target file-transfer metadata remains auditable",
+            ]
+            if phase["name"] == "partial-transfer"
+            else [
+                "bridge interruption records a relay failure or pending reason",
+                "bridge profile retains route path and latest failure metadata",
+            ]
+            if phase["name"] == "bridge-interruption"
+            else [
+                "targets age back to stale or offline after the short window",
+                "remaining target-bravo queued work stays visible",
+                "final status captures mailbox and phone-home history",
+            ]
+        ),
+        "timing": (
+            {
+                "simulated_offline_seconds": 7200,
+                "short_window_seconds": 90,
+                "poll_interval_seconds": 15,
+            }
+            if phase["link_state"].endswith("short-window") or phase["name"] in ("short-phone-home-window", "return-offline")
+            else {}
+        ),
+    }
+    for phase in phases
+]
+
 topology = {
     "schema": 1,
     "kind": "qemu-flaky-network-topology",
@@ -365,8 +482,10 @@ plan = {
     "environment": env,
     "topology_path": str(run_dir / "topology.json"),
     "artifact_manifest": str(run_dir / "artifact-manifest.json"),
+    "phase_contracts_path": str(run_dir / "phase-contracts.json"),
     "phase_count": len(phases),
     "phases": phases,
+    "phase_validation_contracts": phase_validation_contracts,
     "operator_commands": operator_commands,
     "target_commands": target_commands,
     "qemu_command_template": base_qemu,
@@ -381,6 +500,7 @@ plan = {
         "operator-commands.sh",
         "target-commands.sh",
         "link-transitions.json",
+        "phase-contracts.json",
     ],
     "support_artifact_modes": {
         "host-network-setup.sh": "0755",
@@ -388,6 +508,7 @@ plan = {
         "operator-commands.sh": "0755",
         "target-commands.sh": "0755",
         "link-transitions.json": "0644",
+        "phase-contracts.json": "0644",
     },
 }
 
@@ -411,11 +532,13 @@ summary = {
     "plan": str(run_dir / "plan.json"),
     "topology": str(run_dir / "topology.json"),
     "artifact_manifest": str(run_dir / "artifact-manifest.json"),
+    "phase_contracts": str(run_dir / "phase-contracts.json"),
     "phase_count": len(phases),
     "phase_names": [phase["name"] for phase in phases],
     "required_artifacts": plan["required_artifacts"],
     "support_artifacts": plan["support_artifacts"],
     "support_artifact_modes": plan["support_artifact_modes"],
+    "phase_contract_count": len(phase_validation_contracts),
     "requirements": requirements,
     "missing_requirements": missing_requirements,
     "records_by_status": {status: [0]},
@@ -485,6 +608,13 @@ def file_sha256(path):
 for script_name in ("operator-commands.sh", "target-commands.sh", "host-network-setup.sh", "qemu-commands.sh"):
     (run_dir / script_name).chmod(0o755)
 (run_dir / "link-transitions.json").write_text(json.dumps(topology["link_transitions"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
+(run_dir / "phase-contracts.json").write_text(json.dumps({
+    "schema": 1,
+    "kind": "qemu-flaky-network-phase-contracts",
+    "environment": name,
+    "contract_count": len(phase_validation_contracts),
+    "contracts": phase_validation_contracts,
+}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (artifact_root_path / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (artifact_root_path / "summary.txt").write_text(f"{status.upper()} {name} {reason}\n", encoding="utf-8")

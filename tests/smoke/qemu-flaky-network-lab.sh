@@ -48,6 +48,7 @@ for name in (
     "qemu-commands.sh",
     "operator-commands.sh",
     "target-commands.sh",
+    "phase-contracts.json",
     "artifact-manifest.json",
     "summary.json",
 ):
@@ -63,17 +64,30 @@ for name in (
     subprocess.run(["sh", "-n", str(path)], check=True)
 plan = json.loads((artifact_dir / "plan.json").read_text(encoding="utf-8"))
 topology = json.loads((artifact_dir / "topology.json").read_text(encoding="utf-8"))
+contracts = json.loads((artifact_dir / "phase-contracts.json").read_text(encoding="utf-8"))
 manifest = json.loads((artifact_dir / "artifact-manifest.json").read_text(encoding="utf-8"))
 assert plan["kind"] == "qemu-flaky-network-lab-plan"
 assert topology["kind"] == "qemu-flaky-network-topology"
+assert contracts["kind"] == "qemu-flaky-network-phase-contracts"
 assert manifest["kind"] == "qemu-flaky-network-artifact-manifest"
 assert plan["artifact_manifest"] == str(artifact_dir / "artifact-manifest.json")
+assert plan["phase_contracts_path"] == str(artifact_dir / "phase-contracts.json")
+assert summary["phase_contracts"] == str(artifact_dir / "phase-contracts.json")
+assert summary["phase_contract_count"] == summary["phase_count"]
 assert summary["artifact_manifest"] == str(artifact_dir / "artifact-manifest.json")
 manifest_by_name = {item["name"]: item for item in manifest["artifacts"]}
 assert manifest_by_name["host-network-setup.sh"]["executable"] is True
 assert manifest_by_name["host-network-setup.sh"]["mode"] == "0755"
 assert len(manifest_by_name["topology.json"]["sha256"]) == 64
+assert len(manifest_by_name["phase-contracts.json"]["sha256"]) == 64
 assert manifest_by_name["summary.json"]["size"] > 0
+contracts_by_phase = {item["phase"]: item for item in contracts["contracts"]}
+assert len(contracts_by_phase) == summary["phase_count"]
+assert contracts_by_phase["offline-workflow-drain"]["timing"]["short_window_seconds"] == 90
+assert "target-workflow" in contracts_by_phase["offline-workflow-drain"]["target_scope"]
+assert any("queued survey bootstrap" in item for item in contracts_by_phase["offline-workflow-drain"]["assertions"])
+assert "target-bravo" in contracts_by_phase["multi-target-isolation"]["target_scope"]
+assert any("does not mutate target-bravo" in item for item in contracts_by_phase["multi-target-isolation"]["assertions"])
 assert len(topology["target_nodes"]) >= 3
 assert topology["environment_paths"]["kernel"]
 assert topology["environment_paths"]["rootfs"]
@@ -92,8 +106,10 @@ assert plan["service_ports"]["file_service"] == 22204
 assert plan["accelerated_timing"]["short_window_seconds"] == topology["accelerated_timing"]["short_window_seconds"]
 assert "host-network-setup.sh" in plan["support_artifacts"]
 assert "qemu-commands.sh" in plan["support_artifacts"]
+assert "phase-contracts.json" in plan["support_artifacts"]
 assert plan["support_artifact_modes"]["host-network-setup.sh"] == "0755"
 assert plan["support_artifact_modes"]["link-transitions.json"] == "0644"
+assert plan["support_artifact_modes"]["phase-contracts.json"] == "0644"
 assert "target-alpha" in plan["qemu_command_templates"]
 assert any("bbx-alpha-tap0" in item for item in plan["qemu_command_templates"]["target-alpha"])
 host_script = (artifact_dir / "host-network-setup.sh").read_text(encoding="utf-8")
@@ -144,6 +160,7 @@ assert summary["mode"] == "run"
 assert summary["status"] == "skip"
 assert summary["missing_requirements"]
 assert summary["artifact_manifest"].endswith("/artifact-manifest.json")
+assert summary["phase_contracts"].endswith("/phase-contracts.json")
 assert "host-network-setup.sh" in summary["support_artifacts"]
 assert "qemu-commands.sh" in summary["support_artifacts"]
 assert summary["support_artifact_modes"]["qemu-commands.sh"] == "0755"
