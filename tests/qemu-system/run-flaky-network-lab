@@ -95,6 +95,12 @@ phases = [
         ],
     },
     {
+        "name": "offline-workflow-drain",
+        "link_state": "target-workflow-link-up-short-window",
+        "operator_expectation": "target-workflow drains queued survey bootstrap and staged-file fetch commands during a short reconnect window",
+        "artifacts": ["offline-workflow-drain.json", "offline-workflow-drain-status.json", "offline-workflow-drain-poll-1.http", "offline-workflow-drain-poll-2.http"],
+    },
+    {
         "name": "systemd-user-service",
         "link_state": "operator-only",
         "operator_expectation": "render and dry-run the optional operator daemon systemd user service without starting host services",
@@ -179,15 +185,18 @@ topology = {
     "target_nodes": [
         {"name": "target-alpha", "role": "polling-target", "mailbox": "target-alpha"},
         {"name": "target-bravo", "role": "polling-target", "mailbox": "target-bravo"},
+        {"name": "target-workflow", "role": "polling-target", "mailbox": "target-workflow"},
     ],
     "networks": [
         {"name": "operator-lan", "kind": "tap-or-user", "purpose": "operator services"},
         {"name": "target-alpha-link", "kind": "controllable", "purpose": "target-alpha phone-home window"},
         {"name": "target-bravo-link", "kind": "controllable", "purpose": "target-bravo remains offline"},
+        {"name": "target-workflow-link", "kind": "controllable", "purpose": "queued survey and staged-file fetch drain window"},
         {"name": "bridge-path", "kind": "controllable", "purpose": "bridge route interruption"},
     ],
     "link_transitions": [
         {"phase": "offline-queue", "target-alpha-link": "down", "target-bravo-link": "down", "bridge-path": "down"},
+        {"phase": "offline-workflow-drain", "target-alpha-link": "down", "target-bravo-link": "down", "target-workflow-link": "up-short-window", "bridge-path": "down"},
         {"phase": "systemd-user-service", "target-alpha-link": "down", "target-bravo-link": "down", "bridge-path": "down"},
         {"phase": "short-phone-home-window", "target-alpha-link": "up", "target-bravo-link": "down", "bridge-path": "down"},
         {"phase": "multi-target-isolation", "target-alpha-link": "up", "target-bravo-link": "down", "bridge-path": "down"},

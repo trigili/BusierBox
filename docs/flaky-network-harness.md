@@ -11,6 +11,8 @@ virtual network boundaries:
   target reconnect
 - the line-mode TUI can inspect the same queued offline workflow mailbox state
   and target detail that headless status exposes
+- queued survey bootstrap and staged-file fetch work drains when the workflow
+  target later reconnects for a short window
 - anonymous polls do not drain target-scoped mailboxes
 - anonymous polls are recorded as phone-home attempts with an explicit pending
   reason when queued work requires target identity
@@ -48,7 +50,8 @@ The artifact directory contains HTTP transcripts, per-phase operator status
 JSON, dropped-result evidence, bridge response data, and `summary.json`. It also
 writes focused debug artifacts that mirror the QEMU lab contract:
 `target-mailbox.json`, `offline-workflow-mailbox.json`,
-`offline-workflow-tui.json`, `command-result.json`,
+`offline-workflow-tui.json`, `offline-workflow-drain.json`,
+`command-result.json`,
 `phone-home-attempts.json`, `multi-target-isolation.json`,
 `mailbox-lifecycle.json`,
 `restart-persistence.json`, `bad-token-phone-home.json`,

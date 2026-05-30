@@ -694,6 +694,30 @@ def write_offline_workflow_tui_artifact(artifact_dir, doc, tui_result):
     })
 
 
+def write_offline_workflow_drain_artifact(artifact_dir, doc, delivered_ids, responses):
+    records = [
+        rec for rec in (doc.get("target_mailbox_records") or [])
+        if rec.get("target_id") == "target-workflow"
+    ]
+    write_json(artifact_dir / "offline-workflow-drain.json", {
+        "schema": 1,
+        "kind": "offline-workflow-drain-artifact",
+        "target": (doc.get("targets_by_id") or {}).get("target-workflow") or {},
+        "delivered_command_ids": delivered_ids,
+        "http_statuses": [http_status_line(response) for response in responses],
+        "summary": {
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_mailbox_waiting_for_counts": doc.get("summary", {}).get("target_mailbox_waiting_for_counts", {}),
+            "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+        },
+        "target_mailbox_records": records,
+        "phone_home_records": [
+            rec for rec in (doc.get("target_phone_home_records") or [])
+            if rec.get("target_id") == "target-workflow"
+        ],
+    })
+
+
 def write_mailbox_lifecycle_artifact(artifact_dir, doc, failed_id, expired_id):
     records = [
         rec for rec in (doc.get("target_mailbox_records") or [])
@@ -859,6 +883,33 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition(tui_events.get("workbench_command_queue_inspected"), "offline workflow TUI command queue event missing")
     assert_condition(tui_events.get("workbench_target_inspected"), "offline workflow TUI target detail event missing")
     write_offline_workflow_tui_artifact(artifact_dir, tui_doc, tui_result)
+    delivered_ids = []
+    responses = []
+    for idx in (1, 2):
+        proc = start_one_shot(cfg, "command-queue")
+        response = connect_with_retry(queue_port, poll_request("target-workflow", "Workflow Target"))
+        wait_proc(proc, f"offline workflow drain poll {idx}")
+        save_response(artifact_dir, f"offline-workflow-drain-poll-{idx}", response)
+        body = json_body(response)
+        assert_condition(b"HTTP/1.1 200 OK" in response, "offline workflow reconnect did not receive queued work", response)
+        assert_condition(body.get("id"), "offline workflow drain response missing command id", body)
+        delivered_ids.append(body.get("id"))
+        responses.append(response)
+    drain_doc = status(cfg, artifact_dir, "offline-workflow-drain-status")
+    drain_target = drain_doc["targets_by_id"]["target-workflow"]
+    drain_records = [
+        rec for rec in (drain_doc.get("target_mailbox_records") or [])
+        if rec.get("target_id") == "target-workflow"
+    ]
+    drain_commands = "\n".join(rec.get("command") or "" for rec in drain_records)
+    assert_condition(len(set(delivered_ids)) == 2, "offline workflow drain delivered duplicate command ids", delivered_ids)
+    assert_condition(drain_target["mailbox_delivered_command_count"] == 2, "offline workflow drain delivery count mismatch", drain_target)
+    assert_condition(drain_target["mailbox_pending_work_count"] == 0, "offline workflow drain left queued work pending", drain_target)
+    assert_condition(all(rec.get("status") == "delivered" for rec in drain_records), "offline workflow drain records not delivered", drain_records)
+    assert_condition("wget -O-" in drain_commands and "survey.sh" in drain_commands, "drained survey bootstrap command missing", drain_commands)
+    assert_condition("busierbox fetch workflow-payload.txt" in drain_commands, "drained staged fetch command missing", drain_commands)
+    assert_condition(drain_doc["summary"]["target_phone_home_status_counts"].get("delivered", 0) >= 2, "offline workflow drain phone-home deliveries missing")
+    write_offline_workflow_drain_artifact(artifact_dir, drain_doc, delivered_ids, responses)
     return {"name": "offline-workflow-queue", "status": "pass", "artifact": "offline-workflow-status.json"}
 
 

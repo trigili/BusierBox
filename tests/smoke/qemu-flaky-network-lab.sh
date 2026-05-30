@@ -19,9 +19,10 @@ summary = json.loads(summary_path.read_text(encoding="utf-8"))
 assert summary["schema"] == 1
 assert summary["kind"] == "qemu-flaky-network-lab"
 assert summary["status"] == "planned"
-assert summary["phase_count"] == 12
+assert summary["phase_count"] == 13
 for required in (
     "offline-queue",
+    "offline-workflow-drain",
     "systemd-user-service",
     "short-phone-home-window",
     "duplicate-poll",
@@ -49,9 +50,10 @@ plan = json.loads((artifact_dir / "plan.json").read_text(encoding="utf-8"))
 topology = json.loads((artifact_dir / "topology.json").read_text(encoding="utf-8"))
 assert plan["kind"] == "qemu-flaky-network-lab-plan"
 assert topology["kind"] == "qemu-flaky-network-topology"
-assert len(topology["target_nodes"]) >= 2
+assert len(topology["target_nodes"]) >= 3
 assert "offline-status.json" in plan["required_artifacts"]
 assert "offline-workflow-tui.json" in plan["required_artifacts"]
+assert "offline-workflow-drain.json" in plan["required_artifacts"]
 assert "systemd-user-service.json" in plan["required_artifacts"]
 assert "dropped-command-result.http" in plan["required_artifacts"]
 assert "multi-target-isolation.json" in plan["required_artifacts"]
