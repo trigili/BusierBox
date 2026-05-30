@@ -91,7 +91,41 @@ validator_sample.mkdir()
     "unit_name": "busierbox-flaky.service",
     "commands": [{"returncode": 0}, {"returncode": 0}],
 }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+(validator_sample / "validation-report.json").write_text(json.dumps({
+    "schema": 1,
+    "kind": "qemu-flaky-network-phase-validation-report",
+    "environment": "validator-sample",
+    "mode": "synthetic",
+    "contract_count": 1,
+    "phase_count": 1,
+    "evidence_check_count": 2,
+    "missing_evidence_artifact_count": 0,
+    "status_counts": {"ready": 1, "pending-evidence": 0},
+    "status": "ready",
+    "records": [{
+        "phase": "systemd-user-service",
+        "link_state": "operator-only",
+        "target_scope": [],
+        "required_artifacts": ["systemd-user-service.json"],
+        "assertion_count": 1,
+        "evidence_check_count": 2,
+        "missing_evidence_artifacts": [],
+        "missing_evidence_artifact_count": 0,
+        "status": "ready",
+    }],
+}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 subprocess.run([str(artifact_dir / "validate-phase-artifacts.py"), "--artifact-dir", str(validator_sample)], check=True)
+bad_report_sample = artifact_dir / "bad-validation-report-sample"
+bad_report_sample.mkdir()
+for name in ("phase-contracts.json", "systemd-user-service.json", "validation-report.json"):
+    (bad_report_sample / name).write_text((validator_sample / name).read_text(encoding="utf-8"), encoding="utf-8")
+bad_report = json.loads((bad_report_sample / "validation-report.json").read_text(encoding="utf-8"))
+bad_report["contract_count"] = 2
+(bad_report_sample / "validation-report.json").write_text(json.dumps(bad_report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+failed = subprocess.run([str(artifact_dir / "validate-phase-artifacts.py"), "--artifact-dir", str(bad_report_sample)],
+                        text=True, capture_output=True)
+assert failed.returncode != 0
+assert "validation report contract count mismatch" in failed.stderr
 plan = json.loads((artifact_dir / "plan.json").read_text(encoding="utf-8"))
 topology = json.loads((artifact_dir / "topology.json").read_text(encoding="utf-8"))
 contracts = json.loads((artifact_dir / "phase-contracts.json").read_text(encoding="utf-8"))

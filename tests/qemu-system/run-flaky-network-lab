@@ -766,6 +766,63 @@ def validate_contracts(contracts):
             raise AssertionError(f"phase {rec['phase']} has no evidence checks")
 
 
+def expected_validation_records(artifact_dir, contracts):
+    records = []
+    for rec in contracts.get("contracts") or []:
+        missing = sorted({
+            check.get("artifact", "")
+            for check in rec.get("evidence_checks") or []
+            if check.get("artifact") and not (artifact_dir / str(check.get("artifact"))).exists()
+        })
+        records.append({
+            "phase": rec.get("phase", ""),
+            "link_state": rec.get("link_state", ""),
+            "target_scope": rec.get("target_scope") or [],
+            "required_artifacts": rec.get("required_artifacts") or [],
+            "assertion_count": len(rec.get("assertions") or []),
+            "evidence_check_count": len(rec.get("evidence_checks") or []),
+            "missing_evidence_artifacts": missing,
+            "missing_evidence_artifact_count": len(missing),
+            "status": "pending-evidence" if missing else "ready",
+        })
+    return records
+
+
+def validate_report(artifact_dir, contracts):
+    report = load_json(artifact_dir / "validation-report.json")
+    expected_records = expected_validation_records(artifact_dir, contracts)
+    expected_missing = sum(rec["missing_evidence_artifact_count"] for rec in expected_records)
+    expected_status = "pending-evidence" if expected_missing else "ready"
+    expected_status_counts = {
+        status_name: len([rec for rec in expected_records if rec.get("status") == status_name])
+        for status_name in ("ready", "pending-evidence")
+    }
+    if report.get("kind") != "qemu-flaky-network-phase-validation-report":
+        raise AssertionError("unexpected validation report kind")
+    if report.get("contract_count") != contracts.get("contract_count"):
+        raise AssertionError("validation report contract count mismatch")
+    if report.get("phase_count") != len(expected_records):
+        raise AssertionError("validation report phase count mismatch")
+    if report.get("evidence_check_count") != sum(rec["evidence_check_count"] for rec in expected_records):
+        raise AssertionError("validation report evidence check count mismatch")
+    if report.get("missing_evidence_artifact_count") != expected_missing:
+        raise AssertionError("validation report missing evidence count mismatch")
+    if report.get("status") != expected_status:
+        raise AssertionError("validation report status mismatch")
+    if report.get("status_counts") != expected_status_counts:
+        raise AssertionError("validation report status counts mismatch")
+    by_phase = {rec.get("phase", ""): rec for rec in report.get("records") or []}
+    if set(by_phase) != {rec.get("phase", "") for rec in expected_records}:
+        raise AssertionError("validation report phase set mismatch")
+    for expected in expected_records:
+        actual = by_phase.get(expected["phase"]) or {}
+        for key in ("link_state", "target_scope", "required_artifacts", "assertion_count",
+                    "evidence_check_count", "missing_evidence_artifacts",
+                    "missing_evidence_artifact_count", "status"):
+            if actual.get(key) != expected.get(key):
+                raise AssertionError(f"validation report {expected['phase']} {key} mismatch")
+
+
 def validate_evidence(artifact_dir, contracts):
     failures = []
     for rec in contracts.get("contracts") or []:
@@ -793,6 +850,7 @@ def main():
     artifact_dir = Path(args.artifact_dir)
     contracts = load_json(artifact_dir / "phase-contracts.json")
     validate_contracts(contracts)
+    validate_report(artifact_dir, contracts)
     if not args.contract_only:
         validate_evidence(artifact_dir, contracts)
     print("qemu phase artifact validation ok")
