@@ -2886,6 +2886,8 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles):
             "label": label,
             "command": command,
             "headless_command": command,
+            "run_command": base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:{action_id}"),
+            "dry_run_command": base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:{action_id}") + " --bridge-profile-workflow-dry-run",
             "route_path": str(profile.get("route_path") or ""),
             "listen_host": str(profile.get("listen_host") or ""),
             "listen_port": profile.get("listen_port", ""),
@@ -2961,6 +2963,9 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles):
             can_run_from_curses_enter=stop_enter,
             curses_enter_action="stop-profile" if stop_enter else "start-profile",
         )
+        if records:
+            records[-1]["run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:stop-profile") + " --confirm-bridge-profile-workflow-action"
+            records[-1]["dry_run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:stop-profile") + " --bridge-profile-workflow-dry-run --confirm-bridge-profile-workflow-action"
         add(
             profile,
             "delete-profile",
@@ -2970,6 +2975,9 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles):
             "confirmation-required",
             requires_confirmation=True,
         )
+        if records:
+            records[-1]["run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:delete-profile") + " --confirm-bridge-profile-workflow-action"
+            records[-1]["dry_run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:delete-profile") + " --bridge-profile-workflow-dry-run --confirm-bridge-profile-workflow-action"
     records.sort(key=lambda rec: (rec.get("bridge_profile", ""), rec.get("category", ""), rec.get("action_id", "")))
     return records
 
@@ -19427,6 +19435,114 @@ def run_survey_bootstrap_workflow_action(cfg, selector, dry_run=False, confirmed
     return rc
 
 
+def find_bridge_profile_workflow_action(cfg, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("bridge profile workflow action is required")
+    snap = workbench_snapshot(cfg)
+    actions = snap.get("bridge_profile_workflow_actions") or []
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(actions):
+            raise ValueError(f"bridge profile workflow action number out of range: {text}")
+        return actions[idx]
+    for rec in actions:
+        if text in (
+            str(rec.get("id") or ""),
+            str(rec.get("action_id") or ""),
+            str(rec.get("bridge_profile") or ""),
+        ):
+            return rec
+    raise ValueError(f"bridge profile workflow action not found: {text}")
+
+
+def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=False):
+    rec = find_bridge_profile_workflow_action(cfg, selector)
+    rec_id = str(rec.get("id") or "")
+    action_id = str(rec.get("action_id") or "")
+    profile = str(rec.get("bridge_profile") or "")
+    command = str(rec.get("command") or rec.get("headless_command") or "")
+    run_command = str(rec.get("run_command") or "")
+    print(f"bridge profile workflow action: {rec_id}")
+    print(f"headless_command={run_command or command}")
+    print(f"command={command}")
+    print(f"bridge_profile={profile} route={rec.get('route_path', '')}")
+    append_event(cfg, "workbench", "bridge_profile_workflow_action_selected", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "bridge_profile": profile,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "route_path": rec.get("route_path", ""),
+        "target_id": rec.get("target_id", ""),
+        "target_label": rec.get("target_label", ""),
+        "requires_confirmation": bool(rec.get("requires_confirmation")),
+        "requires_target_online": bool(rec.get("requires_target_online")),
+        "multi_hop": bool(rec.get("multi_hop")),
+        "hop_count": rec.get("hop_count", 0),
+        "operator_action_state": rec.get("operator_action_state", ""),
+        "operator_action_reason": rec.get("operator_action_reason", ""),
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or command,
+        "command": command,
+    })
+    if dry_run:
+        print("dry_run=yes")
+        append_event(cfg, "workbench", "bridge_profile_workflow_action_dry_run", details={
+            "id": rec_id,
+            "action_id": action_id,
+            "bridge_profile": profile,
+            "headless_command": run_command or command,
+            "command": command,
+        })
+        return 0
+    if not profile:
+        raise ValueError(f"bridge profile workflow action is missing profile name: {rec_id}")
+    if action_id == "inspect-profile":
+        return print_bridge_profile(cfg, profile, json_output=False)
+    if action_id == "start-profile":
+        start_service_process(cfg, "bridge", argv_extra=["--bridge-profile", profile], headless_command=run_command or command)
+        rc = 0
+    elif action_id == "stop-profile":
+        if rec.get("requires_confirmation") is True and not confirmed:
+            raise ValueError(f"bridge profile workflow action requires --confirm-bridge-profile-workflow-action: {rec_id}")
+        stop_recorded_service(
+            cfg,
+            "bridge",
+            via="bridge-profile-workflow-action",
+            headless_command=run_command or command,
+        )
+        rc = 0
+    elif action_id == "delete-profile":
+        if rec.get("requires_confirmation") is True and not confirmed:
+            raise ValueError(f"bridge profile workflow action requires --confirm-bridge-profile-workflow-action: {rec_id}")
+        deleted = delete_bridge_profile(cfg, profile)
+        print(f"deleted bridge profile {deleted.get('name', '')}: {deleted.get('route_path', '')}")
+        print(f"bridge_profiles_file={bridge_profiles_path(cfg)}")
+        rc = 0
+    else:
+        raise ValueError(f"unsupported bridge profile workflow action: {action_id}")
+    append_event(cfg, "workbench", "bridge_profile_workflow_action_completed", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "bridge_profile": profile,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "route_path": rec.get("route_path", ""),
+        "target_id": rec.get("target_id", ""),
+        "target_label": rec.get("target_label", ""),
+        "requires_target_online": bool(rec.get("requires_target_online")),
+        "multi_hop": bool(rec.get("multi_hop")),
+        "hop_count": rec.get("hop_count", 0),
+        "confirmed": bool(confirmed),
+        "headless_command": run_command or command,
+        "command": command,
+        "returncode": rc,
+    })
+    return rc
+
+
 def find_staged_file_workflow_action(cfg, selector):
     text = str(selector or "").strip()
     if not text:
@@ -22265,6 +22381,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="preview a survey bootstrap workflow action without starting/stopping the listener")
     parser.add_argument("--confirm-survey-bootstrap-workflow-action", action="store_true",
                         help="confirm execution of a survey bootstrap workflow action that requires confirmation")
+    parser.add_argument("--run-bridge-profile-workflow-action",
+                        help="run a bridge profile workflow action by id, profile name, or visible number")
+    parser.add_argument("--bridge-profile-workflow-dry-run", action="store_true",
+                        help="preview a bridge profile workflow action without starting/stopping/deleting profiles")
+    parser.add_argument("--confirm-bridge-profile-workflow-action", action="store_true",
+                        help="confirm execution of a bridge profile workflow action that requires confirmation")
     parser.add_argument("--run-file-service-workflow-action",
                         help="run a file-service workflow action by id or visible number")
     parser.add_argument("--file-service-workflow-local-file",
@@ -22517,6 +22639,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                 args.run_survey_bootstrap_workflow_action,
                 dry_run=args.survey_bootstrap_workflow_dry_run,
                 confirmed=args.confirm_survey_bootstrap_workflow_action,
+            )
+        if args.run_bridge_profile_workflow_action:
+            return run_bridge_profile_workflow_action(
+                cfg,
+                args.run_bridge_profile_workflow_action,
+                dry_run=args.bridge_profile_workflow_dry_run,
+                confirmed=args.confirm_bridge_profile_workflow_action,
             )
         if args.run_file_service_workflow_action:
             return run_file_service_workflow_action(

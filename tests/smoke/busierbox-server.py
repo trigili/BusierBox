@@ -131,6 +131,7 @@ def main():
                  "--run-service-workflow-action", "--service-workflow-dry-run", "--confirm-service-workflow-action",
                  "--run-command-queue-workflow-action", "--command-queue-workflow-command", "--confirm-command-queue-workflow-action",
                  "--run-survey-bootstrap-workflow-action", "--survey-bootstrap-workflow-dry-run", "--confirm-survey-bootstrap-workflow-action",
+                 "--run-bridge-profile-workflow-action", "--bridge-profile-workflow-dry-run", "--confirm-bridge-profile-workflow-action",
                  "--run-file-service-workflow-action", "--file-service-workflow-local-file", "--file-service-workflow-target-path", "--confirm-file-service-workflow-action",
                  "--run-staged-file-workflow-action", "--confirm-staged-file-workflow-action",
                  "--build-config", "--list-build-config", "--set-build-config"):
@@ -201,6 +202,7 @@ def main():
                  "staged_file_workflow_action_selected", "staged_file_workflow_action_completed",
                  "enter shows staged fetch command", "action 7 lists staged workflow actions",
                  "Bridge Routes", "bridge_profile_workflow_actions:", "bridge_profile_workflow_actions_by_bridge_profile",
+                 "bridge_profile_workflow_action_selected", "bridge_profile_workflow_action_completed",
                  "enter starts/stops this bridge profile", "--bridge-profile",
                  "Mailbox", "mailbox_command:", "pending_reason:", "action 20 opens command queue/results",
                  "Build Config", "enter sets this build config field", "action 14 opens guided build config",
@@ -605,11 +607,16 @@ def main():
                 len(bridge_profile_workflow_actions) != 8 or
                 len(bridge_profile_actions_by_profile.get("lab-http", [])) != 4 or
                 lab_profile_actions.get("start-profile", {}).get("headless_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --transport bridge --bridge-profile lab-http" or
+                lab_profile_actions.get("start-profile", {}).get("run_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --run-bridge-profile-workflow-action lab-http:start-profile" or
+                lab_profile_actions.get("start-profile", {}).get("dry_run_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --run-bridge-profile-workflow-action lab-http:start-profile --bridge-profile-workflow-dry-run" or
                 lab_profile_actions.get("start-profile", {}).get("operator_action_state") != "ready" or
                 lab_profile_actions.get("start-profile", {}).get("can_run_from_curses_enter") is not True or
                 lab_profile_actions.get("stop-profile", {}).get("operator_action_state") != "not-running" or
+                lab_profile_actions.get("stop-profile", {}).get("run_command", "").find("--confirm-bridge-profile-workflow-action") == -1 or
                 lab_profile_actions.get("delete-profile", {}).get("requires_confirmation") is not True or
+                lab_profile_actions.get("delete-profile", {}).get("run_command", "").find("--confirm-bridge-profile-workflow-action") == -1 or
                 lab_profile_actions.get("inspect-profile", {}).get("headless_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --inspect-bridge-profile lab-http" or
+                lab_profile_actions.get("inspect-profile", {}).get("run_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --run-bridge-profile-workflow-action lab-http:inspect-profile" or
                 bridge_profile.get("target_id") != "target-bridge" or
                 bridge_profile.get("purpose") != "web-admin" or
                 bridge_profile.get("route_path") != f"operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" or
@@ -676,6 +683,89 @@ def main():
             print(inspect_relay_profile.stdout, file=sys.stderr)
             print(inspect_relay_profile.stderr, file=sys.stderr)
             return 1
+        bridge_action_inspect = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--run-bridge-profile-workflow-action", "lab-http:inspect-profile",
+        )
+        if (bridge_action_inspect.returncode != 0 or
+                "bridge profile workflow action: lab-http:inspect-profile" not in bridge_action_inspect.stdout or
+                "Bridge profile lab-http" not in bridge_action_inspect.stdout or
+                f"operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" not in bridge_action_inspect.stdout):
+            print("headless bridge profile workflow inspect action failed", file=sys.stderr)
+            print(bridge_action_inspect.stdout, file=sys.stderr)
+            print(bridge_action_inspect.stderr, file=sys.stderr)
+            return 1
+        bridge_action_dry_run = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--run-bridge-profile-workflow-action", "lab-http:start-profile",
+            "--bridge-profile-workflow-dry-run",
+        )
+        if (bridge_action_dry_run.returncode != 0 or
+                "bridge profile workflow action: lab-http:start-profile" not in bridge_action_dry_run.stdout or
+                "dry_run=yes" not in bridge_action_dry_run.stdout or
+                "--run-bridge-profile-workflow-action lab-http:start-profile" not in bridge_action_dry_run.stdout):
+            print("headless bridge profile workflow dry-run action failed", file=sys.stderr)
+            print(bridge_action_dry_run.stdout, file=sys.stderr)
+            print(bridge_action_dry_run.stderr, file=sys.stderr)
+            return 1
+        bridge_action_start = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--run-bridge-profile-workflow-action", "lab-http:start-profile",
+        )
+        if (bridge_action_start.returncode != 0 or
+                "bridge profile workflow action: lab-http:start-profile" not in bridge_action_start.stdout or
+                "started bridge:" not in bridge_action_start.stdout):
+            print("headless bridge profile workflow start action failed", file=sys.stderr)
+            print(bridge_action_start.stdout, file=sys.stderr)
+            print(bridge_action_start.stderr, file=sys.stderr)
+            return 1
+        bridge_action_stop = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--run-bridge-profile-workflow-action", "lab-http:stop-profile",
+            "--confirm-bridge-profile-workflow-action",
+        )
+        if (bridge_action_stop.returncode != 0 or
+                "bridge profile workflow action: lab-http:stop-profile" not in bridge_action_stop.stdout or
+                ("stopped bridge:" not in bridge_action_stop.stdout and "bridge: stale pid" not in bridge_action_stop.stdout)):
+            print("headless bridge profile workflow stop action failed", file=sys.stderr)
+            print(bridge_action_stop.stdout, file=sys.stderr)
+            print(bridge_action_stop.stderr, file=sys.stderr)
+            return 1
+        delete_bridge_port = free_port()
+        delete_bridge_dest_port = free_port()
+        while delete_bridge_dest_port == delete_bridge_port:
+            delete_bridge_dest_port = free_port()
+        save_delete_bridge = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--save-bridge-profile", "delete-http",
+            "--bridge-port", str(delete_bridge_port),
+            "--bridge-dest-host", "127.0.0.1",
+            "--bridge-dest-port", str(delete_bridge_dest_port),
+            "--bridge-profile-purpose", "delete-runner",
+        )
+        if save_delete_bridge.returncode != 0 or "saved bridge profile delete-http" not in save_delete_bridge.stdout:
+            print("failed to save bridge profile for workflow delete action", file=sys.stderr)
+            print(save_delete_bridge.stdout, file=sys.stderr)
+            print(save_delete_bridge.stderr, file=sys.stderr)
+            return 1
+        bridge_action_delete = run(
+            "scripts/busierbox-server",
+            "--config", str(bridge_cfg),
+            "--run-bridge-profile-workflow-action", "delete-http:delete-profile",
+            "--confirm-bridge-profile-workflow-action",
+        )
+        if (bridge_action_delete.returncode != 0 or
+                "bridge profile workflow action: delete-http:delete-profile" not in bridge_action_delete.stdout or
+                "deleted bridge profile delete-http" not in bridge_action_delete.stdout):
+            print("headless bridge profile workflow delete action failed", file=sys.stderr)
+            print(bridge_action_delete.stdout, file=sys.stderr)
+            print(bridge_action_delete.stderr, file=sys.stderr)
+            return 1
 
         queue_bridge_action = run(
             "scripts/busierbox-server",
@@ -695,7 +785,7 @@ def main():
         bridge_queue_status = json.loads(run(
             "scripts/busierbox-server",
             "--config", str(bridge_cfg),
-            "--event-limit", "48",
+            "--event-limit", "80",
             "--json-status",
         ).stdout)
         bridge_queue_records = ((bridge_queue_status.get("command_queue") or {}).get("commands_by_target_id") or {}).get("target-bridge") or []
@@ -711,6 +801,14 @@ def main():
                 bridge_queue_status.get("summary", {}).get("target_mailbox_status_counts", {}).get("queued") != 1 or
                 ((bridge_queue_status.get("target_mailbox_records_by_target_id") or {}).get("target-bridge") or [{}])[0].get("waiting_for") != "target-poll" or
                 not bridge_completed or
+                not bridge_queue_events.get("bridge_profile_workflow_action_selected") or
+                not bridge_queue_events.get("bridge_profile_workflow_action_completed") or
+                not bridge_queue_events.get("bridge_profile_workflow_action_dry_run") or
+                not any(
+                    (event.get("details") or {}).get("action_id") == "delete-profile" and
+                    (event.get("details") or {}).get("bridge_profile") == "delete-http"
+                    for event in bridge_queue_events.get("bridge_profile_workflow_action_completed", [])
+                ) or
                 bridge_completed[-1].get("result") != "queued-bridge-start" or
                 bridge_completed[-1].get("bridge_profile") != "lab-http" or
                 bridge_completed[-1].get("queues_offline_work") is not True or
