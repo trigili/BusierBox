@@ -1484,6 +1484,8 @@ def run_tui_offline_queue_scenario(artifact_dir):
     queue_port = free_port()
     survey_port = free_port()
     file_port = free_port()
+    bridge_port = free_port()
+    bridge_dest_port = free_port()
     cfg = scenario_dir / "server-config.json"
     queue_file = scenario_dir / "command-queue.json"
     source = scenario_dir / "tui-payload.txt"
@@ -1507,6 +1509,10 @@ def run_tui_offline_queue_scenario(artifact_dir):
         "file_service_enable": "yes",
         "file_service_tls": "no",
         "file_service_port": str(file_port),
+        "bridge_listen_port": str(bridge_port),
+        "bridge_dest_host": "127.0.0.1",
+        "bridge_dest_port": str(bridge_dest_port),
+        "bridge_profiles_file": str(scenario_dir / "bridge-profiles.json"),
     })
     label_result = run(
         str(SERVER), "--config", str(cfg),
@@ -1515,6 +1521,18 @@ def run_tui_offline_queue_scenario(artifact_dir):
     )
     if label_result.returncode != 0:
         raise RuntimeError(f"TUI target label setup failed: {label_result.stderr}")
+    bridge_profile_result = run(
+        str(SERVER), "--config", str(cfg),
+        "--target-id", "target-tui",
+        "--save-bridge-profile", "tui-bridge",
+        "--bridge-port", str(bridge_port),
+        "--bridge-dest-host", "127.0.0.1",
+        "--bridge-dest-port", str(bridge_dest_port),
+        "--bridge-profile-purpose", "tui-offline-bridge-work",
+        "--bridge-profile-notes", "queued from TUI while target is offline",
+    )
+    if bridge_profile_result.returncode != 0:
+        raise RuntimeError(f"TUI bridge profile setup failed: {bridge_profile_result.stderr}")
 
     before_doc = status(cfg, artifact_dir, "tui-offline-queue-before")
     tui_results = [
@@ -1522,6 +1540,7 @@ def run_tui_offline_queue_scenario(artifact_dir):
         run_line_tui(cfg, "15\ntarget-tui:queue-survey-bootstrap\nq\n"),
         run_line_tui(cfg, f"15\ntarget-tui:stage-file-fetch\n{source}\ntui-payload.txt\nq\n"),
         run_line_tui(cfg, "15\ntarget-tui:queue-staged-fetch\ntui-payload.txt\nq\n"),
+        run_line_tui(cfg, "15\ntarget-tui:queue-bridge-start:tui-bridge\nq\n"),
     ]
     tui_result = {
         "returncode": 0 if all(item.get("returncode") == 0 for item in tui_results) else 1,
@@ -1534,28 +1553,31 @@ def run_tui_offline_queue_scenario(artifact_dir):
     assert_condition("target workflow action: target-tui:queue-survey-bootstrap" in tui_text, "TUI offline survey queue action was not selected", tui_text)
     assert_condition("target workflow action: target-tui:stage-file-fetch" in tui_text, "TUI offline stage-file action was not selected", tui_text)
     assert_condition("target workflow action: target-tui:queue-staged-fetch" in tui_text, "TUI offline staged-fetch queue action was not selected", tui_text)
+    assert_condition("target workflow action: target-tui:queue-bridge-start:tui-bridge" in tui_text, "TUI offline bridge queue action was not selected", tui_text)
     assert_condition("command to queue>" in tui_text, "TUI offline queue action did not prompt for command", tui_text)
     assert_condition("staged tui-payload.txt" in tui_text, "TUI offline file stage action did not stage file", tui_text)
     assert_condition("queued " in tui_text and "busierbox survey --json" in tui_text, "TUI offline queue action did not queue command", tui_text)
     assert_condition("survey.sh" in tui_text, "TUI offline survey queue action did not queue survey command", tui_text)
     assert_condition("busierbox fetch tui-payload.txt" in tui_text, "TUI offline staged-fetch action did not queue fetch command", tui_text)
+    assert_condition("bridge_profile=tui-bridge" in tui_text and "busierbox rshell start" in tui_text, "TUI offline bridge action did not queue bridge work", tui_text)
 
     after_doc = status(cfg, artifact_dir, "tui-offline-queue-after", "--event-limit", "128")
     records = [
         rec for rec in (after_doc.get("target_mailbox_records") or [])
         if rec.get("target_id") == "target-tui"
     ]
-    assert_condition(len(records) == 3, "TUI offline queue should create three mailbox records", records)
+    assert_condition(len(records) == 4, "TUI offline queue should create four mailbox records", records)
     command_ids_to_drain = [rec.get("command_id") or rec.get("id") or "" for rec in records]
     assert_condition(all(command_ids_to_drain), "TUI offline queue command ids missing", records)
     queued_commands = "\n".join(rec.get("command") or "" for rec in records)
     assert_condition("busierbox survey --json" in queued_commands, "TUI offline queue command missing", queued_commands)
     assert_condition("survey.sh" in queued_commands, "TUI offline queued survey command missing", queued_commands)
     assert_condition("busierbox fetch tui-payload.txt" in queued_commands, "TUI offline queued fetch command missing", queued_commands)
+    assert_condition("busierbox rshell start" in queued_commands, "TUI offline queued bridge command missing", queued_commands)
     assert_condition(all(rec.get("status") == "queued" for rec in records), "TUI offline queue mailbox status mismatch", records)
     assert_condition(all(rec.get("pending_work") is True for rec in records), "TUI offline queue should remain pending while target is offline", records)
     assert_condition(all(rec.get("waiting_for") == "target-poll" for rec in records), "TUI offline queue waiting_for mismatch", records)
-    assert_condition(after_doc["targets_by_id"]["target-tui"]["mailbox_pending_work_count"] == 3, "TUI target pending mailbox count mismatch")
+    assert_condition(after_doc["targets_by_id"]["target-tui"]["mailbox_pending_work_count"] == 4, "TUI target pending mailbox count mismatch")
     assert_condition(any(
         rec.get("event") == "target_workflow_action_completed"
         and (rec.get("details") or {}).get("action_id") == "queue-command"
@@ -1579,11 +1601,18 @@ def run_tui_offline_queue_scenario(artifact_dir):
         and (rec.get("details") or {}).get("queues_offline_work") is True
         for rec in (after_doc.get("events") or [])
     ), "TUI offline staged-fetch queue completion event missing")
+    assert_condition(any(
+        rec.get("event") == "target_workflow_action_completed"
+        and (rec.get("details") or {}).get("action_id") == "queue-bridge-start:tui-bridge"
+        and (rec.get("details") or {}).get("bridge_profile") == "tui-bridge"
+        and (rec.get("details") or {}).get("queues_offline_work") is True
+        for rec in (after_doc.get("events") or [])
+    ), "TUI offline bridge queue completion event missing")
     write_tui_offline_queue_artifact(artifact_dir, before_doc, after_doc, tui_result)
 
     responses = []
     delivered_ids = []
-    for idx in range(1, 4):
+    for idx in range(1, 5):
         proc = start_one_shot(cfg, "command-queue")
         response = connect_with_retry(queue_port, poll_request("target-tui", "TUI Target"))
         wait_proc(proc, f"TUI offline queued target poll {idx}")
@@ -1601,7 +1630,7 @@ def run_tui_offline_queue_scenario(artifact_dir):
         if rec.get("target_id") == "target-tui"
     ]
     target = drain_doc["targets_by_id"]["target-tui"]
-    assert_condition(len(drained_records) == 3, "TUI offline queue drain records missing", drained_records)
+    assert_condition(len(drained_records) == 4, "TUI offline queue drain records missing", drained_records)
     assert_condition(all(rec.get("status") == "delivered" for rec in drained_records), "TUI offline queued work did not become delivered", drained_records)
     assert_condition(all(rec.get("pending_work") is False for rec in drained_records), "TUI offline queued work should no longer be pending", drained_records)
     assert_condition(target.get("last_seen_via") == "command-queue:command_queue_poll", "TUI offline queue drain last_seen_via mismatch", target)

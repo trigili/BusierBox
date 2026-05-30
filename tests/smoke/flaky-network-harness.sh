@@ -188,16 +188,19 @@ assert "target workflow action: target-tui:queue-command" in tui_queue["stdout"]
 assert "target workflow action: target-tui:queue-survey-bootstrap" in tui_queue["stdout"]
 assert "target workflow action: target-tui:stage-file-fetch" in tui_queue["stdout"]
 assert "target workflow action: target-tui:queue-staged-fetch" in tui_queue["stdout"]
+assert "target workflow action: target-tui:queue-bridge-start:tui-bridge" in tui_queue["stdout"]
 assert "command to queue>" in tui_queue["stdout"]
 assert "queued " in tui_queue["stdout"]
 assert "staged tui-payload.txt" in tui_queue["stdout"]
 assert "busierbox survey --json" in tui_queue["stdout"]
 assert "survey.sh" in tui_queue["stdout"]
 assert "busierbox fetch tui-payload.txt" in tui_queue["stdout"]
+assert "bridge_profile=tui-bridge" in tui_queue["stdout"]
+assert "busierbox rshell start" in tui_queue["stdout"]
 assert tui_queue["target"]["target_id"] == "target-tui"
-assert tui_queue["target"]["mailbox_pending_work_count"] == 3
-assert tui_queue["after"]["target_mailbox_waiting_for_counts"]["target-poll"] == 3
-assert len(tui_queue["target_mailbox_records"]) == 3
+assert tui_queue["target"]["mailbox_pending_work_count"] == 4
+assert tui_queue["after"]["target_mailbox_waiting_for_counts"]["target-poll"] == 4
+assert len(tui_queue["target_mailbox_records"]) == 4
 assert all(rec["status"] == "queued" for rec in tui_queue["target_mailbox_records"])
 assert all(rec["pending_work"] is True for rec in tui_queue["target_mailbox_records"])
 assert all(rec["waiting_for"] == "target-poll" for rec in tui_queue["target_mailbox_records"])
@@ -205,16 +208,18 @@ tui_queued_commands = "\n".join(rec.get("command") or "" for rec in tui_queue["t
 assert "busierbox survey --json" in tui_queued_commands
 assert "survey.sh" in tui_queued_commands
 assert "busierbox fetch tui-payload.txt" in tui_queued_commands
+assert "busierbox rshell start" in tui_queued_commands
 assert any((rec.get("details") or {}).get("action_id") == "queue-command" for rec in tui_queue["target_workflow_events"])
 assert any((rec.get("details") or {}).get("action_id") == "queue-survey-bootstrap" for rec in tui_queue["target_workflow_events"])
 assert any((rec.get("details") or {}).get("action_id") == "stage-file-fetch" for rec in tui_queue["target_workflow_events"])
 assert any((rec.get("details") or {}).get("action_id") == "queue-staged-fetch" for rec in tui_queue["target_workflow_events"])
+assert any((rec.get("details") or {}).get("action_id") == "queue-bridge-start:tui-bridge" and (rec.get("details") or {}).get("bridge_profile") == "tui-bridge" for rec in tui_queue["target_workflow_events"])
 assert tui_queue_drain["kind"] == "tui-offline-queue-drain-artifact"
-assert tui_queue_drain["http_statuses"] == ["HTTP/1.1 200 OK", "HTTP/1.1 200 OK", "HTTP/1.1 200 OK"]
+assert tui_queue_drain["http_statuses"] == ["HTTP/1.1 200 OK", "HTTP/1.1 200 OK", "HTTP/1.1 200 OK", "HTTP/1.1 200 OK"]
 assert tui_queue_drain["mailbox_record"]["status"] == "delivered"
 assert tui_queue_drain["mailbox_record"]["pending_work"] is False
-assert len(tui_queue_drain["command_ids"]) == 3
-assert len(tui_queue_drain["target_mailbox_records"]) == 3
+assert len(tui_queue_drain["command_ids"]) == 4
+assert len(tui_queue_drain["target_mailbox_records"]) == 4
 assert all(rec["status"] == "delivered" for rec in tui_queue_drain["target_mailbox_records"])
 assert all(rec["pending_work"] is False for rec in tui_queue_drain["target_mailbox_records"])
 assert tui_queue_drain["target"]["mailbox_pending_work_count"] == 0
