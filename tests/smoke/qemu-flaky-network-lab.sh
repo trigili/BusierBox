@@ -42,6 +42,8 @@ for name in (
     "plan.json",
     "topology.json",
     "link-transitions.json",
+    "host-network-setup.sh",
+    "qemu-commands.sh",
     "operator-commands.sh",
     "target-commands.sh",
     "summary.json",
@@ -67,8 +69,16 @@ assert topology["accelerated_timing"]["poll_interval_seconds"] > 0
 assert all(node["kernel"] and node["rootfs"] and node["init_command_line"] for node in topology["target_nodes"])
 assert plan["service_ports"]["file_service"] == 22204
 assert plan["accelerated_timing"]["short_window_seconds"] == topology["accelerated_timing"]["short_window_seconds"]
+assert "host-network-setup.sh" in plan["support_artifacts"]
+assert "qemu-commands.sh" in plan["support_artifacts"]
 assert "target-alpha" in plan["qemu_command_templates"]
 assert any("bbx-alpha-tap0" in item for item in plan["qemu_command_templates"]["target-alpha"])
+host_script = (artifact_dir / "host-network-setup.sh").read_text(encoding="utf-8")
+qemu_script = (artifact_dir / "qemu-commands.sh").read_text(encoding="utf-8")
+assert "ip link add bbx-qemu-br0 type bridge" in host_script
+assert "target-alpha-link-down" in host_script
+assert "bbx-alpha-tap0" in qemu_script
+assert "target-workflow" in qemu_script
 requirements = plan["requirements"]
 assert requirements["kind"] == "qemu-flaky-network-lab-requirements"
 assert requirements["qemu_binary"]
@@ -109,6 +119,8 @@ assert summary["kind"] == "qemu-flaky-network-lab"
 assert summary["mode"] == "run"
 assert summary["status"] == "skip"
 assert summary["missing_requirements"]
+assert "host-network-setup.sh" in summary["support_artifacts"]
+assert "qemu-commands.sh" in summary["support_artifacts"]
 assert summary["requirements"]["kind"] == "qemu-flaky-network-lab-requirements"
 assert "environment disabled" in summary["reason"]
 assert any(item.startswith("missing qemu binary") or item == "missing qemu_binary" or item == "KVM unavailable" or item == "tap/tun unavailable" or item.startswith("missing kernel_path") for item in summary["missing_requirements"])
