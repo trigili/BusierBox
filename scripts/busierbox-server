@@ -17399,6 +17399,35 @@ def run_line_tui(cfg):
                     print(f"   run: {rec.get('run_command', '')}")
                 if rec.get("start_job_command"):
                     print(f"   start_job: {rec.get('start_job_command', '')}")
+            service_actions = snap.get("service_workflow_actions") or []
+            service_action_preview = []
+            seen_service_action_ids = set()
+            for rec in service_actions:
+                if rec.get("can_run_from_curses_enter") or rec.get("service") == "file-service":
+                    rec_id = str(rec.get("id") or "")
+                    if rec_id and rec_id not in seen_service_action_ids:
+                        seen_service_action_ids.add(rec_id)
+                        service_action_preview.append(rec)
+                if len(service_action_preview) >= 10:
+                    break
+            if service_actions:
+                print(
+                    "Service workflow actions: "
+                    f"total={len(service_actions)} preview={len(service_action_preview)} "
+                    f"headless commands shown for runnable/file-service actions"
+                )
+            for idx, rec in enumerate(service_action_preview, 1):
+                print(f"service {idx}: {rec.get('id', '')} {rec.get('label', '')}")
+                print(f"   command: {rec.get('headless_command', rec.get('command', ''))}")
+                print(
+                    f"   service={rec.get('service', '')} category={rec.get('category', '')} "
+                    f"actual={rec.get('actual', '') or '-'} configured={rec.get('configured', '') or '-'} "
+                    f"confirm={'yes' if rec.get('requires_confirmation') else 'no'} "
+                    f"state={rec.get('operator_action_state', '') or '-'} "
+                    f"reason={rec.get('operator_action_reason', '') or '-'} "
+                    f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
+                    f"enter_action={rec.get('curses_enter_action', '') or '-'}"
+                )
             for idx, rec in enumerate(snap.get("target_workflow_actions") or [], 1):
                 print(f"target {idx}: {rec.get('id', '')} {rec.get('label', '')}")
                 print(f"   command: {rec.get('headless_command', rec.get('command', ''))}")
@@ -17415,6 +17444,7 @@ def run_line_tui(cfg):
             append_event(cfg, "workbench", "workbench_actions_viewed", details={
                 "headless_command": headless,
                 "action_count": len(snap.get("workbench_actions") or []),
+                "service_workflow_action_count": len(snap.get("service_workflow_actions") or []),
                 "target_workflow_action_count": len(snap.get("target_workflow_actions") or []),
             })
             selected_line = line_input("operator action id/number to run, or blank> ")
@@ -18172,6 +18202,8 @@ def run_curses_tui(cfg):
                 for rec in workbench_actions
                 if isinstance(rec, dict) and rec.get("id")
             }
+            service_workflow_actions_by_service = snap.get("service_workflow_actions_by_service") or {}
+            service_workflow_actions_by_id = snap.get("service_workflow_actions_by_id") or {}
             services_by_name = {str(row.get("name") or ""): row for row in services}
             daemon_service_names = configured_daemon_services(cfg, []) or ["file-service", "command-queue"]
             daemon_records = [{"kind": "daemon", "name": "operator-daemon", "row": services_by_name.get("operator-daemon") or {}}]
@@ -18226,7 +18258,15 @@ def run_curses_tui(cfg):
             for idx, row in enumerate(services):
                 prefix = ">" if pane == 0 and idx == selected else " "
                 tls = "yes" if row["tls"] else "no"
-                service_lines.append(f"{prefix} {row['name']:12s} {row['actual']}/{row['configured']} port={row['port']} tls={tls} pid={row['pid'] or '-'}")
+                service_name = str(row.get("name") or "")
+                start_action = service_workflow_actions_by_id.get(f"{service_name}:start-service") or {}
+                stop_action = service_workflow_actions_by_id.get(f"{service_name}:stop-service") or {}
+                enter_action = start_action if start_action.get("can_run_from_curses_enter") else stop_action
+                service_lines.append(
+                    f"{prefix} {row['name']:12s} {row['actual']}/{row['configured']} "
+                    f"port={row['port']} tls={tls} pid={row['pid'] or '-'} "
+                    f"enter={enter_action.get('curses_enter_action', '') or '-'}"
+                )
             staged_lines = []
             for idx, name in enumerate(staged_names):
                 rec = snap["staged"][name]
@@ -18236,6 +18276,11 @@ def run_curses_tui(cfg):
             detail_lines = []
             if pane == 0 and services:
                 row = services[min(selected, len(services) - 1)]
+                service_name = str(row.get("name") or "")
+                service_actions = service_workflow_actions_by_service.get(service_name) or []
+                start_action = service_workflow_actions_by_id.get(f"{service_name}:start-service") or {}
+                stop_action = service_workflow_actions_by_id.get(f"{service_name}:stop-service") or {}
+                inspect_action = service_workflow_actions_by_id.get(f"{service_name}:inspect-status") or {}
                 detail_lines = [
                     f"service: {row['name']}",
                     f"port: {row['port']}",
@@ -18246,6 +18291,14 @@ def run_curses_tui(cfg):
                     f"session_log: {row['session_log'] or '-'}",
                     f"process_log: {row['process_log'] or '-'}",
                     f"error: {row['error'] or '-'}",
+                    f"service_workflow_actions: {len(service_actions)}",
+                    f"inspect_action_state: {inspect_action.get('operator_action_state', '') or '-'} reason={inspect_action.get('operator_action_reason', '') or '-'}",
+                    f"start_action_state: {start_action.get('operator_action_state', '') or '-'} reason={start_action.get('operator_action_reason', '') or '-'}",
+                    f"stop_action_state: {stop_action.get('operator_action_state', '') or '-'} reason={stop_action.get('operator_action_reason', '') or '-'}",
+                    f"start_command: {start_action.get('headless_command', start_action.get('command', '')) or '-'}",
+                    f"stop_command: {stop_action.get('headless_command', stop_action.get('command', '')) or '-'}",
+                    "enter follows service workflow action readiness",
+                    "action 11 includes service workflow actions",
                 ]
             elif pane == 1 and staged_names:
                 name = staged_names[min(selected, len(staged_names) - 1)]
@@ -18712,14 +18765,30 @@ def run_curses_tui(cfg):
                 selected = 0
             elif key in (ord("1"), ord("2"), ord("3"), ord("4")):
                 service = {ord("1"): "ssh", ord("2"): "tls-shell", ord("3"): "plain-shell", ord("4"): "file-service"}[key]
-                start_service_process(cfg, service)
+                action = service_workflow_actions_by_id.get(f"{service}:start-service") or {}
+                start_service_process(
+                    cfg,
+                    service,
+                    headless_command=action.get("headless_command", action.get("command", "")),
+                )
             elif key in (10, 13):
                 if pane == 0 and services:
-                    service = services[min(selected, len(services) - 1)]["name"]
-                    if services[min(selected, len(services) - 1)]["actual"] == "listening":
-                        stop_recorded_service(cfg, service)
+                    row = services[min(selected, len(services) - 1)]
+                    service = row["name"]
+                    if row["actual"] == "listening":
+                        action = service_workflow_actions_by_id.get(f"{service}:stop-service") or {}
+                        stop_recorded_service(
+                            cfg,
+                            service,
+                            headless_command=action.get("headless_command", action.get("command", "")),
+                        )
                     else:
-                        start_service_process(cfg, service)
+                        action = service_workflow_actions_by_id.get(f"{service}:start-service") or {}
+                        start_service_process(
+                            cfg,
+                            service,
+                            headless_command=action.get("headless_command", action.get("command", "")),
+                        )
                 elif pane == 6 and release_artifacts:
                     rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
                     try:
@@ -18830,7 +18899,12 @@ def run_curses_tui(cfg):
                 service = stdscr.getstr(height - 2, 9, 32).decode("utf-8", errors="replace").strip()
                 curses.noecho()
                 if service:
-                    stop_recorded_service(cfg, service)
+                    action = service_workflow_actions_by_id.get(f"{service}:stop-service") or {}
+                    stop_recorded_service(
+                        cfg,
+                        service,
+                        headless_command=action.get("headless_command", action.get("command", "")),
+                    )
             elif key in (ord("6"), ord("s")) and pane == 6 and release_artifacts:
                 rec = release_artifacts[min(selected, len(release_artifacts) - 1)]
                 try:

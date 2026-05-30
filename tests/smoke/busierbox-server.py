@@ -175,6 +175,8 @@ def main():
                  "Target Activity", "target_activity_record:", "g opens target activity feed", "action 21 opens line-mode activity feed",
                  "Target Actions", "enter runs no-input target workflow actions", "action 15 opens prompted target workflow list",
                  "operator_action_state:", "operator_action_reason:", "can_run_from_curses_enter:",
+                 "service_workflow_actions:", "service_workflow_actions_by_service", "enter follows service workflow action readiness",
+                 "action 11 includes service workflow actions",
                  "Bridge Routes", "enter starts/stops this bridge profile", "--bridge-profile",
                  "Mailbox", "mailbox_command:", "pending_reason:", "action 20 opens command queue/results",
                  "Build Config", "enter sets this build config field", "action 14 opens guided build config",
@@ -1174,6 +1176,9 @@ def main():
                 "foreground_runnable=yes" not in actions_tui_text or
                 "dry_run: scripts/busierbox-server --config" not in actions_tui_text or
                 "start_job: scripts/busierbox-server --config" not in actions_tui_text or
+                "service 1:" not in actions_tui_text or
+                "file-service:start-service" not in actions_tui_text or
+                "enter_action=start-service" not in actions_tui_text or
                 "workbench action: systemd-user-status" not in actions_tui_text or
                 "--run-workbench-action systemd-user-status --workbench-action-dry-run" not in actions_tui_text or
                 "systemctl --user status busierbox-operator.service" not in actions_tui_text or
@@ -1190,7 +1195,8 @@ def main():
         if not any(
                 event.get("event") == "workbench_actions_viewed" and
                 "--status" in ((event.get("details") or {}).get("headless_command") or "") and
-                (event.get("details") or {}).get("action_count", 0) > 0
+                (event.get("details") or {}).get("action_count", 0) > 0 and
+                (event.get("details") or {}).get("service_workflow_action_count", 0) > 0
                 for event in actions_tui_events):
             print("line TUI workflow-action view did not record headless command event", file=sys.stderr)
             print(json.dumps(actions_tui_events[-8:], indent=2, sort_keys=True), file=sys.stderr)
