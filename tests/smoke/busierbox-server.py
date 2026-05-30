@@ -3374,6 +3374,16 @@ def main():
         ).stdout)
         result_alpha = (result_status.get("targets_by_id") or {}).get("target-alpha") or {}
         result_bravo = (result_status.get("targets_by_id") or {}).get("target-bravo") or {}
+        result_alpha_actions = (result_status.get("target_workflow_actions_by_target_id") or {}).get("target-alpha") or []
+        result_bravo_actions = (result_status.get("target_workflow_actions_by_target_id") or {}).get("target-bravo") or []
+        result_alpha_actions_by_action = {
+            rec.get("action_id"): rec for rec in result_alpha_actions
+            if isinstance(rec, dict)
+        }
+        result_bravo_actions_by_action = {
+            rec.get("action_id"): rec for rec in result_bravo_actions
+            if isinstance(rec, dict)
+        }
         result_alpha_command = ((result_status.get("command_queue") or {}).get("commands_by_result_status") or {}).get("completed", [{}])[0]
         result_alpha_mailbox = (result_status.get("target_mailbox_records_by_command_id") or {}).get(alpha_id) or {}
         result_bravo_mailbox = (result_status.get("target_mailbox_records_by_command_id") or {}).get(bravo_id) or {}
@@ -3456,6 +3466,17 @@ def main():
                 ((result_status.get("targets_by_has_last_failed_phone_home") or {}).get("yes") or [{}])[0].get("target_id") != "target-bravo" or
                 ((result_status.get("targets_by_last_failed_phone_home_status") or {}).get("rejected") or [{}])[0].get("target_id") != "target-bravo" or
                 ((result_status.get("targets_by_last_seen_via") or {}).get("command-queue:command_queue_result") or [{}])[0].get("target_id") != "target-alpha" or
+                result_alpha_actions_by_action.get("queue-command", {}).get("target_latest_phone_home_status") != "result-received" or
+                result_alpha_actions_by_action.get("queue-command", {}).get("target_latest_successful_phone_home_status") != "result-received" or
+                result_alpha_actions_by_action.get("queue-command", {}).get("target_mailbox_pending_work_count") != 0 or
+                result_bravo_actions_by_action.get("queue-command", {}).get("target_mailbox_pending_work_count") != 1 or
+                result_bravo_actions_by_action.get("queue-command", {}).get("target_poll_overdue") is not True or
+                result_bravo_actions_by_action.get("queue-command", {}).get("target_last_failed_phone_home_status") != "rejected" or
+                "command result target mismatch" not in result_bravo_actions_by_action.get("queue-command", {}).get("target_last_failed_phone_home_reason", "") or
+                ((result_status.get("target_workflow_actions_by_target_mailbox_pending_work_count") or {}).get("1") or [{}])[0].get("target_id") != "target-bravo" or
+                ((result_status.get("target_workflow_actions_by_target_last_failed_phone_home_status") or {}).get("rejected") or [{}])[0].get("target_id") != "target-bravo" or
+                result_status.get("summary", {}).get("target_workflow_action_target_mailbox_pending_work_count_counts", {}).get("1") != len(result_bravo_actions) or
+                result_status.get("summary", {}).get("target_workflow_action_target_last_failed_phone_home_status_counts", {}).get("rejected") != len(result_bravo_actions) or
                 result_status.get("summary", {}).get("target_mailbox_target_connectivity_state_counts", {}).get("offline") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_has_target_next_expected_poll_counts", {}).get("True") != 1 or
                 result_status.get("summary", {}).get("target_mailbox_target_poll_overdue_counts", {}).get("True") != 1 or
@@ -3467,6 +3488,8 @@ def main():
                 "target_mailbox_records_by_result_latency_bucket" not in (((result_status.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []) or
                 "targets_by_has_last_failed_phone_home" not in (((result_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or []) or
                 "targets_by_last_failed_phone_home_status" not in (((result_status.get("api_collections") or {}).get("targets") or {}).get("indexes") or []) or
+                "target_workflow_actions_by_target_mailbox_pending_work_count" not in (((result_status.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes") or []) or
+                "target_workflow_actions_by_target_last_failed_phone_home_status" not in (((result_status.get("api_collections") or {}).get("target_workflow_actions") or {}).get("indexes") or []) or
                 not any((event.get("details") or {}).get("target_id") == "target-alpha" and event.get("event") == "command_queue_result_upload_received" for event in result_status.get("events") or [])):
             print("target mailbox result upload did not update heartbeat and result status", file=sys.stderr)
             print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)

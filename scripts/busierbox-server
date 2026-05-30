@@ -4860,6 +4860,25 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "target_id": target_id,
             "target_label": str(target.get("label") or ""),
             "target_connectivity_state": str(target.get("connectivity_state") or ""),
+            "target_last_seen": str(target.get("last_seen") or target.get("last_seen_at") or ""),
+            "target_last_seen_via": str(target.get("last_seen_via") or ""),
+            "target_next_expected_poll": str(target.get("next_expected_poll") or ""),
+            "target_poll_overdue": bool(target.get("poll_overdue", False)),
+            "target_poll_overdue_for_sec": target.get("poll_overdue_for_sec", ""),
+            "target_mailbox_command_count": int_value(target.get("mailbox_command_count", 0)),
+            "target_mailbox_pending_work_count": int_value(target.get("mailbox_pending_work_count", 0)),
+            "target_latest_phone_home_at": str(target.get("latest_phone_home_at") or ""),
+            "target_latest_phone_home_status": str(target.get("latest_phone_home_status") or ""),
+            "target_latest_phone_home_kind": str(target.get("latest_phone_home_kind") or ""),
+            "target_latest_phone_home_contact_path": str(target.get("latest_phone_home_contact_path") or ""),
+            "target_latest_successful_phone_home_at": str(target.get("latest_successful_phone_home_at") or ""),
+            "target_latest_successful_phone_home_status": str(target.get("latest_successful_phone_home_status") or ""),
+            "target_latest_successful_phone_home_kind": str(target.get("latest_successful_phone_home_kind") or ""),
+            "target_latest_successful_phone_home_contact_path": str(target.get("latest_successful_phone_home_contact_path") or ""),
+            "target_last_failed_phone_home_at": str(target.get("last_failed_phone_home_at") or ""),
+            "target_last_failed_phone_home_status": str(target.get("last_failed_phone_home_status") or ""),
+            "target_last_failed_phone_home_reason": str(target.get("last_failed_phone_home_reason") or ""),
+            "target_last_failed_phone_home_contact_path": str(target.get("last_failed_phone_home_contact_path") or ""),
             "category": category,
             "workflow": workflow,
             "label": label,
@@ -5037,6 +5056,11 @@ def target_workflow_action_indexes(records):
         "target_workflow_actions_by_target_phone_home_required": records_by_key(records, "target_phone_home_required"),
         "target_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
         "target_workflow_actions_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
+        "target_workflow_actions_by_target_poll_overdue": records_by_key(records, "target_poll_overdue"),
+        "target_workflow_actions_by_target_mailbox_pending_work_count": records_by_key(records, "target_mailbox_pending_work_count"),
+        "target_workflow_actions_by_target_latest_phone_home_status": records_by_key(records, "target_latest_phone_home_status"),
+        "target_workflow_actions_by_target_latest_successful_phone_home_status": records_by_key(records, "target_latest_successful_phone_home_status"),
+        "target_workflow_actions_by_target_last_failed_phone_home_status": records_by_key(records, "target_last_failed_phone_home_status"),
         "target_workflow_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
         "target_workflow_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
         "target_workflow_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
@@ -5058,6 +5082,11 @@ def target_workflow_action_summary(records):
         "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
         "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
         "target_connectivity_state_counts": record_count_by_key(records, "target_connectivity_state"),
+        "target_poll_overdue_counts": record_count_by_key(records, "target_poll_overdue"),
+        "target_mailbox_pending_work_count_counts": record_count_by_key(records, "target_mailbox_pending_work_count"),
+        "target_latest_phone_home_status_counts": record_count_by_key(records, "target_latest_phone_home_status"),
+        "target_latest_successful_phone_home_status_counts": record_count_by_key(records, "target_latest_successful_phone_home_status"),
+        "target_last_failed_phone_home_status_counts": record_count_by_key(records, "target_last_failed_phone_home_status"),
         "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
         "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
         "offline_supported_counts": record_count_by_key(records, "offline_supported"),
@@ -15434,6 +15463,11 @@ def status_document(cfg):
         "target_workflow_action_workflow_counts": target_workflow_action_stats.get("workflow_counts") or {},
         "target_workflow_action_bridge_profile_counts": target_workflow_action_stats.get("bridge_profile_counts") or {},
         "target_workflow_action_connectivity_state_counts": target_workflow_action_stats.get("target_connectivity_state_counts") or {},
+        "target_workflow_action_target_poll_overdue_counts": target_workflow_action_stats.get("target_poll_overdue_counts") or {},
+        "target_workflow_action_target_mailbox_pending_work_count_counts": target_workflow_action_stats.get("target_mailbox_pending_work_count_counts") or {},
+        "target_workflow_action_target_latest_phone_home_status_counts": target_workflow_action_stats.get("target_latest_phone_home_status_counts") or {},
+        "target_workflow_action_target_latest_successful_phone_home_status_counts": target_workflow_action_stats.get("target_latest_successful_phone_home_status_counts") or {},
+        "target_workflow_action_target_last_failed_phone_home_status_counts": target_workflow_action_stats.get("target_last_failed_phone_home_status_counts") or {},
         "target_workflow_action_operator_action_state_counts": target_workflow_action_stats.get("operator_action_state_counts") or {},
         "target_workflow_action_operator_action_reason_counts": target_workflow_action_stats.get("operator_action_reason_counts") or {},
         "target_workflow_action_offline_supported_counts": target_workflow_action_stats.get("offline_supported_counts") or {},
@@ -16082,6 +16116,11 @@ def status_document(cfg):
                 "target_workflow_actions_by_target_phone_home_required",
                 "target_workflow_actions_by_bridge_profile",
                 "target_workflow_actions_by_target_connectivity_state",
+                "target_workflow_actions_by_target_poll_overdue",
+                "target_workflow_actions_by_target_mailbox_pending_work_count",
+                "target_workflow_actions_by_target_latest_phone_home_status",
+                "target_workflow_actions_by_target_latest_successful_phone_home_status",
+                "target_workflow_actions_by_target_last_failed_phone_home_status",
                 "target_workflow_actions_by_operator_action_state",
                 "target_workflow_actions_by_operator_action_reason",
                 "target_workflow_actions_by_can_run_from_curses_enter",
@@ -21903,6 +21942,27 @@ def run_curses_tui(cfg):
                     f"label: {rec.get('label', '')}",
                     f"workflow: {rec.get('workflow', '')} category={rec.get('category', '')}",
                     f"target_state: {rec.get('target_connectivity_state', '') or '-'}",
+                    f"target_last_seen: {rec.get('target_last_seen', '') or '-'} via={rec.get('target_last_seen_via', '') or '-'}",
+                    f"target_next_expected_poll: {rec.get('target_next_expected_poll', '') or '-'}",
+                    f"target_poll_overdue: {'yes' if rec.get('target_poll_overdue') else 'no'}",
+                    f"target_mailbox_pending: {rec.get('target_mailbox_pending_work_count', 0)}",
+                    (
+                        "target_phone_home: "
+                        f"{rec.get('target_latest_phone_home_status', '') or '-'}@"
+                        f"{rec.get('target_latest_phone_home_at', '') or '-'} "
+                        f"kind={rec.get('target_latest_phone_home_kind', '') or '-'}"
+                    ),
+                    (
+                        "target_successful_phone_home: "
+                        f"{rec.get('target_latest_successful_phone_home_status', '') or '-'}@"
+                        f"{rec.get('target_latest_successful_phone_home_at', '') or '-'}"
+                    ),
+                    (
+                        "target_failed_phone_home: "
+                        f"{rec.get('target_last_failed_phone_home_status', '') or '-'}@"
+                        f"{rec.get('target_last_failed_phone_home_at', '') or '-'} "
+                        f"reason={rec.get('target_last_failed_phone_home_reason', '') or '-'}"
+                    ),
                     f"offline_supported: {'yes' if rec.get('offline_supported') else 'no'}",
                     f"requires_target_online: {'yes' if rec.get('requires_target_online') else 'no'}",
                     f"queues_offline_work: {'yes' if rec.get('queues_offline_work') else 'no'}",
