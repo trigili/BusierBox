@@ -2229,6 +2229,7 @@ def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
     rec["last_seen"] = last_seen
     rec["last_seen_via"] = target_last_seen_via(rec)
     rec["offline_for_sec"] = offline_for_sec if offline_for_sec is not None else ""
+    rec["offline_age_bucket"] = mailbox_wait_bucket(rec["offline_for_sec"])
     rec["connectivity_state"] = target_connectivity_state(offline_for_sec)
     rec["connectivity_online_window_sec"] = TARGET_ONLINE_WINDOW_SEC
     rec["connectivity_recent_window_sec"] = TARGET_RECENT_WINDOW_SEC
@@ -2269,6 +2270,7 @@ def target_record_indexes(records):
     by_latest_activity_operation = {}
     by_connectivity_state = {}
     by_last_seen_via = {}
+    by_offline_age_bucket = {}
     by_has_next_expected_poll = {}
     by_poll_overdue = {}
     by_mailbox_pending_work = {}
@@ -2326,6 +2328,9 @@ def target_record_indexes(records):
         last_seen_via = str(rec.get("last_seen_via") or "")
         if last_seen_via:
             by_last_seen_via.setdefault(last_seen_via, []).append(rec)
+        offline_age_bucket = str(rec.get("offline_age_bucket") or "")
+        if offline_age_bucket:
+            by_offline_age_bucket.setdefault(offline_age_bucket, []).append(rec)
         by_has_next_expected_poll.setdefault("yes" if str(rec.get("next_expected_poll") or "") else "no", []).append(rec)
         by_poll_overdue.setdefault("yes" if rec.get("poll_overdue") is True else "no", []).append(rec)
         by_mailbox_pending_work.setdefault("yes" if int(rec.get("mailbox_pending_work_count") or 0) > 0 else "no", []).append(rec)
@@ -2417,7 +2422,7 @@ def target_record_indexes(records):
         by_id, by_label, by_alias, by_remote_addr, by_service,
         by_identity_confidence, by_identity_source,
         by_latest_activity_service, by_latest_activity_operation,
-        by_connectivity_state, by_last_seen_via,
+        by_connectivity_state, by_last_seen_via, by_offline_age_bucket,
         by_has_next_expected_poll, by_poll_overdue, by_mailbox_pending_work,
         by_latest_phone_home_status, by_has_last_failed_phone_home,
         by_last_failed_phone_home_reason, by_last_failed_phone_home_status,
@@ -2443,6 +2448,7 @@ def target_record_summary(records):
     latest_activity_operation_counts = {}
     connectivity_state_counts = {}
     last_seen_via_counts = {}
+    offline_age_bucket_counts = {}
     latest_file_transfer_operation_counts = {}
     latest_file_transfer_status_counts = {}
     latest_file_transfer_route_kind_counts = {}
@@ -2502,6 +2508,9 @@ def target_record_summary(records):
         last_seen_via = str(rec.get("last_seen_via") or "")
         if last_seen_via:
             last_seen_via_counts[last_seen_via] = last_seen_via_counts.get(last_seen_via, 0) + 1
+        offline_age_bucket = str(rec.get("offline_age_bucket") or "")
+        if offline_age_bucket:
+            offline_age_bucket_counts[offline_age_bucket] = offline_age_bucket_counts.get(offline_age_bucket, 0) + 1
         if str(rec.get("next_expected_poll") or ""):
             next_expected_poll_count += 1
         if rec.get("poll_overdue") is True:
@@ -2604,6 +2613,7 @@ def target_record_summary(records):
         "target_latest_activity_operation_counts": latest_activity_operation_counts,
         "target_connectivity_state_counts": connectivity_state_counts,
         "target_last_seen_via_counts": last_seen_via_counts,
+        "target_offline_age_bucket_counts": offline_age_bucket_counts,
         "target_next_expected_poll_count": next_expected_poll_count,
         "target_poll_overdue_count": poll_overdue_count,
         "target_poll_overdue_counts": record_count_by_key(records, "poll_overdue"),
@@ -13968,6 +13978,7 @@ def status_document(cfg):
      targets_by_latest_activity_operation,
      targets_by_connectivity_state,
      targets_by_last_seen_via,
+     targets_by_offline_age_bucket,
      targets_by_has_next_expected_poll,
      targets_by_poll_overdue,
      targets_by_mailbox_pending_work,
@@ -16307,6 +16318,7 @@ def status_document(cfg):
                 "targets_by_latest_activity_operation",
                 "targets_by_connectivity_state",
                 "targets_by_last_seen_via",
+                "targets_by_offline_age_bucket",
                 "targets_by_has_next_expected_poll",
                 "targets_by_poll_overdue",
                 "targets_by_mailbox_pending_work",
@@ -17278,6 +17290,7 @@ def status_document(cfg):
         "targets_by_latest_activity_operation": targets_by_latest_activity_operation,
         "targets_by_connectivity_state": targets_by_connectivity_state,
         "targets_by_last_seen_via": targets_by_last_seen_via,
+        "targets_by_offline_age_bucket": targets_by_offline_age_bucket,
         "targets_by_has_next_expected_poll": targets_by_has_next_expected_poll,
         "targets_by_poll_overdue": targets_by_poll_overdue,
         "targets_by_mailbox_pending_work": targets_by_mailbox_pending_work,
