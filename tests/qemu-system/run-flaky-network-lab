@@ -110,13 +110,13 @@ phases = [
         "name": "duplicate-poll",
         "link_state": "target-alpha-link-up",
         "operator_expectation": "target-alpha duplicate poll receives no duplicate command",
-        "artifacts": ["after-duplicate-alpha-poll.json", "target-alpha-duplicate-poll.log"],
+        "artifacts": ["after-duplicate-alpha-poll.json", "duplicate-poll.json", "target-alpha-duplicate-poll.log"],
     },
     {
         "name": "dropped-result-upload",
         "link_state": "target-alpha-link-flap",
         "operator_expectation": "truncated result upload is rejected without mutating the delivered command",
-        "artifacts": ["after-dropped-alpha-result.json", "dropped-command-result.http"],
+        "artifacts": ["after-dropped-alpha-result.json", "dropped-result-upload.json", "dropped-command-result.http"],
     },
     {
         "name": "result-upload",

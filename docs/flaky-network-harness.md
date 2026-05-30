@@ -52,6 +52,7 @@ writes focused debug artifacts that mirror the QEMU lab contract:
 `phone-home-attempts.json`, `multi-target-isolation.json`,
 `mailbox-lifecycle.json`,
 `restart-persistence.json`, `bad-token-phone-home.json`,
+`duplicate-poll.json`, `dropped-result-upload.json`,
 `systemd-user-service.json`, `target-mismatch-phone-home.json`, `transfer.log`,
 `bridge-events.jsonl`, `bridge-interruption.json`, and
 `artifact-manifest.json`. The smoke wrapper
@@ -81,8 +82,8 @@ expected per-phase artifacts, QEMU command template, and the exact operator and
 target commands to run once a real image/kernel/tap setup is available. The
 plan deliberately names the deterministic harness evidence files, including TUI
 parity, systemd dry-run, multi-target isolation, target-mismatch rejection, and
-bridge-interruption artifacts, so a live QEMU implementation has the same
-acceptance target as CI.
+duplicate-poll, dropped-result-upload, and bridge-interruption artifacts, so a
+live QEMU implementation has the same acceptance target as CI.
 
 To ask for the opt-in QEMU path, use:
 

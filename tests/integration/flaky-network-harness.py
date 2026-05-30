@@ -508,6 +508,56 @@ def write_bad_token_phone_home_artifact(artifact_dir, doc, command_id):
     })
 
 
+def write_duplicate_poll_artifact(artifact_dir, doc, command_id, response):
+    write_json(artifact_dir / "duplicate-poll.json", {
+        "schema": 1,
+        "kind": "duplicate-poll-artifact",
+        "command_id": command_id,
+        "http_status": http_status_line(response),
+        "summary": {
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+            "target_phone_home_pending_reason_counts": doc.get("summary", {}).get("target_phone_home_pending_reason_counts", {}),
+        },
+        "target": (doc.get("targets_by_id") or {}).get("target-alpha") or {},
+        "mailbox_record": (doc.get("target_mailbox_records_by_command_id") or {}).get(command_id) or {},
+        "phone_home_records": [
+            rec for rec in (doc.get("target_phone_home_records") or [])
+            if rec.get("target_id") == "target-alpha" and rec.get("kind") == "poll"
+        ],
+    })
+
+
+def write_dropped_result_upload_artifact(artifact_dir, doc, command_id, response):
+    write_json(artifact_dir / "dropped-result-upload.json", {
+        "schema": 1,
+        "kind": "dropped-result-upload-artifact",
+        "command_id": command_id,
+        "http_status": http_status_line(response),
+        "summary": {
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+            "target_phone_home_failed_counts": doc.get("summary", {}).get("target_phone_home_failed_counts", {}),
+            "target_phone_home_http_status_counts": doc.get("summary", {}).get("target_phone_home_http_status_counts", {}),
+            "target_phone_home_pending_reason_counts": doc.get("summary", {}).get("target_phone_home_pending_reason_counts", {}),
+        },
+        "target": (doc.get("targets_by_id") or {}).get("target-alpha") or {},
+        "mailbox_record": (doc.get("target_mailbox_records_by_command_id") or {}).get(command_id) or {},
+        "phone_home_records": [
+            rec for rec in (doc.get("target_phone_home_records") or [])
+            if rec.get("target_id") == "target-alpha"
+            and rec.get("kind") == "result"
+            and rec.get("failed") is True
+        ],
+        "result_upload_events": [
+            rec for rec in (doc.get("events") or [])
+            if rec.get("event") == "command_queue_result_upload"
+            and (rec.get("details") or {}).get("command_id") == command_id
+            and (rec.get("details") or {}).get("status") == "rejected"
+        ],
+    })
+
+
 def write_target_mismatch_phone_home_artifact(artifact_dir, doc, command_id):
     write_json(artifact_dir / "target-mismatch-phone-home.json", {
         "schema": 1,
@@ -1175,6 +1225,16 @@ def run_harness(artifact_dir):
     after_duplicate = status(cfg, artifact_dir, "after-duplicate-alpha-poll")
     assert_condition(b"HTTP/1.1 204 No Content" in duplicate_response, "duplicate poll should not redeliver work")
     assert_condition(after_duplicate["targets_by_id"]["target-alpha"]["mailbox_pending_work_count"] == 0, "duplicate poll changed alpha mailbox")
+    duplicate_record = (after_duplicate.get("target_mailbox_records_by_command_id") or {}).get(alpha_id) or {}
+    duplicate_attempts = [
+        rec for rec in after_duplicate.get("target_phone_home_records") or []
+        if rec.get("target_id") == "target-alpha" and rec.get("kind") == "poll" and rec.get("status") == "no-command"
+    ]
+    assert_condition(duplicate_record.get("status") == "delivered", "duplicate poll mutated delivered command", duplicate_record)
+    assert_condition(duplicate_record.get("delivered_without_result") is True, "duplicate poll should leave command waiting for result", duplicate_record)
+    assert_condition(duplicate_attempts, "duplicate poll phone-home record missing", after_duplicate.get("target_phone_home_records"))
+    assert_condition(duplicate_attempts[-1].get("successful") is True, "duplicate poll should be an auditable successful no-command poll", duplicate_attempts[-1])
+    write_duplicate_poll_artifact(artifact_dir, after_duplicate, alpha_id, duplicate_response)
     phases.append({"name": "duplicate-poll", "status": "pass", "artifact": "after-duplicate-alpha-poll.json"})
 
     proc = start_one_shot(cfg, "command-queue")
@@ -1224,6 +1284,8 @@ def run_harness(artifact_dir):
     ]
     assert_condition(rejected_results, "dropped result phone-home rejection was not recorded")
     assert_condition(rejected_results[0].get("reason"), "dropped result rejection reason missing", rejected_results[0])
+    assert_condition(rejected_results[0].get("http_status") == "400", "dropped result HTTP status missing", rejected_results[0])
+    write_dropped_result_upload_artifact(artifact_dir, after_dropped_result, alpha_id, dropped_result)
     phases.append({"name": "dropped-result-upload", "status": "pass", "artifact": "after-dropped-alpha-result.json"})
 
     proc = start_one_shot(cfg, "command-queue")
