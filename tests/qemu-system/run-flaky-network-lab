@@ -86,10 +86,12 @@ phases = [
     {
         "name": "offline-queue",
         "link_state": "target-links-down",
-        "operator_expectation": "queue target-alpha and target-bravo mailbox work while no target can poll, then verify headless and TUI views agree",
+        "operator_expectation": "queue target-alpha and target-bravo mailbox work while no target can poll, queue one target command through the TUI, then verify headless and TUI views agree",
         "artifacts": [
             "offline-status.json",
             "target-mailbox.json",
+            "tui-offline-queue.json",
+            "tui-offline-queue-drain.json",
             "offline-workflow-mailbox.json",
             "offline-workflow-tui.json",
         ],

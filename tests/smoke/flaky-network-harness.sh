@@ -18,6 +18,8 @@ test -s "$tmp/flaky-network/duplicate-poll.json"
 test -s "$tmp/flaky-network/malformed-result-upload.json"
 test -s "$tmp/flaky-network/dropped-result-upload.json"
 test -s "$tmp/flaky-network/systemd-user-service.json"
+test -s "$tmp/flaky-network/tui-offline-queue.json"
+test -s "$tmp/flaky-network/tui-offline-queue-drain.json"
 test -s "$tmp/flaky-network/target-mismatch-phone-home.json"
 test -s "$tmp/flaky-network/command-result.json"
 test -s "$tmp/flaky-network/phone-home-attempts.json"
@@ -47,6 +49,8 @@ duplicate = json.loads((artifact_dir / "duplicate-poll.json").read_text(encoding
 malformed_result = json.loads((artifact_dir / "malformed-result-upload.json").read_text(encoding="utf-8"))
 dropped_result = json.loads((artifact_dir / "dropped-result-upload.json").read_text(encoding="utf-8"))
 systemd = json.loads((artifact_dir / "systemd-user-service.json").read_text(encoding="utf-8"))
+tui_queue = json.loads((artifact_dir / "tui-offline-queue.json").read_text(encoding="utf-8"))
+tui_queue_drain = json.loads((artifact_dir / "tui-offline-queue-drain.json").read_text(encoding="utf-8"))
 mismatch = json.loads((artifact_dir / "target-mismatch-phone-home.json").read_text(encoding="utf-8"))
 result = json.loads((artifact_dir / "command-result.json").read_text(encoding="utf-8"))
 phone_home = json.loads((artifact_dir / "phone-home-attempts.json").read_text(encoding="utf-8"))
@@ -178,6 +182,28 @@ assert any(rec["event"] == "systemd_user_unit_install_dry_run" for rec in system
 for action in ("start", "stop", "restart", "status"):
     assert any(rec["event"] == "systemd_user_action_dry_run" and (rec["details"] or {}).get("action") == action for rec in systemd["events"])
 assert all((rec["details"] or {}).get("headless_command") for rec in systemd["events"])
+assert tui_queue["kind"] == "tui-offline-queue-artifact"
+assert tui_queue["returncode"] == 0
+assert "target workflow action: target-tui:queue-command" in tui_queue["stdout"]
+assert "command to queue>" in tui_queue["stdout"]
+assert "queued " in tui_queue["stdout"]
+assert "busierbox survey --json" in tui_queue["stdout"]
+assert tui_queue["target"]["target_id"] == "target-tui"
+assert tui_queue["target"]["mailbox_pending_work_count"] == 1
+assert tui_queue["after"]["target_mailbox_waiting_for_counts"]["target-poll"] == 1
+assert len(tui_queue["target_mailbox_records"]) == 1
+assert tui_queue["target_mailbox_records"][0]["status"] == "queued"
+assert tui_queue["target_mailbox_records"][0]["pending_work"] is True
+assert tui_queue["target_mailbox_records"][0]["waiting_for"] == "target-poll"
+assert any((rec.get("details") or {}).get("action_id") == "queue-command" for rec in tui_queue["target_workflow_events"])
+assert tui_queue_drain["kind"] == "tui-offline-queue-drain-artifact"
+assert tui_queue_drain["http_status"] == "HTTP/1.1 200 OK"
+assert tui_queue_drain["mailbox_record"]["status"] == "delivered"
+assert tui_queue_drain["mailbox_record"]["pending_work"] is False
+assert tui_queue_drain["target"]["mailbox_pending_work_count"] == 0
+assert tui_queue_drain["target"]["last_seen_via"] == "command-queue:command_queue_poll"
+assert tui_queue_drain["target"]["latest_phone_home_status"] == "delivered"
+assert any(rec["status"] == "delivered" and rec["target_id"] == "target-tui" for rec in tui_queue_drain["phone_home_records"])
 assert mismatch["kind"] == "target-mismatch-phone-home-artifact"
 assert mismatch["mailbox_record"]["status"] == "delivered"
 assert mismatch["phone_home_records"][0]["failed"] is True
@@ -274,6 +300,8 @@ for name in (
     "malformed-result-upload.json",
     "dropped-result-upload.json",
     "systemd-user-service.json",
+    "tui-offline-queue.json",
+    "tui-offline-queue-drain.json",
     "target-mismatch-phone-home.json",
     "command-result.json",
     "phone-home-attempts.json",

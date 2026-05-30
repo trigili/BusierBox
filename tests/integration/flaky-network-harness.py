@@ -907,6 +907,57 @@ def write_systemd_user_service_artifact(artifact_dir, doc, unit_name, unit_dir, 
     })
 
 
+def write_tui_offline_queue_artifact(artifact_dir, before_doc, after_doc, tui_result):
+    target = (after_doc.get("targets_by_id") or {}).get("target-tui") or {}
+    records = [
+        rec for rec in (after_doc.get("target_mailbox_records") or [])
+        if rec.get("target_id") == "target-tui"
+    ]
+    events = [
+        rec for rec in (after_doc.get("events") or [])
+        if rec.get("event") in ("target_workflow_action_selected", "target_workflow_action_completed")
+        and (rec.get("details") or {}).get("target_id") == "target-tui"
+    ]
+    write_json(artifact_dir / "tui-offline-queue.json", {
+        "schema": 1,
+        "kind": "tui-offline-queue-artifact",
+        "returncode": tui_result.get("returncode"),
+        "stderr": tui_result.get("stderr", ""),
+        "stdout": tui_result.get("stdout", ""),
+        "before": {
+            "target_mailbox_pending_work_count": before_doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+        },
+        "after": {
+            "target_mailbox_pending_work_count": after_doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_mailbox_waiting_for_counts": after_doc.get("summary", {}).get("target_mailbox_waiting_for_counts", {}),
+        },
+        "target": target,
+        "target_mailbox_records": records,
+        "target_workflow_events": events,
+    })
+
+
+def write_tui_offline_queue_drain_artifact(artifact_dir, doc, command_id, response):
+    target = (doc.get("targets_by_id") or {}).get("target-tui") or {}
+    mailbox = (doc.get("target_mailbox_records_by_command_id") or {}).get(command_id) or {}
+    write_json(artifact_dir / "tui-offline-queue-drain.json", {
+        "schema": 1,
+        "kind": "tui-offline-queue-drain-artifact",
+        "http_status": http_status_line(response),
+        "command_id": command_id,
+        "target": target,
+        "mailbox_record": mailbox,
+        "summary": {
+            "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
+            "target_phone_home_status_counts": doc.get("summary", {}).get("target_phone_home_status_counts", {}),
+        },
+        "phone_home_records": [
+            rec for rec in (doc.get("target_phone_home_records") or [])
+            if rec.get("target_id") == "target-tui"
+        ],
+    })
+
+
 def write_artifact_manifest(artifact_dir, phases):
     records = []
     for path in sorted(artifact_dir.iterdir()):
@@ -1423,6 +1474,83 @@ def run_systemd_user_service_scenario(artifact_dir):
     return {"name": "systemd-user-service", "status": "pass", "artifact": "systemd-user-service-status.json"}
 
 
+def run_tui_offline_queue_scenario(artifact_dir):
+    scenario_dir = artifact_dir / "tui-offline-queue-session"
+    queue_port = free_port()
+    cfg = scenario_dir / "server-config.json"
+    queue_file = scenario_dir / "command-queue.json"
+    write_json(cfg, {
+        "listen_host": "127.0.0.1",
+        "operator_session_dir": str(scenario_dir),
+        "session_root": str(scenario_dir / "sessions"),
+        "server_state": str(scenario_dir / "server-state.json"),
+        "targets_file": str(scenario_dir / "targets.json"),
+        "command_queue_file": str(queue_file),
+        "command_queue_enable": "yes",
+        "command_queue_tls": "no",
+        "command_queue_port": str(queue_port),
+        "command_queue_require_token": "no",
+        "command_queue_allowed_commands": "busierbox-only",
+        "command_queue_allow_arbitrary": "no",
+    })
+    label_result = run(
+        str(SERVER), "--config", str(cfg),
+        "--set-target-label", "target-tui",
+        "--target-label", "TUI Target",
+    )
+    if label_result.returncode != 0:
+        raise RuntimeError(f"TUI target label setup failed: {label_result.stderr}")
+
+    before_doc = status(cfg, artifact_dir, "tui-offline-queue-before")
+    tui_result = run_line_tui(
+        cfg,
+        "15\ntarget-tui:queue-command\nbusierbox survey --json\nq\n",
+    )
+    assert_condition(tui_result["returncode"] == 0, "TUI offline queue action failed", tui_result)
+    tui_text = tui_result["stdout"]
+    assert_condition("target workflow action: target-tui:queue-command" in tui_text, "TUI offline queue action was not selected", tui_text)
+    assert_condition("command to queue>" in tui_text, "TUI offline queue action did not prompt for command", tui_text)
+    assert_condition("queued " in tui_text and "busierbox survey --json" in tui_text, "TUI offline queue action did not queue command", tui_text)
+
+    after_doc = status(cfg, artifact_dir, "tui-offline-queue-after")
+    records = [
+        rec for rec in (after_doc.get("target_mailbox_records") or [])
+        if rec.get("target_id") == "target-tui"
+    ]
+    assert_condition(len(records) == 1, "TUI offline queue should create one mailbox record", records)
+    mailbox = records[0]
+    command_id = mailbox.get("command_id") or mailbox.get("id") or ""
+    assert_condition(command_id, "TUI offline queue command id missing", mailbox)
+    assert_condition(mailbox.get("status") == "queued", "TUI offline queue mailbox status mismatch", mailbox)
+    assert_condition(mailbox.get("pending_work") is True, "TUI offline queue should remain pending while target is offline", mailbox)
+    assert_condition(mailbox.get("waiting_for") == "target-poll", "TUI offline queue waiting_for mismatch", mailbox)
+    assert_condition(after_doc["targets_by_id"]["target-tui"]["mailbox_pending_work_count"] == 1, "TUI target pending mailbox count mismatch")
+    assert_condition(any(
+        rec.get("event") == "target_workflow_action_completed"
+        and (rec.get("details") or {}).get("action_id") == "queue-command"
+        and (rec.get("details") or {}).get("queues_offline_work") is True
+        for rec in (after_doc.get("events") or [])
+    ), "TUI offline queue completion event missing")
+    write_tui_offline_queue_artifact(artifact_dir, before_doc, after_doc, tui_result)
+
+    proc = start_one_shot(cfg, "command-queue")
+    response = connect_with_retry(queue_port, poll_request("target-tui", "TUI Target"))
+    wait_proc(proc, "TUI offline queued target poll")
+    save_response(artifact_dir, "tui-offline-queue-poll", response)
+    assert_condition(b"HTTP/1.1 200 OK" in response and command_id.encode("ascii") in response, "TUI offline queued command was not delivered", response)
+
+    drain_doc = status(cfg, artifact_dir, "tui-offline-queue-drain-status")
+    drained = (drain_doc.get("target_mailbox_records_by_command_id") or {}).get(command_id) or {}
+    target = drain_doc["targets_by_id"]["target-tui"]
+    assert_condition(drained.get("status") == "delivered", "TUI offline queued command did not become delivered", drained)
+    assert_condition(drained.get("pending_work") is False, "TUI offline queued command should no longer be pending", drained)
+    assert_condition(target.get("last_seen_via") == "command-queue:command_queue_poll", "TUI offline queue drain last_seen_via mismatch", target)
+    assert_condition(target.get("mailbox_pending_work_count") == 0, "TUI offline queue drain left pending work", target)
+    assert_condition(target.get("latest_phone_home_status") == "delivered", "TUI offline queue drain phone-home status mismatch", target)
+    write_tui_offline_queue_drain_artifact(artifact_dir, drain_doc, command_id, response)
+    return {"name": "tui-offline-queue", "status": "pass", "artifact": "tui-offline-queue-after.json"}
+
+
 def assert_condition(condition, message, detail=None):
     if not condition:
         if detail is not None:
@@ -1471,6 +1599,7 @@ def run_harness(artifact_dir):
     phases.append(run_restart_persistence_scenario(artifact_dir))
     phases.append(run_bad_token_phone_home_scenario(artifact_dir))
     phases.append(run_systemd_user_service_scenario(artifact_dir))
+    phases.append(run_tui_offline_queue_scenario(artifact_dir))
 
     queue_command(cfg, "target-alpha", "Alpha Router", "busierbox survey --json")
     queue_command(cfg, "target-bravo", "Bravo Router", "busierbox survey --json")

@@ -53,6 +53,8 @@ assert plan["kind"] == "qemu-flaky-network-lab-plan"
 assert topology["kind"] == "qemu-flaky-network-topology"
 assert len(topology["target_nodes"]) >= 3
 assert "offline-status.json" in plan["required_artifacts"]
+assert "tui-offline-queue.json" in plan["required_artifacts"]
+assert "tui-offline-queue-drain.json" in plan["required_artifacts"]
 assert "offline-workflow-tui.json" in plan["required_artifacts"]
 assert "offline-workflow-drain.json" in plan["required_artifacts"]
 assert "offline-workflow-drain-tui.json" in plan["required_artifacts"]
