@@ -178,7 +178,8 @@ def main():
                  "operator_action_state:", "operator_action_reason:", "can_run_from_curses_enter:",
                  "service_workflow_actions:", "service_workflow_actions_by_service", "enter follows service workflow action readiness",
                  "action 11 includes service workflow actions",
-                 "Bridge Routes", "enter starts/stops this bridge profile", "--bridge-profile",
+                 "Bridge Routes", "bridge_profile_workflow_actions:", "bridge_profile_workflow_actions_by_bridge_profile",
+                 "enter starts/stops this bridge profile", "--bridge-profile",
                  "Mailbox", "mailbox_command:", "pending_reason:", "action 20 opens command queue/results",
                  "Build Config", "enter sets this build config field", "action 14 opens guided build config",
                  "Jobs", "enter cancels this job when supported", "action 12 starts jobs; action 13 cancels jobs",
@@ -434,6 +435,8 @@ def main():
         if (bridge_tui_proc.returncode != 0 or
                 "Traceback" in (bridge_tui_stderr or "") or
                 "selected bridge profile chain-http" not in bridge_tui_text or
+                "bridge_profile_workflow_actions: 4" not in bridge_tui_text or
+                "start-profile: state=ready" not in bridge_tui_text or
                 "headless_command:" not in bridge_tui_text or
                 "--stop --transport bridge" not in bridge_tui_text or
                 "saved bridge profile tui-http" not in bridge_tui_text or
@@ -535,9 +538,24 @@ def main():
         }
         bridge_action = bridge_actions_by_action.get("start-bridge:lab-http") or {}
         bridge_queue_action = bridge_actions_by_action.get("queue-bridge-start:lab-http") or {}
+        bridge_profile_workflow_actions = bridge_status.get("bridge_profile_workflow_actions") or []
+        bridge_profile_actions_by_profile = bridge_status.get("bridge_profile_workflow_actions_by_bridge_profile") or {}
+        lab_profile_actions = {
+            rec.get("action_id"): rec
+            for rec in bridge_profile_actions_by_profile.get("lab-http", [])
+        }
         if (bridge_service.get("port") != bridge_port or
                 bridge_service.get("actual") != "stopped" or
                 bridge_status.get("summary", {}).get("bridge_profile_count") != 2 or
+                bridge_status.get("summary", {}).get("bridge_profile_workflow_action_count") != 8 or
+                bridge_status.get("summary", {}).get("bridge_profile_workflow_action_available_count") != 8 or
+                bridge_status.get("summary", {}).get("bridge_profile_workflow_action_requires_confirmation_count") != 2 or
+                bridge_status.get("summary", {}).get("bridge_profile_workflow_action_can_run_from_curses_enter_count") != 2 or
+                bridge_status.get("summary", {}).get("bridge_profile_workflow_action_action_counts", {}).get("inspect-profile") != 2 or
+                bridge_status.get("summary", {}).get("bridge_profile_workflow_action_action_counts", {}).get("start-profile") != 2 or
+                bridge_status.get("summary", {}).get("bridge_profile_workflow_action_action_counts", {}).get("stop-profile") != 2 or
+                bridge_status.get("summary", {}).get("bridge_profile_workflow_action_action_counts", {}).get("delete-profile") != 2 or
+                bridge_status.get("summary", {}).get("bridge_profile_workflow_action_bridge_profile_counts", {}).get("lab-http") != 4 or
                 bridge_status.get("summary", {}).get("target_workflow_action_count") != 13 or
                 bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("lab-http") != 2 or
                 bridge_status.get("summary", {}).get("target_workflow_action_bridge_profile_counts", {}).get("chain-http") != 2 or
@@ -562,6 +580,14 @@ def main():
                 bridge_queue_action.get("queues_offline_work") is not True or
                 bridge_queue_action.get("target_phone_home_required") is not True or
                 bridge_queue_action.get("headless_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --run-target-workflow-action target-bridge:queue-bridge-start:lab-http" or
+                len(bridge_profile_workflow_actions) != 8 or
+                len(bridge_profile_actions_by_profile.get("lab-http", [])) != 4 or
+                lab_profile_actions.get("start-profile", {}).get("headless_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --transport bridge --bridge-profile lab-http" or
+                lab_profile_actions.get("start-profile", {}).get("operator_action_state") != "ready" or
+                lab_profile_actions.get("start-profile", {}).get("can_run_from_curses_enter") is not True or
+                lab_profile_actions.get("stop-profile", {}).get("operator_action_state") != "not-running" or
+                lab_profile_actions.get("delete-profile", {}).get("requires_confirmation") is not True or
+                lab_profile_actions.get("inspect-profile", {}).get("headless_command") != f"scripts/busierbox-server --config {str(bridge_cfg)} --inspect-bridge-profile lab-http" or
                 bridge_profile.get("target_id") != "target-bridge" or
                 bridge_profile.get("purpose") != "web-admin" or
                 bridge_profile.get("route_path") != f"operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" or
@@ -598,6 +624,7 @@ def main():
                 "bridge_profiles_by_has_last_failure" not in ((bridge_status.get("api_collections") or {}).get("bridge_profiles") or {}).get("indexes", []) or
                 "bridge_hops_by_profile" not in ((bridge_status.get("api_collections") or {}).get("bridge_hop_records") or {}).get("indexes", []) or
                 "bridge_hops_by_to" not in ((bridge_status.get("api_collections") or {}).get("bridge_hop_records") or {}).get("indexes", []) or
+                "bridge_profile_workflow_actions_by_operator_action_state" not in ((bridge_status.get("api_collections") or {}).get("bridge_profile_workflow_actions") or {}).get("indexes", []) or
                 not bridge_events.get("workbench_bridge_profile_inspected") or
                 not bridge_events.get("workbench_bridge_profile_saved") or
                 not bridge_events.get("workbench_bridge_profile_deleted") or
@@ -4052,6 +4079,7 @@ def main():
                 ("target_attribution_records", len(queue_status_json.get("target_attribution_records") or []), "target_attribution_records_by_scope"),
                 ("target_command_state_records", len(queue_status_json.get("target_command_state_records") or []), "target_command_state_records_by_safe_explicit_target_action_boundary"),
                 ("target_workflow_actions", len(queue_status_json.get("target_workflow_actions") or []), "target_workflow_actions_by_target_id"),
+                ("bridge_profile_workflow_actions", len(queue_status_json.get("bridge_profile_workflow_actions") or []), "bridge_profile_workflow_actions_by_bridge_profile"),
                 ("rshell_session_policy_records", len(queue_status_json.get("rshell_session_policy_records") or []), "rshell_session_policy_records_by_session_policy_valid"),
                 ("staged_records", len(queue_status_json.get("staged_records") or []), "staged_by_fetch_command"),
                 ("staged_files_state_records", len(queue_status_json.get("staged_files_state_records") or []), "staged_files_state_records_by_valid"),
@@ -4133,6 +4161,9 @@ def main():
                 api_resources_by_name.get("service_workflow_actions", {}).get("records_key") != "service_workflow_actions" or
                 api_resources_by_summary_key.get("service_workflow_action_count", [{}])[0].get("name") != "service_workflow_actions" or
                 not any(rec.get("name") == "service_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("bridge_profile_workflow_actions", {}).get("records_key") != "bridge_profile_workflow_actions" or
+                api_resources_by_summary_key.get("bridge_profile_workflow_action_count", [{}])[0].get("name") != "bridge_profile_workflow_actions" or
+                not any(rec.get("name") == "bridge_profile_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("rshell_session_policy_records", {}).get("records_key") != "rshell_session_policy_records" or
                 api_resources_by_summary_key.get("rshell_session_policy_record_count", [{}])[0].get("name") != "rshell_session_policy_records" or
                 not any(rec.get("name") == "rshell_session_policy_records" for rec in api_resources_by_primary_key.get("id", [])) or

@@ -91,8 +91,9 @@ The curses TUI also includes a persistent `Bridge Routes` pane. It lists saved
 profiles/chains with state, target association, hop count, and failure state;
 the details pane shows route path, listen/destination endpoints, last relay
 success, byte counters, last failure reason, and the equivalent start/stop
-commands. Pressing Enter on a bridge profile starts it when inactive and stops
-the active bridge listener when that profile is running.
+commands from `bridge_profile_workflow_actions`. Pressing Enter on a bridge
+profile starts it when inactive and stops the active bridge listener when that
+profile is running.
 
 Profiles live in `bridge-profiles.json` under the operator session directory by
 default. Each record includes the listen endpoint, destination endpoint,
@@ -108,6 +109,15 @@ failed relay lifecycle is indexed with
 `bridge_profiles_by_has_last_failure`, and the text list/inspect commands show
 the latest success/failure fields directly. The simple direct `--bridge-*`
 flags remain the easy one-hop path.
+
+Status JSON also exposes `bridge_profile_workflow_actions`, with
+`inspect-profile`, `start-profile`, `stop-profile`, and `delete-profile`
+records for each saved bridge profile. These records include generated
+headless commands, route metadata, current profile state, confirmation
+requirements, and curses Enter readiness. Automation clients can group them
+through `bridge_profile_workflow_actions_by_bridge_profile` or
+`bridge_profile_workflow_actions_by_operator_action_state` instead of deriving
+actions from bridge profile text.
 
 Status JSON also exposes normalized `bridge_hop_records`, one record per
 profile hop. Each hop records its profile name, ordinal, source/destination

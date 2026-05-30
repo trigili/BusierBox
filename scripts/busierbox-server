@@ -2853,6 +2853,175 @@ def bridge_profile_indexes(records):
     }
 
 
+def bridge_profile_workflow_action_records(cfg, bridge_profiles):
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    base = "scripts/busierbox-server --config " + shquote(config_path)
+    records = []
+
+    def command_for(action_id, name):
+        if action_id == "inspect-profile":
+            return base + " --inspect-bridge-profile " + shquote(name)
+        if action_id == "start-profile":
+            return base + " --transport bridge --bridge-profile " + shquote(name)
+        if action_id == "stop-profile":
+            return base + " --stop --transport bridge"
+        if action_id == "delete-profile":
+            return base + " --delete-bridge-profile " + shquote(name)
+        return base
+
+    def add(profile, action_id, category, label, action_state, action_reason,
+            can_run_from_curses_enter=False, curses_enter_action="", requires_confirmation=False):
+        name = str(profile.get("name") or "")
+        if not name:
+            return
+        command = command_for(action_id, name)
+        records.append({
+            "id": f"{name}:{action_id}",
+            "action_id": action_id,
+            "bridge_profile": name,
+            "target_id": str(profile.get("target_id") or ""),
+            "target_label": str(profile.get("target_label") or ""),
+            "category": category,
+            "workflow": "bridge-profile-lifecycle",
+            "label": label,
+            "command": command,
+            "headless_command": command,
+            "route_path": str(profile.get("route_path") or ""),
+            "listen_host": str(profile.get("listen_host") or ""),
+            "listen_port": profile.get("listen_port", ""),
+            "dest_host": str(profile.get("dest_host") or ""),
+            "dest_port": profile.get("dest_port", ""),
+            "current_state": str(profile.get("current_state") or ""),
+            "active": bool(profile.get("active")),
+            "requires_target_online": bool(profile.get("requires_target_online")),
+            "multi_hop": bool(profile.get("multi_hop")),
+            "hop_count": int_value(profile.get("hop_count", 0)),
+            "has_last_successful_relay": bool(profile.get("has_last_successful_relay")),
+            "has_last_failure": bool(profile.get("has_last_failure")),
+            "last_failure_reason": str(profile.get("last_failure_reason") or ""),
+            "available": True,
+            "requires_input": False,
+            "requires_confirmation": bool(requires_confirmation),
+            "operator_action_state": action_state,
+            "operator_action_reason": action_reason,
+            "can_run_from_curses_enter": bool(can_run_from_curses_enter),
+            "curses_enter_action": curses_enter_action,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "tui_visible": True,
+            "safety_boundary": "operator-side bridge profile lifecycle; starts/stops local bridge listener process only",
+        })
+
+    for profile in bridge_profiles or []:
+        if not isinstance(profile, dict):
+            continue
+        name = str(profile.get("name") or "")
+        if not name:
+            continue
+        active = bool(profile.get("active"))
+        if active:
+            start_state = "already-running"
+            start_reason = "already-active"
+            start_enter = False
+            stop_state = "ready"
+            stop_reason = "stop-bridge-profile"
+            stop_enter = True
+        else:
+            start_state = "ready"
+            start_reason = "start-bridge-profile"
+            start_enter = True
+            stop_state = "not-running"
+            stop_reason = "profile-not-active"
+            stop_enter = False
+        add(
+            profile,
+            "inspect-profile",
+            "inspect",
+            f"Inspect bridge profile {name}",
+            "ready",
+            "run-now",
+        )
+        add(
+            profile,
+            "start-profile",
+            "bridge",
+            f"Start bridge profile {name}",
+            start_state,
+            start_reason,
+            can_run_from_curses_enter=start_enter,
+            curses_enter_action="start-profile" if start_enter else "stop-profile",
+        )
+        add(
+            profile,
+            "stop-profile",
+            "bridge",
+            f"Stop active bridge profile {name}",
+            stop_state,
+            stop_reason,
+            can_run_from_curses_enter=stop_enter,
+            curses_enter_action="stop-profile" if stop_enter else "start-profile",
+        )
+        add(
+            profile,
+            "delete-profile",
+            "configuration",
+            f"Delete bridge profile {name}",
+            "confirm-required",
+            "confirmation-required",
+            requires_confirmation=True,
+        )
+    records.sort(key=lambda rec: (rec.get("bridge_profile", ""), rec.get("category", ""), rec.get("action_id", "")))
+    return records
+
+
+def bridge_profile_workflow_action_indexes(records):
+    return {
+        "bridge_profile_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "bridge_profile_workflow_actions_by_action_id": records_by_key(records, "action_id"),
+        "bridge_profile_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
+        "bridge_profile_workflow_actions_by_target_id": records_by_key(records, "target_id"),
+        "bridge_profile_workflow_actions_by_category": records_by_key(records, "category"),
+        "bridge_profile_workflow_actions_by_workflow": records_by_key(records, "workflow"),
+        "bridge_profile_workflow_actions_by_current_state": records_by_key(records, "current_state"),
+        "bridge_profile_workflow_actions_by_active": records_by_key(records, "active"),
+        "bridge_profile_workflow_actions_by_requires_target_online": records_by_key(records, "requires_target_online"),
+        "bridge_profile_workflow_actions_by_multi_hop": records_by_key(records, "multi_hop"),
+        "bridge_profile_workflow_actions_by_hop_count": records_by_key(records, "hop_count"),
+        "bridge_profile_workflow_actions_by_has_last_successful_relay": records_by_key(records, "has_last_successful_relay"),
+        "bridge_profile_workflow_actions_by_has_last_failure": records_by_key(records, "has_last_failure"),
+        "bridge_profile_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
+        "bridge_profile_workflow_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "bridge_profile_workflow_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "bridge_profile_workflow_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
+        "bridge_profile_workflow_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
+    }
+
+
+def bridge_profile_workflow_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
+        "target_counts": record_count_by_key(records, "target_id"),
+        "action_counts": record_count_by_key(records, "action_id"),
+        "category_counts": record_count_by_key(records, "category"),
+        "workflow_counts": record_count_by_key(records, "workflow"),
+        "current_state_counts": record_count_by_key(records, "current_state"),
+        "active_counts": record_count_by_key(records, "active"),
+        "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
+        "requires_input_count": len([rec for rec in records or [] if rec.get("requires_input") is True]),
+        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
+        "requires_target_online_count": len([rec for rec in records or [] if rec.get("requires_target_online") is True]),
+        "multi_hop_count": len([rec for rec in records or [] if rec.get("multi_hop") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
+        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
+        "has_last_successful_relay_counts": record_count_by_key(records, "has_last_successful_relay"),
+        "has_last_failure_counts": record_count_by_key(records, "has_last_failure"),
+    }
+
+
 def bridge_hop_records_from_profiles(profiles):
     records = []
     for profile in profiles or []:
@@ -11967,6 +12136,9 @@ def status_document(cfg):
     services = service_status_rows(cfg)
     bridge_profiles = bridge_profile_records(cfg)
     bridge_profile_index_maps = bridge_profile_indexes(bridge_profiles)
+    bridge_profile_workflow_actions = bridge_profile_workflow_action_records(cfg, bridge_profiles)
+    bridge_profile_workflow_action_index_maps = bridge_profile_workflow_action_indexes(bridge_profile_workflow_actions)
+    bridge_profile_workflow_action_stats = bridge_profile_workflow_action_summary(bridge_profile_workflow_actions)
     bridge_hop_records = bridge_hop_records_from_profiles(bridge_profiles)
     bridge_hop_index_maps = bridge_hop_indexes(bridge_hop_records)
     service_manager = SERVICE_MANAGER.snapshot()
@@ -12800,6 +12972,26 @@ def status_document(cfg):
         "bridge_profile_hop_count_counts": record_count_by_key(bridge_profiles, "hop_count"),
         "bridge_profile_has_last_successful_relay_counts": record_count_by_key(bridge_profiles, "has_last_successful_relay"),
         "bridge_profile_has_last_failure_counts": record_count_by_key(bridge_profiles, "has_last_failure"),
+        "bridge_profile_workflow_action_count": bridge_profile_workflow_action_stats.get("total_count", 0),
+        "bridge_profile_workflow_action_available_count": bridge_profile_workflow_action_stats.get("available_count", 0),
+        "bridge_profile_workflow_action_requires_input_count": bridge_profile_workflow_action_stats.get("requires_input_count", 0),
+        "bridge_profile_workflow_action_requires_confirmation_count": bridge_profile_workflow_action_stats.get("requires_confirmation_count", 0),
+        "bridge_profile_workflow_action_requires_target_online_count": bridge_profile_workflow_action_stats.get("requires_target_online_count", 0),
+        "bridge_profile_workflow_action_multi_hop_count": bridge_profile_workflow_action_stats.get("multi_hop_count", 0),
+        "bridge_profile_workflow_action_can_run_from_curses_enter_count": bridge_profile_workflow_action_stats.get("can_run_from_curses_enter_count", 0),
+        "bridge_profile_workflow_action_bridge_profile_counts": bridge_profile_workflow_action_stats.get("bridge_profile_counts") or {},
+        "bridge_profile_workflow_action_target_counts": bridge_profile_workflow_action_stats.get("target_counts") or {},
+        "bridge_profile_workflow_action_action_counts": bridge_profile_workflow_action_stats.get("action_counts") or {},
+        "bridge_profile_workflow_action_category_counts": bridge_profile_workflow_action_stats.get("category_counts") or {},
+        "bridge_profile_workflow_action_workflow_counts": bridge_profile_workflow_action_stats.get("workflow_counts") or {},
+        "bridge_profile_workflow_action_current_state_counts": bridge_profile_workflow_action_stats.get("current_state_counts") or {},
+        "bridge_profile_workflow_action_active_counts": bridge_profile_workflow_action_stats.get("active_counts") or {},
+        "bridge_profile_workflow_action_operator_action_state_counts": bridge_profile_workflow_action_stats.get("operator_action_state_counts") or {},
+        "bridge_profile_workflow_action_operator_action_reason_counts": bridge_profile_workflow_action_stats.get("operator_action_reason_counts") or {},
+        "bridge_profile_workflow_action_can_run_from_curses_enter_counts": bridge_profile_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
+        "bridge_profile_workflow_action_curses_enter_action_counts": bridge_profile_workflow_action_stats.get("curses_enter_action_counts") or {},
+        "bridge_profile_workflow_action_has_last_successful_relay_counts": bridge_profile_workflow_action_stats.get("has_last_successful_relay_counts") or {},
+        "bridge_profile_workflow_action_has_last_failure_counts": bridge_profile_workflow_action_stats.get("has_last_failure_counts") or {},
         "bridge_hop_record_count": len(bridge_hop_records),
         "bridge_hop_profile_counts": record_count_by_key(bridge_hop_records, "profile"),
         "bridge_hop_multi_hop_counts": record_count_by_key(bridge_hop_records, "multi_hop"),
@@ -13847,6 +14039,28 @@ def status_document(cfg):
                 "bridge_profiles_by_has_last_failure",
             ), "bridge_profile_count",
         ),
+        "bridge_profile_workflow_actions": api_collection_record(
+            "bridge_profile_workflow_actions", bridge_profile_workflow_actions, "id", (
+                "bridge_profile_workflow_actions_by_id",
+                "bridge_profile_workflow_actions_by_action_id",
+                "bridge_profile_workflow_actions_by_bridge_profile",
+                "bridge_profile_workflow_actions_by_target_id",
+                "bridge_profile_workflow_actions_by_category",
+                "bridge_profile_workflow_actions_by_workflow",
+                "bridge_profile_workflow_actions_by_current_state",
+                "bridge_profile_workflow_actions_by_active",
+                "bridge_profile_workflow_actions_by_requires_target_online",
+                "bridge_profile_workflow_actions_by_multi_hop",
+                "bridge_profile_workflow_actions_by_hop_count",
+                "bridge_profile_workflow_actions_by_has_last_successful_relay",
+                "bridge_profile_workflow_actions_by_has_last_failure",
+                "bridge_profile_workflow_actions_by_requires_confirmation",
+                "bridge_profile_workflow_actions_by_operator_action_state",
+                "bridge_profile_workflow_actions_by_operator_action_reason",
+                "bridge_profile_workflow_actions_by_can_run_from_curses_enter",
+                "bridge_profile_workflow_actions_by_curses_enter_action",
+            ), "bridge_profile_workflow_action_count",
+        ),
         "bridge_hop_records": api_collection_record(
             "bridge_hop_records", bridge_hop_records, "id", (
                 "bridge_hops_by_id", "bridge_hops_by_profile",
@@ -14685,6 +14899,8 @@ def status_document(cfg):
         **service_manager_resource_index_maps,
         "bridge_profiles": bridge_profiles,
         **bridge_profile_index_maps,
+        "bridge_profile_workflow_actions": bridge_profile_workflow_actions,
+        **bridge_profile_workflow_action_index_maps,
         "bridge_hop_records": bridge_hop_records,
         **bridge_hop_index_maps,
         "services": services,
@@ -17723,7 +17939,9 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
         elif choice == "17":
-            records = bridge_profile_records(cfg)
+            snap = workbench_snapshot(cfg)
+            records = snap.get("bridge_profiles") or []
+            bridge_actions_by_profile = snap.get("bridge_profile_workflow_actions_by_bridge_profile") or {}
             for idx, rec in enumerate(records, 1):
                 print(
                     f"{idx}: {rec.get('name', '')} "
@@ -17751,23 +17969,33 @@ def run_line_tui(cfg):
                         raise ValueError(f"bridge profile not found: {selected}")
                     rec = matches[0]
                 name = str(rec.get("name") or "")
+                profile_actions = bridge_actions_by_profile.get(name) or []
+                profile_actions_by_id = {str(item.get("action_id") or ""): item for item in profile_actions}
                 print(f"selected bridge profile {name}")
                 print(f"  route_path: {rec.get('route_path', '')}")
-                print(f"  inspect: {bridge_profile_headless_command('inspect', name)}")
-                print(f"  start: {bridge_profile_headless_command('start', name)}")
-                print(f"  stop: {bridge_profile_headless_command('stop', name)}")
-                print(f"  delete: {bridge_profile_headless_command('delete', name)}")
+                print(f"  bridge_profile_workflow_actions: {len(profile_actions)}")
+                for action_id in ("inspect-profile", "start-profile", "stop-profile", "delete-profile"):
+                    action_rec = profile_actions_by_id.get(action_id) or {}
+                    if action_rec:
+                        print(
+                            f"  {action_id}: state={action_rec.get('operator_action_state', '') or '-'} "
+                            f"reason={action_rec.get('operator_action_reason', '') or '-'} "
+                            f"enter={'yes' if action_rec.get('can_run_from_curses_enter') else 'no'}"
+                        )
+                        print(f"    command: {action_rec.get('headless_command', action_rec.get('command', ''))}")
                 action_line = line_input("bridge action inspect/start/stop/delete, or blank> ")
                 action = action_line.strip().lower() if action_line is not None else ""
                 if action == "inspect":
+                    action_rec = profile_actions_by_id.get("inspect-profile") or {}
                     print_bridge_profile(cfg, name)
                     append_event(cfg, "workbench", "workbench_bridge_profile_inspected", details={
                         "name": name,
                         "route_path": rec.get("route_path", ""),
-                        "headless_command": bridge_profile_headless_command("inspect", name),
+                        "headless_command": action_rec.get("headless_command", bridge_profile_headless_command("inspect", name)),
                     })
                 elif action == "start":
-                    headless = bridge_profile_headless_command("start", name)
+                    action_rec = profile_actions_by_id.get("start-profile") or {}
+                    headless = action_rec.get("headless_command", bridge_profile_headless_command("start", name))
                     print(f"headless_command: {headless}")
                     start_service_process(
                         cfg,
@@ -17776,17 +18004,19 @@ def run_line_tui(cfg):
                         headless_command=headless,
                     )
                 elif action == "stop":
-                    headless = bridge_profile_headless_command("stop", name)
+                    action_rec = profile_actions_by_id.get("stop-profile") or {}
+                    headless = action_rec.get("headless_command", bridge_profile_headless_command("stop", name))
                     print(f"headless_command: {headless}")
                     stop_recorded_service(cfg, "bridge", headless_command=headless)
                 elif action == "delete":
+                    action_rec = profile_actions_by_id.get("delete-profile") or {}
                     deleted = delete_bridge_profile(cfg, name)
                     print(f"deleted bridge profile {deleted.get('name', '')}: {deleted.get('route_path', '')}")
-                    print(f"headless_command: {bridge_profile_headless_command('delete', name)}")
+                    print(f"headless_command: {action_rec.get('headless_command', bridge_profile_headless_command('delete', name))}")
                     append_event(cfg, "workbench", "workbench_bridge_profile_deleted", details={
                         "name": name,
                         "route_path": deleted.get("route_path", ""),
-                        "headless_command": bridge_profile_headless_command("delete", name),
+                        "headless_command": action_rec.get("headless_command", bridge_profile_headless_command("delete", name)),
                     })
                 elif action:
                     print(f"unknown bridge action: {action}")
@@ -18249,6 +18479,8 @@ def run_curses_tui(cfg):
                 for idx, rec in enumerate(target_activity_records)
             ] or ["none"]
             bridge_profiles = snap.get("bridge_profiles") or []
+            bridge_profile_workflow_actions_by_profile = snap.get("bridge_profile_workflow_actions_by_bridge_profile") or {}
+            bridge_profile_workflow_actions_by_id = snap.get("bridge_profile_workflow_actions_by_id") or {}
             bridge_lines = [
                 (
                     f"{'>' if pane == 9 and idx == selected else ' '} "
@@ -18653,6 +18885,11 @@ def run_curses_tui(cfg):
             elif pane == 9 and bridge_profiles:
                 rec = bridge_profiles[min(selected, len(bridge_profiles) - 1)]
                 name = str(rec.get("name") or "")
+                profile_actions = bridge_profile_workflow_actions_by_profile.get(name) or []
+                start_action = bridge_profile_workflow_actions_by_id.get(f"{name}:start-profile") or {}
+                stop_action = bridge_profile_workflow_actions_by_id.get(f"{name}:stop-profile") or {}
+                inspect_action = bridge_profile_workflow_actions_by_id.get(f"{name}:inspect-profile") or {}
+                delete_action = bridge_profile_workflow_actions_by_id.get(f"{name}:delete-profile") or {}
                 detail_lines = [
                     f"bridge_profile: {name or '-'}",
                     f"state: {rec.get('current_state', '') or '-'} active={'yes' if rec.get('active') else 'no'}",
@@ -18664,8 +18901,13 @@ def run_curses_tui(cfg):
                     f"last_success: {rec.get('last_successful_relay_at', '') or '-'}",
                     f"bytes: client={rec.get('last_bytes_from_client', 0)} upstream={rec.get('last_bytes_from_upstream', 0)}",
                     f"last_failure: {rec.get('last_failure_at', '') or '-'} reason={rec.get('last_failure_reason', '') or '-'}",
-                    f"start_command: {rec.get('start_command', '')}",
-                    f"stop_command: {rec.get('stop_command', '')}",
+                    f"bridge_profile_workflow_actions: {len(profile_actions)}",
+                    f"inspect_action_state: {inspect_action.get('operator_action_state', '') or '-'} reason={inspect_action.get('operator_action_reason', '') or '-'}",
+                    f"start_action_state: {start_action.get('operator_action_state', '') or '-'} reason={start_action.get('operator_action_reason', '') or '-'}",
+                    f"stop_action_state: {stop_action.get('operator_action_state', '') or '-'} reason={stop_action.get('operator_action_reason', '') or '-'}",
+                    f"delete_action_state: {delete_action.get('operator_action_state', '') or '-'} reason={delete_action.get('operator_action_reason', '') or '-'}",
+                    f"start_command: {start_action.get('headless_command', start_action.get('command', rec.get('start_command', '')))}",
+                    f"stop_command: {stop_action.get('headless_command', stop_action.get('command', rec.get('stop_command', '')))}",
                     "enter starts/stops this bridge profile",
                     "action 17 manages bridge profiles",
                 ]
@@ -18920,9 +19162,20 @@ def run_curses_tui(cfg):
                     name = str(rec.get("name") or "")
                     if name:
                         if rec.get("active"):
-                            stop_recorded_service(cfg, "bridge")
+                            action = bridge_profile_workflow_actions_by_id.get(f"{name}:stop-profile") or {}
+                            stop_recorded_service(
+                                cfg,
+                                "bridge",
+                                headless_command=action.get("headless_command", action.get("command", "")),
+                            )
                         else:
-                            start_service_process(cfg, "bridge", argv_extra=["--bridge-profile", name])
+                            action = bridge_profile_workflow_actions_by_id.get(f"{name}:start-profile") or {}
+                            start_service_process(
+                                cfg,
+                                "bridge",
+                                argv_extra=["--bridge-profile", name],
+                                headless_command=action.get("headless_command", action.get("command", "")),
+                            )
                 elif pane == 11 and config_fields:
                     rec = config_fields[min(selected, len(config_fields) - 1)]
                     key_name = str(rec.get("key") or "")
