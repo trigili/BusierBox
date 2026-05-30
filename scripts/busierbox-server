@@ -17094,6 +17094,18 @@ def run_curses_tui(cfg):
                 f"{'>' if pane == 3 and idx == selected else ' '} {s.get('service', '')} {Path(s.get('path', '')).name} up={s.get('upload_count', 0)} fetch={s.get('fetch_count', 0)} ev={s.get('event_count', 0)} exit={s.get('exit_reason', '') or '-'}"
                 for idx, s in enumerate(snap["sessions"])
             ] or ["none"]
+            targets = snap.get("targets") or []
+            target_lines = [
+                (
+                    f"{'>' if pane == 8 and idx == selected else ' '} "
+                    f"{rec.get('target_id', '') or '-'} "
+                    f"state={rec.get('connectivity_state', '') or '-'} "
+                    f"pending={rec.get('mailbox_pending_work_count', 0)} "
+                    f"overdue={'yes' if rec.get('poll_overdue') else 'no'} "
+                    f"last={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
+                )
+                for idx, rec in enumerate(targets)
+            ] or ["none"]
             release = snap.get("release") or {}
             release_artifacts = release.get("artifacts") or []
             release_devices = release.get("devices") or []
@@ -17279,6 +17291,27 @@ def run_curses_tui(cfg):
                     f"copy_file: {command_copy_path(cfg)}",
                     "c copies command locally",
                 ]
+            elif pane == 8 and targets:
+                rec = targets[min(selected, len(targets) - 1)]
+                target_id = str(rec.get("target_id") or "")
+                target_label = str(rec.get("label") or rec.get("target_label") or "")
+                detail_lines = [
+                    f"target: {target_id or '-'}",
+                    f"label: {target_label or '-'}",
+                    f"state: {rec.get('connectivity_state', '') or '-'}",
+                    f"last_seen: {rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}",
+                    f"last_seen_via: {rec.get('last_seen_via', '') or '-'}",
+                    f"offline_for_sec: {rec.get('offline_for_sec', '') if rec.get('offline_for_sec') != '' else '-'}",
+                    f"next_expected_poll: {rec.get('next_expected_poll', '') or '-'}",
+                    f"poll_overdue: {'yes' if rec.get('poll_overdue') else 'no'}",
+                    f"mailbox_pending: {rec.get('mailbox_pending_work_count', 0)}",
+                    f"latest_result: {rec.get('latest_command_result_status', '') or '-'}",
+                    f"latest_survey: {rec.get('latest_survey_result_kind', '') or '-'}",
+                    f"latest_file: {rec.get('latest_file_transfer_operation', '') or '-'}",
+                    f"latest_bridge: {rec.get('latest_bridge_profile', '') or '-'}",
+                    "enter selects this target filter",
+                    "action 18 opens target mailbox/activity",
+                ]
             else:
                 detail_lines = [
                     f"state: {state_file_path(cfg)}",
@@ -17334,10 +17367,12 @@ def run_curses_tui(cfg):
             draw_list(stdscr, "Recent Uploads", upload_lines, lower_y, third + 1, 7, third, pane == 2)
             draw_list(stdscr, "Recent Sessions", session_lines, lower_y, (third + 1) * 2, 7, width - ((third + 1) * 2), pane == 3)
             events_y = min(height - 8, lower_y + 8)
-            draw_list(stdscr, f"Event Log | {event_tail_status_line}", event_lines, events_y, 0, height - events_y - 1, width // 4, pane == 4)
-            draw_list(stdscr, "Generated Target Commands", command_lines, events_y, width // 4 + 1, height - events_y - 1, width // 4, pane == 5)
-            draw_list(stdscr, "Release Artifacts", release_lines, events_y, (width // 4 + 1) * 2, height - events_y - 1, width // 4, pane == 6)
-            draw_list(stdscr, "Devices / Tuples", device_tuple_lines, events_y, (width // 4 + 1) * 3, height - events_y - 1, width - ((width // 4 + 1) * 3), pane == 7)
+            fifth = max(18, width // 5)
+            draw_list(stdscr, f"Event Log | {event_tail_status_line}", event_lines, events_y, 0, height - events_y - 1, fifth, pane == 4)
+            draw_list(stdscr, "Target Fleet", target_lines, events_y, fifth + 1, height - events_y - 1, fifth, pane == 8)
+            draw_list(stdscr, "Generated Target Commands", command_lines, events_y, (fifth + 1) * 2, height - events_y - 1, fifth, pane == 5)
+            draw_list(stdscr, "Release Artifacts", release_lines, events_y, (fifth + 1) * 3, height - events_y - 1, fifth, pane == 6)
+            draw_list(stdscr, "Devices / Tuples", device_tuple_lines, events_y, (fifth + 1) * 4, height - events_y - 1, width - ((fifth + 1) * 4), pane == 7)
             key = stdscr.getch()
             if key in (ord("q"), ord("Q")):
                 return 0
@@ -17346,10 +17381,10 @@ def run_curses_tui(cfg):
             elif key in (curses.KEY_UP, ord("k")):
                 selected = max(0, selected - 1)
             elif key == ord("\t"):
-                pane = (pane + 1) % 8
+                pane = (pane + 1) % 9
                 selected = 0
             elif key == curses.KEY_BTAB:
-                pane = (pane - 1) % 8
+                pane = (pane - 1) % 9
                 selected = 0
             elif key in (ord("1"), ord("2"), ord("3"), ord("4")):
                 service = {ord("1"): "ssh", ord("2"): "tls-shell", ord("3"): "plain-shell", ord("4"): "file-service"}[key]
@@ -17371,6 +17406,12 @@ def run_curses_tui(cfg):
                     rec = release_nav[min(selected, len(release_nav) - 1)]
                     try:
                         stage_release_nav_item(cfg, rec)
+                    except ValueError:
+                        pass
+                elif pane == 8 and targets:
+                    rec = targets[min(selected, len(targets) - 1)]
+                    try:
+                        set_workbench_target_filter(cfg, str(rec.get("target_id") or ""), targets=targets)
                     except ValueError:
                         pass
             elif key == ord("5"):
@@ -17451,6 +17492,7 @@ def run_curses_tui(cfg):
                 len(snap.get("target_command_records") or []) if pane == 5 else
                 len(release_artifacts) if pane == 6 else
                 (1 + len(release_devices[:5]) + len(release_tuples[:5])) if pane == 7 else
+                len(targets) if pane == 8 else
                 1
             )
             selected = min(max(0, selected), max(0, max_items - 1))

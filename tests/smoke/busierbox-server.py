@@ -164,7 +164,8 @@ def main():
                  "operator state health:", "legacy_without_id=", "legacy_single_target=",
                  "target_id:", "target_label:", "target_confidence:", "target_filter_summary_text",
                  "observed_seen=", "tail_status:", "Event Log |", "selected target evidence:",
-                 "capability=", "compatibility=", "tail_status = event_tail_availability_text(snap)"):
+                 "capability=", "compatibility=", "tail_status = event_tail_availability_text(snap)",
+                 "Target Fleet", "enter selects this target filter", "set_workbench_target_filter(cfg"):
         if word not in src:
             print(f"busierbox-server: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1

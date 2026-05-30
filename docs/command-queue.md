@@ -426,6 +426,11 @@ selected-target, and event counts. Its menu is grouped into Services, Targets,
 Bridges, Files and releases, and Automation/config sections so multi-device
 workflows stay centered on target selection, target detail, and mailbox actions
 without hiding the existing numeric shortcuts.
+The curses TUI keeps the same fleet context visible through a `Target Fleet`
+pane. It lists known targets with connectivity state, pending mailbox work,
+poll-overdue state, and last-seen time; selecting a target and pressing Enter
+sets the current target filter, while the details pane shows heartbeat, mailbox,
+latest result, latest survey/file activity, and bridge context for that device.
 Mutating target workflow actions record `target_workflow_action_completed`
 events with the target id, action id, headless command, and result-specific
 metadata such as queued command id or staged request name, so headless and TUI
