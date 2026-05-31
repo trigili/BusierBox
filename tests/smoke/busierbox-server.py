@@ -9950,6 +9950,24 @@ def main():
         line_console_binary.write_text("#!/bin/sh\necho busierbox console binary\n", encoding="utf-8")
         line_console_state = Path(tmp) / "operator-session" / "line-console-state.json"
         line_console_staged = Path(tmp) / "operator-session" / "line-console-staged.json"
+        line_console_session = session_root / "20260101T000000-file-service"
+        line_console_session.mkdir(parents=True, exist_ok=True)
+        (line_console_session / "session.log").write_text("console session log\n", encoding="utf-8")
+        (line_console_session / "events.jsonl").write_text(json.dumps({"event": "session_smoke"}) + "\n", encoding="utf-8")
+        (line_console_session / "session.json").write_text(json.dumps({
+            "schema": 1,
+            "session_id": line_console_session.name,
+            "service": "file-service",
+            "path": str(line_console_session),
+            "state": "closed",
+            "exit_reason": "smoke",
+            "started_at": "2026-01-01T00:00:00Z",
+            "ended_at": "2026-01-01T00:00:02Z",
+            "updated_at": "2026-01-01T00:00:02Z",
+            "uploads": [],
+            "fetches": [],
+            "artifacts": [],
+        }), encoding="utf-8")
         line_console_target = run(
             "scripts/busierbox-server",
             "--config", str(upload_cfg),
@@ -9987,9 +10005,17 @@ def main():
                 line_console_master,
                 (
                     "help\n"
+                    "show options\n"
+                    "show services\n"
+                    "use service file-service\n"
+                    "info\n"
+                    "back\n"
                     "services\n"
+                    "sessions\n"
+                    "interact 1\n"
                     "targets\n"
                     "use target Console Router\n"
+                    "show activity\n"
                     f"serve-binary {line_console_binary} busierbox-console\n"
                     "files\n"
                     "mailbox\n"
@@ -10026,11 +10052,21 @@ def main():
                 "Traceback" in (line_console_stderr or "") or
                 "bbx[all]>" not in line_console_stdout or
                 "Console commands:" not in line_console_stdout or
-                "services                        show service listeners" not in line_console_stdout or
+                "show targets|services|files" not in line_console_stdout or
+                "services, targets, sessions     shortcuts for show commands" not in line_console_stdout or
+                "Console context:" not in line_console_stdout or
                 "Services:" not in line_console_stdout or
+                "selected service file-service" not in line_console_stdout or
+                "bbx[all]/service/file-service>" not in line_console_stdout or
+                "module context cleared" not in line_console_stdout or
+                "Sessions:" not in line_console_stdout or
+                line_console_session.name not in line_console_stdout or
+                "Session interaction:" not in line_console_stdout or
+                "view: scripts/busierbox-server --config" not in line_console_stdout or
                 "line-console-target label=Console Router" not in line_console_stdout or
                 "selected target line-console-target label=Console Router" not in line_console_stdout or
                 "bbx[Console Router]>" not in line_console_stdout or
+                "Target activity records:" not in line_console_stdout or
                 "BusierBox binary staged for target fetch:" not in line_console_stdout or
                 "request_name=busierbox-console" not in line_console_stdout or
                 "target_fetch_command=busierbox fetch busierbox-console" not in line_console_stdout or
@@ -10069,6 +10105,7 @@ def main():
         if (line_console_status_doc.get("server_state", {}).get("services", {}).get("workbench", {}).get("selected_target_id", "") != "" or
                 not any(event.get("event") == "workbench_target_selected" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
                 not any(event.get("event") == "workbench_target_filter_cleared" for event in line_console_events) or
+                not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
                 not any(
                     event.get("event") == "workbench_binary_served" and
                     (event.get("details") or {}).get("request_name") == "busierbox-console" and

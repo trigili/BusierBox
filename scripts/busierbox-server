@@ -21580,23 +21580,33 @@ def run_line_tui(cfg):
 
     def line_tui_prompt():
         target_id = configured_target_filter(cfg)
+        module = str(cfg.get("_line_console_module") or "").strip()
+        module_suffix = f"/{module}" if module else ""
         if not target_id:
-            return "bbx[all]> "
+            return f"bbx[all]{module_suffix}> "
         ctx = target_context_fields(cfg, target_id)
         label = str(ctx.get("target_label") or "").strip()
         display = label or target_id
         if len(display) > 36:
             display = display[:33] + "..."
-        return f"bbx[{display}]> "
+        return f"bbx[{display}]{module_suffix}> "
 
     def print_line_console_help():
         print("Console commands:")
         print("  help, ?                         show console commands")
+        print("  info                            show selected target/module context")
         print("  status, summary                 refresh workbench summary")
-        print("  services                        show service listeners and headless start/stop commands")
-        print("  targets                         list target devices")
+        print("  show targets|services|files     show major workbench resources")
+        print("  show queue|mailbox|jobs         show queue, mailbox, or background jobs")
+        print("  show sessions|activity          show local sessions or target activity")
+        print("  services, targets, sessions     shortcuts for show commands")
         print("  use target ID|LABEL|NUMBER      select a target context")
+        print("  use service SERVICE             select a service module context")
         print("  use target all, clear target    clear selected target context")
+        print("  back                            clear selected module context")
+        print("  start SERVICE, stop SERVICE     control a service directly")
+        print("  run                             start the selected service module")
+        print("  interact SESSION                show local session inspection commands")
         print("  files, staged                   list staged files and file workflow actions")
         print("  serve-binary [PATH] [NAME]      stage a BusierBox binary for target fetch")
         print("  mailbox, queue                  show command queue and target mailbox state")
@@ -21604,6 +21614,48 @@ def run_line_tui(cfg):
         print("  refresh                         redraw full workbench")
         print("  quit, exit                      quit")
         print("Numeric actions are still available for prompted workflows.")
+
+    def print_line_info():
+        snap = workbench_snapshot(cfg)
+        print("Console context:")
+        print(f"  prompt={line_tui_prompt().strip()}")
+        print(f"  module={str(cfg.get('_line_console_module') or 'root')}")
+        target_filter = snap.get("target_filter") or {}
+        if target_filter.get("active"):
+            print(target_filter_summary_text(target_filter, prefix="  target:"))
+            for line in target_filter_evidence_lines(target_filter):
+                print(f"    {line}")
+        else:
+            print("  target=all")
+        print(line_tui_status_bar(snap))
+
+    def line_service_names():
+        return [str(rec.get("name") or "") for rec in service_status_rows(cfg) if str(rec.get("name") or "")]
+
+    def select_line_service(selector):
+        text = str(selector or "").strip()
+        names = line_service_names()
+        if text.isdigit():
+            idx = int(text) - 1
+            if idx < 0 or idx >= len(names):
+                raise ValueError(f"service number out of range: {text}")
+            service = names[idx]
+        else:
+            matches = [name for name in names if name == text]
+            if not matches:
+                raise ValueError(f"service not found: {text}")
+            service = matches[0]
+        cfg["_line_console_module"] = f"service/{service}"
+        print(f"selected service {service}")
+        print(f"  start: {service_start_headless_command(cfg, service)}")
+        print(f"  stop: {service_stop_headless_command(cfg, service)}")
+        return service
+
+    def clear_line_module():
+        if cfg.pop("_line_console_module", None):
+            print("module context cleared")
+        else:
+            print("module context already root")
 
     def print_line_targets():
         unfiltered_cfg = dict(cfg)
@@ -21655,6 +21707,34 @@ def run_line_tui(cfg):
             print(f"    start: {service_start_headless_command(cfg, name)}")
             print(f"    stop: {service_stop_headless_command(cfg, name)}")
 
+    def start_line_service(service):
+        service = str(service or "").strip()
+        if not service:
+            module = str(cfg.get("_line_console_module") or "")
+            if module.startswith("service/"):
+                service = module.split("/", 1)[1]
+        if not service:
+            raise ValueError("usage: start SERVICE")
+        if service not in line_service_names():
+            raise ValueError(f"service not found: {service}")
+        headless = service_start_headless_command(cfg, service)
+        print(f"headless_command: {headless}")
+        start_service_process(cfg, service, headless_command=headless)
+
+    def stop_line_service(service):
+        service = str(service or "").strip()
+        if not service:
+            module = str(cfg.get("_line_console_module") or "")
+            if module.startswith("service/"):
+                service = module.split("/", 1)[1]
+        if not service:
+            raise ValueError("usage: stop SERVICE")
+        if service not in line_service_names():
+            raise ValueError(f"service not found: {service}")
+        headless = service_stop_headless_command(cfg, service)
+        print(f"headless_command: {headless}")
+        stop_recorded_service(cfg, service, headless_command=headless)
+
     def print_line_jobs():
         snap = workbench_snapshot(cfg)
         jobs = snap.get("workbench_jobs") or []
@@ -21669,6 +21749,83 @@ def run_line_tui(cfg):
                 f"managed={'yes' if rec.get('pid_managed') else 'no'} "
                 f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
             )
+
+    def print_line_sessions():
+        sessions = workbench_snapshot(cfg).get("sessions") or []
+        print("Sessions:")
+        if not sessions:
+            print("  none")
+            return
+        for idx, item in enumerate(sessions[:12], 1):
+            session_id = item.get("session_id") or Path(str(item.get("path", ""))).name
+            print(
+                f"  {idx}: {session_id} service={item.get('service', '') or '-'} "
+                f"state={item.get('state', '') or '-'} exit={item.get('exit_reason', '') or '-'} "
+                f"updated={item.get('updated_at', '') or '-'}"
+            )
+            print(
+                f"     uploads={item.get('upload_count', 0)} fetches={item.get('fetch_count', 0)} "
+                f"events={item.get('event_count', 0)} artifacts={item.get('artifact_count', 0)} "
+                f"path={item.get('path', '')}"
+            )
+            if item.get("session_log"):
+                print(f"     session_log={item.get('session_log', '')}")
+
+    def interact_line_session(selector):
+        text = str(selector or "").strip()
+        if not text:
+            raise ValueError("usage: interact SESSION")
+        sessions = workbench_snapshot(cfg).get("sessions") or []
+        selected = {}
+        if text.isdigit():
+            idx = int(text) - 1
+            if idx < 0 or idx >= len(sessions):
+                raise ValueError(f"session number out of range: {text}")
+            selected = sessions[idx]
+        else:
+            for item in sessions:
+                session_id = str(item.get("session_id") or Path(str(item.get("path", ""))).name)
+                if text == session_id or text == str(item.get("path", "")):
+                    selected = item
+                    break
+        if not selected:
+            raise ValueError(f"session not found: {text}")
+        path = str(selected.get("path") or "")
+        headless = view_path_headless_command(cfg, path)
+        print(f"Session interaction: {selected.get('session_id') or Path(path).name}")
+        print(f"  service={selected.get('service', '') or '-'} state={selected.get('state', '') or '-'} path={path}")
+        print(f"  view: {headless}")
+        if selected.get("session_log"):
+            print(f"  session_log={selected.get('session_log', '')}")
+        if selected.get("event_log"):
+            print(f"  event_log={selected.get('event_log', '')}")
+        append_event(cfg, "workbench", "workbench_session_interaction_viewed", details={
+            "session_id": selected.get("session_id") or Path(path).name,
+            "session_path": path,
+            "headless_command": headless,
+        })
+
+    def show_line_resource(resource):
+        key = str(resource or "").strip().lower()
+        if key in ("target", "targets", "hosts"):
+            print_line_targets()
+        elif key in ("service", "services"):
+            print_line_services()
+        elif key in ("file", "files", "staged"):
+            print_staged(cfg)
+        elif key in ("job", "jobs"):
+            print_line_jobs()
+        elif key in ("session", "sessions"):
+            print_line_sessions()
+        elif key in ("queue", "mailbox", "commands"):
+            print_command_queue(cfg, json_output=False)
+        elif key in ("activity", "events"):
+            snap = workbench_snapshot(cfg)
+            print_target_activity_records(snap, target_id=configured_target_filter(cfg), limit=12)
+        elif key in ("options", "context", "info"):
+            print_line_info()
+        else:
+            raise ValueError("usage: show targets|services|files|queue|mailbox|jobs|sessions|activity|options")
 
     def stage_line_binary(selector="", request_name="", prompt_for_missing=True, prompt_start=True):
         rel = release_context(cfg)
@@ -21828,11 +21985,23 @@ def run_line_tui(cfg):
             elif cmd in {"status", "summary"}:
                 print(line_tui_status_bar(workbench_snapshot(cfg)))
                 continue
+            elif cmd == "info":
+                print_line_info()
+                continue
+            elif cmd == "show":
+                try:
+                    show_line_resource(console_args[1] if len(console_args) >= 2 else "options")
+                except ValueError as exc:
+                    print(exc)
+                continue
             elif cmd == "services":
                 print_line_services()
                 continue
             elif cmd == "targets":
                 print_line_targets()
+                continue
+            elif cmd == "sessions":
+                print_line_sessions()
                 continue
             elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "target":
                 selector = " ".join(console_args[2:]).strip()
@@ -21844,9 +22013,46 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
+            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "service":
+                selector = " ".join(console_args[2:]).strip()
+                if not selector:
+                    print("usage: use service SERVICE")
+                    continue
+                try:
+                    select_line_service(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
             elif cmd == "clear" and len(console_args) >= 2 and console_args[1].lower() == "target":
                 try:
                     select_line_target("all", targets=[])
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"back", "unset"}:
+                clear_line_module()
+                continue
+            elif cmd == "start":
+                try:
+                    start_line_service(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "stop":
+                try:
+                    stop_line_service(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "run":
+                try:
+                    start_line_service(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "interact":
+                try:
+                    interact_line_session(" ".join(console_args[1:]).strip())
                 except ValueError as exc:
                     print(exc)
                 continue
