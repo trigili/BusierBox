@@ -10248,7 +10248,8 @@ def main():
                     "show activity\n"
                     "queue busierbox survey --json\n"
                     "show mailbox\n"
-                    f"upload {line_console_upload} console-upload\n"
+                    f"upload --start {line_console_upload} console-upload\n"
+                    "stop file-service\n"
                     "downloads\n"
                     f"serve-binary --start {line_console_binary} busierbox-console\n"
                     "stop file-service\n"
@@ -10392,7 +10393,7 @@ def main():
                 "route print" not in line_console_stdout or
                 "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
-                "upload LOCAL [NAME]             stage a local file for target fetch" not in line_console_stdout or
+                "upload [--start] LOCAL [NAME]   stage and optionally serve a local file" not in line_console_stdout or
                 "downloads                       list target-fetchable staged files" not in line_console_stdout or
                 "run -j, run --job               start selected background action as a managed job" not in line_console_stdout or
                 "use job ID, jobs -i ID          select or inspect a background job" not in line_console_stdout or
@@ -10431,7 +10432,7 @@ def main():
                 "selected route=console-route" not in line_console_stdout or
                 "selected module=daemon:operator-daemon-status" not in line_console_stdout or
                 "commands: options, check, run, run --dry-run, run --confirm, background" not in line_console_stdout or
-                "commands: interact, queue COMMAND, show activity, show options, serve-binary --start PATH NAME, clear target" not in line_console_stdout or
+                "commands: interact, queue COMMAND, upload --start LOCAL NAME, show activity, serve-binary --start PATH NAME, clear target" not in line_console_stdout or
                 "help: help use, help modules, help routes, help sessions" not in line_console_stdout or
                 "returned to main workspace" not in line_console_stdout or
                 "cleared_module=no cleared_target=yes" not in line_console_stdout or
@@ -10477,7 +10478,7 @@ def main():
                 "useagent Console Router" not in line_console_stdout or
                 "agent Console Router" not in line_console_stdout or
                 "Agent interaction: line-console-target label=Console Router state=online" not in line_console_stdout or
-                "commands: queue COMMAND, mailbox, upload LOCAL [NAME], serve-binary --start PATH [NAME], sessions, show activity, clear target" not in line_console_stdout or
+                "commands: queue COMMAND, mailbox, upload --start LOCAL [NAME], serve-binary --start PATH [NAME], sessions, show activity, clear target" not in line_console_stdout or
                 "headless_status: scripts/busierbox-server --config" not in line_console_stdout or
                 "pending work: none" not in line_console_stdout or
                 "rename Console Router" not in line_console_stdout or
@@ -10544,7 +10545,7 @@ def main():
                 "target_fetch_command=busierbox fetch busierbox-console" not in line_console_stdout or
                 "target_run_hint=chmod +x ./busierbox-console && ./busierbox-console --help" not in line_console_stdout or
                 "--as busierbox-console --list-staged" not in line_console_stdout or
-                "file_service_started=yes" not in line_console_stdout or
+                line_console_stdout.count("file_service_started=yes") < 2 or
                 "File service workflow actions:" not in line_console_stdout or
                 "Target mailbox records:" not in line_console_stdout or
                 "target filter cleared" not in line_console_stdout):
@@ -10629,7 +10630,8 @@ def main():
                 not any(
                     event.get("event") == "workbench_file_uploaded" and
                     (event.get("details") or {}).get("request_name") == "console-upload" and
-                    (event.get("details") or {}).get("target_id") == "line-console-target"
+                    (event.get("details") or {}).get("target_id") == "line-console-target" and
+                    (event.get("details") or {}).get("started_file_service") is True
                     for event in line_console_events) or
                 not any(
                     event.get("event") == "workbench_binary_served" and
