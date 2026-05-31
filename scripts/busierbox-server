@@ -21693,6 +21693,7 @@ def run_line_tui(cfg):
         print("  download [--queue] TARGET_PATH  show or queue target-to-operator upload")
         print("  survey [--start|--queue]        show, serve, or queue survey bootstrap")
         print("  daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow")
+        print("  release, release stage SELECTOR list or stage release artifacts")
         print("  upload [--start] LOCAL [NAME]   stage and optionally serve a local file")
         print("  fetch [--queue] [--start] NAME  show or queue target fetch of staged file")
         print("  files, staged                   list staged files and file workflow actions")
@@ -22004,6 +22005,15 @@ def run_line_tui(cfg):
                 "  Stages a local file so a target can fetch it from the file service.",
                 "  --start starts the file-service after staging.",
                 "  NAME defaults to the local basename. Use downloads or files to list staged files.",
+            ],
+            "release": [
+                "release",
+                "release list",
+                "release stage [--start] SELECTOR",
+                "stage-release [--start] SELECTOR",
+                "  Lists detected release artifacts, recommendations, and staging selectors.",
+                "  Stages a release artifact so a target can fetch it from the file service.",
+                "  SELECTOR may be an artifact path, recommendation id, by_device:NAME, or by_tuple_path:PATH.",
             ],
             "fetch": [
                 "fetch [--queue] [--start] NAME",
@@ -23189,20 +23199,20 @@ def run_line_tui(cfg):
             "useagent", "uselistener", "useroute", "usesession", "usemodule",
             "main", "home", "root", "back", "background", "start", "stop",
             "check", "run", "execute", "exploit", "interact", "queue",
-            "download", "get", "survey", "survey-bootstrap", "daemon", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
+            "download", "get", "survey", "survey-bootstrap", "daemon", "release", "releases", "stage-release", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
             "quit", "exit",
         ]
         show_resources = [
             "agents", "targets", "listeners", "services", "routes", "sessions",
             "jobs", "queue", "mailbox", "files", "stagers", "loot", "activity",
-            "modules", "categories", "service modules", "daemon modules",
+            "release", "releases", "modules", "categories", "service modules", "daemon modules",
             "target modules", "workbench modules", "options",
         ]
         use_kinds = ["agent", "target", "listener", "service", "route", "session", "job", "module", "action"]
         help_topics = [
             "search", "complete", "resource", "makerc", "history", "use", "main", "show",
             "modules", "options", "next", "workspace", "aliases", "listeners",
-            "routes", "set", "setg", "run", "jobs", "queue", "download", "survey", "upload", "fetch", "files", "view",
+            "routes", "set", "setg", "run", "jobs", "queue", "download", "survey", "release", "upload", "fetch", "files", "view",
             "daemon", "interact", "sessions",
         ]
 
@@ -23242,6 +23252,32 @@ def run_line_tui(cfg):
                     if kind:
                         names.append(f"{kind}:{rec_id}")
             return names
+
+        def release_selectors():
+            rel = release_context(cfg)
+            if not rel:
+                return []
+            selectors = []
+            for rec in rel.get("artifacts") or []:
+                selectors.extend([
+                    rec.get("release_path"),
+                    rec.get("name"),
+                    rec.get("path"),
+                ])
+            for rec in rel.get("recommendation_records") or []:
+                selectors.extend([
+                    rec.get("id"),
+                    rec.get("artifact"),
+                ])
+            for rec in rel.get("devices") or []:
+                name = str(rec.get("name") or "")
+                if name:
+                    selectors.append(f"by_device:{name}")
+            for rec in rel.get("tuples") or []:
+                path = str(rec.get("path") or "")
+                if path:
+                    selectors.append(f"by_tuple_path:{path}")
+            return [str(item or "") for item in selectors if str(item or "")]
 
         def prefixed(prefix_text, values):
             seen = set()
@@ -23325,6 +23361,16 @@ def run_line_tui(cfg):
         if cmd in {"usemodule", "useaction", "run", "execute", "exploit", "check"}:
             selector_prefix = "" if trailing_space else " ".join(parts[1:])
             return [f"{cmd} {item}" for item in prefixed(selector_prefix, action_names())]
+        if cmd in {"release", "releases"}:
+            if len(parts) <= 2 and not trailing_space:
+                return [f"{cmd} {item}" for item in prefixed(current, ["list", "show", "stage", "recommendations", "artifacts"])]
+            subcmd = parts[1].lower() if len(parts) >= 2 else ""
+            if subcmd in {"stage", "use", "select"}:
+                selector_prefix = "" if trailing_space else " ".join(parts[2:])
+                return [f"{cmd} {subcmd} {item}" for item in prefixed(selector_prefix, release_selectors())]
+        if cmd == "stage-release":
+            selector_prefix = "" if trailing_space else " ".join(parts[1:])
+            return [f"{cmd} {item}" for item in prefixed(selector_prefix, release_selectors())]
         if cmd in {"fetch", "deploy", "queue-fetch", "unstage", "rmfile", "rm-file"}:
             selector_prefix = "" if trailing_space else " ".join(parts[1:])
             staged_names = [
@@ -24102,12 +24148,145 @@ def run_line_tui(cfg):
         elif key in ("activity", "events"):
             snap = workbench_snapshot(cfg)
             print_target_activity_records(snap, target_id=configured_target_filter(cfg), limit=12)
+        elif key in ("release", "releases", "artifact", "artifacts"):
+            print_line_release()
         elif key in ("options", "option"):
             print_line_options()
         elif key in ("context", "info"):
             print_line_info()
         else:
             raise ValueError("usage: show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options")
+
+    def print_line_release():
+        rel = release_context(cfg)
+        print("Release console:")
+        if not rel:
+            print("  no release bundle detected")
+            print("  commands: run make package or pass --release-dir, then release stage SELECTOR")
+            return
+        print(
+            f"  release_name={rel.get('release_name', '') or '-'} "
+            f"release_dir={rel.get('release_dir', '') or '-'}"
+        )
+        print(
+            f"  artifacts={len(rel.get('artifacts') or [])} "
+            f"recommendations={len(rel.get('recommendation_records') or [])} "
+            f"devices={len(rel.get('devices') or [])} "
+            f"tuples={len(rel.get('tuples') or [])}"
+        )
+        print("  commands: release stage SELECTOR, serve-binary SELECTOR NAME, fetch --queue NAME, files")
+        search_records = []
+        print("Release recommendations:")
+        recommendations = rel.get("recommendation_records") or []
+        if recommendations:
+            for rec in recommendations[:8]:
+                selector = str(rec.get("id") or rec.get("artifact") or "")
+                artifact = str(rec.get("artifact") or rec.get("artifact_name") or "")
+                print(
+                    f"  selector={selector} "
+                    f"{rec.get('scope', '')}:{rec.get('key', '')} -> {artifact} "
+                    f"preset={rec.get('payload_preset', '') or '-'} "
+                    f"compatibility={(rec.get('compatibility') or {}).get('label', '') or '-'}"
+                )
+                search_records.append({
+                    "kind": "release-recommendation",
+                    "label": f"{rec.get('scope', '')}:{rec.get('key', '')} -> {artifact}",
+                    "rec": rec,
+                    "command": f"release stage {selector}",
+                    "use_hint": f"release stage {selector}",
+                })
+        else:
+            print("  none")
+        print("Release artifacts:")
+        artifacts = rel.get("artifacts") or []
+        if artifacts:
+            for rec in artifacts[:8]:
+                selector = str(rec.get("release_path") or rec.get("name") or rec.get("path") or "")
+                print(
+                    f"  selector={selector} "
+                    f"name={rec.get('name', '') or '-'} "
+                    f"tuple={rec.get('tuple_path', '') or '-'} "
+                    f"preset={rec.get('payload_preset', '') or '-'} "
+                    f"compatibility={(rec.get('compatibility') or {}).get('label', '') or '-'}"
+                )
+                search_records.append({
+                    "kind": "release-artifact",
+                    "label": f"{rec.get('name', '') or selector}",
+                    "rec": rec,
+                    "command": f"release stage {selector}",
+                    "use_hint": f"release stage {selector}",
+                })
+        else:
+            print("  none")
+        device_selectors = [f"by_device:{rec.get('name')}" for rec in rel.get("devices") or [] if rec.get("name")]
+        tuple_selectors = [f"by_tuple_path:{rec.get('path')}" for rec in rel.get("tuples") or [] if rec.get("path")]
+        if device_selectors:
+            print("Device selectors: " + ", ".join(device_selectors[:8]))
+        if tuple_selectors:
+            print("Tuple selectors: " + ", ".join(tuple_selectors[:8]))
+        cfg["_line_console_search_results"] = search_records
+        append_event(cfg, "workbench", "workbench_release_console_viewed", details={
+            "release_dir": rel.get("release_dir", ""),
+            "release_name": rel.get("release_name", ""),
+            "artifact_count": len(artifacts),
+            "recommendation_count": len(recommendations),
+            "device_count": len(rel.get("devices") or []),
+            "tuple_count": len(rel.get("tuples") or []),
+        })
+
+    def parse_line_release_stage_args(args):
+        start_file_service = False
+        values = []
+        for item in args:
+            lower = item.lower()
+            if lower in {"--start", "--start-service"}:
+                start_file_service = True
+            else:
+                values.append(item)
+        selector = " ".join(values).strip()
+        return selector, start_file_service
+
+    def stage_line_release(selector, start_file_service=False):
+        selector = str(selector or "").strip()
+        if not selector:
+            raise ValueError("usage: release stage [--start] SELECTOR")
+        headless = (
+            "scripts/busierbox-server --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --stage-release-artifact "
+            + shquote(selector)
+            + " --list-staged"
+        )
+        rec = stage_release_selection(cfg, selector)
+        fetch_command = render_fetch_command(rec["request_name"], cfg)
+        started = False
+        if start_file_service:
+            start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
+            started = True
+        print("Release artifact staged:")
+        print(f"  selector={selector}")
+        print(f"  request_name={rec.get('request_name', '')}")
+        print(f"  source_path={rec.get('source_path', '')}")
+        print(f"  release_path={rec.get('release_path', '')}")
+        print(f"  tuple_path={rec.get('tuple_path', '')}")
+        print(f"  payload_preset={rec.get('payload_preset', '')}")
+        print(f"  target_fetch_command={fetch_command}")
+        print(f"  file_service_started={'yes' if started else 'no'}")
+        print(f"headless_command: {headless}")
+        append_event(cfg, "workbench", "workbench_release_artifact_staged", details={
+            "selector": selector,
+            "headless_command": headless,
+            "request_name": rec.get("request_name", ""),
+            "source_path": rec.get("source_path", ""),
+            "release_artifact_name": rec.get("release_artifact_name", ""),
+            "release_path": rec.get("release_path", ""),
+            "tuple_path": rec.get("tuple_path", ""),
+            "payload_preset": rec.get("payload_preset", ""),
+            "fetch_command": fetch_command,
+            "started_file_service": started,
+            "direct_console": True,
+        })
+        return rec
 
     def parse_line_binary_args(args):
         selector = ""
@@ -24938,6 +25117,28 @@ def run_line_tui(cfg):
             elif cmd == "daemon":
                 try:
                     run_line_daemon_action(console_args[1:])
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"release", "releases"}:
+                subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
+                if not subcmd or subcmd in {"list", "show", "recommendations", "artifacts"}:
+                    print_line_release()
+                elif subcmd in {"stage", "use", "select"}:
+                    try:
+                        selector, start_release_service = parse_line_release_stage_args(console_args[2:])
+                        stage_line_release(selector, start_file_service=start_release_service)
+                    except ValueError as exc:
+                        print(exc)
+                elif len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
+                    print_line_command_help("release")
+                else:
+                    print("usage: release [list|stage SELECTOR]")
+                continue
+            elif cmd == "stage-release":
+                try:
+                    selector, start_release_service = parse_line_release_stage_args(console_args[1:])
+                    stage_line_release(selector, start_file_service=start_release_service)
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -27132,6 +27333,8 @@ Operations:
   serve-binary [--start] [PATH] [NAME]
                                 stage and optionally serve a BusierBox binary
   upload [--start] LOCAL [NAME] stage and optionally serve a local file
+  release, release stage SELECTOR
+                                list or stage release artifacts
   fetch [--queue] [--start] NAME
                                 show or queue target fetch of a staged file
   download [--queue] TARGET_PATH

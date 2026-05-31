@@ -170,6 +170,7 @@ def main():
             "jobs, jobs -i ID, job ID" not in console_help or
             "interact agent ID|LABEL" not in console_help or
             "serve-binary [--start] [PATH] [NAME]" not in console_help or
+            "release, release stage SELECTOR" not in console_help or
             "fetch [--queue] [--start] NAME" not in console_help or
             "resource FILE" not in console_help or
             "makerc FILE" not in console_help or
@@ -11646,7 +11647,15 @@ def main():
             os.close(line_slave)
             line_slave = -1
             time.sleep(0.3)
-            os.write(line_master, b"10\nby_tuple_path:by-tuple/native/host/host/host\nq\n")
+            os.write(
+                line_master,
+                (
+                    "help release\n"
+                    "release\n"
+                    "release stage by_tuple_path:by-tuple/native/host/host/host\n"
+                    "q\n"
+                ).encode("utf-8"),
+            )
             line_stdout_chunks = []
             deadline = time.time() + 5
             while line_proc.poll() is None and time.time() < deadline:
@@ -11674,9 +11683,15 @@ def main():
                 pass
         if (line_proc.returncode != 0 or
                 "Traceback" in (line_stderr or "") or
+                "Help: release" not in _line_stdout or
+                "Release console:" not in _line_stdout or
+                "commands: release stage SELECTOR" not in _line_stdout or
+                "selector=by_device:lab-router" not in _line_stdout or
+                "Release artifact staged:" not in _line_stdout or
+                "target_fetch_command=busierbox fetch busierbox-test" not in _line_stdout or
                 "headless_command: scripts/busierbox-server --config" not in _line_stdout or
                 "--stage-release-artifact by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout):
-            print("line-oriented TUI did not stage release tuple recommendation", file=sys.stderr)
+            print("line-oriented TUI did not expose direct release staging", file=sys.stderr)
             print(_line_stdout, file=sys.stderr)
             print(line_stderr or "", file=sys.stderr)
             return 1
@@ -11705,8 +11720,11 @@ def main():
             return 1
         line_release_doc = json.loads(line_release_status.stdout)
         release_stage_events = (line_release_doc.get("events_by_event") or {}).get("workbench_release_artifact_staged") or []
+        release_view_events = (line_release_doc.get("events_by_event") or {}).get("workbench_release_console_viewed") or []
         if (not release_stage_events or
                 (release_stage_events[-1].get("details") or {}).get("selector") != "by_tuple_path:by-tuple/native/host/host/host" or
+                (release_stage_events[-1].get("details") or {}).get("direct_console") is not True or
+                not release_view_events or
                 "--stage-release-artifact by_tuple_path:by-tuple/native/host/host/host" not in ((release_stage_events[-1].get("details") or {}).get("headless_command") or "")):
             print("line-oriented TUI did not record release staging event", file=sys.stderr)
             print(json.dumps(line_release_doc, indent=2, sort_keys=True), file=sys.stderr)
