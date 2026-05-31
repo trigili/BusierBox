@@ -22793,6 +22793,36 @@ def run_line_tui(cfg):
             rec = set_workbench_build_config(cfg, f"{key}={text}")
             print(f"set {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
             return
+        # Server config keys: GRIT_FOO_BAR maps to cfg["foo_bar"].
+        # These live in local/server-config.json, not configs/grit.conf.
+        server_key = key[5:].lower() if key.upper().startswith("GRIT_") else key.lower()
+        if server_key in DEFAULTS:
+            old_val = cfg.get(server_key, "")
+            # Cast to the same type as the default
+            default_val = DEFAULTS.get(server_key)
+            try:
+                typed_val = type(default_val)(text) if default_val is not None else text
+            except (ValueError, TypeError):
+                typed_val = text
+            cfg[server_key] = typed_val
+            # Persist to server config file
+            config_path = Path(str(cfg.get("_config_path") or DEFAULT_CONFIG))
+            try:
+                existing = {}
+                if config_path.is_file():
+                    try:
+                        existing = json.loads(config_path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError):
+                        pass
+                if not isinstance(existing, dict):
+                    existing = {}
+                existing[server_key] = typed_val
+                config_path.parent.mkdir(parents=True, exist_ok=True)
+                atomic_write_json(config_path, existing)
+                print(f"set {key}={shell_double_quote(str(typed_val))}  (saved to {config_path})")
+            except OSError as exc:
+                print(f"set {key}={shell_double_quote(str(typed_val))}  (warning: could not save: {exc})")
+            return
         target_id, rec = selected_target_record_for_update()
         if key in ("label", "target.label"):
             updated = set_target_label(
