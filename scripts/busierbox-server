@@ -21640,6 +21640,7 @@ def run_line_tui(cfg):
     def print_line_console_help():
         print("Console commands:")
         print("  help [COMMAND], ?               show console command help")
+        print("  complete [PREFIX]               show command/resource completions")
         print("  search TERM                     search targets, services, actions, sessions, jobs, files, queue")
         print("  resource FILE                   run console commands from a script file")
         print("  history, !!, !N, repeat N       show or replay command history")
@@ -21785,6 +21786,12 @@ def run_line_tui(cfg):
                 "search TERM",
                 "  Searches targets, services, action modules, sessions, jobs, staged files, and queued commands.",
                 "  Example: search file-service",
+            ],
+            "complete": [
+                "complete [PREFIX]",
+                "completions [PREFIX]",
+                "  Lists command and resource completions for dumb terminals and resource scripts.",
+                "  Examples: complete use ag; complete agent lab; complete use module file",
             ],
             "resource": [
                 "resource FILE",
@@ -22977,6 +22984,158 @@ def run_line_tui(cfg):
                 records.append(item)
         return records
 
+    def line_completion_candidates(prefix=""):
+        text = str(prefix or "")
+        stripped = text.strip()
+        base_commands = [
+            "help", "complete", "search", "resource", "history", "workspace", "status",
+            "show", "info", "options", "next", "set", "setg", "unset", "unsetg",
+            "agents", "agent", "targets", "target", "listeners", "listener",
+            "routes", "route", "sessions", "session", "jobs", "job", "use",
+            "useagent", "uselistener", "useroute", "usesession", "usemodule",
+            "main", "home", "root", "back", "background", "start", "stop",
+            "check", "run", "execute", "exploit", "interact", "queue",
+            "daemon", "upload", "serve-binary", "downloads", "mailbox", "refresh",
+            "quit", "exit",
+        ]
+        show_resources = [
+            "agents", "targets", "listeners", "services", "routes", "sessions",
+            "jobs", "queue", "mailbox", "files", "stagers", "loot", "activity",
+            "modules", "categories", "service modules", "daemon modules",
+            "target modules", "workbench modules", "options",
+        ]
+        use_kinds = ["agent", "target", "listener", "service", "route", "session", "job", "module", "action"]
+        help_topics = [
+            "search", "complete", "resource", "history", "use", "main", "show",
+            "modules", "options", "next", "workspace", "aliases", "listeners",
+            "routes", "set", "setg", "run", "jobs", "queue", "upload",
+            "daemon", "interact", "sessions",
+        ]
+
+        def target_names():
+            names = []
+            unfiltered_cfg = dict(cfg)
+            unfiltered_cfg.pop("_target_id_filter", None)
+            unfiltered_cfg.pop("_target_label_filter", None)
+            for rec in workbench_snapshot(unfiltered_cfg).get("targets") or []:
+                for item in [rec.get("target_id"), rec.get("label"), *(rec.get("aliases") or [])]:
+                    value = str(item or "").strip()
+                    if value:
+                        names.append(value)
+            return names
+
+        def session_names():
+            names = []
+            for rec in workbench_snapshot(cfg).get("sessions") or []:
+                value = str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
+                if value:
+                    names.append(value)
+            return names
+
+        def job_names():
+            return [str(rec.get("id") or "") for rec in workbench_snapshot(cfg).get("workbench_jobs") or [] if str(rec.get("id") or "")]
+
+        def route_names():
+            return [str(rec.get("name") or "") for rec in bridge_profile_records(cfg) if str(rec.get("name") or "")]
+
+        def action_names():
+            names = []
+            for rec in line_action_records():
+                rec_id = str(rec.get("id") or "")
+                kind = str(rec.get("kind") or "")
+                if rec_id:
+                    names.append(rec_id)
+                    if kind:
+                        names.append(f"{kind}:{rec_id}")
+            return names
+
+        def prefixed(prefix_text, values):
+            seen = set()
+            result = []
+            lower = str(prefix_text or "").lower()
+            for value in values:
+                candidate = str(value or "").strip()
+                if not candidate or candidate in seen:
+                    continue
+                if not lower or candidate.lower().startswith(lower):
+                    seen.add(candidate)
+                    result.append(candidate)
+            return result
+
+        if not stripped:
+            return base_commands
+        try:
+            parts = shlex.split(stripped)
+        except ValueError:
+            parts = stripped.split()
+        trailing_space = bool(text and text[-1].isspace())
+        if not parts:
+            return base_commands
+        cmd = parts[0].lower()
+        current = "" if trailing_space else parts[-1]
+        if len(parts) == 1 and not trailing_space:
+            return prefixed(current, base_commands)
+        if cmd in {"help", "?"}:
+            return [f"help {item}" for item in prefixed(current, help_topics)]
+        if cmd == "show":
+            resource_prefix = "" if trailing_space else " ".join(parts[1:])
+            return [f"show {item}" for item in prefixed(resource_prefix, show_resources)]
+        if cmd == "use":
+            if len(parts) <= 2 and not trailing_space:
+                return [f"use {item}" for item in prefixed(current, use_kinds)]
+            kind = parts[1].lower() if len(parts) >= 2 else ""
+            selector_prefix = "" if trailing_space else " ".join(parts[2:])
+            values = []
+            if kind in {"agent", "target", "host"}:
+                values = target_names()
+            elif kind in {"listener", "service"}:
+                values = line_service_names()
+            elif kind == "route":
+                values = route_names()
+            elif kind == "session":
+                values = session_names()
+            elif kind == "job":
+                values = job_names()
+            elif kind in {"module", "action"}:
+                values = action_names()
+            return [f"use {kind} {item}" for item in prefixed(selector_prefix, values)]
+        if cmd in {"agent", "target", "host", "useagent", "usetarget", "usehost"}:
+            selector_prefix = "" if trailing_space else " ".join(parts[1:])
+            command = cmd
+            return [f"{command} {item}" for item in prefixed(selector_prefix, target_names())]
+        if cmd in {"listener", "service", "uselistener", "useservice", "start", "stop"}:
+            selector_prefix = "" if trailing_space else " ".join(parts[1:])
+            return [f"{cmd} {item}" for item in prefixed(selector_prefix, line_service_names())]
+        if cmd in {"route", "useroute"}:
+            selector_prefix = "" if trailing_space else " ".join(parts[1:])
+            return [f"{cmd} {item}" for item in prefixed(selector_prefix, route_names())]
+        if cmd in {"session", "usesession", "interact"}:
+            selector_prefix = "" if trailing_space else " ".join(parts[1:])
+            values = ["agent"] + session_names()
+            return [f"{cmd} {item}" for item in prefixed(selector_prefix, values)]
+        if cmd == "job":
+            selector_prefix = "" if trailing_space else " ".join(parts[1:])
+            return [f"job {item}" for item in prefixed(selector_prefix, job_names())]
+        if cmd in {"usemodule", "useaction", "run", "execute", "exploit", "check"}:
+            selector_prefix = "" if trailing_space else " ".join(parts[1:])
+            return [f"{cmd} {item}" for item in prefixed(selector_prefix, action_names())]
+        return prefixed(current, base_commands)
+
+    def print_line_completions(prefix=""):
+        candidates = line_completion_candidates(prefix)
+        print(f"Completions for {prefix or '<root>'}:")
+        if not candidates:
+            print("  none")
+        else:
+            for candidate in candidates[:40]:
+                print(f"  {candidate}")
+            if len(candidates) > 40:
+                print(f"  ... {len(candidates) - 40} more")
+        append_event(cfg, "workbench", "workbench_console_completions_shown", details={
+            "prefix": str(prefix or ""),
+            "candidate_count": len(candidates),
+        })
+
     def searchable_text(rec):
         parts = []
         if isinstance(rec, dict):
@@ -23771,6 +23930,9 @@ def run_line_tui(cfg):
                 choice = "q"
             elif cmd in {"help", "?"}:
                 print_line_command_help(console_args[1] if len(console_args) >= 2 else "")
+                continue
+            elif cmd in {"complete", "completions"}:
+                print_line_completions(" ".join(console_args[1:]).strip())
                 continue
             elif cmd == "history":
                 try:
@@ -26305,6 +26467,7 @@ BusierBox operator console reference.
 Discovery:
   workspace                     show fleet/listener/session overview
   search TERM                   search agents, listeners, modules, sessions, jobs, files, queue
+  complete [PREFIX]             show command/resource completions
   show agents|listeners|routes  list common operator resources
   show categories               summarize runnable module kinds
   show service|daemon modules   browse modules by operator category

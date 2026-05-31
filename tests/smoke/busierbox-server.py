@@ -10102,6 +10102,13 @@ def main():
                     "help jobs\n"
                     "help run\n"
                     "help history\n"
+                    "help complete\n"
+                    "complete\n"
+                    "complete use ag\n"
+                    "complete agent Con\n"
+                    "complete use job\n"
+                    "complete show m\n"
+                    "complete use module operator-daemon\n"
                     f"resource {line_console_resource}\n"
                     "workspace\n"
                     "next\n"
@@ -10303,6 +10310,19 @@ def main():
                 "Help: jobs" not in line_console_stdout or
                 "Help: run" not in line_console_stdout or
                 "Help: history" not in line_console_stdout or
+                "Help: complete" not in line_console_stdout or
+                "complete [PREFIX]               show command/resource completions" not in line_console_stdout or
+                "Completions for <root>:" not in line_console_stdout or
+                "Completions for use ag:" not in line_console_stdout or
+                "use agent" not in line_console_stdout or
+                "Completions for agent Con:" not in line_console_stdout or
+                "agent Console Router" not in line_console_stdout or
+                "Completions for use job:" not in line_console_stdout or
+                "use job line-console-job" not in line_console_stdout or
+                "Completions for show m:" not in line_console_stdout or
+                "show modules" not in line_console_stdout or
+                "Completions for use module operator-daemon:" not in line_console_stdout or
+                "use module operator-daemon-status" not in line_console_stdout or
                 "Workspace overview:" not in line_console_stdout or
                 f"Resource loaded: {line_console_resource}" not in line_console_stdout or
                 "commands=3 skipped_nested=1" not in line_console_stdout or
@@ -10538,6 +10558,7 @@ def main():
                 not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/bbx-global" for event in line_console_events) or
                 not any(event.get("event") == "workbench_config_unset" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_resource_loaded" and (event.get("details") or {}).get("path") == str(line_console_resource) and (event.get("details") or {}).get("command_count") == 3 for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_completions_shown" and (event.get("details") or {}).get("prefix") == "use job" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "daemon" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "file-service" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_module_categories_listed" for event in line_console_events) or
