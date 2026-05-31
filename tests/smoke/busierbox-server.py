@@ -10064,6 +10064,10 @@ def main():
                     "unsetg BB_RUNTIME_ROOT\n"
                     "show options\n"
                     "listeners\n"
+                    "listeners -v\n"
+                    "listener file-service\n"
+                    "options\n"
+                    "back\n"
                     "agents\n"
                     "routes\n"
                     "daemon\n"
@@ -10174,7 +10178,9 @@ def main():
                 "show modules [FILTER]           browse modules by kind, id, workflow, or text" not in line_console_stdout or
                 "show modules [FILTER]" not in line_console_stdout or
                 "info, options                   show selected context and module options" not in line_console_stdout or
-                "services, targets, sessions     shortcuts for show commands" not in line_console_stdout or
+                "services, listeners [-v]        list listener services" not in line_console_stdout or
+                "listener NAME                   inspect/select a listener service" not in line_console_stdout or
+                "targets, sessions               shortcuts for show commands" not in line_console_stdout or
                 "agents, listeners, routes       operator aliases for targets/services/bridges" not in line_console_stdout or
                 "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
                 "use agent|listener|module NAME  select target, service, or action context" not in line_console_stdout or
@@ -10224,6 +10230,13 @@ def main():
                 "daemon_workflow_returncode=0" not in line_console_stdout or
                 "selected service file-service" not in line_console_stdout or
                 "bbx[all]/service/file-service>" not in line_console_stdout or
+                "commands: listeners -v, listener NAME, use listener NAME, start NAME, stop NAME" not in line_console_stdout or
+                "inspect: listener file-service" not in line_console_stdout or
+                "service.name=file-service" not in line_console_stdout or
+                "service.start_command=" not in line_console_stdout or
+                "service.stop_command=" not in line_console_stdout or
+                "service.next=info, start, stop, run, back" not in line_console_stdout or
+                "next: info, options, start, stop, run, back" not in line_console_stdout or
                 "module context cleared" not in line_console_stdout or
                 "no selected background-capable workbench action; use module ACTION first" not in line_console_stdout or
                 "Sessions:" not in line_console_stdout or
@@ -10296,6 +10309,7 @@ def main():
                 not any(event.get("event") == "workbench_console_resource_loaded" and (event.get("details") or {}).get("path") == str(line_console_resource) and (event.get("details") or {}).get("command_count") == 3 for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "daemon" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "file-service" for event in line_console_events) or
+                not any(event.get("event") == "workbench_listeners_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "name=file-service" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
                 not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or

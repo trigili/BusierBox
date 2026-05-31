@@ -21655,7 +21655,9 @@ def run_line_tui(cfg):
         print("  set KEY VALUE                   set target metadata or guided build option")
         print("  setg KEY VALUE, unsetg KEY      set or unset global build/workbench options")
         print("  unset KEY                       clear target label/notes or module context")
-        print("  services, targets, sessions     shortcuts for show commands")
+        print("  services, listeners [-v]        list listener services")
+        print("  listener NAME                   inspect/select a listener service")
+        print("  targets, sessions               shortcuts for show commands")
         print("  agents, listeners, routes       operator aliases for targets/services/bridges")
         print("  stagers, loot                   operator aliases for staged files")
         print("  use N                           use a numbered search/module result")
@@ -21816,6 +21818,13 @@ def run_line_tui(cfg):
                 "stagers, loot       staged files and fetch commands",
                 "use agent/listener/module and sessions -i mirror familiar console verbs",
             ],
+            "listeners": [
+                "listeners, listeners -l",
+                "listeners -v",
+                "listener NAME",
+                "use listener NAME",
+                "  Lists or selects listener services. Selected listeners support info, options, start, stop, and run.",
+            ],
             "set": [
                 "set KEY VALUE",
                 "  Sets selected-target metadata or guided build options.",
@@ -21876,7 +21885,8 @@ def run_line_tui(cfg):
         snap = workbench_snapshot(cfg)
         print("Console context:")
         print(f"  prompt={line_tui_prompt().strip()}")
-        print(f"  module={str(cfg.get('_line_console_module') or 'root')}")
+        module = str(cfg.get("_line_console_module") or "root")
+        print(f"  module={module}")
         action = selected_line_action()
         if action:
             command = action.get("headless_command", action.get("run_command", action.get("command", "")))
@@ -21896,6 +21906,21 @@ def run_line_tui(cfg):
             if start_job:
                 print(f"    start_job={start_job}")
             print("    next: options, check, run, run --dry-run, run --confirm, back")
+        elif module.startswith("service/"):
+            service = module.split("/", 1)[1]
+            rec = line_service_record(service)
+            print(f"  service={service}")
+            if rec:
+                print(
+                    f"    actual={rec.get('actual', '') or '-'} "
+                    f"configured={rec.get('configured', '') or '-'} "
+                    f"port={rec.get('port', '') or '-'} "
+                    f"pid={rec.get('pid', '') or '-'} "
+                    f"managed={'yes' if rec.get('pid_managed') else 'no'}"
+                )
+            print(f"    start={service_start_headless_command(cfg, service)}")
+            print(f"    stop={service_stop_headless_command(cfg, service)}")
+            print("    next: options, start, stop, run, back")
         else:
             print("  action=none")
         target_filter = snap.get("target_filter") or {}
@@ -21963,6 +21988,19 @@ def run_line_tui(cfg):
             print(f"  target.notes={str(rec.get('notes') or '') or '-'}")
         else:
             print("  target.id=all")
+        if module.startswith("service/"):
+            service = module.split("/", 1)[1]
+            rec = line_service_record(service)
+            print(f"  service.name={service}")
+            if rec:
+                print(f"  service.actual={rec.get('actual', '') or '-'}")
+                print(f"  service.configured={rec.get('configured', '') or '-'}")
+                print(f"  service.port={rec.get('port', '') or '-'}")
+                print(f"  service.pid={rec.get('pid', '') or '-'}")
+                print(f"  service.managed={'yes' if rec.get('pid_managed') else 'no'}")
+            print(f"  service.start_command={service_start_headless_command(cfg, service)}")
+            print(f"  service.stop_command={service_stop_headless_command(cfg, service)}")
+            print("  service.next=info, start, stop, run, back")
         action = selected_line_action()
         if action:
             command = action.get("headless_command", action.get("run_command", action.get("command", "")))
@@ -22090,6 +22128,13 @@ def run_line_tui(cfg):
     def line_service_names():
         return [str(rec.get("name") or "") for rec in service_status_rows(cfg) if str(rec.get("name") or "")]
 
+    def line_service_record(name):
+        text = str(name or "").strip()
+        for rec in service_status_rows(cfg):
+            if str(rec.get("name") or "") == text:
+                return rec
+        return {}
+
     def select_line_service(selector):
         text = str(selector or "").strip()
         names = line_service_names()
@@ -22105,8 +22150,18 @@ def run_line_tui(cfg):
             service = matches[0]
         cfg["_line_console_module"] = f"service/{service}"
         print(f"selected service {service}")
+        rec = line_service_record(service)
+        if rec:
+            print(
+                f"  actual={rec.get('actual', '') or '-'} "
+                f"configured={rec.get('configured', '') or '-'} "
+                f"port={rec.get('port', '') or '-'} "
+                f"pid={rec.get('pid', '') or '-'} "
+                f"managed={'yes' if rec.get('pid_managed') else 'no'}"
+            )
         print(f"  start: {service_start_headless_command(cfg, service)}")
         print(f"  stop: {service_stop_headless_command(cfg, service)}")
+        print("  next: info, options, start, stop, run, back")
         return service
 
     def clear_line_module():
@@ -22149,12 +22204,13 @@ def run_line_tui(cfg):
         print(f"headless_command: {rec.get('headless_command', '')}")
         return rec
 
-    def print_line_services():
+    def print_line_services(verbose=False):
         rows = service_status_rows(cfg)
         if not rows:
             print("No service records.")
             return
         print("Services:")
+        print("  commands: listeners -v, listener NAME, use listener NAME, start NAME, stop NAME")
         for rec in rows:
             name = str(rec.get("name") or "")
             print(
@@ -22166,6 +22222,13 @@ def run_line_tui(cfg):
             )
             print(f"    start: {service_start_headless_command(cfg, name)}")
             print(f"    stop: {service_stop_headless_command(cfg, name)}")
+            if verbose:
+                print(f"    use: use listener {name}")
+                print(f"    inspect: listener {name}")
+        append_event(cfg, "workbench", "workbench_listeners_listed", details={
+            "listener_count": len(rows),
+            "verbose": bool(verbose),
+        })
 
     def start_line_service(service):
         service = str(service or "").strip()
@@ -22954,7 +23017,20 @@ def run_line_tui(cfg):
                 print_line_actions(" ".join(console_args[1:]).strip())
                 continue
             elif cmd in {"services", "listeners"}:
-                print_line_services()
+                print_line_services(verbose=len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"})
+                continue
+            elif cmd == "listener":
+                if len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
+                    print_line_services(verbose=True)
+                    continue
+                selector = " ".join(console_args[1:]).strip()
+                if not selector:
+                    print_line_services()
+                    continue
+                try:
+                    select_line_service(selector)
+                except ValueError as exc:
+                    print(exc)
                 continue
             elif cmd in {"targets", "agents", "hosts"}:
                 print_line_targets()
@@ -25329,6 +25405,7 @@ Context:
   use N                         select a numbered search/module result
   use agent ID|LABEL|NUMBER     select a target device
   use listener SERVICE          select a service module
+  listener SERVICE              inspect/select a listener service
   use module ACTION             select an action module
   use session SESSION           inspect a session
   back                          clear selected module context
@@ -25336,6 +25413,7 @@ Context:
 
 Operations:
   serve-binary [PATH] [NAME]    stage a BusierBox binary for target fetch
+  listeners [-v]                list listener services and start/stop commands
   queue COMMAND                 queue work for the selected/offline target
   run [--dry-run] [--confirm]   run selected module
   run -j                        start selected background-capable action as a job
