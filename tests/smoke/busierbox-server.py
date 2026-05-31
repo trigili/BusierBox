@@ -10007,6 +10007,8 @@ def main():
                     "help\n"
                     "show options\n"
                     "show services\n"
+                    "daemon\n"
+                    "daemon status --dry-run\n"
                     "use service file-service\n"
                     "info\n"
                     "back\n"
@@ -10016,6 +10018,7 @@ def main():
                     "targets\n"
                     "use target Console Router\n"
                     "show activity\n"
+                    "queue busierbox survey --json\n"
                     f"serve-binary {line_console_binary} busierbox-console\n"
                     "files\n"
                     "mailbox\n"
@@ -10054,8 +10057,14 @@ def main():
                 "Console commands:" not in line_console_stdout or
                 "show targets|services|files" not in line_console_stdout or
                 "services, targets, sessions     shortcuts for show commands" not in line_console_stdout or
+                "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
+                "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "Console context:" not in line_console_stdout or
                 "Services:" not in line_console_stdout or
+                "Daemon workflow actions:" not in line_console_stdout or
+                "operator-daemon-status" not in line_console_stdout or
+                "operator daemon workflow action: operator-daemon-status" not in line_console_stdout or
+                "daemon_workflow_returncode=0" not in line_console_stdout or
                 "selected service file-service" not in line_console_stdout or
                 "bbx[all]/service/file-service>" not in line_console_stdout or
                 "module context cleared" not in line_console_stdout or
@@ -10067,6 +10076,10 @@ def main():
                 "selected target line-console-target label=Console Router" not in line_console_stdout or
                 "bbx[Console Router]>" not in line_console_stdout or
                 "Target activity records:" not in line_console_stdout or
+                "queued cq-" not in line_console_stdout or
+                "busierbox survey --json" not in line_console_stdout or
+                "target=line-console-target label=Console Router" not in line_console_stdout or
+                "--target-id line-console-target --queue-command 'busierbox survey --json' --list-command-queue" not in line_console_stdout or
                 "BusierBox binary staged for target fetch:" not in line_console_stdout or
                 "request_name=busierbox-console" not in line_console_stdout or
                 "target_fetch_command=busierbox fetch busierbox-console" not in line_console_stdout or
@@ -10106,6 +10119,8 @@ def main():
                 not any(event.get("event") == "workbench_target_selected" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
                 not any(event.get("event") == "workbench_target_filter_cleared" for event in line_console_events) or
                 not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
+                not any(event.get("event") == "operator_daemon_workflow_action_dry_run" and (event.get("details") or {}).get("id") == "operator-daemon-status" for event in line_console_events) or
+                not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
                 not any(
                     event.get("event") == "workbench_binary_served" and
                     (event.get("details") or {}).get("request_name") == "busierbox-console" and

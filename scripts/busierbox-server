@@ -21607,6 +21607,8 @@ def run_line_tui(cfg):
         print("  start SERVICE, stop SERVICE     control a service directly")
         print("  run                             start the selected service module")
         print("  interact SESSION                show local session inspection commands")
+        print("  queue COMMAND                   queue work for selected/offline target")
+        print("  daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow")
         print("  files, staged                   list staged files and file workflow actions")
         print("  serve-binary [PATH] [NAME]      stage a BusierBox binary for target fetch")
         print("  mailbox, queue                  show command queue and target mailbox state")
@@ -21750,6 +21752,75 @@ def run_line_tui(cfg):
                 f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
             )
 
+    def print_line_daemon_actions():
+        snap = workbench_snapshot(cfg)
+        actions = snap.get("operator_daemon_workflow_actions") or []
+        print("Daemon workflow actions:")
+        if not actions:
+            print("  none")
+            return
+        for idx, rec in enumerate(actions, 1):
+            print(
+                f"  {idx}: {rec.get('id', '')} "
+                f"workflow={rec.get('workflow', '') or '-'} "
+                f"state={rec.get('operator_action_state', '') or '-'} "
+                f"reason={rec.get('operator_action_reason', '') or '-'} "
+                f"attached={'yes' if rec.get('daemon_attached') else 'no'} "
+                f"confirm={'yes' if rec.get('requires_confirmation') else 'no'}"
+            )
+            print(f"     run: {rec.get('run_command', rec.get('headless_command', rec.get('command', '')))}")
+            if rec.get("dry_run_command"):
+                print(f"     dry_run: {rec.get('dry_run_command', '')}")
+
+    def run_line_daemon_action(args):
+        values = list(args or [])
+        dry_run = False
+        confirmed = False
+        filtered = []
+        for item in values:
+            if item == "--dry-run":
+                dry_run = True
+            elif item in ("--confirm", "confirm", "yes"):
+                confirmed = True
+            else:
+                filtered.append(item)
+        if not filtered:
+            print_line_daemon_actions()
+            return
+        action = filtered[0]
+        aliases = {
+            "start": "operator-daemon-start",
+            "status": "operator-daemon-status",
+            "stop": "operator-daemon-stop",
+            "print": "systemd-user-print",
+            "install": "systemd-user-install",
+            "systemd-start": "systemd-user-start",
+            "systemd-stop": "systemd-user-stop",
+            "systemd-restart": "systemd-user-restart",
+            "systemd-status": "systemd-user-status",
+        }
+        selector = aliases.get(action, action)
+        rc = run_operator_daemon_workflow_action(cfg, selector, dry_run=dry_run, confirmed=confirmed)
+        print(f"daemon_workflow_returncode={rc}")
+
+    def queue_line_command(command):
+        text = str(command or "").strip()
+        if not text:
+            raise ValueError("usage: queue COMMAND")
+        headless = (
+            "scripts/busierbox-server --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        )
+        if configured_target_filter(cfg):
+            headless += " --target-id " + shquote(configured_target_filter(cfg))
+        headless += " --queue-command " + shquote(text) + " --list-command-queue"
+        rec = queue_command(cfg, text)
+        print(f"queued {rec['id']}: {rec['command']}")
+        if rec.get("target_id"):
+            print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
+        print(f"execution_supported={'yes' if rec.get('execution_supported') else 'no'} delivery_supported=no")
+        print(f"headless_command: {headless}")
+
     def print_line_sessions():
         sessions = workbench_snapshot(cfg).get("sessions") or []
         print("Sessions:")
@@ -21815,6 +21886,8 @@ def run_line_tui(cfg):
             print_staged(cfg)
         elif key in ("job", "jobs"):
             print_line_jobs()
+        elif key in ("daemon", "daemons"):
+            print_line_daemon_actions()
         elif key in ("session", "sessions"):
             print_line_sessions()
         elif key in ("queue", "mailbox", "commands"):
@@ -22053,6 +22126,18 @@ def run_line_tui(cfg):
             elif cmd == "interact":
                 try:
                     interact_line_session(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "queue" and len(console_args) >= 2:
+                try:
+                    queue_line_command(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "daemon":
+                try:
+                    run_line_daemon_action(console_args[1:])
                 except ValueError as exc:
                     print(exc)
                 continue
