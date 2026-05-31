@@ -21681,7 +21681,9 @@ def run_line_tui(cfg):
         print("  interact SESSION, sessions -i   show local session inspection commands")
         print("  queue COMMAND                   queue work for selected/offline target")
         print("  daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow")
+        print("  upload LOCAL [NAME]             stage a local file for target fetch")
         print("  files, staged                   list staged files and file workflow actions")
+        print("  downloads                       list target-fetchable staged files")
         print("  serve-binary [PATH] [NAME]      stage a BusierBox binary for target fetch")
         print("  mailbox, queue                  show command queue and target mailbox state")
         print("  jobs, jobs -k ID                show or cancel background jobs")
@@ -21884,6 +21886,13 @@ def run_line_tui(cfg):
                 "queue COMMAND",
                 "  Queues a command record for the selected target context.",
                 "  Delivery still depends on the existing command-queue policy and target polling.",
+            ],
+            "upload": [
+                "upload LOCAL [NAME]",
+                "stage LOCAL [NAME]",
+                "serve-file LOCAL [NAME]",
+                "  Stages a local file so a target can fetch it from the file service.",
+                "  NAME defaults to the local basename. Use downloads or files to list staged files.",
             ],
             "daemon": [
                 "daemon",
@@ -23085,7 +23094,7 @@ def run_line_tui(cfg):
             print_line_targets()
         elif key in ("service", "services", "listener", "listeners"):
             print_line_services()
-        elif key in ("file", "files", "staged", "stager", "stagers", "loot"):
+        elif key in ("file", "files", "staged", "stager", "stagers", "loot", "download", "downloads"):
             print_staged(cfg)
         elif key in ("job", "jobs"):
             print_line_jobs()
@@ -23177,6 +23186,40 @@ def run_line_tui(cfg):
             "stage_kind": rec.get("stage_kind", ""),
             "release_artifact_name": rec.get("release_artifact_name", ""),
             "release_path": rec.get("release_path", ""),
+            "target_id": rec.get("target_id", ""),
+            "target_label": rec.get("target_label", ""),
+        })
+        return rec
+
+    def stage_line_file(path_text="", request_name=""):
+        path = str(path_text or "").strip()
+        if not path:
+            raise ValueError("usage: upload LOCAL [NAME]")
+        name = str(request_name or "").strip() or Path(path).name
+        headless = (
+            "scripts/busierbox-server --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --serve-file "
+            + shquote(path)
+            + " --as "
+            + shquote(name)
+            + " --list-staged"
+        )
+        rec = stage_file(cfg, path, name, metadata={"stage_kind": "operator-upload"})
+        fetch_command = render_fetch_command(rec["request_name"], cfg)
+        print("File staged for target fetch:")
+        print(f"  request_name={rec.get('request_name', '')}")
+        print(f"  source_path={rec.get('source_path', '')}")
+        print(f"  sha256={rec.get('sha256', '')}")
+        print(f"  target_fetch_command={fetch_command}")
+        print(f"headless_command: {headless}")
+        append_event(cfg, "workbench", "workbench_file_uploaded", details={
+            "headless_command": headless,
+            "request_name": rec.get("request_name", ""),
+            "source_path": rec.get("source_path", ""),
+            "sha256": rec.get("sha256", ""),
+            "fetch_command": fetch_command,
+            "stage_kind": rec.get("stage_kind", ""),
             "target_id": rec.get("target_id", ""),
             "target_label": rec.get("target_label", ""),
         })
@@ -23572,7 +23615,19 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"files", "staged", "stagers", "loot"}:
+            elif cmd in {"upload", "stage", "serve-file"}:
+                selector = console_args[1] if len(console_args) >= 2 else ""
+                request_name = ""
+                if len(console_args) >= 4 and console_args[2].lower() == "as":
+                    request_name = console_args[3]
+                elif len(console_args) >= 3:
+                    request_name = console_args[2]
+                try:
+                    stage_line_file(selector, request_name)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"files", "staged", "stagers", "loot", "downloads"}:
                 compact_next_prompt = False
                 choice = "7"
             elif cmd in {"mailbox", "queue"}:
@@ -25802,6 +25857,8 @@ Context:
 
 Operations:
   serve-binary [PATH] [NAME]    stage a BusierBox binary for target fetch
+  upload LOCAL [NAME]           stage a local file for target fetch
+  downloads                     list target-fetchable staged files
   listeners [-v]                list listener services and start/stop commands
   routes [-v], route print      list bridge routes and hop details
   queue COMMAND                 queue work for the selected/offline target

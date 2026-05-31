@@ -9964,6 +9964,8 @@ def main():
 
         line_console_binary = Path(tmp) / "busierbox-line-console"
         line_console_binary.write_text("#!/bin/sh\necho busierbox console binary\n", encoding="utf-8")
+        line_console_upload = Path(tmp) / "line-console-upload.txt"
+        line_console_upload.write_text("line console upload\n", encoding="utf-8")
         line_console_state = Path(tmp) / "operator-session" / "line-console-state.json"
         line_console_staged = Path(tmp) / "operator-session" / "line-console-staged.json"
         line_console_routes = Path(tmp) / "operator-session" / "line-console-bridge-profiles.json"
@@ -10162,6 +10164,8 @@ def main():
                     "unset target.notes\n"
                     "show activity\n"
                     "queue busierbox survey --json\n"
+                    f"upload {line_console_upload} console-upload\n"
+                    "downloads\n"
                     f"serve-binary {line_console_binary} busierbox-console\n"
                     "show stagers\n"
                     "stagers\n"
@@ -10266,6 +10270,8 @@ def main():
                 "route print" not in line_console_stdout or
                 "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
+                "upload LOCAL [NAME]             stage a local file for target fetch" not in line_console_stdout or
+                "downloads                       list target-fetchable staged files" not in line_console_stdout or
                 "run -j, run --job               start selected background action as a managed job" not in line_console_stdout or
                 "jobs, jobs -k ID                show or cancel background jobs" not in line_console_stdout or
                 "use N                           use a numbered search/list/module result" not in line_console_stdout or
@@ -10364,6 +10370,10 @@ def main():
                 "busierbox survey --json" not in line_console_stdout or
                 "target=line-console-target label=Console Router" not in line_console_stdout or
                 "--target-id line-console-target --queue-command 'busierbox survey --json' --list-command-queue" not in line_console_stdout or
+                "File staged for target fetch:" not in line_console_stdout or
+                "request_name=console-upload" not in line_console_stdout or
+                "target_fetch_command=busierbox fetch console-upload" not in line_console_stdout or
+                "--serve-file " not in line_console_stdout or
                 "BusierBox binary staged for target fetch:" not in line_console_stdout or
                 "request_name=busierbox-console" not in line_console_stdout or
                 "target_fetch_command=busierbox fetch busierbox-console" not in line_console_stdout or
@@ -10426,6 +10436,11 @@ def main():
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
                 not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
                 not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
+                not any(
+                    event.get("event") == "workbench_file_uploaded" and
+                    (event.get("details") or {}).get("request_name") == "console-upload" and
+                    (event.get("details") or {}).get("target_id") == "line-console-target"
+                    for event in line_console_events) or
                 not any(
                     event.get("event") == "workbench_binary_served" and
                     (event.get("details") or {}).get("request_name") == "busierbox-console" and
