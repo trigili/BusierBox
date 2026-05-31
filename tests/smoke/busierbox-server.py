@@ -150,8 +150,19 @@ def main():
     if help_out.returncode != 0:
         print(help_out.stderr, file=sys.stderr)
         return 1
+    concise_help = help_out.stdout + help_out.stderr
+    if ("BusierBox operator control plane." not in concise_help or
+            "--help-all prints every compatibility/API flag." not in concise_help or
+            "--run-target-workflow-action" in concise_help):
+        print("busierbox-server concise help did not stay operator-focused", file=sys.stderr)
+        print(concise_help, file=sys.stderr)
+        return 1
+    help_all_out = run("scripts/busierbox-server", "--help-all")
+    if help_all_out.returncode != 0:
+        print(help_all_out.stderr, file=sys.stderr)
+        return 1
     forbidden = ("--artifact", "--send", "--token", "send_file", "stager")
-    combined = help_out.stdout + help_out.stderr
+    combined = help_all_out.stdout + help_all_out.stderr
     for word in forbidden:
         if word in combined:
             print(f"old server protocol surfaced in help: {word}", file=sys.stderr)

@@ -23773,6 +23773,38 @@ def _resolve_transport(cfg, args_transport):
     return "plain-shell"
 
 
+def print_concise_help():
+    print("""\
+usage: busierbox-server [--config CONFIG] [mode] [options]
+
+BusierBox operator control plane.
+
+Start here:
+  busierbox-server --tui
+  busierbox-server --status
+  busierbox-server --json-status
+
+Common operator workflows:
+  --daemon --daemon-service file-service --daemon-service command-queue
+  --systemd-user-action print|install|start|stop|restart|status
+  --serve-file ./busierbox --as busierbox
+  --stage-release-artifact SELECTOR
+  --list-staged
+  --target-id TARGET --queue-command COMMAND
+  --list-command-queue
+  --save-bridge-profile NAME --bridge-port PORT --bridge-dest-host HOST --bridge-dest-port PORT
+  --transport bridge --bridge-profile NAME
+  --transport survey-bootstrap
+
+Interactive console:
+  --tui opens the operator console for targets, mailbox work, files, bridges,
+  daemon/service lifecycle, generated commands, and build config.
+
+Reference:
+  --help-all prints every compatibility/API flag.
+""")
+
+
 def main(argv=None):
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(
@@ -24051,6 +24083,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="seconds to allow a scripted shell session; 0 disables the limit")
     parser.add_argument("--managed-by", help=argparse.SUPPRESS)
     parser.add_argument("--process-log", help=argparse.SUPPRESS)
+    if any(arg in ("-h", "--help") for arg in raw_argv):
+        print_concise_help()
+        return 0
+    if "--help-all" in raw_argv:
+        raw_argv = [arg for arg in raw_argv if arg != "--help-all"]
+        parser.print_help()
+        return 0
     args = parser.parse_args(raw_argv)
 
     cfg = load_config(args.config)

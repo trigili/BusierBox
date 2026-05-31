@@ -328,8 +328,8 @@ grep -q 'operator_ssh_port' tests/smoke/rshell-status-json.sh
 grep -q 'remote_forward_port' tests/smoke/rshell-status-json.sh
 
 python3 -m py_compile "$script" "$server"
-"$server" --help | grep -q -- '--script'
-"$server" --help | grep -q -- '--expect'
-"$server" --help | grep -q -- '--session-timeout'
+"$server" --help-all | grep -q -- '--script'
+"$server" --help-all | grep -q -- '--expect'
+"$server" --help-all | grep -q -- '--session-timeout'
 
 printf '%s\n' "integration-glinet-harness ok"
