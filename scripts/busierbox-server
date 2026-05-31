@@ -21599,6 +21599,9 @@ def run_line_tui(cfg):
         print("  show targets|services|files     show major workbench resources")
         print("  show queue|mailbox|jobs         show queue, mailbox, or background jobs")
         print("  show sessions|activity|actions  show sessions, activity, or runnable actions")
+        print("  show options                    show target/module/build options")
+        print("  set KEY VALUE                   set target metadata or guided build option")
+        print("  unset KEY                       clear target label/notes or module context")
         print("  services, targets, sessions     shortcuts for show commands")
         print("  use target ID|LABEL|NUMBER      select a target context")
         print("  use service SERVICE             select a service module context")
@@ -21640,6 +21643,109 @@ def run_line_tui(cfg):
         else:
             print("  target=all")
         print(line_tui_status_bar(snap))
+
+    def print_line_options():
+        print("Console options:")
+        module = str(cfg.get("_line_console_module") or "root")
+        print(f"  module={module}")
+        target_id = configured_target_filter(cfg)
+        if target_id:
+            rec = (load_targets(cfg).get("targets") or {}).get(target_id) or {}
+            aliases = ",".join(str(item) for item in rec.get("aliases") or []) or "-"
+            print(f"  target.id={target_id}")
+            print(f"  target.label={rec.get('label', '') or '-'}")
+            print(f"  target.aliases={aliases}")
+            print(f"  target.notes={str(rec.get('notes') or '') or '-'}")
+        else:
+            print("  target.id=all")
+        action = selected_line_action()
+        if action:
+            print(f"  action.kind={action.get('kind', '')}")
+            print(f"  action.id={action.get('id', '')}")
+            print(f"  action.requires_confirmation={'yes' if action.get('requires_confirmation') else 'no'}")
+        fields = workbench_config_field_records(cfg)
+        if fields:
+            print("  Build options:")
+            for rec in fields[:10]:
+                options = ",".join(str(item) for item in rec.get("options") or [])
+                suffix = f" options={options}" if options else ""
+                print(f"    {rec.get('key', '')}={shell_double_quote(rec.get('value', ''))}{suffix}")
+            if len(fields) > 10:
+                print(f"    ... {len(fields) - 10} more build option(s)")
+
+    def selected_target_record_for_update():
+        target_id = configured_target_filter(cfg)
+        if not target_id:
+            raise ValueError("select a target before setting target options")
+        rec = (load_targets(cfg).get("targets") or {}).get(target_id)
+        if not isinstance(rec, dict):
+            rec = {"target_id": target_id, "label": "", "aliases": [], "notes": ""}
+        return target_id, rec
+
+    def set_line_option(name, value):
+        key = str(name or "").strip()
+        text = str(value or "")
+        if not key:
+            raise ValueError("usage: set KEY VALUE")
+        build_keys = {rec.get("key") for rec in workbench_config_field_records(cfg)}
+        if key.startswith("build."):
+            key = key.split(".", 1)[1]
+        if key in build_keys:
+            rec = set_workbench_build_config(cfg, f"{key}={text}")
+            print(f"set {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
+            print(f"headless_command: {rec.get('set_command', '')}")
+            return
+        target_id, rec = selected_target_record_for_update()
+        if key in ("label", "target.label"):
+            updated = set_target_label(
+                cfg, target_id, text,
+                aliases=rec.get("aliases") or [],
+                notes=rec.get("notes", ""),
+            )
+            cfg["_target_label_filter"] = str(updated.get("label") or "")
+            print(f"set target.label={updated.get('label', '') or '-'}")
+        elif key in ("notes", "target.notes"):
+            updated = set_target_label(
+                cfg, target_id, rec.get("label", ""),
+                aliases=rec.get("aliases") or [],
+                notes=text,
+            )
+            print(f"set target.notes={str(updated.get('notes') or '') or '-'}")
+        elif key in ("alias", "target.alias", "target.aliases"):
+            updated = set_target_label(
+                cfg, target_id, rec.get("label", ""),
+                aliases=[text],
+                notes=rec.get("notes", ""),
+            )
+            print(f"set target.aliases={','.join(str(item) for item in updated.get('aliases') or []) or '-'}")
+        else:
+            raise ValueError(f"unknown option: {name}")
+        headless = (
+            "scripts/busierbox-server --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --set-target-label "
+            + shquote(target_id)
+            + " --target-label "
+            + shquote(str((load_targets(cfg).get("targets") or {}).get(target_id, {}).get("label") or ""))
+        )
+        print(f"headless_command: {headless}")
+
+    def unset_line_option(name):
+        key = str(name or "").strip()
+        if key in ("module", "action"):
+            clear_line_module()
+            return
+        target_id, rec = selected_target_record_for_update()
+        if key in ("label", "target.label"):
+            updated = set_target_label(cfg, target_id, "", aliases=rec.get("aliases") or [], notes=rec.get("notes", ""))
+            cfg.pop("_target_label_filter", None)
+            print(f"unset target.label for {target_id}")
+        elif key in ("notes", "target.notes"):
+            updated = set_target_label(cfg, target_id, rec.get("label", ""), aliases=rec.get("aliases") or [], notes="")
+            print(f"unset target.notes for {target_id}")
+        else:
+            raise ValueError(f"unknown unset option: {name}")
+        print(f"target={target_id} label={updated.get('label', '') or '-'}")
 
     def line_service_names():
         return [str(rec.get("name") or "") for rec in service_status_rows(cfg) if str(rec.get("name") or "")]
@@ -22033,7 +22139,9 @@ def run_line_tui(cfg):
         elif key in ("activity", "events"):
             snap = workbench_snapshot(cfg)
             print_target_activity_records(snap, target_id=configured_target_filter(cfg), limit=12)
-        elif key in ("options", "context", "info"):
+        elif key in ("options", "option"):
+            print_line_options()
+        elif key in ("context", "info"):
             print_line_info()
         else:
             raise ValueError("usage: show targets|services|files|queue|mailbox|jobs|sessions|activity|options")
@@ -22198,6 +22306,25 @@ def run_line_tui(cfg):
                 continue
             elif cmd == "info":
                 print_line_info()
+                continue
+            elif cmd == "set":
+                try:
+                    if len(console_args) >= 2 and "=" in console_args[1]:
+                        opt_key, opt_value = console_args[1].split("=", 1)
+                        if len(console_args) > 2:
+                            opt_value = opt_value + " " + " ".join(console_args[2:])
+                    else:
+                        opt_key = console_args[1] if len(console_args) >= 2 else ""
+                        opt_value = " ".join(console_args[2:]).strip()
+                    set_line_option(opt_key, opt_value)
+                except (IndexError, ValueError) as exc:
+                    print(exc)
+                continue
+            elif cmd == "unset":
+                try:
+                    unset_line_option(console_args[1] if len(console_args) >= 2 else "")
+                except ValueError as exc:
+                    print(exc)
                 continue
             elif cmd == "show":
                 try:

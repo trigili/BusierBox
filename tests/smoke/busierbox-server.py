@@ -10023,6 +10023,11 @@ def main():
                     "interact 1\n"
                     "targets\n"
                     "use target Console Router\n"
+                    "show options\n"
+                    "set target.notes Rack shelf A\n"
+                    "set target.alias console-alias\n"
+                    "show options\n"
+                    "unset target.notes\n"
                     "show activity\n"
                     "queue busierbox survey --json\n"
                     f"serve-binary {line_console_binary} busierbox-console\n"
@@ -10067,7 +10072,9 @@ def main():
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "use action ACTION               select an action module context" not in line_console_stdout or
                 "check                           dry-run the selected action module" not in line_console_stdout or
+                "set KEY VALUE                   set target metadata or guided build option" not in line_console_stdout or
                 "Console context:" not in line_console_stdout or
+                "Console options:" not in line_console_stdout or
                 "Services:" not in line_console_stdout or
                 "Daemon workflow actions:" not in line_console_stdout or
                 "Console action modules:" not in line_console_stdout or
@@ -10088,6 +10095,10 @@ def main():
                 "line-console-target label=Console Router" not in line_console_stdout or
                 "selected target line-console-target label=Console Router" not in line_console_stdout or
                 "bbx[Console Router]>" not in line_console_stdout or
+                "set target.notes=Rack shelf A" not in line_console_stdout or
+                "set target.aliases=console-alias" not in line_console_stdout or
+                "target.aliases=console-alias" not in line_console_stdout or
+                "unset target.notes for line-console-target" not in line_console_stdout or
                 "Target activity records:" not in line_console_stdout or
                 "queued cq-" not in line_console_stdout or
                 "busierbox survey --json" not in line_console_stdout or
@@ -10133,6 +10144,7 @@ def main():
                 not any(event.get("event") == "workbench_target_filter_cleared" for event in line_console_events) or
                 not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
                 not any(event.get("event") == "operator_daemon_workflow_action_dry_run" and (event.get("details") or {}).get("id") == "operator-daemon-status" for event in line_console_events) or
+                not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
                 not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
                 not any(
                     event.get("event") == "workbench_binary_served" and
