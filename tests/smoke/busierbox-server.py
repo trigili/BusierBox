@@ -10007,8 +10007,13 @@ def main():
                     "help\n"
                     "help search\n"
                     "help aliases\n"
+                    "help use\n"
+                    "help sessions\n"
                     "workspace\n"
                     "search name=file-service\n"
+                    "show agents\n"
+                    "show listeners\n"
+                    "show routes\n"
                     "show options\n"
                     "listeners\n"
                     "agents\n"
@@ -10016,19 +10021,20 @@ def main():
                     "daemon\n"
                     "daemon status --dry-run\n"
                     "show actions\n"
-                    "use action operator-daemon-status\n"
+                    "use module operator-daemon-status\n"
                     "info\n"
                     "check\n"
                     "run --dry-run\n"
                     "back\n"
-                    "use service file-service\n"
+                    "use listener file-service\n"
                     "info\n"
                     "back\n"
                     "services\n"
                     "sessions\n"
+                    "sessions -i 1\n"
                     "interact 1\n"
                     "targets\n"
-                    "use target Console Router\n"
+                    "use agent Console Router\n"
                     "search Console Router\n"
                     "use 1\n"
                     "show options\n"
@@ -10039,6 +10045,7 @@ def main():
                     "show activity\n"
                     "queue busierbox survey --json\n"
                     f"serve-binary {line_console_binary} busierbox-console\n"
+                    "show stagers\n"
                     "stagers\n"
                     "files\n"
                     "mailbox\n"
@@ -10089,6 +10096,8 @@ def main():
                 "Console commands:" not in line_console_stdout or
                 "Help: search" not in line_console_stdout or
                 "Help: aliases" not in line_console_stdout or
+                "Help: use" not in line_console_stdout or
+                "Help: sessions" not in line_console_stdout or
                 "Workspace overview:" not in line_console_stdout or
                 "commands: search TERM, use N, agents, listeners, routes, stagers, queue COMMAND" not in line_console_stdout or
                 "Search results for name=file-service:" not in line_console_stdout or
@@ -10100,6 +10109,9 @@ def main():
                 "services, targets, sessions     shortcuts for show commands" not in line_console_stdout or
                 "agents, listeners, routes       operator aliases for targets/services/bridges" not in line_console_stdout or
                 "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
+                "use agent|listener|module NAME  select target, service, or action context" not in line_console_stdout or
+                "sessions -i SESSION             inspect a session" not in line_console_stdout or
+                "use agent/listener/module and sessions -i mirror familiar console verbs" not in line_console_stdout or
                 "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "use N                           use a numbered search result" not in line_console_stdout or

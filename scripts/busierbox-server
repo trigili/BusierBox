@@ -21608,6 +21608,7 @@ def run_line_tui(cfg):
         print("  agents, listeners, routes       operator aliases for targets/services/bridges")
         print("  stagers, loot                   operator aliases for staged files")
         print("  use N                           use a numbered search result")
+        print("  use agent|listener|module NAME  select target, service, or action context")
         print("  use target ID|LABEL|NUMBER      select a target context")
         print("  use service SERVICE             select a service module context")
         print("  use action ACTION               select an action module context")
@@ -21617,6 +21618,7 @@ def run_line_tui(cfg):
         print("  check                           dry-run the selected action module")
         print("  run [--dry-run] [--confirm]     run selected service/action module")
         print("  interact SESSION                show local session inspection commands")
+        print("  sessions -i SESSION             inspect a session")
         print("  queue COMMAND                   queue work for selected/offline target")
         print("  daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow")
         print("  files, staged                   list staged files and file workflow actions")
@@ -21640,6 +21642,9 @@ def run_line_tui(cfg):
             ],
             "use": [
                 "use N",
+                "use agent ID|LABEL|NUMBER",
+                "use listener SERVICE",
+                "use module ACTION",
                 "use target ID|LABEL|NUMBER",
                 "use service SERVICE",
                 "use action ACTION",
@@ -21659,6 +21664,7 @@ def run_line_tui(cfg):
                 "listeners           local services",
                 "routes              bridge profiles",
                 "stagers, loot       staged files and fetch commands",
+                "use agent/listener/module and sessions -i mirror familiar console verbs",
             ],
             "set": [
                 "set KEY VALUE",
@@ -21682,7 +21688,13 @@ def run_line_tui(cfg):
             ],
             "interact": [
                 "interact SESSION",
+                "sessions -i SESSION",
                 "  Shows local session inspection commands and log paths.",
+            ],
+            "sessions": [
+                "sessions",
+                "sessions -i SESSION",
+                "  Lists sessions or inspects one session.",
             ],
         }
         lines = help_text.get(key)
@@ -22338,20 +22350,23 @@ def run_line_tui(cfg):
 
     def show_line_resource(resource):
         key = str(resource or "").strip().lower()
-        if key in ("target", "targets", "hosts"):
+        if key in ("target", "targets", "agent", "agents", "host", "hosts"):
             print_line_targets()
-        elif key in ("service", "services"):
+        elif key in ("service", "services", "listener", "listeners"):
             print_line_services()
-        elif key in ("file", "files", "staged"):
+        elif key in ("file", "files", "staged", "stager", "stagers", "loot"):
             print_staged(cfg)
         elif key in ("job", "jobs"):
             print_line_jobs()
         elif key in ("daemon", "daemons"):
             print_line_daemon_actions()
-        elif key in ("action", "actions", "modules"):
+        elif key in ("action", "actions", "module", "modules"):
             print_line_actions()
         elif key in ("session", "sessions"):
             print_line_sessions()
+        elif key in ("route", "routes"):
+            print("Routes:")
+            print_bridge_profiles(cfg, json_output=False)
         elif key in ("queue", "mailbox", "commands"):
             print_command_queue(cfg, json_output=False)
         elif key in ("activity", "events"):
@@ -22571,7 +22586,13 @@ def run_line_tui(cfg):
                 print_line_targets()
                 continue
             elif cmd == "sessions":
-                print_line_sessions()
+                if len(console_args) >= 3 and console_args[1] in {"-i", "--interact"}:
+                    try:
+                        interact_line_session(" ".join(console_args[2:]).strip())
+                    except ValueError as exc:
+                        print(exc)
+                else:
+                    print_line_sessions()
                 continue
             elif cmd in {"routes", "route"}:
                 print("Routes:")
@@ -22593,6 +22614,16 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
+            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() in {"agent", "host"}:
+                selector = " ".join(console_args[2:]).strip()
+                if not selector:
+                    print("usage: use agent ID|LABEL|NUMBER|all")
+                    continue
+                try:
+                    select_line_target(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
             elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "service":
                 selector = " ".join(console_args[2:]).strip()
                 if not selector:
@@ -22603,7 +22634,24 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
+            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "listener":
+                selector = " ".join(console_args[2:]).strip()
+                if not selector:
+                    print("usage: use listener SERVICE")
+                    continue
+                try:
+                    select_line_service(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
             elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "action":
+                selector = " ".join(console_args[2:]).strip()
+                try:
+                    select_line_action(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "module":
                 selector = " ".join(console_args[2:]).strip()
                 try:
                     select_line_action(selector)
