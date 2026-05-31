@@ -169,6 +169,7 @@ def main():
             "use job ID|NUMBER" not in console_help or
             "jobs, jobs -i ID, job ID" not in console_help or
             "interact agent ID|LABEL" not in console_help or
+            "commands, copy N" not in console_help or
             "serve-binary [--start] [PATH] [NAME]" not in console_help or
             "release, release stage SELECTOR" not in console_help or
             "fetch [--queue] [--start] NAME" not in console_help or
@@ -10150,6 +10151,7 @@ def main():
                     "help run\n"
                     "help history\n"
                     "help complete\n"
+                    "help commands\n"
                     "help view\n"
                     "help download\n"
                     "help survey\n"
@@ -10166,6 +10168,7 @@ def main():
                     "complete use job\n"
                     "complete show m\n"
                     "complete use module operator-daemon\n"
+                    "complete copy\n"
                     "complete view\n"
                     "help files\n"
                     f"resource {line_console_resource}\n"
@@ -10215,6 +10218,8 @@ def main():
                     "options\n"
                     "background\n"
                     "show options\n"
+                    "commands\n"
+                    "copy 1\n"
                     "build\n"
                     "build set BB_RUNTIME_ROOT /tmp/bbx-build\n"
                     "build unset BB_RUNTIME_ROOT\n"
@@ -10395,6 +10400,7 @@ def main():
                 "Help: history" not in line_console_stdout or
                 "Help: makerc" not in line_console_stdout or
                 "Help: complete" not in line_console_stdout or
+                "Help: commands" not in line_console_stdout or
                 "Help: view" not in line_console_stdout or
                 "Help: download" not in line_console_stdout or
                 "Help: survey" not in line_console_stdout or
@@ -10422,6 +10428,8 @@ def main():
                 "show modules" not in line_console_stdout or
                 "Completions for use module operator-daemon:" not in line_console_stdout or
                 "use module operator-daemon-status" not in line_console_stdout or
+                "Completions for copy:" not in line_console_stdout or
+                "copy 1" not in line_console_stdout or
                 "Completions for view:" not in line_console_stdout or
                 str(line_console_session / "session.log") not in line_console_stdout or
                 "Workspace overview:" not in line_console_stdout or
@@ -10450,6 +10458,11 @@ def main():
                 "show categories" not in line_console_stdout or
                 "show service|daemon|target|workbench modules" not in line_console_stdout or
                 "show modules [FILTER]" not in line_console_stdout or
+                "commands, copy N                list or copy generated target commands" not in line_console_stdout or
+                "Generated target commands:" not in line_console_stdout or
+                "command_copy_file=" not in line_console_stdout or
+                "copied command to " not in line_console_stdout or
+                "command=./busierbox put /etc/config/network" not in line_console_stdout or
                 "info, options                   show selected context and module options" not in line_console_stdout or
                 "services, listeners [-v]        list listener services" not in line_console_stdout or
                 "listener NAME                   inspect/select a listener service" not in line_console_stdout or
@@ -10727,6 +10740,8 @@ def main():
                 not any(event.get("event") == "workbench_console_resource_loaded" and (event.get("details") or {}).get("path") == str(line_console_resource) and (event.get("details") or {}).get("command_count") == 3 for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_makerc_saved" and (event.get("details") or {}).get("path") == str(line_console_makerc) and (event.get("details") or {}).get("command_count", 0) >= 20 for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_completions_shown" and (event.get("details") or {}).get("prefix") == "use job" for event in line_console_events) or
+                not any(event.get("event") == "workbench_generated_commands_listed" and (event.get("details") or {}).get("command_count", 0) >= 1 for event in line_console_events) or
+                not any(event.get("event") == "target_command_copied" and (event.get("details") or {}).get("ordinal") == 1 for event in line_console_events) or
                 not any(event.get("event") == "workbench_bridge_profile_saved" and (event.get("details") or {}).get("name") == "zz-console-added" and (event.get("details") or {}).get("multi_hop") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_route_started" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
                 not any(event.get("event") == "workbench_route_stopped" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or

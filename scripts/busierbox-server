@@ -21655,6 +21655,7 @@ def run_line_tui(cfg):
         print("  show categories                 show runnable module categories")
         print("  show service|daemon modules     browse modules by operator category")
         print("  show modules [FILTER]           browse modules by kind, id, workflow, or text")
+        print("  commands, copy N                list or copy generated target commands")
         print("  info, options                   show selected context and module options")
         print("  show options                    show target/module/build options")
         print("  build, build set KEY VALUE      show or update binary build config")
@@ -21832,6 +21833,14 @@ def run_line_tui(cfg):
                 "completions [PREFIX]",
                 "  Lists command and resource completions for dumb terminals and resource scripts.",
                 "  Examples: complete use ag; complete agent lab; complete use module file",
+            ],
+            "commands": [
+                "commands",
+                "target-commands",
+                "commands copy N",
+                "copy N",
+                "  Lists generated target-side commands for file upload, survey bootstrap, rshell, and staged fetches.",
+                "  copy N writes command N to the command-copy file and clipboard when a clipboard helper is available.",
             ],
             "resource": [
                 "resource FILE",
@@ -22481,6 +22490,51 @@ def run_line_tui(cfg):
             unset_line_build_config(args[1:])
             return
         raise ValueError("usage: build [list|set KEY VALUE|unset KEY]")
+
+    def print_line_generated_commands():
+        records = generated_target_command_records(cfg)
+        print("Generated target commands:")
+        print(f"  command_copy_file={command_copy_path(cfg)}")
+        print("  commands: copy N, commands copy N, queue COMMAND, survey --queue, download --queue TARGET_PATH")
+        search_records = []
+        if not records:
+            print("  none")
+        for rec in records:
+            print("  " + target_command_display_line(rec))
+            print(f"     copy: copy {rec.get('ordinal', '')}")
+            search_records.append({
+                "kind": "target-command",
+                "label": f"{rec.get('ordinal', '')}: {rec.get('service', '') or 'target'}",
+                "rec": rec,
+                "command": str(rec.get("command") or ""),
+                "use_hint": f"copy {rec.get('ordinal', '')}",
+            })
+        cfg["_line_console_search_results"] = search_records
+        append_event(cfg, "workbench", "workbench_generated_commands_listed", details={
+            "command_count": len(records),
+            "copy_supported_count": len([rec for rec in records if rec.get("copy_supported")]),
+            "command_copy_file": str(command_copy_path(cfg)),
+        })
+
+    def copy_line_generated_command(selector):
+        text = str(selector or "").strip()
+        if not text:
+            raise ValueError("usage: copy N")
+        rec = copy_generated_command(cfg, text)
+        print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
+        print(f"command={rec.get('text', '')}")
+        print(f"headless_command: {rec.get('headless_command', '')}")
+        return rec
+
+    def run_line_generated_command(args):
+        subcmd = str(args[0] if args else "").lower()
+        if not subcmd or subcmd in {"list", "show"}:
+            print_line_generated_commands()
+            return
+        if subcmd == "copy":
+            copy_line_generated_command(" ".join(args[1:]).strip())
+            return
+        raise ValueError("usage: commands [list|copy N]")
 
     def selected_target_record_for_update():
         target_id = configured_target_filter(cfg)
@@ -23279,7 +23333,7 @@ def run_line_tui(cfg):
         stripped = text.strip()
         base_commands = [
             "help", "complete", "search", "resource", "makerc", "history", "workspace", "status",
-            "show", "info", "options", "next", "set", "setg", "unset", "unsetg",
+            "show", "info", "options", "next", "commands", "target-commands", "copy", "set", "setg", "unset", "unsetg",
             "agents", "agent", "targets", "target", "listeners", "listener",
             "routes", "route", "sessions", "session", "jobs", "job", "use",
             "useagent", "uselistener", "useroute", "usesession", "usemodule",
@@ -23296,7 +23350,7 @@ def run_line_tui(cfg):
         ]
         use_kinds = ["agent", "target", "listener", "service", "route", "session", "job", "module", "action"]
         help_topics = [
-            "search", "complete", "resource", "makerc", "history", "use", "main", "show",
+            "search", "complete", "commands", "resource", "makerc", "history", "use", "main", "show",
             "modules", "options", "next", "workspace", "aliases", "listeners",
             "routes", "set", "setg", "run", "jobs", "queue", "download", "survey", "build", "release", "upload", "fetch", "files", "view",
             "daemon", "interact", "sessions",
@@ -23374,6 +23428,9 @@ def run_line_tui(cfg):
                     ids.append(command_id)
             return ids
 
+        def generated_command_ids():
+            return [str(idx) for idx, _rec in enumerate(generated_target_command_records(cfg), 1)]
+
         def build_config_keys():
             return [str(rec.get("key") or "") for rec in workbench_config_field_records(cfg) if str(rec.get("key") or "")]
 
@@ -23408,6 +23465,16 @@ def run_line_tui(cfg):
         if cmd == "show":
             resource_prefix = "" if trailing_space else " ".join(parts[1:])
             return [f"show {item}" for item in prefixed(resource_prefix, show_resources)]
+        if cmd in {"commands", "target-commands"}:
+            if len(parts) <= 2 and not trailing_space:
+                return [f"{cmd} {item}" for item in prefixed(current, ["list", "show", "copy"])]
+            subcmd = parts[1].lower() if len(parts) >= 2 else ""
+            if subcmd == "copy":
+                selector_prefix = "" if trailing_space else " ".join(parts[2:])
+                return [f"{cmd} copy {item}" for item in prefixed(selector_prefix, generated_command_ids())]
+        if cmd == "copy":
+            selector_prefix = "" if trailing_space else " ".join(parts[1:])
+            return [f"copy {item}" for item in prefixed(selector_prefix, generated_command_ids())]
         if cmd == "use":
             if len(parts) <= 2 and not trailing_space:
                 return [f"use {item}" for item in prefixed(current, use_kinds)]
@@ -24998,6 +25065,18 @@ def run_line_tui(cfg):
             elif cmd == "show":
                 try:
                     show_line_resource(" ".join(console_args[1:]).strip() if len(console_args) >= 2 else "options")
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"commands", "target-commands"}:
+                try:
+                    run_line_generated_command(console_args[1:])
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "copy":
+                try:
+                    copy_line_generated_command(" ".join(console_args[1:]).strip())
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -27507,6 +27586,7 @@ Discovery:
   workspace                     show fleet/listener/session overview
   search TERM                   search agents, listeners, modules, sessions, jobs, files, queue
   complete [PREFIX]             show command/resource completions
+  commands, copy N              list or copy generated target commands
   show agents|listeners|routes  list common operator resources
   show categories               summarize runnable module kinds
   show service|daemon modules   browse modules by operator category
