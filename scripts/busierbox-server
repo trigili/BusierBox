@@ -21663,7 +21663,8 @@ def run_line_tui(cfg):
         print("  unset KEY                       clear target label/notes or module context")
         print("  services, listeners [-v]        list listener services")
         print("  listener NAME                   inspect/select a listener service")
-        print("  routes [-v], route NAME         list or select bridge routes")
+        print("  routes [-v], route NAME         list/select bridge routes")
+        print("  route add NAME LPORT HOST DPORT [HOP ...] create a bridge route")
         print("  targets, agent NAME, sessions   list/select agents or show sessions")
         print("  agents, listeners, routes       operator aliases for targets/services/bridges")
         print("  stagers, loot                   operator aliases for staged files")
@@ -21919,8 +21920,10 @@ def run_line_tui(cfg):
                 "routes -v",
                 "route print",
                 "route NAME",
+                "route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]",
                 "use route NAME",
-                "  Lists or selects bridge routes. Selected routes support info, options, start, stop, and run.",
+                "  Lists, creates, or selects bridge routes. Selected routes support info, options, start, stop, and run.",
+                "  HOP accepts the same FROM=TO, FROM->TO, or FROM,TO format as --bridge-hop.",
             ],
             "set": [
                 "set KEY VALUE",
@@ -22735,7 +22738,7 @@ def run_line_tui(cfg):
     def print_line_routes(verbose=False):
         records = bridge_profile_records(cfg)
         print("Routes:")
-        print("  commands: routes -v, route NAME, use route NAME, use N, start, stop")
+        print("  commands: routes -v, route add NAME LPORT HOST DPORT, route NAME, use route NAME, use N, start, stop")
         search_records = []
         if not records:
             print("  No bridge profiles.")
@@ -22821,6 +22824,55 @@ def run_line_tui(cfg):
             "active": bool(selected.get("active")),
         })
         return selected
+
+    def add_line_route(args):
+        values = list(args or [])
+        if len(values) < 5:
+            raise ValueError("usage: route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]")
+        name = values[1]
+        try:
+            listen_port = int(values[2])
+            dest_port = int(values[4])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("route add requires numeric LISTEN_PORT and DEST_PORT") from exc
+        if listen_port <= 0 or dest_port <= 0:
+            raise ValueError("route add requires positive LISTEN_PORT and DEST_PORT")
+        dest_host = values[3]
+        hop_args = values[5:]
+        save_cfg = dict(cfg)
+        save_cfg["bridge_listen_port"] = listen_port
+        save_cfg["bridge_dest_host"] = dest_host
+        save_cfg["bridge_dest_port"] = dest_port
+        extra = [
+            "--save-bridge-profile", name,
+            "--bridge-port", str(listen_port),
+            "--bridge-dest-host", dest_host,
+            "--bridge-dest-port", str(dest_port),
+        ]
+        for hop in hop_args:
+            extra.extend(["--bridge-hop", hop])
+        rec = save_bridge_profile(save_cfg, name, purpose="line-console", hop_args=hop_args)
+        headless = bridge_profile_headless_command("save", extra=extra)
+        print(f"saved route {rec.get('name', '')}: {rec.get('route_path', '')}")
+        print(
+            f"  listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')} "
+            f"dest={rec.get('dest_host', '')}:{rec.get('dest_port', '')} "
+            f"hops={rec.get('hop_count', 0)} "
+            f"multi_hop={'yes' if rec.get('multi_hop') else 'no'}"
+        )
+        print(f"headless_command: {headless}")
+        print(f"next: route {rec.get('name', '')}, use route {rec.get('name', '')}, start {rec.get('name', '')}")
+        append_event(cfg, "workbench", "workbench_bridge_profile_saved", details={
+            "name": rec.get("name", ""),
+            "route_path": rec.get("route_path", ""),
+            "listen_port": rec.get("listen_port", ""),
+            "dest_host": rec.get("dest_host", ""),
+            "dest_port": rec.get("dest_port", ""),
+            "hop_count": rec.get("hop_count", 0),
+            "multi_hop": bool(rec.get("multi_hop")),
+            "headless_command": headless,
+        })
+        return rec
 
     def start_line_route(route_name):
         name = str(route_name or "").strip()
@@ -23153,7 +23205,10 @@ def run_line_tui(cfg):
             return [f"{cmd} {item}" for item in prefixed(selector_prefix, line_service_names())]
         if cmd in {"route", "useroute"}:
             selector_prefix = "" if trailing_space else " ".join(parts[1:])
-            return [f"{cmd} {item}" for item in prefixed(selector_prefix, route_names())]
+            route_values = route_names()
+            if cmd == "route":
+                route_values = ["add", "print"] + route_values
+            return [f"{cmd} {item}" for item in prefixed(selector_prefix, route_values)]
         if cmd in {"session", "usesession", "interact"}:
             selector_prefix = "" if trailing_space else " ".join(parts[1:])
             values = ["agent"] + session_names()
@@ -24197,7 +24252,12 @@ def run_line_tui(cfg):
                     print_line_sessions()
                 continue
             elif cmd in {"routes", "route"}:
-                if len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
+                if cmd == "route" and len(console_args) >= 2 and console_args[1] == "add":
+                    try:
+                        add_line_route(console_args[1:])
+                    except ValueError as exc:
+                        print(exc)
+                elif len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
                     print_line_command_help("routes")
                 elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose", "print"}:
                     print_line_routes(verbose=True)
@@ -26605,6 +26665,8 @@ Operations:
   downloads                     list target-fetchable staged files
   listeners [-v]                list listener services and start/stop commands
   routes [-v], route print      list bridge routes and hop details
+  route add NAME LPORT HOST DPORT [HOP ...]
+                                create a reusable bridge route profile
   queue COMMAND                 queue work for the selected/offline target
   run [MODULE] [--dry-run]      run selected or named module
   execute, exploit              aliases for run
