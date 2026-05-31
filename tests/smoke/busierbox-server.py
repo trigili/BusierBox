@@ -10074,6 +10074,7 @@ def main():
                     "help main\n"
                     "help setg\n"
                     "help jobs\n"
+                    "help run\n"
                     "help history\n"
                     f"resource {line_console_resource}\n"
                     "workspace\n"
@@ -10132,6 +10133,13 @@ def main():
                     "jobs -k missing-job\n"
                     "daemon status --dry-run\n"
                     "show actions\n"
+                    "usemodule operator-daemon-status\n"
+                    "execute --dry-run\n"
+                    "back\n"
+                    "uselistener file-service\n"
+                    "back\n"
+                    "useroute console-route\n"
+                    "back\n"
                     "use module operator-daemon-status\n"
                     "info\n"
                     "next\n"
@@ -10155,7 +10163,11 @@ def main():
                     "next\n"
                     "interact\n"
                     "back\n"
+                    "usesession 1\n"
+                    "background\n"
                     "targets\n"
+                    "useagent Console Router\n"
+                    "clear target\n"
                     "use agent Console Router\n"
                     "next\n"
                     "main\n"
@@ -10244,6 +10256,7 @@ def main():
                 "Help: main" not in line_console_stdout or
                 "Help: setg" not in line_console_stdout or
                 "Help: jobs" not in line_console_stdout or
+                "Help: run" not in line_console_stdout or
                 "Help: history" not in line_console_stdout or
                 "Workspace overview:" not in line_console_stdout or
                 f"Resource loaded: {line_console_resource}" not in line_console_stdout or
@@ -10276,6 +10289,7 @@ def main():
                 "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
                 "use agent|listener|route NAME   select target, listener, or route context" not in line_console_stdout or
                 "use module NAME                 select an action module context" not in line_console_stdout or
+                "useagent/usemodule NAME         Empire-style context selection aliases" not in line_console_stdout or
                 "main, home, root                clear target/module context" not in line_console_stdout or
                 "back, background                clear selected module context" not in line_console_stdout or
                 "Clears selected target and module context, then returns to the top-level workspace." not in line_console_stdout or
@@ -10290,6 +10304,8 @@ def main():
                 "upload LOCAL [NAME]             stage a local file for target fetch" not in line_console_stdout or
                 "downloads                       list target-fetchable staged files" not in line_console_stdout or
                 "run -j, run --job               start selected background action as a managed job" not in line_console_stdout or
+                "execute, exploit                aliases for run" not in line_console_stdout or
+                "execute [--dry-run] [--confirm]" not in line_console_stdout or
                 "jobs, jobs -k ID                show or cancel background jobs" not in line_console_stdout or
                 "use N                           use a numbered search/list/module result" not in line_console_stdout or
                 "use action ACTION               select an action module context" not in line_console_stdout or
@@ -10340,6 +10356,12 @@ def main():
                 "unknown workbench job: missing-job" not in line_console_stdout or
                 "Console action modules:" not in line_console_stdout or
                 "operator-daemon-status" not in line_console_stdout or
+                "usemodule operator-daemon-status" not in line_console_stdout or
+                "execute --dry-run" not in line_console_stdout or
+                "uselistener file-service" not in line_console_stdout or
+                "useroute console-route" not in line_console_stdout or
+                "usesession 1" not in line_console_stdout or
+                "useagent Console Router" not in line_console_stdout or
                 "selected action daemon:operator-daemon-status" not in line_console_stdout or
                 "bbx[all]/action/operator-daemon-status>" not in line_console_stdout or
                 "action=daemon:operator-daemon-status" not in line_console_stdout or
@@ -10446,6 +10468,12 @@ def main():
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "daemon" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "target" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "workbench" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "usemodule" and (event.get("details") or {}).get("canonical") == "use module" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "execute" and (event.get("details") or {}).get("canonical") == "run" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "uselistener" and (event.get("details") or {}).get("canonical") == "use listener" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "useroute" and (event.get("details") or {}).get("canonical") == "use route" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "usesession" and (event.get("details") or {}).get("canonical") == "use session" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "useagent" and (event.get("details") or {}).get("canonical") == "use agent" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "root" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "route/console-route" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "action/operator-daemon-status" for event in line_console_events) or

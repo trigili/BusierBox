@@ -21667,6 +21667,7 @@ def run_line_tui(cfg):
         print("  use N                           use a numbered search/list/module result")
         print("  use agent|listener|route NAME   select target, listener, or route context")
         print("  use module NAME                 select an action module context")
+        print("  useagent/usemodule NAME         Empire-style context selection aliases")
         print("  use target ID|LABEL|NUMBER      select a target context")
         print("  use service SERVICE             select a service module context")
         print("  use action ACTION               select an action module context")
@@ -21676,6 +21677,7 @@ def run_line_tui(cfg):
         print("  start SERVICE, stop SERVICE     control a service directly")
         print("  check                           dry-run the selected action module")
         print("  run [--dry-run] [--confirm]     run selected service/action module")
+        print("  execute, exploit                aliases for run")
         print("  run -j, run --job               start selected background action as a managed job")
         print("  sessions [-l|-v], session ID    list or inspect sessions")
         print("  use session ID                  select a session context")
@@ -21765,6 +21767,12 @@ def run_line_tui(cfg):
         for idx, command in enumerate(line_history[start:], start + 1):
             print(f"  {idx}: {command}")
 
+    def record_line_alias(alias, canonical):
+        append_event(cfg, "workbench", "workbench_console_alias_used", details={
+            "alias": str(alias or ""),
+            "canonical": str(canonical or ""),
+        })
+
     def print_line_command_help(topic):
         key = str(topic or "").strip().lower()
         if not key:
@@ -21795,6 +21803,11 @@ def run_line_tui(cfg):
                 "use route NAME|NUMBER",
                 "use session SESSION",
                 "use module ACTION",
+                "useagent ID|LABEL|NUMBER",
+                "uselistener SERVICE",
+                "useroute NAME|NUMBER",
+                "usesession SESSION",
+                "usemodule ACTION",
                 "use target ID|LABEL|NUMBER",
                 "use service SERVICE",
                 "use action ACTION",
@@ -21842,6 +21855,8 @@ def run_line_tui(cfg):
                 "listeners           local services",
                 "routes              bridge profiles",
                 "stagers, loot       staged files and fetch commands",
+                "useagent, uselistener, useroute, usesession, usemodule",
+                "execute, exploit    run the selected action/service module",
                 "use agent/listener/module and sessions -i mirror familiar console verbs",
             ],
             "listeners": [
@@ -21872,6 +21887,8 @@ def run_line_tui(cfg):
             ],
             "run": [
                 "run [--dry-run] [--confirm]",
+                "execute [--dry-run] [--confirm]",
+                "exploit [--dry-run] [--confirm]",
                 "run -j",
                 "run --job",
                 "  Runs the selected action module, or starts the selected service module.",
@@ -23638,6 +23655,61 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
+            elif cmd in {"useagent", "usehost", "usetarget"}:
+                selector = " ".join(console_args[1:]).strip()
+                if not selector:
+                    print("usage: useagent ID|LABEL|NUMBER|all")
+                    continue
+                try:
+                    record_line_alias(cmd, "use agent")
+                    select_line_target(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"uselistener", "useservice"}:
+                selector = " ".join(console_args[1:]).strip()
+                if not selector:
+                    print("usage: uselistener SERVICE")
+                    continue
+                try:
+                    record_line_alias(cmd, "use listener")
+                    select_line_service(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "useroute":
+                selector = " ".join(console_args[1:]).strip()
+                if not selector:
+                    print("usage: useroute NAME|NUMBER")
+                    continue
+                try:
+                    record_line_alias(cmd, "use route")
+                    select_line_route(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "usesession":
+                selector = " ".join(console_args[1:]).strip()
+                if not selector:
+                    print("usage: usesession SESSION")
+                    continue
+                try:
+                    record_line_alias(cmd, "use session")
+                    select_line_session(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"usemodule", "useaction"}:
+                selector = " ".join(console_args[1:]).strip()
+                if not selector:
+                    print("usage: usemodule ACTION")
+                    continue
+                try:
+                    record_line_alias(cmd, "use module")
+                    select_line_action(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
             elif cmd == "clear" and len(console_args) >= 2 and console_args[1].lower() == "target":
                 try:
                     select_line_target("all", targets=[])
@@ -23662,8 +23734,10 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "run":
+            elif cmd in {"run", "execute", "exploit"}:
                 try:
+                    if cmd != "run":
+                        record_line_alias(cmd, "run")
                     if any(item in {"-j", "--job"} for item in console_args[1:]):
                         action_selector = " ".join(item for item in console_args[1:] if item not in {"-j", "--job"}).strip()
                         start_line_job(action_selector)
@@ -25932,6 +26006,7 @@ Context:
   use route NAME|NUMBER         select a bridge route
   route NAME                    inspect/select a bridge route
   use module ACTION             select an action module
+  useagent/usemodule NAME       Empire-style context selection aliases
   use session SESSION           select a session context
   next                          show suggested commands for current context
   main, home, root              clear selected target/module context
@@ -25946,6 +26021,7 @@ Operations:
   routes [-v], route print      list bridge routes and hop details
   queue COMMAND                 queue work for the selected/offline target
   run [--dry-run] [--confirm]   run selected module
+  execute, exploit              aliases for run
   run -j                        start selected background-capable action as a job
   jobs, jobs -k ID              list or cancel managed background jobs
   sessions [-l|-v]              list sessions
