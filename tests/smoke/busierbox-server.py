@@ -172,6 +172,7 @@ def main():
             "serve-binary [--start] [PATH] [NAME]" not in console_help or
             "release, release stage SELECTOR" not in console_help or
             "fetch [--queue] [--start] NAME" not in console_help or
+            "queue list|result|clear" not in console_help or
             "resource FILE" not in console_help or
             "makerc FILE" not in console_help or
             "!!, !N, repeat N" not in console_help or
@@ -10152,6 +10153,7 @@ def main():
                     "help download\n"
                     "help survey\n"
                     "help fetch\n"
+                    "help queue\n"
                     "complete\n"
                     "complete use ag\n"
                     "complete agent Con\n"
@@ -10296,6 +10298,8 @@ def main():
                     "unset target.notes\n"
                     "show activity\n"
                     "queue busierbox survey --json\n"
+                    "queue result 1\n"
+                    "queue list\n"
                     "survey --queue\n"
                     "download --queue /etc/config/network\n"
                     "show mailbox\n"
@@ -10312,6 +10316,8 @@ def main():
                     "rmfile missing-upload\n"
                     "stagers\n"
                     "mailbox\n"
+                    "queue clear --confirm\n"
+                    "queue list\n"
                     "clear target\n"
                     "q\n"
                 ).encode("utf-8"),
@@ -10388,6 +10394,7 @@ def main():
                 "Help: download" not in line_console_stdout or
                 "Help: survey" not in line_console_stdout or
                 "Help: fetch" not in line_console_stdout or
+                "Help: queue" not in line_console_stdout or
                 "Help: files" not in line_console_stdout or
                 "complete [PREFIX]               show command/resource completions" not in line_console_stdout or
                 "Completions for <root>:" not in line_console_stdout or
@@ -10465,6 +10472,9 @@ def main():
                 "routes, routes -l" not in line_console_stdout or
                 "route print" not in line_console_stdout or
                 "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
+                "queue list|result|clear         inspect results or clear queued work" not in line_console_stdout or
+                "queue result ID|NUMBER" not in line_console_stdout or
+                "queue clear --confirm" not in line_console_stdout or
                 "download [--queue] TARGET_PATH  show or queue target-to-operator upload" not in line_console_stdout or
                 "download [--queue] [--start] TARGET_PATH" not in line_console_stdout or
                 "Shows the target-side command to upload TARGET_PATH back to the operator file service." not in line_console_stdout or
@@ -10621,6 +10631,8 @@ def main():
                 "unset target.notes for line-console-target" not in line_console_stdout or
                 "Target activity records:" not in line_console_stdout or
                 "queued cq-" not in line_console_stdout or
+                "Command result:" not in line_console_stdout or
+                "result_status=none" not in line_console_stdout or
                 "Survey bootstrap:" not in line_console_stdout or
                 "target_command=wget -O- " not in line_console_stdout or
                 "| /bin/sh" not in line_console_stdout or
@@ -10647,6 +10659,8 @@ def main():
                 line_console_stdout.count("file_service_started=yes") < 2 or
                 "File service workflow actions:" not in line_console_stdout or
                 "Target mailbox records:" not in line_console_stdout or
+                "cleared " not in line_console_stdout or
+                "no queued commands" not in line_console_stdout or
                 "target filter cleared" not in line_console_stdout):
             print("line-oriented TUI console commands did not expose expected UX", file=sys.stderr)
             if line_console_missing_markers:
@@ -10729,6 +10743,8 @@ def main():
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
                 not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
                 not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
+                not any(event.get("event") == "workbench_command_result_inspected" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("has_result") is False for event in line_console_events) or
+                not any(event.get("event") == "workbench_command_queue_cleared" and (event.get("details") or {}).get("count", 0) >= 1 for event in line_console_events) or
                 not any(event.get("event") == "workbench_survey_bootstrap_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_target_download_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("target_upload_path") == "/etc/config/network" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_staged_fetch_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("request_name") == "console-upload" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
