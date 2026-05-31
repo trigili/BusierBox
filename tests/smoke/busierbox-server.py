@@ -9966,6 +9966,7 @@ def main():
         line_console_binary.write_text("#!/bin/sh\necho busierbox console binary\n", encoding="utf-8")
         line_console_state = Path(tmp) / "operator-session" / "line-console-state.json"
         line_console_staged = Path(tmp) / "operator-session" / "line-console-staged.json"
+        line_console_routes = Path(tmp) / "operator-session" / "line-console-bridge-profiles.json"
         line_console_build = Path(tmp) / "line-console-build.conf"
         line_console_build.write_text('BB_RUNTIME_ROOT="./.busierbox"\n', encoding="utf-8")
         line_console_resource = Path(tmp) / "line-console.rc"
@@ -10008,6 +10009,32 @@ def main():
             print(line_console_target.stdout, file=sys.stderr)
             print(line_console_target.stderr, file=sys.stderr)
             return 1
+        line_console_route_port = free_port()
+        line_console_route_dest_port = free_port()
+        while line_console_route_dest_port == line_console_route_port:
+            line_console_route_dest_port = free_port()
+        line_console_route = run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--state-file", str(line_console_state),
+            "--staged-file", str(line_console_staged),
+            "--bridge-profiles-file", str(line_console_routes),
+            "--target-id", "line-console-target",
+            "--target-label", "Console Router",
+            "--save-bridge-profile", "console-route",
+            "--bridge-port", str(line_console_route_port),
+            "--bridge-dest-host", "127.0.0.1",
+            "--bridge-dest-port", str(line_console_route_dest_port),
+            "--bridge-profile-purpose", "line-console-smoke",
+            "--bridge-profile-notes", "line console route",
+            "--bridge-hop", f"operator:{line_console_route_port}=rack-hop:9001",
+            "--bridge-hop", f"rack-hop:9001=127.0.0.1:{line_console_route_dest_port}",
+        )
+        if line_console_route.returncode != 0 or "saved bridge profile console-route" not in line_console_route.stdout:
+            print("line console route setup failed", file=sys.stderr)
+            print(line_console_route.stdout, file=sys.stderr)
+            print(line_console_route.stderr, file=sys.stderr)
+            return 1
         line_console_master, line_console_slave = pty.openpty()
         try:
             line_console_proc = subprocess.Popen(
@@ -10016,6 +10043,7 @@ def main():
                     "--config", str(upload_cfg),
                     "--state-file", str(line_console_state),
                     "--staged-file", str(line_console_staged),
+                    "--bridge-profiles-file", str(line_console_routes),
                     "--build-config", str(line_console_build),
                     "--tui",
                 ],
@@ -10039,6 +10067,7 @@ def main():
                     "help use\n"
                     "help sessions\n"
                     "help modules\n"
+                    "help routes\n"
                     "help setg\n"
                     "help jobs\n"
                     "help history\n"
@@ -10052,6 +10081,12 @@ def main():
                     "show agents\n"
                     "show listeners\n"
                     "show routes\n"
+                    "routes -v\n"
+                    "route print\n"
+                    "route console-route\n"
+                    "info\n"
+                    "options\n"
+                    "back\n"
                     "show modules daemon\n"
                     "modules file-service\n"
                     "use 1\n"
@@ -10157,6 +10192,7 @@ def main():
                 "Help: use" not in line_console_stdout or
                 "Help: sessions" not in line_console_stdout or
                 "Help: modules" not in line_console_stdout or
+                "Help: routes" not in line_console_stdout or
                 "Help: setg" not in line_console_stdout or
                 "Help: jobs" not in line_console_stdout or
                 "Help: history" not in line_console_stdout or
@@ -10180,13 +10216,17 @@ def main():
                 "info, options                   show selected context and module options" not in line_console_stdout or
                 "services, listeners [-v]        list listener services" not in line_console_stdout or
                 "listener NAME                   inspect/select a listener service" not in line_console_stdout or
+                "routes [-v], route NAME         list or select bridge routes" not in line_console_stdout or
                 "targets, sessions               shortcuts for show commands" not in line_console_stdout or
                 "agents, listeners, routes       operator aliases for targets/services/bridges" not in line_console_stdout or
                 "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
-                "use agent|listener|module NAME  select target, service, or action context" not in line_console_stdout or
+                "use agent|listener|route NAME   select target, listener, or route context" not in line_console_stdout or
+                "use module NAME                 select an action module context" not in line_console_stdout or
                 "sessions [-l|-v], session ID    list or inspect sessions" not in line_console_stdout or
                 "interact SESSION, sessions -i   show local session inspection commands" not in line_console_stdout or
                 "use agent/listener/module and sessions -i mirror familiar console verbs" not in line_console_stdout or
+                "routes, routes -l" not in line_console_stdout or
+                "route print" not in line_console_stdout or
                 "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "run -j, run --job               start selected background action as a managed job" not in line_console_stdout or
@@ -10202,7 +10242,14 @@ def main():
                 "Console options:" not in line_console_stdout or
                 "Services:" not in line_console_stdout or
                 "Routes:" not in line_console_stdout or
-                "No bridge profiles." not in line_console_stdout or
+                "commands: routes -v, route NAME, use route NAME, start, stop" not in line_console_stdout or
+                "console-route" not in line_console_stdout or
+                "selected route console-route" not in line_console_stdout or
+                "bbx[all]/route/console-route>" not in line_console_stdout or
+                "route_path=operator:" not in line_console_stdout or
+                "route.name=console-route" not in line_console_stdout or
+                "route.inspect_command=scripts/busierbox-server --config" not in line_console_stdout or
+                "route.next=info, start, stop, run, back" not in line_console_stdout or
                 "Module filter: daemon" not in line_console_stdout or
                 "Module filter: file-service" not in line_console_stdout or
                 "Module groups:" not in line_console_stdout or
@@ -10310,6 +10357,8 @@ def main():
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "daemon" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "file-service" for event in line_console_events) or
                 not any(event.get("event") == "workbench_listeners_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
+                not any(event.get("event") == "workbench_routes_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
+                not any(event.get("event") == "workbench_route_selected" and (event.get("details") or {}).get("name") == "console-route" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "name=file-service" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
                 not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or

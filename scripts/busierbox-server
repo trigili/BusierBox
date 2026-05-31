@@ -21657,11 +21657,13 @@ def run_line_tui(cfg):
         print("  unset KEY                       clear target label/notes or module context")
         print("  services, listeners [-v]        list listener services")
         print("  listener NAME                   inspect/select a listener service")
+        print("  routes [-v], route NAME         list or select bridge routes")
         print("  targets, sessions               shortcuts for show commands")
         print("  agents, listeners, routes       operator aliases for targets/services/bridges")
         print("  stagers, loot                   operator aliases for staged files")
         print("  use N                           use a numbered search/module result")
-        print("  use agent|listener|module NAME  select target, service, or action context")
+        print("  use agent|listener|route NAME   select target, listener, or route context")
+        print("  use module NAME                 select an action module context")
         print("  use target ID|LABEL|NUMBER      select a target context")
         print("  use service SERVICE             select a service module context")
         print("  use action ACTION               select an action module context")
@@ -21783,12 +21785,13 @@ def run_line_tui(cfg):
                 "use N",
                 "use agent ID|LABEL|NUMBER",
                 "use listener SERVICE",
+                "use route NAME|NUMBER",
                 "use session SESSION",
                 "use module ACTION",
                 "use target ID|LABEL|NUMBER",
                 "use service SERVICE",
                 "use action ACTION",
-                "  Selects a numbered search/module result, target, session, service module, or action module context.",
+                "  Selects a numbered search/module result, target, session, route, service module, or action module context.",
             ],
             "show": [
                 "show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options",
@@ -21824,6 +21827,14 @@ def run_line_tui(cfg):
                 "listener NAME",
                 "use listener NAME",
                 "  Lists or selects listener services. Selected listeners support info, options, start, stop, and run.",
+            ],
+            "routes": [
+                "routes, routes -l",
+                "routes -v",
+                "route print",
+                "route NAME",
+                "use route NAME",
+                "  Lists or selects bridge routes. Selected routes support info, options, start, stop, and run.",
             ],
             "set": [
                 "set KEY VALUE",
@@ -21921,6 +21932,27 @@ def run_line_tui(cfg):
             print(f"    start={service_start_headless_command(cfg, service)}")
             print(f"    stop={service_stop_headless_command(cfg, service)}")
             print("    next: options, start, stop, run, back")
+        elif module.startswith("route/"):
+            route_name = module.split("/", 1)[1]
+            rec = line_route_record(route_name)
+            print(f"  route={route_name}")
+            if rec:
+                print(
+                    f"    state={rec.get('current_state', '') or '-'} "
+                    f"active={'yes' if rec.get('active') else 'no'} "
+                    f"listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')} "
+                    f"dest={rec.get('dest_host', '')}:{rec.get('dest_port', '')}"
+                )
+                print(f"    route_path={rec.get('route_path', '') or '-'}")
+                print(
+                    f"    hops={rec.get('hop_count', 0)} "
+                    f"multi_hop={'yes' if rec.get('multi_hop') else 'no'} "
+                    f"target={rec.get('target_id', '') or '-'}"
+                )
+            print(f"    inspect={bridge_profile_headless_command('inspect', route_name)}")
+            print(f"    start={bridge_profile_headless_command('start', route_name)}")
+            print(f"    stop={bridge_profile_headless_command('stop', route_name)}")
+            print("    next: options, start, stop, run, back")
         else:
             print("  action=none")
         target_filter = snap.get("target_filter") or {}
@@ -22001,6 +22033,26 @@ def run_line_tui(cfg):
             print(f"  service.start_command={service_start_headless_command(cfg, service)}")
             print(f"  service.stop_command={service_stop_headless_command(cfg, service)}")
             print("  service.next=info, start, stop, run, back")
+        elif module.startswith("route/"):
+            route_name = module.split("/", 1)[1]
+            rec = line_route_record(route_name)
+            print(f"  route.name={route_name}")
+            if rec:
+                print(f"  route.listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
+                print(f"  route.destination={rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
+                print(f"  route.route_path={rec.get('route_path', '') or '-'}")
+                print(f"  route.state={rec.get('current_state', '') or '-'}")
+                print(f"  route.active={'yes' if rec.get('active') else 'no'}")
+                print(f"  route.hop_count={rec.get('hop_count', 0)}")
+                print(f"  route.multi_hop={'yes' if rec.get('multi_hop') else 'no'}")
+                print(f"  route.target_id={rec.get('target_id', '') or '-'}")
+                print(f"  route.last_success={rec.get('last_successful_relay_at', '') or '-'}")
+                print(f"  route.last_failure={rec.get('last_failure_reason', '') or '-'}")
+            print(f"  route.inspect_command={bridge_profile_headless_command('inspect', route_name)}")
+            print(f"  route.start_command={bridge_profile_headless_command('start', route_name)}")
+            print(f"  route.stop_command={bridge_profile_headless_command('stop', route_name)}")
+            print(f"  route.delete_command={bridge_profile_headless_command('delete', route_name)}")
+            print("  route.next=info, start, stop, run, back")
         action = selected_line_action()
         if action:
             command = action.get("headless_command", action.get("run_command", action.get("command", "")))
@@ -22236,6 +22288,8 @@ def run_line_tui(cfg):
             module = str(cfg.get("_line_console_module") or "")
             if module.startswith("service/"):
                 service = module.split("/", 1)[1]
+            elif module.startswith("route/"):
+                return start_line_route(module.split("/", 1)[1])
         if not service:
             raise ValueError("usage: start SERVICE")
         if service not in line_service_names():
@@ -22250,6 +22304,8 @@ def run_line_tui(cfg):
             module = str(cfg.get("_line_console_module") or "")
             if module.startswith("service/"):
                 service = module.split("/", 1)[1]
+            elif module.startswith("route/"):
+                return stop_line_route(module.split("/", 1)[1])
         if not service:
             raise ValueError("usage: stop SERVICE")
         if service not in line_service_names():
@@ -22257,6 +22313,119 @@ def run_line_tui(cfg):
         headless = service_stop_headless_command(cfg, service)
         print(f"headless_command: {headless}")
         stop_recorded_service(cfg, service, headless_command=headless)
+
+    def line_route_record(name):
+        text = str(name or "").strip()
+        for rec in bridge_profile_records(cfg):
+            if str(rec.get("name") or "") == text:
+                return rec
+        return {}
+
+    def print_line_routes(verbose=False):
+        records = bridge_profile_records(cfg)
+        print("Routes:")
+        print("  commands: routes -v, route NAME, use route NAME, start, stop")
+        if not records:
+            print("  No bridge profiles.")
+            append_event(cfg, "workbench", "workbench_routes_listed", details={
+                "route_count": 0,
+                "verbose": bool(verbose),
+            })
+            return records
+        for idx, rec in enumerate(records, 1):
+            print(
+                f"  {idx}: {rec.get('name', '')} "
+                f"listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')} "
+                f"dest={rec.get('dest_host', '')}:{rec.get('dest_port', '')} "
+                f"state={rec.get('current_state', '') or '-'} "
+                f"active={'yes' if rec.get('active') else 'no'}"
+            )
+            print(f"     path: {rec.get('route_path', '')}")
+            if verbose:
+                print(
+                    f"     hops={rec.get('hop_count', 0)} "
+                    f"multi_hop={'yes' if rec.get('multi_hop') else 'no'} "
+                    f"target={rec.get('target_id', '') or '-'} "
+                    f"last_success={rec.get('last_successful_relay_at', '') or '-'} "
+                    f"last_failure={rec.get('last_failure_reason', '') or '-'}"
+                )
+                print(f"     inspect: route {rec.get('name', '')}")
+                print(f"     use: use route {rec.get('name', '')}")
+        append_event(cfg, "workbench", "workbench_routes_listed", details={
+            "route_count": len(records),
+            "verbose": bool(verbose),
+        })
+        return records
+
+    def select_line_route(selector, records=None):
+        text = str(selector or "").strip()
+        if not text:
+            raise ValueError("usage: route NAME|NUMBER")
+        records = records if records is not None else bridge_profile_records(cfg)
+        selected = {}
+        if text.isdigit():
+            idx = int(text) - 1
+            if idx < 0 or idx >= len(records):
+                raise ValueError(f"route number out of range: {text}")
+            selected = records[idx]
+        else:
+            for rec in records:
+                if str(rec.get("name") or "") == text:
+                    selected = rec
+                    break
+        if not selected:
+            raise ValueError(f"route not found: {text}")
+        name = str(selected.get("name") or "")
+        cfg["_line_console_module"] = f"route/{name}"
+        cfg.pop("_line_console_action_kind", None)
+        cfg.pop("_line_console_action_id", None)
+        print(f"selected route {name}")
+        print(f"  route_path={selected.get('route_path', '')}")
+        print(
+            f"  listen={selected.get('listen_host', '')}:{selected.get('listen_port', '')} "
+            f"dest={selected.get('dest_host', '')}:{selected.get('dest_port', '')} "
+            f"state={selected.get('current_state', '') or '-'} "
+            f"active={'yes' if selected.get('active') else 'no'}"
+        )
+        print(f"  inspect: {bridge_profile_headless_command('inspect', name)}")
+        print(f"  start: {bridge_profile_headless_command('start', name)}")
+        print(f"  stop: {bridge_profile_headless_command('stop', name)}")
+        print("  next: info, options, start, stop, run, back")
+        append_event(cfg, "workbench", "workbench_route_selected", details={
+            "name": name,
+            "route_path": selected.get("route_path", ""),
+            "active": bool(selected.get("active")),
+        })
+        return selected
+
+    def start_line_route(route_name):
+        name = str(route_name or "").strip()
+        if not name:
+            raise ValueError("usage: start ROUTE")
+        if not line_route_record(name):
+            raise ValueError(f"route not found: {name}")
+        headless = bridge_profile_headless_command("start", name)
+        print(f"headless_command: {headless}")
+        start_service_process(
+            cfg,
+            "bridge",
+            argv_extra=["--bridge-profile", name],
+            headless_command=headless,
+        )
+
+    def stop_line_route(route_name):
+        name = str(route_name or "").strip()
+        if not name:
+            module = str(cfg.get("_line_console_module") or "")
+            if module.startswith("route/"):
+                name = module.split("/", 1)[1]
+        if not name:
+            raise ValueError("usage: stop ROUTE")
+        if not line_route_record(name):
+            raise ValueError(f"route not found: {name}")
+        headless = bridge_profile_headless_command("stop", name)
+        print(f"headless_command: {headless}")
+        stop_recorded_service(cfg, "bridge", headless_command=headless)
 
     def print_line_jobs():
         snap = workbench_snapshot(cfg)
@@ -22410,6 +22579,14 @@ def run_line_tui(cfg):
             add("target", f"{rec.get('target_id', '')} label={rec.get('label', '') or '-'} state={rec.get('connectivity_state', '') or '-'}", rec)
         for rec in service_status_rows(cfg):
             add("service", f"{rec.get('name', '')} actual={rec.get('actual', '') or '-'} port={rec.get('port', '') or '-'}", rec)
+        for rec in bridge_profile_records(cfg):
+            route_name = str(rec.get("name") or "")
+            add(
+                "route",
+                f"{route_name} state={rec.get('current_state', '') or '-'} path={rec.get('route_path', '')}",
+                rec,
+                bridge_profile_headless_command("inspect", route_name),
+            )
         for rec in line_action_records():
             add(
                 "action",
@@ -22442,6 +22619,8 @@ def run_line_tui(cfg):
                 use_hint = f"use target {shquote(str(rec.get('target_id', '')))}"
             elif kind == "service":
                 use_hint = f"use service {shquote(str(rec.get('name', '')))}"
+            elif kind == "route":
+                use_hint = f"use route {shquote(str(rec.get('name', '')))}"
             elif kind == "action":
                 use_hint = f"use action {shquote(str(rec.get('id', '')))}"
             elif kind == "session":
@@ -22480,6 +22659,8 @@ def run_line_tui(cfg):
             return select_line_target(str(rec.get("target_id") or ""))
         if kind == "service":
             return select_line_service(str(rec.get("name") or ""))
+        if kind == "route":
+            return select_line_route(str(rec.get("name") or ""))
         if kind == "action":
             return select_line_action(str(rec.get("id") or ""))
         if kind == "session":
@@ -22745,8 +22926,7 @@ def run_line_tui(cfg):
         elif key in ("session", "sessions"):
             print_line_sessions()
         elif key in ("route", "routes"):
-            print("Routes:")
-            print_bridge_profiles(cfg, json_output=False)
+            print_line_routes(verbose=filter_text in ("-v", "--verbose", "verbose"))
         elif key in ("queue", "mailbox", "commands"):
             print_command_queue(cfg, json_output=False)
         elif key in ("activity", "events"):
@@ -23059,8 +23239,17 @@ def run_line_tui(cfg):
                     print_line_sessions()
                 continue
             elif cmd in {"routes", "route"}:
-                print("Routes:")
-                print_bridge_profiles(cfg, json_output=False)
+                if len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
+                    print_line_command_help("routes")
+                elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose", "print"}:
+                    print_line_routes(verbose=True)
+                elif cmd == "route" and len(console_args) >= 2:
+                    try:
+                        select_line_route(" ".join(console_args[1:]).strip())
+                    except ValueError as exc:
+                        print(exc)
+                else:
+                    print_line_routes()
                 continue
             elif cmd == "use" and len(console_args) == 2 and console_args[1].isdigit():
                 try:
@@ -23105,6 +23294,16 @@ def run_line_tui(cfg):
                     continue
                 try:
                     select_line_service(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "route":
+                selector = " ".join(console_args[2:]).strip()
+                if not selector:
+                    print("usage: use route NAME|NUMBER")
+                    continue
+                try:
+                    select_line_route(selector)
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -25406,6 +25605,8 @@ Context:
   use agent ID|LABEL|NUMBER     select a target device
   use listener SERVICE          select a service module
   listener SERVICE              inspect/select a listener service
+  use route NAME|NUMBER         select a bridge route
+  route NAME                    inspect/select a bridge route
   use module ACTION             select an action module
   use session SESSION           inspect a session
   back                          clear selected module context
@@ -25414,6 +25615,7 @@ Context:
 Operations:
   serve-binary [PATH] [NAME]    stage a BusierBox binary for target fetch
   listeners [-v]                list listener services and start/stop commands
+  routes [-v], route print      list bridge routes and hop details
   queue COMMAND                 queue work for the selected/offline target
   run [--dry-run] [--confirm]   run selected module
   run -j                        start selected background-capable action as a job
