@@ -10117,6 +10117,8 @@ def main():
                     "complete use ag\n"
                     "complete agent Con\n"
                     "complete route a\n"
+                    "complete route st\n"
+                    "complete start route c\n"
                     "complete use job\n"
                     "complete show m\n"
                     "complete use module operator-daemon\n"
@@ -10138,6 +10140,8 @@ def main():
                     "use 1\n"
                     "back\n"
                     f"route add zz-console-added {line_console_added_route_port} 127.0.0.1 {line_console_added_route_dest_port} operator:{line_console_added_route_port}=rack-hop:9100 rack-hop:9100=127.0.0.1:{line_console_added_route_dest_port}\n"
+                    "route start zz-console-added\n"
+                    "route stop zz-console-added\n"
                     "show routes\n"
                     "routes -v\n"
                     "use 1\n"
@@ -10269,7 +10273,7 @@ def main():
                 ).encode("utf-8"),
             )
             line_console_chunks = []
-            deadline = time.time() + 14
+            deadline = time.time() + 16
             while line_console_proc.poll() is None and time.time() < deadline:
                 ready, _, _ = select.select([line_console_master], [], [], 0.1)
                 if ready:
@@ -10346,6 +10350,10 @@ def main():
                 "agent Console Router" not in line_console_stdout or
                 "Completions for route a:" not in line_console_stdout or
                 "route add" not in line_console_stdout or
+                "Completions for route st:" not in line_console_stdout or
+                "route start" not in line_console_stdout or
+                "Completions for start route c:" not in line_console_stdout or
+                "start route console-route" not in line_console_stdout or
                 "Completions for use job:" not in line_console_stdout or
                 "use job line-console-job" not in line_console_stdout or
                 "Completions for show m:" not in line_console_stdout or
@@ -10385,7 +10393,10 @@ def main():
                 "listener NAME                   inspect/select a listener service" not in line_console_stdout or
                 "routes [-v], route NAME         list/select bridge routes" not in line_console_stdout or
                 "route add NAME LPORT HOST DPORT [HOP ...] create a bridge route" not in line_console_stdout or
+                "route start NAME, route stop NAME control a bridge route directly" not in line_console_stdout or
                 "route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]" not in line_console_stdout or
+                "route start NAME" not in line_console_stdout or
+                "route stop NAME" not in line_console_stdout or
                 "targets, agent NAME, sessions   list/select agents or show sessions" not in line_console_stdout or
                 "agents, listeners, routes       operator aliases for targets/services/bridges" not in line_console_stdout or
                 "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
@@ -10427,9 +10438,11 @@ def main():
                 "Console options:" not in line_console_stdout or
                 "Services:" not in line_console_stdout or
                 "Routes:" not in line_console_stdout or
-                "commands: routes -v, route add NAME LPORT HOST DPORT, route NAME, use route NAME, use N, start, stop" not in line_console_stdout or
+                "commands: routes -v, route add NAME LPORT HOST DPORT, route NAME, route start NAME, route stop NAME, use route NAME, use N" not in line_console_stdout or
                 "console-route" not in line_console_stdout or
                 "saved route zz-console-added" not in line_console_stdout or
+                "started route zz-console-added" not in line_console_stdout or
+                "stopped route zz-console-added" not in line_console_stdout or
                 "zz-console-added" not in line_console_stdout or
                 f"operator:{line_console_added_route_port} -> rack-hop:9100 -> 127.0.0.1:{line_console_added_route_dest_port}" not in line_console_stdout or
                 "multi_hop=yes" not in line_console_stdout or
@@ -10620,6 +10633,8 @@ def main():
                 not any(event.get("event") == "workbench_console_makerc_saved" and (event.get("details") or {}).get("path") == str(line_console_makerc) and (event.get("details") or {}).get("command_count", 0) >= 20 for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_completions_shown" and (event.get("details") or {}).get("prefix") == "use job" for event in line_console_events) or
                 not any(event.get("event") == "workbench_bridge_profile_saved" and (event.get("details") or {}).get("name") == "zz-console-added" and (event.get("details") or {}).get("multi_hop") is True for event in line_console_events) or
+                not any(event.get("event") == "workbench_route_started" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
+                not any(event.get("event") == "workbench_route_stopped" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "daemon" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "file-service" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_module_categories_listed" for event in line_console_events) or
