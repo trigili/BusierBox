@@ -10113,6 +10113,7 @@ def main():
                     "help history\n"
                     "help complete\n"
                     "help view\n"
+                    "help download\n"
                     "complete\n"
                     "complete use ag\n"
                     "complete agent Con\n"
@@ -10255,6 +10256,7 @@ def main():
                     "unset target.notes\n"
                     "show activity\n"
                     "queue busierbox survey --json\n"
+                    "download --queue /etc/config/network\n"
                     "show mailbox\n"
                     f"upload --start {line_console_upload} console-upload\n"
                     "stop file-service\n"
@@ -10341,6 +10343,7 @@ def main():
                 "Help: makerc" not in line_console_stdout or
                 "Help: complete" not in line_console_stdout or
                 "Help: view" not in line_console_stdout or
+                "Help: download" not in line_console_stdout or
                 "Help: files" not in line_console_stdout or
                 "complete [PREFIX]               show command/resource completions" not in line_console_stdout or
                 "Completions for <root>:" not in line_console_stdout or
@@ -10414,6 +10417,9 @@ def main():
                 "routes, routes -l" not in line_console_stdout or
                 "route print" not in line_console_stdout or
                 "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
+                "download [--queue] TARGET_PATH  show or queue target-to-operator upload" not in line_console_stdout or
+                "download [--queue] [--start] TARGET_PATH" not in line_console_stdout or
+                "Shows the target-side command to upload TARGET_PATH back to the operator file service." not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "upload [--start] LOCAL [NAME]   stage and optionally serve a local file" not in line_console_stdout or
                 "unstage NAME                    remove a staged file request" not in line_console_stdout or
@@ -10459,7 +10465,7 @@ def main():
                 "selected route=console-route" not in line_console_stdout or
                 "selected module=daemon:operator-daemon-status" not in line_console_stdout or
                 "commands: options, check, run, run --dry-run, run --confirm, background" not in line_console_stdout or
-                "commands: interact, queue COMMAND, upload --start LOCAL NAME, show activity, serve-binary --start PATH NAME, clear target" not in line_console_stdout or
+                "commands: interact, queue COMMAND, download --queue TARGET_PATH, upload --start LOCAL NAME, show activity, serve-binary --start PATH NAME, clear target" not in line_console_stdout or
                 "help: help use, help modules, help routes, help sessions" not in line_console_stdout or
                 "returned to main workspace" not in line_console_stdout or
                 "cleared_module=no cleared_target=yes" not in line_console_stdout or
@@ -10505,7 +10511,7 @@ def main():
                 "useagent Console Router" not in line_console_stdout or
                 "agent Console Router" not in line_console_stdout or
                 "Agent interaction: line-console-target label=Console Router state=online" not in line_console_stdout or
-                "commands: queue COMMAND, mailbox, upload --start LOCAL [NAME], serve-binary --start PATH [NAME], sessions, show activity, clear target" not in line_console_stdout or
+                "commands: queue COMMAND, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], serve-binary --start PATH [NAME], sessions, show activity, clear target" not in line_console_stdout or
                 "headless_status: scripts/busierbox-server --config" not in line_console_stdout or
                 "pending work: none" not in line_console_stdout or
                 "rename Console Router" not in line_console_stdout or
@@ -10560,6 +10566,9 @@ def main():
                 "unset target.notes for line-console-target" not in line_console_stdout or
                 "Target activity records:" not in line_console_stdout or
                 "queued cq-" not in line_console_stdout or
+                "Target download command:" not in line_console_stdout or
+                "target_upload_path=/etc/config/network" not in line_console_stdout or
+                "./busierbox put /etc/config/network" not in line_console_stdout or
                 "show mailbox" not in line_console_stdout or
                 "busierbox survey --json" not in line_console_stdout or
                 "target=line-console-target label=Console Router" not in line_console_stdout or
@@ -10660,6 +10669,7 @@ def main():
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
                 not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
                 not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
+                not any(event.get("event") == "workbench_target_download_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("target_upload_path") == "/etc/config/network" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
                 len([event for event in line_console_events if event.get("event") == "workbench_command_queue_inspected"]) < 2 or
                 not any(
                     event.get("event") == "workbench_file_uploaded" and

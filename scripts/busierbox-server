@@ -21689,6 +21689,7 @@ def run_line_tui(cfg):
         print("  use session ID                  select a session context")
         print("  interact SESSION, sessions -i   show local session inspection commands")
         print("  queue COMMAND                   queue work for selected/offline target")
+        print("  download [--queue] TARGET_PATH  show or queue target-to-operator upload")
         print("  daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow")
         print("  upload [--start] LOCAL [NAME]   stage and optionally serve a local file")
         print("  files, staged                   list staged files and file workflow actions")
@@ -21976,6 +21977,13 @@ def run_line_tui(cfg):
                 "  Queues a command record for the selected target context.",
                 "  Delivery still depends on the existing command-queue policy and target polling.",
             ],
+            "download": [
+                "download [--queue] [--start] TARGET_PATH",
+                "get [--queue] [--start] TARGET_PATH",
+                "  Shows the target-side command to upload TARGET_PATH back to the operator file service.",
+                "  --queue stores that command in the selected agent mailbox for later phone-home delivery.",
+                "  --start starts the file-service before printing or queueing the command.",
+            ],
             "upload": [
                 "upload [--start] LOCAL [NAME]",
                 "stage [--start] LOCAL [NAME]",
@@ -22188,7 +22196,7 @@ def run_line_tui(cfg):
         elif target_id:
             target_filter = snap.get("target_filter") or {}
             print(target_filter_summary_text(target_filter, prefix="  selected agent:"))
-            print("  commands: interact, queue COMMAND, upload --start LOCAL NAME, show activity, serve-binary --start PATH NAME, clear target")
+            print("  commands: interact, queue COMMAND, download --queue TARGET_PATH, upload --start LOCAL NAME, show activity, serve-binary --start PATH NAME, clear target")
         else:
             print("  selected agent=all")
             print("  commands: workspace, agents, listeners, routes, sessions, show categories, search TERM")
@@ -22646,7 +22654,7 @@ def run_line_tui(cfg):
         state = target.get("connectivity_state") or target_filter.get("connectivity_state") or "-"
         print(f"Agent interaction: {target_id} label={label} state={state}")
         print(target_filter_summary_text(target_filter, prefix="  status:"))
-        print("  commands: queue COMMAND, mailbox, upload --start LOCAL [NAME], serve-binary --start PATH [NAME], sessions, show activity, clear target")
+        print("  commands: queue COMMAND, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], serve-binary --start PATH [NAME], sessions, show activity, clear target")
         print(
             "  headless_status: scripts/busierbox-server --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
@@ -23138,7 +23146,7 @@ def run_line_tui(cfg):
             "useagent", "uselistener", "useroute", "usesession", "usemodule",
             "main", "home", "root", "back", "background", "start", "stop",
             "check", "run", "execute", "exploit", "interact", "queue",
-            "daemon", "upload", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
+            "download", "get", "daemon", "upload", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
             "quit", "exit",
         ]
         show_resources = [
@@ -23151,7 +23159,7 @@ def run_line_tui(cfg):
         help_topics = [
             "search", "complete", "resource", "makerc", "history", "use", "main", "show",
             "modules", "options", "next", "workspace", "aliases", "listeners",
-            "routes", "set", "setg", "run", "jobs", "queue", "upload", "files", "view",
+            "routes", "set", "setg", "run", "jobs", "queue", "download", "upload", "files", "view",
             "daemon", "interact", "sessions",
         ]
 
@@ -23677,6 +23685,76 @@ def run_line_tui(cfg):
             print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
         print(f"execution_supported={'yes' if rec.get('execution_supported') else 'no'} delivery_supported=no")
         print(f"headless_command: {headless}")
+
+    def parse_line_download_args(args):
+        queue = False
+        start_file_service = False
+        values = []
+        for item in args:
+            lower = item.lower()
+            if lower in {"--queue", "-q"}:
+                queue = True
+            elif lower in {"--start", "--start-service"}:
+                start_file_service = True
+            else:
+                values.append(item)
+        target_path = " ".join(values).strip()
+        return target_path, queue, start_file_service
+
+    def download_line_target(target_path, queue=False, start_file_service=False):
+        path = str(target_path or "").strip()
+        if not path:
+            raise ValueError("usage: download [--queue] [--start] TARGET_PATH")
+        target_id = configured_target_filter(cfg)
+        if not target_id:
+            raise ValueError("select an agent before download; use agent NAME or use target ID")
+        command = render_file_service_command(["put", path], cfg)
+        headless = (
+            "scripts/busierbox-server --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --target-id "
+            + shquote(target_id)
+            + " --run-target-workflow-action "
+            + shquote(f"{target_id}:show-upload-command")
+            + " --target-workflow-command "
+            + shquote(path)
+        )
+        started = False
+        if start_file_service:
+            start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
+            started = True
+        print("Target download command:")
+        print(f"  target={target_id}")
+        label = str(selected_target_context(cfg).get("target_label") or "")
+        if label:
+            print(f"  label={label}")
+        print(f"  target_upload_path={path}")
+        print(f"  target_command={command}")
+        print(f"  file_service_started={'yes' if started else 'no'}")
+        queued = {}
+        if queue:
+            queued = queue_command(cfg, command, metadata={
+                "work_kind": "target-upload",
+                "workflow": "file-service",
+                "target_upload_path": path,
+                "route_kind": "bridge" if cfg.get("bridge_profile") else "direct",
+                "bridge_profile": str(cfg.get("bridge_profile") or ""),
+            })
+            print(f"queued {queued['id']}: {queued['command']}")
+            print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        print(f"headless_command: {headless}")
+        append_event(cfg, "workbench", "workbench_target_download_command_shown", details={
+            "headless_command": headless,
+            "target_id": target_id,
+            "target_label": label,
+            "target_upload_path": path,
+            "target_command": command,
+            "target_command_sha256": hashlib.sha256(command.encode("utf-8")).hexdigest() if command else "",
+            "queued": bool(queue),
+            "command_id": queued.get("id", "") if queued else "",
+            "started_file_service": started,
+        })
+        return command
 
     def line_session_record(selector):
         text = str(selector or "").strip()
@@ -24619,6 +24697,13 @@ def run_line_tui(cfg):
             elif cmd == "queue" and len(console_args) >= 2:
                 try:
                     queue_line_command(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"download", "get"}:
+                try:
+                    target_path, queue_download, start_download_service = parse_line_download_args(console_args[1:])
+                    download_line_target(target_path, queue=queue_download, start_file_service=start_download_service)
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -26812,6 +26897,8 @@ Operations:
   serve-binary [--start] [PATH] [NAME]
                                 stage and optionally serve a BusierBox binary
   upload [--start] LOCAL [NAME] stage and optionally serve a local file
+  download [--queue] TARGET_PATH
+                                show or queue a target-to-operator upload command
   downloads                     list target-fetchable staged files
   unstage NAME                  remove a staged file request
   view PATH, cat PATH           view a local session/artifact path
