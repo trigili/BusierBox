@@ -21662,7 +21662,7 @@ def run_line_tui(cfg):
         print("  services, listeners [-v]        list listener services")
         print("  listener NAME                   inspect/select a listener service")
         print("  routes [-v], route NAME         list or select bridge routes")
-        print("  targets, sessions               shortcuts for show commands")
+        print("  targets, agent NAME, sessions   list/select agents or show sessions")
         print("  agents, listeners, routes       operator aliases for targets/services/bridges")
         print("  stagers, loot                   operator aliases for staged files")
         print("  use N                           use a numbered search/list/module result")
@@ -21801,6 +21801,7 @@ def run_line_tui(cfg):
             "use": [
                 "use N",
                 "use agent ID|LABEL|NUMBER",
+                "agent ID|LABEL|NUMBER",
                 "use listener SERVICE",
                 "use route NAME|NUMBER",
                 "use session SESSION",
@@ -21855,6 +21856,7 @@ def run_line_tui(cfg):
             ],
             "aliases": [
                 "agents, hosts       target devices",
+                "agent NAME          select a target device",
                 "listeners           local services",
                 "routes              bridge profiles",
                 "stagers, loot       staged files and fetch commands",
@@ -21931,8 +21933,9 @@ def run_line_tui(cfg):
             "interact": [
                 "interact SESSION",
                 "interact",
+                "interact agent ID|LABEL|NUMBER",
                 "sessions -i SESSION",
-                "  Shows local session inspection commands and log paths.",
+                "  Shows local session inspection commands and log paths, or selected-agent work commands.",
                 "  With a selected session context, interact can be run without an argument.",
             ],
             "sessions": [
@@ -22102,7 +22105,7 @@ def run_line_tui(cfg):
         elif target_id:
             target_filter = snap.get("target_filter") or {}
             print(target_filter_summary_text(target_filter, prefix="  selected agent:"))
-            print("  commands: queue COMMAND, show activity, show options, serve-binary PATH NAME, clear target")
+            print("  commands: interact, queue COMMAND, show activity, show options, serve-binary PATH NAME, clear target")
         else:
             print("  selected agent=all")
             print("  commands: workspace, agents, listeners, routes, sessions, show categories, search TERM")
@@ -22156,7 +22159,7 @@ def run_line_tui(cfg):
             print("  agents: none")
         sessions = snap.get("sessions") or []
         print(f"  sessions: {len(sessions)} recent; use sessions")
-        print("  commands: search TERM, use N, agents, listeners, routes, stagers, queue COMMAND")
+        print("  commands: search TERM, use N, agent NAME, agents, listeners, routes, stagers, queue COMMAND")
 
     def print_line_options():
         print("Console options:")
@@ -22523,6 +22526,18 @@ def run_line_tui(cfg):
         cfg["_line_console_search_results"] = search_records
         return targets
 
+    def current_line_target_record():
+        target_id = configured_target_filter(cfg)
+        if not target_id:
+            return {}
+        unfiltered_cfg = dict(cfg)
+        unfiltered_cfg.pop("_target_id_filter", None)
+        unfiltered_cfg.pop("_target_label_filter", None)
+        for rec in workbench_snapshot(unfiltered_cfg).get("targets") or []:
+            if str(rec.get("target_id") or "") == target_id:
+                return rec
+        return {"target_id": target_id}
+
     def select_line_target(selector, targets=None):
         targets = targets if targets is not None else print_line_targets()
         rec = set_workbench_target_filter(cfg, selector, targets=targets)
@@ -22532,6 +22547,63 @@ def run_line_tui(cfg):
             print("target filter cleared")
         print(f"headless_command: {rec.get('headless_command', '')}")
         return rec
+
+    def interact_line_target(selector=""):
+        text = str(selector or "").strip()
+        if text:
+            targets = print_line_targets()
+            select_line_target(text, targets=targets)
+        target_id = configured_target_filter(cfg)
+        if not target_id:
+            raise ValueError("usage: interact agent ID|LABEL|NUMBER or select an agent first")
+        snap = workbench_snapshot(cfg)
+        target = current_line_target_record()
+        target_filter = snap.get("target_filter") or {}
+        label = target.get("label") or target_filter.get("target_label") or "-"
+        state = target.get("connectivity_state") or target_filter.get("connectivity_state") or "-"
+        print(f"Agent interaction: {target_id} label={label} state={state}")
+        print(target_filter_summary_text(target_filter, prefix="  status:"))
+        print("  commands: queue COMMAND, mailbox, upload LOCAL [NAME], serve-binary PATH [NAME], sessions, show activity, clear target")
+        print(
+            "  headless_status: scripts/busierbox-server --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --target-id "
+            + shquote(target_id)
+            + " --status"
+        )
+        mailbox_records = snap.get("target_mailbox_records") or []
+        pending = [rec for rec in mailbox_records if rec.get("pending_work")]
+        if pending:
+            print("  pending work:")
+            for rec in pending[:3]:
+                print(
+                    f"    {rec.get('command_id', '')} status={rec.get('status', '') or '-'} "
+                    f"waiting_for={rec.get('waiting_for', '') or '-'} "
+                    f"command={rec.get('command', '') or rec.get('work_kind', '') or '-'}"
+                )
+        else:
+            print("  pending work: none")
+        sessions = snap.get("sessions") or []
+        target_sessions = [
+            rec for rec in sessions
+            if str(rec.get("target_id") or "") == target_id
+        ]
+        if target_sessions:
+            print("  recent sessions:")
+            for rec in target_sessions[:3]:
+                session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
+                print(
+                    f"    {session_id} service={rec.get('service', '') or '-'} "
+                    f"state={rec.get('state', '') or '-'} updated={rec.get('updated_at', '') or '-'}"
+                )
+        else:
+            print("  recent sessions: none")
+        append_event(cfg, "workbench", "workbench_target_interaction_viewed", details={
+            "target_id": target_id,
+            "target_label": label,
+            "pending_work_count": len(pending),
+            "session_count": len(target_sessions),
+        })
 
     def print_line_services(verbose=False):
         rows = service_status_rows(cfg)
@@ -23823,6 +23895,16 @@ def run_line_tui(cfg):
             elif cmd in {"targets", "agents", "hosts"}:
                 print_line_targets()
                 continue
+            elif cmd in {"target", "agent", "host"}:
+                selector = " ".join(console_args[1:]).strip()
+                if not selector:
+                    print_line_targets()
+                    continue
+                try:
+                    select_line_target(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
             elif cmd in {"sessions", "session"}:
                 if cmd == "session" and len(console_args) >= 2:
                     try:
@@ -24050,7 +24132,12 @@ def run_line_tui(cfg):
                 continue
             elif cmd == "interact":
                 try:
-                    interact_line_session(" ".join(console_args[1:]).strip())
+                    if len(console_args) >= 2 and console_args[1].lower() in {"agent", "target", "host"}:
+                        interact_line_target(" ".join(console_args[2:]).strip())
+                    elif len(console_args) == 1 and configured_target_filter(cfg) and not str(cfg.get("_line_console_module") or "").startswith("session/"):
+                        interact_line_target()
+                    else:
+                        interact_line_session(" ".join(console_args[1:]).strip())
                 except ValueError as exc:
                     print(exc)
                 continue

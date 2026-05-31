@@ -10200,6 +10200,10 @@ def main():
                     "background\n"
                     "targets\n"
                     "useagent Console Router\n"
+                    "interact\n"
+                    "clear target\n"
+                    "agent Console Router\n"
+                    "interact\n"
                     "clear target\n"
                     "use agent Console Router\n"
                     "next\n"
@@ -10304,7 +10308,7 @@ def main():
                 "Command history:" not in line_console_stdout or
                 "replay: status" not in line_console_stdout or
                 "replay: help" not in line_console_stdout or
-                "commands: search TERM, use N, agents, listeners, routes, stagers, queue COMMAND" not in line_console_stdout or
+                "commands: search TERM, use N, agent NAME, agents, listeners, routes, stagers, queue COMMAND" not in line_console_stdout or
                 "Search results for name=file-service:" not in line_console_stdout or
                 "service file-service actual=" not in line_console_stdout or
                 "use: use " not in line_console_stdout or
@@ -10321,7 +10325,7 @@ def main():
                 "services, listeners [-v]        list listener services" not in line_console_stdout or
                 "listener NAME                   inspect/select a listener service" not in line_console_stdout or
                 "routes [-v], route NAME         list or select bridge routes" not in line_console_stdout or
-                "targets, sessions               shortcuts for show commands" not in line_console_stdout or
+                "targets, agent NAME, sessions   list/select agents or show sessions" not in line_console_stdout or
                 "agents, listeners, routes       operator aliases for targets/services/bridges" not in line_console_stdout or
                 "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
                 "use agent|listener|route NAME   select target, listener, or route context" not in line_console_stdout or
@@ -10374,7 +10378,7 @@ def main():
                 "selected route=console-route" not in line_console_stdout or
                 "selected module=daemon:operator-daemon-status" not in line_console_stdout or
                 "commands: options, check, run, run --dry-run, run --confirm, background" not in line_console_stdout or
-                "commands: queue COMMAND, show activity, show options, serve-binary PATH NAME, clear target" not in line_console_stdout or
+                "commands: interact, queue COMMAND, show activity, show options, serve-binary PATH NAME, clear target" not in line_console_stdout or
                 "help: help use, help modules, help routes, help sessions" not in line_console_stdout or
                 "returned to main workspace" not in line_console_stdout or
                 "cleared_module=no cleared_target=yes" not in line_console_stdout or
@@ -10416,6 +10420,11 @@ def main():
                 "useroute console-route" not in line_console_stdout or
                 "usesession 1" not in line_console_stdout or
                 "useagent Console Router" not in line_console_stdout or
+                "agent Console Router" not in line_console_stdout or
+                "Agent interaction: line-console-target label=Console Router state=online" not in line_console_stdout or
+                "commands: queue COMMAND, mailbox, upload LOCAL [NAME], serve-binary PATH [NAME], sessions, show activity, clear target" not in line_console_stdout or
+                "headless_status: scripts/busierbox-server --config" not in line_console_stdout or
+                "pending work: none" not in line_console_stdout or
                 "rename Console Router" not in line_console_stdout or
                 "renamed target line-console-target label=Console Router" not in line_console_stdout or
                 "note Console quick note" not in line_console_stdout or
@@ -10515,6 +10524,7 @@ def main():
         if (line_console_status_doc.get("server_state", {}).get("services", {}).get("workbench", {}).get("selected_target_id", "") != "" or
                 not any(event.get("event") == "workbench_target_selected" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
                 not any(event.get("event") == "workbench_target_filter_cleared" for event in line_console_events) or
+                not any(event.get("event") == "workbench_target_interaction_viewed" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
                 not any(event.get("event") == "workbench_session_selected" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
                 not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
                 not any(event.get("event") == "workbench_sessions_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
