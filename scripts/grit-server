@@ -26578,6 +26578,11 @@ def run_line_tui(cfg):
                 print(f"unknown command: {cmd}; type help")
                 continue
         if choice in {"q", "quit", "exit"}:
+            # If in a subcontext, go back one level instead of quitting
+            if str(cfg.get("_line_console_module") or ""):
+                clear_line_module()
+                compact_next_prompt = True
+                continue
             mark_service_stopped(cfg, "workbench", "quit")
             return 0
         # If a number was entered and there are active search results (e.g. from
