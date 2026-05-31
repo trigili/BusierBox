@@ -9950,6 +9950,8 @@ def main():
         line_console_binary.write_text("#!/bin/sh\necho busierbox console binary\n", encoding="utf-8")
         line_console_state = Path(tmp) / "operator-session" / "line-console-state.json"
         line_console_staged = Path(tmp) / "operator-session" / "line-console-staged.json"
+        line_console_build = Path(tmp) / "line-console-build.conf"
+        line_console_build.write_text('BB_RUNTIME_ROOT="./.busierbox"\n', encoding="utf-8")
         line_console_session = session_root / "20260101T000000-file-service"
         line_console_session.mkdir(parents=True, exist_ok=True)
         (line_console_session / "session.log").write_text("console session log\n", encoding="utf-8")
@@ -9989,6 +9991,7 @@ def main():
                     "--config", str(upload_cfg),
                     "--state-file", str(line_console_state),
                     "--staged-file", str(line_console_staged),
+                    "--build-config", str(line_console_build),
                     "--tui",
                 ],
                 cwd=ROOT,
@@ -10009,11 +10012,16 @@ def main():
                     "help aliases\n"
                     "help use\n"
                     "help sessions\n"
+                    "help setg\n"
                     "workspace\n"
                     "search name=file-service\n"
                     "show agents\n"
                     "show listeners\n"
                     "show routes\n"
+                    "show options\n"
+                    "setg BB_RUNTIME_ROOT /tmp/bbx-global\n"
+                    "show options\n"
+                    "unsetg BB_RUNTIME_ROOT\n"
                     "show options\n"
                     "listeners\n"
                     "agents\n"
@@ -10098,6 +10106,7 @@ def main():
                 "Help: aliases" not in line_console_stdout or
                 "Help: use" not in line_console_stdout or
                 "Help: sessions" not in line_console_stdout or
+                "Help: setg" not in line_console_stdout or
                 "Workspace overview:" not in line_console_stdout or
                 "commands: search TERM, use N, agents, listeners, routes, stagers, queue COMMAND" not in line_console_stdout or
                 "Search results for name=file-service:" not in line_console_stdout or
@@ -10118,6 +10127,9 @@ def main():
                 "use action ACTION               select an action module context" not in line_console_stdout or
                 "check                           dry-run the selected action module" not in line_console_stdout or
                 "set KEY VALUE                   set target metadata or guided build option" not in line_console_stdout or
+                "setg KEY VALUE, unsetg KEY      set or unset global build/workbench options" not in line_console_stdout or
+                "setg BB_RUNTIME_ROOT=\"/tmp/bbx-global\"" not in line_console_stdout or
+                "unsetg BB_RUNTIME_ROOT" not in line_console_stdout or
                 "Console context:" not in line_console_stdout or
                 "Console options:" not in line_console_stdout or
                 "Services:" not in line_console_stdout or
@@ -10194,6 +10206,8 @@ def main():
                 not any(event.get("event") == "workbench_target_filter_cleared" for event in line_console_events) or
                 not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
                 not any(event.get("event") == "operator_daemon_workflow_action_dry_run" and (event.get("details") or {}).get("id") == "operator-daemon-status" for event in line_console_events) or
+                not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/bbx-global" for event in line_console_events) or
+                not any(event.get("event") == "workbench_config_unset" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "name=file-service" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
                 not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or

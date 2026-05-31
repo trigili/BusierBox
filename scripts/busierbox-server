@@ -3825,6 +3825,25 @@ def write_build_config_value(path, key, value):
     tmp.replace(path)
 
 
+def delete_build_config_value(path, key):
+    if not key.startswith("BB_") or not key.replace("_", "A").isalnum():
+        raise ValueError(f"unsupported build config key: {key}")
+    path = Path(path)
+    parsed = parse_build_config(path)
+    lines = []
+    removed = False
+    for line in parsed.get("lines") or []:
+        if line.strip().startswith(key + "="):
+            removed = True
+            continue
+        lines.append(line)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + f".tmp.{os.getpid()}")
+    tmp.write_text(("\n".join(lines).rstrip() + "\n") if lines else "", encoding="utf-8")
+    tmp.replace(path)
+    return removed
+
+
 def workbench_config_field_records(cfg):
     path = build_config_path(cfg)
     parsed = parse_build_config(path)
@@ -3923,6 +3942,33 @@ def set_workbench_build_config(cfg, assignment):
         "headless_command": headless_command,
     })
     return {rec.get("key"): rec for rec in workbench_config_field_records(cfg)}.get(key, {"key": key, "value": value, "config_path": str(path)})
+
+
+def unset_workbench_build_config(cfg, key):
+    key = str(key or "").strip()
+    if key.startswith("build."):
+        key = key.split(".", 1)[1]
+    if not any(rec[1] == key for rec in WORKBENCH_BUILD_CONFIG_FIELDS):
+        raise ValueError(f"unsupported guided build config key: {key}")
+    path = build_config_path(cfg)
+    old_value = parse_build_config(path).get("values", {}).get(key, "")
+    removed = delete_build_config_value(path, key)
+    headless_command = (
+        "scripts/busierbox-server --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --build-config "
+        + shquote(str(path))
+        + " --set-build-config "
+        + shquote(f"{key}=")
+    )
+    append_event(cfg, "workbench", "workbench_config_unset", details={
+        "config_path": str(path),
+        "key": key,
+        "old_value": old_value,
+        "removed": bool(removed),
+        "headless_command": headless_command,
+    })
+    return {rec.get("key"): rec for rec in workbench_config_field_records(cfg)}.get(key, {"key": key, "value": "", "config_path": str(path)})
 
 
 def workbench_action_records(cfg):
@@ -21603,6 +21649,7 @@ def run_line_tui(cfg):
         print("  show sessions|activity|actions  show sessions, activity, or runnable actions")
         print("  show options                    show target/module/build options")
         print("  set KEY VALUE                   set target metadata or guided build option")
+        print("  setg KEY VALUE, unsetg KEY      set or unset global build/workbench options")
         print("  unset KEY                       clear target label/notes or module context")
         print("  services, targets, sessions     shortcuts for show commands")
         print("  agents, listeners, routes       operator aliases for targets/services/bridges")
@@ -21670,6 +21717,12 @@ def run_line_tui(cfg):
                 "set KEY VALUE",
                 "  Sets selected-target metadata or guided build options.",
                 "  Examples: set target.notes Rack shelf A; set target.alias lab-router",
+            ],
+            "setg": [
+                "setg KEY VALUE",
+                "unsetg KEY",
+                "  Sets or unsets guided build/workbench options globally.",
+                "  Example: setg BB_RUNTIME_ROOT /tmp/bbx",
             ],
             "run": [
                 "run [--dry-run] [--confirm]",
@@ -21855,6 +21908,18 @@ def run_line_tui(cfg):
         )
         print(f"headless_command: {headless}")
 
+    def set_line_global_option(name, value):
+        key = str(name or "").strip()
+        text = str(value or "")
+        if key.startswith("build."):
+            key = key.split(".", 1)[1]
+        build_keys = {rec.get("key") for rec in workbench_config_field_records(cfg)}
+        if key not in build_keys:
+            raise ValueError(f"setg only supports guided build/workbench options: {name}")
+        rec = set_workbench_build_config(cfg, f"{key}={text}")
+        print(f"setg {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
+        print(f"headless_command: {rec.get('set_command', '')}")
+
     def unset_line_option(name):
         key = str(name or "").strip()
         if key in ("module", "action"):
@@ -21871,6 +21936,14 @@ def run_line_tui(cfg):
         else:
             raise ValueError(f"unknown unset option: {name}")
         print(f"target={target_id} label={updated.get('label', '') or '-'}")
+
+    def unset_line_global_option(name):
+        key = str(name or "").strip()
+        if not key:
+            raise ValueError("usage: unsetg KEY")
+        rec = unset_workbench_build_config(cfg, key)
+        print(f"unsetg {rec.get('key', key)}")
+        print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
 
     def line_service_names():
         return [str(rec.get("name") or "") for rec in service_status_rows(cfg) if str(rec.get("name") or "")]
@@ -22567,9 +22640,28 @@ def run_line_tui(cfg):
                 except (IndexError, ValueError) as exc:
                     print(exc)
                 continue
+            elif cmd == "setg":
+                try:
+                    if len(console_args) >= 2 and "=" in console_args[1]:
+                        opt_key, opt_value = console_args[1].split("=", 1)
+                        if len(console_args) > 2:
+                            opt_value = opt_value + " " + " ".join(console_args[2:])
+                    else:
+                        opt_key = console_args[1] if len(console_args) >= 2 else ""
+                        opt_value = " ".join(console_args[2:]).strip()
+                    set_line_global_option(opt_key, opt_value)
+                except (IndexError, ValueError) as exc:
+                    print(exc)
+                continue
             elif cmd == "unset":
                 try:
                     unset_line_option(console_args[1] if len(console_args) >= 2 else "")
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "unsetg":
+                try:
+                    unset_line_global_option(console_args[1] if len(console_args) >= 2 else "")
                 except ValueError as exc:
                     print(exc)
                 continue
