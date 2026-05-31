@@ -22231,7 +22231,7 @@ def run_line_tui(cfg):
                 )
             print(f"    start={service_start_headless_command(cfg, service)}")
             print(f"    stop={service_stop_headless_command(cfg, service)}")
-            print("    next: options, start, stop, run, back")
+            print("    options / start / stop / back")
         elif module.startswith("route/"):
             route_name = module.split("/", 1)[1]
             rec = line_route_record(route_name)
@@ -22252,7 +22252,7 @@ def run_line_tui(cfg):
             print(f"    inspect={bridge_profile_headless_command('inspect', route_name)}")
             print(f"    start={bridge_profile_headless_command('start', route_name)}")
             print(f"    stop={bridge_profile_headless_command('stop', route_name)}")
-            print("    next: options, start, stop, run, back")
+            print("    options / start / stop / back")
         elif module.startswith("session/"):
             session_id = module.split("/", 1)[1]
             rec = line_session_record(session_id)
@@ -22321,11 +22321,11 @@ def run_line_tui(cfg):
         elif module.startswith("service/"):
             service = module.split("/", 1)[1]
             print(f"  selected listener={service}")
-            print("  commands: options, start, stop, run, listeners -v, background")
+            print("  options / start / stop / listeners -v / back")
         elif module.startswith("route/"):
             route_name = module.split("/", 1)[1]
             print(f"  selected route={route_name}")
-            print("  commands: options, start, stop, run, routes -v, background")
+            print("  options / start / stop / routes -v / back")
         elif module.startswith("session/"):
             session_id = module.split("/", 1)[1]
             print(f"  selected session={session_id}")
@@ -22495,8 +22495,10 @@ def run_line_tui(cfg):
                         return [("options", "  ".join(str(o) for o in r["opts"]))]
                     return []
 
+                # Store key list so `set N value` can resolve row numbers
+                cfg["_options_keys"] = [r["key"] for r in rows]
                 _console_table(
-                    "Relevant settings  (set KEY VALUE to change  |  build to see all)",
+                    "Relevant settings  (set KEY VALUE or set N VALUE to change  |  build to see all)",
                     rows,
                     [
                         ("Key",         "key"),
@@ -22506,6 +22508,7 @@ def run_line_tui(cfg):
                     detail_fn=_opts,
                 )
             else:
+                cfg.pop("_options_keys", None)
                 print("  No specific options for this service.  Run: build")
 
             # Target-side connection command
@@ -22519,7 +22522,7 @@ def run_line_tui(cfg):
                     print(f"    {cmd}")
 
             print("")
-            print("  start  run  set KEY VALUE  build  back")
+            print("  set KEY VALUE  /  build  /  back")
             return
         elif module.startswith("route/"):
             route_name = module.split("/", 1)[1]
@@ -22540,7 +22543,7 @@ def run_line_tui(cfg):
             print(f"  route.start_command={bridge_profile_headless_command('start', route_name)}")
             print(f"  route.stop_command={bridge_profile_headless_command('stop', route_name)}")
             print(f"  route.delete_command={bridge_profile_headless_command('delete', route_name)}")
-            print("  route.next=info, start, stop, route delete NAME, run, back")
+            print("  options / start / stop / route delete NAME / back")
         elif module.startswith("session/"):
             session_id = module.split("/", 1)[1]
             rec = line_session_record(session_id)
@@ -22753,14 +22756,21 @@ def run_line_tui(cfg):
         key = str(name or "").strip()
         text = str(value or "")
         if not key:
-            raise ValueError("usage: set KEY VALUE")
+            raise ValueError("usage: set KEY VALUE  or  set N VALUE  (N = row number from options)")
+        # Resolve row number shortcut from most-recent options display
+        if key.isdigit():
+            keys = cfg.get("_options_keys") or []
+            idx = int(key) - 1
+            if 0 <= idx < len(keys):
+                key = keys[idx]
+            else:
+                raise ValueError(f"no option at row {key} — run: options")
         build_keys = {rec.get("key") for rec in workbench_config_field_records(cfg)}
         if key.startswith("build."):
             key = key.split(".", 1)[1]
         if key in build_keys:
             rec = set_workbench_build_config(cfg, f"{key}={text}")
             print(f"set {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
-            print(f"headless_command: {rec.get('set_command', '')}")
             return
         target_id, rec = selected_target_record_for_update()
         if key in ("label", "target.label"):
@@ -22930,7 +22940,7 @@ def run_line_tui(cfg):
             print(f"  {service}  —  {actual}  |  :{port}  |  {tls}{pid_str}")
         else:
             print(f"  {service}  —  (no status)")
-        print("  options  info  start  stop  copy start  back")
+        print("  options / info / start / stop / copy start / back")
         return service
 
     def clear_line_module():
@@ -23025,7 +23035,7 @@ def run_line_tui(cfg):
             label = rec.get("target_label") or ""
             display = f"{label}  ({tid})" if label and label != tid else tid
             print(f"  {display}")
-            print("  options  next  sessions  queue  mailbox  clear target  back")
+            print("  options / next / sessions / queue / mailbox / back")
         else:
             print("  target filter cleared  —  showing all targets")
         return rec
@@ -23338,7 +23348,7 @@ def run_line_tui(cfg):
         dest = f"{selected.get('dest_host','?')}:{selected.get('dest_port','?')}"
         active = "active" if selected.get("active") else "inactive"
         print(f"  {name}  —  {state} ({active})  |  {listen} → {dest}")
-        print("  options  info  start  stop  back")
+        print("  options / info / start / stop / back")
         append_event(cfg, "workbench", "workbench_route_selected", details={
             "name": name,
             "route_path": selected.get("route_path", ""),
@@ -23526,7 +23536,7 @@ def run_line_tui(cfg):
             action = rec.get("action_id") or "-"
             cancel = "  |  cancellable" if rec.get("cancel_supported") else ""
             print(f"  {job_id}  —  {state}  |  {action}{cancel}")
-            print("  info  options  jobs  back")
+            print("  info / options / jobs / back")
             append_event(cfg, "workbench", "workbench_job_selected", details={
                 "job_id": job_id,
                 "action_id": rec.get("action_id", ""),
@@ -24257,7 +24267,7 @@ def run_line_tui(cfg):
             flags.append("background ok")
         flag_str = f"  |  {', '.join(flags)}" if flags else ""
         print(f"  {kind}:{action_id}  —  {state}  |  {label}{flag_str}")
-        print("  options  check  run  run --dry-run  back")
+        print("  options / check / run / run --dry-run / back")
         return selected
 
     def selected_line_action():
@@ -25034,7 +25044,7 @@ def run_line_tui(cfg):
         exit_r = selected.get("exit_reason") or ""
         state_str = f"{state}/{exit_r}" if exit_r and exit_r != state else state
         print(f"  {session_id}  —  {service}  |  {state_str}")
-        print("  info  interact  view  sessions -v  back")
+        print("  info / interact / view / sessions -v / back")
         append_event(cfg, "workbench", "workbench_session_selected", details={
             "session_id": session_id,
             "session_path": path,
