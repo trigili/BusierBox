@@ -21650,6 +21650,7 @@ def run_line_tui(cfg):
         print("  show queue|mailbox|jobs         show queue, mailbox, or background jobs")
         print("  show sessions|activity|modules  show sessions, activity, or runnable modules")
         print("  show modules [FILTER]           browse modules by kind, id, workflow, or text")
+        print("  info, options                   show selected context and module options")
         print("  show options                    show target/module/build options")
         print("  set KEY VALUE                   set target metadata or guided build option")
         print("  setg KEY VALUE, unsetg KEY      set or unset global build/workbench options")
@@ -21797,6 +21798,11 @@ def run_line_tui(cfg):
                 "  Browses runnable modules. FILTER matches kind, category, workflow, id, label, or command text.",
                 "  Examples: modules daemon; show modules file-service; use 1",
             ],
+            "options": [
+                "options",
+                "show options",
+                "  Shows selected target/module/build options and suggested next commands.",
+            ],
             "workspace": [
                 "workspace",
                 "overview",
@@ -21869,12 +21875,25 @@ def run_line_tui(cfg):
         print(f"  module={str(cfg.get('_line_console_module') or 'root')}")
         action = selected_line_action()
         if action:
+            command = action.get("headless_command", action.get("run_command", action.get("command", "")))
+            dry_run = action.get("dry_run_command", "")
+            start_job = action.get("start_job_command", "")
             print(
                 f"  action={action.get('kind', '')}:{action.get('id', '')} "
                 f"state={action.get('operator_action_state', '') or '-'} "
                 f"reason={action.get('operator_action_reason', '') or '-'}"
             )
-            print(f"    command={action.get('headless_command', action.get('command', ''))}")
+            print(f"    label={action.get('label', '') or '-'}")
+            print(f"    category={action.get('category', '') or '-'} workflow={action.get('workflow', '') or '-'}")
+            print(f"    confirm={'yes' if action.get('requires_confirmation') else 'no'} background={'yes' if action.get('background_supported') else 'no'}")
+            print(f"    command={command}")
+            if dry_run:
+                print(f"    dry_run={dry_run}")
+            if start_job:
+                print(f"    start_job={start_job}")
+            print("    next: options, check, run, run --dry-run, run --confirm, back")
+        else:
+            print("  action=none")
         target_filter = snap.get("target_filter") or {}
         if target_filter.get("active"):
             print(target_filter_summary_text(target_filter, prefix="  target:"))
@@ -21942,9 +21961,24 @@ def run_line_tui(cfg):
             print("  target.id=all")
         action = selected_line_action()
         if action:
+            command = action.get("headless_command", action.get("run_command", action.get("command", "")))
             print(f"  action.kind={action.get('kind', '')}")
             print(f"  action.id={action.get('id', '')}")
+            print(f"  action.label={action.get('label', '') or '-'}")
+            print(f"  action.category={action.get('category', '') or '-'}")
+            print(f"  action.workflow={action.get('workflow', '') or '-'}")
+            print(f"  action.state={action.get('operator_action_state', '') or '-'}")
+            print(f"  action.reason={action.get('operator_action_reason', '') or '-'}")
             print(f"  action.requires_confirmation={'yes' if action.get('requires_confirmation') else 'no'}")
+            print(f"  action.background_supported={'yes' if action.get('background_supported') else 'no'}")
+            print(f"  action.command={command}")
+            if action.get("dry_run_command"):
+                print(f"  action.dry_run_command={action.get('dry_run_command', '')}")
+            if action.get("start_job_command"):
+                print(f"  action.start_job_command={action.get('start_job_command', '')}")
+            print("  action.next=info, check, run, run --dry-run, run --confirm, back")
+        else:
+            print("  action.id=none")
         fields = workbench_config_field_records(cfg)
         if fields:
             print("  Build options:")
@@ -22473,6 +22507,13 @@ def run_line_tui(cfg):
         cfg["_line_console_module"] = f"action/{action_id}"
         print(f"selected action {selected.get('kind', '')}:{action_id}")
         print(f"  command: {selected.get('headless_command', selected.get('run_command', selected.get('command', '')))}")
+        print(
+            f"  state={selected.get('operator_action_state', '') or '-'} "
+            f"reason={selected.get('operator_action_reason', '') or '-'} "
+            f"confirm={'yes' if selected.get('requires_confirmation') else 'no'} "
+            f"background={'yes' if selected.get('background_supported') else 'no'}"
+        )
+        print("  next: info, options, check, run, back")
         return selected
 
     def selected_line_action():
@@ -22842,6 +22883,9 @@ def run_line_tui(cfg):
                 continue
             elif cmd == "info":
                 print_line_info()
+                continue
+            elif cmd in {"options", "opts"}:
+                print_line_options()
                 continue
             elif cmd == "set":
                 try:

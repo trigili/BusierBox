@@ -10056,6 +10056,7 @@ def main():
                     "modules file-service\n"
                     "use 1\n"
                     "info\n"
+                    "options\n"
                     "back\n"
                     "show options\n"
                     "setg BB_RUNTIME_ROOT /tmp/bbx-global\n"
@@ -10169,6 +10170,7 @@ def main():
                 "show targets|services|files" not in line_console_stdout or
                 "show modules [FILTER]           browse modules by kind, id, workflow, or text" not in line_console_stdout or
                 "show modules [FILTER]" not in line_console_stdout or
+                "info, options                   show selected context and module options" not in line_console_stdout or
                 "services, targets, sessions     shortcuts for show commands" not in line_console_stdout or
                 "agents, listeners, routes       operator aliases for targets/services/bridges" not in line_console_stdout or
                 "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
@@ -10196,6 +10198,10 @@ def main():
                 "Module groups:" not in line_console_stdout or
                 "module: use module file-service" not in line_console_stdout or
                 "selected search result 1 action service:file-service" not in line_console_stdout or
+                "reason=" not in line_console_stdout or
+                "confirm=" not in line_console_stdout or
+                "background=" not in line_console_stdout or
+                "next: info, options, check, run, back" not in line_console_stdout or
                 "Daemon workflow actions:" not in line_console_stdout or
                 "unknown workbench job: missing-job" not in line_console_stdout or
                 "Console action modules:" not in line_console_stdout or
@@ -10203,6 +10209,12 @@ def main():
                 "selected action daemon:operator-daemon-status" not in line_console_stdout or
                 "bbx[all]/action/operator-daemon-status>" not in line_console_stdout or
                 "action=daemon:operator-daemon-status" not in line_console_stdout or
+                "action.label=" not in line_console_stdout or
+                "action.category=" not in line_console_stdout or
+                "action.workflow=" not in line_console_stdout or
+                "action.background_supported=" not in line_console_stdout or
+                "action.next=info, check, run, run --dry-run, run --confirm, back" not in line_console_stdout or
+                "next: options, check, run, run --dry-run, run --confirm, back" not in line_console_stdout or
                 "operator daemon workflow action: operator-daemon-status" not in line_console_stdout or
                 line_console_stdout.count("action_returncode=0") < 2 or
                 "daemon_workflow_returncode=0" not in line_console_stdout or
