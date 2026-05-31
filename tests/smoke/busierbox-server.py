@@ -10081,8 +10081,11 @@ def main():
                     "back\n"
                     "services\n"
                     "sessions\n"
+                    "sessions -l\n"
+                    "sessions -v\n"
                     "sessions -i 1\n"
                     "interact 1\n"
+                    "use session 1\n"
                     "targets\n"
                     "use agent Console Router\n"
                     "search Console Router\n"
@@ -10175,7 +10178,8 @@ def main():
                 "agents, listeners, routes       operator aliases for targets/services/bridges" not in line_console_stdout or
                 "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
                 "use agent|listener|module NAME  select target, service, or action context" not in line_console_stdout or
-                "sessions -i SESSION             inspect a session" not in line_console_stdout or
+                "sessions [-l|-v], session ID    list or inspect sessions" not in line_console_stdout or
+                "interact SESSION, sessions -i   show local session inspection commands" not in line_console_stdout or
                 "use agent/listener/module and sessions -i mirror familiar console verbs" not in line_console_stdout or
                 "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
@@ -10223,8 +10227,13 @@ def main():
                 "module context cleared" not in line_console_stdout or
                 "no selected background-capable workbench action; use module ACTION first" not in line_console_stdout or
                 "Sessions:" not in line_console_stdout or
+                "commands: sessions -l, sessions -v, sessions -i ID, interact ID, use session ID" not in line_console_stdout or
                 line_console_session.name not in line_console_stdout or
                 "Session interaction:" not in line_console_stdout or
+                "next: view " not in line_console_stdout or
+                "tail: tail -n 40" not in line_console_stdout or
+                "events: tail -n 40" not in line_console_stdout or
+                "inspect: sessions -i " not in line_console_stdout or
                 "view: scripts/busierbox-server --config" not in line_console_stdout or
                 "line-console-target label=Console Router" not in line_console_stdout or
                 "selected target line-console-target label=Console Router" not in line_console_stdout or
@@ -10280,6 +10289,7 @@ def main():
                 not any(event.get("event") == "workbench_target_selected" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
                 not any(event.get("event") == "workbench_target_filter_cleared" for event in line_console_events) or
                 not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
+                not any(event.get("event") == "workbench_sessions_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "operator_daemon_workflow_action_dry_run" and (event.get("details") or {}).get("id") == "operator-daemon-status" for event in line_console_events) or
                 not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/bbx-global" for event in line_console_events) or
                 not any(event.get("event") == "workbench_config_unset" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" for event in line_console_events) or

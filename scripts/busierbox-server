@@ -21669,8 +21669,8 @@ def run_line_tui(cfg):
         print("  check                           dry-run the selected action module")
         print("  run [--dry-run] [--confirm]     run selected service/action module")
         print("  run -j, run --job               start selected background action as a managed job")
-        print("  interact SESSION                show local session inspection commands")
-        print("  sessions -i SESSION             inspect a session")
+        print("  sessions [-l|-v], session ID    list or inspect sessions")
+        print("  interact SESSION, sessions -i   show local session inspection commands")
         print("  queue COMMAND                   queue work for selected/offline target")
         print("  daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow")
         print("  files, staged                   list staged files and file workflow actions")
@@ -21781,11 +21781,12 @@ def run_line_tui(cfg):
                 "use N",
                 "use agent ID|LABEL|NUMBER",
                 "use listener SERVICE",
+                "use session SESSION",
                 "use module ACTION",
                 "use target ID|LABEL|NUMBER",
                 "use service SERVICE",
                 "use action ACTION",
-                "  Selects a numbered search/module result, target, service module, or action module context.",
+                "  Selects a numbered search/module result, target, session, service module, or action module context.",
             ],
             "show": [
                 "show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options",
@@ -21855,9 +21856,12 @@ def run_line_tui(cfg):
                 "  Shows local session inspection commands and log paths.",
             ],
             "sessions": [
-                "sessions",
+                "sessions, sessions -l",
+                "sessions -v",
                 "sessions -i SESSION",
-                "  Lists sessions or inspects one session.",
+                "session SESSION",
+                "use session SESSION",
+                "  Lists sessions, shows verbose session paths/logs, or inspects one session.",
             ],
         }
         lines = help_text.get(key)
@@ -22589,9 +22593,10 @@ def run_line_tui(cfg):
         print(f"execution_supported={'yes' if rec.get('execution_supported') else 'no'} delivery_supported=no")
         print(f"headless_command: {headless}")
 
-    def print_line_sessions():
+    def print_line_sessions(verbose=False):
         sessions = workbench_snapshot(cfg).get("sessions") or []
         print("Sessions:")
+        print("  commands: sessions -l, sessions -v, sessions -i ID, interact ID, use session ID")
         if not sessions:
             print("  none")
             return
@@ -22609,6 +22614,17 @@ def run_line_tui(cfg):
             )
             if item.get("session_log"):
                 print(f"     session_log={item.get('session_log', '')}")
+            if verbose:
+                if item.get("event_log"):
+                    print(f"     event_log={item.get('event_log', '')}")
+                if item.get("target_id"):
+                    print(f"     target={item.get('target_id', '')} label={item.get('target_label', '') or '-'}")
+                print(f"     inspect: sessions -i {shquote(str(session_id))}")
+        append_event(cfg, "workbench", "workbench_sessions_listed", details={
+            "session_count": len(sessions),
+            "shown_count": min(len(sessions), 12),
+            "verbose": bool(verbose),
+        })
 
     def interact_line_session(selector):
         text = str(selector or "").strip()
@@ -22634,10 +22650,13 @@ def run_line_tui(cfg):
         print(f"Session interaction: {selected.get('session_id') or Path(path).name}")
         print(f"  service={selected.get('service', '') or '-'} state={selected.get('state', '') or '-'} path={path}")
         print(f"  view: {headless}")
+        print(f"  next: view {path}, sessions -l, sessions -v")
         if selected.get("session_log"):
             print(f"  session_log={selected.get('session_log', '')}")
+            print(f"  tail: tail -n 40 {shquote(str(selected.get('session_log', '')))}")
         if selected.get("event_log"):
             print(f"  event_log={selected.get('event_log', '')}")
+            print(f"  events: tail -n 40 {shquote(str(selected.get('event_log', '')))}")
         append_event(cfg, "workbench", "workbench_session_interaction_viewed", details={
             "session_id": selected.get("session_id") or Path(path).name,
             "session_path": path,
@@ -22940,10 +22959,24 @@ def run_line_tui(cfg):
             elif cmd in {"targets", "agents", "hosts"}:
                 print_line_targets()
                 continue
-            elif cmd == "sessions":
-                if len(console_args) >= 3 and console_args[1] in {"-i", "--interact"}:
+            elif cmd in {"sessions", "session"}:
+                if cmd == "session" and len(console_args) >= 2:
+                    try:
+                        interact_line_session(" ".join(console_args[1:]).strip())
+                    except ValueError as exc:
+                        print(exc)
+                elif len(console_args) >= 3 and console_args[1] in {"-i", "--interact"}:
                     try:
                         interact_line_session(" ".join(console_args[2:]).strip())
+                    except ValueError as exc:
+                        print(exc)
+                elif len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
+                    print_line_command_help("sessions")
+                elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
+                    print_line_sessions(verbose=True)
+                elif len(console_args) >= 2 and console_args[1] not in {"-l", "--list"}:
+                    try:
+                        interact_line_session(" ".join(console_args[1:]).strip())
                     except ValueError as exc:
                         print(exc)
                 else:
@@ -22996,6 +23029,16 @@ def run_line_tui(cfg):
                     continue
                 try:
                     select_line_service(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "session":
+                selector = " ".join(console_args[2:]).strip()
+                if not selector:
+                    print("usage: use session SESSION")
+                    continue
+                try:
+                    interact_line_session(selector)
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -25287,6 +25330,7 @@ Context:
   use agent ID|LABEL|NUMBER     select a target device
   use listener SERVICE          select a service module
   use module ACTION             select an action module
+  use session SESSION           inspect a session
   back                          clear selected module context
   clear target                  return to all targets
 
@@ -25296,6 +25340,7 @@ Operations:
   run [--dry-run] [--confirm]   run selected module
   run -j                        start selected background-capable action as a job
   jobs, jobs -k ID              list or cancel managed background jobs
+  sessions [-l|-v]              list sessions
   sessions -i SESSION           inspect a session
   daemon ACTION [--dry-run]     preview or run daemon/systemd workflow
 
