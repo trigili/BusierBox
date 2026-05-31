@@ -10006,9 +10006,13 @@ def main():
                 (
                     "help\n"
                     "help search\n"
+                    "help aliases\n"
+                    "workspace\n"
                     "search name=file-service\n"
                     "show options\n"
-                    "show services\n"
+                    "listeners\n"
+                    "agents\n"
+                    "routes\n"
                     "daemon\n"
                     "daemon status --dry-run\n"
                     "show actions\n"
@@ -10035,6 +10039,7 @@ def main():
                     "show activity\n"
                     "queue busierbox survey --json\n"
                     f"serve-binary {line_console_binary} busierbox-console\n"
+                    "stagers\n"
                     "files\n"
                     "mailbox\n"
                     "clear target\n"
@@ -10083,6 +10088,9 @@ def main():
                 "bbx[all]>" not in line_console_stdout or
                 "Console commands:" not in line_console_stdout or
                 "Help: search" not in line_console_stdout or
+                "Help: aliases" not in line_console_stdout or
+                "Workspace overview:" not in line_console_stdout or
+                "commands: search TERM, use N, agents, listeners, routes, stagers, queue COMMAND" not in line_console_stdout or
                 "Search results for name=file-service:" not in line_console_stdout or
                 "service file-service actual=" not in line_console_stdout or
                 "use: use " not in line_console_stdout or
@@ -10090,6 +10098,8 @@ def main():
                 "service:file-service:start-service" not in line_console_stdout or
                 "show targets|services|files" not in line_console_stdout or
                 "services, targets, sessions     shortcuts for show commands" not in line_console_stdout or
+                "agents, listeners, routes       operator aliases for targets/services/bridges" not in line_console_stdout or
+                "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
                 "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "use N                           use a numbered search result" not in line_console_stdout or
@@ -10099,6 +10109,8 @@ def main():
                 "Console context:" not in line_console_stdout or
                 "Console options:" not in line_console_stdout or
                 "Services:" not in line_console_stdout or
+                "Routes:" not in line_console_stdout or
+                "No bridge profiles." not in line_console_stdout or
                 "Daemon workflow actions:" not in line_console_stdout or
                 "Console action modules:" not in line_console_stdout or
                 "operator-daemon-status" not in line_console_stdout or

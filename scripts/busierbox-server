@@ -21596,6 +21596,7 @@ def run_line_tui(cfg):
         print("  help [COMMAND], ?               show console command help")
         print("  search TERM                     search targets, services, actions, sessions, files, queue")
         print("  info                            show selected target/module context")
+        print("  workspace, overview             show operator dashboard summary")
         print("  status, summary                 refresh workbench summary")
         print("  show targets|services|files     show major workbench resources")
         print("  show queue|mailbox|jobs         show queue, mailbox, or background jobs")
@@ -21604,6 +21605,8 @@ def run_line_tui(cfg):
         print("  set KEY VALUE                   set target metadata or guided build option")
         print("  unset KEY                       clear target label/notes or module context")
         print("  services, targets, sessions     shortcuts for show commands")
+        print("  agents, listeners, routes       operator aliases for targets/services/bridges")
+        print("  stagers, loot                   operator aliases for staged files")
         print("  use N                           use a numbered search result")
         print("  use target ID|LABEL|NUMBER      select a target context")
         print("  use service SERVICE             select a service module context")
@@ -21645,6 +21648,17 @@ def run_line_tui(cfg):
             "show": [
                 "show targets|services|files|queue|mailbox|jobs|sessions|activity|actions|options",
                 "  Shows a resource collection without switching context.",
+            ],
+            "workspace": [
+                "workspace",
+                "overview",
+                "  Shows a compact operator dashboard across listeners, agents, sessions, routes, and staged files.",
+            ],
+            "aliases": [
+                "agents, hosts       target devices",
+                "listeners           local services",
+                "routes              bridge profiles",
+                "stagers, loot       staged files and fetch commands",
             ],
             "set": [
                 "set KEY VALUE",
@@ -21700,6 +21714,48 @@ def run_line_tui(cfg):
         else:
             print("  target=all")
         print(line_tui_status_bar(snap))
+
+    def print_line_workspace():
+        snap = workbench_snapshot(cfg)
+        summary = snap.get("summary") or {}
+        print("Workspace overview:")
+        print(
+            "  fleet: "
+            f"targets={summary.get('target_count', 0)} "
+            f"states={format_counts(summary.get('connectivity_state_counts') or summary.get('target_connectivity_state_counts') or {}) or 'none'} "
+            f"pending={summary.get('mailbox_pending_work_count', summary.get('target_mailbox_pending_work_count', 0))} "
+            f"poll_overdue={summary.get('poll_overdue_count', summary.get('target_poll_overdue_count', 0))}"
+        )
+        print(
+            "  services: "
+            f"listening={summary.get('listening_count', 0)} "
+            f"staged={summary.get('staged_count', 0)} "
+            f"sessions={summary.get('session_count', 0)} "
+            f"events={summary.get('event_count', 0)}"
+        )
+        target_filter = snap.get("target_filter") or {}
+        if target_filter.get("active"):
+            print(target_filter_summary_text(target_filter, prefix="  selected agent:"))
+        else:
+            print("  selected agent: all")
+        targets = snap.get("targets") or []
+        if targets:
+            print("  agents:")
+            for idx, rec in enumerate(targets[:5], 1):
+                print(
+                    f"    {idx}: {rec.get('target_id', '')} "
+                    f"label={rec.get('label', '') or '-'} "
+                    f"state={rec.get('connectivity_state', '') or '-'} "
+                    f"pending={rec.get('mailbox_pending_work_count', 0)} "
+                    f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
+                )
+            if len(targets) > 5:
+                print(f"    ... {len(targets) - 5} more; use agents")
+        else:
+            print("  agents: none")
+        sessions = snap.get("sessions") or []
+        print(f"  sessions: {len(sessions)} recent; use sessions")
+        print("  commands: search TERM, use N, agents, listeners, routes, stagers, queue COMMAND")
 
     def print_line_options():
         print("Console options:")
@@ -22477,6 +22533,9 @@ def run_line_tui(cfg):
             elif cmd in {"status", "summary"}:
                 print(line_tui_status_bar(workbench_snapshot(cfg)))
                 continue
+            elif cmd in {"workspace", "overview", "dashboard"}:
+                print_line_workspace()
+                continue
             elif cmd == "info":
                 print_line_info()
                 continue
@@ -22505,14 +22564,18 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "services":
+            elif cmd in {"services", "listeners"}:
                 print_line_services()
                 continue
-            elif cmd == "targets":
+            elif cmd in {"targets", "agents", "hosts"}:
                 print_line_targets()
                 continue
             elif cmd == "sessions":
                 print_line_sessions()
+                continue
+            elif cmd in {"routes", "route"}:
+                print("Routes:")
+                print_bridge_profiles(cfg, json_output=False)
                 continue
             elif cmd == "use" and len(console_args) == 2 and console_args[1].isdigit():
                 try:
@@ -22601,7 +22664,7 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"files", "staged"}:
+            elif cmd in {"files", "staged", "stagers", "loot"}:
                 compact_next_prompt = False
                 choice = "7"
             elif cmd in {"mailbox", "queue"}:
