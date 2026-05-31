@@ -25,29 +25,29 @@ and bundled notices stay aligned.
 
 Typical workflow:
 
-1. Pick a target preset such as `glinet-mt7621-openwrt-musl`.
+1. Pick a target preset such as `mipsel-linux-4.x-musl`.
 2. Pick a payload preset such as `survey-core`, `default`, or `ssh-operator`.
 3. Build a self-extracting artifact.
 4. Copy the artifact to the target.
 5. Run `survey`, `config-info`, `doctor`, `extract`, and optionally `rshell`.
-6. Validate with `scripts/integration-glinet` when the GL.iNet exemplar target is available.
+6. Validate locally with smoke tests, QEMU when configured, or a device-specific harness you provide.
 
 ```sh
 make menuconfig
-make package TARGET=glinet-mt7621-openwrt-musl
-scp dist/busierbox-glinet-mt7621-openwrt-musl-full root@192.168.8.1:/tmp/busierbox
-ssh root@192.168.8.1 'chmod +x /tmp/busierbox && /tmp/busierbox survey --json'
+make package TARGET=mipsel-linux-4.x-musl
+scp dist/busierbox-mipsel-linux-4.x-musl-full root@target:/tmp/busierbox
+ssh root@target 'chmod +x /tmp/busierbox && /tmp/busierbox survey --json'
 ```
 
 For first contact with a target, `scripts/busierbox-bringup` wraps the survey
 and recommendation loop:
 
 ```sh
-scripts/busierbox-bringup --host root@192.168.8.1 --operator-host auto
+scripts/busierbox-bringup --host root@target --operator-host auto
 ```
 
-Bringup is a guided onboarding flow. `scripts/integration-glinet` is the
-repeatable validation harness for known-safe test cases.
+Bringup is a guided onboarding flow for first contact, survey capture, config
+recommendation, and explicit next-step commands.
 
 ## Architecture
 
@@ -232,7 +232,7 @@ Convenience commands:
 ```sh
 make package-native
 make package TARGET=native
-make package TARGET=glinet-mt7621-openwrt-musl
+make package TARGET=mipsel-linux-4.x-musl
 make package-full TARGET=mipsel-linux-4.x-musl
 make package-all-presets
 ```
@@ -278,12 +278,12 @@ BB_BUSYBOX_APPLET_OVERRIDES="+nc -nuke"
 
 Supported generated tuple families currently include `mipsel`/`mips` with `musl` or `uclibc`, and `armv7`, `aarch64`, `x86_64`, and `i386` with `musl`. Unsupported combinations fail clearly during target resolution or defconfig generation.
 
-GL.iNet/OpenWrt-ish MIPS little-endian musl example:
+OpenWrt-style MIPS little-endian musl example:
 
 ```sh
 make menuconfig
 # Target Configuration
-#   Preset profiles -> GL.iNet MT7621/OpenWrt musl
+#   Generated tuple -> mipsel / musl / 4.x / mips32r2-24kc
 # or manually:
 #   arch=mipsel
 #   cpu=mips32r2-24kc
@@ -337,7 +337,7 @@ For a quick single-artifact release, use the Make target:
 
 ```sh
 make release
-make release TARGET=glinet-mt7621-openwrt-musl BB_RELEASE_NAME=dev-glinet
+make release TARGET=mipsel-linux-4.x-musl BB_RELEASE_NAME=dev-mipsel-musl
 ```
 
 The `make release` target packages and verifies the selected artifact, then stages it under `dist/releases/<name>/` with checksums, payload archives when present, and an inspector manifest under `dist/releases/<name>/manifests/`.
@@ -345,7 +345,7 @@ The `make release` target packages and verifies the selected artifact, then stag
 For reusable multi-target bundles with generated configs, trailer-configuration helpers, matrix metadata, and a tarball, use:
 
 ```sh
-scripts/make-release --name lab-router-pack --targets glinet-mt7621-openwrt-musl,mipsel-linux-4.x-musl --payload-presets survey-core,ssh-operator
+scripts/make-release --name lab-router-pack --targets mipsel-linux-4.x-musl,armv7-linux-3.x-musl --payload-presets survey-core,ssh-operator
 scripts/make-release --name lab-router-pack --matrix release/matrices/iot-lab.json
 scripts/make-release --name lab-router-pack --dry-run
 ```
@@ -372,7 +372,6 @@ Workflow documentation:
 - [Survey and bring-up](docs/survey-and-bringup.md)
 - [Bringup script](docs/bringup.md)
 - [Payload presets](docs/payload-presets.md)
-- [GL.iNet integration](docs/integration-glinet.md)
 - [Build matrix](docs/build-matrix.md)
 - [Offline / enclave builds](docs/offline-enclave.md)
 - [Plan mode](docs/plan-mode.md)
@@ -539,21 +538,6 @@ BB_DOTFILE_PROFILE_USER_FILE=""
 Set a mode to `user` and point the matching `*_USER_FILE` at the exact file to stage, for example `.zshrc`, `.bashrc`, or `.tmux.conf`. Missing user files fail the payload build clearly. In `core-only` runtime mode, dotfiles are not staged because no payload HOME is extracted.
 
 The payload sets `BUSIERBOX_PAYLOAD_DIR`, `PATH`, `HOME`, `SHELL`, `ZDOTDIR`, `TERM`, `TERMINFO_DIRS`, and `LD_LIBRARY_PATH` as needed when dispatching tools. To use a personal Oh My Zsh setup, do not make BusierBox fetch it. Place `.oh-my-zsh` and `.zshrc` under `overlay-root/common/home/` or `overlay-root/<target>/home/`, or set `BB_DOTFILE_ZSH_MODE=user` and point `BB_DOTFILE_ZSH_USER_FILE` at your local `.zshrc` before packaging.
-
-## GL.iNet Integration Testing
-
-For the GL-MT1300 / MT7621 target reachable as `root@192.168.8.1`:
-
-```sh
-make package
-make test-glinet
-```
-
-The GL.iNet harness lives in `tests/integration/glinet/`. It starts a temporary local Python HTTP server, picks a local bind address when possible, downloads the artifact on the router with `wget` or `curl`, extracts under `/tmp/busierbox-itest` by default, runs `doctor`, verifies stale extraction reuse, checks PATH duplication, verifies BusyBox symlinks and advertised staged tools, launches zsh when staged, checks tmux/curl/strace when staged, validates overlay tools when present, and cleans up after success or failure. Use `KEEP_ARTIFACTS=1` to leave remote files for debugging, or override `ROUTER`, `REMOTE_DIR`, `BIND_ADDR`, `PORT`, and `ARTIFACT`.
-
-Use `scripts/integration-report latest` for a compact table after a harness run,
-and `scripts/integration-compare old-summary.json new-summary.json` to spot
-status or artifact changes between runs.
 
 ## QEMU User Validation
 

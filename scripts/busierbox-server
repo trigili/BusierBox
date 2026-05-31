@@ -36,6 +36,13 @@ import urllib.parse
 from pathlib import Path
 
 try:
+    import readline as _readline
+    HAVE_READLINE = True
+except ImportError:
+    _readline = None
+    HAVE_READLINE = False
+
+try:
     import paramiko
     HAVE_PARAMIKO = True
 except ImportError:
@@ -933,7 +940,7 @@ DEFAULTS = {
     "bridge_dest_host": "127.0.0.1",
     "bridge_dest_port": 0,
     "survey_bootstrap_port": 22207,
-    "survey_bootstrap_name": "survey.sh",
+    "survey_bootstrap_name": "probe.sh",
     "operator_session_dir": str(DEFAULT_OPERATOR_SESSION_DIR),
     "server_state": str(DEFAULT_STATE_FILE),
     "staged_files": str(DEFAULT_STAGED_FILE),
@@ -13608,10 +13615,34 @@ bb_sanitize() {{
 bb_uname_s=$(uname -s 2>/dev/null || printf unknown)
 bb_uname_m=$(uname -m 2>/dev/null || printf unknown)
 bb_uname_r=$(uname -r 2>/dev/null || printf unknown)
-bb_word_bits=$(getconf LONG_BIT 2>/dev/null || printf unknown)
+bb_word_bits=unknown
 bb_endian=unknown
-if command -v od >/dev/null 2>&1 && command -v awk >/dev/null 2>&1; then
-    bb_endian=$(printf '\\001\\000' | od -An -tx1 2>/dev/null | awk '{{ if ($1 == "01") print "little"; else if ($1 == "00") print "big"; else print "unknown"; exit }}')
+bb_probe_byte=unknown
+bb_word_bits=$(getconf LONG_BIT 2>/dev/null) || bb_word_bits=unknown
+if [ -z "$bb_word_bits" ] || [ "$bb_word_bits" = "unknown" ]; then
+    bb_word_bits=unknown
+    case "$bb_uname_m" in
+        mips64*|aarch64|x86_64|amd64|ia64|ppc64*|s390x|riscv64) bb_word_bits=64 ;;
+        mips|mipsel|armv*|i[3-6]86|i86pc|ppc|powerpc) bb_word_bits=32 ;;
+    esac
+fi
+if command -v od >/dev/null 2>&1; then
+    bb_probe_byte=$(printf '\\001\\000' | od -An -tx1 2>/dev/null | tr -d ' \\t\\n' | cut -c1-2)
+fi
+if [ "$bb_probe_byte" = "unknown" ] || [ -z "$bb_probe_byte" ]; then
+    if command -v hexdump >/dev/null 2>&1; then
+        bb_probe_byte=$(printf '\\001\\000' | hexdump -e '1/1 "%02x"' 2>/dev/null | cut -c1-2)
+    fi
+fi
+case "$bb_probe_byte" in
+    01) bb_endian=little ;;
+    00) bb_endian=big ;;
+esac
+if [ "$bb_endian" = "unknown" ]; then
+    case "$bb_uname_m" in
+        mipsel|mips64el|x86_64|i[3-6]86|aarch64|armv*|amd64|riscv*|ppc64le) bb_endian=little ;;
+        mips|mips64|ppc|ppc64|s390*|sparc*) bb_endian=big ;;
+    esac
 fi
 bb_payload="schema=1&script={name}&uname_s=$(bb_sanitize "$bb_uname_s")&uname_m=$(bb_sanitize "$bb_uname_m")&uname_r=$(bb_sanitize "$bb_uname_r")&word_bits=$(bb_sanitize "$bb_word_bits")&endian=$(bb_sanitize "$bb_endian")"
 printf '%s\\n' "busierbox survey bootstrap"
@@ -18783,37 +18814,37 @@ def print_target_activity_records(doc, target_id=None, limit=8):
             rec for rec in records
             if str(rec.get("target_id") or "") == str(target_id)
         ]
-    print("Target activity records:")
-    if not records:
-        print("  none")
-        return
-    for rec in records[:limit]:
-        label = (
-            rec.get("summary")
-            or rec.get("filename")
-            or rec.get("request_name")
-            or rec.get("command_id")
-            or rec.get("session_id")
-            or "-"
+    shown = records[:limit]
+
+    def _label(rec):
+        return (
+            rec.get("summary") or rec.get("filename") or rec.get("request_name")
+            or rec.get("command_id") or rec.get("session_id") or "-"
         )
-        route = str(rec.get("route_kind") or "-")
-        if rec.get("bridge_profile"):
-            route += f" bridge_profile={rec.get('bridge_profile', '')}"
-        print(
-            f"  activity_record {rec.get('id', '') or '-'} "
-            f"target={rec.get('target_id', '') or '-'} "
-            f"category={rec.get('category', '') or '-'} "
-            f"operation={rec.get('operation', '') or '-'} "
-            f"status={rec.get('status', '') or '-'} "
-            f"target_state={rec.get('target_connectivity_state', '') or '-'} "
-            f"offline_age={rec.get('target_offline_age_bucket', '') or '-'} "
-            f"waiting_for={rec.get('waiting_for', '') or '-'} "
-            f"pending={'yes' if rec.get('pending_work') else 'no'} "
-            f"source={rec.get('source_collection', '') or '-'} "
-            f"route={route} "
-            f"at={rec.get('timestamp', '') or '-'} "
-            f"label={label}"
-        )
+
+    def _fmt_time(iso):
+        if iso and len(iso) >= 16 and "T" in iso:
+            date, rest = iso.split("T", 1)
+            return f"{date[5:]} {rest[:5]}"
+        return iso or "-"
+
+    def _route(rec):
+        r = rec.get("route_kind") or "-"
+        bp = rec.get("bridge_profile") or ""
+        return f"{r}/{bp}" if bp else r
+
+    cols = [
+        ("Target",    lambda r: r.get("target_id") or "-"),
+        ("Category",  lambda r: r.get("category") or "-"),
+        ("Operation", lambda r: r.get("operation") or "-"),
+        ("Status",    lambda r: r.get("status") or "-"),
+        ("Label",     _label),
+        ("At",        lambda r: _fmt_time(r.get("timestamp"))),
+    ]
+    _console_table(
+        f"Activity  ({len(shown)} shown of {len(records)})" if records else "Activity  (none)",
+        shown, cols,
+    )
 
 
 def print_operator_state_records(doc):
@@ -21502,8 +21533,59 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
     raise ValueError(f"unsupported target workflow action: {action_id}")
 
 
+def _console_table(title, records, cols, detail_fn=None, footer=None):
+    """Render a numbered table to stdout.
+
+    cols      — list of (header, getter) where getter is a dict key or callable(rec)->str
+    detail_fn — optional callable(rec) -> list of (label, value) shown indented below each row
+    footer    — optional one-line hint printed after the table
+    """
+    def _get(rec, getter):
+        return str(getter(rec) if callable(getter) else (rec.get(getter) or "")) or "-"
+
+    print(title)
+    if not records:
+        print("  (none)")
+        if footer:
+            print(f"\n  {footer}")
+        return
+
+    cells = [[_get(rec, g) for _, g in cols] for rec in records]
+    widths = [
+        max(len(header), max(len(row[i]) for row in cells))
+        for i, (header, _) in enumerate(cols)
+    ]
+    num_w = len(str(len(records)))
+    indent = " " * (2 + num_w + 2)
+
+    print("")
+    print("  " + " " * num_w + "  " + "  ".join(f"{h:{widths[i]}}" for i, (h, _) in enumerate(cols)))
+    print("  " + "─" * num_w + "  " + "  ".join("─" * w for w in widths))
+    for n, (rec, row) in enumerate(zip(records, cells), 1):
+        line = f"  {n:{num_w}}  " + "  ".join(f"{cell:{widths[i]}}" for i, cell in enumerate(row))
+        print(line.rstrip())
+        if detail_fn:
+            for label, value in (detail_fn(rec) or []):
+                if value and value != "-":
+                    print(f"{indent}{label}: {value}")
+    if footer:
+        print(f"\n  {footer}")
+
+
 def run_line_tui(cfg):
+    if HAVE_READLINE:
+        _readline.set_history_length(500)
+
     def line_input(prompt):
+        if SHUTDOWN.is_set():
+            return None
+        if HAVE_READLINE:
+            try:
+                return input(prompt)
+            except EOFError:
+                request_shutdown("input_eof")
+                return None
+        # Fallback for environments without readline (dumb terminals, pipes)
         sys.stdout.write(prompt)
         sys.stdout.flush()
         while not SHUTDOWN.is_set():
@@ -21624,6 +21706,40 @@ def run_line_tui(cfg):
             f"events={summary.get('event_count', 0)}"
         )
 
+    def print_line_console_banner(snap):
+        summary = snap.get("summary") or {}
+        warnings = snap.get("warnings") or []
+        target_filter = snap.get("target_filter") or {}
+        parts = [f"{summary.get('listening_count', 0)} listening"]
+        targets = summary.get("target_count", 0)
+        if targets:
+            parts.append(f"{targets} target{'s' if targets != 1 else ''}")
+        sessions = summary.get("session_count", 0)
+        if sessions:
+            parts.append(f"{sessions} session{'s' if sessions != 1 else ''}")
+        staged = summary.get("staged_count", 0)
+        if staged:
+            parts.append(f"{staged} staged")
+        if warnings:
+            parts.append(f"{len(warnings)} warning{'s' if len(warnings) != 1 else ''}")
+        events = summary.get("event_count", 0)
+        if events:
+            parts.append(f"{events} events")
+        print("BusierBox Workbench  " + "  |  ".join(parts))
+        if target_filter.get("active"):
+            label = target_filter.get("selected_target_label") or target_filter.get("target_id", "")
+            state = target_filter.get("selected_target_connectivity_state") or "-"
+            print(f"  selected: {label} ({state})")
+        for w in warnings[:3]:
+            svc = f" {w.get('service')}" if w.get("service") else ""
+            msg = w.get("message") or ""
+            hint = f"  -> {w.get('suggested_action')}" if w.get("suggested_action") else ""
+            print(f"  [!]{svc}: {msg}{hint}")
+        if len(warnings) > 3:
+            print(f"  ... {len(warnings) - 3} more warning(s) — run: status")
+        print("")
+        print("  ? help  workspace overview  targets/sessions/files  start ssh|tls|file-service")
+
     def line_tui_prompt():
         target_id = configured_target_filter(cfg)
         module = str(cfg.get("_line_console_module") or "").strip()
@@ -21638,77 +21754,23 @@ def run_line_tui(cfg):
         return f"bbx[{display}]{module_suffix}> "
 
     def print_line_console_help():
-        print("Console commands:")
-        print("  help [COMMAND], ?               show console command help")
-        print("  complete [PREFIX]               show command/resource completions")
-        print("  search TERM                     search targets, services, actions, sessions, jobs, files, queue")
-        print("  resource FILE                   run console commands from a script file")
-        print("  makerc FILE                     save command history as a resource script")
-        print("  history, !!, !N, repeat N       show or replay command history")
-        print("  info                            show selected target/module context")
-        print("  next                            show suggested commands for current context")
-        print("  workspace, overview             show operator dashboard summary")
-        print("  status, summary                 refresh workbench summary")
-        print("  show targets|services|files     show major workbench resources")
-        print("  show queue|mailbox|jobs         show queue, mailbox, or background jobs")
-        print("  show sessions|activity|modules  show sessions, activity, or runnable modules")
-        print("  show categories                 show runnable module categories")
-        print("  show service|daemon modules     browse modules by operator category")
-        print("  show modules [FILTER]           browse modules by kind, id, workflow, or text")
-        print("  commands, copy N                list or copy generated target commands")
-        print("  info, options                   show selected context and module options")
-        print("  show options                    show target/module/build options")
-        print("  build, build set KEY VALUE      show or update binary build config")
-        print("  set KEY VALUE                   set target metadata or guided build option")
-        print("  rename|note|alias VALUE         edit selected agent label, notes, or alias")
-        print("  setg KEY VALUE, unsetg KEY      set or unset global build/workbench options")
-        print("  unset KEY                       clear target label/notes or module context")
-        print("  services, listeners [-v]        list listener services")
-        print("  listener NAME                   inspect/select a listener service")
-        print("  routes [-v], route NAME         list/select bridge routes")
-        print("  route add NAME LPORT HOST DPORT [HOP ...] create a bridge route")
-        print("  route start NAME, route stop NAME control a bridge route directly")
-        print("  route delete NAME               remove a bridge route profile")
-        print("  targets, agent NAME, sessions   list/select agents or show sessions")
-        print("  agents, listeners, routes       operator aliases for targets/services/bridges")
-        print("  stagers, loot                   operator aliases for staged files")
-        print("  use N                           use a numbered search/list/module result")
-        print("  use agent|listener|route NAME   select target, listener, or route context")
-        print("  use module NAME                 select an action module context")
-        print("  useagent/usemodule NAME         Empire-style context selection aliases")
-        print("  use target ID|LABEL|NUMBER      select a target context")
-        print("  use service SERVICE             select a service module context")
-        print("  use action ACTION               select an action module context")
-        print("  use target all, clear target    clear selected target context")
-        print("  main, home, root                clear target/module context")
-        print("  back, background                clear selected module context")
-        print("  start SERVICE|ROUTE, stop SERVICE|ROUTE control a listener or bridge route")
-        print("  check                           dry-run the selected action module")
-        print("  run [--dry-run] [--confirm]     run selected service/action module")
-        print("  execute, exploit                aliases for run")
-        print("  run -j, run --job               start selected background action as a managed job")
-        print("  use job ID, jobs -i ID          select or inspect a background job")
-        print("  sessions [-l|-v], session ID    list or inspect sessions")
-        print("  use session ID                  select a session context")
-        print("  interact SESSION, sessions -i   show local session inspection commands")
-        print("  queue COMMAND                   queue work for selected/offline target")
-        print("  queue list|result|clear         inspect results or clear queued work")
-        print("  download [--queue] TARGET_PATH  show or queue target-to-operator upload")
-        print("  survey [--start|--queue]        show, serve, or queue survey bootstrap")
-        print("  daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow")
-        print("  release, release stage SELECTOR list or stage release artifacts")
-        print("  upload [--start] LOCAL [NAME]   stage and optionally serve a local file")
-        print("  fetch [--queue] [--start] NAME  show or queue target fetch of staged file")
-        print("  files, staged                   list staged files and file workflow actions")
-        print("  unstage NAME                    remove a staged file request")
-        print("  view PATH, cat PATH             view a local session/artifact path")
-        print("  downloads                       list target-fetchable staged files")
-        print("  serve-binary [--start] [PATH] [NAME] stage and optionally serve a BusierBox binary")
-        print("  mailbox, queue                  show command queue and target mailbox state")
-        print("  jobs, job ID, jobs -k ID        show, select, or cancel background jobs")
-        print("  refresh                         redraw full workbench")
-        print("  quit, exit                      quit")
-        print("Numeric actions are still available for prompted workflows.")
+        print("Console help topics:")
+        print("")
+        print("  workspace   overview, status, info, search, next")
+        print("  targets     agents, select, mailbox, activity feed")
+        print("  listeners   services, start/stop, options")
+        print("  sessions    list, select, inspect, interact")
+        print("  files       stage, fetch, download, release, serve-binary, view")
+        print("  probe       shell probe (pre-deployment): run probe.sh, see results, gen config")
+        print("  survey      full BusierBox survey (post-deployment): config, presets")
+        print("  queue       command queue, mailbox, results")
+        print("  routes      bridge profiles, multi-hop tunnels")
+        print("  daemon      systemd workflow actions")
+        print("  jobs        background jobs")
+        print("  build       binary build config, guided options")
+        print("  console     history, resource scripts, completions, aliases")
+        print("")
+        print("  help <topic>  or  <topic> ?   get detailed help on a topic")
 
     def load_line_resource(path_text):
         text = str(path_text or "").strip()
@@ -21780,6 +21842,13 @@ def run_line_tui(cfg):
         line_history.append(text)
         if len(line_history) > 100:
             del line_history[:-100]
+        if HAVE_READLINE:
+            try:
+                n = _readline.get_current_history_length()
+                if n == 0 or _readline.get_history_item(n) != text:
+                    _readline.add_history(text)
+            except Exception:
+                pass
 
     def line_history_command(selector):
         text = str(selector or "").strip()
@@ -21822,287 +21891,270 @@ def run_line_tui(cfg):
         if not key:
             print_line_console_help()
             return
-        help_text = {
-            "search": [
-                "search TERM",
-                "  Searches targets, services, action modules, sessions, jobs, staged files, and queued commands.",
-                "  Example: search file-service",
-            ],
-            "complete": [
-                "complete [PREFIX]",
-                "completions [PREFIX]",
-                "  Lists command and resource completions for dumb terminals and resource scripts.",
-                "  Examples: complete use ag; complete agent lab; complete use module file",
-            ],
-            "commands": [
-                "commands",
-                "target-commands",
-                "commands copy N",
-                "copy N",
-                "  Lists generated target-side commands for file upload, survey bootstrap, rshell, and staged fetches.",
-                "  copy N writes command N to the command-copy file and clipboard when a clipboard helper is available.",
-            ],
-            "resource": [
-                "resource FILE",
-                "  Runs console commands from FILE in order.",
-                "  Blank lines and # comments are ignored; nested resource commands are skipped.",
-            ],
-            "makerc": [
-                "makerc FILE",
-                "  Saves the current console command history as a replayable resource script.",
-                "  The makerc command itself is omitted from the saved script.",
-                "  Replay it with resource FILE.",
-            ],
-            "history": [
-                "history [LIMIT]",
-                "!!",
-                "!N",
-                "repeat N",
-                "  Shows recent console commands or replays a previous command by history number.",
-            ],
-            "use": [
-                "use N",
-                "use agent ID|LABEL|NUMBER",
-                "agent ID|LABEL|NUMBER",
-                "use listener SERVICE",
-                "use route NAME|NUMBER",
-                "use session SESSION",
-                "use job ID|NUMBER",
-                "use module ACTION",
-                "useagent ID|LABEL|NUMBER",
-                "uselistener SERVICE",
-                "useroute NAME|NUMBER",
-                "usesession SESSION",
-                "usemodule ACTION",
-                "use target ID|LABEL|NUMBER",
-                "use service SERVICE",
-                "use action ACTION",
-                "  Selects a numbered search/list/module result, target, session, job, route, service module, or action module context.",
-            ],
-            "main": [
-                "main",
-                "home",
-                "root",
-                "back all",
-                "  Clears selected target and module context, then returns to the top-level workspace.",
-            ],
-            "show": [
-                "show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options",
-                "show categories",
-                "show service|daemon|target|workbench modules",
-                "show modules [FILTER]",
-                "  Shows a resource collection without switching context.",
-            ],
-            "modules": [
-                "modules [FILTER]",
-                "show modules [FILTER]",
-                "show categories",
-                "show service|daemon|target|workbench modules",
-                "  Browses runnable modules. FILTER matches kind, category, workflow, id, label, or command text.",
-                "  Examples: modules daemon; show modules file-service; use 1",
-            ],
-            "options": [
-                "options",
-                "show options",
-                "  Shows selected target/module/build options and suggested next commands.",
-            ],
-            "build": [
-                "build",
-                "build list",
-                "build set KEY VALUE",
-                "build unset KEY",
-                "  Shows or updates guided BusierBox binary build configuration.",
-                "  Equivalent headless commands use --build-config and --set-build-config.",
-            ],
-            "next": [
-                "next",
-                "  Shows context-sensitive suggested commands for the selected target/module.",
-                "  Use it after use agent, use listener, use route, use module, or search/use N.",
-            ],
-            "workspace": [
-                "workspace",
-                "overview",
-                "  Shows a compact operator dashboard across listeners, agents, sessions, routes, and staged files.",
-            ],
-            "aliases": [
-                "agents, hosts       target devices",
-                "agent NAME          select a target device",
-                "listeners           local services",
-                "routes              bridge profiles",
-                "stagers, loot       staged files and fetch commands",
-                "rename, note, alias edit selected agent metadata",
-                "useagent, uselistener, useroute, usesession, usemodule",
-                "execute, exploit    run the selected action/service module",
-                "use agent/listener/module and sessions -i mirror familiar console verbs",
-            ],
-            "listeners": [
-                "listeners, listeners -l",
-                "listeners -v",
-                "listener NAME",
-                "use listener NAME",
-                "  Lists or selects listener services. Selected listeners support info, options, start, stop, and run.",
-            ],
-            "routes": [
-                "routes, routes -l",
-                "routes -v",
-                "route print",
-                "route NAME",
-                "route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]",
-                "route start NAME",
-                "route stop NAME",
-                "route delete NAME",
-                "route rm NAME",
-                "start route NAME",
-                "stop route NAME",
-                "start NAME",
-                "stop NAME",
-                "use route NAME",
-                "  Lists, creates, selects, starts, stops, or deletes bridge routes.",
-                "  Selected routes support info, options, start, stop, and run.",
-                "  HOP accepts the same FROM=TO, FROM->TO, or FROM,TO format as --bridge-hop.",
-            ],
-            "set": [
-                "set KEY VALUE",
-                "rename LABEL",
-                "note TEXT",
-                "alias NAME",
-                "  Sets selected-target metadata or guided build options.",
-                "  Examples: rename lab-router-1; note Rack shelf A; alias lab-router",
-            ],
-            "setg": [
-                "setg KEY VALUE",
-                "unsetg KEY",
-                "  Sets or unsets guided build/workbench options globally.",
-                "  Example: setg BB_RUNTIME_ROOT /tmp/bbx",
-            ],
-            "run": [
-                "run [--dry-run] [--confirm]",
-                "run MODULE [--dry-run] [--confirm]",
-                "execute [--dry-run] [--confirm]",
-                "exploit [--dry-run] [--confirm]",
-                "check [MODULE]",
-                "run -j",
-                "run --job",
-                "  Runs the selected action module, or starts the selected service module.",
-                "  MODULE may be supplied directly instead of using use module first.",
-                "  -j/--job starts a selected background-capable workbench action as a managed job.",
-                "  Use check to dry-run the selected action module.",
-            ],
-            "jobs": [
-                "jobs",
-                "jobs -i ID",
-                "jobs -k ID",
-                "job ID",
-                "use job ID",
-                "  Lists, selects, inspects, or cancels managed background jobs.",
-                "  Selected jobs support info, options, next, and back.",
-            ],
-            "queue": [
-                "queue COMMAND",
-                "queue command COMMAND",
-                "queue -- COMMAND",
-                "queue list",
-                "queue result ID|NUMBER",
-                "queue results",
-                "queue clear --confirm",
-                "  Queues a command record for the selected target context.",
-                "  queue list shows the mailbox; queue result inspects one command/result record.",
-                "  queue clear --confirm removes all queued command records.",
-                "  Delivery still depends on the existing command-queue policy and target polling.",
-            ],
-            "download": [
-                "download [--queue] [--start] TARGET_PATH",
-                "get [--queue] [--start] TARGET_PATH",
-                "  Shows the target-side command to upload TARGET_PATH back to the operator file service.",
-                "  --queue stores that command in the selected agent mailbox for later phone-home delivery.",
-                "  --start starts the file-service before printing or queueing the command.",
-            ],
-            "survey": [
-                "survey [--start] [--queue]",
-                "survey-bootstrap [--start] [--queue]",
-                "  Shows the target-side command for the architecture-agnostic survey bootstrap script.",
-                "  --start starts the survey-bootstrap listener.",
-                "  --queue stores the bootstrap command in the selected agent mailbox for later phone-home delivery.",
-            ],
-            "upload": [
-                "upload [--start] LOCAL [NAME]",
-                "stage [--start] LOCAL [NAME]",
-                "serve-file [--start] LOCAL [NAME]",
-                "upload [--start] LOCAL as NAME",
-                "  Stages a local file so a target can fetch it from the file service.",
-                "  --start starts the file-service after staging.",
-                "  NAME defaults to the local basename. Use downloads or files to list staged files.",
-            ],
-            "release": [
-                "release",
-                "release list",
-                "release stage [--start] SELECTOR",
-                "stage-release [--start] SELECTOR",
-                "  Lists detected release artifacts, recommendations, and staging selectors.",
-                "  Stages a release artifact so a target can fetch it from the file service.",
-                "  SELECTOR may be an artifact path, recommendation id, by_device:NAME, or by_tuple_path:PATH.",
-            ],
-            "fetch": [
-                "fetch [--queue] [--start] NAME",
-                "deploy [--queue] [--start] NAME",
-                "queue-fetch [--start] NAME",
-                "  Shows the target-side command for fetching an operator-staged file.",
-                "  --queue stores that command in the selected agent mailbox for later phone-home delivery.",
-                "  --start starts the file-service before printing or queueing the command.",
-            ],
-            "files": [
-                "files",
-                "stagers",
-                "loot",
-                "downloads",
-                "unstage NAME",
-                "rmfile NAME",
-                "  Lists staged files and target fetch commands, or removes a staged request.",
-            ],
-            "view": [
-                "view PATH",
-                "cat PATH",
-                "less PATH",
-                "  Opens a local session, log, event, or artifact path with the configured pager.",
-                "  The path must be inside an operator-managed viewable location.",
-            ],
-            "serve-binary": [
-                "serve-binary [--start|--no-start] [PATH] [NAME]",
-                "binary [--start|--no-start] [PATH] [NAME]",
-                "serve-binary [--start] PATH as NAME",
-                "  Stages a BusierBox binary so a target can fetch it from the file service.",
-                "  --start starts the file-service after staging; --no-start suppresses the guided prompt.",
-            ],
-            "daemon": [
-                "daemon",
-                "daemon ACTION [--dry-run] [--confirm]",
-                "  Lists or runs existing daemon/systemd workflow actions.",
-            ],
-            "interact": [
-                "interact SESSION",
-                "interact",
-                "interact agent ID|LABEL|NUMBER",
-                "sessions -i SESSION",
-                "  Shows local session inspection commands and log paths, or selected-agent work commands.",
-                "  With a selected session context, interact can be run without an argument.",
-            ],
-            "sessions": [
-                "sessions, sessions -l",
-                "sessions -v",
-                "sessions -i SESSION",
-                "session SESSION",
-                "use session SESSION",
-                "  Lists sessions, shows verbose session paths/logs, inspects one session, or selects session context.",
-                "  Selected sessions support info, options, next, interact, and back.",
-            ],
+
+        # Aliases map alternate spellings to canonical topic keys
+        _topic_aliases = {
+            "agent": "targets", "agents": "targets", "target": "targets",
+            "host": "targets", "hosts": "targets", "mailbox": "targets",
+            "listener": "listeners", "services": "listeners", "service": "listeners",
+            "session": "sessions", "interact": "sessions",
+            "file": "files", "staged": "files", "stagers": "files", "loot": "files",
+            "upload": "files", "fetch": "files", "download": "files",
+            "release": "files", "serve-binary": "files", "binary": "files",
+            "view": "files", "cat": "files", "unstage": "files",
+            "route": "routes", "bridge": "routes", "bridges": "routes",
+            "job": "jobs", "run": "jobs",
+            "probe": "probe", "survey": "survey", "queue": "queue",
+            "set": "build", "build": "build", "setg": "build", "options": "build",
+            "history": "console", "resource": "console", "makerc": "console",
+            "complete": "console", "completions": "console", "search": "console",
+            "use": "console", "main": "console", "back": "console",
+            "aliases": "console", "commands": "console",
+            "workspace": "workspace", "overview": "workspace", "status": "workspace",
+            "next": "workspace", "info": "workspace", "show": "workspace",
+            "modules": "workspace", "refresh": "workspace",
+            "daemon": "daemon",
         }
-        lines = help_text.get(key)
-        if not lines:
-            print(f"no focused help for {topic}; use help")
+        canonical = _topic_aliases.get(key, key)
+
+        help_topics = {
+            "workspace": {
+                "title": "workspace — operator dashboard and navigation",
+                "entries": [
+                    ("workspace, overview", "compact dashboard: listeners, agents, sessions, routes, files"),
+                    ("status, summary", "one-line workbench status"),
+                    ("info", "show selected context (target, module, session, route, job)"),
+                    ("next", "context-sensitive suggested commands"),
+                    ("search TERM", "search targets, services, actions, sessions, jobs, files, queue"),
+                    ("show targets|services|files|sessions|activity|modules", "show a resource list"),
+                    ("show modules [FILTER]", "browse runnable action/service modules"),
+                    ("show categories", "summarize runnable module kinds"),
+                    ("refresh", "redraw full workbench (verbose)"),
+                ],
+            },
+            "targets": {
+                "title": "targets — target agents, mailbox, and activity",
+                "entries": [
+                    ("targets, agents", "list known target agents"),
+                    ("agent NAME", "inspect and select a target by label, id, or number"),
+                    ("use target ID|LABEL|N", "select a target context"),
+                    ("use N", "select a numbered result from search or list"),
+                    ("targets -v", "verbose agent listing with connection history"),
+                    ("show activity", "show the target activity feed"),
+                    ("mailbox", "show selected-target mailbox and pending work"),
+                    ("interact [SESSION]", "show session log paths and interaction commands"),
+                    ("rename LABEL", "set a display label for the selected agent"),
+                    ("note TEXT", "add notes to the selected agent"),
+                    ("alias NAME", "set a short alias for the selected agent"),
+                    ("clear target", "deselect the current target context"),
+                ],
+            },
+            "listeners": {
+                "title": "listeners — reverse-access listener services",
+                "entries": [
+                    ("listeners, services [-v]", "list listener services and their state"),
+                    ("listener NAME", "inspect and select a listener"),
+                    ("use listener NAME", "select a listener context"),
+                    ("start ssh|tls-shell|plain-shell|file-service", "start a listener"),
+                    ("stop SERVICE", "stop a running listener"),
+                    ("run", "start the selected listener service"),
+                    ("options", "show selected listener options"),
+                    ("info", "show selected listener context and headless commands"),
+                ],
+            },
+            "sessions": {
+                "title": "sessions — captured shells and file transfers",
+                "entries": [
+                    ("sessions [-l|-v]", "list sessions"),
+                    ("session ID", "inspect a session"),
+                    ("use session ID", "select a session context"),
+                    ("sessions -i SESSION", "show session inspection commands"),
+                    ("interact [SESSION]", "show log paths and interaction commands"),
+                    ("view PATH, cat PATH", "view a local session path in pager"),
+                    ("sessions clear", "preview removal of finished empty sessions"),
+                    ("sessions clear --confirm", "remove finished empty sessions"),
+                    ("sessions clear --all --confirm", "remove all sessions"),
+                    ("info", "show selected session context"),
+                    ("back", "deselect session context"),
+                ],
+                "notes": [
+                    "command-queue sessions accumulate quickly — they're created per poll cycle.",
+                    "sessions clear removes ended/stopped sessions with no uploads, fetches, or artifacts.",
+                ],
+            },
+            "files": {
+                "title": "files — staging and serving files to targets",
+                "entries": [
+                    ("files, staged, stagers, loot", "list staged files and target fetch commands"),
+                    ("downloads", "list files a target can currently fetch"),
+                    ("upload [--start] LOCAL [NAME]", "stage a local file for target fetch"),
+                    ("fetch [--queue] [--start] NAME", "show or queue a target fetch command"),
+                    ("release", "list detected release artifact recommendations"),
+                    ("release stage [--start] SELECTOR", "stage a release artifact"),
+                    ("serve-binary [--start] [PATH] [NAME]", "stage a BusierBox binary for target fetch"),
+                    ("unstage NAME", "remove a staged file"),
+                    ("view PATH, cat PATH", "view a local path in the configured pager"),
+                    ("download [--queue] TARGET_PATH", "generate an upload-back command for the target"),
+                    ("survey [--start] [--queue]", "show or queue the survey bootstrap command"),
+                ],
+                "examples": [
+                    "upload ./busierbox busierbox  →  fetch busierbox",
+                    "release stage by_device:gl-mt3000",
+                    "serve-binary --start",
+                ],
+            },
+            "queue": {
+                "title": "queue — command queue and target mailbox",
+                "entries": [
+                    ("queue COMMAND", "queue a shell command for the selected target"),
+                    ("queue list", "show the target mailbox"),
+                    ("queue result ID|N", "inspect a queued command result"),
+                    ("queue clear --confirm", "remove all queued commands"),
+                    ("mailbox", "show command queue and mailbox state"),
+                    ("download [--queue] PATH", "queue a target-to-operator upload command"),
+                    ("fetch [--queue] NAME", "queue a target fetch command"),
+                    ("survey [--queue]", "queue the survey bootstrap command"),
+                ],
+                "notes": [
+                    "Delivery depends on the command-queue policy and target polling interval.",
+                ],
+            },
+            "probe": {
+                "title": "probe — lightweight shell probe (no BusierBox required)",
+                "entries": [
+                    ("probe --start",                           "start the probe.sh listener on port 22207"),
+                    ("probe",                                   "show the target-side command (warns if listener is down)"),
+                    ("probe --queue",                           "queue probe command for selected target's next phone-home"),
+                    ("probe results",                           "show received probe results (arch, kernel, bits, endian)"),
+                    ("probe config",                            "generate config from most recent probe result"),
+                    ("probe config --write-config FILE",        "generate and save config"),
+                    ("probe serve [--start]",                   "stage the matching binary from the release for this arch"),
+                ],
+                "notes": [
+                    "probe.sh captures: arch (uname_m), kernel, OS, word size, endian.",
+                    "No BusierBox required — only needs wget or curl on the target.",
+                    "probe config uses estimated defaults for libc/filesystem; use survey config for full data.",
+                ],
+                "examples": [
+                    "probe --start",
+                    "  (run the shown command on the target)",
+                    "probe results",
+                    "probe config --write-config config.json",
+                    "probe serve --start",
+                ],
+            },
+            "survey": {
+                "title": "survey — full BusierBox survey (requires BusierBox deployed)",
+                "entries": [
+                    ("survey",                                        "show full survey upload status"),
+                    ("survey results",                                "list received full survey uploads"),
+                    ("survey config [PATH]",                          "generate config from most recent full survey"),
+                    ("survey config PATH --write-config FILE",        "generate and save config"),
+                    ("survey preset [PATH] --name NAME",              "generate a reusable target preset (dry-run)"),
+                    ("survey preset PATH --name NAME --write-local",  "save preset under local/presets/targets/"),
+                ],
+                "notes": [
+                    "Full survey captures: libc, filesystem layout, writable paths, tools, network interfaces.",
+                    "Requires BusierBox already deployed on the target.",
+                    "On target: busierbox survey push --host OPERATOR_IP --port FILE_SERVICE_PORT",
+                ],
+                "examples": [
+                    "survey results",
+                    "survey config --write-config config.json",
+                    "survey preset --name gl-mt3000 --write-local",
+                ],
+            },
+            "routes": {
+                "title": "routes — bridge profiles and multi-hop tunnels",
+                "entries": [
+                    ("routes [-v]", "list bridge route profiles"),
+                    ("route NAME", "inspect a bridge route"),
+                    ("use route NAME", "select a route context"),
+                    ("route add NAME LPORT HOST DPORT [HOP…]", "create a route profile"),
+                    ("route start NAME / route stop NAME", "start or stop a route"),
+                    ("route delete NAME", "remove a route profile"),
+                    ("start NAME / stop NAME", "shorthand start/stop when in route context"),
+                    ("info, options", "show selected route context and headless commands"),
+                ],
+                "notes": [
+                    "HOP syntax: FROM=TO  FROM->TO  FROM,TO",
+                    "Example: route add tun 22207 192.168.1.1 22 127.0.0.1=192.168.1.1",
+                ],
+            },
+            "daemon": {
+                "title": "daemon — systemd/init workflow actions",
+                "entries": [
+                    ("daemon", "list available daemon workflow actions"),
+                    ("daemon ACTION", "run a daemon workflow action"),
+                    ("daemon ACTION --dry-run", "preview a daemon workflow action"),
+                    ("daemon ACTION --confirm", "run a confirmed daemon workflow action"),
+                    ("show daemon modules", "browse daemon workflow modules"),
+                    ("use module MODULE", "select a daemon module context"),
+                    ("run, check", "run or dry-run the selected daemon module"),
+                ],
+            },
+            "jobs": {
+                "title": "jobs — background workflow jobs",
+                "entries": [
+                    ("jobs", "list managed background jobs"),
+                    ("job ID", "inspect a background job"),
+                    ("jobs -i ID", "verbose job inspection"),
+                    ("jobs -k ID", "cancel a background job"),
+                    ("use job ID", "select a job context"),
+                    ("run -j, run --job", "start selected action module as a background job"),
+                    ("info, next", "show selected job context and suggested commands"),
+                    ("back", "deselect job context"),
+                ],
+            },
+            "build": {
+                "title": "build — BusierBox binary build configuration",
+                "entries": [
+                    ("build", "show current guided build config"),
+                    ("build set KEY VALUE", "set a build config field"),
+                    ("build unset KEY", "clear a build config field"),
+                    ("set KEY VALUE", "set a target or guided build option"),
+                    ("setg KEY VALUE", "set a global build/workbench option"),
+                    ("unsetg KEY", "unset a global option"),
+                    ("options, show options", "show target/module/build options"),
+                    ("commands, copy N", "list or copy generated target-side commands"),
+                ],
+            },
+            "console": {
+                "title": "console — navigation, scripting, and aliases",
+                "entries": [
+                    ("history [LIMIT]", "show recent command history"),
+                    ("!!, !N, repeat N", "replay a history entry"),
+                    ("resource FILE", "run console commands from a script file"),
+                    ("makerc FILE", "save command history as a replayable script"),
+                    ("complete [PREFIX]", "tab-style completions for dumb terminals"),
+                    ("search TERM", "search targets, services, actions, sessions, jobs, files"),
+                    ("use N", "select a numbered result from the last list or search"),
+                    ("main, home, root", "clear target and module context"),
+                    ("back", "clear module context only"),
+                    ("quit, exit", "quit"),
+                ],
+                "notes": [
+                    "Aliases: agents=targets  listeners=services  routes=bridges",
+                    "         stagers/loot=staged files  execute/exploit=run",
+                    "         useagent/uselistener/useroute/usesession/usemodule",
+                ],
+            },
+        }
+
+        entry = help_topics.get(canonical)
+        if not entry:
+            print(f"no help topic '{topic}'  —  try: help  or  ?")
             return
-        print(f"Help: {key}")
-        for line in lines:
-            print(f"  {line}" if line else "")
+        print(f"Help: {entry['title']}")
+        print("")
+        col = max(len(cmd) for cmd, _ in entry["entries"]) + 2
+        for cmd, desc in entry["entries"]:
+            print(f"  {cmd:<{col}}{desc}")
+        for note in entry.get("notes") or []:
+            print(f"  {note}")
+        for i, ex in enumerate(entry.get("examples") or []):
+            prefix = "  Example: " if i == 0 else "           "
+            print(f"{prefix}{ex}")
 
     def print_line_info():
         snap = workbench_snapshot(cfg)
@@ -22270,44 +22322,62 @@ def run_line_tui(cfg):
     def print_line_workspace():
         snap = workbench_snapshot(cfg)
         summary = snap.get("summary") or {}
-        print("Workspace overview:")
-        print(
-            "  fleet: "
-            f"targets={summary.get('target_count', 0)} "
-            f"states={format_counts(summary.get('connectivity_state_counts') or summary.get('target_connectivity_state_counts') or {}) or 'none'} "
-            f"pending={summary.get('mailbox_pending_work_count', summary.get('target_mailbox_pending_work_count', 0))} "
-            f"poll_overdue={summary.get('poll_overdue_count', summary.get('target_poll_overdue_count', 0))}"
-        )
-        print(
-            "  services: "
-            f"listening={summary.get('listening_count', 0)} "
-            f"staged={summary.get('staged_count', 0)} "
-            f"sessions={summary.get('session_count', 0)} "
-            f"events={summary.get('event_count', 0)}"
-        )
         target_filter = snap.get("target_filter") or {}
-        if target_filter.get("active"):
-            print(target_filter_summary_text(target_filter, prefix="  selected agent:"))
-        else:
-            print("  selected agent: all")
         targets = snap.get("targets") or []
-        if targets:
-            print("  agents:")
-            for idx, rec in enumerate(targets[:5], 1):
-                print(
-                    f"    {idx}: {rec.get('target_id', '')} "
-                    f"label={rec.get('label', '') or '-'} "
-                    f"state={rec.get('connectivity_state', '') or '-'} "
-                    f"pending={rec.get('mailbox_pending_work_count', 0)} "
-                    f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
-                )
-            if len(targets) > 5:
-                print(f"    ... {len(targets) - 5} more; use agents")
-        else:
-            print("  agents: none")
         sessions = snap.get("sessions") or []
-        print(f"  sessions: {len(sessions)} recent; use sessions")
-        print("  commands: search TERM, use N, agent NAME, agents, listeners, routes, stagers, queue COMMAND")
+        warnings = snap.get("warnings") or []
+
+        def _fmt_seen(iso):
+            if iso and len(iso) >= 16 and "T" in iso:
+                date, rest = iso.split("T", 1)
+                return f"{date[5:]} {rest[:5]}"
+            return iso or "-"
+
+        # Summary header
+        parts = [f"{summary.get('listening_count', 0)} listening"]
+        if targets:
+            parts.append(f"{len(targets)} target{'s' if len(targets) != 1 else ''}")
+        if sessions:
+            parts.append(f"{len(sessions)} session{'s' if len(sessions) != 1 else ''}")
+        staged = summary.get("staged_count", 0)
+        if staged:
+            parts.append(f"{staged} staged")
+        pending = summary.get("mailbox_pending_work_count") or summary.get("target_mailbox_pending_work_count") or 0
+        if pending:
+            parts.append(f"{pending} pending")
+        if warnings:
+            parts.append(f"{len(warnings)} warning{'s' if len(warnings) != 1 else ''}")
+        print("Workspace  " + "  |  ".join(parts))
+
+        selected_id = target_filter.get("target_id") if target_filter.get("active") else None
+        if selected_id:
+            label = target_filter.get("selected_target_label") or selected_id
+            state = target_filter.get("selected_target_connectivity_state") or "-"
+            print(f"  selected: {label} ({state})")
+
+        if targets:
+            print("")
+            cols = [
+                ("Target", lambda r: ("* " if str(r.get("target_id") or "") == (selected_id or "") else "  ")
+                           + (r.get("label") or r.get("target_id") or "-")),
+                ("State",  lambda r: r.get("connectivity_state") or "-"),
+                ("Pending",lambda r: str(r.get("mailbox_pending_work_count") or 0)),
+                ("Seen",   lambda r: _fmt_seen(r.get("last_seen") or r.get("last_seen_at"))),
+            ]
+            shown = targets[:6]
+            _console_table(
+                f"Agents  ({len(targets)} total)" if len(targets) > 6 else f"Agents  ({len(targets)} total)",
+                shown, cols,
+            )
+            if len(targets) > 6:
+                print(f"  ... {len(targets) - 6} more — use targets")
+
+        for w in warnings[:3]:
+            svc = f" {w.get('service')}" if w.get("service") else ""
+            print(f"  [!]{svc}: {w.get('message', '')}")
+
+        print("")
+        print("  search TERM  |  targets  sessions  files  listeners  routes  |  ? help")
 
     def print_line_options():
         print("Console options:")
@@ -22425,27 +22495,36 @@ def run_line_tui(cfg):
 
     def print_line_build_config():
         fields = workbench_config_field_records(cfg)
-        print("Build config:")
-        print(f"  config_path={build_config_path(cfg)}")
-        print("  commands: build set KEY VALUE, build unset KEY, serve-binary --start PATH NAME, release stage SELECTOR")
-        search_records = []
-        for idx, rec in enumerate(fields, 1):
-            options = ",".join(str(item) for item in rec.get("options") or [])
-            suffix = f" options={options}" if options else ""
-            print(
-                f"  {idx}: {rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} "
-                f"category={rec.get('category', '')}{suffix}"
-            )
-            print(f"     {rec.get('label', '')}")
-            print(f"     command: {rec.get('set_command', '')}")
-            search_records.append({
+
+        def _detail(rec):
+            details = []
+            if rec.get("label"):
+                details.append(("note", rec["label"]))
+            if rec.get("options"):
+                details.append(("options", "  ".join(str(o) for o in rec["options"])))
+            details.append(("set", f"build set {rec.get('key', '')} VALUE"))
+            return details
+
+        cols = [
+            ("Key",      "key"),
+            ("Value",    lambda r: shell_double_quote(str(r.get("value") or ""))),
+            ("Category", lambda r: r.get("category") or "-"),
+        ]
+        _console_table(
+            f"Build config  ({build_config_path(cfg)})",
+            fields, cols, detail_fn=_detail,
+            footer="build set KEY VALUE  |  build unset KEY  |  build ? for help",
+        )
+        cfg["_line_console_search_results"] = [
+            {
                 "kind": "build-config",
                 "label": str(rec.get("key") or ""),
                 "rec": rec,
                 "command": str(rec.get("set_command") or ""),
                 "use_hint": f"build set {rec.get('key', '')} VALUE",
-            })
-        cfg["_line_console_search_results"] = search_records
+            }
+            for rec in fields
+        ]
         append_event(cfg, "workbench", "workbench_build_config_listed", details={
             "config_path": str(build_config_path(cfg)),
             "field_count": len(fields),
@@ -22493,15 +22572,31 @@ def run_line_tui(cfg):
 
     def print_line_generated_commands():
         records = generated_target_command_records(cfg)
-        print("Generated target commands:")
-        print(f"  command_copy_file={command_copy_path(cfg)}")
-        print("  commands: copy N, commands copy N, queue COMMAND, survey --queue, download --queue TARGET_PATH")
+
+        def _cmd(rec):
+            cmd = str(rec.get("command") or "")
+            return cmd[:90] + "…" if len(cmd) > 90 else cmd
+
+        def _detail(rec):
+            cmd = str(rec.get("command") or "")
+            details = []
+            if len(cmd) > 90:
+                details.append(("full", cmd))
+            details.append(("copy", f"copy {rec.get('ordinal', '')}"))
+            return details
+
+        cols = [
+            ("Service", lambda r: r.get("service") or "-"),
+            ("Transport", lambda r: target_command_route_text(r) or "-"),
+            ("Command", _cmd),
+        ]
+        _console_table(
+            f"Generated commands  ({len(records)} total)" if records else "Generated commands  (none)",
+            records, cols, detail_fn=_detail,
+            footer=f"copy N  |  copy file: {command_copy_path(cfg)}  |  commands ? for help",
+        )
         search_records = []
-        if not records:
-            print("  none")
         for rec in records:
-            print("  " + target_command_display_line(rec))
-            print(f"     copy: copy {rec.get('ordinal', '')}")
             search_records.append({
                 "kind": "target-command",
                 "label": f"{rec.get('ordinal', '')}: {rec.get('service', '') or 'target'}",
@@ -22760,30 +22855,43 @@ def run_line_tui(cfg):
         snap = workbench_snapshot(unfiltered_cfg)
         targets = snap.get("targets") or []
         current = configured_target_filter(cfg)
-        search_records = []
-        if targets:
-            for idx, rec in enumerate(targets, 1):
-                marker = "*" if str(rec.get("target_id") or "") == current else " "
-                print(
-                    f"{idx}:{marker} {rec.get('target_id', '')} "
-                    f"label={rec.get('label', '') or '-'} "
-                    f"state={rec.get('connectivity_state', '') or '-'} "
-                    f"mailbox_pending={rec.get('mailbox_pending_work_count', 0)} "
-                    f"poll_overdue={'yes' if rec.get('poll_overdue') else 'no'} "
-                    f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
-                )
-                search_records.append({
-                    "kind": "target",
-                    "label": (
-                        f"{rec.get('target_id', '')} label={rec.get('label', '') or '-'} "
-                        f"state={rec.get('connectivity_state', '') or '-'}"
-                    ),
-                    "rec": rec,
-                    "command": "",
-                    "use_hint": f"use target {shquote(str(rec.get('target_id', '')))}",
-                })
-        else:
-            print("no known targets; use all/clear to remove any current filter")
+
+        def _fmt_seen(rec):
+            iso = rec.get("last_seen") or rec.get("last_seen_at") or ""
+            if iso and len(iso) >= 16 and "T" in iso:
+                date, rest = iso.split("T", 1)
+                return f"{date[5:]} {rest[:5]}"
+            return iso or "-"
+
+        def _label(rec):
+            sel = "*" if str(rec.get("target_id") or "") == current else " "
+            return sel + (rec.get("label") or rec.get("target_id") or "-")
+
+        cols = [
+            ("Target",  _label),
+            ("State",   lambda r: r.get("connectivity_state") or "-"),
+            ("Pending", lambda r: str(r.get("mailbox_pending_work_count") or 0)),
+            ("Overdue", lambda r: "yes" if r.get("poll_overdue") else "no"),
+            ("Seen",    _fmt_seen),
+        ]
+        _console_table(
+            f"Targets  ({len(targets)} total)" if targets else "Targets  (none)",
+            targets, cols,
+            footer="use N or agent ID to select  |  * = currently selected  |  targets ? for help",
+        )
+        search_records = [
+            {
+                "kind": "target",
+                "label": (
+                    f"{rec.get('target_id','')} label={rec.get('label','') or '-'} "
+                    f"state={rec.get('connectivity_state','') or '-'}"
+                ),
+                "rec": rec,
+                "command": "",
+                "use_hint": f"use target {shquote(str(rec.get('target_id', '')))}",
+            }
+            for rec in targets
+        ]
         cfg["_line_console_search_results"] = search_records
         return targets
 
@@ -22868,34 +22976,55 @@ def run_line_tui(cfg):
 
     def print_line_services(verbose=False):
         rows = service_status_rows(cfg)
-        if not rows:
-            print("No service records.")
-            cfg["_line_console_search_results"] = []
-            return
-        print("Services:")
-        print("  commands: listeners -v, listener NAME, use listener NAME, use N, start NAME, stop NAME")
-        search_records = []
-        for rec in rows:
+
+        def _bind(rec):
+            host = rec.get("bind_address") or ""
+            port = rec.get("port") or "-"
+            return f"{host}:{port}" if host else str(port)
+
+        def _status(rec):
+            actual = rec.get("actual") or "-"
+            configured = rec.get("configured") or "-"
+            if actual == configured:
+                return actual
+            return f"{actual} (want {configured})"
+
+        def _detail(rec):
+            if not verbose:
+                return []
             name = str(rec.get("name") or "")
-            print(
-                f"  {name} actual={rec.get('actual', '') or '-'} "
-                f"configured={rec.get('configured', '') or '-'} "
-                f"port={rec.get('port', '') or '-'} "
-                f"pid={rec.get('pid', '') or '-'} "
-                f"managed={'yes' if rec.get('pid_managed') else 'no'}"
-            )
-            print(f"    start: {service_start_headless_command(cfg, name)}")
-            print(f"    stop: {service_stop_headless_command(cfg, name)}")
-            if verbose:
-                print(f"    use: use listener {name}")
-                print(f"    inspect: listener {name}")
-            search_records.append({
+            details = [
+                ("start", service_start_headless_command(cfg, name)),
+                ("stop",  service_stop_headless_command(cfg, name)),
+            ]
+            if rec.get("error"):
+                details.append(("error", rec["error"]))
+            if rec.get("session_log"):
+                details.append(("log", rec["session_log"]))
+            return details
+
+        cols = [
+            ("Service", "name"),
+            ("Status",  _status),
+            ("Bind",    _bind),
+            ("TLS",     lambda r: "yes" if r.get("tls") else "no"),
+            ("PID",     lambda r: str(r.get("pid") or "-")),
+        ]
+        _console_table(
+            f"Listeners  ({len(rows)} total)" if rows else "Listeners  (none)",
+            rows, cols, detail_fn=_detail,
+            footer="use N or listener NAME to select  |  start/stop NAME  |  listeners ? for help",
+        )
+        search_records = [
+            {
                 "kind": "service",
-                "label": f"{name} actual={rec.get('actual', '') or '-'} port={rec.get('port', '') or '-'}",
+                "label": f"{rec.get('name','')} status={_status(rec)} bind={_bind(rec)}",
                 "rec": rec,
-                "command": service_start_headless_command(cfg, name),
-                "use_hint": f"use listener {shquote(name)}",
-            })
+                "command": service_start_headless_command(cfg, str(rec.get("name") or "")),
+                "use_hint": f"use listener {shquote(str(rec.get('name', '')))}",
+            }
+            for rec in rows
+        ]
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_listeners_listed", details={
             "listener_count": len(rows),
@@ -22951,46 +23080,56 @@ def run_line_tui(cfg):
 
     def print_line_routes(verbose=False):
         records = bridge_profile_records(cfg)
-        print("Routes:")
-        print("  commands: routes -v, route add NAME LPORT HOST DPORT, route NAME, route start NAME, route stop NAME, route delete NAME, use route NAME, use N")
-        search_records = []
-        if not records:
-            print("  No bridge profiles.")
-            cfg["_line_console_search_results"] = []
-            append_event(cfg, "workbench", "workbench_routes_listed", details={
-                "route_count": 0,
-                "verbose": bool(verbose),
-            })
-            return records
-        for idx, rec in enumerate(records, 1):
-            print(
-                f"  {idx}: {rec.get('name', '')} "
-                f"listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')} "
-                f"dest={rec.get('dest_host', '')}:{rec.get('dest_port', '')} "
-                f"state={rec.get('current_state', '') or '-'} "
-                f"active={'yes' if rec.get('active') else 'no'}"
-            )
-            print(f"     path: {rec.get('route_path', '')}")
-            if verbose:
-                print(
-                    f"     hops={rec.get('hop_count', 0)} "
-                    f"multi_hop={'yes' if rec.get('multi_hop') else 'no'} "
-                    f"target={rec.get('target_id', '') or '-'} "
-                    f"last_success={rec.get('last_successful_relay_at', '') or '-'} "
-                    f"last_failure={rec.get('last_failure_reason', '') or '-'}"
-                )
-                print(f"     inspect: route {rec.get('name', '')}")
-                print(f"     use: use route {rec.get('name', '')}")
-            search_records.append({
+
+        def _listen(rec):
+            h = rec.get("listen_host") or ""
+            p = rec.get("listen_port") or "-"
+            return f"{h}:{p}" if h else str(p)
+
+        def _dest(rec):
+            h = rec.get("dest_host") or "-"
+            p = rec.get("dest_port") or ""
+            return f"{h}:{p}" if p else h
+
+        def _detail(rec):
+            if not verbose:
+                return []
+            name = str(rec.get("name") or "")
+            details = [("path", rec.get("route_path") or "")]
+            hops = rec.get("hop_count", 0)
+            if hops:
+                details.append(("hops", f"{hops}" + ("  (multi-hop)" if rec.get("multi_hop") else "")))
+            if rec.get("target_id"):
+                details.append(("target", rec["target_id"]))
+            if rec.get("last_successful_relay_at"):
+                details.append(("last_success", rec["last_successful_relay_at"]))
+            if rec.get("last_failure_reason"):
+                details.append(("last_failure", rec["last_failure_reason"]))
+            details.append(("start", bridge_profile_headless_command("start", name)))
+            return details
+
+        cols = [
+            ("Name",   "name"),
+            ("Listen", _listen),
+            ("Dest",   _dest),
+            ("State",  lambda r: r.get("current_state") or "-"),
+            ("Active", lambda r: "yes" if r.get("active") else "no"),
+        ]
+        _console_table(
+            f"Routes  ({len(records)} total)" if records else "Routes  (none)",
+            records, cols, detail_fn=_detail,
+            footer="use N or route NAME to select  |  start/stop NAME  |  routes ? for help",
+        )
+        search_records = [
+            {
                 "kind": "route",
-                "label": (
-                    f"{rec.get('name', '')} state={rec.get('current_state', '') or '-'} "
-                    f"path={rec.get('route_path', '')}"
-                ),
+                "label": f"{rec.get('name','')} state={rec.get('current_state','') or '-'} path={rec.get('route_path','')}",
                 "rec": rec,
                 "command": bridge_profile_headless_command("inspect", str(rec.get("name") or "")),
                 "use_hint": f"use route {shquote(str(rec.get('name', '')))}",
-            })
+            }
+            for rec in records
+        ]
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_routes_listed", details={
             "route_count": len(records),
@@ -23167,31 +23306,38 @@ def run_line_tui(cfg):
     def print_line_jobs(verbose=False):
         snap = workbench_snapshot(cfg)
         jobs = snap.get("workbench_jobs") or []
-        if not jobs:
-            print("No background jobs.")
-            cfg["_line_console_search_results"] = []
-            return
-        print("Background jobs:")
-        print("  commands: jobs, jobs -i ID, use job ID, use N, jobs -k ID")
-        search_records = []
-        for idx, rec in enumerate(jobs, 1):
-            print(
-                f"  {idx}: {rec.get('id', '')} action={rec.get('action_id', '')} "
-                f"state={rec.get('effective_state', '')} "
-                f"managed={'yes' if rec.get('pid_managed') else 'no'} "
-                f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
-            )
-            if verbose:
-                print(f"     log={rec.get('log_path', '') or '-'}")
-                print(f"     inspect: jobs -i {shquote(str(rec.get('id', '')))}")
-                print(f"     use: use job {shquote(str(rec.get('id', '')))}")
-            search_records.append({
+
+        def _detail(rec):
+            if not verbose:
+                return []
+            details = []
+            if rec.get("log_path"):
+                details.append(("log", rec["log_path"]))
+            details.append(("cancel", cancel_workbench_job_headless_command(cfg, str(rec.get("id") or ""))))
+            return details
+
+        cols = [
+            ("Job",     "id"),
+            ("Action",  "action_id"),
+            ("State",   lambda r: r.get("effective_state") or r.get("state") or "-"),
+            ("Managed", lambda r: "yes" if r.get("pid_managed") else "no"),
+            ("Cancel",  lambda r: "yes" if r.get("cancel_supported") else "no"),
+        ]
+        _console_table(
+            f"Jobs  ({len(jobs)} total)" if jobs else "Jobs  (none)",
+            jobs, cols, detail_fn=_detail,
+            footer="use N or job ID to select  |  jobs -k ID to cancel  |  jobs ? for help",
+        )
+        search_records = [
+            {
                 "kind": "job",
-                "label": f"{rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')}",
+                "label": f"{rec.get('id','')} action={rec.get('action_id','')} state={rec.get('effective_state','')}",
                 "rec": rec,
                 "command": cancel_workbench_job_headless_command(cfg, str(rec.get("id") or "")),
                 "use_hint": f"use job {shquote(str(rec.get('id', '')))}",
-            })
+            }
+            for rec in jobs
+        ]
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_jobs_listed", details={
             "job_count": len(jobs),
@@ -23262,22 +23408,26 @@ def run_line_tui(cfg):
     def print_line_daemon_actions():
         snap = workbench_snapshot(cfg)
         actions = snap.get("operator_daemon_workflow_actions") or []
-        print("Daemon workflow actions:")
-        if not actions:
-            print("  none")
-            return
-        for idx, rec in enumerate(actions, 1):
-            print(
-                f"  {idx}: {rec.get('id', '')} "
-                f"workflow={rec.get('workflow', '') or '-'} "
-                f"state={rec.get('operator_action_state', '') or '-'} "
-                f"reason={rec.get('operator_action_reason', '') or '-'} "
-                f"attached={'yes' if rec.get('daemon_attached') else 'no'} "
-                f"confirm={'yes' if rec.get('requires_confirmation') else 'no'}"
-            )
-            print(f"     run: {rec.get('run_command', rec.get('headless_command', rec.get('command', '')))}")
+
+        def _detail(rec):
+            run_cmd = rec.get("run_command") or rec.get("headless_command") or rec.get("command") or ""
+            details = [("run", run_cmd)]
             if rec.get("dry_run_command"):
-                print(f"     dry_run: {rec.get('dry_run_command', '')}")
+                details.append(("dry-run", rec["dry_run_command"]))
+            return details
+
+        cols = [
+            ("Action",   "id"),
+            ("Workflow", lambda r: r.get("workflow") or "-"),
+            ("State",    lambda r: r.get("operator_action_state") or "-"),
+            ("Attached", lambda r: "yes" if r.get("daemon_attached") else "no"),
+            ("Confirm",  lambda r: "yes" if r.get("requires_confirmation") else "no"),
+        ]
+        _console_table(
+            f"Daemon actions  ({len(actions)} total)" if actions else "Daemon actions  (none)",
+            actions, cols, detail_fn=_detail,
+            footer="daemon ACTION  |  daemon ACTION --dry-run  |  daemon ? for help",
+        )
 
     def run_line_daemon_action(args):
         values = list(args or [])
@@ -23339,7 +23489,7 @@ def run_line_tui(cfg):
             "useagent", "uselistener", "useroute", "usesession", "usemodule",
             "main", "home", "root", "back", "background", "start", "stop",
             "check", "run", "execute", "exploit", "interact", "queue",
-            "download", "get", "survey", "survey-bootstrap", "daemon", "build", "release", "releases", "stage-release", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
+            "download", "get", "probe", "survey", "survey-bootstrap", "daemon", "build", "release", "releases", "stage-release", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
             "quit", "exit",
         ]
         show_resources = [
@@ -23352,7 +23502,7 @@ def run_line_tui(cfg):
         help_topics = [
             "search", "complete", "commands", "resource", "makerc", "history", "use", "main", "show",
             "modules", "options", "next", "workspace", "aliases", "listeners",
-            "routes", "set", "setg", "run", "jobs", "queue", "download", "survey", "build", "release", "upload", "fetch", "files", "view",
+            "routes", "set", "setg", "run", "jobs", "queue", "download", "probe", "survey", "build", "release", "upload", "fetch", "files", "view",
             "daemon", "interact", "sessions",
         ]
 
@@ -23458,115 +23608,203 @@ def run_line_tui(cfg):
             return base_commands
         cmd = parts[0].lower()
         current = "" if trailing_space else parts[-1]
+
+        # completed command word, nothing typed yet (e.g. "build<tab>")
         if len(parts) == 1 and not trailing_space:
             return prefixed(current, base_commands)
+
+        # Helper: prefix for the next argument position
+        def arg(n):
+            """Return the partial text at argument position n (1-based), or '' if not reached."""
+            if len(parts) > n:
+                return "" if trailing_space else parts[n]
+            if len(parts) == n and trailing_space:
+                return ""
+            return None  # haven't reached this position yet
+
+        def arg_pfx(n):
+            v = arg(n)
+            return v if v is not None else (parts[n] if len(parts) > n else "")
+
+        # "cmd <tab>" or "cmd partial<tab>" — returns True when user is typing arg N
+        def at_arg(n):
+            return (len(parts) == n and trailing_space) or (len(parts) == n + 1 and not trailing_space)
+
         if cmd in {"help", "?"}:
-            return [f"help {item}" for item in prefixed(current, help_topics)]
+            return [f"help {item}" for item in prefixed(arg_pfx(1), help_topics)]
+
         if cmd == "show":
-            resource_prefix = "" if trailing_space else " ".join(parts[1:])
-            return [f"show {item}" for item in prefixed(resource_prefix, show_resources)]
+            pfx = "" if trailing_space else " ".join(parts[1:])
+            return [f"show {item}" for item in prefixed(pfx, show_resources)]
+
         if cmd in {"commands", "target-commands"}:
-            if len(parts) <= 2 and not trailing_space:
-                return [f"{cmd} {item}" for item in prefixed(current, ["list", "show", "copy"])]
+            if at_arg(1):
+                return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), ["list", "show", "copy"])]
             subcmd = parts[1].lower() if len(parts) >= 2 else ""
-            if subcmd == "copy":
-                selector_prefix = "" if trailing_space else " ".join(parts[2:])
-                return [f"{cmd} copy {item}" for item in prefixed(selector_prefix, generated_command_ids())]
+            if subcmd == "copy" and at_arg(2):
+                return [f"{cmd} copy {item}" for item in prefixed(arg_pfx(2), generated_command_ids())]
+
         if cmd == "copy":
-            selector_prefix = "" if trailing_space else " ".join(parts[1:])
-            return [f"copy {item}" for item in prefixed(selector_prefix, generated_command_ids())]
+            return [f"copy {item}" for item in prefixed(arg_pfx(1), generated_command_ids())]
+
         if cmd == "use":
-            if len(parts) <= 2 and not trailing_space:
-                return [f"use {item}" for item in prefixed(current, use_kinds)]
+            if at_arg(1):
+                return [f"use {item}" for item in prefixed(arg_pfx(1), use_kinds)]
             kind = parts[1].lower() if len(parts) >= 2 else ""
-            selector_prefix = "" if trailing_space else " ".join(parts[2:])
-            values = []
-            if kind in {"agent", "target", "host"}:
-                values = target_names()
-            elif kind in {"listener", "service"}:
-                values = line_service_names()
-            elif kind == "route":
-                values = route_names()
-            elif kind == "session":
-                values = session_names()
-            elif kind == "job":
-                values = job_names()
-            elif kind in {"module", "action"}:
-                values = action_names()
-            return [f"use {kind} {item}" for item in prefixed(selector_prefix, values)]
-        if cmd in {"agent", "target", "host", "useagent", "usetarget", "usehost"}:
-            selector_prefix = "" if trailing_space else " ".join(parts[1:])
-            command = cmd
-            return [f"{command} {item}" for item in prefixed(selector_prefix, target_names())]
-        if cmd in {"listener", "service", "uselistener", "useservice"}:
-            selector_prefix = "" if trailing_space else " ".join(parts[1:])
-            return [f"{cmd} {item}" for item in prefixed(selector_prefix, line_service_names())]
+            kind_pfx = arg_pfx(2)
+            values = {
+                "agent": target_names, "target": target_names, "host": target_names,
+                "listener": line_service_names, "service": line_service_names,
+                "route": route_names,
+                "session": session_names,
+                "job": job_names,
+                "module": action_names, "action": action_names,
+            }.get(kind, list)()
+            return [f"use {kind} {item}" for item in prefixed(kind_pfx, values)]
+
+        if cmd in {"agent", "target", "host", "agents", "targets", "hosts",
+                   "useagent", "usetarget", "usehost"}:
+            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), target_names())]
+
+        if cmd in {"listener", "service", "listeners", "services",
+                   "uselistener", "useservice"}:
+            values = (["-v"] if cmd in {"listeners", "services"} else []) + line_service_names()
+            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), values)]
+
         if cmd in {"start", "stop"}:
             if len(parts) >= 2 and parts[1].lower() == "route":
-                selector_prefix = "" if trailing_space else " ".join(parts[2:])
-                return [f"{cmd} route {item}" for item in prefixed(selector_prefix, route_names())]
-            selector_prefix = "" if trailing_space else " ".join(parts[1:])
-            return [f"{cmd} {item}" for item in prefixed(selector_prefix, line_service_names() + route_names())]
+                return [f"{cmd} route {item}" for item in prefixed(arg_pfx(2), route_names())]
+            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), line_service_names() + route_names())]
+
         if cmd in {"route", "useroute"}:
-            selector_prefix = "" if trailing_space else " ".join(parts[1:])
-            route_values = route_names()
-            if cmd == "route":
-                if len(parts) >= 2 and parts[1].lower() in {"start", "stop", "delete", "rm", "remove"}:
-                    selector_prefix = "" if trailing_space else " ".join(parts[2:])
-                    return [f"route {parts[1].lower()} {item}" for item in prefixed(selector_prefix, route_values)]
-                route_values = ["add", "print", "start", "stop", "delete", "rm"] + route_values
-            return [f"{cmd} {item}" for item in prefixed(selector_prefix, route_values)]
+            rnames = route_names()
+            if at_arg(1):
+                return [f"route {item}" for item in prefixed(arg_pfx(1),
+                    ["add", "start", "stop", "delete", "rm", "print"] + rnames)]
+            subcmd = parts[1].lower() if len(parts) >= 2 else ""
+            if subcmd in {"start", "stop", "delete", "rm", "remove"} and at_arg(2):
+                return [f"route {subcmd} {item}" for item in prefixed(arg_pfx(2), rnames)]
+            return []
+
+        if cmd == "routes":
+            return [f"routes {item}" for item in prefixed(arg_pfx(1), ["-v"] + route_names())]
+
+        if cmd == "sessions":
+            if at_arg(1):
+                return [f"sessions {item}" for item in prefixed(arg_pfx(1),
+                    ["-v", "-l", "clear", "prune"] + session_names())]
+            subcmd = parts[1].lower() if len(parts) >= 2 else ""
+            if subcmd in {"clear", "prune", "clean"}:
+                return [f"sessions {subcmd} {item}" for item in prefixed(arg_pfx(2), ["--confirm", "--all"])]
+            return []
+
         if cmd in {"session", "usesession", "interact"}:
-            selector_prefix = "" if trailing_space else " ".join(parts[1:])
-            values = ["agent"] + session_names()
-            return [f"{cmd} {item}" for item in prefixed(selector_prefix, values)]
+            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), ["agent"] + session_names())]
+
+        if cmd == "jobs":
+            return [f"jobs {item}" for item in prefixed(arg_pfx(1), ["-i", "-k", "-v"] + job_names())]
+
         if cmd == "job":
-            selector_prefix = "" if trailing_space else " ".join(parts[1:])
-            return [f"job {item}" for item in prefixed(selector_prefix, job_names())]
+            return [f"job {item}" for item in prefixed(arg_pfx(1), job_names())]
+
+        if cmd == "daemon":
+            snap = workbench_snapshot(cfg)
+            daemon_ids = [
+                str(r.get("id") or "") for r in
+                (snap.get("operator_daemon_workflow_actions") or [])
+                if r.get("id")
+            ]
+            return [f"daemon {item}" for item in prefixed(arg_pfx(1),
+                ["start", "stop", "status", "install", "print",
+                 "systemd-start", "systemd-stop", "systemd-restart", "systemd-status",
+                 "--dry-run"] + daemon_ids)]
+
+        if cmd in {"modules", "module"}:
+            if at_arg(1):
+                return [f"{cmd} {item}" for item in prefixed(arg_pfx(1),
+                    ["service", "daemon", "target", "workbench"] + action_names())]
+            return []
+
+        if cmd in {"files", "staged", "stagers", "loot", "downloads"}:
+            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), ["-v"])]
+
         if cmd in {"usemodule", "useaction", "run", "execute", "exploit", "check"}:
-            selector_prefix = "" if trailing_space else " ".join(parts[1:])
-            return [f"{cmd} {item}" for item in prefixed(selector_prefix, action_names())]
+            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), action_names())]
+
         if cmd == "queue":
-            if len(parts) <= 2 and not trailing_space:
-                return [f"queue {item}" for item in prefixed(current, ["list", "show", "mailbox", "result", "results", "clear", "command", "--"])]
+            if at_arg(1):
+                return [f"queue {item}" for item in prefixed(arg_pfx(1),
+                    ["list", "result", "results", "clear", "command", "--"])]
             subcmd = parts[1].lower() if len(parts) >= 2 else ""
-            if subcmd in {"result", "show"}:
-                selector_prefix = "" if trailing_space else " ".join(parts[2:])
-                return [f"queue {subcmd} {item}" for item in prefixed(selector_prefix, command_queue_ids())]
+            if subcmd in {"result", "results"} and at_arg(2):
+                return [f"queue {subcmd} {item}" for item in prefixed(arg_pfx(2), command_queue_ids())]
+            if subcmd == "clear" and at_arg(2):
+                return [f"queue clear {item}" for item in prefixed(arg_pfx(2), ["--confirm"])]
+
         if cmd == "build":
-            if len(parts) <= 2 and not trailing_space:
-                return [f"build {item}" for item in prefixed(current, ["list", "show", "set", "unset"])]
+            if at_arg(1):
+                return [f"build {item}" for item in prefixed(arg_pfx(1), ["list", "set", "unset"])]
             subcmd = parts[1].lower() if len(parts) >= 2 else ""
-            if subcmd in {"set", "unset"}:
-                selector_prefix = "" if trailing_space else " ".join(parts[2:])
-                return [f"build {subcmd} {item}" for item in prefixed(selector_prefix, build_config_keys())]
+            if subcmd in {"set", "unset"} and at_arg(2):
+                return [f"build {subcmd} {item}" for item in prefixed(arg_pfx(2), build_config_keys())]
+
         if cmd in {"release", "releases"}:
-            if len(parts) <= 2 and not trailing_space:
-                return [f"{cmd} {item}" for item in prefixed(current, ["list", "show", "stage", "recommendations", "artifacts"])]
+            if at_arg(1):
+                return [f"{cmd} {item}" for item in prefixed(arg_pfx(1),
+                    ["list", "stage", "recommendations", "artifacts"])]
             subcmd = parts[1].lower() if len(parts) >= 2 else ""
-            if subcmd in {"stage", "use", "select"}:
-                selector_prefix = "" if trailing_space else " ".join(parts[2:])
-                return [f"{cmd} {subcmd} {item}" for item in prefixed(selector_prefix, release_selectors())]
+            if subcmd in {"stage", "use", "select"} and at_arg(2):
+                return [f"{cmd} {subcmd} {item}" for item in prefixed(arg_pfx(2), release_selectors())]
+
         if cmd == "stage-release":
-            selector_prefix = "" if trailing_space else " ".join(parts[1:])
-            return [f"{cmd} {item}" for item in prefixed(selector_prefix, release_selectors())]
+            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), release_selectors())]
+
         if cmd in {"fetch", "deploy", "queue-fetch", "unstage", "rmfile", "rm-file"}:
-            selector_prefix = "" if trailing_space else " ".join(parts[1:])
             staged_names = [
                 str(name or "")
                 for name in sorted((workbench_snapshot(cfg).get("staged") or {}).keys())
                 if str(name or "")
             ]
-            return [f"{cmd} {item}" for item in prefixed(selector_prefix, staged_names)]
+            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), staged_names)]
+
         if cmd in {"view", "cat", "less"}:
-            selector_prefix = "" if trailing_space else " ".join(parts[1:])
             path_values = []
             for rec in workbench_snapshot(cfg).get("sessions") or []:
                 for key in ("path", "session_log", "event_log"):
                     value = str(rec.get(key) or "").strip()
                     if value:
                         path_values.append(value)
-            return [f"{cmd} {item}" for item in prefixed(selector_prefix, path_values)]
+            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), path_values)]
+
+        if cmd in {"probe", "survey-bootstrap"}:
+            if at_arg(1):
+                return [f"{cmd} {item}" for item in prefixed(arg_pfx(1),
+                    ["results", "config", "serve", "--start", "--queue"])]
+            subcmd = parts[1].lower() if len(parts) >= 2 else ""
+            if subcmd == "config" and at_arg(2):
+                return [f"probe config {item}" for item in prefixed(arg_pfx(2),
+                    ["--write-config", "--prefer-rshell", "--prefer-runtime",
+                     "--target-preset", "--payload-preset"])]
+            if subcmd == "serve" and at_arg(2):
+                return [f"probe serve {item}" for item in prefixed(arg_pfx(2), ["--start"])]
+
+        if cmd == "survey":
+            if at_arg(1):
+                return [f"survey {item}" for item in prefixed(arg_pfx(1),
+                    ["results", "config", "preset"])]
+            subcmd = parts[1].lower() if len(parts) >= 2 else ""
+            if subcmd == "config" and at_arg(2):
+                uploads = find_survey_uploads()
+                paths = [r.get("stored_path") or "" for r in uploads if r.get("stored_path")]
+                return [f"survey config {item}" for item in prefixed(arg_pfx(2),
+                    paths + ["--write-config", "--prefer-rshell", "--prefer-runtime",
+                             "--target-preset", "--payload-preset"])]
+            if subcmd == "preset" and at_arg(2):
+                uploads = find_survey_uploads()
+                paths = [r.get("stored_path") or "" for r in uploads if r.get("stored_path")]
+                return [f"survey preset {item}" for item in prefixed(arg_pfx(2),
+                    paths + ["--name", "--write-local", "--overwrite"])]
+
         return prefixed(current, base_commands)
 
     def print_line_completions(prefix=""):
@@ -23724,19 +23962,27 @@ def run_line_tui(cfg):
             workflow = str(rec.get("workflow") or "-")
             category_counts[category] = category_counts.get(category, 0) + 1
             workflow_counts[workflow] = workflow_counts.get(workflow, 0) + 1
-        print("Module categories:")
+        total = len(actions)
+        print(f"Modules  ({total} total)")
         if not actions:
-            print("  none")
+            print("  (none)")
             cfg["_line_console_search_results"] = []
             return
-        print("  kinds: " + " ".join(f"{kind}={len(grouped[kind])}" for kind in sorted(grouped)))
-        print("  categories: " + " ".join(f"{name}={category_counts[name]}" for name in sorted(category_counts)))
-        print("  workflows: " + " ".join(f"{name}={workflow_counts[name]}" for name in sorted(workflow_counts)))
-        print("  commands: show service modules, show daemon modules, show target modules, show workbench modules")
-        print("  next: show KIND modules, modules FILTER, use N")
+        print("")
+        col = max(len(kind) for kind in grouped) + 2
+        for kind in sorted(grouped):
+            items = grouped[kind]
+            states = {}
+            for r in items:
+                s = r.get("operator_action_state") or "unknown"
+                states[s] = states.get(s, 0) + 1
+            state_summary = "  ".join(f"{s}={n}" for s, n in sorted(states.items()))
+            print(f"  {kind:{col}}{len(items)} modules   {state_summary}")
+        print("")
+        print("  show service|daemon|target|workbench modules  |  modules FILTER  |  use N")
         cfg["_line_console_search_results"] = []
         append_event(cfg, "workbench", "workbench_console_module_categories_listed", details={
-            "module_count": len(actions),
+            "module_count": total,
             "kind_counts": {kind: len(items) for kind, items in grouped.items()},
             "category_counts": category_counts,
             "workflow_counts": workflow_counts,
@@ -23748,13 +23994,8 @@ def run_line_tui(cfg):
         kind_text = str(kind_filter or "").strip().lower()
         if kind_text:
             aliases = {
-                "services": "service",
-                "listeners": "service",
-                "listener": "service",
-                "daemons": "daemon",
-                "agents": "target",
-                "targets": "target",
-                "jobs": "workbench",
+                "services": "service", "listeners": "service", "listener": "service",
+                "daemons": "daemon", "agents": "target", "targets": "target", "jobs": "workbench",
             }
             kind_text = aliases.get(kind_text, kind_text)
             actions = [rec for rec in actions if str(rec.get("kind") or "").lower() == kind_text]
@@ -23768,51 +24009,50 @@ def run_line_tui(cfg):
                     f"{rec.get('headless_command', rec.get('run_command', rec.get('command', '')))}"
                 ).lower()
             ]
-        print("Console action modules:")
+        shown = actions[:30]
+
+        def _detail(rec):
+            cmd = str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or "")
+            if len(cmd) > 100:
+                cmd = cmd[:97] + "…"
+            return [("run", cmd)] if cmd else []
+
+        title = "Modules"
         if kind_text:
-            print(f"Module kind: {kind_text}")
+            title += f"  ({kind_text})"
         if term:
-            print(f"Module filter: {filter_text}")
-        if not actions:
-            print("  none")
-            cfg["_line_console_search_results"] = []
-            return
+            title += f"  filter={filter_text!r}"
+        title += f"  ({len(shown)} of {len(actions)})" if len(actions) > 30 else f"  ({len(actions)} total)"
+
+        cols = [
+            ("Kind",    "kind"),
+            ("Module",  "id"),
+            ("State",   lambda r: r.get("operator_action_state") or "-"),
+            ("Confirm", lambda r: "yes" if r.get("requires_confirmation") else "no"),
+        ]
+        _console_table(
+            title, shown, cols, detail_fn=_detail,
+            footer="use N  |  use module NAME  |  modules ? for help",
+        )
         grouped = {}
         for rec in actions:
             grouped.setdefault(str(rec.get("kind") or "other"), []).append(rec)
-        print(
-            "Module groups: "
-            + " ".join(f"{kind}={len(grouped[kind])}" for kind in sorted(grouped))
-        )
-        search_records = []
-        for idx, rec in enumerate(actions[:30], 1):
-            command = str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or "")
-            if len(command) > 120:
-                command = command[:117] + "..."
-            print(
-                f"  {idx}: {rec.get('kind', '')}:{rec.get('id', '')} "
-                f"state={rec.get('operator_action_state', '') or '-'} "
-                f"reason={rec.get('operator_action_reason', '') or '-'} "
-                f"confirm={'yes' if rec.get('requires_confirmation') else 'no'}"
-            )
-            print(f"     command: {command}")
-            print(f"     use: use {idx}")
-            print(f"     module: use module {rec.get('id', '')}")
-            search_records.append({
+        search_records = [
+            {
                 "kind": "action",
                 "label": f"{rec.get('kind', '')}:{rec.get('id', '')}",
                 "rec": rec,
-                "command": command,
+                "command": str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or ""),
                 "use_hint": f"use module {shquote(str(rec.get('id', '')))}",
-            })
-        if len(actions) > 30:
-            print(f"  ... {len(actions) - 30} more action module(s)")
+            }
+            for rec in shown
+        ]
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_console_modules_listed", details={
             "filter": str(filter_text or ""),
             "kind": kind_text,
             "match_count": len(actions),
-            "shown_count": len(search_records),
+            "shown_count": len(shown),
             "group_counts": {kind: len(items) for kind, items in grouped.items()},
         })
 
@@ -24109,7 +24349,80 @@ def run_line_tui(cfg):
         })
         return command
 
-    def parse_line_survey_args(args):
+    def _probe_latest_result():
+        """Return the most recent probe result dict, or {}."""
+        results_path = survey_bootstrap_results_path(cfg)
+        if not results_path.is_file():
+            return {}
+        data = read_json_file(results_path, {})
+        results = list(reversed(data.get("results") or []))
+        return results[0] if results else {}
+
+    def _probe_all_results():
+        results_path = survey_bootstrap_results_path(cfg)
+        if not results_path.is_file():
+            return []
+        data = read_json_file(results_path, {})
+        return list(reversed(data.get("results") or []))
+
+    def _probe_effective_arch(rec):
+        """Return (uname_m, endian) corrected so they're mutually consistent."""
+        uname_m = str(rec.get("uname_m") or rec.get("architecture") or "")
+        endian = str(rec.get("endian") or "")
+        if uname_m == "mips" and endian == "little":
+            uname_m = "mipsel"
+        elif uname_m == "mipsel" and endian == "big":
+            uname_m = "mips"
+        return uname_m, endian
+
+    def _probe_synthetic_survey(rec):
+        """Build a minimal survey JSON dict from a probe result."""
+        uname_m, endian = _probe_effective_arch(rec)
+        return {
+            "schema": 1,
+            "uname_s": str(rec.get("uname_s") or "Linux"),
+            "uname_m": uname_m,
+            "uname_r": str(rec.get("uname_r") or rec.get("kernel") or ""),
+            "word_bits": str(rec.get("word_bits") or ""),
+            "endian": endian,
+            "os": "linux",
+            "recommendations": {},
+            "_source": "probe",
+            "_probe_received_at": str(rec.get("received_at") or ""),
+            "_probe_remote": str(rec.get("remote_addr") or ""),
+            "_note": (
+                "Synthesized from probe only. "
+                "Deploy BusierBox and run 'busierbox survey push' for libc, "
+                "filesystem, and tool capability data."
+            ),
+        }
+
+    def _run_config_from_survey(survey_path, write_config_path, extra_args):
+        """Run config-from-survey script and return the subprocess result."""
+        scripts_dir = Path(__file__).parent
+        script = scripts_dir / "config-from-survey"
+        if not script.is_file():
+            script = Path("scripts/config-from-survey")
+        if not script.is_file():
+            raise ValueError("config-from-survey script not found")
+        cmd = [str(script), "--format", "shell"] + extra_args
+        if write_config_path:
+            cmd.extend(["--write-config", write_config_path])
+        cmd.append(survey_path)
+        print(f"Running: {' '.join(shquote(str(a)) for a in cmd)}")
+        print("")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.stdout:
+            print(result.stdout, end="")
+        if result.stderr:
+            print(result.stderr, end="")
+        if result.returncode != 0:
+            raise ValueError(f"config-from-survey exited {result.returncode}")
+        return result
+
+    # ── probe commands ──────────────────────────────────────────────────────
+
+    def parse_line_probe_args(args):
         queue = False
         start_service = False
         for item in args:
@@ -24121,65 +24434,405 @@ def run_line_tui(cfg):
             elif lower in {"show", "command"}:
                 continue
             else:
-                raise ValueError("usage: survey [--start] [--queue]")
+                raise ValueError("usage: probe [--start] [--queue]")
         return queue, start_service
 
-    def survey_line_bootstrap(queue=False, start_service=False):
+    # keep old name as alias for backward compat with any direct callers
+    def parse_line_survey_args(args):
+        return parse_line_probe_args(args)
+
+    def probe_line_start(queue=False, start_service=False):
         command = render_survey_bootstrap_command(cfg)
         snap = workbench_snapshot(cfg)
         actions = snap.get("survey_bootstrap_workflow_actions_by_id") or {}
-        show_action = actions.get("survey-bootstrap:show-target-command") or {}
         start_action = actions.get("survey-bootstrap:start-survey-bootstrap") or {}
-        headless = (
-            show_action.get("run_command")
-            or show_action.get("headless_command")
-            or (
-                "scripts/busierbox-server --config "
-                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                + " --run-survey-bootstrap-workflow-action survey-bootstrap:show-target-command"
-            )
+        start_headless = (
+            start_action.get("run_command")
+            or start_action.get("headless_command")
+            or service_start_headless_command(cfg, "survey-bootstrap")
         )
+
+        svc = line_service_record("survey-bootstrap")
+        already_listening = str(svc.get("actual") or "") == "listening"
+
         started = False
-        if start_service:
-            start_service_process(
-                cfg,
-                "survey-bootstrap",
-                headless_command=start_action.get("run_command") or start_action.get("headless_command") or service_start_headless_command(cfg, "survey-bootstrap"),
-            )
+        if start_service and not already_listening:
+            start_service_process(cfg, "survey-bootstrap", headless_command=start_headless)
             started = True
-        print("Survey bootstrap:")
-        print(f"  target_command={command}")
-        print(f"  script_name={cfg.get('survey_bootstrap_name', 'survey.sh')}")
-        print(f"  port={cfg.get('survey_bootstrap_port', 22207)}")
-        print(f"  listener_started={'yes' if started else 'no'}")
+        elif start_service and already_listening:
+            print("Probe listener already running.")
+
+        port = cfg.get("survey_bootstrap_port", 22207)
+        script_name = cfg.get("survey_bootstrap_name", "probe.sh")
+
+        if not already_listening and not started:
+            print(f"[!] Probe listener is NOT running on port {port}.")
+            print(f"    The target command below will fail until you start it.")
+            print(f"    Run:  probe --start")
+            print("")
+
+        print("Probe:")
+        print(f"  port={port}  script={script_name}  listening={'yes' if (already_listening or started) else 'NO'}")
+        print(f"  {command}")
+
         queued = {}
         target_id = configured_target_filter(cfg)
         if queue:
             if not target_id:
-                raise ValueError("select an agent before survey --queue; use agent NAME or use target ID")
+                raise ValueError("select an agent before probe --queue; use agent NAME or use target ID")
             queued = queue_command(cfg, command, metadata={
                 "work_kind": "survey-bootstrap",
                 "workflow": "survey-bootstrap",
-                "request_name": str(cfg.get("survey_bootstrap_name") or "survey.sh"),
+                "request_name": str(script_name),
                 "route_kind": "bridge" if cfg.get("bridge_profile") else "direct",
                 "bridge_profile": str(cfg.get("bridge_profile") or ""),
             })
-            print(f"queued {queued['id']}: {queued['command']}")
-            print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
-        print(f"headless_command: {headless}")
-        append_event(cfg, "workbench", "workbench_survey_bootstrap_command_shown", details={
-            "headless_command": headless,
+            print(f"  queued {queued['id']} for target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+
+        if already_listening or started:
+            print("")
+            print("  Run the command above on the target, then: probe results")
+
+        append_event(cfg, "workbench", "workbench_probe_command_shown", details={
             "target_command": command,
-            "target_command_sha256": hashlib.sha256(command.encode("utf-8")).hexdigest() if command else "",
             "target_id": target_id,
             "target_label": str(selected_target_context(cfg).get("target_label") or ""),
             "queued": bool(queue),
             "command_id": queued.get("id", "") if queued else "",
             "started_service": started,
-            "survey_bootstrap_name": str(cfg.get("survey_bootstrap_name") or "survey.sh"),
-            "survey_bootstrap_port": cfg.get("survey_bootstrap_port", 22207),
+            "already_listening": already_listening,
+            "probe_name": str(script_name),
+            "probe_port": port,
         })
         return command
+
+    # keep old name as alias
+    def survey_line_bootstrap(queue=False, start_service=False):
+        return probe_line_start(queue=queue, start_service=start_service)
+
+    def find_survey_uploads(limit=20):
+        root = Path(str(cfg.get("session_root", "local/sessions")))
+        if not root.is_dir():
+            return []
+        metas = sorted(root.glob("*/files/*.metadata.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        results = []
+        for meta_path in metas:
+            data = read_json_file(meta_path, {})
+            if not isinstance(data, dict):
+                continue
+            if str(data.get("upload_kind") or "") != "survey":
+                continue
+            stored = str(data.get("stored_path") or "")
+            if not stored or not Path(stored).is_file():
+                continue
+            data["_meta_path"] = str(meta_path)
+            results.append(data)
+            if len(results) >= limit:
+                break
+        return results
+
+    def _fmt_time(iso):
+        if iso and len(iso) >= 16 and "T" in iso:
+            date, rest = iso.split("T", 1)
+            return f"{date[5:]} {rest[:5]}"
+        return iso or "-"
+
+    # ── probe results / config ───────────────────────────────────────────────
+
+    def print_line_probe_results():
+        bootstrap_results = _probe_all_results()
+        _console_table(
+            f"Probe results  ({len(bootstrap_results)} received)",
+            bootstrap_results[:8],
+            [
+                ("Remote",  lambda r: r.get("remote_addr") or "-"),
+                ("Arch",    lambda r: r.get("uname_m") or r.get("architecture") or "-"),
+                ("Kernel",  lambda r: r.get("uname_r") or r.get("kernel") or "-"),
+                ("OS",      lambda r: r.get("uname_s") or "-"),
+                ("Bits",    lambda r: str(r.get("word_bits") or "-")),
+                ("Endian",  lambda r: r.get("endian") or "-"),
+                ("At",      lambda r: _fmt_time(r.get("received_at"))),
+            ],
+        )
+        print("")
+        if bootstrap_results:
+            print("  Next steps:")
+            print("    probe config                           — generate config from most recent result")
+            print("    probe config --write-config FILE       — generate and save config")
+            print("    probe serve [--start]                  — stage the matching binary for this arch")
+        else:
+            print("  No results yet — run: probe --start")
+        append_event(cfg, "workbench", "workbench_probe_results_viewed", details={
+            "result_count": len(bootstrap_results),
+        })
+
+    def _parse_config_args(args, cmd_name):
+        survey_path = None
+        write_config_path = None
+        extra_args = []
+        i = 0
+        while i < len(args):
+            a = str(args[i])
+            if a in {"--write-config", "-w"} and i + 1 < len(args):
+                write_config_path = str(args[i + 1]); i += 2
+            elif a.startswith("--write-config="):
+                write_config_path = a.split("=", 1)[1]; i += 1
+            elif a in {"--prefer-rshell", "--prefer-runtime", "--target-preset",
+                       "--payload-preset", "--reality-json"} and i + 1 < len(args):
+                extra_args.extend([a, str(args[i + 1])]); i += 2
+            elif a in {"--allow-network-autorun", "--allow-external-writes"}:
+                extra_args.append(a); i += 1
+            elif not a.startswith("-"):
+                survey_path = a; i += 1
+            else:
+                raise ValueError(
+                    f"unknown option: {a}\n"
+                    f"usage: {cmd_name} [PATH] [--write-config FILE] "
+                    "[--prefer-rshell auto|ssh|...] [--prefer-runtime auto|...]"
+                )
+        return survey_path, write_config_path, extra_args
+
+    def _finish_config_run(result_obj, write_config_path, event_details):
+        if write_config_path:
+            print(f"\nConfig written: {write_config_path}")
+            print(f"Reload with:    scripts/busierbox-server --config {shquote(write_config_path)}")
+        else:
+            default_cfg = str(cfg.get("_config_path") or DEFAULT_CONFIG)
+            print(f"\n  To write: {event_details.get('cmd_name','config')} --write-config {shquote(default_cfg)}")
+        append_event(cfg, "workbench", "workbench_config_generated", details=event_details)
+
+    def run_line_probe_config(args):
+        survey_path, write_config_path, extra_args = _parse_config_args(args, "probe config")
+        tmp_survey_path = None
+        if not survey_path:
+            rec = _probe_latest_result()
+            if not rec:
+                raise ValueError("no probe results found — run: probe --start")
+            uname_m, endian = _probe_effective_arch(rec)
+            bits = str(rec.get("word_bits") or "")
+            kernel = str(rec.get("uname_r") or rec.get("kernel") or "")
+            print(f"Using probe result ({rec.get('received_at', '')})")
+            print(f"  arch={uname_m}  kernel={kernel}  bits={bits}  endian={endian}")
+            print(f"  Note: libc, filesystem, and tool data will use estimated defaults.")
+            print("")
+            import tempfile
+            synthetic = _probe_synthetic_survey(rec)
+            tmp = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", prefix="busierbox-probe-",
+                delete=False, encoding="utf-8",
+            )
+            tmp.write(json.dumps(synthetic, indent=2) + "\n")
+            tmp.close()
+            tmp_survey_path = tmp.name
+            survey_path = tmp_survey_path
+        else:
+            if not Path(survey_path).is_file():
+                raise ValueError(f"probe data file not found: {survey_path}")
+        try:
+            result = _run_config_from_survey(survey_path, write_config_path, extra_args)
+        finally:
+            if tmp_survey_path:
+                try:
+                    Path(tmp_survey_path).unlink()
+                except OSError:
+                    pass
+        _finish_config_run(result, write_config_path, {
+            "cmd_name": "probe config",
+            "survey_path": survey_path,
+            "write_config_path": write_config_path or "",
+            "exit_code": result.returncode,
+            "from_probe": True,
+        })
+
+    def run_line_probe_serve(args):
+        start_file_service = False
+        for a in args:
+            if a in {"--start", "start"}:
+                start_file_service = True
+            else:
+                raise ValueError(f"unknown option: {a}\nusage: probe serve [--start]")
+        rec = _probe_latest_result()
+        if not rec:
+            raise ValueError("no probe results — run: probe --start")
+        uname_m, endian = _probe_effective_arch(rec)
+        kernel = str(rec.get("uname_r") or rec.get("kernel") or "")
+        print(f"Probe arch: {uname_m}  kernel: {kernel}  endian: {endian}")
+        print("")
+        rel = release_context(cfg)
+        if not rel:
+            print("No release configured.")
+            print(f"  Build a release or point --release-dir at one, then run: probe serve")
+            return
+        # Look for recommendations matching the probe arch
+        recs = rel.get("recommendation_records") or []
+        arch_matches = [
+            r for r in recs
+            if uname_m and (
+                uname_m in str(r.get("artifact") or r.get("artifact_name") or "").lower()
+                or uname_m in str((r.get("compatibility") or {}).get("label") or "").lower()
+                or uname_m in str(r.get("key") or "").lower()
+            )
+        ]
+        if not arch_matches:
+            arch_matches = recs  # fall back to showing all
+        if arch_matches:
+            _console_table(
+                f"Release matches for {uname_m}  ({len(arch_matches)} found)",
+                arch_matches[:6],
+                [
+                    ("Selector",  lambda r: str(r.get("id") or r.get("artifact") or "-")),
+                    ("Artifact",  lambda r: r.get("artifact_name") or r.get("artifact") or "-"),
+                    ("Preset",    lambda r: r.get("payload_preset") or "-"),
+                    ("Compat",    lambda r: (r.get("compatibility") or {}).get("label") or "-"),
+                ],
+            )
+            print("")
+            if len(arch_matches) == 1:
+                selector = str(arch_matches[0].get("id") or arch_matches[0].get("artifact") or "")
+                print(f"  Staging: {selector}")
+                try:
+                    staged = stage_line_release(selector, start_file_service=start_file_service)
+                except Exception as exc:
+                    raise ValueError(f"staging failed: {exc}") from exc
+            else:
+                print(f"  Multiple matches — pick one:")
+                for r in arch_matches[:6]:
+                    sel = str(r.get("id") or r.get("artifact") or "")
+                    print(f"    release stage {shquote(sel)}")
+                if start_file_service:
+                    print("  (start file-service manually after staging: start file-service)")
+        else:
+            print(f"  No artifacts found. Run: release  to see what's available.")
+        append_event(cfg, "workbench", "workbench_probe_serve_run", details={
+            "probe_arch": uname_m,
+            "probe_kernel": kernel,
+            "match_count": len(arch_matches),
+            "start_file_service": start_file_service,
+        })
+
+    # ── survey commands (full BusierBox survey, post-deployment) ────────────
+
+    def print_line_survey_status():
+        uploads = find_survey_uploads()
+        _console_table(
+            f"Survey uploads  ({len(uploads)} found)",
+            uploads[:8],
+            [
+                ("File",    lambda r: r.get("filename") or "-"),
+                ("Size",    lambda r: str(r.get("size") or "-")),
+                ("Remote",  lambda r: str(r.get("remote_addr") or "-").split(":")[0]),
+                ("At",      lambda r: _fmt_time(r.get("timestamp"))),
+                ("Path",    lambda r: r.get("stored_path") or "-"),
+            ],
+        )
+        print("")
+        if uploads:
+            print("  survey config [PATH]         — generate config from full survey")
+            print("  survey preset [PATH] --name  — save a reusable target preset")
+        else:
+            print("  No full survey uploads yet.")
+            print("  After deploying BusierBox, run on the target:")
+            print("    busierbox survey push --host OPERATOR_IP --port FILE_SERVICE_PORT")
+        append_event(cfg, "workbench", "workbench_survey_status_viewed", details={
+            "upload_count": len(uploads),
+        })
+
+    def run_line_survey_config(args):
+        survey_path, write_config_path, extra_args = _parse_config_args(args, "survey config")
+        if not survey_path:
+            uploads = find_survey_uploads()
+            if not uploads:
+                raise ValueError(
+                    "no full survey uploads found\n"
+                    "  on target: busierbox survey push --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
+                    "  or use probe data: probe config"
+                )
+            survey_path = uploads[0].get("stored_path") or ""
+            print(f"Using most recent survey upload: {survey_path}")
+        if not Path(survey_path).is_file():
+            raise ValueError(f"survey file not found: {survey_path}")
+        result = _run_config_from_survey(survey_path, write_config_path, extra_args)
+        _finish_config_run(result, write_config_path, {
+            "cmd_name": "survey config",
+            "survey_path": survey_path,
+            "write_config_path": write_config_path or "",
+            "exit_code": result.returncode,
+        })
+
+    def run_line_survey_preset(args):
+        survey_path = None
+        preset_name = None
+        write_local = False
+        overwrite = False
+        i = 0
+        while i < len(args):
+            a = str(args[i])
+            if a in {"--name", "-n"} and i + 1 < len(args):
+                preset_name = str(args[i + 1]); i += 2
+            elif a.startswith("--name="):
+                preset_name = a.split("=", 1)[1]; i += 1
+            elif a in {"--write-local", "--write"}:
+                write_local = True; i += 1
+            elif a == "--overwrite":
+                overwrite = True; i += 1
+            elif not a.startswith("-"):
+                survey_path = a; i += 1
+            else:
+                raise ValueError(
+                    f"unknown option: {a}\n"
+                    "usage: survey preset [PATH] --name NAME [--write-local] [--overwrite]"
+                )
+        if not survey_path:
+            uploads = find_survey_uploads()
+            if not uploads:
+                raise ValueError(
+                    "no full survey uploads found\n"
+                    "  on target: busierbox survey push --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
+                    "  or specify: survey preset PATH --name NAME"
+                )
+            survey_path = uploads[0].get("stored_path") or ""
+            print(f"Using most recent survey upload: {survey_path}")
+        if not Path(survey_path).is_file():
+            raise ValueError(f"survey file not found: {survey_path}")
+        if not preset_name:
+            try:
+                data = read_json_file(survey_path, {})
+                arch = str(data.get("uname_m") or data.get("architecture") or "unknown")
+                preset_name = f"target-{arch}"
+            except Exception:
+                preset_name = "target-unknown"
+            print(f"Auto-generated preset name: {preset_name}  (override with --name NAME)")
+        scripts_dir = Path(__file__).parent
+        script = scripts_dir / "preset-from-survey"
+        if not script.is_file():
+            script = Path("scripts/preset-from-survey")
+        if not script.is_file():
+            raise ValueError("preset-from-survey script not found")
+        cmd = [str(script), "--survey", survey_path, "--name", preset_name, "--json"]
+        if write_local:
+            cmd.append("--write-local")
+        if overwrite:
+            cmd.append("--overwrite")
+        headless = " ".join(shquote(str(a)) for a in cmd)
+        print(f"Running: {headless}")
+        print("")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.stdout:
+            print(result.stdout, end="")
+        if result.stderr:
+            print(result.stderr, end="")
+        if result.returncode != 0:
+            raise ValueError(f"preset-from-survey exited {result.returncode}")
+        if not write_local:
+            print(f"\n  To save: survey preset {shquote(survey_path)} --name {shquote(preset_name)} --write-local")
+
+        append_event(cfg, "workbench", "workbench_survey_preset_generated", details={
+            "survey_path": survey_path,
+            "preset_name": preset_name,
+            "write_local": write_local,
+            "headless_command": headless,
+            "exit_code": result.returncode,
+        })
 
     def line_session_record(selector):
         text = str(selector or "").strip()
@@ -24226,46 +24879,215 @@ def run_line_tui(cfg):
         return selected
 
     def print_line_sessions(verbose=False):
-        sessions = workbench_snapshot(cfg).get("sessions") or []
-        print("Sessions:")
-        print("  commands: sessions -l, sessions -v, sessions -i ID, interact ID, use session ID, use N")
-        if not sessions:
-            print("  none")
-            cfg["_line_console_search_results"] = []
-            return
-        search_records = []
-        for idx, item in enumerate(sessions[:12], 1):
-            session_id = item.get("session_id") or Path(str(item.get("path", ""))).name
-            print(
-                f"  {idx}: {session_id} service={item.get('service', '') or '-'} "
-                f"state={item.get('state', '') or '-'} exit={item.get('exit_reason', '') or '-'} "
-                f"updated={item.get('updated_at', '') or '-'}"
-            )
-            print(
-                f"     uploads={item.get('upload_count', 0)} fetches={item.get('fetch_count', 0)} "
-                f"events={item.get('event_count', 0)} artifacts={item.get('artifact_count', 0)} "
-                f"path={item.get('path', '')}"
-            )
-            if item.get("session_log"):
-                print(f"     session_log={item.get('session_log', '')}")
-            if verbose:
-                if item.get("event_log"):
-                    print(f"     event_log={item.get('event_log', '')}")
-                if item.get("target_id"):
-                    print(f"     target={item.get('target_id', '')} label={item.get('target_label', '') or '-'}")
-                print(f"     inspect: sessions -i {shquote(str(session_id))}")
-            search_records.append({
+        all_sessions = workbench_snapshot(cfg).get("sessions") or []
+        shown = all_sessions[:12]
+        total = len(all_sessions)
+
+        def _fmt_time(iso):
+            if iso and len(iso) >= 16 and "T" in iso:
+                date, rest = iso.split("T", 1)
+                return f"{date[5:]} {rest[:5]}"
+            return iso or "-"
+
+        def _state(rec):
+            state = rec.get("state") or "-"
+            exit_r = rec.get("exit_reason") or ""
+            if exit_r and exit_r != state:
+                return f"{state}/{exit_r}"
+            return state
+
+        def _transfers(rec):
+            parts = []
+            if rec.get("upload_count"):
+                parts.append(f"up={rec['upload_count']}")
+            if rec.get("fetch_count"):
+                parts.append(f"fetch={rec['fetch_count']}")
+            if rec.get("artifact_count"):
+                parts.append(f"art={rec['artifact_count']}")
+            return "  ".join(parts) or "-"
+
+        def _detail(rec):
+            if not verbose:
+                return []
+            sid = rec.get("session_id") or Path(str(rec.get("path", ""))).name
+            path = str(rec.get("path") or "")
+            details = [("id", sid), ("path", path)]
+            if rec.get("session_log"):
+                details.append(("log", Path(rec["session_log"]).name))
+            if rec.get("event_log"):
+                n = rec.get("event_count", "")
+                suffix = f"  ({n} events)" if n else ""
+                details.append(("events", Path(rec["event_log"]).name + suffix))
+            if rec.get("target_id"):
+                label = rec.get("target_label") or ""
+                details.append(("target", rec["target_id"] + (f"  ({label})" if label else "")))
+            transfers = _transfers(rec)
+            if transfers != "-":
+                details.append(("transfers", transfers))
+            return details
+
+        transfers_any = any(
+            (r.get("upload_count") or r.get("fetch_count") or r.get("artifact_count"))
+            for r in shown
+        )
+        cols = [
+            ("Service",  lambda r: r.get("service") or "-"),
+            ("State",    _state),
+            ("Updated",  lambda r: _fmt_time(r.get("updated_at"))),
+        ]
+        if transfers_any and not verbose:
+            cols.append(("Transfers", _transfers))
+
+        footer = "use N to select  |  sessions -v for details  |  sessions ? for help"
+        if total > 12:
+            footer = f"showing 12 of {total}  —  " + footer
+        _console_table(
+            f"Sessions  ({total} total)" if total else "Sessions  (none)",
+            shown, cols, detail_fn=_detail, footer=footer,
+        )
+
+        search_records = [
+            {
                 "kind": "session",
-                "label": f"{session_id} service={item.get('service', '') or '-'} state={item.get('state', '') or '-'}",
-                "rec": item,
-                "command": view_path_headless_command(cfg, str(item.get("path") or "")),
-                "use_hint": f"use session {shquote(str(session_id))}",
-            })
+                "label": (
+                    f"{rec.get('session_id') or Path(str(rec.get('path',''))).name}"
+                    f" service={rec.get('service') or '-'} state={_state(rec)}"
+                ),
+                "rec": rec,
+                "command": view_path_headless_command(cfg, str(rec.get("path") or "")),
+                "use_hint": f"use session {shquote(str(rec.get('session_id') or Path(str(rec.get('path',''))).name))}",
+            }
+            for rec in shown
+        ]
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_sessions_listed", details={
-            "session_count": len(sessions),
-            "shown_count": min(len(sessions), 12),
+            "session_count": total,
+            "shown_count": len(shown),
             "verbose": bool(verbose),
+        })
+
+    def print_line_files(verbose=False):
+        staged = load_staged(cfg).get("staged", {})
+        target_filter_id = configured_target_filter(cfg)
+        if target_filter_id and isinstance(staged, dict):
+            staged = {
+                name: rec for name, rec in staged.items()
+                if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_filter_id
+            }
+        records = [{"_name": name, **rec} for name, rec in sorted(staged.items())]
+
+        def _fmt_size(rec):
+            try:
+                n = int(rec.get("size") or 0)
+                if n == 0:
+                    return "-"
+                if n < 1024:
+                    return f"{n} B"
+                if n < 1024 * 1024:
+                    return f"{n // 1024} KB"
+                return f"{n / (1024 * 1024):.1f} MB"
+            except (TypeError, ValueError):
+                return str(rec.get("size") or "-")
+
+        def _target(rec):
+            label = rec.get("target_label") or rec.get("target_id") or ""
+            return label or "-"
+
+        def _detail(rec):
+            name = rec["_name"]
+            details = [("fetch", render_fetch_command(name, cfg))]
+            if verbose:
+                if rec.get("source_path"):
+                    details.append(("source", rec["source_path"]))
+                sha = str(rec.get("sha256") or "")
+                if sha:
+                    details.append(("sha256", sha[:16] + "..."))
+                if rec.get("release_path"):
+                    details.append(("release", rec["release_path"]))
+                if rec.get("tuple_path"):
+                    details.append(("tuple", rec["tuple_path"]))
+                compat = (rec.get("compatibility") or {}).get("label") or ""
+                if compat:
+                    details.append(("compat", compat))
+            return details
+
+        has_targets = any(r.get("target_id") for r in records)
+        cols = [
+            ("Name", "_name"),
+            ("Kind", lambda r: r.get("stage_kind") or "file"),
+            ("Size", _fmt_size),
+        ]
+        if has_targets:
+            cols.append(("Target", _target))
+
+        _console_table(
+            f"Files  ({len(records)} staged)" if records else "Files  (none staged)",
+            records, cols, detail_fn=_detail,
+            footer="fetch NAME  |  upload LOCAL  |  unstage NAME  |  files ? for help",
+        )
+        search_records = [
+            {
+                "kind": "staged-file",
+                "label": f"{r['_name']} kind={r.get('stage_kind','file')}",
+                "rec": r,
+                "command": render_fetch_command(r["_name"], cfg),
+                "use_hint": f"fetch {shquote(r['_name'])}",
+            }
+            for r in records
+        ]
+        cfg["_line_console_search_results"] = search_records
+        append_event(cfg, "workbench", "workbench_files_listed", details={
+            "staged_count": len(records),
+            "verbose": bool(verbose),
+        })
+
+    def clear_line_sessions(all_sessions=False, confirm=False):
+        root = SESSION_MANAGER.root(cfg)
+        if not root.is_dir():
+            print("No session directory found.")
+            return
+        _finished = {"ended", "stopped", "complete", "done", "error", "failed"}
+        candidates = []
+        for path in sorted(root.iterdir()):
+            if not path.is_dir():
+                continue
+            meta = read_json_file(path / "session.json", {})
+            state = str(meta.get("state") or "").lower()
+            exit_r = str(meta.get("exit_reason") or "").lower()
+            uploads = len(meta.get("uploads") or [])
+            fetches = len(meta.get("fetches") or [])
+            artifacts = len(meta.get("artifacts") or [])
+            has_data = uploads > 0 or fetches > 0 or artifacts > 0
+            finished = state in _finished or exit_r in _finished
+            if all_sessions or (finished and not has_data):
+                candidates.append((path, state or exit_r or "unknown", has_data))
+        if not candidates:
+            msg = "No sessions to clear." if all_sessions else "No finished empty sessions to clear."
+            print(msg)
+            print("  Hint: sessions with uploads/fetches/artifacts are kept unless you use --all.")
+            return
+        for path, state, has_data in candidates:
+            flag = "  [has data]" if has_data else ""
+            print(f"  {path.name}  ({state}){flag}")
+        if not confirm:
+            print(f"\n  {len(candidates)} session(s) would be removed. Run: sessions clear --confirm")
+            if not all_sessions:
+                print("  To also remove sessions with data: sessions clear --all --confirm")
+            return
+        removed = 0
+        errors = 0
+        for path, _state, _has_data in candidates:
+            try:
+                shutil.rmtree(path)
+                removed += 1
+            except OSError as exc:
+                print(f"  error removing {path.name}: {exc}")
+                errors += 1
+        print(f"\n  Cleared {removed} session(s)." + (f"  {errors} error(s)." if errors else ""))
+        append_event(cfg, "workbench", "workbench_sessions_cleared", details={
+            "removed": removed,
+            "errors": errors,
+            "all_sessions": all_sessions,
         })
 
     def interact_line_session(selector):
@@ -24300,84 +25122,67 @@ def run_line_tui(cfg):
     def print_line_command_queue_view():
         snap = workbench_snapshot(cfg)
         command_queue_actions = snap.get("command_queue_workflow_actions") or []
-        list_action = (snap.get("command_queue_workflow_actions_by_id") or {}).get("command-queue:list-command-queue") or {}
-        headless = (
-            list_action.get("headless_command")
-            or list_action.get("command")
-            or (
-                "scripts/busierbox-server --config "
-                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                + " --list-command-queue"
-            )
-        )
-        print(f"headless_command: {headless}")
-        print_command_queue(cfg, json_output=False)
-        if command_queue_actions:
-            print("Command queue workflow actions:")
-            for rec in command_queue_actions:
-                print(
-                    f"  {rec.get('id', '')} "
-                    f"state={rec.get('operator_action_state', '') or '-'} "
-                    f"reason={rec.get('operator_action_reason', '') or '-'} "
-                    f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
-                    f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'} "
-                    f"pending_targets={rec.get('target_mailbox_pending_target_count', 0)} "
-                    f"pending_work={rec.get('target_mailbox_pending_work_count', 0)} "
-                    f"offline_targets={rec.get('fleet_offline_target_count', 0)} "
-                    f"poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}"
-                )
-                print(f"    command: {rec.get('headless_command', rec.get('command', ''))}")
         mailbox_records = snap.get("target_mailbox_records") or []
+
+        def _fmt_time(iso):
+            if iso and len(iso) >= 16 and "T" in iso:
+                date, rest = iso.split("T", 1)
+                return f"{date[5:]} {rest[:5]}"
+            return iso or "-"
+
+        def _result(rec):
+            status = rec.get("result_status") or ""
+            code = rec.get("result_exit_code")
+            if status and code not in (None, ""):
+                return f"{status}/{code}"
+            return status or "-"
+
+        def _mailbox_detail(rec):
+            details = []
+            work = rec.get("work_kind") or rec.get("request_name") or rec.get("bridge_profile") or ""
+            if work:
+                details.append(("work", work))
+            if rec.get("pending_reason"):
+                details.append(("reason", rec["pending_reason"]))
+            created = _fmt_time(rec.get("created_at"))
+            if created != "-":
+                details.append(("created", created))
+            return details
+
+        print_command_queue(cfg, json_output=False)
+
         if mailbox_records:
-            print("Target mailbox records:")
-            for rec in mailbox_records[:8]:
-                print(
-                    f"  {rec.get('command_id', '')} "
-                    f"target={rec.get('target_id', '') or '-'} "
-                    f"state={rec.get('target_connectivity_state', '') or '-'} "
-                    f"status={rec.get('status', '') or '-'} "
-                    f"waiting_for={rec.get('waiting_for', '') or '-'} "
-                    f"reason={rec.get('pending_reason', '') or '-'} "
-                    f"expired={'yes' if rec.get('expired') else 'no'} "
-                    f"pending={'yes' if rec.get('pending_work') else 'no'} "
-                    f"result={rec.get('result_status', '') or '-'} "
-                    f"exit={rec.get('result_exit_code', '') if rec.get('result_exit_code') != '' else '-'}"
-                )
-                print(
-                    f"    last_seen={rec.get('target_last_seen', '') or '-'} "
-                    f"via={rec.get('target_last_seen_via', '') or '-'} "
-                    f"offline_for_sec={rec.get('target_offline_for_sec', '') if rec.get('target_offline_for_sec') != '' else '-'} "
-                    f"offline_age={rec.get('target_offline_age_bucket', '') or '-'} "
-                    f"next_expected_poll={rec.get('target_next_expected_poll', '') or '-'} "
-                    f"poll_overdue={'yes' if rec.get('target_poll_overdue') else 'no'} "
-                    f"poll_overdue_for_sec={rec.get('target_poll_overdue_for_sec', '') if rec.get('target_poll_overdue_for_sec') != '' else '-'}"
-                )
-                if rec.get("work_kind") or rec.get("bridge_profile") or rec.get("request_name"):
-                    print(
-                        f"    work_kind={rec.get('work_kind', '') or '-'} "
-                        f"workflow={rec.get('workflow', '') or '-'} "
-                        f"request_name={rec.get('request_name', '') or '-'} "
-                        f"route_kind={rec.get('route_kind', '') or '-'} "
-                        f"bridge_profile={rec.get('bridge_profile', '') or '-'} "
-                        f"bridge_requires_target_online={'yes' if rec.get('bridge_requires_target_online') else 'no'} "
-                        f"bridge_route={rec.get('bridge_route_path', '') or '-'}"
-                    )
-                print(
-                    f"    created={rec.get('created_at', '') or '-'} "
-                    f"delivered={rec.get('delivered_at', '') or '-'} "
-                    f"expires={rec.get('expires_at', '') or '-'} "
-                    f"result_at={rec.get('result_received_at', '') or '-'} "
-                    f"age_sec={rec.get('age_sec', '') if rec.get('age_sec') != '' else '-'} "
-                    f"pending_delivery_for_sec={rec.get('pending_delivery_for_sec', '') if rec.get('pending_delivery_for_sec') != '' else '-'} "
-                    f"delivered_without_result_for_sec={rec.get('delivered_without_result_for_sec', '') if rec.get('delivered_without_result_for_sec') != '' else '-'} "
-                    f"result_latency_sec={rec.get('result_latency_sec', '') if rec.get('result_latency_sec') != '' else '-'}"
-                )
-                if rec.get("result_received_at"):
-                    print(f"    result_source={rec.get('result_source_path', '') or '-'}")
+            mb_cols = [
+                ("Command",  lambda r: str(r.get("command_id") or "-")[:20]),
+                ("Target",   lambda r: r.get("target_id") or "-"),
+                ("Status",   lambda r: r.get("status") or "-"),
+                ("Result",   _result),
+                ("Waiting",  lambda r: r.get("waiting_for") or "-"),
+                ("Seen",     lambda r: _fmt_time(r.get("target_last_seen"))),
+            ]
+            _console_table(
+                f"Mailbox  ({len(mailbox_records)} records)",
+                mailbox_records[:8], mb_cols, detail_fn=_mailbox_detail,
+            )
         else:
-            print("Target mailbox records: none")
+            print("Mailbox  (none)")
+
+        if command_queue_actions:
+            cq_cols = [
+                ("Action",   "id"),
+                ("State",    lambda r: r.get("operator_action_state") or "-"),
+                ("Pending",  lambda r: str(r.get("target_mailbox_pending_work_count", 0))),
+                ("Offline",  lambda r: str(r.get("fleet_offline_target_count", 0))),
+            ]
+            _console_table(
+                f"Queue actions  ({len(command_queue_actions)} total)",
+                command_queue_actions, cq_cols,
+                footer="queue COMMAND  |  queue list  |  queue ? for help",
+            )
+        else:
+            print("\n  queue COMMAND  |  queue list  |  queue ? for help")
+
         append_event(cfg, "workbench", "workbench_command_queue_inspected", details={
-            "headless_command": headless,
             "command_count": len((command_queue_summary(cfg).get("commands") or [])),
             "target_mailbox_record_count": len(mailbox_records),
             "command_queue_workflow_action_count": len(command_queue_actions),
@@ -24394,7 +25199,7 @@ def run_line_tui(cfg):
         elif key in ("service", "services", "listener", "listeners"):
             print_line_services()
         elif key in ("file", "files", "staged", "stager", "stagers", "loot", "download", "downloads"):
-            print_staged(cfg)
+            print_line_files()
         elif key in ("job", "jobs"):
             print_line_jobs()
         elif key in ("daemon", "daemons"):
@@ -24423,79 +25228,92 @@ def run_line_tui(cfg):
 
     def print_line_release():
         rel = release_context(cfg)
-        print("Release console:")
         if not rel:
-            print("  no release bundle detected")
-            print("  commands: run make package or pass --release-dir, then release stage SELECTOR")
+            print("Release  (none detected)")
+            print("")
+            print("  Run make package or pass --release-dir, then: release stage SELECTOR")
             return
-        print(
-            f"  release_name={rel.get('release_name', '') or '-'} "
-            f"release_dir={rel.get('release_dir', '') or '-'}"
-        )
-        print(
-            f"  artifacts={len(rel.get('artifacts') or [])} "
-            f"recommendations={len(rel.get('recommendation_records') or [])} "
-            f"devices={len(rel.get('devices') or [])} "
-            f"tuples={len(rel.get('tuples') or [])}"
-        )
-        print("  commands: release stage SELECTOR, serve-binary SELECTOR NAME, fetch --queue NAME, files")
-        search_records = []
-        print("Release recommendations:")
+        name = rel.get("release_name") or "-"
+        rdir = rel.get("release_dir") or "-"
         recommendations = rel.get("recommendation_records") or []
-        if recommendations:
-            for rec in recommendations[:8]:
-                selector = str(rec.get("id") or rec.get("artifact") or "")
-                artifact = str(rec.get("artifact") or rec.get("artifact_name") or "")
-                print(
-                    f"  selector={selector} "
-                    f"{rec.get('scope', '')}:{rec.get('key', '')} -> {artifact} "
-                    f"preset={rec.get('payload_preset', '') or '-'} "
-                    f"compatibility={(rec.get('compatibility') or {}).get('label', '') or '-'}"
-                )
-                search_records.append({
-                    "kind": "release-recommendation",
-                    "label": f"{rec.get('scope', '')}:{rec.get('key', '')} -> {artifact}",
-                    "rec": rec,
-                    "command": f"release stage {selector}",
-                    "use_hint": f"release stage {selector}",
-                })
-        else:
-            print("  none")
-        print("Release artifacts:")
         artifacts = rel.get("artifacts") or []
+        devices = rel.get("devices") or []
+        tuples = rel.get("tuples") or []
+
+        def _compat(rec):
+            return (rec.get("compatibility") or {}).get("label") or "-"
+
+        def _rec_selector(rec):
+            return str(rec.get("id") or rec.get("artifact") or "")
+
+        def _art_selector(rec):
+            return str(rec.get("release_path") or rec.get("name") or rec.get("path") or "")
+
+        print(f"Release  {name}  ({rdir})")
+        print(f"  {len(recommendations)} recommendations  {len(artifacts)} artifacts  {len(devices)} devices  {len(tuples)} tuples")
+        print("")
+
+        search_records = []
+        if recommendations:
+            rec_cols = [
+                ("Selector",     _rec_selector),
+                ("Scope:Key",    lambda r: f"{r.get('scope','')}:{r.get('key','')}"),
+                ("Artifact",     lambda r: r.get("artifact") or r.get("artifact_name") or "-"),
+                ("Preset",       lambda r: r.get("payload_preset") or "-"),
+                ("Compat",       _compat),
+            ]
+            _console_table(
+                f"Recommendations  ({len(recommendations[:8])} shown)",
+                recommendations[:8], rec_cols,
+            )
+            search_records += [
+                {
+                    "kind": "release-recommendation",
+                    "label": f"{r.get('scope','')}:{r.get('key','')} -> {r.get('artifact') or r.get('artifact_name') or ''}",
+                    "rec": r,
+                    "command": f"release stage {_rec_selector(r)}",
+                    "use_hint": f"release stage {_rec_selector(r)}",
+                }
+                for r in recommendations[:8]
+            ]
         if artifacts:
-            for rec in artifacts[:8]:
-                selector = str(rec.get("release_path") or rec.get("name") or rec.get("path") or "")
-                print(
-                    f"  selector={selector} "
-                    f"name={rec.get('name', '') or '-'} "
-                    f"tuple={rec.get('tuple_path', '') or '-'} "
-                    f"preset={rec.get('payload_preset', '') or '-'} "
-                    f"compatibility={(rec.get('compatibility') or {}).get('label', '') or '-'}"
-                )
-                search_records.append({
+            art_cols = [
+                ("Name",   lambda r: r.get("name") or "-"),
+                ("Tuple",  lambda r: r.get("tuple_path") or "-"),
+                ("Preset", lambda r: r.get("payload_preset") or "-"),
+                ("Compat", _compat),
+            ]
+            _console_table(
+                f"Artifacts  ({len(artifacts[:8])} shown)",
+                artifacts[:8], art_cols,
+            )
+            search_records += [
+                {
                     "kind": "release-artifact",
-                    "label": f"{rec.get('name', '') or selector}",
-                    "rec": rec,
-                    "command": f"release stage {selector}",
-                    "use_hint": f"release stage {selector}",
-                })
-        else:
-            print("  none")
-        device_selectors = [f"by_device:{rec.get('name')}" for rec in rel.get("devices") or [] if rec.get("name")]
-        tuple_selectors = [f"by_tuple_path:{rec.get('path')}" for rec in rel.get("tuples") or [] if rec.get("path")]
-        if device_selectors:
-            print("Device selectors: " + ", ".join(device_selectors[:8]))
-        if tuple_selectors:
-            print("Tuple selectors: " + ", ".join(tuple_selectors[:8]))
+                    "label": r.get("name") or _art_selector(r),
+                    "rec": r,
+                    "command": f"release stage {_art_selector(r)}",
+                    "use_hint": f"release stage {_art_selector(r)}",
+                }
+                for r in artifacts[:8]
+            ]
+        if devices:
+            sels = "  ".join(f"by_device:{r.get('name')}" for r in devices[:8] if r.get("name"))
+            print(f"  Device selectors:  {sels}")
+        if tuples:
+            sels = "  ".join(f"by_tuple_path:{r.get('path')}" for r in tuples[:6] if r.get("path"))
+            print(f"  Tuple selectors:   {sels}")
+        print("")
+        print("  release stage SELECTOR  |  release ? for help")
+
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_release_console_viewed", details={
             "release_dir": rel.get("release_dir", ""),
-            "release_name": rel.get("release_name", ""),
+            "release_name": name,
             "artifact_count": len(artifacts),
             "recommendation_count": len(recommendations),
-            "device_count": len(rel.get("devices") or []),
-            "tuple_count": len(rel.get("tuples") or []),
+            "device_count": len(devices),
+            "tuple_count": len(tuples),
         })
 
     def parse_line_release_stage_args(args):
@@ -24880,6 +25698,26 @@ def run_line_tui(cfg):
         print("  ? help")
         print("  q quit")
 
+    if HAVE_READLINE:
+        _rl_completion_cache = {"line": None, "candidates": []}
+
+        def _rl_completer(text, state):
+            try:
+                line = _readline.get_line_buffer()
+                if line != _rl_completion_cache["line"]:
+                    _rl_completion_cache["line"] = line
+                    _rl_completion_cache["candidates"] = line_completion_candidates(line)
+                candidates = _rl_completion_cache["candidates"]
+                if state < len(candidates):
+                    return candidates[state]
+            except Exception:
+                pass
+            return None
+
+        _readline.set_completer(_rl_completer)
+        _readline.set_completer_delims("\t\n")
+        _readline.parse_and_bind("tab: complete")
+
     render_full = False
     compact_next_prompt = False
     pending_console_lines = []
@@ -24896,27 +25734,7 @@ def run_line_tui(cfg):
         else:
             print("")
             snap = workbench_snapshot(cfg)
-            summary = snap.get("summary") or {}
-            tail_status = event_tail_availability_text(snap)
-            print(
-                "Workbench summary: "
-                f"listening={summary.get('listening_count', 0)} "
-                f"warnings={len(snap.get('warnings') or [])} "
-                f"staged={summary.get('staged_count', 0)} "
-                f"uploads={summary.get('upload_count', 0)} "
-                f"fetches={summary.get('fetch_count', 0)} "
-                f"sessions={summary.get('session_count', 0)} "
-                f"events={summary.get('event_count', 0)} "
-                f"{tail_status}"
-            )
-            target_filter = snap.get("target_filter") or {}
-            if target_filter.get("active"):
-                print(target_filter_summary_text(target_filter, prefix="Target filter:"))
-            if snap is None:
-                snap = workbench_snapshot(cfg)
-            print(line_tui_status_bar(snap))
-            print("")
-            print_line_tui_actions()
+            print_line_console_banner(snap)
         if pending_console_lines:
             line = pending_console_lines.pop(0)
             print(f"{line_tui_prompt()}{line}")
@@ -24950,6 +25768,10 @@ def run_line_tui(cfg):
                 continue
             cmd = console_args[0].lower() if console_args else ""
             compact_next_prompt = True
+            # Handle "<topic> ?" syntax, e.g. "files ?", "routes ?"
+            if len(console_args) >= 2 and console_args[-1] == "?":
+                print_line_command_help(cmd)
+                continue
             if cmd in {"q", "quit", "exit"}:
                 choice = "q"
             elif cmd in {"help", "?"}:
@@ -25116,7 +25938,13 @@ def run_line_tui(cfg):
                     print(exc)
                 continue
             elif cmd in {"sessions", "session"}:
-                if cmd == "session" and len(console_args) >= 2:
+                if len(console_args) >= 2 and console_args[1].lower() in {"clear", "prune", "clean"}:
+                    flags = {a.lower() for a in console_args[2:]}
+                    clear_line_sessions(
+                        all_sessions="--all" in flags,
+                        confirm="--confirm" in flags,
+                    )
+                elif cmd == "session" and len(console_args) >= 2:
                     try:
                         interact_line_session(" ".join(console_args[1:]).strip())
                     except ValueError as exc:
@@ -25389,10 +26217,36 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"survey", "survey-bootstrap"}:
+            elif cmd in {"probe", "survey-bootstrap"}:
+                subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
                 try:
-                    queue_survey, start_survey = parse_line_survey_args(console_args[1:])
-                    survey_line_bootstrap(queue=queue_survey, start_service=start_survey)
+                    if subcmd in {"results", "result"}:
+                        print_line_probe_results()
+                    elif subcmd == "config":
+                        run_line_probe_config(console_args[2:])
+                    elif subcmd == "serve":
+                        run_line_probe_serve(console_args[2:])
+                    elif subcmd in {"help", "-h", "--help"}:
+                        print_line_command_help("probe")
+                    else:
+                        queue_probe, start_probe = parse_line_probe_args(console_args[1:])
+                        probe_line_start(queue=queue_probe, start_service=start_probe)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "survey":
+                subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
+                try:
+                    if subcmd in {"results", "result"} or not subcmd:
+                        print_line_survey_status()
+                    elif subcmd == "config":
+                        run_line_survey_config(console_args[2:])
+                    elif subcmd == "preset":
+                        run_line_survey_preset(console_args[2:])
+                    elif subcmd in {"help", "-h", "--help"}:
+                        print_line_command_help("survey")
+                    else:
+                        raise ValueError("usage: survey [results|config|preset]  —  see: survey ?")
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -25451,8 +26305,9 @@ def run_line_tui(cfg):
                     print(exc)
                 continue
             elif cmd in {"files", "staged", "stagers", "loot", "downloads"}:
-                compact_next_prompt = False
-                choice = "7"
+                verbose = len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}
+                print_line_files(verbose=verbose)
+                continue
             elif cmd in {"mailbox", "queue"}:
                 compact_next_prompt = False
                 choice = "20"
@@ -27486,32 +28341,16 @@ def run_tui(cfg):
         print_workbench(cfg)
         return 0
     try:
-        if os.environ.get("TERM", "").strip().lower() in ("", "dumb"):
-            print("terminal does not support curses, using line menu", file=sys.stderr)
-            update_server_state(cfg, "workbench", "open", {
-                "state_file": str(state_file_path(cfg)),
-                "workbench_mode": "line",
-            })
-            append_event(cfg, "workbench", "workbench_opened", details={"mode": "line"})
-            return run_line_tui(cfg)
-        update_server_state(cfg, "workbench", "open", {
-            "state_file": str(state_file_path(cfg)),
-            "workbench_mode": "curses",
-        })
-        append_event(cfg, "workbench", "workbench_opened", details={"mode": "curses"})
-        return run_curses_tui(cfg)
-    except KeyboardInterrupt:
-        request_shutdown("keyboard_interrupt")
-        print("busierbox-server: interrupted, shutting down workbench", file=sys.stderr)
-        return 130
-    except Exception as exc:
-        print(f"curses workbench unavailable, using line menu: {exc}", file=sys.stderr)
         update_server_state(cfg, "workbench", "open", {
             "state_file": str(state_file_path(cfg)),
             "workbench_mode": "line",
         })
-        append_event(cfg, "workbench", "workbench_opened", details={"mode": "line", "fallback_reason": str(exc)})
+        append_event(cfg, "workbench", "workbench_opened", details={"mode": "line"})
         return run_line_tui(cfg)
+    except KeyboardInterrupt:
+        request_shutdown("keyboard_interrupt")
+        print("busierbox-server: interrupted, shutting down workbench", file=sys.stderr)
+        return 130
     finally:
         stop_workbench_started_services(cfg)
         mark_service_stopped(cfg, "workbench", SHUTDOWN_REASON or "quit")

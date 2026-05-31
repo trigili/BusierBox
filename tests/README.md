@@ -17,9 +17,9 @@ The system runner mirrors the same text and JSON summary files under
 
 `tests/smoke/qemu-matrix.sh` is the cheap metadata gate for the QEMU layer. It validates that the committed qemu-user matrix keeps host, x86, ARM, AArch64, little-endian MIPS, big-endian MIPS, musl, uClibc, and old/current kernel-floor coverage, and that the qemu-system example matrix keeps representative disabled environments with boot metadata plus architecture, libc, endian, and kernel-floor coverage.
 
-`make test-glinet` runs the real-device GL.iNet MT7621 integration harness against `root@192.168.8.1` by default. It builds the configured artifact unless `SKIP_BUILD=1`, serves it over a temporary local HTTP server, downloads it on the router, runs extraction and doctor checks, validates PATH and BusyBox applet symlinks, and checks staged tools such as zsh, tmux, curl, and strace when present.
-
-`make test-all` runs the local smoke and QEMU layers. Real-device GL.iNet testing is kept as an explicit `make test-glinet` target because it depends on reachable hardware.
+`make test-all` runs the local smoke and QEMU layers. Real-device testing is
+kept outside the default test path because it depends on reachable hardware and
+site-specific network setup.
 
 ## Smoke Contract
 
@@ -111,24 +111,6 @@ tests/artifacts/qemu-system/<environment>/
 ```
 
 Some boards or generated rootfses may need a different disk interface than the default `if=virtio`; adjust the runner or matrix when adding that environment.
-
-## GL.iNet Real Device
-
-Run:
-
-```sh
-make test-glinet
-```
-
-Useful overrides:
-
-```sh
-ROUTER=root@192.168.8.1 make test-glinet
-SKIP_BUILD=1 ARTIFACT=dist/busierbox-mipsel-linux-4.x-musl-full tests/integration/glinet/push-and-test
-KEEP_ARTIFACTS=1 tests/integration/glinet/push-and-test dist/busierbox-mipsel-linux-4.x-musl-full
-```
-
-The default remote directory is `/tmp/busierbox-itest`, which avoids the small persistent root filesystem on many OpenWrt-style devices. Override `REMOTE_DIR` only when that location has enough free space for the artifact plus extraction. The harness fails loudly for missing advertised tools, missing applet symlinks, broken extraction, duplicate payload PATH entries, zsh without payload commands, and overlay tool drift.
 
 ## Environment Coverage
 
