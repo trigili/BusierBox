@@ -26580,6 +26580,16 @@ def run_line_tui(cfg):
         if choice in {"q", "quit", "exit"}:
             mark_service_stopped(cfg, "workbench", "quit")
             return 0
+        # If a number was entered and there are active search results (e.g. from
+        # `listeners`, `targets`, `search`, etc.), use those — the numbers shown
+        # in any list command correspond to search result positions.
+        if choice.isdigit() and cfg.get("_line_console_search_results"):
+            try:
+                use_line_search_result(choice)
+            except ValueError as exc:
+                print(exc)
+            compact_next_prompt = True
+            continue
         if choice in {"1", "2", "3", "4"}:
             service = {"1": "ssh", "2": "tls-shell", "3": "plain-shell", "4": "file-service"}[choice]
             start_line_service(service)
