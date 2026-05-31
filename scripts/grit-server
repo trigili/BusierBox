@@ -23132,40 +23132,48 @@ def run_line_tui(cfg):
              "yes" if r.get("tls") else "no", str(r.get("pid") or "-")][i]
         ]), default=0)) for i, (h, _) in enumerate(cols)]
 
+        def _row_line(n, rec):
+            cells = [str(rec.get("name") or ""), _status(rec), _bind(rec),
+                     "yes" if rec.get("tls") else "no", str(rec.get("pid") or "-")]
+            return (f"  {n:{num_w}}  " + "  ".join(f"{c:{w[i]}}" for i, c in enumerate(cells))).rstrip()
+
+        header = "  " + " " * num_w + "  " + "  ".join(f"{h:{w[i]}}" for i, (h, _) in enumerate(cols))
+        sep    = "  " + "─" * num_w + "  " + "  ".join("─" * ww for ww in w)
+
         if not rows:
             print("Listeners  (none)")
         else:
-            total = len(rows)
-            print(f"Listeners  ({total} total)")
+            print(f"Listeners  ({len(rows)} total)")
+            print("")
+            print(header)
+            print(sep)
             n = 1
+            cat_all = {name for _, names in _CATEGORIES for name in names}
+            printed_any = False
             for cat_title, cat_names in _CATEGORIES:
                 cat_rows = [by_name[name] for name in cat_names if name in by_name]
                 if not cat_rows:
                     continue
-                print(f"\n  {cat_title}")
-                print("  " + "─" * (sum(w) + len(w) * 2 + num_w))
+                # Thin blank line + italic-style label between categories
+                if printed_any:
+                    print("")
+                print(f"  {cat_title}")
                 for rec in cat_rows:
-                    cells = [str(rec.get("name") or ""), _status(rec), _bind(rec),
-                             "yes" if rec.get("tls") else "no", str(rec.get("pid") or "-")]
-                    line = f"  {n:{num_w}}  " + "  ".join(f"{c:{w[i]}}" for i, c in enumerate(cells))
-                    print(line.rstrip())
+                    print(_row_line(n, rec))
                     if verbose:
+                        indent = " " * (2 + num_w + 2)
                         for label, value in (_detail(rec) or []):
                             if value:
-                                indent = " " * (2 + num_w + 2)
                                 print(f"{indent}{label}: {value}")
                     n += 1
-            # Any uncategorized services
-            cat_all = {name for _, names in _CATEGORIES for name in names}
+                printed_any = True
             extras = [r for r in rows if str(r.get("name") or "") not in cat_all]
             if extras:
-                print("\n  Other")
-                print("  " + "─" * (sum(w) + len(w) * 2 + num_w))
+                if printed_any:
+                    print("")
+                print("  Other")
                 for rec in extras:
-                    cells = [str(rec.get("name") or ""), _status(rec), _bind(rec),
-                             "yes" if rec.get("tls") else "no", str(rec.get("pid") or "-")]
-                    line = f"  {n:{num_w}}  " + "  ".join(f"{c:{w[i]}}" for i, c in enumerate(cells))
-                    print(line.rstrip())
+                    print(_row_line(n, rec))
                     n += 1
         print("")
         print("  use N or listener NAME to select  |  start/stop NAME  |  listeners ? for help")
