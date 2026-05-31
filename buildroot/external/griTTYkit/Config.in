@@ -1,0 +1,5 @@
+menu "griTTYkit payload options"
+
+source "$BR2_EXTERNAL_GRIPTYKIT_PATH/package/grit-doom-ascii/Config.in"
+
+endmenu

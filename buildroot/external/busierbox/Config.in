@@ -1,5 +1,0 @@
-menu "BusierBox payload options"
-
-source "$BR2_EXTERNAL_BUSIERBOX_PATH/package/busierbox-doom-ascii/Config.in"
-
-endmenu
