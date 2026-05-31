@@ -26582,16 +26582,16 @@ def run_line_tui(cfg):
             return 0
         if choice in {"1", "2", "3", "4"}:
             service = {"1": "ssh", "2": "tls-shell", "3": "plain-shell", "4": "file-service"}[choice]
-            headless = service_start_headless_command(cfg, service)
-            print(f"headless_command: {headless}")
-            start_service_process(cfg, service, headless_command=headless)
+            start_line_service(service)
+            # Brief poll so the banner reflects actual listening state
+            for _ in range(10):
+                time.sleep(0.1)
+                if str((line_service_record(service) or {}).get("actual") or "") == "listening":
+                    break
         elif choice == "5":
             service = line_input("service> ")
             if service is not None:
-                selected_service = service.strip()
-                headless = service_stop_headless_command(cfg, selected_service)
-                print(f"headless_command: {headless}")
-                stop_recorded_service(cfg, selected_service, headless_command=headless)
+                stop_line_service(service.strip())
         elif choice == "6":
             path_line = line_input("local file> ")
             name_line = line_input("target request name> ")
