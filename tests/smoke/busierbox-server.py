@@ -10112,6 +10112,7 @@ def main():
                     "help run\n"
                     "help history\n"
                     "help complete\n"
+                    "help view\n"
                     "complete\n"
                     "complete use ag\n"
                     "complete agent Con\n"
@@ -10119,6 +10120,7 @@ def main():
                     "complete use job\n"
                     "complete show m\n"
                     "complete use module operator-daemon\n"
+                    "complete view\n"
                     "help files\n"
                     f"resource {line_console_resource}\n"
                     "workspace\n"
@@ -10217,6 +10219,7 @@ def main():
                     "sessions -v\n"
                     "sessions -i 1\n"
                     "interact 1\n"
+                    f"view {line_console_session / 'session.log'}\n"
                     "use session 1\n"
                     "info\n"
                     "options\n"
@@ -10333,6 +10336,7 @@ def main():
                 "Help: history" not in line_console_stdout or
                 "Help: makerc" not in line_console_stdout or
                 "Help: complete" not in line_console_stdout or
+                "Help: view" not in line_console_stdout or
                 "Help: files" not in line_console_stdout or
                 "complete [PREFIX]               show command/resource completions" not in line_console_stdout or
                 "Completions for <root>:" not in line_console_stdout or
@@ -10348,6 +10352,8 @@ def main():
                 "show modules" not in line_console_stdout or
                 "Completions for use module operator-daemon:" not in line_console_stdout or
                 "use module operator-daemon-status" not in line_console_stdout or
+                "Completions for view:" not in line_console_stdout or
+                str(line_console_session / "session.log") not in line_console_stdout or
                 "Workspace overview:" not in line_console_stdout or
                 f"Resource loaded: {line_console_resource}" not in line_console_stdout or
                 "commands=3 skipped_nested=1" not in line_console_stdout or
@@ -10400,6 +10406,7 @@ def main():
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "upload [--start] LOCAL [NAME]   stage and optionally serve a local file" not in line_console_stdout or
                 "unstage NAME                    remove a staged file request" not in line_console_stdout or
+                "view PATH, cat PATH             view a local session/artifact path" not in line_console_stdout or
                 "rmfile NAME" not in line_console_stdout or
                 "downloads                       list target-fetchable staged files" not in line_console_stdout or
                 "run -j, run --job               start selected background action as a managed job" not in line_console_stdout or
@@ -10523,6 +10530,7 @@ def main():
                 "Session interaction:" not in line_console_stdout or
                 line_console_missing_markers or
                 "next: view " not in line_console_stdout or
+                f"viewed {line_console_session / 'session.log'}" not in line_console_stdout or
                 "tail: tail -n 40" not in line_console_stdout or
                 "events: tail -n 40" not in line_console_stdout or
                 "inspect: sessions -i " not in line_console_stdout or
@@ -10601,6 +10609,7 @@ def main():
                 not any(event.get("event") == "workbench_target_interaction_viewed" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
                 not any(event.get("event") == "workbench_session_selected" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
                 not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
+                not any(event.get("event") == "workbench_path_viewed" and (event.get("details") or {}).get("path") == str(line_console_session / "session.log") and (event.get("details") or {}).get("viewable") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_sessions_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_job_selected" and (event.get("details") or {}).get("job_id") == "line-console-job" for event in line_console_events) or
                 not any(event.get("event") == "workbench_jobs_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or

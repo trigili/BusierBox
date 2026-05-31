@@ -21692,6 +21692,7 @@ def run_line_tui(cfg):
         print("  upload [--start] LOCAL [NAME]   stage and optionally serve a local file")
         print("  files, staged                   list staged files and file workflow actions")
         print("  unstage NAME                    remove a staged file request")
+        print("  view PATH, cat PATH             view a local session/artifact path")
         print("  downloads                       list target-fetchable staged files")
         print("  serve-binary [--start] [PATH] [NAME] stage and optionally serve a BusierBox binary")
         print("  mailbox, queue                  show command queue and target mailbox state")
@@ -21984,6 +21985,13 @@ def run_line_tui(cfg):
                 "unstage NAME",
                 "rmfile NAME",
                 "  Lists staged files and target fetch commands, or removes a staged request.",
+            ],
+            "view": [
+                "view PATH",
+                "cat PATH",
+                "less PATH",
+                "  Opens a local session, log, event, or artifact path with the configured pager.",
+                "  The path must be inside an operator-managed viewable location.",
             ],
             "serve-binary": [
                 "serve-binary [--start|--no-start] [PATH] [NAME]",
@@ -23104,7 +23112,7 @@ def run_line_tui(cfg):
             "useagent", "uselistener", "useroute", "usesession", "usemodule",
             "main", "home", "root", "back", "background", "start", "stop",
             "check", "run", "execute", "exploit", "interact", "queue",
-            "daemon", "upload", "serve-binary", "downloads", "unstage", "rmfile", "mailbox", "refresh",
+            "daemon", "upload", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
             "quit", "exit",
         ]
         show_resources = [
@@ -23117,7 +23125,7 @@ def run_line_tui(cfg):
         help_topics = [
             "search", "complete", "resource", "makerc", "history", "use", "main", "show",
             "modules", "options", "next", "workspace", "aliases", "listeners",
-            "routes", "set", "setg", "run", "jobs", "queue", "upload", "files",
+            "routes", "set", "setg", "run", "jobs", "queue", "upload", "files", "view",
             "daemon", "interact", "sessions",
         ]
 
@@ -23239,6 +23247,15 @@ def run_line_tui(cfg):
                 if str(name or "")
             ]
             return [f"{cmd} {item}" for item in prefixed(selector_prefix, staged_names)]
+        if cmd in {"view", "cat", "less"}:
+            selector_prefix = "" if trailing_space else " ".join(parts[1:])
+            path_values = []
+            for rec in workbench_snapshot(cfg).get("sessions") or []:
+                for key in ("path", "session_log", "event_log"):
+                    value = str(rec.get(key) or "").strip()
+                    if value:
+                        path_values.append(value)
+            return [f"{cmd} {item}" for item in prefixed(selector_prefix, path_values)]
         return prefixed(current, base_commands)
 
     def print_line_completions(prefix=""):
@@ -24041,6 +24058,22 @@ def run_line_tui(cfg):
         })
         return existed
 
+    def view_line_path(path_text):
+        path = str(path_text or "").strip()
+        if not path:
+            raise ValueError("usage: view PATH")
+        headless = view_path_headless_command(cfg, path)
+        print(f"headless_command: {headless}")
+        result = open_path_in_pager(path)
+        print(result)
+        append_event(cfg, "workbench", "workbench_path_viewed", details={
+            "headless_command": headless,
+            "path": path,
+            "result": result,
+            "viewable": viewable_path(path) is not None,
+        })
+        return result
+
     def print_line_tui_actions():
         print("Actions:")
         print("  Services:")
@@ -24559,6 +24592,12 @@ def run_line_tui(cfg):
             elif cmd in {"unstage", "rmfile", "rm-file"}:
                 try:
                     unstage_line_file(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"view", "cat", "less"}:
+                try:
+                    view_line_path(" ".join(console_args[1:]).strip())
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -26729,6 +26768,7 @@ Operations:
   upload [--start] LOCAL [NAME] stage and optionally serve a local file
   downloads                     list target-fetchable staged files
   unstage NAME                  remove a staged file request
+  view PATH, cat PATH           view a local session/artifact path
   listeners [-v]                list listener services and start/stop commands
   routes [-v], route print      list bridge routes and hop details
   route add NAME LPORT HOST DPORT [HOP ...]
